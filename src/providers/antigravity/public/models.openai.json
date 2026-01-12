@@ -1,0 +1,110 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "chat_20706",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "chat_20706"
+    },
+    {
+      "id": "chat_23310",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "chat_23310"
+    },
+    {
+      "id": "claude-opus-4-5-thinking",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Claude Opus 4.5 Thinking"
+    },
+    {
+      "id": "claude-sonnet-4-5",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Claude Sonnet 4.5"
+    },
+    {
+      "id": "claude-sonnet-4-5-thinking",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Claude Sonnet 4.5 Thinking"
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 2.5 Flash"
+    },
+    {
+      "id": "gemini-2.5-flash-lite",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 2.5 Flash-Lite"
+    },
+    {
+      "id": "gemini-2.5-flash-thinking",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 2.5 Flash Thinking"
+    },
+    {
+      "id": "gemini-2.5-pro",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 2.5 Pro"
+    },
+    {
+      "id": "gemini-3-flash",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 3 Flash"
+    },
+    {
+      "id": "gemini-3-pro-high",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 3 Pro High"
+    },
+    {
+      "id": "gemini-3-pro-image",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 3 Pro Image"
+    },
+    {
+      "id": "gemini-3-pro-low",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "Gemini 3 Pro Low"
+    },
+    {
+      "id": "gpt-oss-120b-medium",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "GPT OSS 120B Medium"
+    },
+    {
+      "id": "rev19-uic3-1p",
+      "created": 1735689600,
+      "object": "model",
+      "owned_by": "antigravity",
+      "display_name": "rev19-uic3-1p"
+    }
+  ]
+}

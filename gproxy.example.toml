@@ -1,0 +1,204 @@
+# Example configuration for gproxy.
+
+[app]
+# Bind address for the main proxy runtime.
+host = "127.0.0.1"
+port = 8787
+
+# admin_key protects /admin endpoints. Generate a strong key for production.
+admin_key = "change-me"
+# api_key reserved for future non-admin endpoints.
+api_keys = ["change-me"]
+
+# Optional global proxy for all upstream requests.
+# Examples: "http://127.0.0.1:7890", "socks5://127.0.0.1:1080"
+# proxy = ""
+
+[storage]
+mode = "file" # "file" or "database" or "memory" or "s3"
+
+[storage.file]
+path = "./gproxy.toml"
+# Optional directory to store usage.jsonl / usage_view.jsonl (default: "./data").
+# data_dir = "./data"
+# Optional debounce for file writes in seconds (default 0).
+# debounce_secs = 0
+
+# Database example:
+# [storage.database]
+# uri = "postgres://user:pass@localhost:5432/gproxy"
+# # max_connections = 10
+# # min_connections = 1
+# # connect_timeout_secs = 10
+# # schema = "public"
+# # ssl_mode = "require"
+# # debounce_secs = 0
+
+# S3 example:
+# [storage.s3]
+# bucket = "my-bucket"
+# region = "us-east-1"
+# access_key = "AKIA..."
+# secret_key = "..."
+# # endpoint = "https://s3.amazonaws.com"
+# # path_style = false
+# # session_token = "..."
+# # use_tls = true
+# path = "gproxy.toml"
+# # debounce_secs = 10
+
+
+# ------------------------------------------------------------------------------
+# Providers
+# ------------------------------------------------------------------------------
+#
+# Each provider can be defined with [providers.<name>.setting] (shared) and
+# [[providers.<name>.credentials]]. Env overrides like
+# GPROXY_PROVIDERS__OPENAI__BASE_URL or GPROXY_PROVIDERS__OPENAI__KEY are
+# normalized into the same structure.
+
+# --- OpenAI ---
+# [providers.openai.setting]
+# base_url = "https://api.openai.com/v1"
+# rotate_num = 1
+
+[[providers.openai.credentials]]
+key = "sk-xxxx"
+state = "active"
+# until = 0
+
+# --- Codex ---
+# [providers.codex.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.codex.credentials]]
+id_token = "..."
+# refresh_token = ""
+# access_token = ""
+# account_id = ""
+# last_refresh = 0
+state = "active"
+# until = 0
+
+# --- Claude ---
+# [providers.claude.setting]
+# base_url = "https://api.anthropic.com"
+# rotate_num = 1
+
+[[providers.claude.credentials]]
+key = "sk-ant-xxxx"
+state = "active"
+# until = 0
+
+# --- Claude Code ---
+# [providers.claudecode.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.claudecode.credentials]]
+session_key = "sess-xxxx"
+# refresh_token = ""
+# access_token = ""
+# expires_at = 1234567890
+state = "active"
+# until = 0
+
+# --- AI Studio (Gemini) ---
+# [providers.aistudio.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.aistudio.credentials]]
+key = "xxxx"
+state = "active"
+# until = 0
+
+# --- Vertex AI ---
+# [providers.vertex.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.vertex.credentials]]
+type = "service_account"
+project_id = "your-project-id"
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "service-account@your-project.iam.gserviceaccount.com"
+# client_id = ""
+# auth_uri = "https://accounts.google.com/o/oauth2/auth"
+# token_uri = "https://oauth2.googleapis.com/token"
+# auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+# client_x509_cert_url = ""
+# universe_domain = "googleapis.com"
+# access_token = ""
+# expires_at = 0
+state = "active"
+# until = 0
+
+# --- Vertex Express ---
+# [providers.vertexexpress.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.vertexexpress.credentials]]
+key = "xxxx"
+state = "active"
+# until = 0
+
+# --- Gemini CLI ---
+# [providers.geminicli.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.geminicli.credentials]]
+project_id = "your-project-id"
+client_id = "..."
+client_secret = "..."
+# token = "..."
+# scope = ["https://www.googleapis.com/auth/cloud-platform"]
+# token_uri = "https://oauth2.googleapis.com/token"
+# expiry = "1970-01-01T00:00:00Z"
+state = "active"
+# until = 0
+
+# --- Antigravity ---
+# [providers.antigravity.setting]
+# base_url = "https://daily-cloudcode-pa.sandbox.googleapis.com"
+# rotate_num = 1
+
+[[providers.antigravity.credentials]]
+project_id = "your-project-id"
+client_id = "..."
+client_secret = "..."
+# token = "..."
+# scope = [
+#   "https://www.googleapis.com/auth/cloud-platform",
+#   "https://www.googleapis.com/auth/userinfo.email",
+#   "https://www.googleapis.com/auth/userinfo.profile",
+#   "https://www.googleapis.com/auth/cclog",
+#   "https://www.googleapis.com/auth/experimentsandconfigs"
+# ]
+# token_uri = "https://oauth2.googleapis.com/token"
+# expiry = "1970-01-01T00:00:00Z"
+state = "active"
+# until = 0
+
+# --- Nvidia ---
+# [providers.nvidia.setting]
+# base_url = ""
+# rotate_num = 1
+
+[[providers.nvidia.credentials]]
+key = "nvapi-xxxx"
+state = "active"
+# until = 0
+
+# --- DeepSeek ---
+# [providers.deepseek.setting]
+# base_url = "https://api.deepseek.com"
+# rotate_num = 1
+
+[[providers.deepseek.credentials]]
+key = "sk-xxxx"
+state = "active"
+# until = 0

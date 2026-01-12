@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>gproxy control panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        background: radial-gradient(circle at top, #f3f4f6 0%, #eef2ff 35%, #f8fafc 100%);
+      }
+      .card-shadow {
+        box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
+      }
+      .tab-track {
+        background: linear-gradient(145deg, #f8fafc, #e2e8f0);
+      }
+      .tab-pill-active {
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      }
+      .scrollbar-thin::-webkit-scrollbar {
+        height: 6px;
+        width: 6px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: rgba(15, 23, 42, 0.2);
+        border-radius: 999px;
+      }
+      .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen text-slate-800">
+    <div id="root"></div>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+/upstream_doc
+/tests/logs
+/target
+/data
+/samples
+/logs
+gproxy.toml

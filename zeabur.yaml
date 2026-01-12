@@ -1,0 +1,182 @@
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: gproxy
+spec:
+  description: "Multi-provider proxy with credential management and optional web UI"
+  tags:
+    - ai
+    - proxy
+    - openai
+    - claude
+    - gemini
+  variables:
+    - key: RUST_LOG
+      type: STRING
+      name: RUST_LOG
+      description: "Tracing filter (e.g. info, debug)"
+    - key: GPROXY_DEBUG_HTTP
+      type: STRING
+      name: GPROXY_DEBUG_HTTP
+      description: "Set 1/true to log upstream HTTP headers"
+    - key: GPROXY_STORAGE
+      type: STRING
+      name: GPROXY_STORAGE
+      description: "Storage backend: memory | file | database | s3"
+    - key: GPROXY_STORAGE_FILE_PATH
+      type: STRING
+      name: GPROXY_STORAGE_FILE_PATH
+      description: "File storage config path (default ./gproxy.toml)"
+    - key: GPROXY_STORAGE_FILE_DATA_DIR
+      type: STRING
+      name: GPROXY_STORAGE_FILE_DATA_DIR
+      description: "File storage usage data dir (default ./data)"
+    - key: GPROXY_STORAGE_FILE_DEBOUNCE_SECS
+      type: STRING
+      name: GPROXY_STORAGE_FILE_DEBOUNCE_SECS
+      description: "File storage debounce seconds (0 = immediate)"
+    - key: GPROXY_STORAGE_DB_URI
+      type: STRING
+      name: GPROXY_STORAGE_DB_URI
+      description: "Database URI (e.g. sqlite://gproxy.db)"
+    - key: GPROXY_STORAGE_DB_MAX_CONNECTIONS
+      type: STRING
+      name: GPROXY_STORAGE_DB_MAX_CONNECTIONS
+      description: "Database max connections"
+    - key: GPROXY_STORAGE_DB_MIN_CONNECTIONS
+      type: STRING
+      name: GPROXY_STORAGE_DB_MIN_CONNECTIONS
+      description: "Database min connections"
+    - key: GPROXY_STORAGE_DB_CONNECT_TIMEOUT_SECS
+      type: STRING
+      name: GPROXY_STORAGE_DB_CONNECT_TIMEOUT_SECS
+      description: "Database connect timeout seconds"
+    - key: GPROXY_STORAGE_DB_SCHEMA
+      type: STRING
+      name: GPROXY_STORAGE_DB_SCHEMA
+      description: "Database schema name"
+    - key: GPROXY_STORAGE_DB_SSL_MODE
+      type: STRING
+      name: GPROXY_STORAGE_DB_SSL_MODE
+      description: "Database SSL mode"
+    - key: GPROXY_STORAGE_DB_DEBOUNCE_SECS
+      type: STRING
+      name: GPROXY_STORAGE_DB_DEBOUNCE_SECS
+      description: "Database storage debounce seconds"
+    - key: GPROXY_STORAGE_S3_BUCKET
+      type: STRING
+      name: GPROXY_STORAGE_S3_BUCKET
+      description: "S3 bucket"
+    - key: GPROXY_STORAGE_S3_REGION
+      type: STRING
+      name: GPROXY_STORAGE_S3_REGION
+      description: "S3 region"
+    - key: GPROXY_STORAGE_S3_ACCESS_KEY
+      type: STRING
+      name: GPROXY_STORAGE_S3_ACCESS_KEY
+      description: "S3 access key"
+    - key: GPROXY_STORAGE_S3_SECRET_KEY
+      type: STRING
+      name: GPROXY_STORAGE_S3_SECRET_KEY
+      description: "S3 secret key"
+    - key: GPROXY_STORAGE_S3_ENDPOINT
+      type: STRING
+      name: GPROXY_STORAGE_S3_ENDPOINT
+      description: "S3 endpoint (optional)"
+    - key: GPROXY_STORAGE_S3_PATH_STYLE
+      type: STRING
+      name: GPROXY_STORAGE_S3_PATH_STYLE
+      description: "S3 path style (true/false)"
+    - key: GPROXY_STORAGE_S3_SESSION_TOKEN
+      type: STRING
+      name: GPROXY_STORAGE_S3_SESSION_TOKEN
+      description: "S3 session token (optional)"
+    - key: GPROXY_STORAGE_S3_USE_TLS
+      type: STRING
+      name: GPROXY_STORAGE_S3_USE_TLS
+      description: "S3 TLS toggle (true/false)"
+    - key: GPROXY_STORAGE_S3_PATH
+      type: STRING
+      name: GPROXY_STORAGE_S3_PATH
+      description: "S3 config object key (default gproxy.toml)"
+    - key: GPROXY_STORAGE_S3_DEBOUNCE_SECS
+      type: STRING
+      name: GPROXY_STORAGE_S3_DEBOUNCE_SECS
+      description: "S3 storage debounce seconds"
+  readme: |
+    # gproxy on Zeabur
+
+    This template exposes all supported environment variables.
+
+    Recommended (file storage with persistent volume):
+    - GPROXY_STORAGE=file
+    - GPROXY_STORAGE_FILE_PATH=/app/data/gproxy.toml
+    - GPROXY_STORAGE_FILE_DATA_DIR=/app/data
+
+    Important: update `/app/data/gproxy.toml` to set:
+    - app.host = "0.0.0.0"
+    - app.port = 8787
+
+    The config file is created on first run if missing.
+  services:
+    - name: gproxy
+      template: PREBUILT
+      spec:
+        id: gproxy
+        name: gproxy
+        source:
+          image: ghcr.io/leenhawk/gproxy:latest
+        ports:
+          - id: web
+            port: 8787
+            type: HTTP
+        env:
+          RUST_LOG:
+            default: ${RUST_LOG}
+          GPROXY_DEBUG_HTTP:
+            default: ${GPROXY_DEBUG_HTTP}
+          GPROXY_STORAGE:
+            default: ${GPROXY_STORAGE}
+          GPROXY_STORAGE_FILE_PATH:
+            default: ${GPROXY_STORAGE_FILE_PATH}
+          GPROXY_STORAGE_FILE_DATA_DIR:
+            default: ${GPROXY_STORAGE_FILE_DATA_DIR}
+          GPROXY_STORAGE_FILE_DEBOUNCE_SECS:
+            default: ${GPROXY_STORAGE_FILE_DEBOUNCE_SECS}
+          GPROXY_STORAGE_DB_URI:
+            default: ${GPROXY_STORAGE_DB_URI}
+          GPROXY_STORAGE_DB_MAX_CONNECTIONS:
+            default: ${GPROXY_STORAGE_DB_MAX_CONNECTIONS}
+          GPROXY_STORAGE_DB_MIN_CONNECTIONS:
+            default: ${GPROXY_STORAGE_DB_MIN_CONNECTIONS}
+          GPROXY_STORAGE_DB_CONNECT_TIMEOUT_SECS:
+            default: ${GPROXY_STORAGE_DB_CONNECT_TIMEOUT_SECS}
+          GPROXY_STORAGE_DB_SCHEMA:
+            default: ${GPROXY_STORAGE_DB_SCHEMA}
+          GPROXY_STORAGE_DB_SSL_MODE:
+            default: ${GPROXY_STORAGE_DB_SSL_MODE}
+          GPROXY_STORAGE_DB_DEBOUNCE_SECS:
+            default: ${GPROXY_STORAGE_DB_DEBOUNCE_SECS}
+          GPROXY_STORAGE_S3_BUCKET:
+            default: ${GPROXY_STORAGE_S3_BUCKET}
+          GPROXY_STORAGE_S3_REGION:
+            default: ${GPROXY_STORAGE_S3_REGION}
+          GPROXY_STORAGE_S3_ACCESS_KEY:
+            default: ${GPROXY_STORAGE_S3_ACCESS_KEY}
+          GPROXY_STORAGE_S3_SECRET_KEY:
+            default: ${GPROXY_STORAGE_S3_SECRET_KEY}
+          GPROXY_STORAGE_S3_ENDPOINT:
+            default: ${GPROXY_STORAGE_S3_ENDPOINT}
+          GPROXY_STORAGE_S3_PATH_STYLE:
+            default: ${GPROXY_STORAGE_S3_PATH_STYLE}
+          GPROXY_STORAGE_S3_SESSION_TOKEN:
+            default: ${GPROXY_STORAGE_S3_SESSION_TOKEN}
+          GPROXY_STORAGE_S3_USE_TLS:
+            default: ${GPROXY_STORAGE_S3_USE_TLS}
+          GPROXY_STORAGE_S3_PATH:
+            default: ${GPROXY_STORAGE_S3_PATH}
+          GPROXY_STORAGE_S3_DEBOUNCE_SECS:
+            default: ${GPROXY_STORAGE_S3_DEBOUNCE_SECS}
+        volumes:
+          - id: data
+            dir: /app/data

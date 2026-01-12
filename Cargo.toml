@@ -1,0 +1,105 @@
+[package]
+name = "gproxy"
+version = "0.1.0"
+edition = "2024"
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+async-stream = "0.3"
+futures-util = "0.3"
+
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout", "compression-gzip", "limit"] }
+
+wreq = { version = "6.0.0-rc.26", features = ["brotli", "charset", "cookies", "deflate", "form", "gzip", "json", "multipart", "query", "socks", "stream", "system-proxy", "tracing", "ws", "zstd"] }
+wreq-util = "3.0.0-rc.7"
+url = { version = "2", features = ["serde"] }
+
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+serde_valid = "2"
+
+config = "0.15"
+toml = "0.9"
+toml_edit = { version = "0.24", features = ["serde"] }
+dotenvy = "0.15"
+
+# Database
+sea-orm = { version = "2.0.0-rc.21", optional = true, features = ["macros", "runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres"] }
+sea-orm-migration = { version = "2.0.0-rc.21", optional = true, features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres", "with-time", "sea-orm-cli"] }
+
+# AWS S3
+rust-s3 = { version = "0.37", optional = true, default-features = false, features = ["tokio-rustls-tls", "tags", "fail-on-err"] }
+
+thiserror = "2"
+anyhow = "1"
+
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+arc-swap = "1"
+dashmap = "6"
+ambassador = "0.5"
+
+clap = { version = "4", features = ["derive", "env"] }
+rand = "0.9"
+base64 = "0.22"
+sha2 = "0.10"
+time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+tokenizers = { version = "0.22", optional = true } # deepseek tokenizers
+tiktoken-rs = { version = "0.9", optional = true } # codex tokenizers
+jsonwebtoken = { version = "10", optional = true, default-features = false, features = ["rust_crypto", "use_pem"] }
+
+rust-embed = { version = "8", optional = true, features = ["axum-ex", "compression", "include-exclude"] }
+
+[features]
+default = ["storage", "providers", "front"]
+
+oauth = []
+storage = ["storage-file", "storage-memory", "storage-s3", "storage-db"]
+storage-file = []
+storage-memory = []
+storage-s3 = ["dep:rust-s3"]
+storage-db = ["dep:sea-orm", "dep:sea-orm-migration"]
+
+front = ["dep:rust-embed"]
+front-debug = ["front", "rust-embed/debug-embed"]
+providers = [
+  "provider-openai",
+  "provider-claude",
+  "provider-claudecode",
+  "provider-codex",
+  "provider-aistudio",
+  "provider-vertex",
+  "provider-vertexexpress",
+  "provider-geminicli",
+  "provider-antigravity",
+  "provider-nvidia",
+  "provider-deepseek",
+]
+provider-openai = []
+provider-claude = []
+provider-claudecode = ["oauth"]
+provider-codex = ["dep:tiktoken-rs", "oauth"]
+provider-aistudio = []
+provider-vertex = ["dep:jsonwebtoken"]
+provider-vertexexpress = []
+provider-geminicli = ["oauth"]
+provider-antigravity = ["oauth"]
+provider-nvidia = []
+provider-deepseek = ["dep:tokenizers"]
+
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
