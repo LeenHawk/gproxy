@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/gproxy-protocol",
+  "crates/gproxy-transform",
+  "crates/gproxy-provider-core",
+  "crates/gproxy-provider-impl",
+  "crates/gproxy-storage",
+  "crates/gproxy-core",
+  "apps/gproxy",
+]
+
+[workspace.package]
+edition = "2024"
+license = "AGPL-3.0-or-later"
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
