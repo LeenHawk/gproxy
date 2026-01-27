@@ -137,6 +137,7 @@ pub enum BetaStreamEventKnown {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum BetaStreamEvent {
     Known(BetaStreamEventKnown),
     Unknown(JsonValue),
