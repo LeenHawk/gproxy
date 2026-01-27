@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 use crate::openai::create_chat_completions::types::{
     ChatCompletionFunctionCallChoice, ChatCompletionFunctions, ChatCompletionRequestAudio,
@@ -78,6 +79,10 @@ pub struct CreateChatCompletionRequestBody {
     pub functions: Option<Vec<ChatCompletionFunctions>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
+    /// Provider-specific extensions for OpenAI-compatible endpoints.
+    /// This is forwarded to adapters and parsed on a best-effort basis.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_body: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Range is 0..=2.0; generally avoid setting both temperature and top_p (not enforced here).
     pub temperature: Option<f64>,
