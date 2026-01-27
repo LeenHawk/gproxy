@@ -18,8 +18,7 @@ use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFunctionCallChoice, ChatCompletionFunctionCallMode,
     ChatCompletionFunctionCallOption, ChatCompletionMessageToolCall,
     ChatCompletionRequestAssistantMessage,
-    ChatCompletionRequestDeveloperMessage, ChatCompletionRequestFunctionMessage,
-    ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
+    ChatCompletionRequestFunctionMessage, ChatCompletionRequestMessage,
     ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage,
     ChatCompletionResponseFormat, ChatCompletionToolChoiceMode,
     ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
@@ -112,6 +111,7 @@ pub fn transform_request(request: CreateChatCompletionRequest) -> GeminiGenerate
 
     let tool_config = map_tool_config(request.body.tool_choice, request.body.function_call);
 
+    let model_id = model.strip_prefix("models/").unwrap_or(model.as_str());
     let (cached_content, extra_thinking_config) = map_extra_body(request.body.extra_body.as_ref());
     let generation_config = map_generation_config(
         request.body.max_completion_tokens,
@@ -123,6 +123,7 @@ pub fn transform_request(request: CreateChatCompletionRequest) -> GeminiGenerate
         request.body.modalities,
         request.body.reasoning_effort,
         extra_thinking_config,
+        model_id,
     );
 
     GeminiGenerateContentRequest {
@@ -161,10 +162,8 @@ fn map_assistant_message(
         parts.extend(map_assistant_content_to_parts(content));
     }
 
-    if let Some(refusal) = message.refusal {
-        if !refusal.is_empty() {
-            parts.push(text_part(refusal));
-        }
+    if let Some(refusal) = message.refusal && !refusal.is_empty() {
+        parts.push(text_part(refusal));
     }
 
     if let Some(tool_calls) = message.tool_calls {
@@ -177,7 +176,7 @@ fn map_assistant_message(
 
     if let Some(function_call) = message.function_call {
         let args = serde_json::from_str(&function_call.arguments)
-            .unwrap_or_else(|_| JsonValue::String(function_call.arguments));
+            .unwrap_or(JsonValue::String(function_call.arguments));
         parts.push(GeminiPart {
             text: None,
             inline_data: None,
@@ -334,12 +333,12 @@ fn map_assistant_content_to_parts(content: ChatCompletionAssistantContent) -> Ve
 
 fn map_tool_call_to_part(
     call: ChatCompletionMessageToolCall,
-    tool_call_index: &mut usize,
+    _tool_call_index: &mut usize,
 ) -> Option<GeminiPart> {
     match call {
         ChatCompletionMessageToolCall::Function { id, function } => {
             let args = serde_json::from_str(&function.arguments)
-                .unwrap_or_else(|_| JsonValue::String(function.arguments));
+                .unwrap_or(JsonValue::String(function.arguments));
             Some(GeminiPart {
                 text: None,
                 inline_data: None,
@@ -652,6 +651,7 @@ fn map_function_call_choice(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn map_generation_config(
     max_completion_tokens: Option<i64>,
     max_tokens: Option<i64>,
@@ -662,6 +662,7 @@ fn map_generation_config(
     modalities: Option<Vec<ResponseModality>>,
     reasoning_effort: Option<ReasoningEffort>,
     extra_thinking_config: Option<ThinkingConfig>,
+    model_id: &str,
 ) -> Option<GenerationConfig> {
     let max_output_tokens = max_completion_tokens.or(max_tokens).map(|value| value.max(0) as u32);
 
@@ -680,14 +681,14 @@ fn map_generation_config(
     let response_modalities = modalities.map(|modalities| {
         modalities
             .into_iter()
-            .filter_map(|modality| match modality {
-                ResponseModality::Text => Some(gproxy_protocol::gemini::count_tokens::types::Modality::Text),
-                ResponseModality::Audio => Some(gproxy_protocol::gemini::count_tokens::types::Modality::Audio),
+            .map(|modality| match modality {
+                ResponseModality::Text => gproxy_protocol::gemini::count_tokens::types::Modality::Text,
+                ResponseModality::Audio => gproxy_protocol::gemini::count_tokens::types::Modality::Audio,
             })
             .collect::<Vec<_>>()
     });
 
-    let thinking_config = extra_thinking_config.or_else(|| map_thinking_config(reasoning_effort));
+    let thinking_config = extra_thinking_config.or_else(|| map_thinking_config(reasoning_effort, model_id));
 
     if max_output_tokens.is_none()
         && temperature.is_none()
@@ -695,7 +696,7 @@ fn map_generation_config(
         && stop_sequences.is_none()
         && response_json_schema.is_none()
         && response_mime_type.is_none()
-        && response_modalities.as_ref().map_or(true, |m| m.is_empty())
+        && response_modalities.as_ref().is_none_or(|m| m.is_empty())
         && thinking_config.is_none()
     {
         return None;
@@ -742,8 +743,60 @@ fn map_response_format(
     }
 }
 
-fn map_thinking_config(reasoning_effort: Option<ReasoningEffort>) -> Option<ThinkingConfig> {
+fn map_thinking_config(reasoning_effort: Option<ReasoningEffort>, model_id: &str) -> Option<ThinkingConfig> {
     let effort = reasoning_effort?;
+    let model_id = model_id.to_ascii_lowercase();
+
+    if model_id.contains("gemini-2.5") {
+        let is_pro = model_id.contains("gemini-2.5-pro") || model_id.contains("gemini-2.5-pro-preview");
+        let budget = match effort {
+            ReasoningEffort::None => {
+                if is_pro {
+                    return None;
+                }
+                0
+            }
+            ReasoningEffort::Minimal | ReasoningEffort::Low => 1024,
+            ReasoningEffort::Medium => 8192,
+            ReasoningEffort::High | ReasoningEffort::XHigh => 24576,
+        };
+
+        return Some(ThinkingConfig {
+            include_thoughts: budget > 0,
+            thinking_budget: budget,
+            thinking_level: None,
+        });
+    }
+
+    if model_id.contains("gemini-3") {
+        let is_pro = model_id.contains("gemini-3-pro") || model_id.contains("gemini-3-pro-preview");
+        let thinking_level = match effort {
+            ReasoningEffort::None => None,
+            ReasoningEffort::Minimal => {
+                if is_pro {
+                    Some(ThinkingLevel::Low)
+                } else {
+                    Some(ThinkingLevel::Minimal)
+                }
+            }
+            ReasoningEffort::Low => Some(ThinkingLevel::Low),
+            ReasoningEffort::Medium => {
+                if is_pro {
+                    None
+                } else {
+                    Some(ThinkingLevel::Medium)
+                }
+            }
+            ReasoningEffort::High | ReasoningEffort::XHigh => Some(ThinkingLevel::High),
+        };
+
+        return thinking_level.map(|thinking_level| ThinkingConfig {
+            include_thoughts: true,
+            thinking_budget: 0,
+            thinking_level: Some(thinking_level),
+        });
+    }
+
     let thinking_level = match effort {
         ReasoningEffort::None => None,
         ReasoningEffort::Minimal => Some(ThinkingLevel::Minimal),
@@ -835,10 +888,9 @@ fn push_system_text(output: &mut Vec<String>, content: ChatCompletionTextContent
         }
         ChatCompletionTextContent::Parts(parts) => {
             for part in parts {
-                if let ChatCompletionTextContentPart::Text { text } = part {
-                    if !text.is_empty() {
-                        output.push(text);
-                    }
+                let ChatCompletionTextContentPart::Text { text } = part;
+                if !text.is_empty() {
+                    output.push(text);
                 }
             }
         }

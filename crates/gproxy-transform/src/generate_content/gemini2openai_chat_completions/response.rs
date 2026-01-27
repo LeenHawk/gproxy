@@ -56,17 +56,15 @@ fn map_message_to_content(
 ) -> GeminiContent {
     let mut parts = Vec::new();
 
-    if let Some(text) = &message.content {
-        if !text.is_empty() {
+    if let Some(text) = &message.content
+        && !text.is_empty() {
             parts.push(text_part(text.clone()));
         }
-    }
 
-    if let Some(refusal) = &message.refusal {
-        if !refusal.is_empty() {
+    if let Some(refusal) = &message.refusal
+        && !refusal.is_empty() {
             parts.push(text_part(refusal.clone()));
         }
-    }
 
     if let Some(tool_calls) = &message.tool_calls {
         for call in tool_calls {

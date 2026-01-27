@@ -94,8 +94,8 @@ fn map_message_to_output(
 ) -> Option<OutputMessage> {
     let mut contents = Vec::new();
 
-    if let Some(content) = &message.content {
-        if !content.is_empty() {
+    if let Some(content) = &message.content
+        && !content.is_empty() {
             contents.push(OutputMessageContent::OutputText(
                 gproxy_protocol::openai::create_response::types::OutputTextContent {
                     text: content.clone(),
@@ -104,17 +104,15 @@ fn map_message_to_output(
                 },
             ));
         }
-    }
 
-    if let Some(refusal) = &message.refusal {
-        if !refusal.is_empty() {
+    if let Some(refusal) = &message.refusal
+        && !refusal.is_empty() {
             contents.push(OutputMessageContent::Refusal(
                 gproxy_protocol::openai::create_response::types::RefusalContent {
                     refusal: refusal.clone(),
                 },
             ));
         }
-    }
 
     if contents.is_empty() {
         return None;
@@ -178,11 +176,10 @@ fn extract_output_text(output: &[OutputItem]) -> Option<String> {
     for item in output {
         if let OutputItem::Message(message) = item {
             for content in &message.content {
-                if let OutputMessageContent::OutputText(text) = content {
-                    if !text.text.is_empty() {
+                if let OutputMessageContent::OutputText(text) = content
+                    && !text.text.is_empty() {
                         return Some(text.text.clone());
                     }
-                }
             }
         }
     }

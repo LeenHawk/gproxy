@@ -20,13 +20,10 @@ use gproxy_protocol::claude::count_tokens::types::{
     BetaToolResultBlockParam as ClaudeToolResultBlock,
     BetaToolResultBlockType as ClaudeToolResultBlockType,
     BetaToolResultContent as ClaudeToolResultContent,
-    BetaToolResultContentBlockParam as ClaudeToolResultContentBlock,
     BetaToolUseBlockParam as ClaudeToolUseBlock,
     BetaToolUseBlockType as ClaudeToolUseBlockType,
     BetaUserLocation as ClaudeUserLocation,
     BetaWebSearchTool as ClaudeWebSearchTool,
-    BetaJSONOutputFormat as ClaudeJSONOutputFormat,
-    BetaJSONOutputFormatType as ClaudeJSONOutputFormatType,
     BetaOutputConfig as ClaudeOutputConfig,
     BetaOutputEffort as ClaudeOutputEffort,
     BetaThinkingConfigParam as ClaudeThinkingConfigParam,
@@ -47,8 +44,8 @@ use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionRequestUserMessage, ChatCompletionTextContent, ChatCompletionTextContentPart,
     ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
     ChatCompletionUserContent, ChatCompletionUserContentPart, ChatCompletionImageUrl,
-    ChatCompletionInputFile, CustomToolDefinition, FunctionObject, JsonSchema, ReasoningEffort,
-    WebSearchOptions, WebSearchUserLocation, WebSearchUserLocationType,
+    ChatCompletionInputFile, CustomToolDefinition, FunctionObject, ReasoningEffort,
+    WebSearchOptions, WebSearchUserLocation,
 };
 use serde_json::Value as JsonValue;
 
@@ -78,7 +75,8 @@ pub fn transform_request(request: OpenAIChatCompletionRequest) -> ClaudeCreateMe
     };
 
     let max_tokens = map_max_tokens(&request.body);
-    let metadata = map_metadata(&request.body);
+    // Claude OpenAI-compat: metadata/user are ignored.
+    let metadata = None;
 
     let (tools, web_search_tool) = map_tools(request.body.tools, request.body.functions);
     let tools = merge_web_search_tool(tools, web_search_tool, request.body.web_search_options);
@@ -112,13 +110,15 @@ pub fn transform_request(request: OpenAIChatCompletionRequest) -> ClaudeCreateMe
         ClaudeToolChoice::None => ClaudeToolChoice::None,
     });
 
+    // Claude OpenAI-compat: ignore reasoning_effort; use extra_body.thinking when provided.
     let extra_thinking = map_extra_body_thinking(request.body.extra_body.as_ref());
-    let (mut thinking, mut output_config) = map_reasoning(request.body.reasoning_effort);
+    let (mut thinking, mut output_config) = map_reasoning(None);
     if let Some(extra_thinking) = extra_thinking {
         thinking = Some(extra_thinking);
         output_config = None;
     }
-    let output_format = map_response_format(request.body.response_format.clone());
+    // Claude OpenAI-compat: response_format is ignored.
+    let output_format = None;
     let stop_sequences = map_stop_sequences(request.body.stop.clone());
 
     ClaudeCreateMessageRequest {
@@ -137,7 +137,7 @@ pub fn transform_request(request: OpenAIChatCompletionRequest) -> ClaudeCreateMe
             stop_sequences,
             stream: request.body.stream,
             system,
-            temperature: request.body.temperature,
+            temperature: map_temperature(request.body.temperature),
             thinking,
             tool_choice,
             tools,
@@ -299,8 +299,9 @@ fn map_text_content_to_string(content: ChatCompletionTextContent) -> String {
         ChatCompletionTextContent::Text(text) => text,
         ChatCompletionTextContent::Parts(parts) => parts
             .into_iter()
-            .filter_map(|part| match part {
-                ChatCompletionTextContentPart::Text { text } => Some(text),
+            .map(|part| {
+                let ChatCompletionTextContentPart::Text { text } = part;
+                text
             })
             .collect::<Vec<String>>()
             .join("\n"),
@@ -308,16 +309,16 @@ fn map_text_content_to_string(content: ChatCompletionTextContent) -> String {
 }
 
 fn map_image_url(image: &ChatCompletionImageUrl) -> Option<ClaudeContentBlockParam> {
-    if let Some((media_type, data)) = parse_data_url(&image.url) {
-        if let Some(media_type) = map_image_media_type(&media_type) {
-            return Some(ClaudeContentBlockParam::Image(ClaudeImageBlockParam {
-                source: ClaudeImageSource::Base64 { data, media_type },
-                r#type: ClaudeImageBlockType::Image,
-                cache_control: None,
-            }));
-        }
-        // Unknown MIME type: fall back to URL with data URI.
+    if let Some((media_type, data)) = parse_data_url(&image.url)
+        && let Some(media_type) = map_image_media_type(&media_type)
+    {
+        return Some(ClaudeContentBlockParam::Image(ClaudeImageBlockParam {
+            source: ClaudeImageSource::Base64 { data, media_type },
+            r#type: ClaudeImageBlockType::Image,
+            cache_control: None,
+        }));
     }
+    // Unknown MIME type: fall back to URL with data URI.
 
     Some(ClaudeContentBlockParam::Image(ClaudeImageBlockParam {
         source: ClaudeImageSource::Url {
@@ -407,7 +408,7 @@ fn map_tools(
     functions: Option<Vec<gproxy_protocol::openai::create_chat_completions::types::ChatCompletionFunctions>>,
 ) -> (Option<Vec<ClaudeTool>>, Option<ClaudeWebSearchTool>) {
     let mut output = Vec::new();
-    let mut web_search = None;
+    let web_search = None;
 
     if let Some(tools) = tools {
         for tool in tools {
@@ -492,7 +493,8 @@ fn map_function_tool(function: FunctionObject) -> ClaudeToolCustom {
         defer_loading: None,
         description: function.description,
         input_examples: None,
-        strict: function.strict,
+        // Claude OpenAI-compat: strict is ignored.
+        strict: None,
         r#type: Some(gproxy_protocol::claude::count_tokens::types::BetaToolCustomType::Custom),
     }
 }
@@ -545,7 +547,7 @@ fn map_tool_choice(
     parallel_tool_calls: Option<bool>,
 ) -> (Option<ClaudeToolChoice>, Option<bool>) {
     let disable_parallel = parallel_tool_calls.map(|value| !value);
-    let (choice, disable_parallel) = match tool_choice {
+    let (choice, disable_parallel_override) = match tool_choice {
         Some(ChatCompletionToolChoiceOption::Mode(mode)) => (
             Some(match mode {
                 ChatCompletionToolChoiceMode::None => ClaudeToolChoice::None,
@@ -598,7 +600,7 @@ fn map_tool_choice(
     };
 
     if choice.is_some() {
-        return (choice, disable_parallel);
+        return (choice, disable_parallel_override.or(disable_parallel));
     }
 
     let function_choice = match function_call {
@@ -670,51 +672,30 @@ fn map_extra_body_thinking(extra_body: Option<&JsonValue>) -> Option<ClaudeThink
     }
 }
 
-fn map_response_format(
-    format: Option<gproxy_protocol::openai::create_chat_completions::types::ChatCompletionResponseFormat>,
-) -> Option<ClaudeJSONOutputFormat> {
-    match format {
-        Some(gproxy_protocol::openai::create_chat_completions::types::ChatCompletionResponseFormat::JsonObject) => {
-            Some(ClaudeJSONOutputFormat {
-                schema: minimal_object_schema(),
-                r#type: ClaudeJSONOutputFormatType::JsonSchema,
-            })
-        }
-        Some(gproxy_protocol::openai::create_chat_completions::types::ChatCompletionResponseFormat::JsonSchema { json_schema }) => {
-            let schema = json_schema
-                .schema
-                .and_then(|schema| serde_json::to_value(schema).ok())
-                .unwrap_or_else(minimal_object_schema);
-            Some(ClaudeJSONOutputFormat {
-                schema,
-                r#type: ClaudeJSONOutputFormatType::JsonSchema,
-            })
-        }
-        _ => None,
-    }
-}
-
-fn minimal_object_schema() -> JsonValue {
-    let mut map = serde_json::Map::new();
-    map.insert("type".to_string(), JsonValue::String("object".to_string()));
-    JsonValue::Object(map)
-}
-
 fn map_stop_sequences(stop: Option<gproxy_protocol::openai::create_chat_completions::request::StopConfiguration>) -> Option<Vec<String>> {
     match stop {
-        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Single(value)) => Some(vec![value]),
-        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Many(values)) => Some(values),
+        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Single(value)) => {
+            let value = value.trim();
+            if value.is_empty() {
+                None
+            } else {
+                Some(vec![value.to_string()])
+            }
+        }
+        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Many(values)) => {
+            let values: Vec<String> = values
+                .into_iter()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect();
+            if values.is_empty() { None } else { Some(values) }
+        }
         None => None,
     }
 }
 
-fn map_metadata(body: &gproxy_protocol::openai::create_chat_completions::request::CreateChatCompletionRequestBody) -> Option<gproxy_protocol::claude::create_message::types::BetaMetadata> {
-    let user_id = body
-        .user
-        .clone()
-        .or_else(|| body.metadata.as_ref().and_then(|meta| meta.get("user_id").cloned()));
-
-    user_id.map(|user_id| gproxy_protocol::claude::create_message::types::BetaMetadata { user_id: Some(user_id) })
+fn map_temperature(temperature: Option<f64>) -> Option<f64> {
+    temperature.map(|value| value.clamp(0.0, 1.0))
 }
 
 fn map_max_tokens(body: &gproxy_protocol::openai::create_chat_completions::request::CreateChatCompletionRequestBody) -> u32 {
@@ -759,9 +740,8 @@ fn push_system_text(system_texts: &mut Vec<String>, content: ChatCompletionTextC
         ChatCompletionTextContent::Text(text) => system_texts.push(text),
         ChatCompletionTextContent::Parts(parts) => {
             for part in parts {
-                if let ChatCompletionTextContentPart::Text { text } = part {
-                    system_texts.push(text);
-                }
+                let ChatCompletionTextContentPart::Text { text } = part;
+                system_texts.push(text);
             }
         }
     }

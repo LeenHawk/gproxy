@@ -360,10 +360,7 @@ fn map_pdf_media_type(
 }
 
 fn map_tools(tools: Option<Vec<ClaudeTool>>) -> Option<Vec<GeminiTool>> {
-    let tools = match tools {
-        Some(tools) => tools,
-        None => return None,
-    };
+    let tools = tools?;
 
     let mut output = Vec::new();
     let mut functions = Vec::new();
@@ -505,10 +502,7 @@ fn map_web_search_tool(_tool: ClaudeWebSearchTool) -> GoogleSearch {
 }
 
 fn map_tool_choice(choice: Option<ClaudeToolChoice>) -> Option<ToolConfig> {
-    let choice = match choice {
-        Some(choice) => choice,
-        None => return None,
-    };
+    let choice = choice?;
 
     let function_calling_config = match choice {
         ClaudeToolChoice::None => FunctionCallingConfig {
@@ -535,6 +529,7 @@ fn map_tool_choice(choice: Option<ClaudeToolChoice>) -> Option<ToolConfig> {
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn map_generation_config(
     max_tokens: u32,
     temperature: Option<f64>,

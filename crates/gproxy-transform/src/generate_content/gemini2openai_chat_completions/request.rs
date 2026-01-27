@@ -19,7 +19,7 @@ use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage,
     ChatCompletionResponseFormat, ChatCompletionToolChoiceMode,
     ChatCompletionToolChoiceOption, ChatCompletionToolDefinition, ChatCompletionUserContent,
-    ChatCompletionUserContentPart, ChatCompletionTextContent, ChatCompletionTextContentPart,
+    ChatCompletionUserContentPart, ChatCompletionTextContent,
     ChatCompletionAssistantContent, ChatCompletionAssistantContentPart, ChatCompletionImageUrl,
     ChatCompletionInputFile, FunctionObject, ReasoningEffort, ResponseFormatJsonSchema,
     ResponseModality, WebSearchOptions,
@@ -38,11 +38,10 @@ pub fn transform_request(request: GeminiGenerateContentRequest) -> CreateChatCom
     let mut messages = Vec::new();
     let mut tool_call_index = 0usize;
 
-    if let Some(system_instruction) = request.body.system_instruction {
-        if let Some(message) = map_system_instruction(system_instruction) {
+    if let Some(system_instruction) = request.body.system_instruction
+        && let Some(message) = map_system_instruction(system_instruction) {
             messages.push(message);
         }
-    }
 
     for content in request.body.contents {
         messages.extend(map_content_to_messages(content, &mut tool_call_index));
@@ -186,29 +185,25 @@ fn map_parts_for_user(
     let mut tool_responses = Vec::new();
 
     for part in parts {
-        if let Some(text) = part.text.clone() {
-            if !text.is_empty() {
+        if let Some(text) = part.text.clone()
+            && !text.is_empty() {
                 user_parts.push(ChatCompletionUserContentPart::Text { text });
             }
-        }
 
-        if let Some(blob) = &part.inline_data {
-            if let Some(part) = map_inline_blob_to_user_part(blob) {
+        if let Some(blob) = &part.inline_data
+            && let Some(part) = map_inline_blob_to_user_part(blob) {
                 user_parts.push(part);
             }
-        }
 
-        if let Some(file) = &part.file_data {
-            if let Some(part) = map_file_data_to_user_part(file) {
+        if let Some(file) = &part.file_data
+            && let Some(part) = map_file_data_to_user_part(file) {
                 user_parts.push(part);
             }
-        }
 
-        if let Some(response) = &part.function_response {
-            if let Some(tool_message) = map_function_response_to_tool_message(response, tool_call_index) {
+        if let Some(response) = &part.function_response
+            && let Some(tool_message) = map_function_response_to_tool_message(response, tool_call_index) {
                 tool_responses.push(tool_message);
             }
-        }
 
         if let Some(function_call) = &part.function_call {
             // Gemini function calls in user content have no direct Chat Completions input equivalent.
@@ -248,11 +243,10 @@ fn map_parts_for_assistant(
     let mut tool_calls = Vec::new();
 
     for part in parts {
-        if let Some(text) = part.text.clone() {
-            if !text.is_empty() {
+        if let Some(text) = part.text.clone()
+            && !text.is_empty() {
                 texts.push(ChatCompletionAssistantContentPart::Text { text });
             }
-        }
 
         if let Some(function_call) = &part.function_call {
             let id = function_call
@@ -334,8 +328,8 @@ fn map_inline_blob_to_user_part(blob: &GeminiBlob) -> Option<ChatCompletionUserC
 }
 
 fn map_file_data_to_user_part(file: &GeminiFileData) -> Option<ChatCompletionUserContentPart> {
-    if let Some(mime_type) = &file.mime_type {
-        if mime_type.starts_with("image/") {
+    if let Some(mime_type) = &file.mime_type
+        && mime_type.starts_with("image/") {
             return Some(ChatCompletionUserContentPart::ImageUrl {
                 image_url: ChatCompletionImageUrl {
                     url: file.file_uri.clone(),
@@ -343,7 +337,6 @@ fn map_file_data_to_user_part(file: &GeminiFileData) -> Option<ChatCompletionUse
                 },
             });
         }
-    }
 
     Some(ChatCompletionUserContentPart::Text {
         text: format!("[file:{}]", file.file_uri),
@@ -406,10 +399,7 @@ fn next_tool_call_id(counter: &mut usize) -> String {
 }
 
 fn map_tools(tools: Option<Vec<GeminiTool>>) -> Option<Vec<ChatCompletionToolDefinition>> {
-    let tools = match tools {
-        Some(tools) => tools,
-        None => return None,
-    };
+    let tools = tools?;
 
     let mut output = Vec::new();
     for tool in tools {

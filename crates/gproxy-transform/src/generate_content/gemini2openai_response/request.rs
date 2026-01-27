@@ -182,8 +182,8 @@ fn push_inline_blob(contents: &mut Vec<InputContent>, blob: &GeminiBlob) {
 }
 
 fn push_file_data(contents: &mut Vec<InputContent>, file: &GeminiFileData) {
-    if let Some(mime_type) = &file.mime_type {
-        if mime_type.starts_with("image/") {
+    if let Some(mime_type) = &file.mime_type
+        && mime_type.starts_with("image/") {
             contents.push(InputContent::InputImage(InputImageContent {
                 image_url: Some(file.file_uri.clone()),
                 file_id: None,
@@ -191,7 +191,6 @@ fn push_file_data(contents: &mut Vec<InputContent>, file: &GeminiFileData) {
             }));
             return;
         }
-    }
 
     contents.push(InputContent::InputFile(InputFileContent {
         file_id: None,

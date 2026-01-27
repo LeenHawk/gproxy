@@ -57,15 +57,14 @@ fn map_content_to_blocks(content: &GeminiContent) -> Vec<BetaContentBlock> {
 fn map_part_to_blocks(part: &GeminiPart) -> Vec<BetaContentBlock> {
     let mut blocks = Vec::new();
 
-    if let Some(text) = part.text.clone() {
-        if !text.is_empty() {
+    if let Some(text) = part.text.clone()
+        && !text.is_empty() {
             blocks.push(BetaContentBlock::Text(BetaTextBlock {
                 citations: None,
                 text,
                 r#type: BetaTextBlockType::Text,
             }));
         }
-    }
 
     if let Some(function_call) = &part.function_call {
         let input = map_json_object(function_call.args.as_ref());
@@ -92,25 +91,23 @@ fn map_part_to_blocks(part: &GeminiPart) -> Vec<BetaContentBlock> {
         }
     }
 
-    if let Some(code) = &part.executable_code {
-        if let Ok(text) = serde_json::to_string(code) {
+    if let Some(code) = &part.executable_code
+        && let Ok(text) = serde_json::to_string(code) {
             blocks.push(BetaContentBlock::Text(BetaTextBlock {
                 citations: None,
                 text,
                 r#type: BetaTextBlockType::Text,
             }));
         }
-    }
 
-    if let Some(result) = &part.code_execution_result {
-        if let Ok(text) = serde_json::to_string(result) {
+    if let Some(result) = &part.code_execution_result
+        && let Ok(text) = serde_json::to_string(result) {
             blocks.push(BetaContentBlock::Text(BetaTextBlock {
                 citations: None,
                 text,
                 r#type: BetaTextBlockType::Text,
             }));
         }
-    }
 
     if part.inline_data.is_some() {
         blocks.push(BetaContentBlock::Text(BetaTextBlock {

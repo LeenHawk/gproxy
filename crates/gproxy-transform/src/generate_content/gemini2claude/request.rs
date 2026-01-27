@@ -154,17 +154,15 @@ fn map_part_to_blocks(part: &GeminiPart) -> Vec<ClaudeContentBlockParam> {
         push_text_block(&mut blocks, text);
     }
 
-    if let Some(blob) = &part.inline_data {
-        if let Some(block) = map_inline_blob(blob) {
+    if let Some(blob) = &part.inline_data
+        && let Some(block) = map_inline_blob(blob) {
             blocks.push(block);
         }
-    }
 
-    if let Some(file) = &part.file_data {
-        if let Some(block) = map_file_data(file) {
+    if let Some(file) = &part.file_data
+        && let Some(block) = map_file_data(file) {
             blocks.push(block);
         }
-    }
 
     if let Some(function_call) = &part.function_call {
         push_json_block(&mut blocks, "function_call", function_call);
@@ -223,8 +221,8 @@ fn map_inline_blob(blob: &GeminiBlob) -> Option<ClaudeContentBlockParam> {
 }
 
 fn map_file_data(file: &GeminiFileData) -> Option<ClaudeContentBlockParam> {
-    if let Some(mime_type) = &file.mime_type {
-        if mime_type.starts_with("image/") {
+    if let Some(mime_type) = &file.mime_type
+        && mime_type.starts_with("image/") {
             return Some(ClaudeContentBlockParam::Image(ClaudeImageBlockParam {
                 source: ClaudeImageSource::Url {
                     url: file.file_uri.clone(),
@@ -233,7 +231,6 @@ fn map_file_data(file: &GeminiFileData) -> Option<ClaudeContentBlockParam> {
                 cache_control: None,
             }));
         }
-    }
 
     Some(ClaudeContentBlockParam::Document(ClaudeDocumentBlock {
         source: ClaudeDocumentSource::Url {
@@ -465,14 +462,13 @@ fn map_tool_choice(tool_config: Option<ToolConfig>) -> Option<ClaudeToolChoice> 
             })
         }
         FunctionCallingMode::Any | FunctionCallingMode::Validated => {
-            if let Some(names) = config.allowed_function_names {
-                if names.len() == 1 {
+            if let Some(names) = config.allowed_function_names
+                && names.len() == 1 {
                     return Some(ClaudeToolChoice::Tool {
                         name: names[0].clone(),
                         disable_parallel_tool_use: None,
                     });
                 }
-            }
             Some(ClaudeToolChoice::Any {
                 disable_parallel_tool_use: None,
             })
@@ -480,6 +476,7 @@ fn map_tool_choice(tool_config: Option<ToolConfig>) -> Option<ClaudeToolChoice> 
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn map_generation_config(
     generation_config: Option<GenerationConfig>,
 ) -> (

@@ -1,6 +1,6 @@
 use gproxy_protocol::claude::create_message::response::CreateMessageResponse as ClaudeCreateMessageResponse;
 use gproxy_protocol::claude::create_message::types::{
-    BetaContentBlock, BetaMessage, BetaStopReason, BetaTextBlock, BetaTextBlockType, BetaToolUseBlock,
+    BetaContentBlock, BetaMessage, BetaStopReason, BetaToolUseBlock,
 };
 use gproxy_protocol::openai::create_chat_completions::response::{
     ChatCompletionChoice, CreateChatCompletionResponse,

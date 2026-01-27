@@ -47,25 +47,23 @@ pub fn transform_response(response: CreateChatCompletionResponse) -> ClaudeCreat
 fn map_response_message(message: &ChatCompletionResponseMessage) -> Vec<BetaContentBlock> {
     let mut blocks = Vec::new();
 
-    if let Some(content) = &message.content {
-        if !content.is_empty() {
+    if let Some(content) = &message.content
+        && !content.is_empty() {
             blocks.push(BetaContentBlock::Text(BetaTextBlock {
                 citations: None,
                 text: content.clone(),
                 r#type: BetaTextBlockType::Text,
             }));
         }
-    }
 
-    if let Some(refusal) = &message.refusal {
-        if !refusal.is_empty() {
+    if let Some(refusal) = &message.refusal
+        && !refusal.is_empty() {
             blocks.push(BetaContentBlock::Text(BetaTextBlock {
                 citations: None,
                 text: refusal.clone(),
                 r#type: BetaTextBlockType::Text,
             }));
         }
-    }
 
     if let Some(tool_calls) = &message.tool_calls {
         for tool_call in tool_calls {

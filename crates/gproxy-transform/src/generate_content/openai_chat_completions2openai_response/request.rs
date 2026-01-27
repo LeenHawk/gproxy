@@ -200,18 +200,17 @@ fn map_assistant_output_message(
 ) -> Option<OutputMessage> {
     let mut content = Vec::new();
 
-    if let Some(refusal) = &message.refusal {
-        if !refusal.is_empty() {
+    if let Some(refusal) = &message.refusal
+        && !refusal.is_empty() {
             content.push(OutputMessageContent::Refusal(
                 gproxy_protocol::openai::create_response::types::RefusalContent {
                     refusal: refusal.clone(),
                 },
             ));
         }
-    }
 
-    if let Some(text) = message.content.as_ref().and_then(map_assistant_content_to_text) {
-        if !text.is_empty() {
+    if let Some(text) = message.content.as_ref().and_then(map_assistant_content_to_text)
+        && !text.is_empty() {
             content.push(OutputMessageContent::OutputText(
                 gproxy_protocol::openai::create_response::types::OutputTextContent {
                     text,
@@ -220,7 +219,6 @@ fn map_assistant_output_message(
                 },
             ));
         }
-    }
 
     if content.is_empty() {
         return None;
@@ -327,14 +325,13 @@ fn map_text_content_to_easy_content(
         ChatCompletionTextContent::Parts(parts) => {
             let mut items = Vec::new();
             for part in parts {
-                if let ChatCompletionTextContentPart::Text { text } = part {
-                    if !text.is_empty() {
-                        items.push(InputContent::InputText(
-                            gproxy_protocol::openai::create_response::types::InputTextContent {
-                                text,
-                            },
-                        ));
-                    }
+                let ChatCompletionTextContentPart::Text { text } = part;
+                if !text.is_empty() {
+                    items.push(InputContent::InputText(
+                        gproxy_protocol::openai::create_response::types::InputTextContent {
+                            text,
+                        },
+                    ));
                 }
             }
             if items.is_empty() {

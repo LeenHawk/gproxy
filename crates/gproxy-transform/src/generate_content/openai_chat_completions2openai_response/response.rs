@@ -14,13 +14,11 @@ use gproxy_protocol::openai::create_response::types::{
 /// Convert an OpenAI responses response into an OpenAI chat-completions response.
 pub fn transform_response(response: Response) -> CreateChatCompletionResponse {
     let (mut message_texts, refusal_texts, tool_calls) = extract_message_parts(&response.output);
-    if message_texts.is_empty() {
-        if let Some(output_text) = &response.output_text {
-            if !output_text.is_empty() {
+    if message_texts.is_empty()
+        && let Some(output_text) = &response.output_text
+            && !output_text.is_empty() {
                 message_texts.push(output_text.clone());
             }
-        }
-    }
 
     let content = if message_texts.is_empty() {
         None
@@ -131,11 +129,10 @@ fn map_finish_reason(
     response: &Response,
     message: &ChatCompletionResponseMessage,
 ) -> ChatCompletionFinishReason {
-    if let Some(tool_calls) = &message.tool_calls {
-        if !tool_calls.is_empty() {
+    if let Some(tool_calls) = &message.tool_calls
+        && !tool_calls.is_empty() {
             return ChatCompletionFinishReason::ToolCalls;
         }
-    }
 
     if let Some(details) = &response.incomplete_details {
         return match details.reason {

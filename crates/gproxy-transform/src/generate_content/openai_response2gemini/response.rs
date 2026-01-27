@@ -88,11 +88,10 @@ fn map_candidate_message(
     let mut tool_call_counter = 0usize;
 
     for part in &candidate.content.parts {
-        if let Some(text) = part.text.clone() {
-            if !text.is_empty() {
+        if let Some(text) = part.text.clone()
+            && !text.is_empty() {
                 texts.push(text);
             }
-        }
 
         if let Some(function_call) = &part.function_call {
             let call_id = function_call
@@ -115,29 +114,23 @@ fn map_candidate_message(
             });
         }
 
-        if let Some(function_response) = &part.function_response {
-            if let Ok(text) = serde_json::to_string(function_response) {
-                if !text.is_empty() {
+        if let Some(function_response) = &part.function_response
+            && let Ok(text) = serde_json::to_string(function_response)
+                && !text.is_empty() {
                     texts.push(text);
                 }
-            }
-        }
 
-        if let Some(code) = &part.executable_code {
-            if let Ok(text) = serde_json::to_string(code) {
-                if !text.is_empty() {
+        if let Some(code) = &part.executable_code
+            && let Ok(text) = serde_json::to_string(code)
+                && !text.is_empty() {
                     texts.push(text);
                 }
-            }
-        }
 
-        if let Some(result) = &part.code_execution_result {
-            if let Ok(text) = serde_json::to_string(result) {
-                if !text.is_empty() {
+        if let Some(result) = &part.code_execution_result
+            && let Ok(text) = serde_json::to_string(result)
+                && !text.is_empty() {
                     texts.push(text);
                 }
-            }
-        }
 
         if part.inline_data.is_some() {
             texts.push("[inline_data]".to_string());
@@ -194,11 +187,10 @@ fn extract_output_text(output: &[OutputItem]) -> Option<String> {
     for item in output {
         if let OutputItem::Message(message) = item {
             for content in &message.content {
-                if let OutputMessageContent::OutputText(text) = content {
-                    if !text.text.is_empty() {
+                if let OutputMessageContent::OutputText(text) = content
+                    && !text.text.is_empty() {
                         return Some(text.text.clone());
                     }
-                }
             }
         }
     }

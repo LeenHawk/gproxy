@@ -31,7 +31,7 @@ use gproxy_protocol::openai::create_response::types::{
     FunctionTool, InputContent, InputFileContent, InputImageContent, InputItem, InputMessage,
     InputMessageRole, InputParam, InputTextContent, Instructions, MCPAllowedTools, MCPTool,
     Reasoning, ReasoningEffort, ResponseTextParam, TextResponseFormatConfiguration, Tool,
-    ToolChoiceParam, ToolChoiceOptions, ToolChoiceFunction, ToolChoiceFunctionType,
+    ToolChoiceParam, ToolChoiceOptions,
     WebSearchApproximateLocation, WebSearchFilters, WebSearchTool, CodeInterpreterContainer,
     CodeInterpreterContainerParams, CodeInterpreterTool, ComputerEnvironment, ComputerUsePreviewTool,
     FileSearchTool, FunctionShellTool,

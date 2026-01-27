@@ -1,11 +1,10 @@
 use gproxy_protocol::gemini::count_tokens::types::{Content as GeminiContent, Part as GeminiPart};
 use gproxy_protocol::gemini::generate_content::response::GenerateContentResponse as GeminiGenerateContentResponse;
 use gproxy_protocol::gemini::generate_content::types::{Candidate, FinishReason, UsageMetadata};
-use gproxy_protocol::openai::create_response::response::{Response, ResponseObjectType};
+use gproxy_protocol::openai::create_response::response::Response;
 use gproxy_protocol::openai::create_response::types::{
-    CustomToolCall, FunctionToolCall, OutputItem, OutputMessageContent, ResponseIncompleteDetails,
-    ResponseIncompleteReason, ResponseStatus, ResponseUsage, ResponseUsageInputTokensDetails,
-    ResponseUsageOutputTokensDetails,
+    CustomToolCall, FunctionToolCall, OutputItem, OutputMessageContent, ResponseIncompleteReason,
+    ResponseStatus, ResponseUsage,
 };
 use serde_json::Value as JsonValue;
 
@@ -17,13 +16,11 @@ pub fn transform_response(response: Response) -> GeminiGenerateContentResponse {
         parts.extend(map_output_item(item));
     }
 
-    if parts.is_empty() {
-        if let Some(output_text) = &response.output_text {
-            if !output_text.is_empty() {
+    if parts.is_empty()
+        && let Some(output_text) = &response.output_text
+            && !output_text.is_empty() {
                 parts.push(text_part(output_text.clone()));
             }
-        }
-    }
 
     let finish_reason = map_finish_reason(&response);
 

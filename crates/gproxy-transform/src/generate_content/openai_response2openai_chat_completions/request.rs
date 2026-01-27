@@ -22,7 +22,7 @@ use gproxy_protocol::openai::create_response::types::{
     EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole, InputContent, InputFileContent,
     InputImageContent, InputItem, InputMessage, InputMessageRole, InputParam, Instructions, Tool,
     ToolChoiceParam, ToolChoiceOptions, ToolChoiceAllowed, ToolChoiceAllowedMode, AllowedTool,
-    ToolChoiceFunction, ToolChoiceCustom, ResponseTextParam, TextResponseFormatConfiguration,
+    ResponseTextParam, TextResponseFormatConfiguration,
 };
 
 /// Convert an OpenAI responses request into an OpenAI chat-completions request.
@@ -41,7 +41,7 @@ pub fn transform_request(request: CreateResponseRequest) -> CreateChatCompletion
         .body
         .text
         .as_ref()
-        .and_then(|text| map_response_format(text));
+        .and_then(map_response_format);
     let verbosity = request.body.text.as_ref().and_then(|text| text.verbosity);
 
     let tools = request
@@ -398,11 +398,10 @@ fn chat_text_content_to_string(content: ChatCompletionTextContent) -> Option<Str
 fn map_input_contents_to_user_content(
     contents: &[InputContent],
 ) -> Option<ChatCompletionUserContent> {
-    if contents.len() == 1 {
-        if let InputContent::InputText(text) = &contents[0] {
+    if contents.len() == 1
+        && let InputContent::InputText(text) = &contents[0] {
             return Some(ChatCompletionUserContent::Text(text.text.clone()));
         }
-    }
 
     let mut parts = Vec::new();
     for content in contents {

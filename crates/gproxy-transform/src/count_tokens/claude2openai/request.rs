@@ -457,7 +457,7 @@ fn map_reasoning(
     let effort = output_config
         .and_then(|config| config.effort)
         .and_then(map_output_effort)
-        .or_else(|| match thinking {
+        .or(match thinking {
             Some(ClaudeThinkingConfigParam::Disabled) => Some(ReasoningEffort::None),
             Some(ClaudeThinkingConfigParam::Enabled { .. }) => Some(ReasoningEffort::Medium),
             None => None,

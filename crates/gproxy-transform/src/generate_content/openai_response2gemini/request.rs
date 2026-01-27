@@ -456,10 +456,7 @@ fn minimal_object_schema() -> JsonValue {
 }
 
 fn map_tool_choice(choice: Option<ToolChoiceParam>) -> Option<ToolConfig> {
-    let choice = match choice {
-        Some(choice) => choice,
-        None => return None,
-    };
+    let choice = choice?;
 
     let (mode, allowed_function_names) = match choice {
         ToolChoiceParam::Mode(mode) => match mode {

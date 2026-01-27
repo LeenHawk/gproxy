@@ -38,8 +38,8 @@ pub fn transform_request(request: GeminiCountTokensRequest) -> OpenAIInputTokenC
     let mut generation_config = None;
     let mut system_instruction = None;
 
-    if let Some(generate_content_request) = request.body.generate_content_request {
-        if let Ok(body) =
+    if let Some(generate_content_request) = request.body.generate_content_request
+        && let Ok(body) =
             serde_json::from_value::<GenerateContentRequestBody>(generate_content_request)
         {
             contents = body.contents;
@@ -48,7 +48,6 @@ pub fn transform_request(request: GeminiCountTokensRequest) -> OpenAIInputTokenC
             generation_config = body.generation_config;
             system_instruction = body.system_instruction;
         }
-    }
 
     let input = map_contents_to_input(&contents);
     let instructions = system_instruction.and_then(map_system_instruction);
@@ -178,8 +177,8 @@ fn push_inline_blob(contents: &mut Vec<InputContent>, blob: &GeminiBlob) {
 }
 
 fn push_file_data(contents: &mut Vec<InputContent>, file: &GeminiFileData) {
-    if let Some(mime_type) = &file.mime_type {
-        if mime_type.starts_with("image/") {
+    if let Some(mime_type) = &file.mime_type
+        && mime_type.starts_with("image/") {
             contents.push(InputContent::InputImage(InputImageContent {
                 image_url: Some(file.file_uri.clone()),
                 file_id: None,
@@ -187,7 +186,6 @@ fn push_file_data(contents: &mut Vec<InputContent>, file: &GeminiFileData) {
             }));
             return;
         }
-    }
 
     contents.push(InputContent::InputFile(InputFileContent {
         file_id: None,

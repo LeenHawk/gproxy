@@ -27,15 +27,12 @@ use gproxy_protocol::claude::create_message::request::{
 };
 use gproxy_protocol::openai::create_response::request::CreateResponseRequest as OpenAIResponseRequest;
 use gproxy_protocol::openai::create_response::types::{
-    AllowedTool, EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole,
-    EasyInputMessageType, FunctionTool, InputContent,
-    InputFileContent, InputImageContent, InputItem, InputMessage, InputMessageRole, InputParam,
-    InputTextContent, Instructions, MCPAllowedTools, MCPTool, OutputMessage, OutputMessageContent,
-    Reasoning, ReasoningEffort, ResponseTextParam, TextResponseFormatConfiguration, Tool,
-    ToolChoiceAllowed, ToolChoiceAllowedMode, ToolChoiceBuiltInType, ToolChoiceOptions,
-    ToolChoiceParam, ToolChoiceTypes, WebSearchApproximateLocation, WebSearchFilters,
-    WebSearchTool, CodeInterpreterContainer, CodeInterpreterContainerParams, CodeInterpreterTool,
-    ComputerEnvironment, ComputerUsePreviewTool, FileSearchTool, FunctionShellTool,
+    AllowedTool, EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole, FunctionTool,
+    InputContent, InputFileContent, InputItem, InputMessage, InputMessageRole, InputParam,
+    Instructions, MCPAllowedTools, MCPTool, OutputMessage, OutputMessageContent, Reasoning,
+    ReasoningEffort, ResponseTextParam, TextResponseFormatConfiguration, Tool, ToolChoiceAllowed,
+    ToolChoiceAllowedMode, ToolChoiceBuiltInType, ToolChoiceOptions, ToolChoiceParam,
+    ToolChoiceTypes,
 };
 use serde_json::Value as JsonValue;
 
@@ -451,9 +448,9 @@ fn map_mcp_tool(tool: &MCPTool) -> Option<ClaudeMCPServerURLDefinition> {
 fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
     tools
         .into_iter()
-        .filter_map(|tool| match tool {
-            Tool::Function(function) => Some(ClaudeTool::Custom(map_function_tool(function))),
-            Tool::Custom(custom) => Some(ClaudeTool::Custom(ClaudeToolCustom {
+        .map(|tool| match tool {
+            Tool::Function(function) => ClaudeTool::Custom(map_function_tool(function)),
+            Tool::Custom(custom) => ClaudeTool::Custom(ClaudeToolCustom {
                 input_schema: ClaudeToolInputSchema {
                     r#type: ClaudeToolInputSchemaType::Object,
                     properties: None,
@@ -467,8 +464,8 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                 input_examples: None,
                 strict: None,
                 r#type: Some(ClaudeToolCustomType::Custom),
-            })),
-            Tool::CodeInterpreter(_) => Some(ClaudeTool::Builtin(
+            }),
+            Tool::CodeInterpreter(_) => ClaudeTool::Builtin(
                 ClaudeToolBuiltin::CodeExecution20250522(ClaudeToolCodeExecution {
                     name: "code_execution".to_string(),
                     allowed_callers: None,
@@ -476,8 +473,8 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                     defer_loading: None,
                     strict: None,
                 }),
-            )),
-            Tool::ComputerUsePreview(tool) => Some(ClaudeTool::Builtin(
+            ),
+            Tool::ComputerUsePreview(tool) => ClaudeTool::Builtin(
                 ClaudeToolBuiltin::ComputerUse20241022(ClaudeToolComputerUse {
                     display_height_px: tool.display_height as u32,
                     display_width_px: tool.display_width as u32,
@@ -490,8 +487,8 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                     input_examples: None,
                     strict: None,
                 }),
-            )),
-            Tool::LocalShell(_) | Tool::Shell(_) => Some(ClaudeTool::Builtin(
+            ),
+            Tool::LocalShell(_) | Tool::Shell(_) => ClaudeTool::Builtin(
                 ClaudeToolBuiltin::Bash20241022(ClaudeToolBash {
                     name: "bash".to_string(),
                     allowed_callers: None,
@@ -500,8 +497,8 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                     input_examples: None,
                     strict: None,
                 }),
-            )),
-            Tool::ApplyPatch(_) => Some(ClaudeTool::Builtin(
+            ),
+            Tool::ApplyPatch(_) => ClaudeTool::Builtin(
                 ClaudeToolBuiltin::TextEditor20241022(ClaudeToolTextEditor {
                     name: "text_editor".to_string(),
                     allowed_callers: None,
@@ -511,12 +508,12 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                     max_characters: None,
                     strict: None,
                 }),
-            )),
+            ),
             Tool::WebSearch(tool) | Tool::WebSearch20250826(tool) => {
                 let allowed_domains = tool.filters.and_then(|filters| filters.allowed_domains);
                 let user_location = tool.user_location.map(map_web_search_location);
 
-                Some(ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(
+                ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(
                     ClaudeWebSearchTool {
                         name: "web_search".to_string(),
                         allowed_callers: None,
@@ -528,12 +525,12 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                         strict: None,
                         user_location,
                     },
-                )))
+                ))
             }
             Tool::WebSearchPreview(tool) | Tool::WebSearchPreview20250311(tool) => {
                 let user_location = tool.user_location.map(map_preview_location);
 
-                Some(ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(
+                ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(
                     ClaudeWebSearchTool {
                         name: "web_search".to_string(),
                         allowed_callers: None,
@@ -545,9 +542,9 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                         strict: None,
                         user_location,
                     },
-                )))
+                ))
             }
-            Tool::FileSearch(_) => Some(ClaudeTool::Builtin(
+            Tool::FileSearch(_) => ClaudeTool::Builtin(
                 ClaudeToolBuiltin::ToolSearchToolBm25(ClaudeToolSearchTool {
                     name: "file_search".to_string(),
                     allowed_callers: None,
@@ -555,8 +552,8 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                     defer_loading: None,
                     strict: None,
                 }),
-            )),
-            Tool::ImageGeneration(_) => Some(ClaudeTool::Custom(ClaudeToolCustom {
+            ),
+            Tool::ImageGeneration(_) => ClaudeTool::Custom(ClaudeToolCustom {
                 input_schema: ClaudeToolInputSchema {
                     r#type: ClaudeToolInputSchemaType::Object,
                     properties: None,
@@ -570,15 +567,15 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ClaudeTool> {
                 input_examples: None,
                 strict: None,
                 r#type: Some(ClaudeToolCustomType::Custom),
-            })),
-            Tool::MCP(tool) => Some(ClaudeTool::Builtin(ClaudeToolBuiltin::McpToolset(
+            }),
+            Tool::MCP(tool) => ClaudeTool::Builtin(ClaudeToolBuiltin::McpToolset(
                 ClaudeMCPToolset {
                     mcp_server_name: tool.server_label,
                     cache_control: None,
                     configs: None,
                     default_config: None,
                 },
-            ))),
+            )),
         })
         .collect()
 }
