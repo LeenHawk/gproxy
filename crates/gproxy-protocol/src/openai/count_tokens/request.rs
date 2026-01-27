@@ -8,8 +8,7 @@ use crate::openai::create_response::types::{
 #[serde(rename_all = "snake_case")]
 pub struct InputTokenCountRequestBody {
     /// Model ID used to generate the response.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
+    pub model: String,
     /// Text, image, or file inputs to the model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<InputParam>,
