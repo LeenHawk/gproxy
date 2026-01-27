@@ -44,6 +44,10 @@ version = "0.1.0"
 [[package]]
 name = "gproxy-transform"
 version = "0.1.0"
+dependencies = [
+ "gproxy-protocol",
+ "time",
+]
 
 [[package]]
 name = "itoa"
