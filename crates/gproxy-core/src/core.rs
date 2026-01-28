@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use axum::routing::any;
 use axum::Router;
@@ -13,6 +13,7 @@ pub type ProviderLookup =
 pub struct CoreState {
     pub lookup: ProviderLookup,
     pub auth: Arc<dyn AuthProvider>,
+    pub proxy: Arc<RwLock<Option<String>>>,
 }
 
 pub struct Core {
@@ -20,11 +21,16 @@ pub struct Core {
 }
 
 impl Core {
-    pub fn new(lookup: ProviderLookup, auth: Arc<dyn AuthProvider>) -> Self {
+    pub fn new(
+        lookup: ProviderLookup,
+        auth: Arc<dyn AuthProvider>,
+        proxy: Arc<RwLock<Option<String>>>,
+    ) -> Self {
         Self {
             state: Arc::new(CoreState {
                 lookup,
                 auth,
+                proxy,
             }),
         }
     }

@@ -45,6 +45,7 @@ pub async fn proxy_handler(
         request_id: request_id(&headers),
         user_id: auth_ctx.user_id,
         user_key_id: auth_ctx.key_id,
+        proxy: state.proxy.read().ok().and_then(|guard| guard.clone()),
     };
 
     match provider_handle.call(classified.request, ctx).await {

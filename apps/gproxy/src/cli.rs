@@ -16,7 +16,7 @@ pub(crate) struct Cli {
     pub(crate) proxy: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct GlobalConfig {
     pub(crate) host: String,
     pub(crate) port: u16,

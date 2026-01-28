@@ -8,6 +8,7 @@ pub struct CallContext {
     pub request_id: Option<String>,
     pub user_id: Option<String>,
     pub user_key_id: Option<String>,
+    pub proxy: Option<String>,
 }
 
 #[async_trait]

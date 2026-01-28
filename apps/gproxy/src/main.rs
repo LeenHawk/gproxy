@@ -1,9 +1,10 @@
 use std::error::Error;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use clap::Parser;
+mod admin;
 mod cli;
-use gproxy_core::{Core, MemoryAuth, ProviderLookup};
+use gproxy_core::{AuthProvider, Core, MemoryAuth, ProviderLookup};
 use gproxy_provider_impl::build_registry;
 mod snapshot;
 use gproxy_storage::TrafficStorage;
@@ -11,6 +12,7 @@ use time::OffsetDateTime;
 use tracing::info;
 
 use crate::cli::{Cli, GlobalConfig};
+use crate::admin::admin_router;
 
 #[tokio::main]
 async fn main() {
@@ -69,6 +71,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     );
     let auth_snapshot = snapshot::build_auth_snapshot(&snapshot);
     let auth = Arc::new(MemoryAuth::new(auth_snapshot));
+    let auth_provider: Arc<dyn AuthProvider> = auth.clone();
 
     let registry = Arc::new(build_registry());
     let pools = snapshot::build_provider_pools(&snapshot);
@@ -79,18 +82,31 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
     registry.apply_pools(pools);
 
+    let bind = format!("{}:{}", config.host, config.port);
+    let (bind_tx, bind_rx) = tokio::sync::watch::channel(bind);
+
+    let proxy = Arc::new(RwLock::new(config.proxy.clone()));
+
     let lookup: ProviderLookup = {
         let registry = registry.clone();
         Arc::new(move |name| registry.get(name))
     };
 
-    let core = Core::new(lookup, auth);
-    let app = core.router();
+    let core = Core::new(lookup, auth_provider, proxy.clone());
+    let app = core
+        .router()
+        .merge(admin_router(
+            config.admin_key.clone(),
+            config.dsn.clone(),
+            config.clone(),
+            storage.clone(),
+            bind_tx.clone(),
+            proxy.clone(),
+            registry.clone(),
+            auth,
+        ));
 
-    let bind = format!("{}:{}", config.host, config.port);
-    let listener = tokio::net::TcpListener::bind(&bind).await?;
-    info!(addr = %bind, "listening");
-    axum::serve(listener, app).await?;
+    serve_loop(app, bind_rx).await?;
 
     Ok(())
 }
@@ -119,4 +135,38 @@ pub(crate) fn resolve_dsn(input: &str) -> Result<String, Box<dyn Error + Send + 
         format!("sqlite://{}", db_path)
     };
     Ok(dsn)
+}
+
+async fn serve_loop(
+    app: axum::Router,
+    bind_rx: tokio::sync::watch::Receiver<String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut current = bind_rx.borrow().clone();
+    loop {
+        let listener = tokio::net::TcpListener::bind(&current).await?;
+        info!(addr = %current, "listening");
+        let mut shutdown_rx = bind_rx.clone();
+        let shutdown_addr = current.clone();
+        let shutdown = async move {
+            loop {
+                if shutdown_rx.changed().await.is_err() {
+                    break;
+                }
+                if *shutdown_rx.borrow() != shutdown_addr {
+                    break;
+                }
+            }
+        };
+        axum::serve(listener, app.clone())
+            .with_graceful_shutdown(shutdown)
+            .await?;
+
+        let next = bind_rx.borrow().clone();
+        if next == current {
+            break;
+        }
+        current = next;
+    }
+
+    Ok(())
 }

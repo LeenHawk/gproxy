@@ -1,6 +1,6 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{ActiveValue, Database, DatabaseConnection, DbErr, Schema};
+use sea_orm::{ActiveValue, Database, DatabaseConnection, DbErr, QueryOrder, Schema};
 use time::OffsetDateTime;
 
 use crate::entities;
@@ -88,6 +88,50 @@ pub struct UpstreamTrafficEvent {
     pub openai_responses_output_reasoning_tokens: Option<i64>,
 }
 
+#[derive(Debug, Clone)]
+pub struct AdminProviderInput {
+    pub id: Option<i64>,
+    pub name: String,
+    pub config_json: Json,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdminCredentialInput {
+    pub id: Option<i64>,
+    pub provider_id: i64,
+    pub name: Option<String>,
+    pub secret: Json,
+    pub meta_json: Json,
+    pub weight: i32,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdminDisallowInput {
+    pub credential_id: i64,
+    pub scope_kind: String,
+    pub scope_value: Option<String>,
+    pub level: String,
+    pub until_at: Option<OffsetDateTime>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdminUserInput {
+    pub id: Option<i64>,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdminKeyInput {
+    pub id: Option<i64>,
+    pub user_id: i64,
+    pub key_value: String,
+    pub label: Option<String>,
+    pub enabled: bool,
+}
+
 #[derive(Clone)]
 pub struct TrafficStorage {
     db: DatabaseConnection,
@@ -120,6 +164,14 @@ impl TrafficStorage {
             .register(entities::UpstreamTraffic)
             .sync(&self.db)
             .await
+    }
+
+    pub async fn health(&self) -> Result<(), DbErr> {
+        entities::GlobalConfig::find()
+            .order_by_asc(entities::global_config::Column::Id)
+            .one(&self.db)
+            .await?;
+        Ok(())
     }
 
     pub async fn insert_downstream(
@@ -220,6 +272,233 @@ impl TrafficStorage {
             .exec(&self.db)
             .await?;
 
+        Ok(())
+    }
+
+    pub async fn get_global_config(
+        &self,
+    ) -> Result<Option<entities::global_config::Model>, DbErr> {
+        entities::GlobalConfig::find()
+            .order_by_asc(entities::global_config::Column::Id)
+            .one(&self.db)
+            .await
+    }
+
+    pub async fn list_providers(&self) -> Result<Vec<entities::providers::Model>, DbErr> {
+        entities::Providers::find().all(&self.db).await
+    }
+
+    pub async fn upsert_provider(&self, input: AdminProviderInput) -> Result<(), DbErr> {
+        use entities::providers::Column;
+        let now = OffsetDateTime::now_utc();
+        let active = entities::providers::ActiveModel {
+            id: match input.id {
+                Some(id) => ActiveValue::Set(id),
+                None => ActiveValue::NotSet,
+            },
+            name: ActiveValue::Set(input.name),
+            config_json: ActiveValue::Set(input.config_json),
+            enabled: ActiveValue::Set(input.enabled),
+            updated_at: ActiveValue::Set(now),
+            ..Default::default()
+        };
+
+        entities::Providers::insert(active)
+            .on_conflict(
+                OnConflict::column(Column::Id)
+                    .update_columns([
+                        Column::Name,
+                        Column::ConfigJson,
+                        Column::Enabled,
+                        Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_provider(&self, id: i64) -> Result<(), DbErr> {
+        entities::Providers::delete_by_id(id).exec(&self.db).await?;
+        Ok(())
+    }
+
+    pub async fn list_credentials(&self) -> Result<Vec<entities::credentials::Model>, DbErr> {
+        entities::Credentials::find().all(&self.db).await
+    }
+
+    pub async fn upsert_credential(
+        &self,
+        input: AdminCredentialInput,
+    ) -> Result<(), DbErr> {
+        use entities::credentials::Column;
+        let now = OffsetDateTime::now_utc();
+        let active = entities::credentials::ActiveModel {
+            id: match input.id {
+                Some(id) => ActiveValue::Set(id),
+                None => ActiveValue::NotSet,
+            },
+            provider_id: ActiveValue::Set(input.provider_id),
+            name: ActiveValue::Set(input.name),
+            secret: ActiveValue::Set(input.secret),
+            meta_json: ActiveValue::Set(input.meta_json),
+            weight: ActiveValue::Set(input.weight),
+            enabled: ActiveValue::Set(input.enabled),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
+            ..Default::default()
+        };
+
+        entities::Credentials::insert(active)
+            .on_conflict(
+                OnConflict::column(Column::Id)
+                    .update_columns([
+                        Column::ProviderId,
+                        Column::Name,
+                        Column::Secret,
+                        Column::MetaJson,
+                        Column::Weight,
+                        Column::Enabled,
+                        Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_credential(&self, id: i64) -> Result<(), DbErr> {
+        entities::Credentials::delete_by_id(id).exec(&self.db).await?;
+        Ok(())
+    }
+
+    pub async fn list_disallow(
+        &self,
+    ) -> Result<Vec<entities::credential_disallow::Model>, DbErr> {
+        entities::CredentialDisallow::find().all(&self.db).await
+    }
+
+    pub async fn upsert_disallow(
+        &self,
+        input: AdminDisallowInput,
+    ) -> Result<(), DbErr> {
+        use entities::credential_disallow::Column;
+        let now = OffsetDateTime::now_utc();
+        let active = entities::credential_disallow::ActiveModel {
+            id: ActiveValue::NotSet,
+            credential_id: ActiveValue::Set(input.credential_id),
+            scope_kind: ActiveValue::Set(input.scope_kind),
+            scope_value: ActiveValue::Set(input.scope_value),
+            level: ActiveValue::Set(input.level),
+            until_at: ActiveValue::Set(input.until_at),
+            reason: ActiveValue::Set(input.reason),
+            updated_at: ActiveValue::Set(now),
+        };
+
+        entities::CredentialDisallow::insert(active)
+            .on_conflict(
+                OnConflict::columns([Column::CredentialId, Column::ScopeKind, Column::ScopeValue])
+                    .update_columns([Column::Level, Column::UntilAt, Column::Reason, Column::UpdatedAt])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_disallow(&self, id: i64) -> Result<(), DbErr> {
+        entities::CredentialDisallow::delete_by_id(id)
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn list_users(&self) -> Result<Vec<entities::users::Model>, DbErr> {
+        entities::Users::find().all(&self.db).await
+    }
+
+    pub async fn upsert_user(&self, input: AdminUserInput) -> Result<(), DbErr> {
+        use entities::users::Column;
+        let now = OffsetDateTime::now_utc();
+        let active = entities::users::ActiveModel {
+            id: match input.id {
+                Some(id) => ActiveValue::Set(id),
+                None => ActiveValue::NotSet,
+            },
+            name: ActiveValue::Set(input.name),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
+            ..Default::default()
+        };
+
+        entities::Users::insert(active)
+            .on_conflict(
+                OnConflict::column(Column::Id)
+                    .update_columns([Column::Name, Column::UpdatedAt])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_user(&self, id: i64) -> Result<(), DbErr> {
+        entities::Users::delete_by_id(id).exec(&self.db).await?;
+        Ok(())
+    }
+
+    pub async fn list_keys(&self) -> Result<Vec<entities::api_keys::Model>, DbErr> {
+        entities::ApiKeys::find().all(&self.db).await
+    }
+
+    pub async fn upsert_key(&self, input: AdminKeyInput) -> Result<(), DbErr> {
+        use entities::api_keys::Column;
+        let now = OffsetDateTime::now_utc();
+        let active = entities::api_keys::ActiveModel {
+            id: match input.id {
+                Some(id) => ActiveValue::Set(id),
+                None => ActiveValue::NotSet,
+            },
+            user_id: ActiveValue::Set(input.user_id),
+            key_value: ActiveValue::Set(input.key_value),
+            label: ActiveValue::Set(input.label),
+            enabled: ActiveValue::Set(input.enabled),
+            created_at: ActiveValue::Set(now),
+            last_used_at: ActiveValue::Set(None),
+            ..Default::default()
+        };
+
+        entities::ApiKeys::insert(active)
+            .on_conflict(
+                OnConflict::column(Column::Id)
+                    .update_columns([
+                        Column::UserId,
+                        Column::KeyValue,
+                        Column::Label,
+                        Column::Enabled,
+                        Column::LastUsedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_key(&self, id: i64) -> Result<(), DbErr> {
+        entities::ApiKeys::delete_by_id(id).exec(&self.db).await?;
+        Ok(())
+    }
+
+    pub async fn set_key_enabled(&self, id: i64, enabled: bool) -> Result<(), DbErr> {
+        let active = entities::api_keys::ActiveModel {
+            id: ActiveValue::Set(id),
+            enabled: ActiveValue::Set(enabled),
+            ..Default::default()
+        };
+        entities::ApiKeys::update(active).exec(&self.db).await?;
         Ok(())
     }
 }
