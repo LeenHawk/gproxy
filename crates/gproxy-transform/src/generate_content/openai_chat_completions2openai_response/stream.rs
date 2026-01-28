@@ -3,21 +3,20 @@ use std::collections::BTreeMap;
 use gproxy_protocol::openai::create_chat_completions::stream::CreateChatCompletionStreamResponse;
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFinishReason, ChatCompletionFunctionCallDelta,
-    ChatCompletionMessageToolCallChunk,
-    ChatCompletionRole, CompletionUsage,
+    ChatCompletionMessageToolCallChunk, ChatCompletionRole, CompletionUsage,
 };
 use gproxy_protocol::openai::create_response::response::{Response, ResponseObjectType};
 use gproxy_protocol::openai::create_response::stream::{
     ResponseCompletedEvent, ResponseCreatedEvent, ResponseFunctionCallArgumentsDeltaEvent,
-    ResponseFunctionCallArgumentsDoneEvent, ResponseOutputItemAddedEvent, ResponseOutputItemDoneEvent,
-    ResponseRefusalDeltaEvent, ResponseRefusalDoneEvent, ResponseStreamEvent, ResponseTextDeltaEvent,
-    ResponseTextDoneEvent,
+    ResponseFunctionCallArgumentsDoneEvent, ResponseOutputItemAddedEvent,
+    ResponseOutputItemDoneEvent, ResponseRefusalDeltaEvent, ResponseRefusalDoneEvent,
+    ResponseStreamEvent, ResponseTextDeltaEvent, ResponseTextDoneEvent,
 };
 use gproxy_protocol::openai::create_response::types::{
     FunctionCallItemStatus, FunctionToolCall, FunctionToolCallType, MessageStatus, OutputItem,
-    OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType,
-    RefusalContent, ResponseIncompleteDetails, ResponseIncompleteReason, ResponseStatus,
-    ResponseUsage, ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
+    OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType, RefusalContent,
+    ResponseIncompleteDetails, ResponseIncompleteReason, ResponseStatus, ResponseUsage,
+    ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
 };
 
 #[derive(Debug, Clone)]
@@ -160,11 +159,13 @@ impl OpenAIChatCompletionToResponseStreamState {
             },
         );
 
-        vec![ResponseStreamEvent::OutputItemAdded(ResponseOutputItemAddedEvent {
-            output_index,
-            item: message,
-            sequence_number: self.next_sequence(),
-        })]
+        vec![ResponseStreamEvent::OutputItemAdded(
+            ResponseOutputItemAddedEvent {
+                output_index,
+                item: message,
+                sequence_number: self.next_sequence(),
+            },
+        )]
     }
 
     fn emit_text(&mut self, choice_index: i64, text: String) -> Vec<ResponseStreamEvent> {
@@ -175,14 +176,16 @@ impl OpenAIChatCompletionToResponseStreamState {
         let mut events = self.ensure_message(choice_index);
         if let Some(state) = self.choices.get_mut(&choice_index) {
             state.text.push_str(&text);
-            events.push(ResponseStreamEvent::OutputTextDelta(ResponseTextDeltaEvent {
-                item_id: state.message_id.clone(),
-                output_index: state.output_index,
-                content_index: 0,
-                delta: text,
-                sequence_number: self.next_sequence(),
-                logprobs: Vec::new(),
-            }));
+            events.push(ResponseStreamEvent::OutputTextDelta(
+                ResponseTextDeltaEvent {
+                    item_id: state.message_id.clone(),
+                    output_index: state.output_index,
+                    content_index: 0,
+                    delta: text,
+                    sequence_number: self.next_sequence(),
+                    logprobs: Vec::new(),
+                },
+            ));
         }
         events
     }
@@ -195,13 +198,15 @@ impl OpenAIChatCompletionToResponseStreamState {
         let mut events = self.ensure_message(choice_index);
         if let Some(state) = self.choices.get_mut(&choice_index) {
             state.refusal.push_str(&refusal);
-            events.push(ResponseStreamEvent::RefusalDelta(ResponseRefusalDeltaEvent {
-                item_id: state.message_id.clone(),
-                output_index: state.output_index,
-                content_index: 0,
-                delta: refusal,
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::RefusalDelta(
+                ResponseRefusalDeltaEvent {
+                    item_id: state.message_id.clone(),
+                    output_index: state.output_index,
+                    content_index: 0,
+                    delta: refusal,
+                    sequence_number: self.next_sequence(),
+                },
+            ));
         }
         events
     }
@@ -212,7 +217,9 @@ impl OpenAIChatCompletionToResponseStreamState {
         function_call: ChatCompletionFunctionCallDelta,
     ) -> Vec<ResponseStreamEvent> {
         let tool_index = -1;
-        let name = function_call.name.unwrap_or_else(|| "function_call".to_string());
+        let name = function_call
+            .name
+            .unwrap_or_else(|| "function_call".to_string());
         let arguments = function_call.arguments.unwrap_or_default();
         self.emit_tool_call_delta(choice_index, tool_index, None, name, arguments)
     }
@@ -271,11 +278,13 @@ impl OpenAIChatCompletionToResponseStreamState {
                 arguments: String::new(),
                 status: Some(FunctionCallItemStatus::InProgress),
             });
-            events.push(ResponseStreamEvent::OutputItemAdded(ResponseOutputItemAddedEvent {
-                output_index,
-                item: item.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemAdded(
+                ResponseOutputItemAddedEvent {
+                    output_index,
+                    item: item.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(output_index, item);
             self.tool_calls.insert(key, state);
             self.tool_calls.get_mut(&key).expect("tool state")
@@ -359,15 +368,21 @@ impl OpenAIChatCompletionToResponseStreamState {
                 status: message_status,
             });
 
-            events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                output_index: state.output_index,
-                item: message.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemDone(
+                ResponseOutputItemDoneEvent {
+                    output_index: state.output_index,
+                    item: message.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(state.output_index, message);
         }
 
-        let tool_states = self.tool_calls.values().cloned().collect::<Vec<ToolCallState>>();
+        let tool_states = self
+            .tool_calls
+            .values()
+            .cloned()
+            .collect::<Vec<ToolCallState>>();
         for state in tool_states {
             events.push(ResponseStreamEvent::FunctionCallArgumentsDone(
                 ResponseFunctionCallArgumentsDoneEvent {
@@ -388,15 +403,21 @@ impl OpenAIChatCompletionToResponseStreamState {
                 status: Some(FunctionCallItemStatus::Completed),
             });
 
-            events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                output_index: state.output_index,
-                item: item.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemDone(
+                ResponseOutputItemDoneEvent {
+                    output_index: state.output_index,
+                    item: item.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(state.output_index, item);
         }
 
-        let output = self.output_items.values().cloned().collect::<Vec<OutputItem>>();
+        let output = self
+            .output_items
+            .values()
+            .cloned()
+            .collect::<Vec<OutputItem>>();
 
         events.push(ResponseStreamEvent::Completed(ResponseCompletedEvent {
             response: self.response_skeleton(

@@ -4,25 +4,25 @@ use gproxy_protocol::openai::create_chat_completions::request::{
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionAllowedTool, ChatCompletionAllowedToolCustom, ChatCompletionAllowedToolFunction,
     ChatCompletionAllowedTools, ChatCompletionAllowedToolsChoice,
-    ChatCompletionAllowedToolsChoiceType, ChatCompletionFunctionCallChoice,
-    ChatCompletionFunctionCallMode, ChatCompletionNamedToolChoice,
-    ChatCompletionNamedToolChoiceCustom, ChatCompletionNamedToolChoiceCustomName,
-    ChatCompletionNamedToolChoiceCustomType, ChatCompletionNamedToolChoiceFunction,
-    ChatCompletionNamedToolChoiceType, ChatCompletionRequestAssistantMessage,
-    ChatCompletionRequestDeveloperMessage, ChatCompletionRequestMessage,
-    ChatCompletionRequestSystemMessage, ChatCompletionRequestUserMessage,
-    ChatCompletionResponseFormat, ChatCompletionStreamOptions, ChatCompletionToolChoiceMode,
+    ChatCompletionAllowedToolsChoiceType, ChatCompletionAssistantContent,
+    ChatCompletionAssistantContentPart, ChatCompletionFunctionCallChoice,
+    ChatCompletionFunctionCallMode, ChatCompletionImageDetail, ChatCompletionImageUrl,
+    ChatCompletionInputFile, ChatCompletionNamedToolChoice, ChatCompletionNamedToolChoiceCustom,
+    ChatCompletionNamedToolChoiceCustomName, ChatCompletionNamedToolChoiceCustomType,
+    ChatCompletionNamedToolChoiceFunction, ChatCompletionNamedToolChoiceType,
+    ChatCompletionRequestAssistantMessage, ChatCompletionRequestDeveloperMessage,
+    ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
+    ChatCompletionRequestUserMessage, ChatCompletionResponseFormat, ChatCompletionStreamOptions,
+    ChatCompletionTextContent, ChatCompletionTextContentPart, ChatCompletionToolChoiceMode,
     ChatCompletionToolChoiceOption, ChatCompletionToolDefinition, ChatCompletionUserContent,
-    ChatCompletionUserContentPart, ChatCompletionTextContent, ChatCompletionTextContentPart,
-    ChatCompletionAssistantContent, ChatCompletionAssistantContentPart, ChatCompletionImageUrl,
-    ChatCompletionImageDetail, ChatCompletionInputFile, FunctionObject, ResponseFormatJsonSchema,
+    ChatCompletionUserContentPart, FunctionObject, ResponseFormatJsonSchema,
 };
 use gproxy_protocol::openai::create_response::request::CreateResponseRequest;
 use gproxy_protocol::openai::create_response::types::{
-    EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole, InputContent, InputFileContent,
-    InputImageContent, InputItem, InputMessage, InputMessageRole, InputParam, Instructions, Tool,
-    ToolChoiceParam, ToolChoiceOptions, ToolChoiceAllowed, ToolChoiceAllowedMode, AllowedTool,
-    ResponseTextParam, TextResponseFormatConfiguration,
+    AllowedTool, EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole, InputContent,
+    InputFileContent, InputImageContent, InputItem, InputMessage, InputMessageRole, InputParam,
+    Instructions, ResponseTextParam, TextResponseFormatConfiguration, Tool, ToolChoiceAllowed,
+    ToolChoiceAllowedMode, ToolChoiceOptions, ToolChoiceParam,
 };
 
 /// Convert an OpenAI responses request into an OpenAI chat-completions request.
@@ -37,11 +37,7 @@ pub fn transform_request(request: CreateResponseRequest) -> CreateChatCompletion
         append_input_param(input, &mut messages);
     }
 
-    let response_format = request
-        .body
-        .text
-        .as_ref()
-        .and_then(map_response_format);
+    let response_format = request.body.text.as_ref().and_then(map_response_format);
     let verbosity = request.body.text.as_ref().and_then(|text| text.verbosity);
 
     let tools = request
@@ -53,10 +49,13 @@ pub fn transform_request(request: CreateResponseRequest) -> CreateChatCompletion
     let tool_choice_param = request.body.tool_choice.clone();
     let tool_choice = tool_choice_param.clone().and_then(map_tool_choice);
 
-    let stream_options = request.body.stream_options.map(|options| ChatCompletionStreamOptions {
-        include_usage: None,
-        include_obfuscation: options.include_obfuscation,
-    });
+    let stream_options = request
+        .body
+        .stream_options
+        .map(|options| ChatCompletionStreamOptions {
+            include_usage: None,
+            include_obfuscation: options.include_obfuscation,
+        });
 
     CreateChatCompletionRequest {
         body: CreateChatCompletionRequestBody {
@@ -64,7 +63,10 @@ pub fn transform_request(request: CreateResponseRequest) -> CreateChatCompletion
             model: request.body.model,
             modalities: None,
             verbosity,
-            reasoning_effort: request.body.reasoning.and_then(|reasoning| reasoning.effort),
+            reasoning_effort: request
+                .body
+                .reasoning
+                .and_then(|reasoning| reasoning.effort),
             max_completion_tokens: request.body.max_output_tokens,
             frequency_penalty: None,
             presence_penalty: None,
@@ -74,7 +76,13 @@ pub fn transform_request(request: CreateResponseRequest) -> CreateChatCompletion
             audio: None,
             store: request.body.store,
             stream: request.body.stream,
-            stop: map_stop_sequences(request.body.text.as_ref().and_then(|text| text.format.clone())),
+            stop: map_stop_sequences(
+                request
+                    .body
+                    .text
+                    .as_ref()
+                    .and_then(|text| text.format.clone()),
+            ),
             logit_bias: None,
             logprobs: request.body.top_logprobs.map(|_| true),
             max_tokens: None,
@@ -100,7 +108,10 @@ pub fn transform_request(request: CreateResponseRequest) -> CreateChatCompletion
     }
 }
 
-fn append_instructions(instructions: Instructions, messages: &mut Vec<ChatCompletionRequestMessage>) {
+fn append_instructions(
+    instructions: Instructions,
+    messages: &mut Vec<ChatCompletionRequestMessage>,
+) {
     match instructions {
         Instructions::Text(text) => {
             if !text.is_empty() {
@@ -156,7 +167,10 @@ fn append_input_item(item: InputItem, messages: &mut Vec<ChatCompletionRequestMe
     }
 }
 
-fn append_easy_message(message: EasyInputMessage, messages: &mut Vec<ChatCompletionRequestMessage>) {
+fn append_easy_message(
+    message: EasyInputMessage,
+    messages: &mut Vec<ChatCompletionRequestMessage>,
+) {
     match message.role {
         EasyInputMessageRole::User => {
             if let Some(content) = map_easy_content_to_user_content(message.content) {
@@ -379,18 +393,30 @@ fn map_input_contents_to_text(contents: &[InputContent]) -> Option<ChatCompletio
 fn chat_text_content_to_string(content: ChatCompletionTextContent) -> Option<String> {
     match content {
         ChatCompletionTextContent::Text(text) => {
-            if text.is_empty() { None } else { Some(text) }
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
         }
         ChatCompletionTextContent::Parts(parts) => {
             let texts: Vec<String> = parts
                 .into_iter()
                 .filter_map(|part| match part {
                     ChatCompletionTextContentPart::Text { text } => {
-                        if text.is_empty() { None } else { Some(text) }
+                        if text.is_empty() {
+                            None
+                        } else {
+                            Some(text)
+                        }
                     }
                 })
                 .collect();
-            if texts.is_empty() { None } else { Some(texts.join("\n")) }
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
         }
     }
 }
@@ -399,9 +425,10 @@ fn map_input_contents_to_user_content(
     contents: &[InputContent],
 ) -> Option<ChatCompletionUserContent> {
     if contents.len() == 1
-        && let InputContent::InputText(text) = &contents[0] {
-            return Some(ChatCompletionUserContent::Text(text.text.clone()));
-        }
+        && let InputContent::InputText(text) = &contents[0]
+    {
+        return Some(ChatCompletionUserContent::Text(text.text.clone()));
+    }
 
     let mut parts = Vec::new();
     for content in contents {
@@ -494,7 +521,9 @@ fn map_input_file_to_label(file: &InputFileContent) -> Option<String> {
     None
 }
 
-fn map_image_detail(detail: gproxy_protocol::openai::create_response::types::ImageDetail) -> Option<ChatCompletionImageDetail> {
+fn map_image_detail(
+    detail: gproxy_protocol::openai::create_response::types::ImageDetail,
+) -> Option<ChatCompletionImageDetail> {
     match detail {
         gproxy_protocol::openai::create_response::types::ImageDetail::Auto => {
             Some(ChatCompletionImageDetail::Auto)
@@ -592,18 +621,18 @@ fn map_tools(tools: Vec<Tool>) -> Vec<ChatCompletionToolDefinition> {
 
 fn map_tool_choice(choice: ToolChoiceParam) -> Option<ChatCompletionToolChoiceOption> {
     match choice {
-        ToolChoiceParam::Mode(mode) => Some(ChatCompletionToolChoiceOption::Mode(
-            match mode {
-                ToolChoiceOptions::None => ChatCompletionToolChoiceMode::None,
-                ToolChoiceOptions::Auto => ChatCompletionToolChoiceMode::Auto,
-                ToolChoiceOptions::Required => ChatCompletionToolChoiceMode::Required,
-            },
-        )),
+        ToolChoiceParam::Mode(mode) => Some(ChatCompletionToolChoiceOption::Mode(match mode {
+            ToolChoiceOptions::None => ChatCompletionToolChoiceMode::None,
+            ToolChoiceOptions::Auto => ChatCompletionToolChoiceMode::Auto,
+            ToolChoiceOptions::Required => ChatCompletionToolChoiceMode::Required,
+        })),
         ToolChoiceParam::Allowed(allowed) => map_allowed_tools_choice(allowed),
         ToolChoiceParam::Function(function) => Some(ChatCompletionToolChoiceOption::NamedTool(
             ChatCompletionNamedToolChoice {
                 r#type: ChatCompletionNamedToolChoiceType::Function,
-                function: ChatCompletionNamedToolChoiceFunction { name: function.name },
+                function: ChatCompletionNamedToolChoiceFunction {
+                    name: function.name,
+                },
             },
         )),
         ToolChoiceParam::Custom(custom) => Some(ChatCompletionToolChoiceOption::NamedCustomTool(
@@ -635,8 +664,12 @@ fn map_allowed_tools_choice(allowed: ToolChoiceAllowed) -> Option<ChatCompletion
     }
 
     let mode = match allowed.mode {
-        ToolChoiceAllowedMode::Auto => gproxy_protocol::openai::create_chat_completions::types::AllowedToolsMode::Auto,
-        ToolChoiceAllowedMode::Required => gproxy_protocol::openai::create_chat_completions::types::AllowedToolsMode::Required,
+        ToolChoiceAllowedMode::Auto => {
+            gproxy_protocol::openai::create_chat_completions::types::AllowedToolsMode::Auto
+        }
+        ToolChoiceAllowedMode::Required => {
+            gproxy_protocol::openai::create_chat_completions::types::AllowedToolsMode::Required
+        }
     };
 
     Some(ChatCompletionToolChoiceOption::AllowedTools(

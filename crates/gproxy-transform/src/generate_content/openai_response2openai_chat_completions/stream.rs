@@ -5,16 +5,17 @@ use gproxy_protocol::openai::create_chat_completions::stream::{
 };
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFinishReason, ChatCompletionMessageToolCallChunk,
-    ChatCompletionMessageToolCallChunkFunction, ChatCompletionRole, ChatCompletionToolCallChunkType,
-    ChatCompletionStreamResponseDelta, CompletionTokensDetails, CompletionUsage, PromptTokensDetails,
+    ChatCompletionMessageToolCallChunkFunction, ChatCompletionRole,
+    ChatCompletionStreamResponseDelta, ChatCompletionToolCallChunkType, CompletionTokensDetails,
+    CompletionUsage, PromptTokensDetails,
 };
 use gproxy_protocol::openai::create_response::response::Response;
 use gproxy_protocol::openai::create_response::stream::{
     ResponseCompletedEvent, ResponseFunctionCallArgumentsDeltaEvent,
     ResponseFunctionCallArgumentsDoneEvent, ResponseMCPCallArgumentsDeltaEvent,
     ResponseMCPCallArgumentsDoneEvent, ResponseOutputItemAddedEvent, ResponseOutputItemDoneEvent,
-    ResponseRefusalDeltaEvent, ResponseRefusalDoneEvent, ResponseStreamEvent, ResponseTextDeltaEvent,
-    ResponseTextDoneEvent,
+    ResponseRefusalDeltaEvent, ResponseRefusalDoneEvent, ResponseStreamEvent,
+    ResponseTextDeltaEvent, ResponseTextDoneEvent,
 };
 use gproxy_protocol::openai::create_response::types::{
     CustomToolCall, FunctionToolCall, MCPToolCall, OutputItem, ResponseIncompleteDetails,
@@ -81,14 +82,18 @@ impl OpenAIResponseToChatCompletionStreamState {
                 Vec::new()
             }
             ResponseStreamEvent::Completed(event) => self.finish_from_response(event),
-            ResponseStreamEvent::Failed(event) => self.finish_from_response(ResponseCompletedEvent {
-                response: event.response,
-                sequence_number: event.sequence_number,
-            }),
-            ResponseStreamEvent::Incomplete(event) => self.finish_from_response(ResponseCompletedEvent {
-                response: event.response,
-                sequence_number: event.sequence_number,
-            }),
+            ResponseStreamEvent::Failed(event) => {
+                self.finish_from_response(ResponseCompletedEvent {
+                    response: event.response,
+                    sequence_number: event.sequence_number,
+                })
+            }
+            ResponseStreamEvent::Incomplete(event) => {
+                self.finish_from_response(ResponseCompletedEvent {
+                    response: event.response,
+                    sequence_number: event.sequence_number,
+                })
+            }
             ResponseStreamEvent::OutputItemAdded(event) => self.handle_output_item_added(event),
             ResponseStreamEvent::OutputItemDone(event) => self.handle_output_item_done(event),
             ResponseStreamEvent::OutputTextDelta(event) => self.handle_text_delta(event),
@@ -116,7 +121,9 @@ impl OpenAIResponseToChatCompletionStreamState {
             OutputItem::Function(function) => {
                 self.emit_tool_call(event.output_index, function, None)
             }
-            OutputItem::CustomToolCall(custom) => self.emit_custom_tool_call(event.output_index, custom),
+            OutputItem::CustomToolCall(custom) => {
+                self.emit_custom_tool_call(event.output_index, custom)
+            }
             OutputItem::MCPCall(mcp) => self.emit_mcp_tool_call(event.output_index, mcp),
             _ => Vec::new(),
         }
@@ -254,11 +261,8 @@ impl OpenAIResponseToChatCompletionStreamState {
         event: ResponseFunctionCallArgumentsDoneEvent,
     ) -> Vec<CreateChatCompletionStreamResponse> {
         let (index, id, name, delta) = {
-            let state = self.ensure_tool_state(
-                event.output_index,
-                Some(event.item_id),
-                Some(event.name),
-            );
+            let state =
+                self.ensure_tool_state(event.output_index, Some(event.item_id), Some(event.name));
             let delta = compute_delta(Some(&state.arguments), &event.arguments);
             state.arguments = event.arguments;
             (state.index, state.id.clone(), state.name.clone(), delta)
@@ -310,7 +314,9 @@ impl OpenAIResponseToChatCompletionStreamState {
         function: FunctionToolCall,
         explicit_id: Option<String>,
     ) -> Vec<CreateChatCompletionStreamResponse> {
-        let id = explicit_id.or_else(|| function.id.clone()).or_else(|| Some(function.call_id.clone()));
+        let id = explicit_id
+            .or_else(|| function.id.clone())
+            .or_else(|| Some(function.call_id.clone()));
         let (index, id, name, arguments) = {
             let state = self.ensure_tool_state(output_index, id, Some(function.name.clone()));
             if !function.arguments.is_empty() {
@@ -408,7 +414,10 @@ impl OpenAIResponseToChatCompletionStreamState {
     ) -> Vec<CreateChatCompletionStreamResponse> {
         self.emit_tool_call_done(
             output_index,
-            function.id.clone().or_else(|| Some(function.call_id.clone())),
+            function
+                .id
+                .clone()
+                .or_else(|| Some(function.call_id.clone())),
             Some(function.name.clone()),
             function.arguments.clone(),
         )
@@ -433,7 +442,12 @@ impl OpenAIResponseToChatCompletionStreamState {
         mcp: &MCPToolCall,
     ) -> Vec<CreateChatCompletionStreamResponse> {
         let name = format!("mcp:{}:{}", mcp.server_label, mcp.name);
-        self.emit_tool_call_done(output_index, Some(mcp.id.clone()), Some(name), mcp.arguments.clone())
+        self.emit_tool_call_done(
+            output_index,
+            Some(mcp.id.clone()),
+            Some(name),
+            mcp.arguments.clone(),
+        )
     }
 
     fn finish_from_response(
@@ -486,7 +500,9 @@ impl OpenAIResponseToChatCompletionStreamState {
         if let Some(details) = &self.incomplete_details {
             return match details.reason {
                 ResponseIncompleteReason::MaxOutputTokens => ChatCompletionFinishReason::Length,
-                ResponseIncompleteReason::ContentFilter => ChatCompletionFinishReason::ContentFilter,
+                ResponseIncompleteReason::ContentFilter => {
+                    ChatCompletionFinishReason::ContentFilter
+                }
             };
         }
         ChatCompletionFinishReason::Stop

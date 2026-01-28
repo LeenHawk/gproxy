@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::gemini::generate_content::types::{Candidate, ModelStatus, PromptFeedback, UsageMetadata};
+use crate::gemini::generate_content::types::{
+    Candidate, ModelStatus, PromptFeedback, UsageMetadata,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -48,22 +48,24 @@ fn map_response_message(message: &ChatCompletionResponseMessage) -> Vec<BetaCont
     let mut blocks = Vec::new();
 
     if let Some(content) = &message.content
-        && !content.is_empty() {
-            blocks.push(BetaContentBlock::Text(BetaTextBlock {
-                citations: None,
-                text: content.clone(),
-                r#type: BetaTextBlockType::Text,
-            }));
-        }
+        && !content.is_empty()
+    {
+        blocks.push(BetaContentBlock::Text(BetaTextBlock {
+            citations: None,
+            text: content.clone(),
+            r#type: BetaTextBlockType::Text,
+        }));
+    }
 
     if let Some(refusal) = &message.refusal
-        && !refusal.is_empty() {
-            blocks.push(BetaContentBlock::Text(BetaTextBlock {
-                citations: None,
-                text: refusal.clone(),
-                r#type: BetaTextBlockType::Text,
-            }));
-        }
+        && !refusal.is_empty()
+    {
+        blocks.push(BetaContentBlock::Text(BetaTextBlock {
+            citations: None,
+            text: refusal.clone(),
+            r#type: BetaTextBlockType::Text,
+        }));
+    }
 
     if let Some(tool_calls) = &message.tool_calls {
         for tool_call in tool_calls {
@@ -117,7 +119,10 @@ fn parse_tool_arguments(arguments: &str) -> BTreeMap<String, JsonValue> {
         }
         Err(_) => {
             let mut map = BTreeMap::new();
-            map.insert("arguments".to_string(), JsonValue::String(arguments.to_string()));
+            map.insert(
+                "arguments".to_string(),
+                JsonValue::String(arguments.to_string()),
+            );
             map
         }
     }
@@ -134,9 +139,14 @@ fn map_finish_reason(reason: ChatCompletionFinishReason) -> Option<BetaStopReaso
     })
 }
 
-fn map_usage(usage: Option<gproxy_protocol::openai::create_chat_completions::types::CompletionUsage>) -> BetaUsage {
+fn map_usage(
+    usage: Option<gproxy_protocol::openai::create_chat_completions::types::CompletionUsage>,
+) -> BetaUsage {
     let (input_tokens, output_tokens) = match usage {
-        Some(usage) => (usage.prompt_tokens.max(0) as u32, usage.completion_tokens.max(0) as u32),
+        Some(usage) => (
+            usage.prompt_tokens.max(0) as u32,
+            usage.completion_tokens.max(0) as u32,
+        ),
         None => (0, 0),
     };
 

@@ -11,8 +11,8 @@ use gproxy_protocol::openai::create_response::stream::{
     ResponseCompletedEvent, ResponseFunctionCallArgumentsDeltaEvent,
     ResponseFunctionCallArgumentsDoneEvent, ResponseMCPCallArgumentsDeltaEvent,
     ResponseMCPCallArgumentsDoneEvent, ResponseOutputItemAddedEvent, ResponseOutputItemDoneEvent,
-    ResponseRefusalDeltaEvent, ResponseRefusalDoneEvent, ResponseStreamEvent, ResponseTextDeltaEvent,
-    ResponseTextDoneEvent,
+    ResponseRefusalDeltaEvent, ResponseRefusalDoneEvent, ResponseStreamEvent,
+    ResponseTextDeltaEvent, ResponseTextDoneEvent,
 };
 use gproxy_protocol::openai::create_response::types::{
     CustomToolCall, FunctionToolCall, MCPToolCall, OutputItem, ResponseIncompleteDetails,
@@ -62,10 +62,7 @@ impl OpenAIResponseToGeminiStreamState {
         }
     }
 
-    pub fn transform_event(
-        &mut self,
-        event: ResponseStreamEvent,
-    ) -> Vec<GenerateContentResponse> {
+    pub fn transform_event(&mut self, event: ResponseStreamEvent) -> Vec<GenerateContentResponse> {
         if self.finished {
             return Vec::new();
         }
@@ -80,14 +77,18 @@ impl OpenAIResponseToGeminiStreamState {
                 Vec::new()
             }
             ResponseStreamEvent::Completed(event) => self.finish_from_response(event),
-            ResponseStreamEvent::Failed(event) => self.finish_from_response(ResponseCompletedEvent {
-                response: event.response,
-                sequence_number: event.sequence_number,
-            }),
-            ResponseStreamEvent::Incomplete(event) => self.finish_from_response(ResponseCompletedEvent {
-                response: event.response,
-                sequence_number: event.sequence_number,
-            }),
+            ResponseStreamEvent::Failed(event) => {
+                self.finish_from_response(ResponseCompletedEvent {
+                    response: event.response,
+                    sequence_number: event.sequence_number,
+                })
+            }
+            ResponseStreamEvent::Incomplete(event) => {
+                self.finish_from_response(ResponseCompletedEvent {
+                    response: event.response,
+                    sequence_number: event.sequence_number,
+                })
+            }
             ResponseStreamEvent::OutputItemAdded(event) => self.handle_output_item_added(event),
             ResponseStreamEvent::OutputItemDone(event) => self.handle_output_item_done(event),
             ResponseStreamEvent::OutputTextDelta(event) => self.handle_text_delta(event),
@@ -129,10 +130,7 @@ impl OpenAIResponseToGeminiStreamState {
         Vec::new()
     }
 
-    fn handle_text_delta(
-        &mut self,
-        event: ResponseTextDeltaEvent,
-    ) -> Vec<GenerateContentResponse> {
+    fn handle_text_delta(&mut self, event: ResponseTextDeltaEvent) -> Vec<GenerateContentResponse> {
         if event.delta.is_empty() {
             return Vec::new();
         }
@@ -143,10 +141,7 @@ impl OpenAIResponseToGeminiStreamState {
         self.emit_parts(vec![text_part(event.delta)])
     }
 
-    fn handle_text_done(
-        &mut self,
-        event: ResponseTextDoneEvent,
-    ) -> Vec<GenerateContentResponse> {
+    fn handle_text_done(&mut self, event: ResponseTextDoneEvent) -> Vec<GenerateContentResponse> {
         let key = (event.output_index, event.content_index);
         let delta = compute_delta(self.text_buffers.get(&key), &event.text);
         self.text_buffers.insert(key, event.text);
@@ -275,13 +270,8 @@ impl OpenAIResponseToGeminiStreamState {
         call: CustomToolCall,
     ) -> Vec<GenerateContentResponse> {
         let id = call.id.clone().unwrap_or_else(|| call.call_id.clone());
-        let state = self.ensure_tool_state(
-            output_index,
-            id,
-            call.name.clone(),
-            ToolKind::Custom,
-            None,
-        );
+        let state =
+            self.ensure_tool_state(output_index, id, call.name.clone(), ToolKind::Custom, None);
         state.arguments = call.input;
         let snapshot = state.clone();
         self.emit_tool_state(&snapshot)
@@ -313,13 +303,16 @@ impl OpenAIResponseToGeminiStreamState {
         kind: ToolKind,
         server_label: Option<String>,
     ) -> &mut ToolState {
-        let state = self.tool_states.entry(output_index).or_insert_with(|| ToolState {
-            id,
-            name: name.clone(),
-            kind,
-            arguments: String::new(),
-            server_label: server_label.clone(),
-        });
+        let state = self
+            .tool_states
+            .entry(output_index)
+            .or_insert_with(|| ToolState {
+                id,
+                name: name.clone(),
+                kind,
+                arguments: String::new(),
+                server_label: server_label.clone(),
+            });
         if state.name.is_empty() {
             state.name = name;
         }
@@ -414,7 +407,10 @@ impl OpenAIResponseToGeminiStreamState {
         let finish_reason = if self.saw_refusal {
             FinishReason::Safety
         } else {
-            map_finish_reason(event.response.status, event.response.incomplete_details.as_ref())
+            map_finish_reason(
+                event.response.status,
+                event.response.incomplete_details.as_ref(),
+            )
         };
 
         let candidate = Candidate {
@@ -488,7 +484,10 @@ fn parse_json_value(raw: &str) -> JsonValue {
 }
 
 fn part_has_payload(part: &GeminiPart) -> bool {
-    part.text.as_ref().map(|text| !text.is_empty()).unwrap_or(false)
+    part.text
+        .as_ref()
+        .map(|text| !text.is_empty())
+        .unwrap_or(false)
         || part.function_call.is_some()
         || part.function_response.is_some()
         || part.inline_data.is_some()

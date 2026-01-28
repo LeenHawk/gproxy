@@ -5,9 +5,9 @@ use crate::claude::create_message::types::{
     BetaBashCodeExecutionToolResultBlock, BetaCacheCreation, BetaCodeExecutionToolResultBlock,
     BetaContainer, BetaContainerUploadBlock, BetaContextManagementResponse, BetaMcpToolResultBlock,
     BetaMcpToolUseBlock, BetaMessageRole, BetaMessageType, BetaRedactedThinkingBlock,
-    BetaServerToolName, BetaServerToolUseBlockType, BetaServerToolUsage, BetaStopReason,
-    BetaTextBlock, BetaTextEditorCodeExecutionToolResultBlock, BetaThinkingBlockType, BetaToolCaller,
-    BetaToolSearchToolResultBlock, BetaToolUseBlock, BetaWebFetchToolResultBlock,
+    BetaServerToolName, BetaServerToolUsage, BetaServerToolUseBlockType, BetaStopReason,
+    BetaTextBlock, BetaTextEditorCodeExecutionToolResultBlock, BetaThinkingBlockType,
+    BetaToolCaller, BetaToolSearchToolResultBlock, BetaToolUseBlock, BetaWebFetchToolResultBlock,
     BetaWebSearchToolResultBlock, JsonObject, JsonValue,
 };
 use crate::claude::error::ErrorDetail;
@@ -101,17 +101,27 @@ pub enum BetaStreamContentBlock {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BetaStreamContentBlockDelta {
-    TextDelta { text: String },
+    TextDelta {
+        text: String,
+    },
     /// Partial JSON string; accumulate and parse after content_block_stop.
-    InputJsonDelta { partial_json: String },
-    ThinkingDelta { thinking: String },
-    SignatureDelta { signature: String },
+    InputJsonDelta {
+        partial_json: String,
+    },
+    ThinkingDelta {
+        thinking: String,
+    },
+    SignatureDelta {
+        signature: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BetaStreamEventKnown {
-    MessageStart { message: BetaStreamMessage },
+    MessageStart {
+        message: BetaStreamMessage,
+    },
     ContentBlockStart {
         index: u32,
         content_block: BetaStreamContentBlock,
@@ -120,7 +130,9 @@ pub enum BetaStreamEventKnown {
         index: u32,
         delta: BetaStreamContentBlockDelta,
     },
-    ContentBlockStop { index: u32 },
+    ContentBlockStop {
+        index: u32,
+    },
     MessageDelta {
         delta: BetaStreamMessageDelta,
         /// Token counts are cumulative for the stream so far.

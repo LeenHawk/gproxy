@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::create_response::types::{
     ConversationRef, Instructions, Metadata, OutputItem, Prompt, PromptCacheRetention, Reasoning,
-    ResponseError, ResponseIncompleteDetails, ResponseStatus, ResponseTextParam, ResponseUsage, ServiceTier,
-    Tool, ToolChoiceParam, Truncation,
+    ResponseError, ResponseIncompleteDetails, ResponseStatus, ResponseTextParam, ResponseUsage,
+    ServiceTier, Tool, ToolChoiceParam, Truncation,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -181,7 +181,9 @@ pub struct ChatCompletionRequestAssistantMessageAudio {
 pub enum ChatCompletionResponseFormat {
     Text,
     JsonObject,
-    JsonSchema { json_schema: ResponseFormatJsonSchema },
+    JsonSchema {
+        json_schema: ResponseFormatJsonSchema,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -394,8 +396,12 @@ pub struct ChatCompletionAllowedTools {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatCompletionAllowedTool {
-    Function { function: ChatCompletionAllowedToolFunction },
-    Custom { custom: ChatCompletionAllowedToolCustom },
+    Function {
+        function: ChatCompletionAllowedToolFunction,
+    },
+    Custom {
+        custom: ChatCompletionAllowedToolCustom,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -525,8 +531,14 @@ pub struct ChatCompletionFunctionCallDelta {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatCompletionMessageToolCall {
-    Function { id: String, function: ChatCompletionMessageToolCallFunction },
-    Custom { id: String, custom: ChatCompletionMessageCustomToolCall },
+    Function {
+        id: String,
+        function: ChatCompletionMessageToolCallFunction,
+    },
+    Custom {
+        id: String,
+        custom: ChatCompletionMessageCustomToolCall,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -589,10 +601,18 @@ pub enum ChatCompletionTextContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatCompletionUserContentPart {
-    Text { text: String },
-    ImageUrl { image_url: ChatCompletionImageUrl },
-    InputAudio { input_audio: ChatCompletionInputAudio },
-    File { file: ChatCompletionInputFile },
+    Text {
+        text: String,
+    },
+    ImageUrl {
+        image_url: ChatCompletionImageUrl,
+    },
+    InputAudio {
+        input_audio: ChatCompletionInputAudio,
+    },
+    File {
+        file: ChatCompletionInputFile,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -757,7 +777,9 @@ pub struct PredictionContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatCompletionResponseMessageAnnotation {
-    UrlCitation { url_citation: ChatCompletionUrlCitation },
+    UrlCitation {
+        url_citation: ChatCompletionUrlCitation,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

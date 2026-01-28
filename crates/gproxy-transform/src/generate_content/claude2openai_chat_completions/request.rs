@@ -1,52 +1,40 @@
-use gproxy_protocol::claude::create_message::request::CreateMessageRequest as ClaudeCreateMessageRequest;
 use gproxy_protocol::claude::count_tokens::types::{
-    BetaContentBlockParam as ClaudeContentBlockParam,
-    BetaDocumentSource as ClaudeDocumentSource,
-    BetaImageMediaType as ClaudeImageMediaType,
-    BetaImageSource as ClaudeImageSource,
-    BetaMessageContent as ClaudeMessageContent,
-    BetaMessageParam as ClaudeMessageParam,
-    BetaMessageRole as ClaudeMessageRole,
+    BetaContentBlockParam as ClaudeContentBlockParam, BetaDocumentSource as ClaudeDocumentSource,
+    BetaImageMediaType as ClaudeImageMediaType, BetaImageSource as ClaudeImageSource,
+    BetaMCPToolResultContent as ClaudeMcpToolResultContent,
+    BetaMCPToolUseBlockParam as ClaudeMcpToolUseBlock, BetaMessageContent as ClaudeMessageContent,
+    BetaMessageParam as ClaudeMessageParam, BetaMessageRole as ClaudeMessageRole,
+    BetaOutputConfig as ClaudeOutputConfig, BetaOutputEffort as ClaudeOutputEffort,
     BetaRequestDocumentBlock as ClaudeDocumentBlock,
-    BetaSystemParam as ClaudeSystemParam,
-    BetaTool as ClaudeTool,
-    BetaToolBuiltin as ClaudeToolBuiltin,
-    BetaToolChoice as ClaudeToolChoice,
-    BetaToolCustom as ClaudeToolCustom,
-    BetaToolResultBlockParam as ClaudeToolResultBlock,
-    BetaToolUseBlockParam as ClaudeToolUseBlock,
-    BetaServerToolUseBlockParam as ClaudeServerToolUseBlock,
-    BetaMCPToolUseBlockParam as ClaudeMcpToolUseBlock,
     BetaRequestMCPToolResultBlockParam as ClaudeMcpToolResultBlock,
+    BetaServerToolUseBlockParam as ClaudeServerToolUseBlock, BetaSystemParam as ClaudeSystemParam,
+    BetaThinkingConfigParam as ClaudeThinkingConfigParam, BetaTool as ClaudeTool,
+    BetaToolBuiltin as ClaudeToolBuiltin, BetaToolChoice as ClaudeToolChoice,
+    BetaToolCustom as ClaudeToolCustom, BetaToolResultBlockParam as ClaudeToolResultBlock,
     BetaToolResultContent as ClaudeToolResultContent,
     BetaToolResultContentBlockParam as ClaudeToolResultContentBlock,
-    BetaMCPToolResultContent as ClaudeMcpToolResultContent,
-    BetaWebSearchTool as ClaudeWebSearchTool,
-    BetaUserLocation as ClaudeUserLocation,
-    BetaOutputConfig as ClaudeOutputConfig,
-    BetaOutputEffort as ClaudeOutputEffort,
-    BetaThinkingConfigParam as ClaudeThinkingConfigParam,
-    Model as ClaudeModel,
+    BetaToolUseBlockParam as ClaudeToolUseBlock, BetaUserLocation as ClaudeUserLocation,
+    BetaWebSearchTool as ClaudeWebSearchTool, Model as ClaudeModel,
 };
+use gproxy_protocol::claude::create_message::request::CreateMessageRequest as ClaudeCreateMessageRequest;
 use gproxy_protocol::openai::create_chat_completions::request::{
     CreateChatCompletionRequest as OpenAIChatCompletionRequest,
     CreateChatCompletionRequestBody as OpenAIChatCompletionRequestBody, StopConfiguration,
 };
 use gproxy_protocol::openai::create_chat_completions::types::{
-    ChatCompletionAssistantContent, ChatCompletionAssistantContentPart,
-    ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction, ChatCompletionNamedToolChoice,
-    ChatCompletionNamedToolChoiceFunction, ChatCompletionNamedToolChoiceType,
-    ChatCompletionRequestAssistantMessage, ChatCompletionRequestMessage,
-    ChatCompletionRequestSystemMessage, ChatCompletionRequestToolMessage,
-    ChatCompletionRequestUserMessage, ChatCompletionTextContent,
+    ChatCompletionAssistantContent, ChatCompletionAssistantContentPart, ChatCompletionImageUrl,
+    ChatCompletionInputFile, ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction,
+    ChatCompletionNamedToolChoice, ChatCompletionNamedToolChoiceFunction,
+    ChatCompletionNamedToolChoiceType, ChatCompletionRequestAssistantMessage,
+    ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
+    ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage, ChatCompletionTextContent,
     ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
-    ChatCompletionUserContent, ChatCompletionUserContentPart, ChatCompletionImageUrl,
-    ChatCompletionInputFile, FunctionObject, JsonSchema, JsonSchemaType, JsonSchemaTypeValue,
-    WebSearchLocation, WebSearchOptions, WebSearchUserLocation,
-    WebSearchUserLocationType, ReasoningEffort,
+    ChatCompletionUserContent, ChatCompletionUserContentPart, FunctionObject, JsonSchema,
+    JsonSchemaType, JsonSchemaTypeValue, ReasoningEffort, WebSearchLocation, WebSearchOptions,
+    WebSearchUserLocation, WebSearchUserLocationType,
 };
-use std::collections::BTreeMap;
 use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
 
 /// Convert a Claude create-message request into an OpenAI chat-completions request.
 pub fn transform_request(request: ClaudeCreateMessageRequest) -> OpenAIChatCompletionRequest {
@@ -134,10 +122,12 @@ fn map_system_message(system: Option<ClaudeSystemParam>) -> Option<ChatCompletio
         None => None,
     }?;
 
-    Some(ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-        content: ChatCompletionTextContent::Text(text),
-        name: None,
-    }))
+    Some(ChatCompletionRequestMessage::System(
+        ChatCompletionRequestSystemMessage {
+            content: ChatCompletionTextContent::Text(text),
+            name: None,
+        },
+    ))
 }
 
 fn map_message(message: &ClaudeMessageParam) -> Vec<ChatCompletionRequestMessage> {
@@ -303,7 +293,10 @@ fn flush_user_parts(
     };
 
     output.push(ChatCompletionRequestMessage::User(
-        ChatCompletionRequestUserMessage { content, name: None },
+        ChatCompletionRequestUserMessage {
+            content,
+            name: None,
+        },
     ));
     parts.clear();
 }
@@ -325,9 +318,7 @@ fn map_image_part(source: &ClaudeImageSource) -> Option<ChatCompletionUserConten
 
 fn map_image_fallback(source: &ClaudeImageSource) -> Option<String> {
     match source {
-        ClaudeImageSource::File { file_id } => {
-            Some(format!("[image file_id: {}]", file_id))
-        }
+        ClaudeImageSource::File { file_id } => Some(format!("[image file_id: {}]", file_id)),
         _ => None,
     }
 }
@@ -366,9 +357,9 @@ fn map_document_fallback(doc: &ClaudeDocumentBlock) -> Option<String> {
         ClaudeDocumentSource::Url { url } => Some(format!("[document url: {}]", url)),
         ClaudeDocumentSource::Text { data, .. } => Some(data.clone()),
         ClaudeDocumentSource::Content { content } => match content {
-            gproxy_protocol::claude::count_tokens::types::BetaContentBlockSourceContent::Text(text) => {
-                Some(text.clone())
-            }
+            gproxy_protocol::claude::count_tokens::types::BetaContentBlockSourceContent::Text(
+                text,
+            ) => Some(text.clone()),
             _ => serde_json::to_string(content).ok(),
         },
         _ => None,
@@ -385,7 +376,9 @@ fn map_tool_result_message(result: &ClaudeToolResultBlock) -> Option<ChatComplet
     ))
 }
 
-fn map_mcp_tool_result_message(result: &ClaudeMcpToolResultBlock) -> Option<ChatCompletionRequestMessage> {
+fn map_mcp_tool_result_message(
+    result: &ClaudeMcpToolResultBlock,
+) -> Option<ChatCompletionRequestMessage> {
     let content = map_mcp_tool_result_content(result.content.as_ref())?;
     Some(ChatCompletionRequestMessage::Tool(
         ChatCompletionRequestToolMessage {
@@ -395,7 +388,9 @@ fn map_mcp_tool_result_message(result: &ClaudeMcpToolResultBlock) -> Option<Chat
     ))
 }
 
-fn map_tool_result_content(content: Option<&ClaudeToolResultContent>) -> Option<ChatCompletionTextContent> {
+fn map_tool_result_content(
+    content: Option<&ClaudeToolResultContent>,
+) -> Option<ChatCompletionTextContent> {
     let text = match content {
         Some(ClaudeToolResultContent::Text(text)) => text.clone(),
         Some(ClaudeToolResultContent::Blocks(blocks)) => blocks
@@ -423,7 +418,9 @@ fn map_tool_result_block_text(block: &ClaudeToolResultContentBlock) -> Option<St
     }
 }
 
-fn map_mcp_tool_result_content(content: Option<&ClaudeMcpToolResultContent>) -> Option<ChatCompletionTextContent> {
+fn map_mcp_tool_result_content(
+    content: Option<&ClaudeMcpToolResultContent>,
+) -> Option<ChatCompletionTextContent> {
     let text = match content {
         Some(ClaudeMcpToolResultContent::Text(text)) => text.clone(),
         Some(ClaudeMcpToolResultContent::Blocks(blocks)) => {
@@ -473,16 +470,23 @@ fn map_mcp_tool_use(tool: &ClaudeMcpToolUseBlock) -> ChatCompletionMessageToolCa
     }
 }
 
-fn map_tools(tools: Option<Vec<ClaudeTool>>) -> (Option<Vec<ChatCompletionToolDefinition>>, Option<WebSearchOptions>) {
+fn map_tools(
+    tools: Option<Vec<ClaudeTool>>,
+) -> (
+    Option<Vec<ChatCompletionToolDefinition>>,
+    Option<WebSearchOptions>,
+) {
     let mut definitions = Vec::new();
     let mut web_search_options = None;
 
     if let Some(tools) = tools {
         for tool in tools {
             match tool {
-                ClaudeTool::Custom(custom) => definitions.push(ChatCompletionToolDefinition::Function {
-                    function: map_custom_tool(custom),
-                }),
+                ClaudeTool::Custom(custom) => {
+                    definitions.push(ChatCompletionToolDefinition::Function {
+                        function: map_custom_tool(custom),
+                    })
+                }
                 ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(tool)) => {
                     web_search_options = Some(map_web_search_options(tool));
                 }
@@ -493,7 +497,11 @@ fn map_tools(tools: Option<Vec<ClaudeTool>>) -> (Option<Vec<ChatCompletionToolDe
         }
     }
 
-    let definitions = if definitions.is_empty() { None } else { Some(definitions) };
+    let definitions = if definitions.is_empty() {
+        None
+    } else {
+        Some(definitions)
+    };
     (definitions, web_search_options)
 }
 
@@ -555,20 +563,26 @@ fn map_user_location(location: ClaudeUserLocation) -> WebSearchUserLocation {
     }
 }
 
-fn map_tool_choice(choice: Option<ClaudeToolChoice>) -> (Option<ChatCompletionToolChoiceOption>, Option<bool>) {
+fn map_tool_choice(
+    choice: Option<ClaudeToolChoice>,
+) -> (Option<ChatCompletionToolChoiceOption>, Option<bool>) {
     let choice = match choice {
         Some(choice) => choice,
         None => return (None, None),
     };
 
     match choice {
-        ClaudeToolChoice::Auto { disable_parallel_tool_use } => (
+        ClaudeToolChoice::Auto {
+            disable_parallel_tool_use,
+        } => (
             Some(ChatCompletionToolChoiceOption::Mode(
                 ChatCompletionToolChoiceMode::Auto,
             )),
             disable_parallel_tool_use.map(|disabled| !disabled),
         ),
-        ClaudeToolChoice::Any { disable_parallel_tool_use } => (
+        ClaudeToolChoice::Any {
+            disable_parallel_tool_use,
+        } => (
             Some(ChatCompletionToolChoiceOption::Mode(
                 ChatCompletionToolChoiceMode::Required,
             )),
@@ -637,7 +651,9 @@ fn map_stop_sequences(stop_sequences: Option<Vec<String>>) -> Option<StopConfigu
     }
 }
 
-fn map_metadata(metadata: gproxy_protocol::claude::create_message::types::BetaMetadata) -> Option<BTreeMap<String, String>> {
+fn map_metadata(
+    metadata: gproxy_protocol::claude::create_message::types::BetaMetadata,
+) -> Option<BTreeMap<String, String>> {
     let mut map = BTreeMap::new();
     if let Some(user_id) = metadata.user_id {
         map.insert("user_id".to_string(), user_id);

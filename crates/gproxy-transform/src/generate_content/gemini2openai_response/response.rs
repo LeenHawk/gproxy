@@ -18,9 +18,10 @@ pub fn transform_response(response: Response) -> GeminiGenerateContentResponse {
 
     if parts.is_empty()
         && let Some(output_text) = &response.output_text
-            && !output_text.is_empty() {
-                parts.push(text_part(output_text.clone()));
-            }
+        && !output_text.is_empty()
+    {
+        parts.push(text_part(output_text.clone()));
+    }
 
     let finish_reason = map_finish_reason(&response);
 

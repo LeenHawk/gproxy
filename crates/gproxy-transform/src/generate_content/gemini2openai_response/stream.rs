@@ -6,14 +6,15 @@ use gproxy_protocol::gemini::generate_content::types::{FinishReason, UsageMetada
 use gproxy_protocol::openai::create_response::response::{Response, ResponseObjectType};
 use gproxy_protocol::openai::create_response::stream::{
     ResponseCompletedEvent, ResponseCreatedEvent, ResponseFunctionCallArgumentsDeltaEvent,
-    ResponseFunctionCallArgumentsDoneEvent, ResponseOutputItemAddedEvent, ResponseOutputItemDoneEvent,
-    ResponseStreamEvent, ResponseTextDeltaEvent, ResponseTextDoneEvent,
+    ResponseFunctionCallArgumentsDoneEvent, ResponseOutputItemAddedEvent,
+    ResponseOutputItemDoneEvent, ResponseStreamEvent, ResponseTextDeltaEvent,
+    ResponseTextDoneEvent,
 };
 use gproxy_protocol::openai::create_response::types::{
     FunctionCallItemStatus, FunctionToolCall, FunctionToolCallType, MessageStatus, OutputItem,
-    OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType,
-    OutputTextContent, ResponseIncompleteDetails, ResponseIncompleteReason, ResponseStatus,
-    ResponseUsage, ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
+    OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType, OutputTextContent,
+    ResponseIncompleteDetails, ResponseIncompleteReason, ResponseStatus, ResponseUsage,
+    ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
 };
 
 #[derive(Debug, Clone)]
@@ -90,7 +91,10 @@ impl GeminiToOpenAIResponseStreamState {
 
         let mut finish_reason = None;
         for (index, candidate) in response.candidates.iter().enumerate() {
-            let candidate_index = candidate.index.map(|value| value as i64).unwrap_or(index as i64);
+            let candidate_index = candidate
+                .index
+                .map(|value| value as i64)
+                .unwrap_or(index as i64);
             events.extend(self.handle_candidate(candidate_index, &candidate.content.parts));
             if let Some(reason) = candidate.finish_reason {
                 finish_reason = Some(reason);
@@ -120,9 +124,10 @@ impl GeminiToOpenAIResponseStreamState {
         let mut events = Vec::new();
 
         if let Some(text) = part.text.clone()
-            && !text.is_empty() {
-                events.extend(self.emit_text(candidate_index, text));
-            }
+            && !text.is_empty()
+        {
+            events.extend(self.emit_text(candidate_index, text));
+        }
 
         if let Some(function_call) = &part.function_call {
             events.extend(self.emit_function_call(candidate_index, function_call));
@@ -130,31 +135,32 @@ impl GeminiToOpenAIResponseStreamState {
 
         if let Some(function_response) = &part.function_response
             && let Ok(text) = serde_json::to_string(function_response)
-                && !text.is_empty() {
-                    events.extend(self.emit_text(candidate_index, text));
-                }
+            && !text.is_empty()
+        {
+            events.extend(self.emit_text(candidate_index, text));
+        }
 
         if let Some(code) = &part.executable_code
             && let Ok(text) = serde_json::to_string(code)
-                && !text.is_empty() {
-                    events.extend(self.emit_text(candidate_index, text));
-                }
+            && !text.is_empty()
+        {
+            events.extend(self.emit_text(candidate_index, text));
+        }
 
         if let Some(result) = &part.code_execution_result
             && let Ok(text) = serde_json::to_string(result)
-                && !text.is_empty() {
-                    events.extend(self.emit_text(candidate_index, text));
-                }
+            && !text.is_empty()
+        {
+            events.extend(self.emit_text(candidate_index, text));
+        }
 
         if part.inline_data.is_some() {
             events.extend(self.emit_text(candidate_index, "[inline_data]".to_string()));
         }
 
         if let Some(file_data) = &part.file_data {
-            events.extend(self.emit_text(
-                candidate_index,
-                format!("[file:{}]", file_data.file_uri),
-            ));
+            events
+                .extend(self.emit_text(candidate_index, format!("[file:{}]", file_data.file_uri)));
         }
 
         events
@@ -187,11 +193,13 @@ impl GeminiToOpenAIResponseStreamState {
             },
         );
 
-        vec![ResponseStreamEvent::OutputItemAdded(ResponseOutputItemAddedEvent {
-            output_index,
-            item: message,
-            sequence_number: self.next_sequence(),
-        })]
+        vec![ResponseStreamEvent::OutputItemAdded(
+            ResponseOutputItemAddedEvent {
+                output_index,
+                item: message,
+                sequence_number: self.next_sequence(),
+            },
+        )]
     }
 
     fn emit_text(&mut self, candidate_index: i64, text: String) -> Vec<ResponseStreamEvent> {
@@ -202,14 +210,16 @@ impl GeminiToOpenAIResponseStreamState {
         let mut events = self.ensure_message(candidate_index);
         if let Some(state) = self.message_states.get_mut(&candidate_index) {
             state.text.push_str(&text);
-            events.push(ResponseStreamEvent::OutputTextDelta(ResponseTextDeltaEvent {
-                item_id: state.message_id.clone(),
-                output_index: state.output_index,
-                content_index: 0,
-                delta: text,
-                sequence_number: self.next_sequence(),
-                logprobs: Vec::new(),
-            }));
+            events.push(ResponseStreamEvent::OutputTextDelta(
+                ResponseTextDeltaEvent {
+                    item_id: state.message_id.clone(),
+                    output_index: state.output_index,
+                    content_index: 0,
+                    delta: text,
+                    sequence_number: self.next_sequence(),
+                    logprobs: Vec::new(),
+                },
+            ));
         }
         events
     }
@@ -245,11 +255,13 @@ impl GeminiToOpenAIResponseStreamState {
                 status: Some(FunctionCallItemStatus::InProgress),
             });
 
-            events.push(ResponseStreamEvent::OutputItemAdded(ResponseOutputItemAddedEvent {
-                output_index,
-                item: item.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemAdded(
+                ResponseOutputItemAddedEvent {
+                    output_index,
+                    item: item.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(output_index, item);
             self.tool_states.insert(
                 call_id.clone(),
@@ -288,7 +300,11 @@ impl GeminiToOpenAIResponseStreamState {
         let mut events = Vec::new();
         let (status, incomplete_details) = map_finish_reason(finish_reason);
 
-        let message_states = self.message_states.values().cloned().collect::<Vec<MessageState>>();
+        let message_states = self
+            .message_states
+            .values()
+            .cloned()
+            .collect::<Vec<MessageState>>();
         for state in message_states {
             if !state.text.is_empty() {
                 events.push(ResponseStreamEvent::OutputTextDone(ResponseTextDoneEvent {
@@ -323,15 +339,21 @@ impl GeminiToOpenAIResponseStreamState {
                 },
             });
 
-            events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                output_index: state.output_index,
-                item: message.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemDone(
+                ResponseOutputItemDoneEvent {
+                    output_index: state.output_index,
+                    item: message.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(state.output_index, message);
         }
 
-        let tool_states = self.tool_states.values().cloned().collect::<Vec<ToolState>>();
+        let tool_states = self
+            .tool_states
+            .values()
+            .cloned()
+            .collect::<Vec<ToolState>>();
         for state in tool_states {
             events.push(ResponseStreamEvent::FunctionCallArgumentsDone(
                 ResponseFunctionCallArgumentsDoneEvent {
@@ -352,18 +374,29 @@ impl GeminiToOpenAIResponseStreamState {
                 status: Some(FunctionCallItemStatus::Completed),
             });
 
-            events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                output_index: state.output_index,
-                item: item.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemDone(
+                ResponseOutputItemDoneEvent {
+                    output_index: state.output_index,
+                    item: item.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(state.output_index, item);
         }
 
-        let output = self.output_items.values().cloned().collect::<Vec<OutputItem>>();
+        let output = self
+            .output_items
+            .values()
+            .cloned()
+            .collect::<Vec<OutputItem>>();
 
         events.push(ResponseStreamEvent::Completed(ResponseCompletedEvent {
-            response: self.response_skeleton(status, self.usage.clone(), incomplete_details, Some(output)),
+            response: self.response_skeleton(
+                status,
+                self.usage.clone(),
+                incomplete_details,
+                Some(output),
+            ),
             sequence_number: self.next_sequence(),
         }));
 
@@ -374,11 +407,12 @@ impl GeminiToOpenAIResponseStreamState {
         if let Some(id) = response.response_id.clone() {
             self.id = id;
         }
-        if let Some(model) = response
-            .model_version
-            .clone()
-            .or_else(|| response.model_status.as_ref().map(|status| format!("{:?}", status.model_stage)))
-        {
+        if let Some(model) = response.model_version.clone().or_else(|| {
+            response
+                .model_status
+                .as_ref()
+                .map(|status| format!("{:?}", status.model_stage))
+        }) {
             self.model = model.strip_prefix("models/").unwrap_or(&model).to_string();
         }
     }
@@ -457,9 +491,7 @@ fn compute_delta(previous: Option<&String>, full: &str) -> String {
     }
 }
 
-fn map_finish_reason(
-    reason: FinishReason,
-) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
+fn map_finish_reason(reason: FinishReason) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
     match reason {
         FinishReason::MaxTokens => (
             ResponseStatus::Incomplete,

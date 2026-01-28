@@ -22,12 +22,18 @@ pub fn transform_response(response: GeminiGenerateContentResponse) -> Response {
 
     let model = response
         .model_version
-        .or_else(|| response.model_status.map(|status| format!("{:?}", status.model_stage)))
+        .or_else(|| {
+            response
+                .model_status
+                .map(|status| format!("{:?}", status.model_stage))
+        })
         .unwrap_or_else(|| "unknown".to_string());
     let model = model.strip_prefix("models/").unwrap_or(&model).to_string();
 
     Response {
-        id: response.response_id.unwrap_or_else(|| "response".to_string()),
+        id: response
+            .response_id
+            .unwrap_or_else(|| "response".to_string()),
         object: ResponseObjectType::Response,
         created_at: 0,
         status: Some(status),
@@ -89,9 +95,10 @@ fn map_candidate_message(
 
     for part in &candidate.content.parts {
         if let Some(text) = part.text.clone()
-            && !text.is_empty() {
-                texts.push(text);
-            }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if let Some(function_call) = &part.function_call {
             let call_id = function_call
@@ -116,21 +123,24 @@ fn map_candidate_message(
 
         if let Some(function_response) = &part.function_response
             && let Ok(text) = serde_json::to_string(function_response)
-                && !text.is_empty() {
-                    texts.push(text);
-                }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if let Some(code) = &part.executable_code
             && let Ok(text) = serde_json::to_string(code)
-                && !text.is_empty() {
-                    texts.push(text);
-                }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if let Some(result) = &part.code_execution_result
             && let Ok(text) = serde_json::to_string(result)
-                && !text.is_empty() {
-                    texts.push(text);
-                }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if part.inline_data.is_some() {
             texts.push("[inline_data]".to_string());
@@ -188,16 +198,19 @@ fn extract_output_text(output: &[OutputItem]) -> Option<String> {
         if let OutputItem::Message(message) = item {
             for content in &message.content {
                 if let OutputMessageContent::OutputText(text) = content
-                    && !text.text.is_empty() {
-                        return Some(text.text.clone());
-                    }
+                    && !text.text.is_empty()
+                {
+                    return Some(text.text.clone());
+                }
             }
         }
     }
     None
 }
 
-fn map_status(response: &GeminiGenerateContentResponse) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
+fn map_status(
+    response: &GeminiGenerateContentResponse,
+) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
     let finish_reason = response
         .candidates
         .first()

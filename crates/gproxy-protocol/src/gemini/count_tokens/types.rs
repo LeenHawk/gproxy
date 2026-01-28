@@ -56,7 +56,7 @@ pub struct Part {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Blob {
-    /// The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg 
+    /// The IANA standard MIME type of the source data. Examples: - image/png - image/jpeg
     /// If an unsupported MIME type is provided, an error will be returned.
     pub mime_type: String,
     /// Base64-encoded bytes.

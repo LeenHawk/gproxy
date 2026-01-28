@@ -15,18 +15,16 @@ use gproxy_protocol::gemini::generate_content::types::{
 use gproxy_protocol::openai::create_chat_completions::request::CreateChatCompletionRequest;
 use gproxy_protocol::openai::create_chat_completions::types::{
     AllowedToolsMode, ChatCompletionAllowedTool, ChatCompletionAllowedToolsChoice,
+    ChatCompletionAssistantContent, ChatCompletionAssistantContentPart,
     ChatCompletionFunctionCallChoice, ChatCompletionFunctionCallMode,
-    ChatCompletionFunctionCallOption, ChatCompletionMessageToolCall,
-    ChatCompletionRequestAssistantMessage,
+    ChatCompletionFunctionCallOption, ChatCompletionImageDetail, ChatCompletionInputAudioFormat,
+    ChatCompletionInputFile, ChatCompletionMessageToolCall, ChatCompletionRequestAssistantMessage,
     ChatCompletionRequestFunctionMessage, ChatCompletionRequestMessage,
     ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage,
-    ChatCompletionResponseFormat, ChatCompletionToolChoiceMode,
-    ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
-    ChatCompletionUserContent, ChatCompletionUserContentPart, ChatCompletionTextContent,
-    ChatCompletionTextContentPart, ChatCompletionAssistantContent,
-    ChatCompletionAssistantContentPart, ChatCompletionImageDetail,
-    ChatCompletionInputAudioFormat, ChatCompletionInputFile, FunctionObject,
-    ReasoningEffort, ResponseModality,
+    ChatCompletionResponseFormat, ChatCompletionTextContent, ChatCompletionTextContentPart,
+    ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
+    ChatCompletionUserContent, ChatCompletionUserContentPart, FunctionObject, ReasoningEffort,
+    ResponseModality,
 };
 use serde_json::Value as JsonValue;
 
@@ -100,7 +98,9 @@ pub fn transform_request(request: CreateChatCompletionRequest) -> GeminiGenerate
             function_declarations: None,
             google_search_retrieval: None,
             code_execution: None,
-            google_search: Some(GoogleSearch { time_range_filter: None }),
+            google_search: Some(GoogleSearch {
+                time_range_filter: None,
+            }),
             computer_use: None,
             url_context: None,
             file_search: None,
@@ -162,7 +162,9 @@ fn map_assistant_message(
         parts.extend(map_assistant_content_to_parts(content));
     }
 
-    if let Some(refusal) = message.refusal && !refusal.is_empty() {
+    if let Some(refusal) = message.refusal
+        && !refusal.is_empty()
+    {
         parts.push(text_part(refusal));
     }
 
@@ -377,10 +379,7 @@ fn map_tool_call_to_part(
     }
 }
 
-fn map_image_url(
-    url: String,
-    detail: Option<ChatCompletionImageDetail>,
-) -> Option<GeminiPart> {
+fn map_image_url(url: String, detail: Option<ChatCompletionImageDetail>) -> Option<GeminiPart> {
     if let Some((mime, data)) = parse_data_url(&url) {
         let _ = detail;
         return Some(GeminiPart {
@@ -482,7 +481,10 @@ fn map_input_file(file: ChatCompletionInputFile) -> GeminiPart {
     }
 
     GeminiPart {
-        text: Some(format!("[file:{}]", file.filename.unwrap_or_else(|| "file".to_string()))),
+        text: Some(format!(
+            "[file:{}]",
+            file.filename.unwrap_or_else(|| "file".to_string())
+        )),
         inline_data: None,
         function_call: None,
         function_response: None,
@@ -499,18 +501,30 @@ fn map_input_file(file: ChatCompletionInputFile) -> GeminiPart {
 fn map_text_content_to_string(content: ChatCompletionTextContent) -> Option<String> {
     match content {
         ChatCompletionTextContent::Text(text) => {
-            if text.is_empty() { None } else { Some(text) }
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
         }
         ChatCompletionTextContent::Parts(parts) => {
             let texts: Vec<String> = parts
                 .into_iter()
                 .filter_map(|part| match part {
                     ChatCompletionTextContentPart::Text { text } => {
-                        if text.is_empty() { None } else { Some(text) }
+                        if text.is_empty() {
+                            None
+                        } else {
+                            Some(text)
+                        }
                     }
                 })
                 .collect();
-            if texts.is_empty() { None } else { Some(texts.join("\n")) }
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
         }
     }
 }
@@ -597,9 +611,7 @@ fn map_tool_choice(choice: ChatCompletionToolChoiceOption) -> Option<FunctionCal
             }),
             allowed_function_names: None,
         }),
-        ChatCompletionToolChoiceOption::AllowedTools(allowed) => {
-            map_allowed_tools_choice(allowed)
-        }
+        ChatCompletionToolChoiceOption::AllowedTools(allowed) => map_allowed_tools_choice(allowed),
         ChatCompletionToolChoiceOption::NamedTool(named) => Some(FunctionCallingConfig {
             mode: Some(FunctionCallingMode::Any),
             allowed_function_names: Some(vec![named.function.name]),
@@ -611,7 +623,9 @@ fn map_tool_choice(choice: ChatCompletionToolChoiceOption) -> Option<FunctionCal
     }
 }
 
-fn map_allowed_tools_choice(allowed: ChatCompletionAllowedToolsChoice) -> Option<FunctionCallingConfig> {
+fn map_allowed_tools_choice(
+    allowed: ChatCompletionAllowedToolsChoice,
+) -> Option<FunctionCallingConfig> {
     let mut names = Vec::new();
     for tool in allowed.allowed_tools.tools {
         match tool {
@@ -664,15 +678,21 @@ fn map_generation_config(
     extra_thinking_config: Option<ThinkingConfig>,
     model_id: &str,
 ) -> Option<GenerationConfig> {
-    let max_output_tokens = max_completion_tokens.or(max_tokens).map(|value| value.max(0) as u32);
+    let max_output_tokens = max_completion_tokens
+        .or(max_tokens)
+        .map(|value| value.max(0) as u32);
 
     let stop_sequences = match stop {
-        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Single(value)) => {
-            Some(vec![value])
-        }
-        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Many(values)) => {
-            Some(values)
-        }
+        Some(
+            gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Single(
+                value,
+            ),
+        ) => Some(vec![value]),
+        Some(
+            gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Many(
+                values,
+            ),
+        ) => Some(values),
         None => None,
     };
 
@@ -682,13 +702,18 @@ fn map_generation_config(
         modalities
             .into_iter()
             .map(|modality| match modality {
-                ResponseModality::Text => gproxy_protocol::gemini::count_tokens::types::Modality::Text,
-                ResponseModality::Audio => gproxy_protocol::gemini::count_tokens::types::Modality::Audio,
+                ResponseModality::Text => {
+                    gproxy_protocol::gemini::count_tokens::types::Modality::Text
+                }
+                ResponseModality::Audio => {
+                    gproxy_protocol::gemini::count_tokens::types::Modality::Audio
+                }
             })
             .collect::<Vec<_>>()
     });
 
-    let thinking_config = extra_thinking_config.or_else(|| map_thinking_config(reasoning_effort, model_id));
+    let thinking_config =
+        extra_thinking_config.or_else(|| map_thinking_config(reasoning_effort, model_id));
 
     if max_output_tokens.is_none()
         && temperature.is_none()
@@ -738,17 +763,23 @@ fn map_response_format(
                 .unwrap_or_else(|| serde_json::json!({"type": "object"}));
             (Some(schema), None)
         }
-        Some(ChatCompletionResponseFormat::JsonObject) => (None, Some("application/json".to_string())),
+        Some(ChatCompletionResponseFormat::JsonObject) => {
+            (None, Some("application/json".to_string()))
+        }
         _ => (None, None),
     }
 }
 
-fn map_thinking_config(reasoning_effort: Option<ReasoningEffort>, model_id: &str) -> Option<ThinkingConfig> {
+fn map_thinking_config(
+    reasoning_effort: Option<ReasoningEffort>,
+    model_id: &str,
+) -> Option<ThinkingConfig> {
     let effort = reasoning_effort?;
     let model_id = model_id.to_ascii_lowercase();
 
     if model_id.contains("gemini-2.5") {
-        let is_pro = model_id.contains("gemini-2.5-pro") || model_id.contains("gemini-2.5-pro-preview");
+        let is_pro =
+            model_id.contains("gemini-2.5-pro") || model_id.contains("gemini-2.5-pro-preview");
         let budget = match effort {
             ReasoningEffort::None => {
                 if is_pro {
@@ -874,7 +905,9 @@ fn map_thinking_level(value: &str) -> Option<ThinkingLevel> {
         "low" => Some(ThinkingLevel::Low),
         "medium" => Some(ThinkingLevel::Medium),
         "high" => Some(ThinkingLevel::High),
-        "thinking_level_unspecified" | "unspecified" => Some(ThinkingLevel::ThinkingLevelUnspecified),
+        "thinking_level_unspecified" | "unspecified" => {
+            Some(ThinkingLevel::ThinkingLevelUnspecified)
+        }
         _ => None,
     }
 }

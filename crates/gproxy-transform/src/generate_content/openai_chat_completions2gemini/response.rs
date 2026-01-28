@@ -2,7 +2,7 @@ use gproxy_protocol::gemini::count_tokens::types::Content as GeminiContent;
 use gproxy_protocol::gemini::generate_content::response::GenerateContentResponse as GeminiGenerateContentResponse;
 use gproxy_protocol::gemini::generate_content::types::{Candidate, FinishReason, UsageMetadata};
 use gproxy_protocol::openai::create_chat_completions::response::{
-    ChatCompletionChoice, CreateChatCompletionResponse, ChatCompletionObjectType,
+    ChatCompletionChoice, ChatCompletionObjectType, CreateChatCompletionResponse,
 };
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFinishReason, ChatCompletionMessageToolCall, ChatCompletionResponseMessage,
@@ -15,7 +15,12 @@ pub fn transform_response(response: GeminiGenerateContentResponse) -> CreateChat
         response
             .model_version
             .clone()
-            .or_else(|| response.model_status.as_ref().map(|status| format!("{:?}", status.model_stage)))
+            .or_else(|| {
+                response
+                    .model_status
+                    .as_ref()
+                    .map(|status| format!("{:?}", status.model_stage))
+            })
             .unwrap_or_else(|| "unknown".to_string()),
     );
 
@@ -44,7 +49,9 @@ pub fn transform_response(response: GeminiGenerateContentResponse) -> CreateChat
     };
 
     CreateChatCompletionResponse {
-        id: response.response_id.unwrap_or_else(|| "response".to_string()),
+        id: response
+            .response_id
+            .unwrap_or_else(|| "response".to_string()),
         object: ChatCompletionObjectType::ChatCompletion,
         created: 0,
         model,
@@ -61,7 +68,11 @@ fn map_candidate_to_choice(candidate: &Candidate, fallback_index: usize) -> Chat
         role: ChatCompletionResponseRole::Assistant,
         content,
         refusal: None,
-        tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+        tool_calls: if tool_calls.is_empty() {
+            None
+        } else {
+            Some(tool_calls)
+        },
         annotations: None,
         function_call: None,
         audio: None,
@@ -88,9 +99,10 @@ fn map_content_to_message_parts(
 
     for part in &content.parts {
         if let Some(text) = part.text.clone()
-            && !text.is_empty() {
-                texts.push(text);
-            }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if let Some(function_call) = &part.function_call {
             let id = function_call
@@ -115,21 +127,24 @@ fn map_content_to_message_parts(
 
         if let Some(function_response) = &part.function_response
             && let Ok(text) = serde_json::to_string(function_response)
-                && !text.is_empty() {
-                    texts.push(text);
-                }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if let Some(code) = &part.executable_code
             && let Ok(text) = serde_json::to_string(code)
-                && !text.is_empty() {
-                    texts.push(text);
-                }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if let Some(result) = &part.code_execution_result
             && let Ok(text) = serde_json::to_string(result)
-                && !text.is_empty() {
-                    texts.push(text);
-                }
+            && !text.is_empty()
+        {
+            texts.push(text);
+        }
 
         if part.inline_data.is_some() {
             texts.push("[inline_data]".to_string());

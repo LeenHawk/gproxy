@@ -1,14 +1,14 @@
-use gproxy_protocol::openai::create_chat_completions::response::CreateChatCompletionResponse;
 use gproxy_protocol::openai::create_chat_completions::response::ChatCompletionChoice;
+use gproxy_protocol::openai::create_chat_completions::response::CreateChatCompletionResponse;
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionMessageToolCall, ChatCompletionResponseMessage, CompletionUsage,
 };
 use gproxy_protocol::openai::create_response::response::{Response, ResponseObjectType};
 use gproxy_protocol::openai::create_response::types::{
-    OutputItem, OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType,
-    MessageStatus, ResponseStatus, ResponseUsage, ResponseUsageInputTokensDetails,
-    ResponseUsageOutputTokensDetails, FunctionToolCall, FunctionToolCallType, FunctionCallItemStatus,
-    CustomToolCall, CustomToolCallType,
+    CustomToolCall, CustomToolCallType, FunctionCallItemStatus, FunctionToolCall,
+    FunctionToolCallType, MessageStatus, OutputItem, OutputMessage, OutputMessageContent,
+    OutputMessageRole, OutputMessageType, ResponseStatus, ResponseUsage,
+    ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
 };
 
 /// Convert an OpenAI chat-completions response into an OpenAI responses response.
@@ -95,24 +95,26 @@ fn map_message_to_output(
     let mut contents = Vec::new();
 
     if let Some(content) = &message.content
-        && !content.is_empty() {
-            contents.push(OutputMessageContent::OutputText(
-                gproxy_protocol::openai::create_response::types::OutputTextContent {
-                    text: content.clone(),
-                    annotations: Vec::new(),
-                    logprobs: None,
-                },
-            ));
-        }
+        && !content.is_empty()
+    {
+        contents.push(OutputMessageContent::OutputText(
+            gproxy_protocol::openai::create_response::types::OutputTextContent {
+                text: content.clone(),
+                annotations: Vec::new(),
+                logprobs: None,
+            },
+        ));
+    }
 
     if let Some(refusal) = &message.refusal
-        && !refusal.is_empty() {
-            contents.push(OutputMessageContent::Refusal(
-                gproxy_protocol::openai::create_response::types::RefusalContent {
-                    refusal: refusal.clone(),
-                },
-            ));
-        }
+        && !refusal.is_empty()
+    {
+        contents.push(OutputMessageContent::Refusal(
+            gproxy_protocol::openai::create_response::types::RefusalContent {
+                refusal: refusal.clone(),
+            },
+        ));
+    }
 
     if contents.is_empty() {
         return None;
@@ -129,25 +131,25 @@ fn map_message_to_output(
 
 fn map_tool_call_to_output(call: &ChatCompletionMessageToolCall) -> Option<OutputItem> {
     match call {
-        ChatCompletionMessageToolCall::Function { id, function } => Some(OutputItem::Function(
-            FunctionToolCall {
+        ChatCompletionMessageToolCall::Function { id, function } => {
+            Some(OutputItem::Function(FunctionToolCall {
                 r#type: FunctionToolCallType::FunctionCall,
                 id: Some(id.clone()),
                 call_id: id.clone(),
                 name: function.name.clone(),
                 arguments: function.arguments.clone(),
                 status: Some(FunctionCallItemStatus::Completed),
-            },
-        )),
-        ChatCompletionMessageToolCall::Custom { id, custom } => Some(OutputItem::CustomToolCall(
-            CustomToolCall {
+            }))
+        }
+        ChatCompletionMessageToolCall::Custom { id, custom } => {
+            Some(OutputItem::CustomToolCall(CustomToolCall {
                 r#type: CustomToolCallType::CustomToolCall,
                 id: Some(id.clone()),
                 call_id: id.clone(),
                 name: custom.name.clone(),
                 input: custom.input.clone(),
-            },
-        )),
+            }))
+        }
     }
 }
 
@@ -177,9 +179,10 @@ fn extract_output_text(output: &[OutputItem]) -> Option<String> {
         if let OutputItem::Message(message) = item {
             for content in &message.content {
                 if let OutputMessageContent::OutputText(text) = content
-                    && !text.text.is_empty() {
-                        return Some(text.text.clone());
-                    }
+                    && !text.text.is_empty()
+                {
+                    return Some(text.text.clone());
+                }
             }
         }
     }

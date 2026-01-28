@@ -1,25 +1,16 @@
 use gproxy_protocol::claude::count_tokens::types::{
-    BetaContentBlockParam as ClaudeContentBlockParam,
-    BetaDocumentSource as ClaudeDocumentSource,
-    BetaImageSource as ClaudeImageSource,
-    BetaMessageContent as ClaudeMessageContent,
-    BetaMessageParam as ClaudeMessageParam,
-    BetaMessageRole as ClaudeMessageRole,
+    BetaContentBlockParam as ClaudeContentBlockParam, BetaDocumentSource as ClaudeDocumentSource,
+    BetaImageSource as ClaudeImageSource, BetaJSONOutputFormat as ClaudeJSONOutputFormat,
+    BetaMCPToolset as ClaudeMCPToolset, BetaMessageContent as ClaudeMessageContent,
+    BetaMessageParam as ClaudeMessageParam, BetaMessageRole as ClaudeMessageRole,
+    BetaOutputConfig as ClaudeOutputConfig, BetaOutputEffort as ClaudeOutputEffort,
     BetaRequestDocumentBlock as ClaudeDocumentBlock,
     BetaRequestMCPServerURLDefinition as ClaudeMCPServerURLDefinition,
-    BetaTool as ClaudeTool,
-    BetaToolBuiltin as ClaudeToolBuiltin,
-    BetaToolChoice as ClaudeToolChoice,
-    BetaToolCustom as ClaudeToolCustom,
-    BetaUserLocation as ClaudeUserLocation,
-    BetaWebSearchTool as ClaudeWebSearchTool,
-    BetaMCPToolset as ClaudeMCPToolset,
-    BetaJSONOutputFormat as ClaudeJSONOutputFormat,
-    BetaOutputConfig as ClaudeOutputConfig,
-    BetaOutputEffort as ClaudeOutputEffort,
-    BetaThinkingConfigParam as ClaudeThinkingConfigParam,
     BetaRequestMCPServerURLDefinitionType as ClaudeMCPServerURLDefinitionType,
-    Model as ClaudeModel,
+    BetaThinkingConfigParam as ClaudeThinkingConfigParam, BetaTool as ClaudeTool,
+    BetaToolBuiltin as ClaudeToolBuiltin, BetaToolChoice as ClaudeToolChoice,
+    BetaToolCustom as ClaudeToolCustom, BetaUserLocation as ClaudeUserLocation,
+    BetaWebSearchTool as ClaudeWebSearchTool, Model as ClaudeModel,
 };
 use gproxy_protocol::claude::create_message::request::CreateMessageRequest as ClaudeCreateMessageRequest;
 use gproxy_protocol::openai::create_response::request::{
@@ -27,14 +18,13 @@ use gproxy_protocol::openai::create_response::request::{
     CreateResponseRequestBody as OpenAIResponseRequestBody,
 };
 use gproxy_protocol::openai::create_response::types::{
-    EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole, EasyInputMessageType,
-    FunctionTool, InputContent, InputFileContent, InputImageContent, InputItem, InputMessage,
-    InputMessageRole, InputParam, InputTextContent, Instructions, MCPAllowedTools, MCPTool,
-    Reasoning, ReasoningEffort, ResponseTextParam, TextResponseFormatConfiguration, Tool,
-    ToolChoiceParam, ToolChoiceOptions,
-    WebSearchApproximateLocation, WebSearchFilters, WebSearchTool, CodeInterpreterContainer,
-    CodeInterpreterContainerParams, CodeInterpreterTool, ComputerEnvironment, ComputerUsePreviewTool,
-    FileSearchTool, FunctionShellTool,
+    CodeInterpreterContainer, CodeInterpreterContainerParams, CodeInterpreterTool,
+    ComputerEnvironment, ComputerUsePreviewTool, EasyInputMessage, EasyInputMessageContent,
+    EasyInputMessageRole, EasyInputMessageType, FileSearchTool, FunctionShellTool, FunctionTool,
+    InputContent, InputFileContent, InputImageContent, InputItem, InputMessage, InputMessageRole,
+    InputParam, InputTextContent, Instructions, MCPAllowedTools, MCPTool, Reasoning,
+    ReasoningEffort, ResponseTextParam, TextResponseFormatConfiguration, Tool, ToolChoiceOptions,
+    ToolChoiceParam, WebSearchApproximateLocation, WebSearchFilters, WebSearchTool,
 };
 use serde_json::Value as JsonValue;
 
@@ -91,12 +81,20 @@ pub fn transform_request(request: ClaudeCreateMessageRequest) -> OpenAIResponseR
     }
 }
 
-fn map_system_to_instructions(system: Option<gproxy_protocol::claude::count_tokens::types::BetaSystemParam>) -> Option<Instructions> {
+fn map_system_to_instructions(
+    system: Option<gproxy_protocol::claude::count_tokens::types::BetaSystemParam>,
+) -> Option<Instructions> {
     let text = match system {
-        Some(gproxy_protocol::claude::count_tokens::types::BetaSystemParam::Text(text)) => Some(text),
+        Some(gproxy_protocol::claude::count_tokens::types::BetaSystemParam::Text(text)) => {
+            Some(text)
+        }
         Some(gproxy_protocol::claude::count_tokens::types::BetaSystemParam::Blocks(blocks)) => {
             let texts: Vec<String> = blocks.into_iter().map(|block| block.text).collect();
-            if texts.is_empty() { None } else { Some(texts.join("\n")) }
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
         }
         None => None,
     }?;
@@ -122,8 +120,13 @@ fn map_messages_to_input(messages: &[ClaudeMessageParam]) -> Option<InputParam> 
 
 fn map_message_to_item(message: &ClaudeMessageParam) -> Option<InputItem> {
     match message.role {
-        ClaudeMessageRole::User => map_message_as_input(message, InputMessageRole::User)
-            .map(|msg| InputItem::Item(gproxy_protocol::openai::create_response::types::Item::InputMessage(msg))),
+        ClaudeMessageRole::User => {
+            map_message_as_input(message, InputMessageRole::User).map(|msg| {
+                InputItem::Item(
+                    gproxy_protocol::openai::create_response::types::Item::InputMessage(msg),
+                )
+            })
+        }
         ClaudeMessageRole::Assistant => {
             let content = map_message_content_to_easy_content(&message.content)?;
             Some(InputItem::EasyMessage(EasyInputMessage {
@@ -187,26 +190,32 @@ fn map_message_content_to_input_contents(content: &ClaudeMessageContent) -> Vec<
 
 fn map_block_to_input_content(block: &ClaudeContentBlockParam) -> Option<InputContent> {
     match block {
-        ClaudeContentBlockParam::Text(text_block) => Some(InputContent::InputText(InputTextContent {
-            text: text_block.text.clone(),
-        })),
+        ClaudeContentBlockParam::Text(text_block) => {
+            Some(InputContent::InputText(InputTextContent {
+                text: text_block.text.clone(),
+            }))
+        }
         ClaudeContentBlockParam::Image(image_block) => match &image_block.source {
             ClaudeImageSource::Url { url } => Some(InputContent::InputImage(InputImageContent {
                 image_url: Some(url.clone()),
                 file_id: None,
                 detail: None,
             })),
-            ClaudeImageSource::File { file_id } => Some(InputContent::InputImage(InputImageContent {
-                image_url: None,
-                file_id: Some(file_id.clone()),
-                detail: None,
-            })),
-            ClaudeImageSource::Base64 { data, .. } => Some(InputContent::InputFile(InputFileContent {
-                file_id: None,
-                filename: None,
-                file_url: None,
-                file_data: Some(data.clone()),
-            })),
+            ClaudeImageSource::File { file_id } => {
+                Some(InputContent::InputImage(InputImageContent {
+                    image_url: None,
+                    file_id: Some(file_id.clone()),
+                    detail: None,
+                }))
+            }
+            ClaudeImageSource::Base64 { data, .. } => {
+                Some(InputContent::InputFile(InputFileContent {
+                    file_id: None,
+                    filename: None,
+                    file_url: None,
+                    file_data: Some(data.clone()),
+                }))
+            }
         },
         ClaudeContentBlockParam::Document(document) => map_document_to_input_content(document),
         _ => None,
@@ -227,12 +236,14 @@ fn map_document_to_input_content(document: &ClaudeDocumentBlock) -> Option<Input
             file_url: Some(url.clone()),
             file_data: None,
         })),
-        ClaudeDocumentSource::Base64 { data, .. } => Some(InputContent::InputFile(InputFileContent {
-            file_id: None,
-            filename: document.title.clone(),
-            file_url: None,
-            file_data: Some(data.clone()),
-        })),
+        ClaudeDocumentSource::Base64 { data, .. } => {
+            Some(InputContent::InputFile(InputFileContent {
+                file_id: None,
+                filename: document.title.clone(),
+                file_url: None,
+                file_data: Some(data.clone()),
+            }))
+        }
         _ => None,
     }
 }
@@ -278,7 +289,10 @@ fn map_custom_tool(tool: ClaudeToolCustom) -> FunctionTool {
     schema.insert("type".to_string(), JsonValue::String("object".to_string()));
 
     if let Some(properties) = tool.input_schema.properties {
-        schema.insert("properties".to_string(), JsonValue::Object(properties.into_iter().collect()));
+        schema.insert(
+            "properties".to_string(),
+            JsonValue::Object(properties.into_iter().collect()),
+        );
     }
 
     if let Some(required) = tool.input_schema.required {
@@ -298,26 +312,27 @@ fn map_custom_tool(tool: ClaudeToolCustom) -> FunctionTool {
 
 fn map_builtin_tool(builtin: ClaudeToolBuiltin) -> Option<Tool> {
     match builtin {
-        ClaudeToolBuiltin::Bash20241022(_)
-        | ClaudeToolBuiltin::Bash20250124(_) => Some(Tool::Shell(FunctionShellTool {})),
+        ClaudeToolBuiltin::Bash20241022(_) | ClaudeToolBuiltin::Bash20250124(_) => {
+            Some(Tool::Shell(FunctionShellTool {}))
+        }
         ClaudeToolBuiltin::CodeExecution20250522(_)
-        | ClaudeToolBuiltin::CodeExecution20250825(_) => Some(Tool::CodeInterpreter(
-            CodeInterpreterTool {
+        | ClaudeToolBuiltin::CodeExecution20250825(_) => {
+            Some(Tool::CodeInterpreter(CodeInterpreterTool {
                 container: CodeInterpreterContainer::Params(CodeInterpreterContainerParams {
                     file_ids: Vec::new(),
                     memory_limit: None,
                 }),
-            },
-        )),
+            }))
+        }
         ClaudeToolBuiltin::ComputerUse20241022(tool)
         | ClaudeToolBuiltin::ComputerUse20250124(tool)
-        | ClaudeToolBuiltin::ComputerUse20251124(tool) => Some(Tool::ComputerUsePreview(
-            ComputerUsePreviewTool {
+        | ClaudeToolBuiltin::ComputerUse20251124(tool) => {
+            Some(Tool::ComputerUsePreview(ComputerUsePreviewTool {
                 environment: ComputerEnvironment::Browser,
                 display_width: tool.display_width_px as i64,
                 display_height: tool.display_height_px as i64,
-            },
-        )),
+            }))
+        }
         ClaudeToolBuiltin::TextEditor20241022(_)
         | ClaudeToolBuiltin::TextEditor20250124(_)
         | ClaudeToolBuiltin::TextEditor20250429(_)
@@ -328,21 +343,29 @@ fn map_builtin_tool(builtin: ClaudeToolBuiltin) -> Option<Tool> {
         | ClaudeToolBuiltin::WebFetch20250910(_)
         | ClaudeToolBuiltin::ToolSearchToolRegex(_)
         | ClaudeToolBuiltin::ToolSearchToolRegex20251119(_) => None,
-        ClaudeToolBuiltin::WebSearch20250305(tool) => Some(Tool::WebSearch(map_web_search_tool(tool))),
+        ClaudeToolBuiltin::WebSearch20250305(tool) => {
+            Some(Tool::WebSearch(map_web_search_tool(tool)))
+        }
         ClaudeToolBuiltin::ToolSearchToolBm25(_tool)
-        | ClaudeToolBuiltin::ToolSearchToolBm2520251119(_tool) => Some(Tool::FileSearch(FileSearchTool {
-            vector_store_ids: Vec::new(),
-            max_num_results: None,
-            ranking_options: None,
-            filters: None,
-        })),
+        | ClaudeToolBuiltin::ToolSearchToolBm2520251119(_tool) => {
+            Some(Tool::FileSearch(FileSearchTool {
+                vector_store_ids: Vec::new(),
+                max_num_results: None,
+                ranking_options: None,
+                filters: None,
+            }))
+        }
         ClaudeToolBuiltin::McpToolset(tool) => map_mcp_toolset(tool),
     }
 }
 
 fn map_web_search_tool(tool: ClaudeWebSearchTool) -> WebSearchTool {
     WebSearchTool {
-        filters: tool.allowed_domains.map(|allowed_domains| WebSearchFilters { allowed_domains: Some(allowed_domains) }),
+        filters: tool
+            .allowed_domains
+            .map(|allowed_domains| WebSearchFilters {
+                allowed_domains: Some(allowed_domains),
+            }),
         user_location: tool.user_location.map(map_user_location),
         search_context_size: None,
     }

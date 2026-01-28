@@ -4,23 +4,21 @@ use gproxy_protocol::gemini::count_tokens::request::{
 };
 use gproxy_protocol::gemini::count_tokens::types::{
     Blob as GeminiBlob, Content as GeminiContent, ContentRole as GeminiContentRole,
-    FileData as GeminiFileData, Part as GeminiPart,
-    Modality as GeminiModality,
+    FileData as GeminiFileData, Modality as GeminiModality, Part as GeminiPart,
 };
 use gproxy_protocol::gemini::generate_content::request::GenerateContentRequestBody;
 use gproxy_protocol::gemini::generate_content::types::{
     CodeExecution, ComputerUse, Environment, FileSearch, FunctionCallingConfig,
-    FunctionCallingMode, FunctionDeclaration, GenerationConfig, GoogleSearch, Tool as GeminiTool,
-    ToolConfig, ThinkingConfig, ThinkingLevel, ImageConfig,
+    FunctionCallingMode, FunctionDeclaration, GenerationConfig, GoogleSearch, ImageConfig,
+    ThinkingConfig, ThinkingLevel, Tool as GeminiTool, ToolConfig,
 };
 use gproxy_protocol::openai::count_tokens::request::InputTokenCountRequest as OpenAIInputTokenCountRequest;
 use gproxy_protocol::openai::create_response::types::{
     AllowedTool, CustomTool, EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole,
-    FunctionTool, InputContent, InputFileContent, InputImageContent, InputItem, InputMessage,
-    InputMessageRole, InputParam,
-    OutputMessage, OutputMessageContent, Reasoning, ReasoningEffort, ResponseTextParam,
-    TextResponseFormatConfiguration, Tool, ToolChoiceAllowed, ToolChoiceAllowedMode,
-    ToolChoiceOptions, ToolChoiceParam, ImageGenTool, ImageGenSize,
+    FunctionTool, ImageGenSize, ImageGenTool, InputContent, InputFileContent, InputImageContent,
+    InputItem, InputMessage, InputMessageRole, InputParam, OutputMessage, OutputMessageContent,
+    Reasoning, ReasoningEffort, ResponseTextParam, TextResponseFormatConfiguration, Tool,
+    ToolChoiceAllowed, ToolChoiceAllowedMode, ToolChoiceOptions, ToolChoiceParam,
 };
 use serde_json::Value as JsonValue;
 
@@ -52,11 +50,7 @@ pub fn transform_request(request: OpenAIInputTokenCountRequest) -> GeminiCountTo
         })
     };
 
-    let (tools, image_tool) = request
-        .body
-        .tools
-        .map(map_tools)
-        .unwrap_or_default();
+    let (tools, image_tool) = request.body.tools.map(map_tools).unwrap_or_default();
     let tools = if tools.is_empty() { None } else { Some(tools) };
 
     let tool_config = map_tool_choice(request.body.tool_choice);
@@ -91,7 +85,9 @@ fn append_input_param(
 ) {
     match input {
         InputParam::Text(text) => {
-            if let Some(content) = make_content(Some(GeminiContentRole::User), vec![text_part(text)]) {
+            if let Some(content) =
+                make_content(Some(GeminiContentRole::User), vec![text_part(text)])
+            {
                 contents.push(content);
             }
         }
@@ -132,12 +128,16 @@ fn append_easy_message(
 ) {
     match message.role {
         EasyInputMessageRole::User => {
-            if let Some(content) = easy_message_content_to_content(message.content, Some(GeminiContentRole::User)) {
+            if let Some(content) =
+                easy_message_content_to_content(message.content, Some(GeminiContentRole::User))
+            {
                 contents.push(content);
             }
         }
         EasyInputMessageRole::Assistant => {
-            if let Some(content) = easy_message_content_to_content(message.content, Some(GeminiContentRole::Model)) {
+            if let Some(content) =
+                easy_message_content_to_content(message.content, Some(GeminiContentRole::Model))
+            {
                 contents.push(content);
             }
         }
@@ -309,7 +309,10 @@ fn file_part(file_uri: String, mime_type: Option<String>) -> GeminiPart {
         inline_data: None,
         function_call: None,
         function_response: None,
-        file_data: Some(GeminiFileData { mime_type, file_uri }),
+        file_data: Some(GeminiFileData {
+            mime_type,
+            file_uri,
+        }),
         executable_code: None,
         code_execution_result: None,
         thought: None,
@@ -359,12 +362,17 @@ fn map_tools(tools: Vec<Tool>) -> (Vec<GeminiTool>, Option<ImageGenTool>) {
                 file_search: None,
                 google_maps: None,
             }),
-            Tool::WebSearch(_) | Tool::WebSearch20250826(_) | Tool::WebSearchPreview(_) | Tool::WebSearchPreview20250311(_) => {
+            Tool::WebSearch(_)
+            | Tool::WebSearch20250826(_)
+            | Tool::WebSearchPreview(_)
+            | Tool::WebSearchPreview20250311(_) => {
                 output.push(GeminiTool {
                     function_declarations: None,
                     google_search_retrieval: None,
                     code_execution: None,
-                    google_search: Some(GoogleSearch { time_range_filter: None }),
+                    google_search: Some(GoogleSearch {
+                        time_range_filter: None,
+                    }),
                     computer_use: None,
                     url_context: None,
                     file_search: None,
@@ -452,14 +460,8 @@ fn map_tool_choice(choice: Option<ToolChoiceParam>) -> Option<ToolConfig> {
         },
         ToolChoiceParam::Allowed(allowed) => map_allowed_tools(allowed),
         ToolChoiceParam::BuiltIn(_) => (FunctionCallingMode::Any, None),
-        ToolChoiceParam::Function(tool) => (
-            FunctionCallingMode::Any,
-            Some(vec![tool.name]),
-        ),
-        ToolChoiceParam::Custom(tool) => (
-            FunctionCallingMode::Any,
-            Some(vec![tool.name]),
-        ),
+        ToolChoiceParam::Function(tool) => (FunctionCallingMode::Any, Some(vec![tool.name])),
+        ToolChoiceParam::Custom(tool) => (FunctionCallingMode::Any, Some(vec![tool.name])),
         ToolChoiceParam::MCP(tool) => (
             FunctionCallingMode::Any,
             Some(vec![tool.name.unwrap_or(tool.server_label)]),
@@ -468,10 +470,7 @@ fn map_tool_choice(choice: Option<ToolChoiceParam>) -> Option<ToolConfig> {
             FunctionCallingMode::Any,
             Some(vec!["apply_patch".to_string()]),
         ),
-        ToolChoiceParam::Shell(_) => (
-            FunctionCallingMode::Any,
-            Some(vec!["shell".to_string()]),
-        ),
+        ToolChoiceParam::Shell(_) => (FunctionCallingMode::Any, Some(vec!["shell".to_string()])),
     };
 
     Some(ToolConfig {
@@ -578,7 +577,9 @@ fn map_reasoning(reasoning: Option<Reasoning>) -> Option<ThinkingConfig> {
     })
 }
 
-fn map_image_config(image_tool: Option<ImageGenTool>) -> (Option<ImageConfig>, Option<Vec<GeminiModality>>) {
+fn map_image_config(
+    image_tool: Option<ImageGenTool>,
+) -> (Option<ImageConfig>, Option<Vec<GeminiModality>>) {
     let tool = match image_tool {
         Some(tool) => tool,
         None => return (None, None),

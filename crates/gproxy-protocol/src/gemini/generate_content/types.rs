@@ -490,9 +490,13 @@ pub struct CitationSource {
 #[serde(untagged)]
 pub enum AttributionSourceId {
     #[serde(rename_all = "camelCase")]
-    GroundingPassage { grounding_passage: GroundingPassageId },
+    GroundingPassage {
+        grounding_passage: GroundingPassageId,
+    },
     #[serde(rename_all = "camelCase")]
-    SemanticRetrieverChunk { semantic_retriever_chunk: SemanticRetrieverChunk },
+    SemanticRetrieverChunk {
+        semantic_retriever_chunk: SemanticRetrieverChunk,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -796,7 +800,10 @@ pub struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_schema: Option<Schema>,
     /// Mutually exclusive with response_schema. JSON Schema.
-    #[serde(rename = "_responseJsonSchema", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "_responseJsonSchema",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub response_json_schema_internal: Option<JsonValue>,
     /// JSON Schema (preferred).
     #[serde(skip_serializing_if = "Option::is_none")]

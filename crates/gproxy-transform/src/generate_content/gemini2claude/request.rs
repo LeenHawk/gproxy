@@ -1,35 +1,22 @@
 use gproxy_protocol::claude::count_tokens::types::{
     BetaContentBlockParam as ClaudeContentBlockParam,
-    BetaDocumentBlockType as ClaudeDocumentBlockType,
-    BetaDocumentSource as ClaudeDocumentSource,
-    BetaImageBlockParam as ClaudeImageBlockParam,
-    BetaImageBlockType as ClaudeImageBlockType,
-    BetaImageMediaType as ClaudeImageMediaType,
-    BetaImageSource as ClaudeImageSource,
-    BetaMessageContent as ClaudeMessageContent,
-    BetaMessageParam as ClaudeMessageParam,
-    BetaMessageRole as ClaudeMessageRole,
-    BetaPdfMediaType as ClaudePdfMediaType,
-    BetaRequestDocumentBlock as ClaudeDocumentBlock,
-    BetaSystemParam as ClaudeSystemParam,
-    BetaTextBlockParam as ClaudeTextBlockParam,
-    BetaTextBlockType as ClaudeTextBlockType,
-    BetaThinkingConfigParam as ClaudeThinkingConfigParam,
-    BetaTool as ClaudeTool,
-    BetaToolBuiltin as ClaudeToolBuiltin,
-    BetaToolChoice as ClaudeToolChoice,
-    BetaToolCodeExecution as ClaudeToolCodeExecution,
-    BetaToolComputerUse as ClaudeToolComputerUse,
-    BetaToolCustom as ClaudeToolCustom,
-    BetaToolCustomType as ClaudeToolCustomType,
-    BetaToolInputSchema as ClaudeToolInputSchema,
-    BetaToolInputSchemaType as ClaudeToolInputSchemaType,
-    BetaToolSearchTool as ClaudeToolSearchTool,
-    BetaWebSearchTool as ClaudeWebSearchTool,
+    BetaDocumentBlockType as ClaudeDocumentBlockType, BetaDocumentSource as ClaudeDocumentSource,
+    BetaImageBlockParam as ClaudeImageBlockParam, BetaImageBlockType as ClaudeImageBlockType,
+    BetaImageMediaType as ClaudeImageMediaType, BetaImageSource as ClaudeImageSource,
     BetaJSONOutputFormat as ClaudeJSONOutputFormat,
     BetaJSONOutputFormatType as ClaudeJSONOutputFormatType,
-    BetaOutputConfig as ClaudeOutputConfig,
-    BetaOutputEffort as ClaudeOutputEffort,
+    BetaMessageContent as ClaudeMessageContent, BetaMessageParam as ClaudeMessageParam,
+    BetaMessageRole as ClaudeMessageRole, BetaOutputConfig as ClaudeOutputConfig,
+    BetaOutputEffort as ClaudeOutputEffort, BetaPdfMediaType as ClaudePdfMediaType,
+    BetaRequestDocumentBlock as ClaudeDocumentBlock, BetaSystemParam as ClaudeSystemParam,
+    BetaTextBlockParam as ClaudeTextBlockParam, BetaTextBlockType as ClaudeTextBlockType,
+    BetaThinkingConfigParam as ClaudeThinkingConfigParam, BetaTool as ClaudeTool,
+    BetaToolBuiltin as ClaudeToolBuiltin, BetaToolChoice as ClaudeToolChoice,
+    BetaToolCodeExecution as ClaudeToolCodeExecution, BetaToolComputerUse as ClaudeToolComputerUse,
+    BetaToolCustom as ClaudeToolCustom, BetaToolCustomType as ClaudeToolCustomType,
+    BetaToolInputSchema as ClaudeToolInputSchema,
+    BetaToolInputSchemaType as ClaudeToolInputSchemaType,
+    BetaToolSearchTool as ClaudeToolSearchTool, BetaWebSearchTool as ClaudeWebSearchTool,
     Model as ClaudeModel,
 };
 use gproxy_protocol::claude::create_message::request::{
@@ -43,8 +30,8 @@ use gproxy_protocol::gemini::count_tokens::types::{
 };
 use gproxy_protocol::gemini::generate_content::request::GenerateContentRequest as GeminiGenerateContentRequest;
 use gproxy_protocol::gemini::generate_content::types::{
-    FunctionCallingMode, FunctionDeclaration, GenerationConfig, Tool as GeminiTool, ToolConfig,
-    ThinkingLevel,
+    FunctionCallingMode, FunctionDeclaration, GenerationConfig, ThinkingLevel, Tool as GeminiTool,
+    ToolConfig,
 };
 use serde_json::Value as JsonValue;
 
@@ -155,14 +142,16 @@ fn map_part_to_blocks(part: &GeminiPart) -> Vec<ClaudeContentBlockParam> {
     }
 
     if let Some(blob) = &part.inline_data
-        && let Some(block) = map_inline_blob(blob) {
-            blocks.push(block);
-        }
+        && let Some(block) = map_inline_blob(blob)
+    {
+        blocks.push(block);
+    }
 
     if let Some(file) = &part.file_data
-        && let Some(block) = map_file_data(file) {
-            blocks.push(block);
-        }
+        && let Some(block) = map_file_data(file)
+    {
+        blocks.push(block);
+    }
 
     if let Some(function_call) = &part.function_call {
         push_json_block(&mut blocks, "function_call", function_call);
@@ -222,15 +211,16 @@ fn map_inline_blob(blob: &GeminiBlob) -> Option<ClaudeContentBlockParam> {
 
 fn map_file_data(file: &GeminiFileData) -> Option<ClaudeContentBlockParam> {
     if let Some(mime_type) = &file.mime_type
-        && mime_type.starts_with("image/") {
-            return Some(ClaudeContentBlockParam::Image(ClaudeImageBlockParam {
-                source: ClaudeImageSource::Url {
-                    url: file.file_uri.clone(),
-                },
-                r#type: ClaudeImageBlockType::Image,
-                cache_control: None,
-            }));
-        }
+        && mime_type.starts_with("image/")
+    {
+        return Some(ClaudeContentBlockParam::Image(ClaudeImageBlockParam {
+            source: ClaudeImageSource::Url {
+                url: file.file_uri.clone(),
+            },
+            r#type: ClaudeImageBlockType::Image,
+            cache_control: None,
+        }));
+    }
 
     Some(ClaudeContentBlockParam::Document(ClaudeDocumentBlock {
         source: ClaudeDocumentSource::Url {
@@ -292,15 +282,15 @@ fn map_tools(tools: Vec<GeminiTool>) -> Vec<ClaudeTool> {
         }
 
         if tool.code_execution.is_some() {
-            output.push(ClaudeTool::Builtin(ClaudeToolBuiltin::CodeExecution20250522(
-                ClaudeToolCodeExecution {
+            output.push(ClaudeTool::Builtin(
+                ClaudeToolBuiltin::CodeExecution20250522(ClaudeToolCodeExecution {
                     name: "code_execution".to_string(),
                     allowed_callers: None,
                     cache_control: None,
                     defer_loading: None,
                     strict: None,
-                },
-            )));
+                }),
+            ));
         }
 
         if tool.google_search.is_some() || tool.google_search_retrieval.is_some() {
@@ -415,7 +405,10 @@ fn schema_to_json(schema: gproxy_protocol::gemini::generate_content::types::Sche
         GeminiType::Null => "null",
         _ => "object",
     };
-    map.insert("type".to_string(), JsonValue::String(schema_type.to_string()));
+    map.insert(
+        "type".to_string(),
+        JsonValue::String(schema_type.to_string()),
+    );
 
     if let Some(description) = schema.description {
         map.insert("description".to_string(), JsonValue::String(description));
@@ -463,12 +456,13 @@ fn map_tool_choice(tool_config: Option<ToolConfig>) -> Option<ClaudeToolChoice> 
         }
         FunctionCallingMode::Any | FunctionCallingMode::Validated => {
             if let Some(names) = config.allowed_function_names
-                && names.len() == 1 {
-                    return Some(ClaudeToolChoice::Tool {
-                        name: names[0].clone(),
-                        disable_parallel_tool_use: None,
-                    });
-                }
+                && names.len() == 1
+            {
+                return Some(ClaudeToolChoice::Tool {
+                    name: names[0].clone(),
+                    disable_parallel_tool_use: None,
+                });
+            }
             Some(ClaudeToolChoice::Any {
                 disable_parallel_tool_use: None,
             })
@@ -506,7 +500,9 @@ fn map_generation_config(
         .and_then(|thinking| thinking.thinking_level)
         .and_then(map_thinking_level_to_effort);
 
-    let output_config = output_effort.map(|effort| ClaudeOutputConfig { effort: Some(effort) });
+    let output_config = output_effort.map(|effort| ClaudeOutputConfig {
+        effort: Some(effort),
+    });
 
     let thinking = config.thinking_config.as_ref().map(|thinking| {
         if thinking.include_thoughts {

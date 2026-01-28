@@ -9,8 +9,8 @@ use gproxy_protocol::openai::create_chat_completions::stream::{
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFinishReason, ChatCompletionMessageToolCallChunk,
     ChatCompletionMessageToolCallChunkFunction, ChatCompletionRole,
-    ChatCompletionStreamResponseDelta, CompletionTokensDetails, CompletionUsage, PromptTokensDetails,
-    ChatCompletionToolCallChunkType,
+    ChatCompletionStreamResponseDelta, ChatCompletionToolCallChunkType, CompletionTokensDetails,
+    CompletionUsage, PromptTokensDetails,
 };
 
 #[derive(Debug, Clone)]
@@ -62,7 +62,10 @@ impl GeminiToOpenAIChatCompletionStreamState {
         let mut finish_reasons = Vec::new();
 
         for (idx, candidate) in response.candidates.iter().enumerate() {
-            let choice_index = candidate.index.map(|value| value as i64).unwrap_or(idx as i64);
+            let choice_index = candidate
+                .index
+                .map(|value| value as i64)
+                .unwrap_or(idx as i64);
             events.extend(self.handle_parts(choice_index, &candidate.content.parts));
             if let Some(reason) = candidate.finish_reason {
                 finish_reasons.push((choice_index, reason));
@@ -121,31 +124,32 @@ impl GeminiToOpenAIChatCompletionStreamState {
 
         if let Some(function_response) = &part.function_response
             && let Ok(text) = serde_json::to_string(function_response)
-                && !text.is_empty() {
-                    events.push(self.emit_text_delta(choice_index, text));
-                }
+            && !text.is_empty()
+        {
+            events.push(self.emit_text_delta(choice_index, text));
+        }
 
         if let Some(code) = &part.executable_code
             && let Ok(text) = serde_json::to_string(code)
-                && !text.is_empty() {
-                    events.push(self.emit_text_delta(choice_index, text));
-                }
+            && !text.is_empty()
+        {
+            events.push(self.emit_text_delta(choice_index, text));
+        }
 
         if let Some(result) = &part.code_execution_result
             && let Ok(text) = serde_json::to_string(result)
-                && !text.is_empty() {
-                    events.push(self.emit_text_delta(choice_index, text));
-                }
+            && !text.is_empty()
+        {
+            events.push(self.emit_text_delta(choice_index, text));
+        }
 
         if part.inline_data.is_some() {
             events.push(self.emit_text_delta(choice_index, "[inline_data]".to_string()));
         }
 
         if let Some(file_data) = &part.file_data {
-            events.push(self.emit_text_delta(
-                choice_index,
-                format!("[file:{}]", file_data.file_uri),
-            ));
+            events
+                .push(self.emit_text_delta(choice_index, format!("[file:{}]", file_data.file_uri)));
         }
 
         events
@@ -322,11 +326,12 @@ impl GeminiToOpenAIChatCompletionStreamState {
         if let Some(id) = response.response_id.clone() {
             self.id = id;
         }
-        if let Some(model) = response
-            .model_version
-            .clone()
-            .or_else(|| response.model_status.as_ref().map(|status| format!("{:?}", status.model_stage)))
-        {
+        if let Some(model) = response.model_version.clone().or_else(|| {
+            response
+                .model_status
+                .as_ref()
+                .map(|status| format!("{:?}", status.model_stage))
+        }) {
             self.model = map_model_name(model);
         }
     }

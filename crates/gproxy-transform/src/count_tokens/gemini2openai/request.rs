@@ -41,13 +41,13 @@ pub fn transform_request(request: GeminiCountTokensRequest) -> OpenAIInputTokenC
     if let Some(generate_content_request) = request.body.generate_content_request
         && let Ok(body) =
             serde_json::from_value::<GenerateContentRequestBody>(generate_content_request)
-        {
-            contents = body.contents;
-            tools = body.tools;
-            tool_config = body.tool_config;
-            generation_config = body.generation_config;
-            system_instruction = body.system_instruction;
-        }
+    {
+        contents = body.contents;
+        tools = body.tools;
+        tool_config = body.tool_config;
+        generation_config = body.generation_config;
+        system_instruction = body.system_instruction;
+    }
 
     let input = map_contents_to_input(&contents);
     let instructions = system_instruction.and_then(map_system_instruction);
@@ -178,14 +178,15 @@ fn push_inline_blob(contents: &mut Vec<InputContent>, blob: &GeminiBlob) {
 
 fn push_file_data(contents: &mut Vec<InputContent>, file: &GeminiFileData) {
     if let Some(mime_type) = &file.mime_type
-        && mime_type.starts_with("image/") {
-            contents.push(InputContent::InputImage(InputImageContent {
-                image_url: Some(file.file_uri.clone()),
-                file_id: None,
-                detail: None,
-            }));
-            return;
-        }
+        && mime_type.starts_with("image/")
+    {
+        contents.push(InputContent::InputImage(InputImageContent {
+            image_url: Some(file.file_uri.clone()),
+            file_id: None,
+            detail: None,
+        }));
+        return;
+    }
 
     contents.push(InputContent::InputFile(InputFileContent {
         file_id: None,
@@ -279,8 +280,8 @@ fn map_function_tool(function: FunctionDeclaration) -> FunctionTool {
 }
 
 fn map_tool_choice(tool_config: Option<&ToolConfig>) -> Option<ToolChoiceParam> {
-    let config = tool_config
-        .and_then(|tool_config| tool_config.function_calling_config.as_ref())?;
+    let config =
+        tool_config.and_then(|tool_config| tool_config.function_calling_config.as_ref())?;
 
     let mode = config.mode.unwrap_or(FunctionCallingMode::ModeUnspecified);
     let allowed = config.allowed_function_names.clone().unwrap_or_default();
@@ -397,7 +398,9 @@ fn map_image_generation_tool(config: Option<&GenerationConfig>) -> Option<ImageG
         return None;
     }
 
-    let size = image_config.and_then(|config| config.image_size.as_deref()).and_then(map_image_size);
+    let size = image_config
+        .and_then(|config| config.image_size.as_deref())
+        .and_then(map_image_size);
 
     Some(ImageGenTool {
         model: None,

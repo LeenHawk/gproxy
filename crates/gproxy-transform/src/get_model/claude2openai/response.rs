@@ -7,8 +7,8 @@ use gproxy_protocol::openai::get_model::response::GetModelResponse as OpenAIGetM
 
 /// Convert an OpenAI get-model response into Claude's get-model response shape.
 pub fn transform_response(response: OpenAIGetModelResponse) -> ClaudeGetModelResponse {
-    let created_at = OffsetDateTime::from_unix_timestamp(response.created)
-        .unwrap_or(OffsetDateTime::UNIX_EPOCH);
+    let created_at =
+        OffsetDateTime::from_unix_timestamp(response.created).unwrap_or(OffsetDateTime::UNIX_EPOCH);
 
     ClaudeGetModelResponse {
         request_id: None,

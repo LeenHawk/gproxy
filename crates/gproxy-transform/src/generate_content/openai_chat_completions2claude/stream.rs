@@ -145,29 +145,36 @@ impl OpenAIToClaudeChatCompletionStreamState {
                 let index = self.next_block_index;
                 self.next_block_index += 1;
                 self.text_block_index = Some(index);
-                events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-                    index,
-                    content_block: BetaStreamContentBlock::Text(BetaTextBlock {
-                        citations: None,
-                        text: String::new(),
-                        r#type: BetaTextBlockType::Text,
-                    }),
-                }));
+                events.push(BetaStreamEvent::Known(
+                    BetaStreamEventKnown::ContentBlockStart {
+                        index,
+                        content_block: BetaStreamContentBlock::Text(BetaTextBlock {
+                            citations: None,
+                            text: String::new(),
+                            r#type: BetaTextBlockType::Text,
+                        }),
+                    },
+                ));
                 index
             }
         };
 
-        events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-            index: block_index,
-            delta: BetaStreamContentBlockDelta::TextDelta {
-                text: text.to_string(),
+        events.push(BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockDelta {
+                index: block_index,
+                delta: BetaStreamContentBlockDelta::TextDelta {
+                    text: text.to_string(),
+                },
             },
-        }));
+        ));
 
         events
     }
 
-    fn emit_tool_call(&mut self, call: &ChatCompletionMessageToolCallChunk) -> Vec<BetaStreamEvent> {
+    fn emit_tool_call(
+        &mut self,
+        call: &ChatCompletionMessageToolCallChunk,
+    ) -> Vec<BetaStreamEvent> {
         let mut events = Vec::new();
         let index = call.index;
 
@@ -184,16 +191,18 @@ impl OpenAIToClaudeChatCompletionStreamState {
                 .and_then(|function| function.name.clone())
                 .unwrap_or_else(|| "tool".to_string());
 
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-                index: block_index,
-                content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
-                    id: id.clone(),
-                    input: JsonObject::new(),
-                    name: name.clone(),
-                    r#type: BetaToolUseBlockType::ToolUse,
-                    caller: None,
-                }),
-            }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStart {
+                    index: block_index,
+                    content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
+                        id: id.clone(),
+                        input: JsonObject::new(),
+                        name: name.clone(),
+                        r#type: BetaToolUseBlockType::ToolUse,
+                        caller: None,
+                    }),
+                },
+            ));
 
             ToolBlockInfo { block_index }
         });
@@ -201,18 +210,23 @@ impl OpenAIToClaudeChatCompletionStreamState {
         if let Some(function) = &call.function
             && let Some(arguments) = &function.arguments
         {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-                index: info.block_index,
-                delta: BetaStreamContentBlockDelta::InputJsonDelta {
-                    partial_json: arguments.clone(),
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockDelta {
+                    index: info.block_index,
+                    delta: BetaStreamContentBlockDelta::InputJsonDelta {
+                        partial_json: arguments.clone(),
+                    },
                 },
-            }));
+            ));
         }
 
         events
     }
 
-    fn emit_function_call(&mut self, call: &ChatCompletionFunctionCallDelta) -> Vec<BetaStreamEvent> {
+    fn emit_function_call(
+        &mut self,
+        call: &ChatCompletionFunctionCallDelta,
+    ) -> Vec<BetaStreamEvent> {
         let mut events = Vec::new();
         let key = -1;
         let info = self.tool_blocks.entry(key).or_insert_with(|| {
@@ -224,27 +238,31 @@ impl OpenAIToClaudeChatCompletionStreamState {
                 .unwrap_or_else(|| "function_call".to_string());
             let id = "function_call".to_string();
 
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-                index: block_index,
-                content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
-                    id: id.clone(),
-                    input: JsonObject::new(),
-                    name: name.clone(),
-                    r#type: BetaToolUseBlockType::ToolUse,
-                    caller: None,
-                }),
-            }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStart {
+                    index: block_index,
+                    content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
+                        id: id.clone(),
+                        input: JsonObject::new(),
+                        name: name.clone(),
+                        r#type: BetaToolUseBlockType::ToolUse,
+                        caller: None,
+                    }),
+                },
+            ));
 
             ToolBlockInfo { block_index }
         });
 
         if let Some(arguments) = &call.arguments {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-                index: info.block_index,
-                delta: BetaStreamContentBlockDelta::InputJsonDelta {
-                    partial_json: arguments.clone(),
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockDelta {
+                    index: info.block_index,
+                    delta: BetaStreamContentBlockDelta::InputJsonDelta {
+                        partial_json: arguments.clone(),
+                    },
                 },
-            }));
+            ));
         }
 
         events
@@ -254,14 +272,18 @@ impl OpenAIToClaudeChatCompletionStreamState {
         let mut events = Vec::new();
 
         if let Some(index) = self.text_block_index.take() {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop { index }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop { index },
+            ));
         }
 
         let tool_blocks = std::mem::take(&mut self.tool_blocks);
         for (_, info) in tool_blocks {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop {
-                index: info.block_index,
-            }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop {
+                    index: info.block_index,
+                },
+            ));
         }
 
         events

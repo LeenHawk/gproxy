@@ -1,33 +1,21 @@
 use gproxy_protocol::claude::count_tokens::types::{
     BetaContentBlockParam as ClaudeContentBlockParam,
-    BetaDocumentBlockType as ClaudeDocumentBlockType,
-    BetaDocumentSource as ClaudeDocumentSource,
-    BetaImageBlockParam as ClaudeImageBlockParam,
-    BetaImageBlockType as ClaudeImageBlockType,
-    BetaImageMediaType as ClaudeImageMediaType,
-    BetaImageSource as ClaudeImageSource,
-    BetaMessageContent as ClaudeMessageContent,
-    BetaMessageParam as ClaudeMessageParam,
-    BetaMessageRole as ClaudeMessageRole,
-    BetaRequestDocumentBlock as ClaudeDocumentBlock,
-    BetaSystemParam as ClaudeSystemParam,
-    BetaTool as ClaudeTool,
-    BetaToolBuiltin as ClaudeToolBuiltin,
-    BetaToolChoice as ClaudeToolChoice,
-    BetaToolCustom as ClaudeToolCustom,
+    BetaDocumentBlockType as ClaudeDocumentBlockType, BetaDocumentSource as ClaudeDocumentSource,
+    BetaImageBlockParam as ClaudeImageBlockParam, BetaImageBlockType as ClaudeImageBlockType,
+    BetaImageMediaType as ClaudeImageMediaType, BetaImageSource as ClaudeImageSource,
+    BetaMessageContent as ClaudeMessageContent, BetaMessageParam as ClaudeMessageParam,
+    BetaMessageRole as ClaudeMessageRole, BetaOutputConfig as ClaudeOutputConfig,
+    BetaOutputEffort as ClaudeOutputEffort, BetaRequestDocumentBlock as ClaudeDocumentBlock,
+    BetaSystemParam as ClaudeSystemParam, BetaThinkingConfigParam as ClaudeThinkingConfigParam,
+    BetaTool as ClaudeTool, BetaToolBuiltin as ClaudeToolBuiltin,
+    BetaToolChoice as ClaudeToolChoice, BetaToolCustom as ClaudeToolCustom,
     BetaToolInputSchema as ClaudeToolInputSchema,
     BetaToolInputSchemaType as ClaudeToolInputSchemaType,
     BetaToolResultBlockParam as ClaudeToolResultBlock,
     BetaToolResultBlockType as ClaudeToolResultBlockType,
-    BetaToolResultContent as ClaudeToolResultContent,
-    BetaToolUseBlockParam as ClaudeToolUseBlock,
-    BetaToolUseBlockType as ClaudeToolUseBlockType,
-    BetaUserLocation as ClaudeUserLocation,
-    BetaWebSearchTool as ClaudeWebSearchTool,
-    BetaOutputConfig as ClaudeOutputConfig,
-    BetaOutputEffort as ClaudeOutputEffort,
-    BetaThinkingConfigParam as ClaudeThinkingConfigParam,
-    Model as ClaudeModel,
+    BetaToolResultContent as ClaudeToolResultContent, BetaToolUseBlockParam as ClaudeToolUseBlock,
+    BetaToolUseBlockType as ClaudeToolUseBlockType, BetaUserLocation as ClaudeUserLocation,
+    BetaWebSearchTool as ClaudeWebSearchTool, Model as ClaudeModel,
 };
 use gproxy_protocol::claude::create_message::request::{
     CreateMessageHeaders as ClaudeCreateMessageHeaders,
@@ -37,15 +25,14 @@ use gproxy_protocol::claude::create_message::request::{
 use gproxy_protocol::openai::create_chat_completions::request::CreateChatCompletionRequest as OpenAIChatCompletionRequest;
 use gproxy_protocol::openai::create_chat_completions::types::{
     AllowedToolsMode, ChatCompletionAllowedTool, ChatCompletionAllowedToolsChoice,
-    ChatCompletionAssistantContent, ChatCompletionFunctionCallChoice, ChatCompletionMessageToolCall,
-    ChatCompletionMessageToolCallFunction,
+    ChatCompletionAssistantContent, ChatCompletionFunctionCallChoice, ChatCompletionImageUrl,
+    ChatCompletionInputFile, ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction,
     ChatCompletionRequestAssistantMessage, ChatCompletionRequestFunctionMessage,
     ChatCompletionRequestMessage, ChatCompletionRequestToolMessage,
     ChatCompletionRequestUserMessage, ChatCompletionTextContent, ChatCompletionTextContentPart,
     ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
-    ChatCompletionUserContent, ChatCompletionUserContentPart, ChatCompletionImageUrl,
-    ChatCompletionInputFile, CustomToolDefinition, FunctionObject, ReasoningEffort,
-    WebSearchOptions, WebSearchUserLocation,
+    ChatCompletionUserContent, ChatCompletionUserContentPart, CustomToolDefinition, FunctionObject,
+    ReasoningEffort, WebSearchOptions, WebSearchUserLocation,
 };
 use serde_json::Value as JsonValue;
 
@@ -88,10 +75,16 @@ pub fn transform_request(request: OpenAIChatCompletionRequest) -> ClaudeCreateMe
     );
 
     let tool_choice = tool_choice.map(|choice| match choice {
-        ClaudeToolChoice::Auto { disable_parallel_tool_use: _ }
-        | ClaudeToolChoice::Any { disable_parallel_tool_use: _ }
-        | ClaudeToolChoice::Tool { disable_parallel_tool_use: _, .. } => match disable_parallel_tool_use
-        {
+        ClaudeToolChoice::Auto {
+            disable_parallel_tool_use: _,
+        }
+        | ClaudeToolChoice::Any {
+            disable_parallel_tool_use: _,
+        }
+        | ClaudeToolChoice::Tool {
+            disable_parallel_tool_use: _,
+            ..
+        } => match disable_parallel_tool_use {
             Some(value) => match choice {
                 ClaudeToolChoice::Auto { .. } => ClaudeToolChoice::Auto {
                     disable_parallel_tool_use: Some(value),
@@ -207,7 +200,9 @@ fn map_user_message(message: &ChatCompletionRequestUserMessage) -> Vec<ClaudeMes
     }]
 }
 
-fn map_assistant_message(message: &ChatCompletionRequestAssistantMessage) -> Vec<ClaudeMessageParam> {
+fn map_assistant_message(
+    message: &ChatCompletionRequestAssistantMessage,
+) -> Vec<ClaudeMessageParam> {
     let mut blocks = Vec::new();
 
     if let Some(content) = &message.content {
@@ -267,7 +262,8 @@ fn map_assistant_message(message: &ChatCompletionRequestAssistantMessage) -> Vec
 }
 
 fn map_tool_message(message: &ChatCompletionRequestToolMessage) -> Vec<ClaudeMessageParam> {
-    let content = ClaudeToolResultContent::Text(map_text_content_to_string(message.content.clone()));
+    let content =
+        ClaudeToolResultContent::Text(map_text_content_to_string(message.content.clone()));
     let block = ClaudeToolResultBlock {
         tool_use_id: message.tool_call_id.clone(),
         r#type: ClaudeToolResultBlockType::ToolResult,
@@ -348,7 +344,8 @@ fn map_input_file(file: &ChatCompletionInputFile) -> Option<ClaudeContentBlockPa
         return Some(ClaudeContentBlockParam::Document(ClaudeDocumentBlock {
             source: ClaudeDocumentSource::Base64 {
                 data: file_data.clone(),
-                media_type: gproxy_protocol::claude::count_tokens::types::BetaPdfMediaType::ApplicationPdf,
+                media_type:
+                    gproxy_protocol::claude::count_tokens::types::BetaPdfMediaType::ApplicationPdf,
             },
             r#type: ClaudeDocumentBlockType::Document,
             cache_control: None,
@@ -405,7 +402,9 @@ fn parse_tool_arguments(arguments: &str) -> std::collections::BTreeMap<String, J
 
 fn map_tools(
     tools: Option<Vec<ChatCompletionToolDefinition>>,
-    functions: Option<Vec<gproxy_protocol::openai::create_chat_completions::types::ChatCompletionFunctions>>,
+    functions: Option<
+        Vec<gproxy_protocol::openai::create_chat_completions::types::ChatCompletionFunctions>,
+    >,
 ) -> (Option<Vec<ClaudeTool>>, Option<ClaudeWebSearchTool>) {
     let mut output = Vec::new();
     let web_search = None;
@@ -463,14 +462,12 @@ fn merge_web_search_tool(
 
     let mut tools = tools.unwrap_or_default();
     if let Some(tool) = web_search_tool {
-        tools.push(ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(tool)));
+        tools.push(ClaudeTool::Builtin(ClaudeToolBuiltin::WebSearch20250305(
+            tool,
+        )));
     }
 
-    if tools.is_empty() {
-        None
-    } else {
-        Some(tools)
-    }
+    if tools.is_empty() { None } else { Some(tools) }
 }
 
 fn map_function_tool(function: FunctionObject) -> ClaudeToolCustom {
@@ -637,7 +634,10 @@ fn extract_allowed_tool_names(choice: &ChatCompletionAllowedToolsChoice) -> Vec<
 
 fn map_reasoning(
     effort: Option<ReasoningEffort>,
-) -> (Option<ClaudeThinkingConfigParam>, Option<ClaudeOutputConfig>) {
+) -> (
+    Option<ClaudeThinkingConfigParam>,
+    Option<ClaudeOutputConfig>,
+) {
     let effort = match effort {
         Some(ReasoningEffort::None) => return (Some(ClaudeThinkingConfigParam::Disabled), None),
         Some(ReasoningEffort::Minimal) => ClaudeOutputEffort::Low,
@@ -648,8 +648,12 @@ fn map_reasoning(
     };
 
     (
-        Some(ClaudeThinkingConfigParam::Enabled { budget_tokens: 1024 }),
-        Some(ClaudeOutputConfig { effort: Some(effort) }),
+        Some(ClaudeThinkingConfigParam::Enabled {
+            budget_tokens: 1024,
+        }),
+        Some(ClaudeOutputConfig {
+            effort: Some(effort),
+        }),
     )
 }
 
@@ -659,7 +663,9 @@ fn map_extra_body_thinking(extra_body: Option<&JsonValue>) -> Option<ClaudeThink
     let thinking_type = thinking.get("type")?.as_str()?;
     match thinking_type {
         "enabled" => {
-            let budget = thinking.get("budget_tokens").and_then(|value| value.as_u64())?;
+            let budget = thinking
+                .get("budget_tokens")
+                .and_then(|value| value.as_u64())?;
             let budget_tokens = if budget > u32::MAX as u64 {
                 u32::MAX
             } else {
@@ -672,9 +678,15 @@ fn map_extra_body_thinking(extra_body: Option<&JsonValue>) -> Option<ClaudeThink
     }
 }
 
-fn map_stop_sequences(stop: Option<gproxy_protocol::openai::create_chat_completions::request::StopConfiguration>) -> Option<Vec<String>> {
+fn map_stop_sequences(
+    stop: Option<gproxy_protocol::openai::create_chat_completions::request::StopConfiguration>,
+) -> Option<Vec<String>> {
     match stop {
-        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Single(value)) => {
+        Some(
+            gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Single(
+                value,
+            ),
+        ) => {
             let value = value.trim();
             if value.is_empty() {
                 None
@@ -682,13 +694,21 @@ fn map_stop_sequences(stop: Option<gproxy_protocol::openai::create_chat_completi
                 Some(vec![value.to_string()])
             }
         }
-        Some(gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Many(values)) => {
+        Some(
+            gproxy_protocol::openai::create_chat_completions::request::StopConfiguration::Many(
+                values,
+            ),
+        ) => {
             let values: Vec<String> = values
                 .into_iter()
                 .map(|value| value.trim().to_string())
                 .filter(|value| !value.is_empty())
                 .collect();
-            if values.is_empty() { None } else { Some(values) }
+            if values.is_empty() {
+                None
+            } else {
+                Some(values)
+            }
         }
         None => None,
     }
@@ -698,11 +718,10 @@ fn map_temperature(temperature: Option<f64>) -> Option<f64> {
     temperature.map(|value| value.clamp(0.0, 1.0))
 }
 
-fn map_max_tokens(body: &gproxy_protocol::openai::create_chat_completions::request::CreateChatCompletionRequestBody) -> u32 {
-    let value = body
-        .max_completion_tokens
-        .or(body.max_tokens)
-        .unwrap_or(0);
+fn map_max_tokens(
+    body: &gproxy_protocol::openai::create_chat_completions::request::CreateChatCompletionRequestBody,
+) -> u32 {
+    let value = body.max_completion_tokens.or(body.max_tokens).unwrap_or(0);
     if value <= 0 {
         0
     } else if value > u32::MAX as i64 {

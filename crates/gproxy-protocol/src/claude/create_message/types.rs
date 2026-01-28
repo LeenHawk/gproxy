@@ -3,8 +3,8 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use time::OffsetDateTime;
 
-use crate::claude::types::RequestId;
 use crate::claude::count_tokens::types::Model;
+use crate::claude::types::RequestId;
 
 pub type JsonValue = Value;
 pub type JsonObject = BTreeMap<String, JsonValue>;
@@ -337,7 +337,10 @@ pub enum BetaWebFetchBlockType {
 pub struct BetaWebFetchBlock {
     pub content: BetaDocumentBlock,
     /// ISO 8601 datetime string.
-    #[serde(skip_serializing_if = "Option::is_none", with = "time::serde::iso8601::option")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::iso8601::option"
+    )]
     pub retrieved_at: Option<OffsetDateTime>,
     #[serde(rename = "type")]
     pub r#type: BetaWebFetchBlockType,

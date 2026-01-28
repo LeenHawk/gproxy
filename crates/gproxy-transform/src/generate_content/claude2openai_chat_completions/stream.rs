@@ -4,16 +4,15 @@ use gproxy_protocol::claude::create_message::stream::{
     BetaStreamContentBlock, BetaStreamContentBlockDelta, BetaStreamEvent, BetaStreamEventKnown,
     BetaStreamUsage,
 };
-use gproxy_protocol::claude::error::ErrorDetail;
 use gproxy_protocol::claude::create_message::types::BetaStopReason;
+use gproxy_protocol::claude::error::ErrorDetail;
 use gproxy_protocol::openai::create_chat_completions::stream::{
-    ChatCompletionChunkObjectType, ChatCompletionStreamChoice,
-    CreateChatCompletionStreamResponse,
+    ChatCompletionChunkObjectType, ChatCompletionStreamChoice, CreateChatCompletionStreamResponse,
 };
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFinishReason, ChatCompletionMessageToolCallChunk,
-    ChatCompletionMessageToolCallChunkFunction, ChatCompletionRole, ChatCompletionStreamResponseDelta,
-    ChatCompletionToolCallChunkType, CompletionUsage,
+    ChatCompletionMessageToolCallChunkFunction, ChatCompletionRole,
+    ChatCompletionStreamResponseDelta, ChatCompletionToolCallChunkType, CompletionUsage,
 };
 use serde_json::Value as JsonValue;
 
@@ -82,14 +81,15 @@ impl ClaudeToOpenAIChatCompletionStreamState {
                     None,
                 )))
             }
-            BetaStreamEventKnown::ContentBlockStart { index, content_block } => {
-                self.map_block_start(index, content_block)
-                    .map(ClaudeToOpenAIChatCompletionStreamEvent::Chunk)
-            }
-            BetaStreamEventKnown::ContentBlockDelta { index, delta } => {
-                self.map_block_delta(index, delta)
-                    .map(ClaudeToOpenAIChatCompletionStreamEvent::Chunk)
-            }
+            BetaStreamEventKnown::ContentBlockStart {
+                index,
+                content_block,
+            } => self
+                .map_block_start(index, content_block)
+                .map(ClaudeToOpenAIChatCompletionStreamEvent::Chunk),
+            BetaStreamEventKnown::ContentBlockDelta { index, delta } => self
+                .map_block_delta(index, delta)
+                .map(ClaudeToOpenAIChatCompletionStreamEvent::Chunk),
             BetaStreamEventKnown::MessageDelta { delta, usage } => {
                 let finish_reason = delta.stop_reason.map(map_finish_reason);
                 if finish_reason.is_some() {
@@ -230,17 +230,25 @@ impl ClaudeToOpenAIChatCompletionStreamState {
             }),
         };
 
-        self.chunk(ChatCompletionStreamResponseDelta {
-            role: None,
-            content: None,
-            function_call: None,
-            tool_calls: Some(vec![tool_call]),
-            refusal: None,
-            obfuscation: None,
-        }, None, None)
+        self.chunk(
+            ChatCompletionStreamResponseDelta {
+                role: None,
+                content: None,
+                function_call: None,
+                tool_calls: Some(vec![tool_call]),
+                refusal: None,
+                obfuscation: None,
+            },
+            None,
+            None,
+        )
     }
 
-    fn tool_call_delta(&self, index: u32, partial_json: String) -> CreateChatCompletionStreamResponse {
+    fn tool_call_delta(
+        &self,
+        index: u32,
+        partial_json: String,
+    ) -> CreateChatCompletionStreamResponse {
         let tool_call = ChatCompletionMessageToolCallChunk {
             index: index as i64,
             id: None,
@@ -251,25 +259,33 @@ impl ClaudeToOpenAIChatCompletionStreamState {
             }),
         };
 
-        self.chunk(ChatCompletionStreamResponseDelta {
-            role: None,
-            content: None,
-            function_call: None,
-            tool_calls: Some(vec![tool_call]),
-            refusal: None,
-            obfuscation: None,
-        }, None, None)
+        self.chunk(
+            ChatCompletionStreamResponseDelta {
+                role: None,
+                content: None,
+                function_call: None,
+                tool_calls: Some(vec![tool_call]),
+                refusal: None,
+                obfuscation: None,
+            },
+            None,
+            None,
+        )
     }
 
     fn text_chunk(&self, text: String) -> CreateChatCompletionStreamResponse {
-        self.chunk(ChatCompletionStreamResponseDelta {
-            role: None,
-            content: Some(text),
-            function_call: None,
-            tool_calls: None,
-            refusal: None,
-            obfuscation: None,
-        }, None, None)
+        self.chunk(
+            ChatCompletionStreamResponseDelta {
+                role: None,
+                content: Some(text),
+                function_call: None,
+                tool_calls: None,
+                refusal: None,
+                obfuscation: None,
+            },
+            None,
+            None,
+        )
     }
 
     fn chunk(
@@ -335,9 +351,11 @@ fn map_usage(usage: &BetaStreamUsage) -> Option<CompletionUsage> {
 fn map_model(model: &gproxy_protocol::claude::count_tokens::types::Model) -> String {
     match model {
         gproxy_protocol::claude::count_tokens::types::Model::Custom(value) => value.clone(),
-        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => match serde_json::to_value(known) {
-            Ok(JsonValue::String(value)) => value,
-            _ => "unknown".to_string(),
-        },
+        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => {
+            match serde_json::to_value(known) {
+                Ok(JsonValue::String(value)) => value,
+                _ => "unknown".to_string(),
+            }
+        }
     }
 }

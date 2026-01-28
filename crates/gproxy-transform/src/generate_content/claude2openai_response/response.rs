@@ -1,15 +1,15 @@
 use gproxy_protocol::claude::create_message::response::CreateMessageResponse as ClaudeCreateMessageResponse;
 use gproxy_protocol::claude::create_message::types::{
-    BetaContentBlock, BetaMessage, BetaServerToolUseBlock, BetaMcpToolUseBlock, BetaStopReason,
+    BetaContentBlock, BetaMcpToolUseBlock, BetaMessage, BetaServerToolUseBlock, BetaStopReason,
     BetaToolUseBlock,
 };
 use gproxy_protocol::openai::create_response::response::{Response, ResponseObjectType};
 use gproxy_protocol::openai::create_response::types::{
-    FunctionToolCall, FunctionToolCallType, FunctionCallItemStatus, MessageStatus, OutputItem,
-    OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType, OutputTextContent,
-    RefusalContent, ResponseIncompleteDetails, ResponseIncompleteReason,
-    ResponseStatus, ResponseUsage, ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
-    MCPToolCall, MCPToolCallStatus, MCPToolCallType,
+    FunctionCallItemStatus, FunctionToolCall, FunctionToolCallType, MCPToolCall, MCPToolCallStatus,
+    MCPToolCallType, MessageStatus, OutputItem, OutputMessage, OutputMessageContent,
+    OutputMessageRole, OutputMessageType, OutputTextContent, RefusalContent,
+    ResponseIncompleteDetails, ResponseIncompleteReason, ResponseStatus, ResponseUsage,
+    ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
 };
 use serde_json::Value as JsonValue;
 
@@ -67,11 +67,15 @@ fn map_output(response: &BetaMessage) -> (Vec<OutputItem>, Option<String>) {
             BetaContentBlock::Text(text) => texts.push(text.text.clone()),
             BetaContentBlock::Thinking(thinking) => texts.push(thinking.thinking.clone()),
             BetaContentBlock::RedactedThinking(thinking) => texts.push(thinking.data.clone()),
-            BetaContentBlock::ToolUse(tool) => output.push(OutputItem::Function(map_tool_use(tool))),
+            BetaContentBlock::ToolUse(tool) => {
+                output.push(OutputItem::Function(map_tool_use(tool)))
+            }
             BetaContentBlock::ServerToolUse(tool) => {
                 output.push(OutputItem::Function(map_server_tool_use(tool)))
             }
-            BetaContentBlock::McpToolUse(tool) => output.push(OutputItem::MCPCall(map_mcp_tool_use(tool))),
+            BetaContentBlock::McpToolUse(tool) => {
+                output.push(OutputItem::MCPCall(map_mcp_tool_use(tool)))
+            }
             _ => {}
         }
     }
@@ -90,7 +94,10 @@ fn map_output(response: &BetaMessage) -> (Vec<OutputItem>, Option<String>) {
     (output, output_text)
 }
 
-fn map_message_content(texts: &[String], stop_reason: Option<BetaStopReason>) -> Option<OutputMessage> {
+fn map_message_content(
+    texts: &[String],
+    stop_reason: Option<BetaStopReason>,
+) -> Option<OutputMessage> {
     if texts.is_empty() && !matches!(stop_reason, Some(BetaStopReason::Refusal)) {
         return None;
     }
@@ -162,7 +169,9 @@ fn map_mcp_tool_use(tool: &BetaMcpToolUseBlock) -> MCPToolCall {
     }
 }
 
-fn map_status(stop_reason: Option<BetaStopReason>) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
+fn map_status(
+    stop_reason: Option<BetaStopReason>,
+) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
     match stop_reason {
         Some(BetaStopReason::MaxTokens) | Some(BetaStopReason::ModelContextWindowExceeded) => (
             ResponseStatus::Incomplete,
@@ -181,7 +190,9 @@ fn map_usage(response: &BetaMessage) -> ResponseUsage {
         input_tokens,
         input_tokens_details: ResponseUsageInputTokensDetails { cached_tokens: 0 },
         output_tokens,
-        output_tokens_details: ResponseUsageOutputTokensDetails { reasoning_tokens: 0 },
+        output_tokens_details: ResponseUsageOutputTokensDetails {
+            reasoning_tokens: 0,
+        },
         total_tokens: input_tokens + output_tokens,
     }
 }
@@ -189,9 +200,11 @@ fn map_usage(response: &BetaMessage) -> ResponseUsage {
 fn map_model(model: &gproxy_protocol::claude::count_tokens::types::Model) -> String {
     match model {
         gproxy_protocol::claude::count_tokens::types::Model::Custom(value) => value.clone(),
-        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => match serde_json::to_value(known) {
-            Ok(JsonValue::String(value)) => value,
-            _ => "unknown".to_string(),
-        },
+        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => {
+            match serde_json::to_value(known) {
+                Ok(JsonValue::String(value)) => value,
+                _ => "unknown".to_string(),
+            }
+        }
     }
 }

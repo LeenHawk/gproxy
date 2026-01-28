@@ -5,9 +5,7 @@ use crate::claude::count_tokens::types::{
     BetaRequestMCPServerURLDefinition, BetaSystemParam, BetaThinkingConfigParam, BetaTool,
     BetaToolChoice, Model,
 };
-use crate::claude::create_message::types::{
-    BetaContainerParam, BetaMetadata, BetaServiceTier,
-};
+use crate::claude::create_message::types::{BetaContainerParam, BetaMetadata, BetaServiceTier};
 use crate::claude::types::{AnthropicBetaHeader, AnthropicVersion};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

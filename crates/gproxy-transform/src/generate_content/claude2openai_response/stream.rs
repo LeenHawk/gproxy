@@ -16,10 +16,10 @@ use gproxy_protocol::openai::create_response::stream::{
 };
 use gproxy_protocol::openai::create_response::types::{
     FunctionCallItemStatus, FunctionToolCall, FunctionToolCallType, MCPToolCall, MCPToolCallStatus,
-    MCPToolCallType, MessageStatus, OutputItem, OutputMessage, OutputMessageContent, OutputMessageRole,
-    OutputMessageType, OutputTextContent, RefusalContent, ResponseIncompleteDetails,
-    ResponseIncompleteReason, ResponseStatus, ResponseUsage, ResponseUsageInputTokensDetails,
-    ResponseUsageOutputTokensDetails,
+    MCPToolCallType, MessageStatus, OutputItem, OutputMessage, OutputMessageContent,
+    OutputMessageRole, OutputMessageType, OutputTextContent, RefusalContent,
+    ResponseIncompleteDetails, ResponseIncompleteReason, ResponseStatus, ResponseUsage,
+    ResponseUsageInputTokensDetails, ResponseUsageOutputTokensDetails,
 };
 use serde_json::Value as JsonValue;
 
@@ -85,9 +85,10 @@ impl ClaudeToOpenAIResponseStreamState {
                     sequence_number: self.next_sequence(),
                 })]
             }
-            BetaStreamEventKnown::ContentBlockStart { index, content_block } => {
-                self.handle_block_start(index, content_block)
-            }
+            BetaStreamEventKnown::ContentBlockStart {
+                index,
+                content_block,
+            } => self.handle_block_start(index, content_block),
             BetaStreamEventKnown::ContentBlockDelta { index, delta } => {
                 self.handle_block_delta(index, delta)
             }
@@ -100,14 +101,17 @@ impl ClaudeToOpenAIResponseStreamState {
                 Vec::new()
             }
             BetaStreamEventKnown::MessageStop => self.finish_response(),
-            BetaStreamEventKnown::Ping => vec![ResponseStreamEvent::InProgress(
-                ResponseInProgressEvent {
+            BetaStreamEventKnown::Ping => {
+                vec![ResponseStreamEvent::InProgress(ResponseInProgressEvent {
                     response: self.response_skeleton(ResponseStatus::InProgress, None, None, None),
                     sequence_number: self.next_sequence(),
-                },
-            )],
+                })]
+            }
             BetaStreamEventKnown::Error { error, .. } => {
-                vec![ResponseStreamEvent::Error(map_error(error, self.next_sequence()))]
+                vec![ResponseStreamEvent::Error(map_error(
+                    error,
+                    self.next_sequence(),
+                ))]
             }
         }
     }
@@ -121,10 +125,15 @@ impl ClaudeToOpenAIResponseStreamState {
             BetaStreamContentBlock::Text(text) => self.emit_text(text.text),
             BetaStreamContentBlock::Thinking(thinking) => self.emit_text(thinking.thinking),
             BetaStreamContentBlock::RedactedThinking(thinking) => self.emit_text(thinking.data),
-            BetaStreamContentBlock::ToolUse(tool) => self.start_tool(index, tool.id, tool.name, ToolKind::Function),
-            BetaStreamContentBlock::ServerToolUse(tool) => {
-                self.start_tool(index, tool.id, format!("{:?}", tool.name), ToolKind::Function)
+            BetaStreamContentBlock::ToolUse(tool) => {
+                self.start_tool(index, tool.id, tool.name, ToolKind::Function)
             }
+            BetaStreamContentBlock::ServerToolUse(tool) => self.start_tool(
+                index,
+                tool.id,
+                format!("{:?}", tool.name),
+                ToolKind::Function,
+            ),
             BetaStreamContentBlock::McpToolUse(tool) => {
                 self.start_tool(index, tool.id, tool.name, ToolKind::Mcp)
             }
@@ -174,11 +183,13 @@ impl ClaudeToOpenAIResponseStreamState {
                     arguments: info.arguments,
                     status: Some(FunctionCallItemStatus::Completed),
                 });
-                events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                    output_index: info.output_index,
-                    item: item.clone(),
-                    sequence_number: self.next_sequence(),
-                }));
+                events.push(ResponseStreamEvent::OutputItemDone(
+                    ResponseOutputItemDoneEvent {
+                        output_index: info.output_index,
+                        item: item.clone(),
+                        sequence_number: self.next_sequence(),
+                    },
+                ));
                 self.output_items.push(item);
             }
             ToolKind::Mcp => {
@@ -202,11 +213,13 @@ impl ClaudeToOpenAIResponseStreamState {
                     status: MCPToolCallStatus::Completed,
                     approval_request_id: None,
                 });
-                events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                    output_index: info.output_index,
-                    item: item.clone(),
-                    sequence_number: self.next_sequence(),
-                }));
+                events.push(ResponseStreamEvent::OutputItemDone(
+                    ResponseOutputItemDoneEvent {
+                        output_index: info.output_index,
+                        item: item.clone(),
+                        sequence_number: self.next_sequence(),
+                    },
+                ));
                 self.output_items.push(item);
             }
         }
@@ -229,23 +242,27 @@ impl ClaudeToOpenAIResponseStreamState {
                 content: Vec::new(),
                 status: MessageStatus::InProgress,
             });
-            events.push(ResponseStreamEvent::OutputItemAdded(ResponseOutputItemAddedEvent {
-                output_index: self.next_output_index,
-                item: message,
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemAdded(
+                ResponseOutputItemAddedEvent {
+                    output_index: self.next_output_index,
+                    item: message,
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.next_output_index += 1;
         }
 
         self.text_buffer.push_str(&text);
-        events.push(ResponseStreamEvent::OutputTextDelta(ResponseTextDeltaEvent {
-            item_id: "message".to_string(),
-            output_index: 0,
-            content_index: 0,
-            delta: text,
-            sequence_number: self.next_sequence(),
-            logprobs: Vec::new(),
-        }));
+        events.push(ResponseStreamEvent::OutputTextDelta(
+            ResponseTextDeltaEvent {
+                item_id: "message".to_string(),
+                output_index: 0,
+                content_index: 0,
+                delta: text,
+                sequence_number: self.next_sequence(),
+                logprobs: Vec::new(),
+            },
+        ));
 
         events
     }
@@ -356,7 +373,10 @@ impl ClaudeToOpenAIResponseStreamState {
                 logprobs: Vec::new(),
             }));
 
-            let status = if matches!(self.stop_reason, Some(BetaStopReason::MaxTokens | BetaStopReason::ModelContextWindowExceeded)) {
+            let status = if matches!(
+                self.stop_reason,
+                Some(BetaStopReason::MaxTokens | BetaStopReason::ModelContextWindowExceeded)
+            ) {
                 MessageStatus::Incomplete
             } else {
                 MessageStatus::Completed
@@ -370,11 +390,13 @@ impl ClaudeToOpenAIResponseStreamState {
                 status,
             });
 
-            events.push(ResponseStreamEvent::OutputItemDone(ResponseOutputItemDoneEvent {
-                output_index: 0,
-                item: message.clone(),
-                sequence_number: self.next_sequence(),
-            }));
+            events.push(ResponseStreamEvent::OutputItemDone(
+                ResponseOutputItemDoneEvent {
+                    output_index: 0,
+                    item: message.clone(),
+                    sequence_number: self.next_sequence(),
+                },
+            ));
             self.output_items.insert(0, message);
         }
 
@@ -382,7 +404,12 @@ impl ClaudeToOpenAIResponseStreamState {
         let usage = self.usage.as_ref().and_then(map_usage);
 
         events.push(ResponseStreamEvent::Completed(ResponseCompletedEvent {
-            response: self.response_skeleton(status, usage, incomplete_details, Some(self.output_items.clone())),
+            response: self.response_skeleton(
+                status,
+                usage,
+                incomplete_details,
+                Some(self.output_items.clone()),
+            ),
             sequence_number: self.next_sequence(),
         }));
 
@@ -448,14 +475,18 @@ impl ClaudeToOpenAIResponseStreamState {
 fn map_model(model: &gproxy_protocol::claude::count_tokens::types::Model) -> String {
     match model {
         gproxy_protocol::claude::count_tokens::types::Model::Custom(value) => value.clone(),
-        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => match serde_json::to_value(known) {
-            Ok(JsonValue::String(value)) => value,
-            _ => "unknown".to_string(),
-        },
+        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => {
+            match serde_json::to_value(known) {
+                Ok(JsonValue::String(value)) => value,
+                _ => "unknown".to_string(),
+            }
+        }
     }
 }
 
-fn map_status(stop_reason: Option<BetaStopReason>) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
+fn map_status(
+    stop_reason: Option<BetaStopReason>,
+) -> (ResponseStatus, Option<ResponseIncompleteDetails>) {
     match stop_reason {
         Some(BetaStopReason::MaxTokens) | Some(BetaStopReason::ModelContextWindowExceeded) => (
             ResponseStatus::Incomplete,
@@ -474,7 +505,9 @@ fn map_usage(usage: &BetaStreamUsage) -> Option<ResponseUsage> {
         input_tokens,
         input_tokens_details: ResponseUsageInputTokensDetails { cached_tokens: 0 },
         output_tokens,
-        output_tokens_details: ResponseUsageOutputTokensDetails { reasoning_tokens: 0 },
+        output_tokens_details: ResponseUsageOutputTokensDetails {
+            reasoning_tokens: 0,
+        },
         total_tokens: input_tokens + output_tokens,
     })
 }

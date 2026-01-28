@@ -6,7 +6,8 @@ use gproxy_protocol::claude::create_message::stream::{
     BetaStreamMessage, BetaStreamUsage, BetaThinkingBlockStream,
 };
 use gproxy_protocol::claude::create_message::types::{
-    BetaServerToolName, BetaStopReason, BetaToolUseBlock, BetaToolUseBlockType, JsonObject, JsonValue,
+    BetaServerToolName, BetaStopReason, BetaToolUseBlock, BetaToolUseBlockType, JsonObject,
+    JsonValue,
 };
 use gproxy_protocol::gemini::count_tokens::types::{
     Content as GeminiContent, ContentRole as GeminiContentRole, FunctionCall as GeminiFunctionCall,
@@ -65,9 +66,10 @@ impl ClaudeToGeminiStreamState {
                 self.update_from_message(&message);
                 Vec::new()
             }
-            BetaStreamEventKnown::ContentBlockStart { index, content_block } => {
-                self.handle_block_start(index, content_block)
-            }
+            BetaStreamEventKnown::ContentBlockStart {
+                index,
+                content_block,
+            } => self.handle_block_start(index, content_block),
             BetaStreamEventKnown::ContentBlockDelta { index, delta } => {
                 self.handle_block_delta(index, delta)
             }
@@ -433,7 +435,10 @@ fn build_tool_part(tool: &ToolInfo, args_value: JsonValue) -> GeminiPart {
 }
 
 fn part_has_payload(part: &GeminiPart) -> bool {
-    part.text.as_ref().map(|text| !text.is_empty()).unwrap_or(false)
+    part.text
+        .as_ref()
+        .map(|text| !text.is_empty())
+        .unwrap_or(false)
         || part.function_call.is_some()
         || part.function_response.is_some()
         || part.inline_data.is_some()
@@ -467,7 +472,9 @@ fn map_stop_reason(reason: BetaStopReason) -> FinishReason {
         BetaStopReason::MaxTokens => FinishReason::MaxTokens,
         BetaStopReason::ToolUse => FinishReason::Stop,
         BetaStopReason::Refusal => FinishReason::Safety,
-        BetaStopReason::PauseTurn | BetaStopReason::ModelContextWindowExceeded => FinishReason::Other,
+        BetaStopReason::PauseTurn | BetaStopReason::ModelContextWindowExceeded => {
+            FinishReason::Other
+        }
     }
 }
 

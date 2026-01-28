@@ -1,23 +1,14 @@
 use gproxy_protocol::claude::count_tokens::types::{
-    BetaContentBlockParam as ClaudeContentBlockParam,
-    BetaDocumentSource as ClaudeDocumentSource,
-    BetaImageMediaType as ClaudeImageMediaType,
-    BetaImageSource as ClaudeImageSource,
-    BetaMessageContent as ClaudeMessageContent, BetaMessageParam as ClaudeMessageParam,
-    BetaMessageRole as ClaudeMessageRole,
-    BetaRequestDocumentBlock as ClaudeDocumentBlock,
-    BetaSystemParam as ClaudeSystemParam,
-    BetaThinkingConfigParam as ClaudeThinkingConfigParam,
-    BetaTool as ClaudeTool,
-    BetaToolBuiltin as ClaudeToolBuiltin,
-    BetaToolChoice as ClaudeToolChoice,
-    BetaToolCustom as ClaudeToolCustom,
-    BetaToolInputSchema as ClaudeToolInputSchema,
-    BetaWebSearchTool as ClaudeWebSearchTool,
-    BetaJSONOutputFormat as ClaudeJSONOutputFormat,
-    BetaOutputConfig as ClaudeOutputConfig,
-    BetaOutputEffort as ClaudeOutputEffort,
-    Model as ClaudeModel,
+    BetaContentBlockParam as ClaudeContentBlockParam, BetaDocumentSource as ClaudeDocumentSource,
+    BetaImageMediaType as ClaudeImageMediaType, BetaImageSource as ClaudeImageSource,
+    BetaJSONOutputFormat as ClaudeJSONOutputFormat, BetaMessageContent as ClaudeMessageContent,
+    BetaMessageParam as ClaudeMessageParam, BetaMessageRole as ClaudeMessageRole,
+    BetaOutputConfig as ClaudeOutputConfig, BetaOutputEffort as ClaudeOutputEffort,
+    BetaRequestDocumentBlock as ClaudeDocumentBlock, BetaSystemParam as ClaudeSystemParam,
+    BetaThinkingConfigParam as ClaudeThinkingConfigParam, BetaTool as ClaudeTool,
+    BetaToolBuiltin as ClaudeToolBuiltin, BetaToolChoice as ClaudeToolChoice,
+    BetaToolCustom as ClaudeToolCustom, BetaToolInputSchema as ClaudeToolInputSchema,
+    BetaWebSearchTool as ClaudeWebSearchTool, Model as ClaudeModel,
 };
 use gproxy_protocol::claude::create_message::request::CreateMessageRequest as ClaudeCreateMessageRequest;
 use gproxy_protocol::gemini::count_tokens::types::{
@@ -31,8 +22,8 @@ use gproxy_protocol::gemini::generate_content::request::{
 };
 use gproxy_protocol::gemini::generate_content::types::{
     CodeExecution, Environment, FileSearch, FunctionCallingConfig, FunctionCallingMode,
-    FunctionDeclaration, GenerationConfig, GoogleSearch, Tool as GeminiTool, ToolConfig,
-    ThinkingConfig, ThinkingLevel,
+    FunctionDeclaration, GenerationConfig, GoogleSearch, ThinkingConfig, ThinkingLevel,
+    Tool as GeminiTool, ToolConfig,
 };
 use serde_json::Value as JsonValue;
 
@@ -124,10 +115,9 @@ fn map_message_to_content(message: &ClaudeMessageParam) -> Option<GeminiContent>
 fn map_message_content_to_parts(content: &ClaudeMessageContent) -> Vec<GeminiPart> {
     match content {
         ClaudeMessageContent::Text(text) => text_to_parts(text),
-        ClaudeMessageContent::Blocks(blocks) => blocks
-            .iter()
-            .filter_map(map_block_to_part)
-            .collect(),
+        ClaudeMessageContent::Blocks(blocks) => {
+            blocks.iter().filter_map(map_block_to_part).collect()
+        }
     }
 }
 
@@ -292,22 +282,24 @@ fn map_document_to_part(document: &ClaudeDocumentBlock) -> Option<GeminiPart> {
             video_metadata: None,
         }),
         ClaudeDocumentSource::Content { content } => match content {
-            gproxy_protocol::claude::count_tokens::types::BetaContentBlockSourceContent::Text(text) => {
-                Some(GeminiPart {
-                    text: Some(text.clone()),
-                    inline_data: None,
-                    function_call: None,
-                    function_response: None,
-                    file_data: None,
-                    executable_code: None,
-                    code_execution_result: None,
-                    thought: None,
-                    thought_signature: None,
-                    part_metadata: None,
-                    video_metadata: None,
-                })
-            }
-            gproxy_protocol::claude::count_tokens::types::BetaContentBlockSourceContent::Blocks(blocks) => {
+            gproxy_protocol::claude::count_tokens::types::BetaContentBlockSourceContent::Text(
+                text,
+            ) => Some(GeminiPart {
+                text: Some(text.clone()),
+                inline_data: None,
+                function_call: None,
+                function_response: None,
+                file_data: None,
+                executable_code: None,
+                code_execution_result: None,
+                thought: None,
+                thought_signature: None,
+                part_metadata: None,
+                video_metadata: None,
+            }),
+            gproxy_protocol::claude::count_tokens::types::BetaContentBlockSourceContent::Blocks(
+                blocks,
+            ) => {
                 let text = blocks
                     .iter()
                     .filter_map(|block| match block {
@@ -417,7 +409,10 @@ fn map_input_schema(schema: ClaudeToolInputSchema) -> Option<JsonValue> {
     map.insert("type".to_string(), JsonValue::String("object".to_string()));
 
     if let Some(properties) = schema.properties {
-        map.insert("properties".to_string(), JsonValue::Object(properties.into_iter().collect()));
+        map.insert(
+            "properties".to_string(),
+            JsonValue::Object(properties.into_iter().collect()),
+        );
     }
 
     if let Some(required) = schema.required {
@@ -460,10 +455,12 @@ fn map_builtin_tool(builtin: ClaudeToolBuiltin) -> Option<GeminiTool> {
             google_search_retrieval: None,
             code_execution: None,
             google_search: None,
-            computer_use: Some(gproxy_protocol::gemini::generate_content::types::ComputerUse {
-                environment: Environment::EnvironmentBrowser,
-                excluded_predefined_functions: None,
-            }),
+            computer_use: Some(
+                gproxy_protocol::gemini::generate_content::types::ComputerUse {
+                    environment: Environment::EnvironmentBrowser,
+                    excluded_predefined_functions: None,
+                },
+            ),
             url_context: None,
             file_search: None,
             google_maps: None,
@@ -498,7 +495,9 @@ fn map_builtin_tool(builtin: ClaudeToolBuiltin) -> Option<GeminiTool> {
 }
 
 fn map_web_search_tool(_tool: ClaudeWebSearchTool) -> GoogleSearch {
-    GoogleSearch { time_range_filter: None }
+    GoogleSearch {
+        time_range_filter: None,
+    }
 }
 
 fn map_tool_choice(choice: Option<ClaudeToolChoice>) -> Option<ToolConfig> {
@@ -542,7 +541,9 @@ fn map_generation_config(
 ) -> Option<GenerationConfig> {
     let thinking_config = map_thinking_config(thinking, output_config.as_ref());
     let response_json_schema = output_format.map(|format| format.schema);
-    let response_mime_type = response_json_schema.as_ref().map(|_| "application/json".to_string());
+    let response_mime_type = response_json_schema
+        .as_ref()
+        .map(|_| "application/json".to_string());
 
     let has_config = thinking_config.is_some()
         || response_json_schema.is_some()
@@ -564,7 +565,11 @@ fn map_generation_config(
         response_json_schema,
         response_modalities: None,
         candidate_count: None,
-        max_output_tokens: if max_tokens > 0 { Some(max_tokens) } else { None },
+        max_output_tokens: if max_tokens > 0 {
+            Some(max_tokens)
+        } else {
+            None
+        },
         temperature,
         top_p,
         top_k,

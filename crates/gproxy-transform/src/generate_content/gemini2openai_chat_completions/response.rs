@@ -1,4 +1,6 @@
-use gproxy_protocol::gemini::count_tokens::types::{Content as GeminiContent, ContentRole as GeminiContentRole, Part as GeminiPart};
+use gproxy_protocol::gemini::count_tokens::types::{
+    Content as GeminiContent, ContentRole as GeminiContentRole, Part as GeminiPart,
+};
 use gproxy_protocol::gemini::generate_content::response::GenerateContentResponse as GeminiGenerateContentResponse;
 use gproxy_protocol::gemini::generate_content::types::{Candidate, FinishReason, UsageMetadata};
 use gproxy_protocol::openai::create_chat_completions::response::CreateChatCompletionResponse;
@@ -50,21 +52,20 @@ fn map_choice_to_candidate(
     }
 }
 
-fn map_message_to_content(
-    message: &ChatCompletionResponseMessage,
-    _model: &str,
-) -> GeminiContent {
+fn map_message_to_content(message: &ChatCompletionResponseMessage, _model: &str) -> GeminiContent {
     let mut parts = Vec::new();
 
     if let Some(text) = &message.content
-        && !text.is_empty() {
-            parts.push(text_part(text.clone()));
-        }
+        && !text.is_empty()
+    {
+        parts.push(text_part(text.clone()));
+    }
 
     if let Some(refusal) = &message.refusal
-        && !refusal.is_empty() {
-            parts.push(text_part(refusal.clone()));
-        }
+        && !refusal.is_empty()
+    {
+        parts.push(text_part(refusal.clone()));
+    }
 
     if let Some(tool_calls) = &message.tool_calls {
         for call in tool_calls {
@@ -170,7 +171,9 @@ fn map_finish_reason(reason: ChatCompletionFinishReason) -> FinishReason {
     }
 }
 
-fn map_usage(usage: &gproxy_protocol::openai::create_chat_completions::types::CompletionUsage) -> UsageMetadata {
+fn map_usage(
+    usage: &gproxy_protocol::openai::create_chat_completions::types::CompletionUsage,
+) -> UsageMetadata {
     UsageMetadata {
         prompt_token_count: Some(usage.prompt_tokens as u32),
         cached_content_token_count: usage

@@ -9,7 +9,9 @@ use gproxy_protocol::claude::create_message::types::{
     BetaMessageRole, BetaMessageType, BetaStopReason, BetaTextBlock, BetaTextBlockType,
     BetaToolUseBlock, BetaToolUseBlockType, JsonObject,
 };
-use gproxy_protocol::gemini::count_tokens::types::{FunctionCall as GeminiFunctionCall, Part as GeminiPart};
+use gproxy_protocol::gemini::count_tokens::types::{
+    FunctionCall as GeminiFunctionCall, Part as GeminiPart,
+};
 use gproxy_protocol::gemini::generate_content::response::GenerateContentResponse;
 use gproxy_protocol::gemini::generate_content::types::{Candidate, FinishReason, UsageMetadata};
 
@@ -45,7 +47,10 @@ impl GeminiToClaudeStreamState {
         }
     }
 
-    pub fn transform_response(&mut self, response: GenerateContentResponse) -> Vec<BetaStreamEvent> {
+    pub fn transform_response(
+        &mut self,
+        response: GenerateContentResponse,
+    ) -> Vec<BetaStreamEvent> {
         if self.finished {
             return Vec::new();
         }
@@ -157,22 +162,26 @@ impl GeminiToClaudeStreamState {
                 let index = self.next_block_index;
                 self.next_block_index += 1;
                 self.text_block_index = Some(index);
-                events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-                    index,
-                    content_block: BetaStreamContentBlock::Text(BetaTextBlock {
-                        citations: None,
-                        text: String::new(),
-                        r#type: BetaTextBlockType::Text,
-                    }),
-                }));
+                events.push(BetaStreamEvent::Known(
+                    BetaStreamEventKnown::ContentBlockStart {
+                        index,
+                        content_block: BetaStreamContentBlock::Text(BetaTextBlock {
+                            citations: None,
+                            text: String::new(),
+                            r#type: BetaTextBlockType::Text,
+                        }),
+                    },
+                ));
                 index
             }
         };
 
-        events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-            index,
-            delta: BetaStreamContentBlockDelta::TextDelta { text: delta },
-        }));
+        events.push(BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockDelta {
+                index,
+                delta: BetaStreamContentBlockDelta::TextDelta { text: delta },
+            },
+        ));
         events
     }
 
@@ -207,16 +216,18 @@ impl GeminiToClaudeStreamState {
             },
         );
 
-        vec![BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-            index: block_index,
-            content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
-                id,
-                input: JsonObject::new(),
-                name,
-                r#type: BetaToolUseBlockType::ToolUse,
-                caller: None,
-            }),
-        })]
+        vec![BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockStart {
+                index: block_index,
+                content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
+                    id,
+                    input: JsonObject::new(),
+                    name,
+                    r#type: BetaToolUseBlockType::ToolUse,
+                    caller: None,
+                }),
+            },
+        )]
     }
 
     fn append_tool_arguments(&mut self, id: &str, arguments: String) -> Vec<BetaStreamEvent> {
@@ -236,12 +247,14 @@ impl GeminiToClaudeStreamState {
         }
 
         info.arguments = arguments;
-        vec![BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-            index: info.block_index,
-            delta: BetaStreamContentBlockDelta::InputJsonDelta {
-                partial_json: delta,
+        vec![BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockDelta {
+                index: info.block_index,
+                delta: BetaStreamContentBlockDelta::InputJsonDelta {
+                    partial_json: delta,
+                },
             },
-        })]
+        )]
     }
 
     fn ensure_message_start(&mut self) -> Vec<BetaStreamEvent> {
@@ -269,13 +282,17 @@ impl GeminiToClaudeStreamState {
     fn close_open_blocks(&mut self) -> Vec<BetaStreamEvent> {
         let mut events = Vec::new();
         if let Some(index) = self.text_block_index.take() {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop { index }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop { index },
+            ));
         }
         let tool_blocks = std::mem::take(&mut self.tool_blocks);
         for (_, info) in tool_blocks {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop {
-                index: info.block_index,
-            }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop {
+                    index: info.block_index,
+                },
+            ));
         }
         events
     }
@@ -288,7 +305,12 @@ impl GeminiToClaudeStreamState {
         let model_id = response
             .model_version
             .clone()
-            .or_else(|| response.model_status.as_ref().map(|status| format!("{:?}", status.model_stage)))
+            .or_else(|| {
+                response
+                    .model_status
+                    .as_ref()
+                    .map(|status| format!("{:?}", status.model_stage))
+            })
             .unwrap_or_else(|| "unknown".to_string());
 
         let model_id = model_id.strip_prefix("models/").unwrap_or(&model_id);
@@ -314,9 +336,7 @@ fn empty_usage() -> BetaStreamUsage {
 }
 
 fn map_usage(usage: Option<UsageMetadata>) -> BetaStreamUsage {
-    let input_tokens = usage
-        .as_ref()
-        .and_then(|usage| usage.prompt_token_count);
+    let input_tokens = usage.as_ref().and_then(|usage| usage.prompt_token_count);
     let output_tokens = usage
         .as_ref()
         .and_then(|usage| usage.candidates_token_count);

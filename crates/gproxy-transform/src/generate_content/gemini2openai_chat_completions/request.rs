@@ -4,8 +4,8 @@ use gproxy_protocol::gemini::count_tokens::types::{
 };
 use gproxy_protocol::gemini::generate_content::request::GenerateContentRequest as GeminiGenerateContentRequest;
 use gproxy_protocol::gemini::generate_content::types::{
-    FunctionCallingMode, FunctionDeclaration, GenerationConfig, Tool as GeminiTool, ToolConfig,
-    ThinkingLevel,
+    FunctionCallingMode, FunctionDeclaration, GenerationConfig, ThinkingLevel, Tool as GeminiTool,
+    ToolConfig,
 };
 use gproxy_protocol::openai::create_chat_completions::request::{
     CreateChatCompletionRequest, CreateChatCompletionRequestBody, StopConfiguration,
@@ -13,16 +13,15 @@ use gproxy_protocol::openai::create_chat_completions::request::{
 use gproxy_protocol::openai::create_chat_completions::types::{
     AllowedToolsMode, ChatCompletionAllowedTool, ChatCompletionAllowedToolFunction,
     ChatCompletionAllowedTools, ChatCompletionAllowedToolsChoice,
-    ChatCompletionAllowedToolsChoiceType, ChatCompletionMessageToolCall,
-    ChatCompletionMessageToolCallFunction, ChatCompletionRequestAssistantMessage,
-    ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-    ChatCompletionRequestToolMessage, ChatCompletionRequestUserMessage,
-    ChatCompletionResponseFormat, ChatCompletionToolChoiceMode,
-    ChatCompletionToolChoiceOption, ChatCompletionToolDefinition, ChatCompletionUserContent,
-    ChatCompletionUserContentPart, ChatCompletionTextContent,
-    ChatCompletionAssistantContent, ChatCompletionAssistantContentPart, ChatCompletionImageUrl,
-    ChatCompletionInputFile, FunctionObject, ReasoningEffort, ResponseFormatJsonSchema,
-    ResponseModality, WebSearchOptions,
+    ChatCompletionAllowedToolsChoiceType, ChatCompletionAssistantContent,
+    ChatCompletionAssistantContentPart, ChatCompletionImageUrl, ChatCompletionInputFile,
+    ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction,
+    ChatCompletionRequestAssistantMessage, ChatCompletionRequestMessage,
+    ChatCompletionRequestSystemMessage, ChatCompletionRequestToolMessage,
+    ChatCompletionRequestUserMessage, ChatCompletionResponseFormat, ChatCompletionTextContent,
+    ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
+    ChatCompletionUserContent, ChatCompletionUserContentPart, FunctionObject, ReasoningEffort,
+    ResponseFormatJsonSchema, ResponseModality, WebSearchOptions,
 };
 use serde::Serialize;
 
@@ -39,9 +38,10 @@ pub fn transform_request(request: GeminiGenerateContentRequest) -> CreateChatCom
     let mut tool_call_index = 0usize;
 
     if let Some(system_instruction) = request.body.system_instruction
-        && let Some(message) = map_system_instruction(system_instruction) {
-            messages.push(message);
-        }
+        && let Some(message) = map_system_instruction(system_instruction)
+    {
+        messages.push(message);
+    }
 
     for content in request.body.contents {
         messages.extend(map_content_to_messages(content, &mut tool_call_index));
@@ -65,7 +65,8 @@ pub fn transform_request(request: GeminiGenerateContentRequest) -> CreateChatCom
             modalities,
             verbosity: None,
             reasoning_effort,
-            max_completion_tokens: generation_config.and_then(|config| config.max_output_tokens.map(|v| v as i64)),
+            max_completion_tokens: generation_config
+                .and_then(|config| config.max_output_tokens.map(|v| v as i64)),
             frequency_penalty: None,
             presence_penalty: None,
             web_search_options,
@@ -124,9 +125,7 @@ fn map_content_to_messages(
     tool_call_index: &mut usize,
 ) -> Vec<ChatCompletionRequestMessage> {
     match content.role {
-        Some(GeminiContentRole::Model) => {
-            map_model_content_to_messages(content, tool_call_index)
-        }
+        Some(GeminiContentRole::Model) => map_model_content_to_messages(content, tool_call_index),
         _ => map_user_content_to_messages(content, tool_call_index),
     }
 }
@@ -168,7 +167,11 @@ fn map_model_content_to_messages(
                 refusal: None,
                 name: None,
                 audio: None,
-                tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+                tool_calls: if tool_calls.is_empty() {
+                    None
+                } else {
+                    Some(tool_calls)
+                },
                 function_call: None,
             },
         ));
@@ -180,30 +183,38 @@ fn map_model_content_to_messages(
 fn map_parts_for_user(
     parts: &[GeminiPart],
     tool_call_index: &mut usize,
-) -> (Option<ChatCompletionUserContent>, Vec<ChatCompletionRequestToolMessage>) {
+) -> (
+    Option<ChatCompletionUserContent>,
+    Vec<ChatCompletionRequestToolMessage>,
+) {
     let mut user_parts = Vec::new();
     let mut tool_responses = Vec::new();
 
     for part in parts {
         if let Some(text) = part.text.clone()
-            && !text.is_empty() {
-                user_parts.push(ChatCompletionUserContentPart::Text { text });
-            }
+            && !text.is_empty()
+        {
+            user_parts.push(ChatCompletionUserContentPart::Text { text });
+        }
 
         if let Some(blob) = &part.inline_data
-            && let Some(part) = map_inline_blob_to_user_part(blob) {
-                user_parts.push(part);
-            }
+            && let Some(part) = map_inline_blob_to_user_part(blob)
+        {
+            user_parts.push(part);
+        }
 
         if let Some(file) = &part.file_data
-            && let Some(part) = map_file_data_to_user_part(file) {
-                user_parts.push(part);
-            }
+            && let Some(part) = map_file_data_to_user_part(file)
+        {
+            user_parts.push(part);
+        }
 
         if let Some(response) = &part.function_response
-            && let Some(tool_message) = map_function_response_to_tool_message(response, tool_call_index) {
-                tool_responses.push(tool_message);
-            }
+            && let Some(tool_message) =
+                map_function_response_to_tool_message(response, tool_call_index)
+        {
+            tool_responses.push(tool_message);
+        }
 
         if let Some(function_call) = &part.function_call {
             // Gemini function calls in user content have no direct Chat Completions input equivalent.
@@ -238,15 +249,19 @@ fn map_parts_for_user(
 fn map_parts_for_assistant(
     parts: &[GeminiPart],
     tool_call_index: &mut usize,
-) -> (Option<ChatCompletionAssistantContent>, Vec<ChatCompletionMessageToolCall>) {
+) -> (
+    Option<ChatCompletionAssistantContent>,
+    Vec<ChatCompletionMessageToolCall>,
+) {
     let mut texts = Vec::new();
     let mut tool_calls = Vec::new();
 
     for part in parts {
         if let Some(text) = part.text.clone()
-            && !text.is_empty() {
-                texts.push(ChatCompletionAssistantContentPart::Text { text });
-            }
+            && !text.is_empty()
+        {
+            texts.push(ChatCompletionAssistantContentPart::Text { text });
+        }
 
         if let Some(function_call) = &part.function_call {
             let id = function_call
@@ -311,10 +326,7 @@ fn map_inline_blob_to_user_part(blob: &GeminiBlob) -> Option<ChatCompletionUserC
     if blob.mime_type.starts_with("image/") {
         let url = format!("data:{};base64,{}", blob.mime_type, blob.data);
         return Some(ChatCompletionUserContentPart::ImageUrl {
-            image_url: ChatCompletionImageUrl {
-                url,
-                detail: None,
-            },
+            image_url: ChatCompletionImageUrl { url, detail: None },
         });
     }
 
@@ -329,14 +341,15 @@ fn map_inline_blob_to_user_part(blob: &GeminiBlob) -> Option<ChatCompletionUserC
 
 fn map_file_data_to_user_part(file: &GeminiFileData) -> Option<ChatCompletionUserContentPart> {
     if let Some(mime_type) = &file.mime_type
-        && mime_type.starts_with("image/") {
-            return Some(ChatCompletionUserContentPart::ImageUrl {
-                image_url: ChatCompletionImageUrl {
-                    url: file.file_uri.clone(),
-                    detail: None,
-                },
-            });
-        }
+        && mime_type.starts_with("image/")
+    {
+        return Some(ChatCompletionUserContentPart::ImageUrl {
+            image_url: ChatCompletionImageUrl {
+                url: file.file_uri.clone(),
+                detail: None,
+            },
+        });
+    }
 
     Some(ChatCompletionUserContentPart::Text {
         text: format!("[file:{}]", file.file_uri),
@@ -413,7 +426,11 @@ fn map_tools(tools: Option<Vec<GeminiTool>>) -> Option<Vec<ChatCompletionToolDef
         // Gemini built-in tools (search, code execution, file search, computer use) don't map to chat-completions.
     }
 
-    if output.is_empty() { None } else { Some(output) }
+    if output.is_empty() {
+        None
+    } else {
+        Some(output)
+    }
 }
 
 fn map_function_tool(function: FunctionDeclaration) -> FunctionObject {
@@ -431,8 +448,7 @@ fn map_function_tool(function: FunctionDeclaration) -> FunctionObject {
 }
 
 fn map_tool_choice(tool_config: Option<&ToolConfig>) -> Option<ChatCompletionToolChoiceOption> {
-    let config = tool_config
-        .and_then(|config| config.function_calling_config.as_ref())?;
+    let config = tool_config.and_then(|config| config.function_calling_config.as_ref())?;
 
     let mode = config.mode.unwrap_or(FunctionCallingMode::ModeUnspecified);
     let allowed = config.allowed_function_names.clone().unwrap_or_default();
@@ -543,8 +559,7 @@ fn map_reasoning_effort(config: Option<&GenerationConfig>) -> Option<ReasoningEf
 }
 
 fn map_modalities(config: Option<&GenerationConfig>) -> Option<Vec<ResponseModality>> {
-    let modalities = config
-        .and_then(|config| config.response_modalities.as_ref())?;
+    let modalities = config.and_then(|config| config.response_modalities.as_ref())?;
     let mut output = Vec::new();
     for modality in modalities {
         match modality {
@@ -557,7 +572,11 @@ fn map_modalities(config: Option<&GenerationConfig>) -> Option<Vec<ResponseModal
             _ => {}
         }
     }
-    if output.is_empty() { None } else { Some(output) }
+    if output.is_empty() {
+        None
+    } else {
+        Some(output)
+    }
 }
 
 fn map_web_search_options(tools: Option<&Vec<GeminiTool>>) -> Option<WebSearchOptions> {

@@ -71,10 +71,12 @@ impl OpenAIResponseToClaudeStreamState {
                 response: event.response,
                 sequence_number: event.sequence_number,
             }),
-            ResponseStreamEvent::Incomplete(event) => self.handle_completed(ResponseCompletedEvent {
-                response: event.response,
-                sequence_number: event.sequence_number,
-            }),
+            ResponseStreamEvent::Incomplete(event) => {
+                self.handle_completed(ResponseCompletedEvent {
+                    response: event.response,
+                    sequence_number: event.sequence_number,
+                })
+            }
             ResponseStreamEvent::OutputItemAdded(event) => self.handle_output_item_added(event),
             ResponseStreamEvent::OutputItemDone(event) => self.handle_output_item_done(event),
             ResponseStreamEvent::OutputTextDelta(event) => self.handle_text_delta(event),
@@ -89,12 +91,12 @@ impl OpenAIResponseToClaudeStreamState {
             }
             ResponseStreamEvent::MCPCallArgumentsDelta(event) => self.handle_mcp_call_delta(event),
             ResponseStreamEvent::MCPCallArgumentsDone(event) => self.handle_mcp_call_done(event),
-            ResponseStreamEvent::Error(event) => vec![BetaStreamEvent::Known(
-                BetaStreamEventKnown::Error {
+            ResponseStreamEvent::Error(event) => {
+                vec![BetaStreamEvent::Known(BetaStreamEventKnown::Error {
                     error: map_error(event),
                     request_id: None,
-                },
-            )],
+                })]
+            }
             _ => Vec::new(),
         }
     }
@@ -115,13 +117,11 @@ impl OpenAIResponseToClaudeStreamState {
         let mut events = self.ensure_message_start();
         events.extend(self.close_open_blocks());
 
-        let stop_reason = self
-            .stop_reason
-            .or(if self.saw_refusal {
-                Some(BetaStopReason::Refusal)
-            } else {
-                None
-            });
+        let stop_reason = self.stop_reason.or(if self.saw_refusal {
+            Some(BetaStopReason::Refusal)
+        } else {
+            None
+        });
 
         let usage = self.usage.as_ref().and_then(map_usage);
 
@@ -136,7 +136,10 @@ impl OpenAIResponseToClaudeStreamState {
         events
     }
 
-    fn handle_output_item_added(&mut self, event: ResponseOutputItemAddedEvent) -> Vec<BetaStreamEvent> {
+    fn handle_output_item_added(
+        &mut self,
+        event: ResponseOutputItemAddedEvent,
+    ) -> Vec<BetaStreamEvent> {
         let mut events = self.ensure_message_start();
 
         match event.item {
@@ -165,11 +168,16 @@ impl OpenAIResponseToClaudeStreamState {
         events
     }
 
-    fn handle_output_item_done(&mut self, event: ResponseOutputItemDoneEvent) -> Vec<BetaStreamEvent> {
+    fn handle_output_item_done(
+        &mut self,
+        event: ResponseOutputItemDoneEvent,
+    ) -> Vec<BetaStreamEvent> {
         if let Some(info) = self.tool_blocks.remove(&event.output_index) {
-            vec![BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop {
-                index: info.block_index,
-            })]
+            vec![BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop {
+                    index: info.block_index,
+                },
+            )]
         } else {
             Vec::new()
         }
@@ -181,7 +189,9 @@ impl OpenAIResponseToClaudeStreamState {
 
     fn handle_text_done(&mut self, _event: ResponseTextDoneEvent) -> Vec<BetaStreamEvent> {
         if let Some(index) = self.text_block_index.take() {
-            vec![BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop { index })]
+            vec![BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop { index },
+            )]
         } else {
             Vec::new()
         }
@@ -201,7 +211,12 @@ impl OpenAIResponseToClaudeStreamState {
         &mut self,
         event: ResponseFunctionCallArgumentsDeltaEvent,
     ) -> Vec<BetaStreamEvent> {
-        self.append_tool_arguments(event.output_index, event.item_id, event.delta, ToolKind::Function)
+        self.append_tool_arguments(
+            event.output_index,
+            event.item_id,
+            event.delta,
+            ToolKind::Function,
+        )
     }
 
     fn handle_function_call_done(
@@ -209,7 +224,12 @@ impl OpenAIResponseToClaudeStreamState {
         event: ResponseFunctionCallArgumentsDoneEvent,
     ) -> Vec<BetaStreamEvent> {
         let item_id = event.item_id.clone();
-        self.ensure_tool(event.output_index, item_id.clone(), event.name, ToolKind::Function);
+        self.ensure_tool(
+            event.output_index,
+            item_id.clone(),
+            event.name,
+            ToolKind::Function,
+        );
         self.apply_tool_arguments_done(
             event.output_index,
             item_id,
@@ -218,8 +238,16 @@ impl OpenAIResponseToClaudeStreamState {
         )
     }
 
-    fn handle_mcp_call_delta(&mut self, event: ResponseMCPCallArgumentsDeltaEvent) -> Vec<BetaStreamEvent> {
-        self.append_tool_arguments(event.output_index, event.item_id, event.delta, ToolKind::Mcp)
+    fn handle_mcp_call_delta(
+        &mut self,
+        event: ResponseMCPCallArgumentsDeltaEvent,
+    ) -> Vec<BetaStreamEvent> {
+        self.append_tool_arguments(
+            event.output_index,
+            event.item_id,
+            event.delta,
+            ToolKind::Mcp,
+        )
     }
 
     fn handle_mcp_call_done(
@@ -246,22 +274,26 @@ impl OpenAIResponseToClaudeStreamState {
                 let index = self.next_block_index;
                 self.next_block_index += 1;
                 self.text_block_index = Some(index);
-                events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-                    index,
-                    content_block: BetaStreamContentBlock::Text(BetaTextBlock {
-                        citations: None,
-                        text: String::new(),
-                        r#type: BetaTextBlockType::Text,
-                    }),
-                }));
+                events.push(BetaStreamEvent::Known(
+                    BetaStreamEventKnown::ContentBlockStart {
+                        index,
+                        content_block: BetaStreamContentBlock::Text(BetaTextBlock {
+                            citations: None,
+                            text: String::new(),
+                            r#type: BetaTextBlockType::Text,
+                        }),
+                    },
+                ));
                 index
             }
         };
 
-        events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-            index,
-            delta: BetaStreamContentBlockDelta::TextDelta { text },
-        }));
+        events.push(BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockDelta {
+                index,
+                delta: BetaStreamContentBlockDelta::TextDelta { text },
+            },
+        ));
         events
     }
 
@@ -277,24 +309,28 @@ impl OpenAIResponseToClaudeStreamState {
         let block_index = self.next_block_index;
         self.next_block_index += 1;
 
-        events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStart {
-            index: block_index,
-            content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
-                id: id.clone(),
-                input: JsonObject::new(),
-                name: name.clone(),
-                r#type: BetaToolUseBlockType::ToolUse,
-                caller: None,
-            }),
-        }));
+        events.push(BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockStart {
+                index: block_index,
+                content_block: BetaStreamContentBlock::ToolUse(BetaToolUseBlock {
+                    id: id.clone(),
+                    input: JsonObject::new(),
+                    name: name.clone(),
+                    r#type: BetaToolUseBlockType::ToolUse,
+                    caller: None,
+                }),
+            },
+        ));
 
         if !arguments.is_empty() {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-                index: block_index,
-                delta: BetaStreamContentBlockDelta::InputJsonDelta {
-                    partial_json: arguments.clone(),
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockDelta {
+                    index: block_index,
+                    delta: BetaStreamContentBlockDelta::InputJsonDelta {
+                        partial_json: arguments.clone(),
+                    },
                 },
-            }));
+            ));
         }
 
         self.tool_blocks.insert(
@@ -308,13 +344,7 @@ impl OpenAIResponseToClaudeStreamState {
         events
     }
 
-    fn ensure_tool(
-        &mut self,
-        output_index: i64,
-        _id: String,
-        _name: String,
-        _kind: ToolKind,
-    ) {
+    fn ensure_tool(&mut self, output_index: i64, _id: String, _name: String, _kind: ToolKind) {
         if self.tool_blocks.contains_key(&output_index) {
             return;
         }
@@ -347,10 +377,14 @@ impl OpenAIResponseToClaudeStreamState {
         };
 
         info.arguments.push_str(&delta);
-        vec![BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-            index: info.block_index,
-            delta: BetaStreamContentBlockDelta::InputJsonDelta { partial_json: delta },
-        })]
+        vec![BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockDelta {
+                index: info.block_index,
+                delta: BetaStreamContentBlockDelta::InputJsonDelta {
+                    partial_json: delta,
+                },
+            },
+        )]
     }
 
     fn apply_tool_arguments_done(
@@ -381,10 +415,14 @@ impl OpenAIResponseToClaudeStreamState {
         }
 
         info.arguments = arguments;
-        vec![BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockDelta {
-            index: info.block_index,
-            delta: BetaStreamContentBlockDelta::InputJsonDelta { partial_json: delta },
-        })]
+        vec![BetaStreamEvent::Known(
+            BetaStreamEventKnown::ContentBlockDelta {
+                index: info.block_index,
+                delta: BetaStreamContentBlockDelta::InputJsonDelta {
+                    partial_json: delta,
+                },
+            },
+        )]
     }
 
     fn ensure_message_start(&mut self) -> Vec<BetaStreamEvent> {
@@ -412,13 +450,17 @@ impl OpenAIResponseToClaudeStreamState {
     fn close_open_blocks(&mut self) -> Vec<BetaStreamEvent> {
         let mut events = Vec::new();
         if let Some(index) = self.text_block_index.take() {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop { index }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop { index },
+            ));
         }
         let tool_blocks = std::mem::take(&mut self.tool_blocks);
         for (_, info) in tool_blocks {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::ContentBlockStop {
-                index: info.block_index,
-            }));
+            events.push(BetaStreamEvent::Known(
+                BetaStreamEventKnown::ContentBlockStop {
+                    index: info.block_index,
+                },
+            ));
         }
         events
     }
@@ -452,7 +494,10 @@ fn empty_usage() -> BetaStreamUsage {
     }
 }
 
-fn map_status(status: ResponseStatus, details: Option<&ResponseIncompleteDetails>) -> Option<BetaStopReason> {
+fn map_status(
+    status: ResponseStatus,
+    details: Option<&ResponseIncompleteDetails>,
+) -> Option<BetaStopReason> {
     match status {
         ResponseStatus::Completed => Some(BetaStopReason::EndTurn),
         ResponseStatus::Incomplete => match details.map(|d| d.reason) {

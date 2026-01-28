@@ -7,8 +7,8 @@ use gproxy_protocol::openai::create_chat_completions::response::{
 };
 use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionFinishReason, ChatCompletionMessageToolCall,
-    ChatCompletionMessageToolCallFunction, ChatCompletionResponseMessage, ChatCompletionResponseRole,
-    CompletionUsage,
+    ChatCompletionMessageToolCallFunction, ChatCompletionResponseMessage,
+    ChatCompletionResponseRole, CompletionUsage,
 };
 use serde_json::Value as JsonValue;
 
@@ -50,7 +50,11 @@ pub fn transform_response(response: ClaudeCreateMessageResponse) -> CreateChatCo
 fn map_content(
     blocks: &[BetaContentBlock],
     stop_reason: Option<BetaStopReason>,
-) -> (Option<String>, Option<Vec<ChatCompletionMessageToolCall>>, Option<String>) {
+) -> (
+    Option<String>,
+    Option<Vec<ChatCompletionMessageToolCall>>,
+    Option<String>,
+) {
     let mut texts = Vec::new();
     let mut tool_calls = Vec::new();
 
@@ -163,9 +167,11 @@ fn map_usage(response: &BetaMessage) -> Option<CompletionUsage> {
 fn map_model(model: &gproxy_protocol::claude::count_tokens::types::Model) -> String {
     match model {
         gproxy_protocol::claude::count_tokens::types::Model::Custom(value) => value.clone(),
-        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => match serde_json::to_value(known) {
-            Ok(JsonValue::String(value)) => value,
-            _ => "unknown".to_string(),
-        },
+        gproxy_protocol::claude::count_tokens::types::Model::Known(known) => {
+            match serde_json::to_value(known) {
+                Ok(JsonValue::String(value)) => value,
+                _ => "unknown".to_string(),
+            }
+        }
     }
 }

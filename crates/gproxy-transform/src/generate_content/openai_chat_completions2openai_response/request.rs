@@ -6,22 +6,22 @@ use gproxy_protocol::openai::create_chat_completions::types::{
     ChatCompletionRequestAssistantMessage, ChatCompletionRequestDeveloperMessage,
     ChatCompletionRequestFunctionMessage, ChatCompletionRequestMessage,
     ChatCompletionRequestSystemMessage, ChatCompletionRequestToolMessage,
-    ChatCompletionRequestUserMessage, ChatCompletionResponseFormat,
-    ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption, ChatCompletionToolDefinition,
-    ChatCompletionUserContent, ChatCompletionUserContentPart, ChatCompletionTextContent,
-    ChatCompletionTextContentPart,
+    ChatCompletionRequestUserMessage, ChatCompletionResponseFormat, ChatCompletionTextContent,
+    ChatCompletionTextContentPart, ChatCompletionToolChoiceMode, ChatCompletionToolChoiceOption,
+    ChatCompletionToolDefinition, ChatCompletionUserContent, ChatCompletionUserContentPart,
 };
 use gproxy_protocol::openai::create_response::request::CreateResponseRequest;
 use gproxy_protocol::openai::create_response::types::{
-    AllowedTool, EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole,
-    EasyInputMessageType, InputContent, InputFileContent, InputImageContent, InputItem,
-    InputMessage, InputMessageRole, InputMessageType, InputParam, Instructions, OutputMessage,
-    OutputMessageContent, OutputMessageRole, OutputMessageType, ResponseStreamOptions,
-    ResponseTextParam, TextResponseFormatConfiguration, Tool, ToolChoiceAllowed, ToolChoiceAllowedMode,
-    ToolChoiceAllowedType, ToolChoiceCustom, ToolChoiceFunction, ToolChoiceOptions, ToolChoiceParam,
-    ToolChoiceCustomType, ToolChoiceFunctionType, MessageStatus, FunctionToolCall,
-    FunctionToolCallType, FunctionCallItemStatus, FunctionCallOutputItemParam, FunctionCallOutputItemType,
-    ToolCallOutput, CustomToolCall, CustomToolCallType,
+    AllowedTool, CustomToolCall, CustomToolCallType, EasyInputMessage, EasyInputMessageContent,
+    EasyInputMessageRole, EasyInputMessageType, FunctionCallItemStatus,
+    FunctionCallOutputItemParam, FunctionCallOutputItemType, FunctionToolCall,
+    FunctionToolCallType, InputContent, InputFileContent, InputImageContent, InputItem,
+    InputMessage, InputMessageRole, InputMessageType, InputParam, Instructions, MessageStatus,
+    OutputMessage, OutputMessageContent, OutputMessageRole, OutputMessageType,
+    ResponseStreamOptions, ResponseTextParam, TextResponseFormatConfiguration, Tool,
+    ToolCallOutput, ToolChoiceAllowed, ToolChoiceAllowedMode, ToolChoiceAllowedType,
+    ToolChoiceCustom, ToolChoiceCustomType, ToolChoiceFunction, ToolChoiceFunctionType,
+    ToolChoiceOptions, ToolChoiceParam,
 };
 
 /// Convert an OpenAI chat-completions request into an OpenAI responses request.
@@ -149,14 +149,14 @@ fn map_user_message(message: ChatCompletionRequestUserMessage) -> Option<InputIt
         return None;
     }
 
-    Some(InputItem::Item(gproxy_protocol::openai::create_response::types::Item::InputMessage(
-        InputMessage {
+    Some(InputItem::Item(
+        gproxy_protocol::openai::create_response::types::Item::InputMessage(InputMessage {
             r#type: Some(InputMessageType::Message),
             role: InputMessageRole::User,
             status: None,
             content: contents,
-        },
-    )))
+        }),
+    ))
 }
 
 fn map_assistant_message(
@@ -165,9 +165,9 @@ fn map_assistant_message(
     tool_call_index: &mut usize,
 ) {
     if let Some(output) = map_assistant_output_message(&message) {
-        items.push(InputItem::Item(gproxy_protocol::openai::create_response::types::Item::OutputMessage(
-            output,
-        )));
+        items.push(InputItem::Item(
+            gproxy_protocol::openai::create_response::types::Item::OutputMessage(output),
+        ));
     }
 
     if let Some(tool_calls) = message.tool_calls {
@@ -182,16 +182,16 @@ fn map_assistant_message(
     if let Some(function_call) = message.function_call {
         let call_id = format!("function_call_{}", tool_call_index);
         *tool_call_index += 1;
-        items.push(InputItem::Item(gproxy_protocol::openai::create_response::types::Item::Function(
-            FunctionToolCall {
+        items.push(InputItem::Item(
+            gproxy_protocol::openai::create_response::types::Item::Function(FunctionToolCall {
                 r#type: FunctionToolCallType::FunctionCall,
                 id: Some(call_id.clone()),
                 call_id,
                 name: function_call.name,
                 arguments: function_call.arguments,
                 status: None,
-            },
-        )));
+            }),
+        ));
     }
 }
 
@@ -201,24 +201,29 @@ fn map_assistant_output_message(
     let mut content = Vec::new();
 
     if let Some(refusal) = &message.refusal
-        && !refusal.is_empty() {
-            content.push(OutputMessageContent::Refusal(
-                gproxy_protocol::openai::create_response::types::RefusalContent {
-                    refusal: refusal.clone(),
-                },
-            ));
-        }
+        && !refusal.is_empty()
+    {
+        content.push(OutputMessageContent::Refusal(
+            gproxy_protocol::openai::create_response::types::RefusalContent {
+                refusal: refusal.clone(),
+            },
+        ));
+    }
 
-    if let Some(text) = message.content.as_ref().and_then(map_assistant_content_to_text)
-        && !text.is_empty() {
-            content.push(OutputMessageContent::OutputText(
-                gproxy_protocol::openai::create_response::types::OutputTextContent {
-                    text,
-                    annotations: Vec::new(),
-                    logprobs: None,
-                },
-            ));
-        }
+    if let Some(text) = message
+        .content
+        .as_ref()
+        .and_then(map_assistant_content_to_text)
+        && !text.is_empty()
+    {
+        content.push(OutputMessageContent::OutputText(
+            gproxy_protocol::openai::create_response::types::OutputTextContent {
+                text,
+                annotations: Vec::new(),
+                logprobs: None,
+            },
+        ));
+    }
 
     if content.is_empty() {
         return None;
@@ -256,38 +261,48 @@ fn map_assistant_content_to_text(
                     }
                 }
             }
-            if texts.is_empty() { None } else { Some(texts.join("\n")) }
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
         }
     }
 }
 
 fn map_tool_message(message: ChatCompletionRequestToolMessage) -> InputItem {
     let output_text = map_text_content_to_string(message.content).unwrap_or_default();
-    InputItem::Item(gproxy_protocol::openai::create_response::types::Item::FunctionOutput(
-        FunctionCallOutputItemParam {
-            r#type: FunctionCallOutputItemType::FunctionCallOutput,
-            id: None,
-            call_id: message.tool_call_id,
-            output: ToolCallOutput::Text(output_text),
-            status: Some(FunctionCallItemStatus::Completed),
-        },
-    ))
+    InputItem::Item(
+        gproxy_protocol::openai::create_response::types::Item::FunctionOutput(
+            FunctionCallOutputItemParam {
+                r#type: FunctionCallOutputItemType::FunctionCallOutput,
+                id: None,
+                call_id: message.tool_call_id,
+                output: ToolCallOutput::Text(output_text),
+                status: Some(FunctionCallItemStatus::Completed),
+            },
+        ),
+    )
 }
 
 fn map_function_message(message: ChatCompletionRequestFunctionMessage) -> InputItem {
     let output_text = message.content.unwrap_or_default();
-    InputItem::Item(gproxy_protocol::openai::create_response::types::Item::FunctionOutput(
-        FunctionCallOutputItemParam {
-            r#type: FunctionCallOutputItemType::FunctionCallOutput,
-            id: None,
-            call_id: message.name,
-            output: ToolCallOutput::Text(output_text),
-            status: Some(FunctionCallItemStatus::Completed),
-        },
-    ))
+    InputItem::Item(
+        gproxy_protocol::openai::create_response::types::Item::FunctionOutput(
+            FunctionCallOutputItemParam {
+                r#type: FunctionCallOutputItemType::FunctionCallOutput,
+                id: None,
+                call_id: message.name,
+                output: ToolCallOutput::Text(output_text),
+                status: Some(FunctionCallItemStatus::Completed),
+            },
+        ),
+    )
 }
 
-fn map_tool_call_item(call: ChatCompletionMessageToolCall) -> Option<gproxy_protocol::openai::create_response::types::Item> {
+fn map_tool_call_item(
+    call: ChatCompletionMessageToolCall,
+) -> Option<gproxy_protocol::openai::create_response::types::Item> {
     match call {
         ChatCompletionMessageToolCall::Function { id, function } => Some(
             gproxy_protocol::openai::create_response::types::Item::Function(FunctionToolCall {
@@ -328,9 +343,7 @@ fn map_text_content_to_easy_content(
                 let ChatCompletionTextContentPart::Text { text } = part;
                 if !text.is_empty() {
                     items.push(InputContent::InputText(
-                        gproxy_protocol::openai::create_response::types::InputTextContent {
-                            text,
-                        },
+                        gproxy_protocol::openai::create_response::types::InputTextContent { text },
                     ));
                 }
             }
@@ -346,18 +359,30 @@ fn map_text_content_to_easy_content(
 fn map_text_content_to_string(content: ChatCompletionTextContent) -> Option<String> {
     match content {
         ChatCompletionTextContent::Text(text) => {
-            if text.is_empty() { None } else { Some(text) }
+            if text.is_empty() {
+                None
+            } else {
+                Some(text)
+            }
         }
         ChatCompletionTextContent::Parts(parts) => {
             let texts: Vec<String> = parts
                 .into_iter()
                 .filter_map(|part| match part {
                     ChatCompletionTextContentPart::Text { text } => {
-                        if text.is_empty() { None } else { Some(text) }
+                        if text.is_empty() {
+                            None
+                        } else {
+                            Some(text)
+                        }
                     }
                 })
                 .collect();
-            if texts.is_empty() { None } else { Some(texts.join("\n")) }
+            if texts.is_empty() {
+                None
+            } else {
+                Some(texts.join("\n"))
+            }
         }
     }
 }
@@ -375,7 +400,9 @@ fn map_user_content_to_input_contents(content: ChatCompletionUserContent) -> Vec
                 match part {
                     ChatCompletionUserContentPart::Text { text } => {
                         contents.push(InputContent::InputText(
-                            gproxy_protocol::openai::create_response::types::InputTextContent { text },
+                            gproxy_protocol::openai::create_response::types::InputTextContent {
+                                text,
+                            },
                         ));
                     }
                     ChatCompletionUserContentPart::ImageUrl { image_url } => {
@@ -428,9 +455,7 @@ fn map_image_detail(
     }
 }
 
-fn map_tools_from_definitions(
-    tools: Option<Vec<ChatCompletionToolDefinition>>,
-) -> Vec<Tool> {
+fn map_tools_from_definitions(tools: Option<Vec<ChatCompletionToolDefinition>>) -> Vec<Tool> {
     let mut output = Vec::new();
     let tools = match tools {
         Some(tools) => tools,
@@ -440,12 +465,16 @@ fn map_tools_from_definitions(
     for tool in tools {
         match tool {
             ChatCompletionToolDefinition::Function { function } => {
-                output.push(Tool::Function(gproxy_protocol::openai::create_response::types::FunctionTool {
-                    name: function.name,
-                    description: function.description,
-                    parameters: function.parameters.and_then(|schema| serde_json::to_value(schema).ok()),
-                    strict: function.strict,
-                }));
+                output.push(Tool::Function(
+                    gproxy_protocol::openai::create_response::types::FunctionTool {
+                        name: function.name,
+                        description: function.description,
+                        parameters: function
+                            .parameters
+                            .and_then(|schema| serde_json::to_value(schema).ok()),
+                        strict: function.strict,
+                    },
+                ));
             }
             ChatCompletionToolDefinition::Custom { custom } => {
                 output.push(Tool::Custom(gproxy_protocol::openai::create_response::types::CustomTool {
@@ -478,7 +507,9 @@ fn map_tools_from_definitions(
 }
 
 fn map_tools_from_functions(
-    functions: Option<Vec<gproxy_protocol::openai::create_chat_completions::types::ChatCompletionFunctions>>,
+    functions: Option<
+        Vec<gproxy_protocol::openai::create_chat_completions::types::ChatCompletionFunctions>,
+    >,
 ) -> Vec<Tool> {
     let mut output = Vec::new();
     let functions = match functions {
@@ -487,12 +518,16 @@ fn map_tools_from_functions(
     };
 
     for function in functions {
-        output.push(Tool::Function(gproxy_protocol::openai::create_response::types::FunctionTool {
-            name: function.name,
-            description: function.description,
-            parameters: function.parameters.and_then(|schema| serde_json::to_value(schema).ok()),
-            strict: None,
-        }));
+        output.push(Tool::Function(
+            gproxy_protocol::openai::create_response::types::FunctionTool {
+                name: function.name,
+                description: function.description,
+                parameters: function
+                    .parameters
+                    .and_then(|schema| serde_json::to_value(schema).ok()),
+                strict: None,
+            },
+        ));
     }
 
     output
@@ -508,18 +543,18 @@ fn map_tool_choice(choice: ChatCompletionToolChoiceOption) -> Option<ToolChoiceP
         ChatCompletionToolChoiceOption::AllowedTools(allowed) => {
             map_allowed_tools_choice(allowed).map(ToolChoiceParam::Allowed)
         }
-        ChatCompletionToolChoiceOption::NamedTool(named) => Some(ToolChoiceParam::Function(
-            ToolChoiceFunction {
+        ChatCompletionToolChoiceOption::NamedTool(named) => {
+            Some(ToolChoiceParam::Function(ToolChoiceFunction {
                 r#type: ToolChoiceFunctionType::Function,
                 name: named.function.name,
-            },
-        )),
-        ChatCompletionToolChoiceOption::NamedCustomTool(named) => Some(ToolChoiceParam::Custom(
-            ToolChoiceCustom {
+            }))
+        }
+        ChatCompletionToolChoiceOption::NamedCustomTool(named) => {
+            Some(ToolChoiceParam::Custom(ToolChoiceCustom {
                 r#type: ToolChoiceCustomType::Custom,
                 name: named.custom.name,
-            },
-        )),
+            }))
+        }
     }
 }
 
@@ -530,7 +565,9 @@ fn map_allowed_tools_choice(
     for tool in allowed.allowed_tools.tools {
         match tool {
             ChatCompletionAllowedTool::Function { function } => {
-                tools.push(AllowedTool::Function { name: function.name });
+                tools.push(AllowedTool::Function {
+                    name: function.name,
+                });
             }
             ChatCompletionAllowedTool::Custom { custom } => {
                 tools.push(AllowedTool::Custom { name: custom.name });

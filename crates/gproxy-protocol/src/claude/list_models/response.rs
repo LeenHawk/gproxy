@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::claude::types::RequestId;
 use crate::claude::list_models::types::BetaModelInfo;
+use crate::claude::types::RequestId;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListModelsResponse {

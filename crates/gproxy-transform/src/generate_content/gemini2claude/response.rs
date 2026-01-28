@@ -1,9 +1,9 @@
+use gproxy_protocol::claude::count_tokens::types::Model as ClaudeModel;
 use gproxy_protocol::claude::create_message::response::CreateMessageResponse as ClaudeCreateMessageResponse;
 use gproxy_protocol::claude::create_message::types::{
     BetaContentBlock, BetaMcpToolUseBlock, BetaServerToolName, BetaStopReason, BetaThinkingBlock,
     BetaUsage,
 };
-use gproxy_protocol::claude::count_tokens::types::Model as ClaudeModel;
 use gproxy_protocol::gemini::count_tokens::types::{
     Content as GeminiContent, ContentRole as GeminiContentRole, FunctionCall as GeminiFunctionCall,
     Part as GeminiPart,
@@ -145,7 +145,9 @@ fn serialize_block_as_text(block: &BetaContentBlock) -> Vec<GeminiPart> {
     }
 }
 
-fn json_object_to_value(value: &gproxy_protocol::claude::create_message::types::JsonObject) -> JsonValue {
+fn json_object_to_value(
+    value: &gproxy_protocol::claude::create_message::types::JsonObject,
+) -> JsonValue {
     JsonValue::Object(value.clone().into_iter().collect())
 }
 
@@ -164,7 +166,9 @@ fn map_stop_reason(reason: Option<BetaStopReason>) -> Option<FinishReason> {
         // Claude's tool_use is normal control flow; use STOP rather than an error finish reason.
         BetaStopReason::ToolUse => FinishReason::Stop,
         BetaStopReason::Refusal => FinishReason::Safety,
-        BetaStopReason::PauseTurn | BetaStopReason::ModelContextWindowExceeded => FinishReason::Other,
+        BetaStopReason::PauseTurn | BetaStopReason::ModelContextWindowExceeded => {
+            FinishReason::Other
+        }
     })
 }
 

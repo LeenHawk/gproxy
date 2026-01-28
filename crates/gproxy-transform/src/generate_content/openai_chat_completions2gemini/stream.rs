@@ -251,7 +251,9 @@ fn map_finish_reason(reason: ChatCompletionFinishReason) -> FinishReason {
     }
 }
 
-fn map_usage(usage: &gproxy_protocol::openai::create_chat_completions::types::CompletionUsage) -> UsageMetadata {
+fn map_usage(
+    usage: &gproxy_protocol::openai::create_chat_completions::types::CompletionUsage,
+) -> UsageMetadata {
     let prompt_tokens = usage.prompt_tokens as u32;
     let completion_tokens = usage.completion_tokens as u32;
     let total_tokens = usage.total_tokens as u32;

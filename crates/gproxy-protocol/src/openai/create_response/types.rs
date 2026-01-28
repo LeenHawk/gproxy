@@ -660,13 +660,17 @@ pub struct ToolChoiceAllowed {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AllowedTool {
-    Function { name: String },
+    Function {
+        name: String,
+    },
     MCP {
         server_label: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<String>,
     },
-    Custom { name: String },
+    Custom {
+        name: String,
+    },
     FileSearch,
     #[serde(rename = "web_search")]
     WebSearch,
@@ -1195,7 +1199,10 @@ pub struct CustomTool {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CustomToolFormat {
     Text,
-    Grammar { syntax: GrammarSyntax, definition: String },
+    Grammar {
+        syntax: GrammarSyntax,
+        definition: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

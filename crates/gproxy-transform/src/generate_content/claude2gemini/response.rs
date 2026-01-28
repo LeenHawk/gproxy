@@ -22,7 +22,11 @@ pub fn transform_response(response: GeminiGenerateContentResponse) -> ClaudeCrea
 
     let model_id = response
         .model_version
-        .or_else(|| response.model_status.map(|status| format!("{:?}", status.model_stage)))
+        .or_else(|| {
+            response
+                .model_status
+                .map(|status| format!("{:?}", status.model_stage))
+        })
         .unwrap_or_else(|| "unknown".to_string());
 
     let model_id = if model_id.starts_with("models/") {
@@ -33,7 +37,9 @@ pub fn transform_response(response: GeminiGenerateContentResponse) -> ClaudeCrea
 
     BetaMessage {
         request_id: None,
-        id: response.response_id.unwrap_or_else(|| "response".to_string()),
+        id: response
+            .response_id
+            .unwrap_or_else(|| "response".to_string()),
         container: None,
         content: content_blocks,
         context_management: None,
@@ -58,13 +64,14 @@ fn map_part_to_blocks(part: &GeminiPart) -> Vec<BetaContentBlock> {
     let mut blocks = Vec::new();
 
     if let Some(text) = part.text.clone()
-        && !text.is_empty() {
-            blocks.push(BetaContentBlock::Text(BetaTextBlock {
-                citations: None,
-                text,
-                r#type: BetaTextBlockType::Text,
-            }));
-        }
+        && !text.is_empty()
+    {
+        blocks.push(BetaContentBlock::Text(BetaTextBlock {
+            citations: None,
+            text,
+            r#type: BetaTextBlockType::Text,
+        }));
+    }
 
     if let Some(function_call) = &part.function_call {
         let input = map_json_object(function_call.args.as_ref());
@@ -92,22 +99,24 @@ fn map_part_to_blocks(part: &GeminiPart) -> Vec<BetaContentBlock> {
     }
 
     if let Some(code) = &part.executable_code
-        && let Ok(text) = serde_json::to_string(code) {
-            blocks.push(BetaContentBlock::Text(BetaTextBlock {
-                citations: None,
-                text,
-                r#type: BetaTextBlockType::Text,
-            }));
-        }
+        && let Ok(text) = serde_json::to_string(code)
+    {
+        blocks.push(BetaContentBlock::Text(BetaTextBlock {
+            citations: None,
+            text,
+            r#type: BetaTextBlockType::Text,
+        }));
+    }
 
     if let Some(result) = &part.code_execution_result
-        && let Ok(text) = serde_json::to_string(result) {
-            blocks.push(BetaContentBlock::Text(BetaTextBlock {
-                citations: None,
-                text,
-                r#type: BetaTextBlockType::Text,
-            }));
-        }
+        && let Ok(text) = serde_json::to_string(result)
+    {
+        blocks.push(BetaContentBlock::Text(BetaTextBlock {
+            citations: None,
+            text,
+            r#type: BetaTextBlockType::Text,
+        }));
+    }
 
     if part.inline_data.is_some() {
         blocks.push(BetaContentBlock::Text(BetaTextBlock {

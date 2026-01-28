@@ -15,9 +15,9 @@ use gproxy_protocol::openai::create_response::types::{
     ComputerEnvironment, ComputerUsePreviewTool, EasyInputMessage, EasyInputMessageContent,
     EasyInputMessageRole, EasyInputMessageType, FileSearchTool, FunctionTool, ImageGenSize,
     ImageGenTool, InputContent, InputFileContent, InputImageContent, InputItem, InputParam,
-    InputTextContent, Reasoning, ReasoningEffort, ResponseTextParam,
+    InputTextContent, Instructions, Reasoning, ReasoningEffort, ResponseTextParam,
     TextResponseFormatConfiguration, Tool, ToolChoiceAllowed, ToolChoiceAllowedMode,
-    ToolChoiceAllowedType, ToolChoiceOptions, ToolChoiceParam, WebSearchTool, Instructions,
+    ToolChoiceAllowedType, ToolChoiceOptions, ToolChoiceParam, WebSearchTool,
 };
 use serde::Serialize;
 use serde_json::Value as JsonValue;
@@ -79,8 +79,16 @@ pub fn transform_request(request: GeminiGenerateContentRequest) -> OpenAIRespons
             truncation: None,
             top_logprobs: None,
             metadata: None,
-            temperature: request.body.generation_config.as_ref().and_then(|config| config.temperature),
-            top_p: request.body.generation_config.as_ref().and_then(|config| config.top_p),
+            temperature: request
+                .body
+                .generation_config
+                .as_ref()
+                .and_then(|config| config.temperature),
+            top_p: request
+                .body
+                .generation_config
+                .as_ref()
+                .and_then(|config| config.top_p),
             user: None,
             safety_identifier: None,
             prompt_cache_key: None,
@@ -183,14 +191,15 @@ fn push_inline_blob(contents: &mut Vec<InputContent>, blob: &GeminiBlob) {
 
 fn push_file_data(contents: &mut Vec<InputContent>, file: &GeminiFileData) {
     if let Some(mime_type) = &file.mime_type
-        && mime_type.starts_with("image/") {
-            contents.push(InputContent::InputImage(InputImageContent {
-                image_url: Some(file.file_uri.clone()),
-                file_id: None,
-                detail: None,
-            }));
-            return;
-        }
+        && mime_type.starts_with("image/")
+    {
+        contents.push(InputContent::InputImage(InputImageContent {
+            image_url: Some(file.file_uri.clone()),
+            file_id: None,
+            detail: None,
+        }));
+        return;
+    }
 
     contents.push(InputContent::InputFile(InputFileContent {
         file_id: None,
@@ -283,8 +292,8 @@ fn map_function_tool(function: FunctionDeclaration) -> FunctionTool {
 }
 
 fn map_tool_choice(tool_config: Option<&ToolConfig>) -> Option<ToolChoiceParam> {
-    let config = tool_config
-        .and_then(|tool_config| tool_config.function_calling_config.as_ref())?;
+    let config =
+        tool_config.and_then(|tool_config| tool_config.function_calling_config.as_ref())?;
 
     let mode = config.mode.unwrap_or(FunctionCallingMode::ModeUnspecified);
     let allowed = config.allowed_function_names.clone().unwrap_or_default();

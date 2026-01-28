@@ -1,10 +1,10 @@
 use gproxy_protocol::openai::create_chat_completions::response::{
-    ChatCompletionChoice, CreateChatCompletionResponse, ChatCompletionObjectType,
+    ChatCompletionChoice, ChatCompletionObjectType, CreateChatCompletionResponse,
 };
 use gproxy_protocol::openai::create_chat_completions::types::{
-    ChatCompletionFinishReason, ChatCompletionMessageToolCall, ChatCompletionMessageToolCallFunction,
-    ChatCompletionResponseMessage, ChatCompletionResponseRole, CompletionTokensDetails, CompletionUsage,
-    PromptTokensDetails,
+    ChatCompletionFinishReason, ChatCompletionMessageToolCall,
+    ChatCompletionMessageToolCallFunction, ChatCompletionResponseMessage,
+    ChatCompletionResponseRole, CompletionTokensDetails, CompletionUsage, PromptTokensDetails,
 };
 use gproxy_protocol::openai::create_response::response::Response;
 use gproxy_protocol::openai::create_response::types::{
@@ -16,9 +16,10 @@ pub fn transform_response(response: Response) -> CreateChatCompletionResponse {
     let (mut message_texts, refusal_texts, tool_calls) = extract_message_parts(&response.output);
     if message_texts.is_empty()
         && let Some(output_text) = &response.output_text
-            && !output_text.is_empty() {
-                message_texts.push(output_text.clone());
-            }
+        && !output_text.is_empty()
+    {
+        message_texts.push(output_text.clone());
+    }
 
     let content = if message_texts.is_empty() {
         None
@@ -35,7 +36,11 @@ pub fn transform_response(response: Response) -> CreateChatCompletionResponse {
         role: ChatCompletionResponseRole::Assistant,
         content,
         refusal,
-        tool_calls: if tool_calls.is_empty() { None } else { Some(tool_calls) },
+        tool_calls: if tool_calls.is_empty() {
+            None
+        } else {
+            Some(tool_calls)
+        },
         annotations: None,
         function_call: None,
         audio: None,
@@ -101,10 +106,7 @@ fn extract_message_parts(
 }
 
 fn map_function_call(call: &FunctionToolCall) -> Option<ChatCompletionMessageToolCall> {
-    let id = call
-        .id
-        .clone()
-        .or_else(|| Some(call.call_id.clone()))?;
+    let id = call.id.clone().or_else(|| Some(call.call_id.clone()))?;
     Some(ChatCompletionMessageToolCall::Function {
         id,
         function: ChatCompletionMessageToolCallFunction {
@@ -130,9 +132,10 @@ fn map_finish_reason(
     message: &ChatCompletionResponseMessage,
 ) -> ChatCompletionFinishReason {
     if let Some(tool_calls) = &message.tool_calls
-        && !tool_calls.is_empty() {
-            return ChatCompletionFinishReason::ToolCalls;
-        }
+        && !tool_calls.is_empty()
+    {
+        return ChatCompletionFinishReason::ToolCalls;
+    }
 
     if let Some(details) = &response.incomplete_details {
         return match details.reason {
@@ -144,7 +147,9 @@ fn map_finish_reason(
     ChatCompletionFinishReason::Stop
 }
 
-fn map_usage(usage: &gproxy_protocol::openai::create_response::types::ResponseUsage) -> CompletionUsage {
+fn map_usage(
+    usage: &gproxy_protocol::openai::create_response::types::ResponseUsage,
+) -> CompletionUsage {
     CompletionUsage {
         prompt_tokens: usage.input_tokens,
         completion_tokens: usage.output_tokens,

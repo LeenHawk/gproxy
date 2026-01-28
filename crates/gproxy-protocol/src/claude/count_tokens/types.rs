@@ -124,9 +124,16 @@ pub enum BetaImageMediaType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum BetaImageSource {
-    Base64 { data: String, media_type: BetaImageMediaType },
-    Url { url: String },
-    File { file_id: String },
+    Base64 {
+        data: String,
+        media_type: BetaImageMediaType,
+    },
+    Url {
+        url: String,
+    },
+    File {
+        file_id: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -167,9 +174,15 @@ pub enum BetaDocumentSource {
         data: String,
         media_type: BetaTextMediaType,
     },
-    Content { content: BetaContentBlockSourceContent },
-    Url { url: String },
-    File { file_id: String },
+    Content {
+        content: BetaContentBlockSourceContent,
+    },
+    Url {
+        url: String,
+    },
+    File {
+        file_id: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -439,7 +452,10 @@ pub enum BetaWebFetchResultBlockType {
 pub struct BetaWebFetchBlockParam {
     pub content: BetaRequestDocumentBlock,
     pub url: String,
-    #[serde(skip_serializing_if = "Option::is_none", with = "time::serde::iso8601::option")]
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "time::serde::iso8601::option"
+    )]
     pub retrieved_at: Option<OffsetDateTime>,
     #[serde(rename = "type")]
     pub r#type: BetaWebFetchResultBlockType,
@@ -471,7 +487,10 @@ pub enum BetaWebFetchToolResultContent {
     WebFetchResult {
         content: BetaRequestDocumentBlock,
         url: String,
-        #[serde(skip_serializing_if = "Option::is_none", with = "time::serde::iso8601::option")]
+        #[serde(
+            skip_serializing_if = "Option::is_none",
+            with = "time::serde::iso8601::option"
+        )]
         retrieved_at: Option<OffsetDateTime>,
     },
     WebFetchToolResultError {
