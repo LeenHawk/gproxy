@@ -10,3 +10,4 @@ bytes = "1"
 futures-core = "0.3"
 http = "1"
 gproxy-protocol = { path = "../gproxy-protocol" }
+rand = "0.9"

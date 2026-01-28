@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use arc_swap::ArcSwap;
+use rand::Rng;
 
 use crate::disallow::{DisallowEntry, DisallowKey, DisallowMark, DisallowRecord, DisallowScope};
 use crate::response::UpstreamPassthroughError;
@@ -123,16 +124,20 @@ impl<C> CredentialPool<C> {
         let now = SystemTime::now();
         let mut last_error: Option<UpstreamPassthroughError> = None;
 
-        for credential in snapshot.credentials.iter() {
-            if !credential.enabled {
-                continue;
-            }
+        let mut candidates: Vec<(CredentialEntry<C>, u32)> = snapshot
+            .credentials
+            .iter()
+            .filter(|credential| credential.enabled)
+            .filter(|credential| !self.is_disallowed(&snapshot, &credential.id, &scope_hint, now))
+            .map(|credential| (credential.clone(), credential.weight))
+            .collect();
 
-            if self.is_disallowed(&snapshot, &credential.id, &scope_hint, now) {
-                continue;
-            }
+        while !candidates.is_empty() {
+            let weights: Vec<u32> = candidates.iter().map(|(_, weight)| *weight).collect();
+            let index = pick_weighted_index(&weights);
+            let (credential, _) = candidates.swap_remove(index);
 
-            match f((*credential).clone()).await {
+            match f(credential.clone()).await {
                 Ok(output) => return Ok(output),
                 Err(failure) => {
                     if let Some(mark) = failure.mark.clone() {
@@ -230,4 +235,26 @@ impl<C> CredentialPool<C> {
                 .await;
         }
     }
+}
+
+fn pick_weighted_index(weights: &[u32]) -> usize {
+    if weights.is_empty() {
+        return 0;
+    }
+
+    let total: u64 = weights.iter().map(|weight| *weight as u64).sum();
+    if total == 0 {
+        return rand::rng().random_range(0..weights.len());
+    }
+
+    let mut roll = rand::rng().random_range(0..total);
+    for (index, weight) in weights.iter().enumerate() {
+        let weight = *weight as u64;
+        if roll < weight {
+            return index;
+        }
+        roll -= weight;
+    }
+
+    weights.len() - 1
 }

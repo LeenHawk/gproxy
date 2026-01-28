@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+gproxy-provider-core = { path = "../gproxy-provider-core" }
+async-trait = "0.1"
+http = "1"
