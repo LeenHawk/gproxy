@@ -1,4 +1,5 @@
 use sea_orm::entity::prelude::*;
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveValue, Database, DatabaseConnection, DbErr, Schema};
 use time::OffsetDateTime;
 
@@ -114,6 +115,7 @@ impl TrafficStorage {
             .register(entities::Providers)
             .register(entities::Credentials)
             .register(entities::CredentialDisallow)
+            .register(entities::GlobalConfig)
             .register(entities::DownstreamTraffic)
             .register(entities::UpstreamTraffic)
             .sync(&self.db)
@@ -140,6 +142,84 @@ impl TrafficStorage {
         entities::UpstreamTraffic::insert(active)
             .exec(&self.db)
             .await?;
+        Ok(())
+    }
+
+    pub async fn upsert_global_config(
+        &self,
+        id: i64,
+        config_json: Json,
+        updated_at: OffsetDateTime,
+    ) -> Result<(), DbErr> {
+        use entities::global_config::Column;
+
+        let active = entities::global_config::ActiveModel {
+            id: ActiveValue::Set(id),
+            config_json: ActiveValue::Set(config_json),
+            updated_at: ActiveValue::Set(updated_at),
+            ..Default::default()
+        };
+
+        entities::GlobalConfig::insert(active)
+            .on_conflict(
+                OnConflict::column(Column::Id)
+                    .update_columns([Column::ConfigJson, Column::UpdatedAt])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn ensure_admin_user(&self, admin_key: &str) -> Result<(), DbErr> {
+        let now = OffsetDateTime::now_utc();
+
+        let user_active = entities::users::ActiveModel {
+            id: ActiveValue::Set(0),
+            name: ActiveValue::Set(Some("admin".to_string())),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
+            ..Default::default()
+        };
+
+        entities::Users::insert(user_active)
+            .on_conflict(
+                OnConflict::column(entities::users::Column::Id)
+                    .update_columns([
+                        entities::users::Column::Name,
+                        entities::users::Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+
+        let key_active = entities::api_keys::ActiveModel {
+            id: ActiveValue::Set(0),
+            user_id: ActiveValue::Set(0),
+            key_value: ActiveValue::Set(admin_key.to_string()),
+            label: ActiveValue::Set(Some("admin".to_string())),
+            enabled: ActiveValue::Set(true),
+            created_at: ActiveValue::Set(now),
+            last_used_at: ActiveValue::Set(None),
+            ..Default::default()
+        };
+
+        entities::ApiKeys::insert(key_active)
+            .on_conflict(
+                OnConflict::column(entities::api_keys::Column::Id)
+                    .update_columns([
+                        entities::api_keys::Column::UserId,
+                        entities::api_keys::Column::KeyValue,
+                        entities::api_keys::Column::Label,
+                        entities::api_keys::Column::Enabled,
+                        entities::api_keys::Column::LastUsedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.db)
+            .await?;
+
         Ok(())
     }
 }

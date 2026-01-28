@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 time = "0.3"
 sea-orm = { version = "2.0.0-rc.30", features = ["macros", "runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres", "with-time", "with-uuid", "with-json", "schema-sync", "entity-registry"] }
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }

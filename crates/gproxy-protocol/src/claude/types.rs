@@ -3,6 +3,14 @@ use serde::{Deserialize, Serialize};
 pub type RequestId = String;
 pub type AnthropicOrganizationId = String;
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AnthropicHeaders {
+    #[serde(rename = "anthropic-version")]
+    pub anthropic_version: AnthropicVersion,
+    #[serde(rename = "anthropic-beta", skip_serializing_if = "Option::is_none")]
+    pub anthropic_beta: Option<AnthropicBetaHeader>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum AnthropicVersion {
     #[default]

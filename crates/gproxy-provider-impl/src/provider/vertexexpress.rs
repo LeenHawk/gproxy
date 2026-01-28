@@ -7,6 +7,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 
+use crate::credential::BaseCredential;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "vertexexpress";
@@ -16,8 +17,7 @@ pub struct VertexExpressProvider {
     pool: CredentialPool<VertexExpressCredential>,
 }
 
-#[derive(Debug)]
-pub struct VertexExpressCredential;
+pub type VertexExpressCredential = BaseCredential;
 
 impl VertexExpressProvider {
     pub fn new(sink: Arc<dyn StateSink>) -> Self {

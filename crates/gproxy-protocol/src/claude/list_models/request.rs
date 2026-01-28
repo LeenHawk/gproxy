@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::claude::types::{AnthropicBetaHeader, AnthropicVersion};
+use crate::claude::types::AnthropicHeaders;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ListModelsQuery {
@@ -13,13 +13,7 @@ pub struct ListModelsQuery {
     pub limit: Option<u32>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ListModelsHeaders {
-    #[serde(rename = "anthropic-version")]
-    pub anthropic_version: AnthropicVersion,
-    #[serde(rename = "anthropic-beta", skip_serializing_if = "Option::is_none")]
-    pub anthropic_beta: Option<AnthropicBetaHeader>,
-}
+pub type ListModelsHeaders = AnthropicHeaders;
 
 #[derive(Debug, Clone, Default)]
 pub struct ListModelsRequest {

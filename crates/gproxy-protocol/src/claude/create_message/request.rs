@@ -6,15 +6,9 @@ use crate::claude::count_tokens::types::{
     BetaToolChoice, Model,
 };
 use crate::claude::create_message::types::{BetaContainerParam, BetaMetadata, BetaServiceTier};
-use crate::claude::types::{AnthropicBetaHeader, AnthropicVersion};
+use crate::claude::types::AnthropicHeaders;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CreateMessageHeaders {
-    #[serde(rename = "anthropic-version")]
-    pub anthropic_version: AnthropicVersion,
-    #[serde(rename = "anthropic-beta", skip_serializing_if = "Option::is_none")]
-    pub anthropic_beta: Option<AnthropicBetaHeader>,
-}
+pub type CreateMessageHeaders = AnthropicHeaders;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateMessageRequestBody {

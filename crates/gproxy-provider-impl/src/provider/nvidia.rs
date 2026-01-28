@@ -7,6 +7,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 
+use crate::credential::BaseCredential;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "nvidia";
@@ -16,8 +17,7 @@ pub struct NvidiaProvider {
     pool: CredentialPool<NvidiaCredential>,
 }
 
-#[derive(Debug)]
-pub struct NvidiaCredential;
+pub type NvidiaCredential = BaseCredential;
 
 impl NvidiaProvider {
     pub fn new(sink: Arc<dyn StateSink>) -> Self {

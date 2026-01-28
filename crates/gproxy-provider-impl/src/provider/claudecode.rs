@@ -7,6 +7,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 
+use crate::credential::BaseCredential;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "claudecode";
@@ -16,8 +17,7 @@ pub struct ClaudeCodeProvider {
     pool: CredentialPool<ClaudeCodeCredential>,
 }
 
-#[derive(Debug)]
-pub struct ClaudeCodeCredential;
+pub type ClaudeCodeCredential = BaseCredential;
 
 impl ClaudeCodeProvider {
     pub fn new(sink: Arc<dyn StateSink>) -> Self {

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use gproxy_provider_core::{NoopStateSink, Provider, StateSink};
+use gproxy_provider_core::{NoopStateSink, PoolSnapshot, Provider, StateSink};
 
+use crate::credential::BaseCredential;
 use crate::provider::{
     AistudioProvider, AntiGravityProvider, ClaudeCodeProvider, ClaudeProvider, CodexProvider,
     DeepSeekProvider, GeminiCliProvider, NvidiaProvider, OpenAIProvider, VertexExpressProvider,
@@ -71,6 +72,42 @@ impl ProviderRegistry {
 
     pub fn deepseek(&self) -> Arc<DeepSeekProvider> {
         self.deepseek.clone()
+    }
+
+    pub fn apply_pools(&self, mut pools: HashMap<String, PoolSnapshot<BaseCredential>>) {
+        if let Some(pool) = pools.remove("openai") {
+            self.openai.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("claude") {
+            self.claude.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("aistudio") {
+            self.aistudio.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("vertexexpress") {
+            self.vertexexpress.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("vertex") {
+            self.vertex.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("geminicli") {
+            self.geminicli.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("claudecode") {
+            self.claudecode.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("codex") {
+            self.codex.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("antigravity") {
+            self.antigravity.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("nvidia") {
+            self.nvidia.replace_snapshot(pool);
+        }
+        if let Some(pool) = pools.remove("deepseek") {
+            self.deepseek.replace_snapshot(pool);
+        }
     }
 }
 

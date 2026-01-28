@@ -7,6 +7,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 
+use crate::credential::BaseCredential;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "aistudio";
@@ -16,8 +17,7 @@ pub struct AistudioProvider {
     pool: CredentialPool<AistudioCredential>,
 }
 
-#[derive(Debug)]
-pub struct AistudioCredential;
+pub type AistudioCredential = BaseCredential;
 
 impl AistudioProvider {
     pub fn new(sink: Arc<dyn StateSink>) -> Self {

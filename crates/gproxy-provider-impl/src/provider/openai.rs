@@ -7,6 +7,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 
+use crate::credential::BaseCredential;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "openai";
@@ -16,8 +17,7 @@ pub struct OpenAIProvider {
     pool: CredentialPool<OpenAICredential>,
 }
 
-#[derive(Debug)]
-pub struct OpenAICredential;
+pub type OpenAICredential = BaseCredential;
 
 impl OpenAIProvider {
     pub fn new(sink: Arc<dyn StateSink>) -> Self {

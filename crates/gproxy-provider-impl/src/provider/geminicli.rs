@@ -7,6 +7,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 
+use crate::credential::BaseCredential;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "geminicli";
@@ -16,8 +17,7 @@ pub struct GeminiCliProvider {
     pool: CredentialPool<GeminiCliCredential>,
 }
 
-#[derive(Debug)]
-pub struct GeminiCliCredential;
+pub type GeminiCliCredential = BaseCredential;
 
 impl GeminiCliProvider {
     pub fn new(sink: Arc<dyn StateSink>) -> Self {

@@ -2,18 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::claude::count_tokens::types::Model;
 use crate::claude::types::{
-    AnthropicBetaHeader, AnthropicVersion, BetaContextManagementConfig, BetaJSONOutputFormat,
-    BetaMessageParam, BetaOutputConfig, BetaRequestMCPServerURLDefinition, BetaSystemParam,
-    BetaThinkingConfigParam, BetaTool, BetaToolChoice,
+    AnthropicHeaders, BetaContextManagementConfig, BetaJSONOutputFormat, BetaMessageParam,
+    BetaOutputConfig, BetaRequestMCPServerURLDefinition, BetaSystemParam, BetaThinkingConfigParam,
+    BetaTool, BetaToolChoice,
 };
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct CountTokensHeaders {
-    #[serde(rename = "anthropic-version")]
-    pub anthropic_version: AnthropicVersion,
-    #[serde(rename = "anthropic-beta", skip_serializing_if = "Option::is_none")]
-    pub anthropic_beta: Option<AnthropicBetaHeader>,
-}
+pub type CountTokensHeaders = AnthropicHeaders;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CountTokensRequestBody {
