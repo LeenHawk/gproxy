@@ -25,11 +25,7 @@ use serde_json::Value as JsonValue;
 
 /// Convert an OpenAI responses request into a Gemini generate-content request.
 pub fn transform_request(request: OpenAIResponseRequest) -> GeminiGenerateContentRequest {
-    let model = if request.body.model.starts_with("models/") {
-        request.body.model
-    } else {
-        format!("models/{}", request.body.model)
-    };
+    let model = request.body.model.clone();
 
     let mut system_texts = Vec::new();
     let mut contents = Vec::new();
@@ -68,6 +64,7 @@ pub fn transform_request(request: OpenAIResponseRequest) -> GeminiGenerateConten
         path: GeminiGenerateContentPath { model },
         body: GeminiGenerateContentRequestBody {
             contents,
+            model: None,
             tools,
             tool_config,
             safety_settings: None,

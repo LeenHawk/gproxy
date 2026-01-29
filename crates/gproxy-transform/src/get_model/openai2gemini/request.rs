@@ -5,11 +5,7 @@ use gproxy_protocol::openai::get_model::request::GetModelRequest as OpenAIGetMod
 
 /// Convert an OpenAI get-model request into a Gemini get-model request.
 pub fn transform_request(request: OpenAIGetModelRequest) -> GeminiGetModelRequest {
-    let name = if request.path.model.starts_with("models/") {
-        request.path.model
-    } else {
-        format!("models/{}", request.path.model)
-    };
+    let name = request.path.model;
 
     GeminiGetModelRequest {
         path: GeminiGetModelPath { name },

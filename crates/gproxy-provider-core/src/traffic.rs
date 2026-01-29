@@ -32,7 +32,6 @@ pub struct UpstreamTrafficEvent {
     pub operation: String,
     pub model: Option<String>,
     pub credential_id: Option<i64>,
-    pub request_id: Option<String>,
 
     pub request_method: String,
     pub request_path: String,
@@ -165,7 +164,6 @@ pub fn build_upstream_event(
         operation: meta.operation,
         model: meta.model,
         credential_id: meta.credential_id,
-        request_id: request_id_from_headers(headers),
         request_method: meta.request_method,
         request_path: meta.request_path,
         request_query: meta.request_query,
@@ -239,14 +237,6 @@ impl TrafficSink for NoopTrafficSink {
 }
 
 pub type SharedTrafficSink = Arc<dyn TrafficSink>;
-
-fn request_id_from_headers(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("request-id")
-        .or_else(|| headers.get("x-request-id"))
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_string())
-}
 
 fn headers_to_json(headers: &HeaderMap) -> String {
     let mut map = serde_json::Map::new();

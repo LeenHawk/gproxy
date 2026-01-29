@@ -12,7 +12,7 @@ pub fn transform_response(response: ClaudeGetModelResponse) -> GeminiGetModelRes
 
     GeminiModel {
         name,
-        base_model_id: response.id,
+        base_model_id: None,
         // Claude model metadata does not include a Gemini version; use a placeholder.
         version: "unknown".to_string(),
         display_name: Some(response.display_name),

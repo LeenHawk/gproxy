@@ -483,7 +483,6 @@ impl From<UpstreamTrafficEvent> for entities::upstream_traffic::ActiveModel {
             model: ActiveValue::Set(event.model),
             credential_id: ActiveValue::Set(event.credential_id),
             trace_id: ActiveValue::Set(event.trace_id),
-            request_id: ActiveValue::Set(event.request_id),
             request_method: ActiveValue::Set(event.request_method),
             request_path: ActiveValue::Set(event.request_path),
             request_query: ActiveValue::Set(event.request_query),

@@ -12,11 +12,7 @@ pub fn transform_response(response: GeminiListModelsResponse) -> ClaudeListModel
         .into_iter()
         .map(|model| {
             let name = model.name;
-            let base_model_id = model.base_model_id;
-
-            let id = if !base_model_id.is_empty() {
-                base_model_id
-            } else if let Some(stripped) = name.strip_prefix("models/") {
+            let id = if let Some(stripped) = name.strip_prefix("models/") {
                 stripped.to_string()
             } else {
                 name

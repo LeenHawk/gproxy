@@ -17,7 +17,7 @@ pub fn transform_response(response: OpenAIListModelsResponse) -> GeminiListModel
 
             GeminiModel {
                 name,
-                base_model_id: id.clone(),
+                base_model_id: None,
                 // OpenAI model metadata does not include a Gemini version; use a placeholder.
                 version: "unknown".to_string(),
                 display_name: Some(id),

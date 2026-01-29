@@ -7,11 +7,7 @@ use gproxy_protocol::openai::get_model::types::{
 /// Convert a Gemini get-model response into OpenAI's model response shape.
 pub fn transform_response(response: GeminiGetModelResponse) -> OpenAIGetModelResponse {
     let name = response.name;
-    let base_model_id = response.base_model_id;
-
-    let id = if !base_model_id.is_empty() {
-        base_model_id
-    } else if let Some(stripped) = name.strip_prefix("models/") {
+    let id = if let Some(stripped) = name.strip_prefix("models/") {
         stripped.to_string()
     } else {
         name

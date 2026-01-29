@@ -24,11 +24,7 @@ use serde_json::Value as JsonValue;
 
 /// Convert an OpenAI input-tokens request into a Gemini count-tokens request.
 pub fn transform_request(request: OpenAIInputTokenCountRequest) -> GeminiCountTokensRequest {
-    let model = if request.body.model.starts_with("models/") {
-        request.body.model
-    } else {
-        format!("models/{}", request.body.model)
-    };
+    let model = request.body.model.clone();
 
     let mut system_texts = Vec::new();
     let mut contents = Vec::new();
@@ -59,6 +55,7 @@ pub fn transform_request(request: OpenAIInputTokenCountRequest) -> GeminiCountTo
 
     let generate_content_request = GenerateContentRequestBody {
         contents,
+        model: Some(model.clone()),
         tools,
         tool_config,
         safety_settings: None,

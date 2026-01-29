@@ -6,7 +6,8 @@ pub struct Model {
     /// Format: models/{model}. It takes the form models/{model}.
     pub name: String,
     /// The name of the base model, pass this to the generation request.
-    pub base_model_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_model_id: Option<String>,
     /// The major version (e.g., 1.0 or 1.5).
     pub version: String,
     /// The name can be up to 128 characters long and can consist of any UTF-8 characters.

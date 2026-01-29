@@ -36,11 +36,7 @@ pub fn transform_request(request: ClaudeCountTokensRequest) -> GeminiCountTokens
             _ => "unknown".to_string(),
         },
     };
-    let model = if model_id.starts_with("models/") {
-        model_id
-    } else {
-        format!("models/{}", model_id)
-    };
+    let model = model_id;
 
     let contents = map_messages_to_contents(&request.body.messages);
     let system_instruction = map_system_to_content(request.body.system);
@@ -54,6 +50,7 @@ pub fn transform_request(request: ClaudeCountTokensRequest) -> GeminiCountTokens
 
     let generate_content_request = GenerateContentRequestBody {
         contents,
+        model: Some(model.clone()),
         tools,
         tool_config,
         safety_settings: None,

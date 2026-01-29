@@ -16,7 +16,10 @@ use gproxy_protocol::openai;
 use gproxy_protocol::claude::types::{AnthropicBetaHeader, AnthropicVersion};
 use crate::client::shared_client;
 use crate::credential::BaseCredential;
-use crate::dispatch::{dispatch_request, DispatchPlan, DispatchProvider, TransformPlan, UsageKind, UpstreamOk};
+use crate::dispatch::{
+    dispatch_request, CountTokensPlan, DispatchPlan, DispatchProvider, GenerateContentPlan,
+    ModelsGetPlan, ModelsListPlan, StreamContentPlan, TransformPlan, UsageKind, UpstreamOk,
+};
 use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, network_failure};
 use crate::ProviderDefault;
@@ -106,43 +109,51 @@ impl DispatchProvider for ClaudeProvider {
                 usage: UsageKind::OpenAIChat,
             },
             ProxyRequest::OpenAIResponses(request) => DispatchPlan::Transform {
-                plan: TransformPlan::OpenAIResponses(request),
+                plan: TransformPlan::GenerateContent(GenerateContentPlan::OpenAIResponses2Claude(
+                    request,
+                )),
                 usage: UsageKind::OpenAIResponses,
             },
             ProxyRequest::OpenAIResponsesStream(request) => DispatchPlan::Transform {
-                plan: TransformPlan::OpenAIResponsesStream(request),
+                plan: TransformPlan::StreamContent(StreamContentPlan::OpenAIResponses2Claude(
+                    request,
+                )),
                 usage: UsageKind::OpenAIResponses,
             },
             ProxyRequest::OpenAIInputTokens(request) => DispatchPlan::Transform {
-                plan: TransformPlan::OpenAIInputTokens(request),
+                plan: TransformPlan::CountTokens(CountTokensPlan::OpenAIInputTokens2Claude(
+                    request,
+                )),
                 usage: UsageKind::None,
             },
             ProxyRequest::OpenAIModelsList(request) => DispatchPlan::Transform {
-                plan: TransformPlan::OpenAIModelsList(request),
+                plan: TransformPlan::ModelsList(ModelsListPlan::OpenAI2Claude(request)),
                 usage: UsageKind::None,
             },
             ProxyRequest::OpenAIModelsGet(request) => DispatchPlan::Transform {
-                plan: TransformPlan::OpenAIModelsGet(request),
+                plan: TransformPlan::ModelsGet(ModelsGetPlan::OpenAI2Claude(request)),
                 usage: UsageKind::None,
             },
             ProxyRequest::GeminiGenerate { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GeminiGenerate(request),
+                plan: TransformPlan::GenerateContent(GenerateContentPlan::Gemini2Claude(
+                    request,
+                )),
                 usage: UsageKind::GeminiGenerate,
             },
             ProxyRequest::GeminiGenerateStream { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GeminiGenerateStream(request),
+                plan: TransformPlan::StreamContent(StreamContentPlan::Gemini2Claude(request)),
                 usage: UsageKind::GeminiGenerate,
             },
             ProxyRequest::GeminiCountTokens { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GeminiCountTokens(request),
+                plan: TransformPlan::CountTokens(CountTokensPlan::Gemini2Claude(request)),
                 usage: UsageKind::None,
             },
             ProxyRequest::GeminiModelsList { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GeminiModelsList(request),
+                plan: TransformPlan::ModelsList(ModelsListPlan::Gemini2Claude(request)),
                 usage: UsageKind::None,
             },
             ProxyRequest::GeminiModelsGet { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GeminiModelsGet(request),
+                plan: TransformPlan::ModelsGet(ModelsGetPlan::Gemini2Claude(request)),
                 usage: UsageKind::None,
             },
         }

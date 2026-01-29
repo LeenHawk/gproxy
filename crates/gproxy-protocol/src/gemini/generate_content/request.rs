@@ -14,6 +14,10 @@ pub struct GenerateContentPath {
 pub struct GenerateContentRequestBody {
     /// Required. The content of the current conversation with the model.
     pub contents: Vec<Content>,
+    /// Optional. Only used when GenerateContentRequestBody is embedded in countTokens
+    /// (generateContentRequest). Normal generateContent uses the path model.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
