@@ -11,7 +11,6 @@ use http::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use gproxy_protocol::claude::get_model::response::GetModelResponse as ClaudeGetModelResponse;
-use gproxy_protocol::claude::get_model::types::ModelInfo as ClaudeModelInfo;
 use tokio::sync::mpsc;
 
 use gproxy_provider_core::{
@@ -33,7 +32,9 @@ use gproxy_transform::list_models;
 pub enum UsageKind {
     None,
     ClaudeMessage,
+    GeminiGenerate,
     OpenAIChat,
+    OpenAIResponses,
 }
 
 pub enum DispatchPlan {
@@ -367,9 +368,8 @@ where
             tokio::spawn(async move {
                 let mut usage_from_stream = None;
                 let mut usage_state = match usage {
-                    UsageKind::ClaudeMessage => Some(UsageState::Claude(ClaudeUsageState::new())),
-                    UsageKind::OpenAIChat => Some(UsageState::OpenAI(OpenAIUsageState::new())),
                     UsageKind::None => None,
+                    _ => Some(UsageState::Claude(ClaudeUsageState::new())),
                 };
                 let mut parser = SseParser::new();
                 let mut response_body = String::new();
@@ -394,7 +394,7 @@ where
                     }
                 }
                 if let Some(state) = usage_state {
-                    usage_from_stream = state.finish();
+                    usage_from_stream = map_usage_for_kind(usage, state.finish());
                 }
                 let body_bytes = if response_body.is_empty() {
                     None
@@ -528,11 +528,7 @@ async fn record_upstream_only(
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
     match &response {
         ProxyResponse::Json { status, headers, body } => {
-            let usage = match usage {
-                UsageKind::ClaudeMessage => extract_claude_usage_from_body(body),
-                UsageKind::OpenAIChat => extract_openai_chat_usage_from_body(body),
-                UsageKind::None => None,
-            };
+            let usage = extract_usage_for_kind(usage, body);
             let event = build_upstream_event(
                 Some(ctx.trace_id.clone()),
                 meta,
@@ -557,11 +553,7 @@ async fn record_upstream_and_downstream(
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
     match response {
         ProxyResponse::Json { status, headers, body } => {
-            let usage = match usage {
-                UsageKind::ClaudeMessage => extract_claude_usage_from_body(&body),
-                UsageKind::OpenAIChat => extract_openai_chat_usage_from_body(&body),
-                UsageKind::None => None,
-            };
+            let usage = extract_usage_for_kind(usage, &body);
             let upstream_event = build_upstream_event(
                 Some(ctx.trace_id.clone()),
                 meta,
@@ -597,6 +589,12 @@ async fn record_upstream_and_downstream(
                 let mut usage_state = match usage {
                     UsageKind::ClaudeMessage => Some(UsageState::Claude(ClaudeUsageState::new())),
                     UsageKind::OpenAIChat => Some(UsageState::OpenAI(OpenAIUsageState::new())),
+                    UsageKind::OpenAIResponses => Some(UsageState::OpenAIResponses(
+                        OpenAIResponsesUsageState::new(),
+                    )),
+                    UsageKind::GeminiGenerate => {
+                        Some(UsageState::Gemini(GeminiUsageState::new()))
+                    }
                     UsageKind::None => None,
                 };
                 while let Some(chunk) = rx.recv().await {
@@ -669,6 +667,16 @@ async fn record_upstream_and_downstream(
     }
 }
 
+fn extract_usage_for_kind(kind: UsageKind, body: &Bytes) -> Option<TrafficUsage> {
+    match kind {
+        UsageKind::ClaudeMessage => extract_claude_usage_from_body(body),
+        UsageKind::OpenAIChat => extract_openai_chat_usage_from_body(body),
+        UsageKind::OpenAIResponses => extract_openai_responses_usage_from_body(body),
+        UsageKind::GeminiGenerate => extract_gemini_usage_from_body(body),
+        UsageKind::None => None,
+    }
+}
+
 fn extract_claude_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
     let value: serde_json::Value = serde_json::from_slice(body).ok()?;
     if let Some(usage) = value.get("usage") {
@@ -720,6 +728,113 @@ fn extract_openai_chat_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
         })
     } else {
         None
+    }
+}
+
+fn extract_gemini_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
+    if let Ok(parsed) =
+        serde_json::from_slice::<gemini::generate_content::response::GenerateContentResponse>(body)
+    {
+        if let Some(usage) = parsed.usage_metadata.as_ref() {
+            return Some(TrafficUsage {
+                gemini_prompt_tokens: usage.prompt_token_count.map(|v| v as i64),
+                gemini_candidates_tokens: usage.candidates_token_count.map(|v| v as i64),
+                gemini_total_tokens: usage.total_token_count.map(|v| v as i64),
+                gemini_cached_tokens: usage.cached_content_token_count.map(|v| v as i64),
+                ..Default::default()
+            });
+        }
+    }
+    extract_claude_usage_from_body(body).and_then(map_claude_usage_to_gemini)
+}
+
+fn extract_openai_responses_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
+    if let Ok(parsed) =
+        serde_json::from_slice::<openai::create_response::response::Response>(body)
+    {
+        if let Some(usage) = parsed.usage.as_ref() {
+            return Some(map_openai_responses_usage(usage));
+        }
+    }
+    extract_claude_usage_from_body(body).and_then(map_claude_usage_to_openai_responses)
+}
+
+fn map_openai_responses_usage(
+    usage: &openai::create_response::types::ResponseUsage,
+) -> TrafficUsage {
+    TrafficUsage {
+        openai_responses_input_tokens: Some(usage.input_tokens),
+        openai_responses_output_tokens: Some(usage.output_tokens),
+        openai_responses_total_tokens: Some(usage.total_tokens),
+        openai_responses_input_cached_tokens: Some(usage.input_tokens_details.cached_tokens),
+        openai_responses_output_reasoning_tokens: Some(usage.output_tokens_details.reasoning_tokens),
+        ..Default::default()
+    }
+}
+
+fn map_claude_usage_to_gemini(usage: TrafficUsage) -> Option<TrafficUsage> {
+    let input_tokens = usage.claude_input_tokens;
+    let output_tokens = usage.claude_output_tokens;
+    if input_tokens.is_none() && output_tokens.is_none() {
+        return None;
+    }
+    let total_tokens = match (input_tokens, output_tokens) {
+        (Some(input), Some(output)) => Some(input + output),
+        _ => None,
+    };
+    Some(TrafficUsage {
+        gemini_prompt_tokens: input_tokens,
+        gemini_candidates_tokens: output_tokens,
+        gemini_total_tokens: total_tokens,
+        gemini_cached_tokens: usage.claude_cache_read_input_tokens,
+        ..Default::default()
+    })
+}
+
+fn map_claude_usage_to_openai_responses(usage: TrafficUsage) -> Option<TrafficUsage> {
+    let input_tokens = usage.claude_input_tokens;
+    let output_tokens = usage.claude_output_tokens;
+    if input_tokens.is_none() && output_tokens.is_none() {
+        return None;
+    }
+    let total_tokens = match (input_tokens, output_tokens) {
+        (Some(input), Some(output)) => Some(input + output),
+        _ => None,
+    };
+    Some(TrafficUsage {
+        openai_responses_input_tokens: input_tokens,
+        openai_responses_output_tokens: output_tokens,
+        openai_responses_total_tokens: total_tokens,
+        openai_responses_input_cached_tokens: usage.claude_cache_read_input_tokens,
+        openai_responses_output_reasoning_tokens: None,
+        ..Default::default()
+    })
+}
+
+fn map_usage_for_kind(kind: UsageKind, usage: Option<TrafficUsage>) -> Option<TrafficUsage> {
+    let Some(usage) = usage else { return None };
+    match kind {
+        UsageKind::GeminiGenerate => {
+            if usage.gemini_total_tokens.is_some()
+                || usage.gemini_prompt_tokens.is_some()
+                || usage.gemini_candidates_tokens.is_some()
+            {
+                Some(usage)
+            } else {
+                map_claude_usage_to_gemini(usage)
+            }
+        }
+        UsageKind::OpenAIResponses => {
+            if usage.openai_responses_total_tokens.is_some()
+                || usage.openai_responses_input_tokens.is_some()
+                || usage.openai_responses_output_tokens.is_some()
+            {
+                Some(usage)
+            } else {
+                map_claude_usage_to_openai_responses(usage)
+            }
+        }
+        _ => Some(usage),
     }
 }
 
@@ -790,9 +905,93 @@ impl OpenAIUsageState {
     }
 }
 
+struct OpenAIResponsesUsageState {
+    usage: Option<TrafficUsage>,
+}
+
+impl OpenAIResponsesUsageState {
+    fn new() -> Self {
+        Self { usage: None }
+    }
+
+    fn push_event(&mut self, data: &str) {
+        if self.usage.is_some() || data == "[DONE]" {
+            return;
+        }
+        if let Ok(parsed) =
+            serde_json::from_str::<openai::create_response::stream::ResponseStreamEvent>(data)
+        {
+            let response = match parsed {
+                openai::create_response::stream::ResponseStreamEvent::Completed(event) => {
+                    Some(event.response)
+                }
+                openai::create_response::stream::ResponseStreamEvent::Created(event) => {
+                    Some(event.response)
+                }
+                openai::create_response::stream::ResponseStreamEvent::InProgress(event) => {
+                    Some(event.response)
+                }
+                openai::create_response::stream::ResponseStreamEvent::Failed(event) => {
+                    Some(event.response)
+                }
+                openai::create_response::stream::ResponseStreamEvent::Incomplete(event) => {
+                    Some(event.response)
+                }
+                _ => None,
+            };
+            if let Some(response) = response {
+                if let Some(usage) = response.usage.as_ref() {
+                    self.usage = Some(map_openai_responses_usage(usage));
+                }
+            }
+        }
+    }
+
+    fn finish(self) -> Option<TrafficUsage> {
+        self.usage
+    }
+}
+
+struct GeminiUsageState {
+    usage: Option<TrafficUsage>,
+}
+
+impl GeminiUsageState {
+    fn new() -> Self {
+        Self { usage: None }
+    }
+
+    fn push_event(&mut self, data: &str) {
+        if self.usage.is_some() || data == "[DONE]" {
+            return;
+        }
+        if let Ok(parsed) =
+            serde_json::from_str::<gemini::generate_content::response::GenerateContentResponse>(
+                data,
+            )
+        {
+            if let Some(usage) = parsed.usage_metadata.as_ref() {
+                self.usage = Some(TrafficUsage {
+                    gemini_prompt_tokens: usage.prompt_token_count.map(|v| v as i64),
+                    gemini_candidates_tokens: usage.candidates_token_count.map(|v| v as i64),
+                    gemini_total_tokens: usage.total_token_count.map(|v| v as i64),
+                    gemini_cached_tokens: usage.cached_content_token_count.map(|v| v as i64),
+                    ..Default::default()
+                });
+            }
+        }
+    }
+
+    fn finish(self) -> Option<TrafficUsage> {
+        self.usage
+    }
+}
+
 enum UsageState {
     Claude(ClaudeUsageState),
     OpenAI(OpenAIUsageState),
+    OpenAIResponses(OpenAIResponsesUsageState),
+    Gemini(GeminiUsageState),
 }
 
 impl UsageState {
@@ -800,6 +999,8 @@ impl UsageState {
         match self {
             UsageState::Claude(state) => state.push_event(data),
             UsageState::OpenAI(state) => state.push_event(data),
+            UsageState::OpenAIResponses(state) => state.push_event(data),
+            UsageState::Gemini(state) => state.push_event(data),
         }
     }
 
@@ -807,6 +1008,8 @@ impl UsageState {
         match self {
             UsageState::Claude(state) => state.finish(),
             UsageState::OpenAI(state) => state.finish(),
+            UsageState::OpenAIResponses(state) => state.finish(),
+            UsageState::Gemini(state) => state.finish(),
         }
     }
 }

@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::body::Body;
 use axum::extract::{Path, State};
@@ -10,6 +11,7 @@ use gproxy_provider_core::{
     UpstreamPassthroughError,
 };
 use http::header::CONTENT_TYPE;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::auth::AuthError;
@@ -34,6 +36,7 @@ pub async fn proxy_handler(
         Ok(ctx) => ctx,
         Err(err) => return auth_error_response(err),
     };
+    let started_at = Instant::now();
     let user_id = auth_ctx.user_id.clone();
     let key_id = auth_ctx.key_id.clone();
     let provider_id = state
@@ -55,6 +58,17 @@ pub async fn proxy_handler(
     };
 
     let request_for_log = classified.request.clone();
+    let (operation, model) = request_operation_model(&classified.request);
+    info!(
+        event = "downstream_received",
+        trace_id = %trace_id,
+        provider = %provider,
+        op = %operation,
+        model = ?model,
+        method = %method,
+        path = %path,
+        is_stream = classified.is_stream
+    );
     let downstream_meta = build_downstream_meta(
         &provider,
         provider_id,
@@ -81,6 +95,15 @@ pub async fn proxy_handler(
     let (response, event) = match result {
         Ok(response) => {
             if matches!(response, ProxyResponse::Stream { .. }) {
+                info!(
+                    event = "downstream_responded",
+                    trace_id = %trace_id,
+                    provider = %provider,
+                    op = %operation,
+                    status = %response_parts(&response).0.as_u16(),
+                    elapsed_ms = started_at.elapsed().as_millis(),
+                    is_stream = true
+                );
                 return proxy_response(response, &trace_id);
             }
             let event = build_downstream_event(
@@ -100,6 +123,17 @@ pub async fn proxy_handler(
             (response, event)
         }
         Err(err) => {
+            let err_body = body_to_string(err.body.clone());
+            warn!(
+                event = "downstream_responded",
+                trace_id = %trace_id,
+                provider = %provider,
+                op = %operation,
+                status = %err.status.as_u16(),
+                error_body = %err_body,
+                elapsed_ms = started_at.elapsed().as_millis(),
+                is_stream = classified.is_stream
+            );
             let event = build_downstream_event_error(
                 &provider,
                 provider_id,
@@ -122,6 +156,16 @@ pub async fn proxy_handler(
     };
 
     state.traffic.record_downstream(event);
+    let (status, _, _) = response_parts(&response);
+    info!(
+        event = "downstream_responded",
+        trace_id = %trace_id,
+        provider = %provider,
+        op = %operation,
+        status = %status.as_u16(),
+        elapsed_ms = started_at.elapsed().as_millis(),
+        is_stream = false
+    );
     proxy_response(response, &trace_id)
 }
 

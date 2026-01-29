@@ -12,6 +12,7 @@ bytes = "1"
 futures-util = "0.3"
 http = "1"
 httpdate = "1"
+tracing = "0.1"
 wreq = { version = "6.0.0-rc.26", features = ["brotli", "charset", "cookies", "deflate", "form", "gzip", "json", "multipart", "query", "socks", "stream", "system-proxy", "tracing", "ws", "zstd"] }
 serde_json = "1"
 serde = "1"

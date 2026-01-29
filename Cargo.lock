@@ -1081,6 +1081,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_qs",
+ "tracing",
  "uuid",
 ]
 
@@ -1124,6 +1125,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "tokio",
+ "tracing",
  "wreq",
 ]
 
