@@ -165,7 +165,7 @@ impl StorageBus {
             config.retry_delay,
         )));
 
-        let upstream_storage = storage;
+        let upstream_storage = storage.clone();
         handles.push(tokio::spawn(upstream_writer(
             upstream_storage,
             upstream_rx,
@@ -725,6 +725,7 @@ async fn upstream_writer(
         }
     }
 }
+
 
 async fn flush_downstream(
     storage: &TrafficStorage,

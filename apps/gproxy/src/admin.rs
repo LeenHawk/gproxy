@@ -1,4 +1,6 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -10,14 +12,18 @@ use serde_json::{json, Value as JsonValue};
 use time::OffsetDateTime;
 use tokio::sync::watch;
 
-use gproxy_core::MemoryAuth;
-use gproxy_provider_impl::ProviderRegistry;
+use gproxy_core::{AuthKeyEntry, AuthSnapshot, MemoryAuth, UserEntry};
+use gproxy_provider_core::{
+    CredentialEntry, DisallowEntry, DisallowKey, DisallowLevel, DisallowScope, PoolSnapshot,
+};
+use gproxy_provider_impl::{BaseCredential, ProviderRegistry};
 use gproxy_storage::{
     entities, AdminCredentialInput, AdminDisallowInput, AdminKeyInput, AdminProviderInput,
     AdminUserInput, TrafficStorage,
 };
 
 use crate::cli::GlobalConfig;
+use crate::dsn::ensure_sqlite_dsn;
 use crate::snapshot;
 
 #[derive(Clone)]
@@ -30,6 +36,8 @@ struct AdminState {
     proxy: Arc<RwLock<Option<String>>>,
     registry: Arc<ProviderRegistry>,
     auth: Arc<MemoryAuth>,
+    provider_ids: Arc<RwLock<HashMap<String, i64>>>,
+    provider_names: Arc<RwLock<HashMap<i64, String>>>,
 }
 
 pub(crate) fn admin_router(
@@ -41,6 +49,8 @@ pub(crate) fn admin_router(
     proxy: Arc<RwLock<Option<String>>>,
     registry: Arc<ProviderRegistry>,
     auth: Arc<MemoryAuth>,
+    provider_ids: HashMap<String, i64>,
+    provider_names: HashMap<i64, String>,
 ) -> Router {
     let state = AdminState {
         admin_key: Arc::new(RwLock::new(admin_key)),
@@ -51,6 +61,8 @@ pub(crate) fn admin_router(
         proxy,
         registry,
         auth,
+        provider_ids: Arc::new(RwLock::new(provider_ids)),
+        provider_names: Arc::new(RwLock::new(provider_names)),
     };
 
     Router::new()
@@ -265,6 +277,9 @@ async fn put_config(
     let proxy_changed = desired.proxy != current_config.proxy;
 
     let effective_storage = if dsn_changed {
+        if let Err(err) = ensure_sqlite_dsn(&desired.dsn) {
+            return (StatusCode::BAD_REQUEST, err.to_string()).into_response();
+        }
         let new_storage = match TrafficStorage::connect(&desired.dsn).await {
             Ok(storage) => storage,
             Err(err) => {
@@ -388,15 +403,20 @@ async fn create_provider(
         Err(resp) => return resp,
     };
 
+    let name = payload.name;
     let input = AdminProviderInput {
         id: payload.id,
-        name: payload.name,
+        name: name.clone(),
         config_json: payload.config_json,
         enabled: payload.enabled,
     };
 
     match storage.upsert_provider(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(id) => {
+            insert_provider_map(&state, id, name.clone());
+            let _ = refresh_provider_pool(&state, &storage, Some(id)).await;
+            Json(json!({ "status": "ok" })).into_response()
+        }
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -416,15 +436,22 @@ async fn update_provider(
         Err(resp) => return resp,
     };
 
+    let name = payload.name;
     let input = AdminProviderInput {
         id: Some(id),
-        name: payload.name,
+        name: name.clone(),
         config_json: payload.config_json,
         enabled: payload.enabled,
     };
 
     match storage.upsert_provider(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(id) => {
+            update_provider_map(&state, id, name);
+            if let Err(resp) = refresh_provider_pool(&state, &storage, Some(id)).await {
+                return resp;
+            }
+            Json(json!({ "status": "ok" })).into_response()
+        }
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -443,8 +470,23 @@ async fn delete_provider(
         Err(resp) => return resp,
     };
 
+    let providers = match storage.list_providers().await {
+        Ok(items) => items,
+        Err(err) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
+        }
+    };
+    let name = match providers.iter().find(|provider| provider.id == id) {
+        Some(provider) => provider.name.clone(),
+        None => return (StatusCode::NOT_FOUND, "provider not found").into_response(),
+    };
+
     match storage.delete_provider(id).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => {
+            clear_provider_pool(&state, &name);
+            remove_provider_map(&state, id);
+            Json(json!({ "status": "ok" })).into_response()
+        }
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -452,7 +494,8 @@ async fn delete_provider(
 #[derive(Debug, Deserialize)]
 struct CredentialPayload {
     id: Option<i64>,
-    provider_id: i64,
+    provider_id: Option<i64>,
+    provider_name: Option<String>,
     name: Option<String>,
     secret: JsonValue,
     meta_json: JsonValue,
@@ -496,9 +539,13 @@ async fn create_credential(
         Err(resp) => return resp,
     };
 
+    let provider_id = match resolve_provider_id(&state, payload.provider_id, payload.provider_name) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
     let input = AdminCredentialInput {
         id: payload.id,
-        provider_id: payload.provider_id,
+        provider_id,
         name: payload.name,
         secret: payload.secret,
         meta_json: payload.meta_json,
@@ -507,7 +554,10 @@ async fn create_credential(
     };
 
     match storage.upsert_credential(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_provider_pool(&state, &storage, Some(provider_id)).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -527,9 +577,13 @@ async fn update_credential(
         Err(resp) => return resp,
     };
 
+    let provider_id = match resolve_provider_id(&state, payload.provider_id, payload.provider_name) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
     let input = AdminCredentialInput {
         id: Some(id),
-        provider_id: payload.provider_id,
+        provider_id,
         name: payload.name,
         secret: payload.secret,
         meta_json: payload.meta_json,
@@ -538,7 +592,10 @@ async fn update_credential(
     };
 
     match storage.upsert_credential(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_provider_pool(&state, &storage, Some(provider_id)).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -557,8 +614,22 @@ async fn delete_credential(
         Err(resp) => return resp,
     };
 
+    let credentials = match storage.list_credentials().await {
+        Ok(items) => items,
+        Err(err) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
+        }
+    };
+    let provider_id = match credentials.iter().find(|cred| cred.id == id) {
+        Some(cred) => cred.provider_id,
+        None => return (StatusCode::NOT_FOUND, "credential not found").into_response(),
+    };
+
     match storage.delete_credential(id).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_provider_pool(&state, &storage, Some(provider_id)).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -621,8 +692,16 @@ async fn create_disallow(
         reason: payload.reason,
     };
 
+    let provider_id = match provider_id_for_credential(&storage, payload.credential_id).await {
+        Ok(provider_id) => provider_id,
+        Err(resp) => return resp,
+    };
+
     match storage.upsert_disallow(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_provider_pool(&state, &storage, Some(provider_id)).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -641,8 +720,26 @@ async fn delete_disallow(
         Err(resp) => return resp,
     };
 
+    let disallow = match storage.list_disallow().await {
+        Ok(items) => items,
+        Err(err) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
+        }
+    };
+    let credential_id = match disallow.iter().find(|item| item.id == id) {
+        Some(item) => item.credential_id,
+        None => return (StatusCode::NOT_FOUND, "disallow not found").into_response(),
+    };
+    let provider_id = match provider_id_for_credential(&storage, credential_id).await {
+        Ok(provider_id) => provider_id,
+        Err(resp) => return resp,
+    };
+
     match storage.delete_disallow(id).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_provider_pool(&state, &storage, Some(provider_id)).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -695,7 +792,10 @@ async fn create_user(
     };
 
     match storage.upsert_user(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_auth(&state, &storage).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -715,7 +815,10 @@ async fn delete_user(
     };
 
     match storage.delete_user(id).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_auth(&state, &storage).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -774,7 +877,10 @@ async fn create_key(
     };
 
     match storage.upsert_key(input).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_auth(&state, &storage).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -794,7 +900,10 @@ async fn delete_key(
     };
 
     match storage.delete_key(id).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_auth(&state, &storage).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -814,7 +923,10 @@ async fn disable_key(
     };
 
     match storage.set_key_enabled(id, false).await {
-        Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+        Ok(_) => match refresh_auth(&state, &storage).await {
+            Ok(_) => Json(json!({ "status": "ok" })).into_response(),
+            Err(resp) => resp,
+        },
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
@@ -910,6 +1022,240 @@ fn apply_snapshot(state: &AdminState, snapshot: &gproxy_storage::StorageSnapshot
     state.auth.replace_snapshot(auth_snapshot);
     let pools = snapshot::build_provider_pools(snapshot);
     state.registry.apply_pools(pools);
+    let provider_ids = snapshot::build_provider_id_map(snapshot);
+    let provider_names = snapshot::build_provider_name_map(snapshot);
+    if let Ok(mut guard) = state.provider_ids.write() {
+        *guard = provider_ids;
+    }
+    if let Ok(mut guard) = state.provider_names.write() {
+        *guard = provider_names;
+    }
+}
+
+async fn refresh_auth(
+    state: &AdminState,
+    storage: &TrafficStorage,
+) -> Result<(), Response> {
+    let users = match storage.list_users().await {
+        Ok(items) => items,
+        Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()),
+    };
+    let keys = match storage.list_keys().await {
+        Ok(items) => items,
+        Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()),
+    };
+
+    let mut snapshot = AuthSnapshot::default();
+    for key in keys {
+        snapshot.keys_by_value.insert(
+            key.key_value,
+            AuthKeyEntry {
+                key_id: key.id,
+                user_id: key.user_id,
+                enabled: key.enabled,
+            },
+        );
+    }
+    for user in users {
+        snapshot.users_by_id.insert(
+            user.id,
+            UserEntry {
+                id: user.id,
+                name: user.name,
+            },
+        );
+    }
+    state.auth.replace_snapshot(snapshot);
+    Ok(())
+}
+
+async fn provider_id_for_credential(
+    storage: &TrafficStorage,
+    credential_id: i64,
+) -> Result<i64, Response> {
+    let credentials = match storage.list_credentials().await {
+        Ok(items) => items,
+        Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()),
+    };
+    match credentials.iter().find(|cred| cred.id == credential_id) {
+        Some(cred) => Ok(cred.provider_id),
+        None => Err((StatusCode::NOT_FOUND, "credential not found").into_response()),
+    }
+}
+
+fn resolve_provider_id(
+    state: &AdminState,
+    provider_id: Option<i64>,
+    provider_name: Option<String>,
+) -> Result<i64, Response> {
+    if let Some(id) = provider_id {
+        return Ok(id);
+    }
+    let Some(name) = provider_name else {
+        return Err((StatusCode::BAD_REQUEST, "provider_id or provider_name required").into_response());
+    };
+    let map = state
+        .provider_ids
+        .read()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "provider map poisoned").into_response())?;
+    match map.get(&name) {
+        Some(id) => Ok(*id),
+        None => Err((StatusCode::NOT_FOUND, "provider not found").into_response()),
+    }
+}
+
+fn insert_provider_map(state: &AdminState, id: i64, name: String) {
+    if let Ok(mut guard) = state.provider_ids.write() {
+        guard.insert(name.clone(), id);
+    }
+    if let Ok(mut guard) = state.provider_names.write() {
+        guard.insert(id, name);
+    }
+}
+
+fn update_provider_map(state: &AdminState, id: i64, name: String) {
+    if let Ok(mut guard) = state.provider_names.write() {
+        if let Some(old_name) = guard.insert(id, name.clone()) {
+            if let Ok(mut ids) = state.provider_ids.write() {
+                ids.remove(&old_name);
+                ids.insert(name.clone(), id);
+            }
+            return;
+        }
+    }
+    if let Ok(mut guard) = state.provider_ids.write() {
+        guard.insert(name.clone(), id);
+    }
+    if let Ok(mut guard) = state.provider_names.write() {
+        guard.insert(id, name);
+    }
+}
+
+fn remove_provider_map(state: &AdminState, id: i64) {
+    if let Ok(mut guard) = state.provider_names.write() {
+        if let Some(name) = guard.remove(&id) {
+            if let Ok(mut ids) = state.provider_ids.write() {
+                ids.remove(&name);
+            }
+        }
+    }
+}
+
+fn clear_provider_pool(state: &AdminState, name: &str) {
+    let empty = PoolSnapshot::new(Vec::new(), HashMap::new());
+    let mut pools = HashMap::new();
+    pools.insert(name.to_string(), empty);
+    state.registry.apply_pools(pools);
+}
+
+fn parse_disallow_scope(kind: &str, value: Option<&str>) -> Option<DisallowScope> {
+    match kind {
+        "all_models" | "all" => Some(DisallowScope::AllModels),
+        "model" => value.map(|model| DisallowScope::Model(model.to_string())),
+        _ => None,
+    }
+}
+
+fn parse_disallow_level(level: &str) -> Option<DisallowLevel> {
+    match level {
+        "cooldown" => Some(DisallowLevel::Cooldown),
+        "transient" => Some(DisallowLevel::Transient),
+        "dead" => Some(DisallowLevel::Dead),
+        _ => None,
+    }
+}
+
+fn to_system_time(value: OffsetDateTime) -> Option<SystemTime> {
+    let ts = value.unix_timestamp();
+    if ts < 0 {
+        return None;
+    }
+    Some(SystemTime::UNIX_EPOCH + Duration::from_secs(ts as u64))
+}
+
+async fn refresh_provider_pool(
+    state: &AdminState,
+    storage: &TrafficStorage,
+    provider_id: Option<i64>,
+) -> Result<(), Response> {
+    let provider_id = match provider_id {
+        Some(id) => id,
+        None => return Ok(()),
+    };
+
+    let provider_name = {
+        let map = state
+            .provider_names
+            .read()
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "provider map poisoned").into_response())?;
+        match map.get(&provider_id) {
+            Some(name) => name.clone(),
+            None => return Err((StatusCode::NOT_FOUND, "provider not found").into_response()),
+        }
+    };
+
+    let credentials = match storage.list_credentials().await {
+        Ok(items) => items,
+        Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()),
+    };
+    let disallow = match storage.list_disallow().await {
+        Ok(items) => items,
+        Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()),
+    };
+
+    let mut entries = Vec::new();
+    let mut credential_ids = HashSet::new();
+
+    for credential in credentials.iter().filter(|cred| cred.provider_id == provider_id) {
+        credential_ids.insert(credential.id);
+        let weight = if credential.weight >= 0 {
+            credential.weight as u32
+        } else {
+            0
+        };
+        let entry = CredentialEntry::new(
+            credential.id.to_string(),
+            credential.enabled,
+            weight,
+            BaseCredential {
+                id: credential.id,
+                name: credential.name.clone(),
+                secret: credential.secret.clone(),
+                meta: credential.meta_json.clone(),
+            },
+        );
+        entries.push(entry);
+    }
+
+    let mut disallow_map = HashMap::new();
+    for record in disallow
+        .iter()
+        .filter(|item| credential_ids.contains(&item.credential_id))
+    {
+        let Some(scope) = parse_disallow_scope(
+            record.scope_kind.as_str(),
+            record.scope_value.as_deref(),
+        ) else {
+            continue;
+        };
+        let Some(level) = parse_disallow_level(record.level.as_str()) else {
+            continue;
+        };
+        let entry = DisallowEntry {
+            level,
+            until: record.until_at.and_then(to_system_time),
+            reason: record.reason.clone(),
+            updated_at: to_system_time(record.updated_at).unwrap_or(SystemTime::UNIX_EPOCH),
+        };
+        let key = DisallowKey::new(record.credential_id.to_string(), scope);
+        disallow_map.insert(key, entry);
+    }
+
+    let snapshot = PoolSnapshot::new(entries, disallow_map);
+    let mut pools = HashMap::new();
+    pools.insert(provider_name, snapshot);
+    state.registry.apply_pools(pools);
+    Ok(())
 }
 
 fn collect_one<C>(

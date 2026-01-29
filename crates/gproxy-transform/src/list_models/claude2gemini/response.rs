@@ -36,7 +36,6 @@ pub fn transform_response(response: GeminiListModelsResponse) -> ClaudeListModel
     let last_id = data.last().map(|model| model.id.clone());
 
     ClaudeListModelsResponse {
-        request_id: None,
         data,
         first_id,
         has_more: response.next_page_token.is_some(),

@@ -264,7 +264,6 @@ impl GeminiToClaudeStreamState {
         self.message_started = true;
         vec![BetaStreamEvent::Known(BetaStreamEventKnown::MessageStart {
             message: BetaStreamMessage {
-                request_id: None,
                 id: self.id.clone(),
                 container: None,
                 content: Vec::new(),

@@ -8,10 +8,9 @@ pub fn transform_response(response: OpenAIInputTokenCountResponse) -> ClaudeCoun
     let input_tokens = clamp_i64_to_u32(response.input_tokens);
 
     ClaudeCountTokensResponse {
-        request_id: None,
-        context_management: BetaCountTokensContextManagementResponse {
+        context_management: Some(BetaCountTokensContextManagementResponse {
             original_input_tokens: input_tokens,
-        },
+        }),
         input_tokens,
     }
 }

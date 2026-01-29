@@ -4,15 +4,19 @@ use std::sync::{Arc, RwLock};
 use clap::Parser;
 mod admin;
 mod cli;
+mod dsn;
+mod traffic_sink;
 use gproxy_core::{AuthProvider, Core, MemoryAuth, ProviderLookup};
-use gproxy_provider_impl::build_registry;
+use gproxy_provider_impl::{build_registry, default_providers};
 mod snapshot;
-use gproxy_storage::TrafficStorage;
+use gproxy_storage::{StorageBus, StorageBusConfig, TrafficStorage};
 use time::OffsetDateTime;
 use tracing::info;
 
 use crate::cli::{Cli, GlobalConfig};
+use crate::dsn::resolve_dsn;
 use crate::admin::admin_router;
+use crate::traffic_sink::StorageTrafficSink;
 
 #[tokio::main]
 async fn main() {
@@ -29,6 +33,16 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let storage = TrafficStorage::connect(&dsn).await?;
     info!(dsn = %dsn, "db connected");
     storage.sync().await?;
+    let defaults = default_providers()
+        .into_iter()
+        .map(|provider| gproxy_storage::AdminProviderInput {
+            id: None,
+            name: provider.name.to_string(),
+            config_json: provider.config_json,
+            enabled: provider.enabled,
+        })
+        .collect::<Vec<_>>();
+    storage.ensure_providers(&defaults).await?;
 
     let snapshot = storage.load_snapshot().await?;
 
@@ -73,6 +87,10 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let auth = Arc::new(MemoryAuth::new(auth_snapshot));
     let auth_provider: Arc<dyn AuthProvider> = auth.clone();
 
+    let bus = StorageBus::spawn(storage.clone(), StorageBusConfig::default());
+    let traffic_sink = Arc::new(StorageTrafficSink::new(&bus));
+    let _bus = bus;
+
     let registry = Arc::new(build_registry());
     let pools = snapshot::build_provider_pools(&snapshot);
     for (name, pool) in &pools {
@@ -92,7 +110,16 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
         Arc::new(move |name| registry.get(name))
     };
 
-    let core = Core::new(lookup, auth_provider, proxy.clone());
+    let provider_ids = snapshot::build_provider_id_map(&snapshot);
+    let provider_names = snapshot::build_provider_name_map(&snapshot);
+
+    let core = Core::new(
+        lookup,
+        auth_provider,
+        proxy.clone(),
+        Some(traffic_sink),
+        Some(provider_ids.clone()),
+    );
     let app = core
         .router()
         .merge(admin_router(
@@ -104,6 +131,8 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             proxy.clone(),
             registry.clone(),
             auth,
+            provider_ids,
+            provider_names,
         ));
 
     serve_loop(app, bind_rx).await?;
@@ -115,26 +144,6 @@ fn init_tracing() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("gproxy=info,sqlx=warn"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
-}
-
-pub(crate) fn resolve_dsn(input: &str) -> Result<String, Box<dyn Error + Send + Sync>> {
-    if !input.trim().is_empty() {
-        return Ok(input.to_string());
-    }
-
-    let exe = std::env::current_exe()?;
-    let dir = exe
-        .parent()
-        .ok_or("failed to resolve executable directory")?;
-    let db_path = dir.join("gproxy.db");
-    let db_path = db_path.to_string_lossy();
-    let dsn = if db_path.starts_with('/') {
-        let trimmed = db_path.trim_start_matches('/');
-        format!("sqlite:///{}", trimmed)
-    } else {
-        format!("sqlite://{}", db_path)
-    };
-    Ok(dsn)
 }
 
 async fn serve_loop(

@@ -56,7 +56,6 @@ impl OpenAIToClaudeChatCompletionStreamState {
             self.message_started = true;
             events.push(BetaStreamEvent::Known(BetaStreamEventKnown::MessageStart {
                 message: BetaStreamMessage {
-                    request_id: None,
                     id: self.id.clone(),
                     container: None,
                     content: Vec::new(),

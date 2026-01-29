@@ -9,6 +9,22 @@ use gproxy_provider_impl::BaseCredential;
 use gproxy_storage::StorageSnapshot;
 use time::OffsetDateTime;
 
+pub fn build_provider_id_map(snapshot: &StorageSnapshot) -> HashMap<String, i64> {
+    let mut map = HashMap::new();
+    for provider in &snapshot.providers {
+        map.insert(provider.name.clone(), provider.id);
+    }
+    map
+}
+
+pub fn build_provider_name_map(snapshot: &StorageSnapshot) -> HashMap<i64, String> {
+    let mut map = HashMap::new();
+    for provider in &snapshot.providers {
+        map.insert(provider.id, provider.name.clone());
+    }
+    map
+}
+
 pub fn build_auth_snapshot(snapshot: &StorageSnapshot) -> AuthSnapshot {
     let mut keys_by_value = HashMap::new();
     for key in &snapshot.api_keys {

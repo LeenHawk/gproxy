@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde_json::json;
 
 use gproxy_provider_core::{
     CallContext, CredentialPool, PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink,
@@ -8,9 +9,19 @@ use gproxy_provider_core::{
 };
 
 use crate::credential::BaseCredential;
+use crate::ProviderDefault;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "aistudio";
+const DEFAULT_BASE_URL: &str = "https://generativelanguage.googleapis.com";
+
+pub fn default_provider() -> ProviderDefault {
+    ProviderDefault {
+        name: PROVIDER_NAME,
+        config_json: json!({ "base_url": DEFAULT_BASE_URL }),
+        enabled: true,
+    }
+}
 
 #[derive(Debug)]
 pub struct AistudioProvider {

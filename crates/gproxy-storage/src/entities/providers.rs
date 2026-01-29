@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i64,
+    #[sea_orm(unique_key = "provider_name")]
     pub name: String,
     pub config_json: Json,
     pub enabled: bool,

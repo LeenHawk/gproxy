@@ -67,6 +67,21 @@ curl -X POST -H "x-admin-key: pwd" -H "content-type: application/json" \
     "enabled": true
   }'
 ```
+Or by name:
+```bash
+curl -X POST -H "x-admin-key: pwd" -H "content-type: application/json" \
+  http://127.0.0.1:8787/admin/credentials \
+  -d '{
+    "provider_name": "claude",
+    "name": "key-1",
+    "secret": {"api_key":"..."},
+    "meta_json": {},
+    "weight": 1,
+    "enabled": true
+  }'
+```
+Notes:
+- Claude credential: `secret.api_key` (or `secret` as a string), `meta_json.base_url` optional.
 
 ### PUT /admin/credentials/{id}
 ### DELETE /admin/credentials/{id}

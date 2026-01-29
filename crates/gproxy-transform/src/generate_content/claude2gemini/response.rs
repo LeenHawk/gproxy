@@ -36,7 +36,6 @@ pub fn transform_response(response: GeminiGenerateContentResponse) -> ClaudeCrea
     };
 
     BetaMessage {
-        request_id: None,
         id: response
             .response_id
             .unwrap_or_else(|| "response".to_string()),
@@ -189,10 +188,10 @@ fn map_usage(usage: Option<UsageMetadata>) -> BetaUsage {
         cache_read_input_tokens: 0,
         input_tokens,
         output_tokens,
-        server_tool_use: BetaServerToolUsage {
+        server_tool_use: Some(BetaServerToolUsage {
             web_fetch_requests: 0,
             web_search_requests: 0,
-        },
+        }),
         service_tier: BetaServiceTierUsed::Standard,
     }
 }

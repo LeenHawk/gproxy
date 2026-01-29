@@ -164,7 +164,6 @@ impl Default for ClaudeStreamToMessageState {
 
 fn map_message_start(message: BetaStreamMessage) -> BetaMessage {
     BetaMessage {
-        request_id: message.request_id,
         id: message.id,
         container: message.container,
         content: message
@@ -240,10 +239,10 @@ fn map_usage(usage: &BetaStreamUsage) -> gproxy_protocol::claude::create_message
         cache_read_input_tokens: usage.cache_read_input_tokens.unwrap_or(0),
         input_tokens: usage.input_tokens.unwrap_or(0),
         output_tokens: usage.output_tokens.unwrap_or(0),
-        server_tool_use: usage.server_tool_use.clone().unwrap_or(BetaServerToolUsage {
+        server_tool_use: Some(usage.server_tool_use.clone().unwrap_or(BetaServerToolUsage {
             web_fetch_requests: 0,
             web_search_requests: 0,
-        }),
+        })),
         // Stream usage doesn't include service tier; default to standard.
         service_tier: BetaServiceTierUsed::Standard,
     }

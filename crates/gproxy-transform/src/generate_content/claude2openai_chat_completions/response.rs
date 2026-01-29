@@ -30,7 +30,6 @@ pub fn transform_response(response: CreateChatCompletionResponse) -> ClaudeCreat
     let usage = map_usage(response.usage);
 
     BetaMessage {
-        request_id: None,
         id: response.id,
         container: None,
         content,
@@ -159,10 +158,10 @@ fn map_usage(
         cache_read_input_tokens: 0,
         input_tokens,
         output_tokens,
-        server_tool_use: BetaServerToolUsage {
+        server_tool_use: Some(BetaServerToolUsage {
             web_fetch_requests: 0,
             web_search_requests: 0,
-        },
+        }),
         service_tier: BetaServiceTierUsed::Standard,
     }
 }

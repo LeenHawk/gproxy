@@ -163,6 +163,12 @@ fn classify_models(
     headers: &HeaderMap,
     body: Bytes,
 ) -> Result<ProxyClassified, ProxyError> {
+    if let ["v1", "models", model_segment] = segments {
+        let (model, action) = split_model_action(model_segment);
+        if let Some(action) = action {
+            return classify_gemini_action(method, GeminiApiVersion::V1, model, action, body);
+        }
+    }
     match detect_models_protocol(headers, query) {
         ModelsProtocol::Claude => classify_claude(method, segments, query, headers, body),
         ModelsProtocol::Gemini => classify_gemini(method, segments, query, body),

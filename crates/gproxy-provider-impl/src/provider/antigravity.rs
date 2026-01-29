@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde_json::json;
 
 use gproxy_provider_core::{
     CallContext, CredentialPool, PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink,
@@ -8,9 +9,18 @@ use gproxy_provider_core::{
 };
 
 use crate::credential::BaseCredential;
+use crate::ProviderDefault;
 use crate::provider::not_implemented;
 
 pub const PROVIDER_NAME: &str = "antigravity";
+
+pub fn default_provider() -> ProviderDefault {
+    ProviderDefault {
+        name: PROVIDER_NAME,
+        config_json: json!({}),
+        enabled: true,
+    }
+}
 
 #[derive(Debug)]
 pub struct AntiGravityProvider {

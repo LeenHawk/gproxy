@@ -23,7 +23,6 @@ pub fn transform_response(response: OpenAIListModelsResponse) -> ClaudeListModel
     let last_id = data.last().map(|model| model.id.clone());
 
     ClaudeListModelsResponse {
-        request_id: None,
         data,
         first_id,
         has_more: false,

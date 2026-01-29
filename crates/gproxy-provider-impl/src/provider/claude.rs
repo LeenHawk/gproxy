@@ -1,16 +1,37 @@
 use std::sync::Arc;
-
 use async_trait::async_trait;
+use http::header::{AUTHORIZATION, CONTENT_TYPE};
+use http::{HeaderMap, HeaderValue};
+use serde_json::{json, Value as JsonValue};
 
 use gproxy_provider_core::{
-    CallContext, CredentialPool, PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink,
-    UpstreamPassthroughError,
+    AttemptFailure, CallContext, CredentialPool, DisallowLevel, DisallowMark, DisallowScope,
+    PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink, UpstreamPassthroughError,
+    UpstreamRecordMeta,
 };
-
+use gproxy_protocol::claude;
+use gproxy_protocol::openai;
+use gproxy_protocol::claude::types::{AnthropicBetaHeader, AnthropicVersion};
+use crate::client::shared_client;
 use crate::credential::BaseCredential;
-use crate::provider::not_implemented;
+use crate::dispatch::{dispatch_request, DispatchPlan, DispatchProvider, TransformPlan, UsageKind, UpstreamOk};
+use crate::record::{headers_to_json, json_body_to_string};
+use crate::upstream::{handle_response, network_failure};
+use crate::ProviderDefault;
 
 pub const PROVIDER_NAME: &str = "claude";
+const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
+const HEADER_API_KEY: &str = "x-api-key";
+const HEADER_VERSION: &str = "anthropic-version";
+const HEADER_BETA: &str = "anthropic-beta";
+
+pub fn default_provider() -> ProviderDefault {
+    ProviderDefault {
+        name: PROVIDER_NAME,
+        config_json: json!({ "base_url": DEFAULT_BASE_URL }),
+        enabled: true,
+    }
+}
 
 #[derive(Debug)]
 pub struct ClaudeProvider {
@@ -43,9 +64,564 @@ impl Provider for ClaudeProvider {
 
     async fn call(
         &self,
-        _req: ProxyRequest,
-        _ctx: CallContext,
+        req: ProxyRequest,
+        ctx: CallContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError> {
-        Err(not_implemented(PROVIDER_NAME))
+        dispatch_request(self, req, ctx).await
+    }
+}
+
+#[async_trait]
+impl DispatchProvider for ClaudeProvider {
+    fn dispatch_plan(&self, req: ProxyRequest) -> DispatchPlan {
+        match req {
+            ProxyRequest::ClaudeMessages(request) => DispatchPlan::Native {
+                req: ProxyRequest::ClaudeMessages(request),
+                usage: UsageKind::ClaudeMessage,
+            },
+            ProxyRequest::ClaudeMessagesStream(request) => DispatchPlan::Native {
+                req: ProxyRequest::ClaudeMessagesStream(request),
+                usage: UsageKind::ClaudeMessage,
+            },
+            ProxyRequest::ClaudeCountTokens(request) => DispatchPlan::Native {
+                req: ProxyRequest::ClaudeCountTokens(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::ClaudeModelsList(request) => DispatchPlan::Native {
+                req: ProxyRequest::ClaudeModelsList(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::ClaudeModelsGet(request) => DispatchPlan::Native {
+                req: ProxyRequest::ClaudeModelsGet(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::OpenAIChat(request) => DispatchPlan::Native {
+                req: ProxyRequest::OpenAIChat(request),
+                usage: UsageKind::OpenAIChat,
+            },
+            ProxyRequest::OpenAIChatStream(request) => DispatchPlan::Native {
+                req: ProxyRequest::OpenAIChatStream(request),
+                usage: UsageKind::OpenAIChat,
+            },
+            ProxyRequest::OpenAIResponses(request) => DispatchPlan::Transform {
+                plan: TransformPlan::OpenAIResponses(request),
+                usage: UsageKind::ClaudeMessage,
+            },
+            ProxyRequest::OpenAIResponsesStream(request) => DispatchPlan::Transform {
+                plan: TransformPlan::OpenAIResponsesStream(request),
+                usage: UsageKind::ClaudeMessage,
+            },
+            ProxyRequest::OpenAIInputTokens(request) => DispatchPlan::Transform {
+                plan: TransformPlan::OpenAIInputTokens(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::OpenAIModelsList(request) => DispatchPlan::Transform {
+                plan: TransformPlan::OpenAIModelsList(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::OpenAIModelsGet(request) => DispatchPlan::Transform {
+                plan: TransformPlan::OpenAIModelsGet(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::GeminiGenerate { request, .. } => DispatchPlan::Transform {
+                plan: TransformPlan::GeminiGenerate(request),
+                usage: UsageKind::ClaudeMessage,
+            },
+            ProxyRequest::GeminiGenerateStream { request, .. } => DispatchPlan::Transform {
+                plan: TransformPlan::GeminiGenerateStream(request),
+                usage: UsageKind::ClaudeMessage,
+            },
+            ProxyRequest::GeminiCountTokens { request, .. } => DispatchPlan::Transform {
+                plan: TransformPlan::GeminiCountTokens(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::GeminiModelsList { request, .. } => DispatchPlan::Transform {
+                plan: TransformPlan::GeminiModelsList(request),
+                usage: UsageKind::None,
+            },
+            ProxyRequest::GeminiModelsGet { request, .. } => DispatchPlan::Transform {
+                plan: TransformPlan::GeminiModelsGet(request),
+                usage: UsageKind::None,
+            },
+        }
+    }
+
+    async fn call_native(
+        &self,
+        req: ProxyRequest,
+        ctx: CallContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        match req {
+            ProxyRequest::ClaudeMessages(request) => self.handle_messages(request, false, ctx).await,
+            ProxyRequest::ClaudeMessagesStream(request) => {
+                self.handle_messages(request, true, ctx).await
+            }
+            ProxyRequest::ClaudeCountTokens(request) => self.handle_count_tokens(request, ctx).await,
+            ProxyRequest::ClaudeModelsList(request) => self.handle_models_list(request, ctx).await,
+            ProxyRequest::ClaudeModelsGet(request) => self.handle_models_get(request, ctx).await,
+            ProxyRequest::OpenAIChat(request) => {
+                self.handle_openai_chat_passthrough(request, false, ctx).await
+            }
+            ProxyRequest::OpenAIChatStream(request) => {
+                self.handle_openai_chat_passthrough(request, true, ctx).await
+            }
+            _ => Err(UpstreamPassthroughError::service_unavailable(
+                "non-native operation".to_string(),
+            )),
+        }
+    }
+}
+
+impl ClaudeProvider {
+    async fn handle_messages(
+        &self,
+        request: claude::create_message::request::CreateMessageRequest,
+        is_stream: bool,
+        ctx: CallContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let model = model_to_string(&request.body.model);
+        let scope = DisallowScope::model(model.clone());
+        let headers = request.headers;
+        let mut body = request.body;
+        if is_stream {
+            body.stream = Some(true);
+        }
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let body = body.clone();
+                let scope = scope.clone();
+                let model = model.clone();
+                async move {
+                    let api_key = credential_api_key(credential.value())
+                        .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), "/v1/messages");
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers =
+                        build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
+                    let request_body = json_body_to_string(&body);
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = client
+                        .post(url)
+                        .headers(req_headers.clone())
+                        .json(&body)
+                        .send()
+                        .await
+                        .map_err(|err| network_failure(err, &scope))?;
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx
+                            .downstream_meta
+                            .as_ref()
+                            .and_then(|meta| meta.provider_id),
+                        credential_id: Some(credential.value().id),
+                        operation: "claude.messages".to_string(),
+                        model: Some(model),
+                        request_method: "POST".to_string(),
+                        request_path: "/v1/messages".to_string(),
+                        request_query: None,
+                        request_headers,
+                        request_body,
+                    };
+                    let response = handle_response(
+                        response,
+                        is_stream,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    // Pass-through response for now; per-op fixups can be added inline if needed.
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_count_tokens(
+        &self,
+        request: claude::count_tokens::request::CountTokensRequest,
+        ctx: CallContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let model = model_to_string(&request.body.model);
+        let scope = DisallowScope::model(model.clone());
+        let headers = request.headers;
+        let body = request.body;
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let body = body.clone();
+                let scope = scope.clone();
+                let model = model.clone();
+                async move {
+                    let api_key = credential_api_key(credential.value())
+                        .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), "/v1/messages/count_tokens");
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers =
+                        build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
+                    let request_body = json_body_to_string(&body);
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = client
+                        .post(url)
+                        .headers(req_headers.clone())
+                        .json(&body)
+                        .send()
+                        .await
+                        .map_err(|err| network_failure(err, &scope))?;
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx
+                            .downstream_meta
+                            .as_ref()
+                            .and_then(|meta| meta.provider_id),
+                        credential_id: Some(credential.value().id),
+                        operation: "claude.count_tokens".to_string(),
+                        model: Some(model),
+                        request_method: "POST".to_string(),
+                        request_path: "/v1/messages/count_tokens".to_string(),
+                        request_query: None,
+                        request_headers,
+                        request_body,
+                    };
+                    let response = handle_response(
+                        response,
+                        false,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    // Pass-through response for now; per-op fixups can be added inline if needed.
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_models_list(
+        &self,
+        request: claude::list_models::request::ListModelsRequest,
+        ctx: CallContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let scope = DisallowScope::AllModels;
+        let headers = request.headers;
+        let query = request.query;
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let query = query.clone();
+                let scope = scope.clone();
+                async move {
+                    let api_key = credential_api_key(credential.value())
+                        .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
+                    let base_url = credential_base_url(credential.value());
+                    let qs = serde_qs::to_string(&query).unwrap_or_default();
+                    let mut url = build_url(base_url.as_deref(), "/v1/models");
+                    if !qs.is_empty() {
+                        url = format!("{url}?{qs}");
+                    }
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers =
+                        build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = client
+                        .get(url)
+                        .headers(req_headers.clone())
+                        .send()
+                        .await
+                        .map_err(|err| network_failure(err, &scope))?;
+
+                    let request_query = if qs.is_empty() { None } else { Some(qs) };
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx
+                            .downstream_meta
+                            .as_ref()
+                            .and_then(|meta| meta.provider_id),
+                        credential_id: Some(credential.value().id),
+                        operation: "claude.models_list".to_string(),
+                        model: None,
+                        request_method: "GET".to_string(),
+                        request_path: "/v1/models".to_string(),
+                        request_query,
+                        request_headers,
+                        request_body: String::new(),
+                    };
+                    let response = handle_response(
+                        response,
+                        false,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    // Pass-through response for now; per-op fixups can be added inline if needed.
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_models_get(
+        &self,
+        request: claude::get_model::request::GetModelRequest,
+        ctx: CallContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let scope = DisallowScope::model(request.path.model_id.clone());
+        let headers = request.headers;
+        let model_id = request.path.model_id;
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let model_id = model_id.clone();
+                let scope = scope.clone();
+                async move {
+                    let api_key = credential_api_key(credential.value())
+                        .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(
+                        base_url.as_deref(),
+                        &format!("/v1/models/{model_id}"),
+                    );
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers =
+                        build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = client
+                        .get(url)
+                        .headers(req_headers.clone())
+                        .send()
+                        .await
+                        .map_err(|err| network_failure(err, &scope))?;
+
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx
+                            .downstream_meta
+                            .as_ref()
+                            .and_then(|meta| meta.provider_id),
+                        credential_id: Some(credential.value().id),
+                        operation: "claude.models_get".to_string(),
+                        model: Some(model_id.clone()),
+                        request_method: "GET".to_string(),
+                        request_path: format!("/v1/models/{model_id}"),
+                        request_query: None,
+                        request_headers,
+                        request_body: String::new(),
+                    };
+                    let response = handle_response(
+                        response,
+                        false,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    // Pass-through response for now; per-op fixups can be added inline if needed.
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_openai_chat_passthrough(
+        &self,
+        request: openai::create_chat_completions::request::CreateChatCompletionRequest,
+        is_stream: bool,
+        ctx: CallContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let model = request.body.model.clone();
+        let scope = DisallowScope::model(model.clone());
+        let mut body = request.body;
+        if is_stream {
+            body.stream = Some(true);
+            match &mut body.stream_options {
+                Some(options) => {
+                    if options.include_usage.is_none() {
+                        options.include_usage = Some(true);
+                    }
+                }
+                None => {
+                    body.stream_options =
+                        Some(openai::create_chat_completions::types::ChatCompletionStreamOptions {
+                            include_usage: Some(true),
+                            include_obfuscation: None,
+                        });
+                }
+            }
+        }
+
+        self.pool
+            .execute(scope.clone(), move |credential| {
+                let ctx = ctx.clone();
+                let scope = scope.clone();
+                let model = model.clone();
+                let body = body.clone();
+                async move {
+                    let api_key = credential_api_key(credential.value())
+                        .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), "/v1/chat/completions");
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers = build_openai_compat_headers(&api_key)?;
+                    let request_body = json_body_to_string(&body);
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = client
+                        .post(url)
+                        .headers(req_headers.clone())
+                        .json(&body)
+                        .send()
+                        .await
+                        .map_err(|err| network_failure(err, &scope))?;
+
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx
+                            .downstream_meta
+                            .as_ref()
+                            .and_then(|meta| meta.provider_id),
+                        credential_id: Some(credential.value().id),
+                        operation: "openai.chat.completions".to_string(),
+                        model: Some(model),
+                        request_method: "POST".to_string(),
+                        request_path: "/v1/chat/completions".to_string(),
+                        request_query: None,
+                        request_headers,
+                        request_body,
+                    };
+                    let response = handle_response(
+                        response,
+                        is_stream,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    // Pass-through response for now; per-op fixups can be added inline if needed.
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+}
+
+fn build_headers(
+    api_key: &str,
+    version: AnthropicVersion,
+    beta: Option<AnthropicBetaHeader>,
+) -> Result<HeaderMap, AttemptFailure> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        HEADER_API_KEY,
+        HeaderValue::from_str(api_key).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
+    );
+    let version_value = match version {
+        AnthropicVersion::V20230601 => "2023-06-01",
+        AnthropicVersion::V20230101 => "2023-01-01",
+    };
+    headers.insert(HEADER_VERSION, HeaderValue::from_static(version_value));
+    if let Some(beta_header) = beta {
+        let values = match beta_header {
+            AnthropicBetaHeader::Single(beta) => vec![match serde_json::to_value(beta) {
+                Ok(JsonValue::String(value)) => value,
+                _ => "unknown".to_string(),
+            }],
+            AnthropicBetaHeader::Multiple(list) => list
+                .into_iter()
+                .map(|beta| match serde_json::to_value(beta) {
+                    Ok(JsonValue::String(value)) => value,
+                    _ => "unknown".to_string(),
+                })
+                .collect(),
+        };
+        if !values.is_empty() {
+            let beta_value = values.join(",");
+            headers.insert(
+                HEADER_BETA,
+                HeaderValue::from_str(&beta_value).map_err(|err| AttemptFailure {
+                    passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+                    mark: None,
+                })?,
+            );
+        }
+    }
+    Ok(headers)
+}
+
+fn build_openai_compat_headers(api_key: &str) -> Result<HeaderMap, AttemptFailure> {
+    let mut headers = HeaderMap::new();
+    let mut bearer = String::with_capacity(api_key.len() + 7);
+    bearer.push_str("Bearer ");
+    bearer.push_str(api_key);
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&bearer).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
+    );
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    Ok(headers)
+}
+
+
+fn credential_api_key(credential: &BaseCredential) -> Option<String> {
+    if let JsonValue::String(value) = &credential.secret {
+        return Some(value.clone());
+    }
+    credential
+        .secret
+        .get("api_key")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn credential_base_url(credential: &BaseCredential) -> Option<String> {
+    credential
+        .meta
+        .get("base_url")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn build_url(base_url: Option<&str>, path: &str) -> String {
+    let base = base_url.unwrap_or(DEFAULT_BASE_URL).trim_end_matches('/');
+    let mut path = path.trim_start_matches('/');
+    if base.ends_with("/v1") && (path == "v1" || path.starts_with("v1/")) {
+        path = path.trim_start_matches("v1/").trim_start_matches("v1");
+    }
+    format!("{base}/{path}")
+}
+
+fn model_to_string(model: &claude::count_tokens::types::Model) -> String {
+    match serde_json::to_value(model) {
+        Ok(JsonValue::String(value)) => value,
+        _ => "unknown".to_string(),
+    }
+}
+
+fn invalid_credential(scope: &DisallowScope, message: &str) -> AttemptFailure {
+    AttemptFailure {
+        passthrough: UpstreamPassthroughError::service_unavailable(message.to_string()),
+        mark: Some(DisallowMark {
+            scope: scope.clone(),
+            level: DisallowLevel::Dead,
+            duration: None,
+            reason: Some(message.to_string()),
+        }),
     }
 }

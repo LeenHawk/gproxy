@@ -1,92 +1,12 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::OnConflict;
-use sea_orm::{ActiveValue, Database, DatabaseConnection, DbErr, QueryOrder, Schema};
+use sea_orm::{ActiveValue, DatabaseConnection, DbErr, QueryOrder, Schema};
 use time::OffsetDateTime;
 
 use crate::entities;
+use crate::db::connect_shared;
+pub use gproxy_provider_core::{DownstreamTrafficEvent, UpstreamTrafficEvent};
 
-#[derive(Debug, Clone)]
-pub struct DownstreamTrafficEvent {
-    pub provider: String,
-    pub provider_id: Option<i64>,
-    pub operation: String,
-    pub model: Option<String>,
-    pub user_id: Option<i64>,
-    pub key_id: Option<i64>,
-    pub request_id: Option<String>,
-
-    pub request_method: String,
-    pub request_path: String,
-    pub request_query: Option<String>,
-    pub request_headers: String,
-    pub request_body: String,
-
-    pub response_status: i32,
-    pub response_headers: String,
-    pub response_body: String,
-
-    pub claude_input_tokens: Option<i64>,
-    pub claude_output_tokens: Option<i64>,
-    pub claude_total_tokens: Option<i64>,
-    pub claude_cache_creation_input_tokens: Option<i64>,
-    pub claude_cache_read_input_tokens: Option<i64>,
-
-    pub gemini_prompt_tokens: Option<i64>,
-    pub gemini_candidates_tokens: Option<i64>,
-    pub gemini_total_tokens: Option<i64>,
-    pub gemini_cached_tokens: Option<i64>,
-
-    pub openai_chat_prompt_tokens: Option<i64>,
-    pub openai_chat_completion_tokens: Option<i64>,
-    pub openai_chat_total_tokens: Option<i64>,
-
-    pub openai_responses_input_tokens: Option<i64>,
-    pub openai_responses_output_tokens: Option<i64>,
-    pub openai_responses_total_tokens: Option<i64>,
-    pub openai_responses_input_cached_tokens: Option<i64>,
-    pub openai_responses_output_reasoning_tokens: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct UpstreamTrafficEvent {
-    pub provider: String,
-    pub provider_id: Option<i64>,
-    pub operation: String,
-    pub model: Option<String>,
-    pub credential_id: Option<i64>,
-    pub request_id: Option<String>,
-
-    pub request_method: String,
-    pub request_path: String,
-    pub request_query: Option<String>,
-    pub request_headers: String,
-    pub request_body: String,
-
-    pub response_status: i32,
-    pub response_headers: String,
-    pub response_body: String,
-
-    pub claude_input_tokens: Option<i64>,
-    pub claude_output_tokens: Option<i64>,
-    pub claude_total_tokens: Option<i64>,
-    pub claude_cache_creation_input_tokens: Option<i64>,
-    pub claude_cache_read_input_tokens: Option<i64>,
-
-    pub gemini_prompt_tokens: Option<i64>,
-    pub gemini_candidates_tokens: Option<i64>,
-    pub gemini_total_tokens: Option<i64>,
-    pub gemini_cached_tokens: Option<i64>,
-
-    pub openai_chat_prompt_tokens: Option<i64>,
-    pub openai_chat_completion_tokens: Option<i64>,
-    pub openai_chat_total_tokens: Option<i64>,
-
-    pub openai_responses_input_tokens: Option<i64>,
-    pub openai_responses_output_tokens: Option<i64>,
-    pub openai_responses_total_tokens: Option<i64>,
-    pub openai_responses_input_cached_tokens: Option<i64>,
-    pub openai_responses_output_reasoning_tokens: Option<i64>,
-}
 
 #[derive(Debug, Clone)]
 pub struct AdminProviderInput {
@@ -139,7 +59,7 @@ pub struct TrafficStorage {
 
 impl TrafficStorage {
     pub async fn connect(database_url: &str) -> Result<Self, DbErr> {
-        let db = Database::connect(database_url).await?;
+        let db = connect_shared(database_url).await?;
         Ok(Self { db })
     }
 
@@ -164,6 +84,28 @@ impl TrafficStorage {
             .register(entities::UpstreamTraffic)
             .sync(&self.db)
             .await
+    }
+
+    pub async fn ensure_providers(
+        &self,
+        defaults: &[AdminProviderInput],
+    ) -> Result<(), DbErr> {
+        let existing = self.list_providers().await?;
+        let mut existing_names = std::collections::HashSet::new();
+        for provider in existing {
+            existing_names.insert(provider.name);
+        }
+
+        for default in defaults {
+            if existing_names.contains(&default.name) {
+                continue;
+            }
+            let mut input = default.clone();
+            input.id = None;
+            let _ = self.upsert_provider(input).await?;
+        }
+
+        Ok(())
     }
 
     pub async fn health(&self) -> Result<(), DbErr> {
@@ -196,6 +138,8 @@ impl TrafficStorage {
             .await?;
         Ok(())
     }
+
+
 
     pub async fn upsert_global_config(
         &self,
@@ -288,11 +232,12 @@ impl TrafficStorage {
         entities::Providers::find().all(&self.db).await
     }
 
-    pub async fn upsert_provider(&self, input: AdminProviderInput) -> Result<(), DbErr> {
+    pub async fn upsert_provider(&self, input: AdminProviderInput) -> Result<i64, DbErr> {
         use entities::providers::Column;
         let now = OffsetDateTime::now_utc();
+        let input_id = input.id;
         let active = entities::providers::ActiveModel {
-            id: match input.id {
+            id: match input_id {
                 Some(id) => ActiveValue::Set(id),
                 None => ActiveValue::NotSet,
             },
@@ -303,7 +248,7 @@ impl TrafficStorage {
             ..Default::default()
         };
 
-        entities::Providers::insert(active)
+        let result = entities::Providers::insert(active)
             .on_conflict(
                 OnConflict::column(Column::Id)
                     .update_columns([
@@ -316,7 +261,7 @@ impl TrafficStorage {
             )
             .exec(&self.db)
             .await?;
-        Ok(())
+        Ok(input_id.unwrap_or(result.last_insert_id))
     }
 
     pub async fn delete_provider(&self, id: i64) -> Result<(), DbErr> {
@@ -514,7 +459,7 @@ impl From<DownstreamTrafficEvent> for entities::downstream_traffic::ActiveModel 
             model: ActiveValue::Set(event.model),
             user_id: ActiveValue::Set(event.user_id),
             key_id: ActiveValue::Set(event.key_id),
-            request_id: ActiveValue::Set(event.request_id),
+            trace_id: ActiveValue::Set(event.trace_id),
             request_method: ActiveValue::Set(event.request_method),
             request_path: ActiveValue::Set(event.request_path),
             request_query: ActiveValue::Set(event.request_query),
@@ -523,31 +468,6 @@ impl From<DownstreamTrafficEvent> for entities::downstream_traffic::ActiveModel 
             response_status: ActiveValue::Set(event.response_status),
             response_headers: ActiveValue::Set(event.response_headers),
             response_body: ActiveValue::Set(event.response_body),
-            claude_input_tokens: ActiveValue::Set(event.claude_input_tokens),
-            claude_output_tokens: ActiveValue::Set(event.claude_output_tokens),
-            claude_total_tokens: ActiveValue::Set(event.claude_total_tokens),
-            claude_cache_creation_input_tokens: ActiveValue::Set(
-                event.claude_cache_creation_input_tokens,
-            ),
-            claude_cache_read_input_tokens: ActiveValue::Set(event.claude_cache_read_input_tokens),
-            gemini_prompt_tokens: ActiveValue::Set(event.gemini_prompt_tokens),
-            gemini_candidates_tokens: ActiveValue::Set(event.gemini_candidates_tokens),
-            gemini_total_tokens: ActiveValue::Set(event.gemini_total_tokens),
-            gemini_cached_tokens: ActiveValue::Set(event.gemini_cached_tokens),
-            openai_chat_prompt_tokens: ActiveValue::Set(event.openai_chat_prompt_tokens),
-            openai_chat_completion_tokens: ActiveValue::Set(
-                event.openai_chat_completion_tokens,
-            ),
-            openai_chat_total_tokens: ActiveValue::Set(event.openai_chat_total_tokens),
-            openai_responses_input_tokens: ActiveValue::Set(event.openai_responses_input_tokens),
-            openai_responses_output_tokens: ActiveValue::Set(event.openai_responses_output_tokens),
-            openai_responses_total_tokens: ActiveValue::Set(event.openai_responses_total_tokens),
-            openai_responses_input_cached_tokens: ActiveValue::Set(
-                event.openai_responses_input_cached_tokens,
-            ),
-            openai_responses_output_reasoning_tokens: ActiveValue::Set(
-                event.openai_responses_output_reasoning_tokens,
-            ),
         }
     }
 }
@@ -562,6 +482,7 @@ impl From<UpstreamTrafficEvent> for entities::upstream_traffic::ActiveModel {
             operation: ActiveValue::Set(event.operation),
             model: ActiveValue::Set(event.model),
             credential_id: ActiveValue::Set(event.credential_id),
+            trace_id: ActiveValue::Set(event.trace_id),
             request_id: ActiveValue::Set(event.request_id),
             request_method: ActiveValue::Set(event.request_method),
             request_path: ActiveValue::Set(event.request_path),

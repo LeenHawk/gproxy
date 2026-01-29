@@ -35,6 +35,8 @@ use gproxy_protocol::gemini::generate_content::types::{
 };
 use serde_json::Value as JsonValue;
 
+const DEFAULT_MAX_TOKENS: u32 = 32_000;
+
 /// Convert a Gemini generate-content request into a Claude create-message request.
 pub fn transform_request(request: GeminiGenerateContentRequest) -> ClaudeCreateMessageRequest {
     let model_id = request
@@ -485,7 +487,7 @@ fn map_generation_config(
 ) {
     let config = match generation_config {
         Some(config) => config,
-        None => return (0, None, None, None, None, None, None, None),
+        None => return (DEFAULT_MAX_TOKENS, None, None, None, None, None, None, None),
     };
 
     let max_tokens = map_max_tokens(config.max_output_tokens);
@@ -549,7 +551,10 @@ fn map_generation_config(
 }
 
 fn map_max_tokens(max_output_tokens: Option<u32>) -> u32 {
-    max_output_tokens.unwrap_or(0)
+    match max_output_tokens {
+        Some(value) if value > 0 => value,
+        _ => DEFAULT_MAX_TOKENS,
+    }
 }
 
 fn minimal_object_schema() -> JsonValue {

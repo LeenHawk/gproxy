@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use time::OffsetDateTime;
 
 use crate::claude::count_tokens::types::Model;
-use crate::claude::types::RequestId;
 
 pub type JsonValue = Value;
 pub type JsonObject = BTreeMap<String, JsonValue>;
@@ -863,7 +862,8 @@ pub struct BetaUsage {
     pub cache_read_input_tokens: u32,
     pub input_tokens: u32,
     pub output_tokens: u32,
-    pub server_tool_use: BetaServerToolUsage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_tool_use: Option<BetaServerToolUsage>,
     pub service_tier: BetaServiceTierUsed,
 }
 
@@ -909,8 +909,6 @@ pub struct BetaContextManagementResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BetaMessage {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_id: Option<RequestId>,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub container: Option<BetaContainer>,

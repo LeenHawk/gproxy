@@ -13,6 +13,7 @@ pub struct Model {
     pub operation: String,
     pub model: Option<String>,
     pub credential_id: Option<i64>,
+    pub trace_id: Option<String>,
     pub request_id: Option<String>,
     pub request_method: String,
     pub request_path: String,

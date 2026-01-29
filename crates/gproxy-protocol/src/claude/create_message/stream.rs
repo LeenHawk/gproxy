@@ -31,8 +31,6 @@ pub struct BetaStreamUsage {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BetaStreamMessage {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_id: Option<RequestId>,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub container: Option<BetaContainer>,

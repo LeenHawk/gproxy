@@ -4,6 +4,7 @@ pub mod provider;
 pub mod request;
 pub mod response;
 pub mod state;
+pub mod traffic;
 
 pub use credential_pool::{AttemptFailure, CredentialEntry, CredentialPool, PoolSnapshot};
 pub use disallow::{
@@ -13,3 +14,8 @@ pub use provider::{CallContext, Provider};
 pub use request::{GeminiApiVersion, ProxyRequest};
 pub use response::{ProxyResponse, StreamBody, UpstreamPassthroughError};
 pub use state::{NoopStateSink, ProviderStateEvent, StateSink};
+pub use traffic::{
+    build_downstream_event, build_upstream_event, record_upstream, DownstreamRecordMeta,
+    DownstreamTrafficEvent, NoopTrafficSink, SharedTrafficSink, TrafficSink, TrafficUsage,
+    UpstreamRecordMeta, UpstreamTrafficEvent,
+};

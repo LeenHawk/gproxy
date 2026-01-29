@@ -8,10 +8,9 @@ pub fn transform_response(response: GeminiCountTokensResponse) -> ClaudeCountTok
     let input_tokens = response.total_tokens;
 
     ClaudeCountTokensResponse {
-        request_id: None,
-        context_management: BetaCountTokensContextManagementResponse {
+        context_management: Some(BetaCountTokensContextManagementResponse {
             original_input_tokens: input_tokens,
-        },
+        }),
         input_tokens,
     }
 }

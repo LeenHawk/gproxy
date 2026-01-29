@@ -10,13 +10,10 @@ pub fn transform_response(response: OpenAIGetModelResponse) -> ClaudeGetModelRes
     let created_at =
         OffsetDateTime::from_unix_timestamp(response.created).unwrap_or(OffsetDateTime::UNIX_EPOCH);
 
-    ClaudeGetModelResponse {
-        request_id: None,
-        model: ClaudeModelInfo {
-            id: response.id.clone(),
-            created_at,
-            display_name: response.id,
-            r#type: ClaudeModelType::Model,
-        },
+    ClaudeModelInfo {
+        id: response.id.clone(),
+        created_at,
+        display_name: response.id,
+        r#type: ClaudeModelType::Model,
     }
 }

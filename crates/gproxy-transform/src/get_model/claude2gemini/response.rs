@@ -18,14 +18,11 @@ pub fn transform_response(response: GeminiGetModelResponse) -> ClaudeGetModelRes
         name
     };
 
-    ClaudeGetModelResponse {
-        request_id: None,
-        model: ClaudeModelInfo {
-            id: id.clone(),
-            // Gemini model metadata does not expose a created timestamp; use epoch as placeholder.
-            created_at: OffsetDateTime::UNIX_EPOCH,
-            display_name: response.display_name.unwrap_or(id),
-            r#type: ClaudeModelType::Model,
-        },
+    ClaudeModelInfo {
+        id: id.clone(),
+        // Gemini model metadata does not expose a created timestamp; use epoch as placeholder.
+        created_at: OffsetDateTime::UNIX_EPOCH,
+        display_name: response.display_name.unwrap_or(id),
+        r#type: ClaudeModelType::Model,
     }
 }
