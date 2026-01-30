@@ -22,8 +22,10 @@ use gproxy_transform::count_tokens;
 use gproxy_transform::generate_content;
 use gproxy_transform::generate_content::claude2gemini::stream::GeminiToClaudeStreamState;
 use gproxy_transform::generate_content::claude2openai_response::stream::ClaudeToOpenAIResponseStreamState;
+use gproxy_transform::generate_content::gemini2openai_chat_completions::stream::GeminiToOpenAIChatCompletionStreamState;
 use gproxy_transform::generate_content::gemini2claude::stream::ClaudeToGeminiStreamState;
 use gproxy_transform::generate_content::gemini2openai_response::stream::GeminiToOpenAIResponseStreamState;
+use gproxy_transform::generate_content::openai_chat_completions2gemini;
 use gproxy_transform::generate_content::openai_response2claude::stream::OpenAIResponseToClaudeStreamState;
 use gproxy_transform::generate_content::openai_response2gemini::stream::OpenAIResponseToGeminiStreamState;
 use gproxy_transform::get_model;
@@ -151,6 +153,26 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     upstream_recorded,
                     ctx,
                     generate_content::openai_response2gemini::response::transform_response,
+                )
+            }
+            GenerateContentPlan::OpenAIChat2Gemini { version, request } => {
+                let gemini_request =
+                    openai_chat_completions2gemini::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(
+                        ProxyRequest::GeminiGenerate {
+                            version,
+                            request: gemini_request,
+                        },
+                        ctx_native,
+                    )
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    openai_chat_completions2gemini::response::transform_response,
                 )
             }
         },
@@ -287,6 +309,32 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     usage.clone(),
                     || {
                         let mut state = GeminiToOpenAIResponseStreamState::new();
+                        move |response: gemini::generate_content::response::GenerateContentResponse| {
+                            state
+                                .transform_response(response)
+                                .into_iter()
+                                .filter_map(|event| sse_json_bytes(&event))
+                                .collect()
+                        }
+                    },
+                )
+                .await
+            }
+            StreamContentPlan::OpenAIChat2Gemini { version, request } => {
+                let gemini_request =
+                    openai_chat_completions2gemini::request::transform_request(request);
+                let stream_request = gemini_generate_to_stream(gemini_request);
+                transform_gemini_stream(
+                    provider,
+                    ProxyRequest::GeminiGenerateStream {
+                        version,
+                        request: stream_request,
+                    },
+                    ctx_native,
+                    ctx,
+                    usage.clone(),
+                    || {
+                        let mut state = GeminiToOpenAIChatCompletionStreamState::new();
                         move |response: gemini::generate_content::response::GenerateContentResponse| {
                             state
                                 .transform_response(response)

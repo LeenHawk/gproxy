@@ -36,6 +36,11 @@ pub enum GenerateContentPlan {
         version: GeminiApiVersion,
         request: openai::create_response::request::CreateResponseRequest,
     },
+    /// OpenAI chat completions -> Gemini
+    OpenAIChat2Gemini {
+        version: GeminiApiVersion,
+        request: openai::create_chat_completions::request::CreateChatCompletionRequest,
+    },
 }
 
 pub enum StreamContentPlan {
@@ -58,6 +63,11 @@ pub enum StreamContentPlan {
     OpenAIResponses2Gemini {
         version: GeminiApiVersion,
         request: openai::create_response::request::CreateResponseRequest,
+    },
+    /// OpenAI chat completions stream -> Gemini
+    OpenAIChat2Gemini {
+        version: GeminiApiVersion,
+        request: openai::create_chat_completions::request::CreateChatCompletionRequest,
     },
 }
 
@@ -143,6 +153,7 @@ pub(super) fn upstream_usage_for_plan(plan: &TransformPlan) -> UsageKind {
             GenerateContentPlan::Gemini2OpenAIResponses(_) => UsageKind::OpenAIResponses,
             GenerateContentPlan::OpenAIResponses2Claude(_) => UsageKind::ClaudeMessage,
             GenerateContentPlan::OpenAIResponses2Gemini { .. } => UsageKind::GeminiGenerate,
+            GenerateContentPlan::OpenAIChat2Gemini { .. } => UsageKind::GeminiGenerate,
         },
         TransformPlan::StreamContent(plan) => match plan {
             StreamContentPlan::Claude2Gemini { .. } => UsageKind::GeminiGenerate,
@@ -151,6 +162,7 @@ pub(super) fn upstream_usage_for_plan(plan: &TransformPlan) -> UsageKind {
             StreamContentPlan::Gemini2OpenAIResponses(_) => UsageKind::OpenAIResponses,
             StreamContentPlan::OpenAIResponses2Claude(_) => UsageKind::ClaudeMessage,
             StreamContentPlan::OpenAIResponses2Gemini { .. } => UsageKind::GeminiGenerate,
+            StreamContentPlan::OpenAIChat2Gemini { .. } => UsageKind::GeminiGenerate,
         },
         TransformPlan::CountTokens(_) => UsageKind::None,
         TransformPlan::ModelsList(_) => UsageKind::None,
