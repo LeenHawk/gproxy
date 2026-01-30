@@ -319,7 +319,7 @@ enum ModelsProtocol {
 }
 
 fn detect_models_protocol(headers: &HeaderMap, query: Option<&str>) -> ModelsProtocol {
-    if header_present(headers, "anthropic-version") || header_present(headers, "x-api-key") {
+    if header_present(headers, "anthropic-version") {
         return ModelsProtocol::Claude;
     }
 
