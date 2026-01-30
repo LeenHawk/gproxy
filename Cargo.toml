@@ -14,3 +14,7 @@ members = [
 edition = "2024"
 license = "AGPL-3.0-or-later"
 authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+description = "A high-performance LLM proxy server written in Rust."
+homepage = "https://gproxy.leenhawk.com"
+repository = "https://github.com/LeenHawk/gproxy"
+readme = "README.md"
