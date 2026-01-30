@@ -1,10 +1,8 @@
 use std::sync::Arc;
-use std::time::Instant;
 use async_trait::async_trait;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue};
 use serde_json::{json, Value as JsonValue};
-use tracing::{info, warn};
 
 use gproxy_provider_core::{
     AttemptFailure, CredentialPool, DisallowLevel, DisallowMark, DisallowScope, DownstreamContext,
@@ -21,7 +19,7 @@ use crate::dispatch::{
     native_spec, transform_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
-use crate::upstream::{handle_response, network_failure};
+use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 
 pub const PROVIDER_NAME: &str = "claude";
@@ -176,44 +174,24 @@ impl ClaudeProvider {
                         build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.messages",
-                        method = "POST",
-                        path = "/v1/messages",
-                        model = %model,
-                        is_stream = is_stream
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "claude.messages",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.messages",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = is_stream
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claude.messages",
+                        "POST",
+                        "/v1/messages",
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -268,44 +246,24 @@ impl ClaudeProvider {
                         build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.count_tokens",
-                        method = "POST",
-                        path = "/v1/messages/count_tokens",
-                        model = %model,
-                        is_stream = false
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "claude.count_tokens",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.count_tokens",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claude.count_tokens",
+                        "POST",
+                        "/v1/messages/count_tokens",
+                        Some(&model),
+                        false,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -361,42 +319,18 @@ impl ClaudeProvider {
                     let req_headers =
                         build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.models_list",
-                        method = "GET",
-                        path = "/v1/models",
-                        is_stream = false
-                    );
-                    let response = client
-                        .get(url)
-                        .headers(req_headers.clone())
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "claude.models_list",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.models_list",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claude.models_list",
+                        "GET",
+                        "/v1/models",
+                        None,
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
 
                     let request_query = if qs.is_empty() { None } else { Some(qs) };
                     let meta = UpstreamRecordMeta {
@@ -453,43 +387,19 @@ impl ClaudeProvider {
                     let req_headers =
                         build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.models_get",
-                        method = "GET",
-                        path = %format!("/v1/models/{model_id}"),
-                        model = %model_id,
-                        is_stream = false
-                    );
-                    let response = client
-                        .get(url)
-                        .headers(req_headers.clone())
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "claude.models_get",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "claude.models_get",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let path = format!("/v1/models/{model_id}");
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claude.models_get",
+                        "GET",
+                        &path,
+                        Some(&model_id),
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
 
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
@@ -498,7 +408,7 @@ impl ClaudeProvider {
                         operation: "claude.models_get".to_string(),
                         model: Some(model_id.clone()),
                         request_method: "GET".to_string(),
-                        request_path: format!("/v1/models/{model_id}"),
+                        request_path: path,
                         request_query: None,
                         request_headers,
                         request_body: String::new(),
@@ -560,44 +470,24 @@ impl ClaudeProvider {
                     let req_headers = build_openai_compat_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.chat.completions",
-                        method = "POST",
-                        path = "/v1/chat/completions",
-                        model = %model,
-                        is_stream = is_stream
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.chat.completions",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.chat.completions",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = is_stream
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.chat.completions",
+                        "POST",
+                        "/v1/chat/completions",
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
 
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),

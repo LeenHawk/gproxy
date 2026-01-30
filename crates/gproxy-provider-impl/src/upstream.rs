@@ -1,13 +1,15 @@
+use std::future::Future;
 use std::io;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use futures_util::StreamExt;
 use http::header::RETRY_AFTER;
 use http::{HeaderMap, StatusCode};
+use tracing::{info, warn};
 
 use gproxy_provider_core::{
-    record_upstream, AttemptFailure, CallContext, DisallowLevel, DisallowMark, DisallowScope,
-    ProxyResponse, StreamBody, UpstreamPassthroughError, UpstreamRecordMeta,
+    record_upstream, AttemptFailure, DisallowLevel, DisallowMark, DisallowScope, ProxyResponse,
+    StreamBody, UpstreamContext, UpstreamPassthroughError, UpstreamRecordMeta,
 };
 
 pub fn network_failure(err: wreq::Error, scope: &DisallowScope) -> AttemptFailure {
@@ -20,6 +22,118 @@ pub fn network_failure(err: wreq::Error, scope: &DisallowScope) -> AttemptFailur
             reason: Some("network_error".to_string()),
         }),
     }
+}
+
+fn log_upstream_request(
+    ctx: &UpstreamContext,
+    provider: &str,
+    op: &str,
+    method: &str,
+    path: &str,
+    model: Option<&str>,
+    is_stream: bool,
+) -> Instant {
+    match model {
+        Some(model) => {
+            info!(
+                event = "upstream_request",
+                trace_id = %ctx.trace_id,
+                provider = %provider,
+                op = %op,
+                method = %method,
+                path = %path,
+                model = %model,
+                is_stream = is_stream
+            );
+        }
+        None => {
+            info!(
+                event = "upstream_request",
+                trace_id = %ctx.trace_id,
+                provider = %provider,
+                op = %op,
+                method = %method,
+                path = %path,
+                is_stream = is_stream
+            );
+        }
+    }
+    Instant::now()
+}
+
+fn log_upstream_response_ok(
+    ctx: &UpstreamContext,
+    provider: &str,
+    op: &str,
+    status: StatusCode,
+    elapsed_ms: u128,
+    is_stream: bool,
+) {
+    info!(
+        event = "upstream_response",
+        trace_id = %ctx.trace_id,
+        provider = %provider,
+        op = %op,
+        status = %status.as_u16(),
+        elapsed_ms = elapsed_ms,
+        is_stream = is_stream
+    );
+}
+
+fn log_upstream_response_err(
+    ctx: &UpstreamContext,
+    provider: &str,
+    op: &str,
+    elapsed_ms: u128,
+    err: impl std::fmt::Display,
+) {
+    warn!(
+        event = "upstream_response",
+        trace_id = %ctx.trace_id,
+        provider = %provider,
+        op = %op,
+        status = "error",
+        elapsed_ms = elapsed_ms,
+        error = %err
+    );
+}
+
+pub async fn send_with_logging<F, Fut>(
+    ctx: &UpstreamContext,
+    provider: &str,
+    op: &str,
+    method: &str,
+    path: &str,
+    model: Option<&str>,
+    is_stream: bool,
+    scope: &DisallowScope,
+    send: F,
+) -> Result<wreq::Response, AttemptFailure>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<wreq::Response, wreq::Error>>,
+{
+    let started_at =
+        log_upstream_request(ctx, provider, op, method, path, model, is_stream);
+    let response = send().await.map_err(|err| {
+        log_upstream_response_err(
+            ctx,
+            provider,
+            op,
+            started_at.elapsed().as_millis(),
+            err,
+        );
+        network_failure(err, scope)
+    })?;
+    log_upstream_response_ok(
+        ctx,
+        provider,
+        op,
+        response.status(),
+        started_at.elapsed().as_millis(),
+        is_stream,
+    );
+    Ok(response)
 }
 
 pub async fn handle_response(

@@ -1,11 +1,8 @@
 use std::sync::Arc;
-use std::time::Instant;
-
 use async_trait::async_trait;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue};
 use serde_json::{json, Value as JsonValue};
-use tracing::{info, warn};
 
 use gproxy_provider_core::{
     AttemptFailure, CredentialPool, DisallowScope, DownstreamContext, PoolSnapshot, Provider,
@@ -21,7 +18,7 @@ use crate::dispatch::{
     native_spec, transform_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
-use crate::upstream::{handle_response, network_failure};
+use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 
 pub const PROVIDER_NAME: &str = "openai";
@@ -182,44 +179,24 @@ impl OpenAIProvider {
                     let req_headers = build_openai_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.chat.completions",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = is_stream
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.chat.completions",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.chat.completions",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = is_stream
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.chat.completions",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -275,44 +252,24 @@ impl OpenAIProvider {
                     let req_headers = build_openai_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.responses",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = is_stream
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.responses",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.responses",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = is_stream
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.responses",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -364,44 +321,24 @@ impl OpenAIProvider {
                     let req_headers = build_openai_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.input_tokens",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = false
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.input_tokens",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.input_tokens",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.input_tokens",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        false,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -448,42 +385,18 @@ impl OpenAIProvider {
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_openai_headers(&api_key)?;
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.models_list",
-                        method = "GET",
-                        path = %path,
-                        is_stream = false
-                    );
-                    let response = client
-                        .get(url)
-                        .headers(req_headers.clone())
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.models_list",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.models_list",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.models_list",
+                        "GET",
+                        &path,
+                        None,
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -532,43 +445,18 @@ impl OpenAIProvider {
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_openai_headers(&api_key)?;
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.models_get",
-                        method = "GET",
-                        path = %path,
-                        model = %model,
-                        is_stream = false
-                    );
-                    let response = client
-                        .get(url)
-                        .headers(req_headers.clone())
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.models_get",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.models_get",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.models_get",
+                        "GET",
+                        &path,
+                        Some(&model),
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,

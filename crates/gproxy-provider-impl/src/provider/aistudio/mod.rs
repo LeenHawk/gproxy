@@ -1,11 +1,8 @@
 use std::sync::Arc;
-use std::time::Instant;
-
 use async_trait::async_trait;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http::{HeaderMap, HeaderValue};
 use serde_json::json;
-use tracing::{info, warn};
 
 use gproxy_provider_core::{
     AttemptFailure, CallContext, CredentialPool, DisallowScope, PoolSnapshot, Provider,
@@ -20,7 +17,7 @@ use crate::dispatch::{
     ModelsGetPlan, ModelsListPlan, StreamContentPlan, TransformPlan, UsageKind, UpstreamOk,
 };
 use crate::record::{headers_to_json, json_body_to_string};
-use crate::upstream::{handle_response, network_failure};
+use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 use crate::provider::not_implemented;
 
@@ -237,44 +234,24 @@ impl AistudioProvider {
                     let req_headers = build_gemini_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.generate",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = is_stream
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "gemini.generate",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.generate",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = is_stream
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "gemini.generate",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx
@@ -331,44 +308,24 @@ impl AistudioProvider {
                     let req_headers = build_gemini_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.stream_generate",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = true
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "gemini.stream_generate",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.stream_generate",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = true
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "gemini.stream_generate",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        true,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx
@@ -425,44 +382,24 @@ impl AistudioProvider {
                     let req_headers = build_gemini_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.count_tokens",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = false
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "gemini.count_tokens",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.count_tokens",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "gemini.count_tokens",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        false,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx
@@ -520,42 +457,18 @@ impl AistudioProvider {
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_gemini_headers(&api_key)?;
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.models_list",
-                        method = "GET",
-                        path = %path,
-                        is_stream = false
-                    );
-                    let response = client
-                        .get(url)
-                        .headers(req_headers.clone())
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "gemini.models_list",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.models_list",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "gemini.models_list",
+                        "GET",
+                        &path,
+                        None,
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
 
                     let request_query = if qs.is_empty() { None } else { Some(qs) };
                     let meta = UpstreamRecordMeta {
@@ -611,42 +524,18 @@ impl AistudioProvider {
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_gemini_headers(&api_key)?;
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.models_get",
-                        method = "GET",
-                        path = %path,
-                        is_stream = false
-                    );
-                    let response = client
-                        .get(url)
-                        .headers(req_headers.clone())
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "gemini.models_get",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "gemini.models_get",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = false
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "gemini.models_get",
+                        "GET",
+                        &path,
+                        Some(&name),
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
 
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
@@ -720,44 +609,24 @@ impl AistudioProvider {
                     let req_headers = build_openai_compat_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
-                    let started_at = Instant::now();
-                    info!(
-                        event = "upstream_request",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.chat",
-                        method = "POST",
-                        path = %path,
-                        model = %model,
-                        is_stream = is_stream
-                    );
-                    let response = client
-                        .post(url)
-                        .headers(req_headers.clone())
-                        .json(&body)
-                        .send()
-                        .await
-                        .map_err(|err| {
-                            warn!(
-                                event = "upstream_response",
-                                trace_id = %ctx.trace_id,
-                                provider = %PROVIDER_NAME,
-                                op = "openai.chat",
-                                status = "error",
-                                elapsed_ms = started_at.elapsed().as_millis(),
-                                error = %err
-                            );
-                            network_failure(err, &scope)
-                        })?;
-                    info!(
-                        event = "upstream_response",
-                        trace_id = %ctx.trace_id,
-                        provider = %PROVIDER_NAME,
-                        op = "openai.chat",
-                        status = %response.status().as_u16(),
-                        elapsed_ms = started_at.elapsed().as_millis(),
-                        is_stream = is_stream
-                    );
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "openai.chat",
+                        "POST",
+                        &path,
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx
