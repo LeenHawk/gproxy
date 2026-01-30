@@ -455,13 +455,13 @@ fn map_reasoning(
     let thinking_enabled = matches!(thinking, Some(ClaudeThinkingConfigParam::Enabled { .. }));
 
     let effort = if !thinking_enabled {
-        ReasoningEffort::None
+        ReasoningEffort::Medium
     } else {
         match effort {
             Some(ClaudeOutputEffort::Low) => ReasoningEffort::Low,
             Some(ClaudeOutputEffort::Medium) => ReasoningEffort::Medium,
             Some(ClaudeOutputEffort::High) => ReasoningEffort::High,
-            None => ReasoningEffort::Low,
+            None => ReasoningEffort::Medium,
         }
     };
 

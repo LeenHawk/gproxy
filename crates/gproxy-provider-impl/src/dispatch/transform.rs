@@ -16,6 +16,7 @@ use gproxy_provider_core::{
 use gproxy_protocol::claude::create_message::stream::BetaStreamEvent;
 use gproxy_protocol::claude::get_model::response::GetModelResponse as ClaudeGetModelResponse;
 use gproxy_protocol::gemini;
+use gproxy_protocol::openai;
 use gproxy_protocol::sse::SseParser;
 use gproxy_transform::count_tokens;
 use gproxy_transform::generate_content;
@@ -23,6 +24,8 @@ use gproxy_transform::generate_content::claude2gemini::stream::GeminiToClaudeStr
 use gproxy_transform::generate_content::claude2openai_response::stream::ClaudeToOpenAIResponseStreamState;
 use gproxy_transform::generate_content::gemini2claude::stream::ClaudeToGeminiStreamState;
 use gproxy_transform::generate_content::gemini2openai_response::stream::GeminiToOpenAIResponseStreamState;
+use gproxy_transform::generate_content::openai_response2claude::stream::OpenAIResponseToClaudeStreamState;
+use gproxy_transform::generate_content::openai_response2gemini::stream::OpenAIResponseToGeminiStreamState;
 use gproxy_transform::get_model;
 use gproxy_transform::list_models;
 
@@ -74,6 +77,20 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     generate_content::claude2gemini::response::transform_response,
                 )
             }
+            GenerateContentPlan::Claude2OpenAIResponses(request) => {
+                let openai_request =
+                    generate_content::claude2openai_response::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIResponses(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    generate_content::openai_response2claude::response::transform_response,
+                )
+            }
             GenerateContentPlan::Gemini2Claude(request) => {
                 let claude_request =
                     generate_content::gemini2claude::request::transform_request(request);
@@ -86,6 +103,20 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     upstream_recorded,
                     ctx,
                     generate_content::gemini2claude::response::transform_response,
+                )
+            }
+            GenerateContentPlan::Gemini2OpenAIResponses(request) => {
+                let openai_request =
+                    generate_content::gemini2openai_response::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIResponses(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    generate_content::openai_response2gemini::response::transform_response,
                 )
             }
             GenerateContentPlan::OpenAIResponses2Claude(request) => {
@@ -150,6 +181,28 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                 )
                 .await
             }
+            StreamContentPlan::Claude2OpenAIResponses(request) => {
+                let openai_request =
+                    generate_content::claude2openai_response::request::transform_request(request);
+                transform_openai_responses_stream(
+                    provider,
+                    ProxyRequest::OpenAIResponsesStream(openai_request),
+                    ctx_native,
+                    ctx,
+                    usage.clone(),
+                    || {
+                        let mut state = OpenAIResponseToClaudeStreamState::new();
+                        move |event: openai::create_response::stream::ResponseStreamEvent| {
+                            state
+                                .transform_event(event)
+                                .into_iter()
+                                .filter_map(|event| sse_json_bytes(&event))
+                                .collect()
+                        }
+                    },
+                )
+                .await
+            }
             StreamContentPlan::Gemini2Claude(request) => {
                 let request = gemini_stream_to_generate(request);
                 let claude_request =
@@ -163,6 +216,29 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     || {
                         let mut state = ClaudeToGeminiStreamState::new();
                         move |event: BetaStreamEvent| -> Vec<Bytes> {
+                            state
+                                .transform_event(event)
+                                .into_iter()
+                                .filter_map(|response| sse_json_bytes(&response))
+                                .collect()
+                        }
+                    },
+                )
+                .await
+            }
+            StreamContentPlan::Gemini2OpenAIResponses(request) => {
+                let request = gemini_stream_to_generate(request);
+                let openai_request =
+                    generate_content::gemini2openai_response::request::transform_request(request);
+                transform_openai_responses_stream(
+                    provider,
+                    ProxyRequest::OpenAIResponsesStream(openai_request),
+                    ctx_native,
+                    ctx,
+                    usage.clone(),
+                    || {
+                        let mut state = OpenAIResponseToGeminiStreamState::new();
+                        move |event: openai::create_response::stream::ResponseStreamEvent| {
                             state
                                 .transform_event(event)
                                 .into_iter()
@@ -243,6 +319,19 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     count_tokens::claude2gemini::response::transform_response,
                 )
             }
+            CountTokensPlan::Claude2OpenAIInputTokens(request) => {
+                let openai_request = count_tokens::claude2openai::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIInputTokens(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    count_tokens::claude2openai::response::transform_response,
+                )
+            }
             CountTokensPlan::Gemini2Claude(request) => {
                 let claude_request = count_tokens::gemini2claude::request::transform_request(request);
                 let UpstreamOk { response, meta } = provider
@@ -254,6 +343,19 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     upstream_recorded,
                     ctx,
                     count_tokens::gemini2claude::response::transform_response,
+                )
+            }
+            CountTokensPlan::Gemini2OpenAIInputTokens(request) => {
+                let openai_request = count_tokens::gemini2openai::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIInputTokens(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    count_tokens::gemini2openai::response::transform_response,
                 )
             }
             CountTokensPlan::OpenAIInputTokens2Claude(request) => {
@@ -309,6 +411,19 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     list_models::claude2gemini::response::transform_response,
                 )
             }
+            ModelsListPlan::Claude2OpenAI(request) => {
+                let openai_request = list_models::claude2openai::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIModelsList(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    list_models::claude2openai::response::transform_response,
+                )
+            }
             ModelsListPlan::Gemini2Claude(request) => {
                 let claude_request = list_models::gemini2claude::request::transform_request(request);
                 let UpstreamOk { response, meta } = provider
@@ -320,6 +435,19 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     upstream_recorded,
                     ctx,
                     list_models::gemini2claude::response::transform_response,
+                )
+            }
+            ModelsListPlan::Gemini2OpenAI(request) => {
+                let openai_request = list_models::gemini2openai::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIModelsList(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    list_models::gemini2openai::response::transform_response,
                 )
             }
             ModelsListPlan::OpenAI2Claude(request) => {
@@ -375,6 +503,19 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     get_model::claude2gemini::response::transform_response,
                 )
             }
+            ModelsGetPlan::Claude2OpenAI(request) => {
+                let openai_request = get_model::claude2openai::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIModelsGet(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    get_model::claude2openai::response::transform_response,
+                )
+            }
             ModelsGetPlan::Gemini2Claude(request) => {
                 let claude_request = get_model::gemini2claude::request::transform_request(request);
                 let UpstreamOk { response, meta } = provider
@@ -420,6 +561,19 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                         "expected json response".to_string(),
                     )),
                 }
+            }
+            ModelsGetPlan::Gemini2OpenAI(request) => {
+                let openai_request = get_model::gemini2openai::request::transform_request(request);
+                let UpstreamOk { response, meta } = provider
+                    .call_native(ProxyRequest::OpenAIModelsGet(openai_request), ctx_native)
+                    .await?;
+                let upstream_recorded =
+                    record_upstream_only(response, meta, usage.clone(), ctx.clone()).await?;
+                transform_json_response(
+                    upstream_recorded,
+                    ctx,
+                    get_model::gemini2openai::response::transform_response,
+                )
             }
             ModelsGetPlan::OpenAI2Claude(request) => {
                 let claude_request = get_model::openai2claude::request::transform_request(request);
@@ -828,6 +982,192 @@ where
                                         continue;
                                     }
                                     for parsed in parse_gemini_stream_payload(&data) {
+                                        pending.extend(transform(parsed));
+                                    }
+                                }
+                                if pending.is_empty() {
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                },
+            );
+            Ok(ProxyResponse::Stream {
+                status,
+                headers,
+                body: StreamBody::new(body.content_type, stream),
+            })
+        }
+        ProxyResponse::Json { .. } => Err(UpstreamPassthroughError::service_unavailable(
+            "expected stream response".to_string(),
+        )),
+    }
+}
+
+async fn transform_openai_responses_stream<P, F, T>(
+    provider: &P,
+    upstream_req: ProxyRequest,
+    ctx_native: CallContext,
+    ctx_downstream: CallContext,
+    usage: UsageKind,
+    mut transform_factory: F,
+) -> Result<ProxyResponse, UpstreamPassthroughError>
+where
+    P: DispatchProvider,
+    F: FnMut() -> T + Send + 'static,
+    T: FnMut(openai::create_response::stream::ResponseStreamEvent) -> Vec<Bytes>
+        + Send
+        + 'static,
+{
+    let UpstreamOk { response, meta } = provider.call_native(upstream_req, ctx_native).await?;
+    match response {
+        ProxyResponse::Stream { status, headers, body } => {
+            let (down_tx, mut down_rx) = tokio::sync::mpsc::channel::<Bytes>(256);
+            let (up_tx, mut up_rx) = tokio::sync::mpsc::channel::<Bytes>(256);
+            let traffic = ctx_downstream.traffic.clone();
+            let downstream_meta = ctx_downstream.downstream_meta.clone();
+            let trace_id = ctx_downstream.trace_id.clone();
+            let response_headers = headers.clone();
+            let upstream_traffic = traffic.clone();
+            let upstream_trace_id = trace_id.clone();
+            let upstream_headers = response_headers.clone();
+            tokio::spawn(async move {
+                let mut usage_from_stream = None;
+                let mut usage_state = match usage {
+                    UsageKind::None => None,
+                    _ => Some(UsageState::OpenAIResponses(
+                        super::usage::OpenAIResponsesUsageState::new(),
+                    )),
+                };
+                let mut decoder = StreamDecoder::new();
+                let mut response_body = String::new();
+                while let Some(chunk) = up_rx.recv().await {
+                    for data in decoder.push(&chunk) {
+                        if data.is_empty() || data == "[DONE]" {
+                            continue;
+                        }
+                        response_body.push_str(&data);
+                        if let Some(state) = usage_state.as_mut() {
+                            state.push_event(&data);
+                        }
+                    }
+                }
+                for data in decoder.finish() {
+                    if data.is_empty() || data == "[DONE]" {
+                        continue;
+                    }
+                    response_body.push_str(&data);
+                    if let Some(state) = usage_state.as_mut() {
+                        state.push_event(&data);
+                    }
+                }
+                if let Some(state) = usage_state {
+                    usage_from_stream = map_usage_for_kind(usage, state.finish());
+                }
+                let body_bytes = if response_body.is_empty() {
+                    None
+                } else {
+                    Some(Bytes::from(response_body))
+                };
+                let event = gproxy_provider_core::build_upstream_event(
+                    Some(upstream_trace_id.clone()),
+                    meta,
+                    status,
+                    &upstream_headers,
+                    body_bytes.as_ref(),
+                    true,
+                    usage_from_stream,
+                );
+                upstream_traffic.record_upstream(event);
+            });
+            let downstream_traffic = traffic.clone();
+            let downstream_trace_id = trace_id.clone();
+            let downstream_headers = response_headers.clone();
+            tokio::spawn(async move {
+                let mut decoder = StreamDecoder::new();
+                let mut response_body = String::new();
+                while let Some(chunk) = down_rx.recv().await {
+                    for data in decoder.push(&chunk) {
+                        if data.is_empty() || data == "[DONE]" {
+                            continue;
+                        }
+                        response_body.push_str(&data);
+                    }
+                }
+                for data in decoder.finish() {
+                    if data.is_empty() || data == "[DONE]" {
+                        continue;
+                    }
+                    response_body.push_str(&data);
+                }
+                if let Some(meta) = downstream_meta {
+                    let body_bytes = if response_body.is_empty() {
+                        None
+                    } else {
+                        Some(Bytes::from(response_body))
+                    };
+                    let event = build_downstream_event(
+                        Some(downstream_trace_id.clone()),
+                        meta,
+                        status,
+                        &downstream_headers,
+                        body_bytes.as_ref(),
+                        true,
+                    );
+                    downstream_traffic.record_downstream(event);
+                }
+            });
+
+            let stream = unfold(
+                (
+                    body.stream,
+                    StreamDecoder::new(),
+                    transform_factory(),
+                    VecDeque::<Bytes>::new(),
+                    down_tx,
+                    up_tx,
+                ),
+                |(mut upstream, mut decoder, mut transform, mut pending, down_tx, up_tx)| async move {
+                    loop {
+                        if let Some(item) = pending.pop_front() {
+                            let _ = down_tx.send(item.clone()).await;
+                            return Some((
+                                Ok(item),
+                                (upstream, decoder, transform, pending, down_tx, up_tx),
+                            ));
+                        }
+                        match upstream.next().await {
+                            Some(Ok(bytes)) => {
+                                let _ = up_tx.send(bytes.clone()).await;
+                                for data in decoder.push(&bytes) {
+                                    if data.is_empty() {
+                                        continue;
+                                    }
+                                    if let Ok(parsed) = serde_json::from_str::<
+                                        openai::create_response::stream::ResponseStreamEvent,
+                                    >(&data)
+                                    {
+                                        pending.extend(transform(parsed));
+                                    }
+                                }
+                                continue;
+                            }
+                            Some(Err(err)) => {
+                                return Some((
+                                    Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+                                    (upstream, decoder, transform, pending, down_tx, up_tx),
+                                ))
+                            }
+                            None => {
+                                for data in decoder.finish() {
+                                    if data.is_empty() {
+                                        continue;
+                                    }
+                                    if let Ok(parsed) = serde_json::from_str::<
+                                        openai::create_response::stream::ResponseStreamEvent,
+                                    >(&data)
+                                    {
                                         pending.extend(transform(parsed));
                                     }
                                 }
