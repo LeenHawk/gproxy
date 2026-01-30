@@ -25,9 +25,9 @@ pub const PROVIDER_NAME: &str = "openai";
 const DEFAULT_BASE_URL: &str = "https://api.openai.com";
 const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Claude messages
-    transform_spec(TransformTarget::OpenAI, UsageKind::ClaudeMessage),
+    transform_spec(TransformTarget::OpenAI, UsageKind::OpenAIResponses),
     // Claude messages stream
-    transform_spec(TransformTarget::OpenAI, UsageKind::ClaudeMessage),
+    transform_spec(TransformTarget::OpenAI, UsageKind::OpenAIResponses),
     // Claude count tokens
     transform_spec(TransformTarget::OpenAI, UsageKind::None),
     // Claude models list
@@ -35,9 +35,9 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Claude models get
     transform_spec(TransformTarget::OpenAI, UsageKind::None),
     // Gemini generate
-    transform_spec(TransformTarget::OpenAI, UsageKind::GeminiGenerate),
+    transform_spec(TransformTarget::OpenAI, UsageKind::OpenAIResponses),
     // Gemini generate stream
-    transform_spec(TransformTarget::OpenAI, UsageKind::GeminiGenerate),
+    transform_spec(TransformTarget::OpenAI, UsageKind::OpenAIResponses),
     // Gemini count tokens
     transform_spec(TransformTarget::OpenAI, UsageKind::None),
     // Gemini models list

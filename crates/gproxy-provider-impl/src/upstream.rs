@@ -121,7 +121,7 @@ where
             provider,
             op,
             started_at.elapsed().as_millis(),
-            err,
+            &err,
         );
         network_failure(err, scope)
     })?;
@@ -140,7 +140,7 @@ pub async fn handle_response(
     response: wreq::Response,
     is_stream: bool,
     scope: DisallowScope,
-    ctx: &CallContext,
+    ctx: &UpstreamContext,
     record: Option<UpstreamRecordMeta>,
 ) -> Result<ProxyResponse, AttemptFailure> {
     let status = response.status();

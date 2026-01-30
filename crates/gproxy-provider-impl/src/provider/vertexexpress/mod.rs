@@ -25,9 +25,9 @@ pub const PROVIDER_NAME: &str = "vertexexpress";
 const DEFAULT_BASE_URL: &str = "https://aiplatform.googleapis.com";
 const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Claude messages
-    transform_spec(TransformTarget::Gemini, UsageKind::ClaudeMessage),
+    transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
     // Claude messages stream
-    transform_spec(TransformTarget::Gemini, UsageKind::ClaudeMessage),
+    transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
     // Claude count tokens
     transform_spec(TransformTarget::Gemini, UsageKind::None),
     // Claude models list
@@ -45,13 +45,13 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Gemini models get
     native_spec(UsageKind::None),
     // OpenAI chat
-    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIChat),
+    transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
     // OpenAI chat stream
-    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIChat),
+    transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
     // OpenAI responses
-    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIResponses),
+    transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
     // OpenAI responses stream
-    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIResponses),
+    transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
     // OpenAI input tokens
     transform_spec(TransformTarget::Gemini, UsageKind::None),
     // OpenAI models list

@@ -36,9 +36,9 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Claude models get
     native_spec(UsageKind::None),
     // Gemini generate
-    transform_spec(TransformTarget::Claude, UsageKind::GeminiGenerate),
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
     // Gemini generate stream
-    transform_spec(TransformTarget::Claude, UsageKind::GeminiGenerate),
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
     // Gemini count tokens
     transform_spec(TransformTarget::Claude, UsageKind::None),
     // Gemini models list
@@ -50,9 +50,9 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // OpenAI chat stream
     native_spec(UsageKind::OpenAIChat),
     // OpenAI responses
-    transform_spec(TransformTarget::Claude, UsageKind::OpenAIResponses),
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
     // OpenAI responses stream
-    transform_spec(TransformTarget::Claude, UsageKind::OpenAIResponses),
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
     // OpenAI input tokens
     transform_spec(TransformTarget::Claude, UsageKind::None),
     // OpenAI models list
