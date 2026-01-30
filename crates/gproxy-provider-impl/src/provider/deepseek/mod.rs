@@ -22,7 +22,7 @@ use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 
-mod tokenizer;
+const TOKENIZER_BYTES: &[u8] = include_bytes!("tokenizer.json");
 
 pub const PROVIDER_NAME: &str = "deepseek";
 const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
@@ -241,11 +241,7 @@ impl DeepSeekProvider {
                     let data_dir = credential_data_dir(credential.value());
                     let request_body = json_body_to_string(&body);
                     let request_headers = "{}".to_string();
-                    let token_count = self::tokenizer::count_input_tokens(
-                        &body,
-                        data_dir.as_deref(),
-                    )
-                    .await?;
+                    let token_count = count_input_tokens(&body, data_dir.as_deref())?;
                     let response_body = openai::count_tokens::response::InputTokenCountResponse {
                         object: openai::count_tokens::types::InputTokenObjectType::ResponseInputTokens,
                         input_tokens: token_count,
@@ -429,6 +425,74 @@ fn credential_data_dir(credential: &BaseCredential) -> Option<String> {
         .get("data_dir")
         .and_then(|value| value.as_str())
         .map(|value| value.to_string())
+}
+
+fn count_input_tokens(
+    body: &gproxy_protocol::openai::count_tokens::request::InputTokenCountRequestBody,
+    data_dir: Option<&str>,
+) -> Result<i64, AttemptFailure> {
+    use std::fs;
+    use std::path::Path;
+    use std::sync::{Mutex, OnceLock};
+    use tokenizers::Tokenizer;
+
+    let mut value = serde_json::to_value(body).map_err(|err| AttemptFailure {
+        passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+        mark: None,
+    })?;
+    if let Some(map) = value.as_object_mut() {
+        map.remove("model");
+    }
+    let text = serde_json::to_string(&value).map_err(|err| AttemptFailure {
+        passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+        mark: None,
+    })?;
+
+    static TOKENIZER: OnceLock<Mutex<Option<Tokenizer>>> = OnceLock::new();
+    let cache = TOKENIZER.get_or_init(|| Mutex::new(None));
+    let tokenizer = {
+        let mut guard = cache.lock().map_err(|_| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(
+                "tokenizer lock failed".to_string(),
+            ),
+            mark: None,
+        })?;
+        if guard.is_none() {
+            let tokenizer = Tokenizer::from_bytes(TOKENIZER_BYTES).map_err(|err| AttemptFailure {
+                passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+                mark: None,
+            })?;
+            *guard = Some(tokenizer);
+        }
+        guard
+            .as_ref()
+            .expect("tokenizer")
+            .clone()
+    };
+    let encoding = tokenizer.encode(text, false).map_err(|err| AttemptFailure {
+        passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+        mark: None,
+    })?;
+    let count = encoding.get_ids().len() as i64;
+
+    if let Some(dir) = data_dir
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        let path = Path::new(&dir)
+            .join("cache")
+            .join("tokenizers")
+            .join("deepseek")
+            .join("tokenizer.json");
+        if !path.exists() {
+            if let Some(parent) = path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::write(path, TOKENIZER_BYTES);
+        }
+    }
+
+    Ok(count)
 }
 
 fn build_url(base_url: Option<&str>, path: &str) -> String {
