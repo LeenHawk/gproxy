@@ -26,6 +26,7 @@ pub struct OpenAIToClaudeChatCompletionStreamState {
     model: ClaudeModel,
     message_started: bool,
     finish_emitted: bool,
+    pending_finish: Option<BetaStopReason>,
     next_block_index: u32,
     text_block_index: Option<u32>,
     tool_blocks: BTreeMap<i64, ToolBlockInfo>,
@@ -38,6 +39,7 @@ impl OpenAIToClaudeChatCompletionStreamState {
             model: ClaudeModel::Custom("unknown".to_string()),
             message_started: false,
             finish_emitted: false,
+            pending_finish: None,
             next_block_index: 0,
             text_block_index: None,
             tool_blocks: BTreeMap::new(),
@@ -77,56 +79,58 @@ impl OpenAIToClaudeChatCompletionStreamState {
             }));
         }
 
-        let choice = match chunk.choices.first() {
-            Some(choice) => choice,
-            None => return events,
-        };
+        let choice = chunk.choices.first();
 
-        if let Some(content) = &choice.delta.content {
-            events.extend(self.emit_text(content));
-        }
+        if let Some(choice) = choice {
+            if let Some(content) = &choice.delta.content {
+                events.extend(self.emit_text(content));
+            }
 
-        if let Some(refusal) = &choice.delta.refusal {
-            events.extend(self.emit_text(refusal));
-        }
+            if let Some(refusal) = &choice.delta.refusal {
+                events.extend(self.emit_text(refusal));
+            }
 
-        if let Some(tool_calls) = &choice.delta.tool_calls {
-            for call in tool_calls {
-                events.extend(self.emit_tool_call(call));
+            if let Some(tool_calls) = &choice.delta.tool_calls {
+                for call in tool_calls {
+                    events.extend(self.emit_tool_call(call));
+                }
+            }
+
+            if let Some(function_call) = &choice.delta.function_call {
+                events.extend(self.emit_function_call(function_call));
             }
         }
 
-        if let Some(function_call) = &choice.delta.function_call {
-            events.extend(self.emit_function_call(function_call));
-        }
-
         let usage = map_usage(chunk.usage);
-        let finish_reason = choice.finish_reason.map(map_finish_reason);
+        let finish_reason = choice.and_then(|choice| choice.finish_reason.map(map_finish_reason));
 
-        if finish_reason.is_some() {
-            events.extend(self.close_open_blocks());
-            self.finish_emitted = true;
+        if let Some(reason) = finish_reason {
+            if !self.finish_emitted {
+                events.extend(self.close_open_blocks());
+                self.pending_finish = Some(reason);
+            }
         }
 
-        if finish_reason.is_some() || usage.is_some() {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::MessageDelta {
-                delta: BetaStreamMessageDelta {
-                    stop_reason: finish_reason,
-                    stop_sequence: None,
-                },
-                usage: usage.unwrap_or(BetaStreamUsage {
-                    input_tokens: None,
-                    output_tokens: None,
-                    cache_creation_input_tokens: None,
-                    cache_read_input_tokens: None,
-                    cache_creation: None,
-                    server_tool_use: None,
-                }),
-            }));
-        }
-
-        if finish_reason.is_some() {
-            events.push(BetaStreamEvent::Known(BetaStreamEventKnown::MessageStop));
+        if let Some(usage) = usage {
+            if let Some(reason) = self.pending_finish.take() {
+                events.push(BetaStreamEvent::Known(BetaStreamEventKnown::MessageDelta {
+                    delta: BetaStreamMessageDelta {
+                        stop_reason: Some(reason),
+                        stop_sequence: None,
+                    },
+                    usage,
+                }));
+                events.push(BetaStreamEvent::Known(BetaStreamEventKnown::MessageStop));
+                self.finish_emitted = true;
+            } else {
+                events.push(BetaStreamEvent::Known(BetaStreamEventKnown::MessageDelta {
+                    delta: BetaStreamMessageDelta {
+                        stop_reason: None,
+                        stop_sequence: None,
+                    },
+                    usage,
+                }));
+            }
         }
 
         events

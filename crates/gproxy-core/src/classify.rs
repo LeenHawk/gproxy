@@ -135,8 +135,9 @@ fn classify_gemini(
                 is_stream: false,
             })
         }
-        [_version_segment, "models", model_segment] => {
-            let (model, action) = split_model_action(model_segment);
+        [_version_segment, "models", rest @ ..] => {
+            let joined = rest.join("/");
+            let (model, action) = split_model_action(&joined);
             if let Some(action) = action {
                 classify_gemini_action(method, model, action, body)
             } else {
@@ -162,8 +163,9 @@ fn classify_models(
     headers: &HeaderMap,
     body: Bytes,
 ) -> Result<ProxyClassified, ProxyError> {
-    if let ["v1", "models", model_segment] = segments {
-        let (model, action) = split_model_action(model_segment);
+    if let ["v1", "models", rest @ ..] = segments {
+        let joined = rest.join("/");
+        let (model, action) = split_model_action(&joined);
         if let Some(action) = action {
             return classify_gemini_action(method, model, action, body);
         }

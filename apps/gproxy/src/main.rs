@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 use clap::Parser;
 mod admin;
 mod cli;
+mod data_dir;
 mod dsn;
 mod traffic_sink;
 use gproxy_core::{AuthProvider, Core, MemoryAuth, ProviderLookup};
@@ -14,6 +15,7 @@ use time::OffsetDateTime;
 use tracing::info;
 
 use crate::cli::{Cli, GlobalConfig};
+use crate::data_dir::resolve_data_dir;
 use crate::dsn::resolve_dsn;
 use crate::admin::admin_router;
 use crate::traffic_sink::StorageTrafficSink;
@@ -29,7 +31,8 @@ async fn main() {
 
 async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let cli = Cli::parse();
-    let dsn = resolve_dsn(&cli.dsn)?;
+    let data_dir = resolve_data_dir(&cli.data_dir);
+    let dsn = resolve_dsn(&cli.dsn, &data_dir)?;
     let storage = TrafficStorage::connect(&dsn).await?;
     info!(dsn = %dsn, "db connected");
     storage.sync().await?;
@@ -46,7 +49,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
 
     let snapshot = storage.load_snapshot().await?;
 
-    let config = if let Some(config_row) = snapshot.global_config.as_ref() {
+    let mut config = if let Some(config_row) = snapshot.global_config.as_ref() {
         serde_json::from_value(config_row.config_json.clone())?
     } else {
         let config = GlobalConfig {
@@ -55,6 +58,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             admin_key: cli.admin_key.clone(),
             dsn: dsn.clone(),
             proxy: cli.proxy.clone(),
+            data_dir: data_dir.clone(),
         };
         let config_json = serde_json::to_value(&config)?;
         storage
@@ -62,6 +66,9 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             .await?;
         config
     };
+    if config.data_dir.trim().is_empty() {
+        config.data_dir = data_dir.clone();
+    }
     info!(
         host = %config.host,
         port = config.port,

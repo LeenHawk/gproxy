@@ -59,8 +59,10 @@ pub fn build_provider_pools(
     snapshot: &StorageSnapshot,
 ) -> HashMap<String, PoolSnapshot<BaseCredential>> {
     let mut provider_by_id = HashMap::new();
+    let mut provider_config_by_id: HashMap<i64, serde_json::Value> = HashMap::new();
     for provider in &snapshot.providers {
         provider_by_id.insert(provider.id, provider.name.clone());
+        provider_config_by_id.insert(provider.id, provider.config_json.clone());
     }
 
     let mut credentials_by_provider: HashMap<String, Vec<CredentialEntry<BaseCredential>>> =
@@ -81,6 +83,10 @@ pub fn build_provider_pools(
             0
         };
 
+        let provider_config = provider_config_by_id
+            .get(&credential.provider_id)
+            .unwrap_or(&serde_json::Value::Null);
+        let meta = merge_meta(provider_config, &credential.meta_json);
         let entry = CredentialEntry::new(
             credential.id.to_string(),
             credential.enabled,
@@ -89,7 +95,7 @@ pub fn build_provider_pools(
                 id: credential.id,
                 name: credential.name.clone(),
                 secret: credential.secret.clone(),
-                meta: credential.meta_json.clone(),
+                meta,
             },
         );
 
@@ -141,6 +147,23 @@ pub fn build_provider_pools(
     }
 
     pools
+}
+
+fn merge_meta(provider: &serde_json::Value, credential: &serde_json::Value) -> serde_json::Value {
+    match credential {
+        serde_json::Value::Object(cred_map) => match provider {
+            serde_json::Value::Object(provider_map) => {
+                let mut merged = provider_map.clone();
+                for (key, value) in cred_map {
+                    merged.insert(key.clone(), value.clone());
+                }
+                serde_json::Value::Object(merged)
+            }
+            _ => credential.clone(),
+        },
+        serde_json::Value::Null => provider.clone(),
+        _ => credential.clone(),
+    }
 }
 
 fn parse_disallow_scope(kind: &str, value: Option<&str>) -> Option<DisallowScope> {

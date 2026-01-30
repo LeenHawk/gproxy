@@ -258,6 +258,9 @@ async fn put_config(
     if desired.dsn.trim().is_empty() {
         desired.dsn = current_dsn.clone();
     }
+    if desired.data_dir.trim().is_empty() {
+        desired.data_dir = current_config.data_dir.clone();
+    }
     if desired.dsn.trim().is_empty() {
         return (
             StatusCode::BAD_REQUEST,
@@ -272,6 +275,7 @@ async fn put_config(
     };
 
     let dsn_changed = desired.dsn != current_dsn;
+    let data_dir_changed = desired.data_dir != current_config.data_dir;
     let bind_changed =
         desired.host != current_config.host || desired.port != current_config.port;
     let proxy_changed = desired.proxy != current_config.proxy;
@@ -349,6 +353,7 @@ async fn put_config(
                 .into_response();
         }
     }
+    let _ = data_dir_changed;
 
     Json(json!({
         "status": "ok",

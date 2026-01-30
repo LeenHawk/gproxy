@@ -17,4 +17,5 @@ wreq = { version = "6.0.0-rc.26", features = ["brotli", "charset", "cookies", "d
 serde_json = "1"
 serde = "1"
 serde_qs = "1.0.0-rc.5"
+tokenizers = "0.22"
 tokio = { version = "1", features = ["rt", "sync"] }

@@ -327,7 +327,28 @@ impl OpenAIUsageState {
                     openai_chat_total_tokens: Some(stream_usage.total_tokens),
                     ..Default::default()
                 });
+                return;
             }
+        }
+
+        let value: serde_json::Value = match serde_json::from_str(data) {
+            Ok(value) => value,
+            Err(_) => return,
+        };
+        let usage = match value.get("usage") {
+            Some(usage) => usage,
+            None => return,
+        };
+        let prompt_tokens = usage.get("prompt_tokens").and_then(|v| v.as_i64());
+        let completion_tokens = usage.get("completion_tokens").and_then(|v| v.as_i64());
+        let total_tokens = usage.get("total_tokens").and_then(|v| v.as_i64());
+        if prompt_tokens.is_some() || completion_tokens.is_some() || total_tokens.is_some() {
+            self.usage = Some(TrafficUsage {
+                openai_chat_prompt_tokens: prompt_tokens,
+                openai_chat_completion_tokens: completion_tokens,
+                openai_chat_total_tokens: total_tokens,
+                ..Default::default()
+            });
         }
     }
 

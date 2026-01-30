@@ -13,6 +13,7 @@ use gproxy_protocol::claude::create_message::stream::BetaStreamEvent;
 use gproxy_protocol::gemini;
 use gproxy_protocol::openai;
 use gproxy_protocol::sse::SseParser;
+use serde_json::Value as JsonValue;
 
 use super::super::plan::UsageKind;
 use super::super::stream::{parse_gemini_stream_payload, StreamDecoder};
@@ -489,10 +490,7 @@ where
                                     if data.is_empty() || data == "[DONE]" {
                                         continue;
                                     }
-                                    if let Ok(parsed) = serde_json::from_str::<
-                                        openai::create_chat_completions::stream::CreateChatCompletionStreamResponse,
-                                    >(&data)
-                                    {
+                                    if let Some(parsed) = parse_openai_chat_chunk(&data) {
                                         pending.extend(transform(parsed));
                                     }
                                 }
@@ -509,10 +507,7 @@ where
                                     if data.is_empty() || data == "[DONE]" {
                                         continue;
                                     }
-                                    if let Ok(parsed) = serde_json::from_str::<
-                                        openai::create_chat_completions::stream::CreateChatCompletionStreamResponse,
-                                    >(&data)
-                                    {
+                                    if let Some(parsed) = parse_openai_chat_chunk(&data) {
                                         pending.extend(transform(parsed));
                                     }
                                 }
@@ -534,6 +529,36 @@ where
             "expected stream response".to_string(),
         )),
     }
+}
+
+fn parse_openai_chat_chunk(
+    data: &str,
+) -> Option<openai::create_chat_completions::stream::CreateChatCompletionStreamResponse> {
+    if let Ok(parsed) = serde_json::from_str::<
+        openai::create_chat_completions::stream::CreateChatCompletionStreamResponse,
+    >(data)
+    {
+        return Some(parsed);
+    }
+
+    let mut value: JsonValue = serde_json::from_str(data).ok()?;
+    let obj = value.as_object_mut()?;
+    if !obj.contains_key("object") {
+        obj.insert(
+            "object".to_string(),
+            JsonValue::String("chat.completion.chunk".to_string()),
+        );
+    }
+    if !obj.contains_key("created") {
+        obj.insert("created".to_string(), JsonValue::Number(0.into()));
+    }
+    if !obj.contains_key("id") {
+        obj.insert("id".to_string(), JsonValue::String("unknown".to_string()));
+    }
+    if !obj.contains_key("model") {
+        obj.insert("model".to_string(), JsonValue::String("unknown".to_string()));
+    }
+    serde_json::from_value(value).ok()
 }
 
 pub(super) async fn transform_openai_responses_stream<P, F, T>(

@@ -32,7 +32,10 @@ use super::plan::{
     TransformPlan, UsageKind,
 };
 use super::record::record_upstream_only;
-use super::stream::{gemini_generate_to_stream, gemini_stream_to_generate, now_epoch_seconds, sse_json_bytes};
+use super::stream::{
+    gemini_generate_to_stream, gemini_stream_to_generate, now_epoch_seconds, sse_claude_bytes,
+    sse_json_bytes,
+};
 use super::{DispatchProvider, UpstreamOk};
 
 use self::json::transform_json_response;
@@ -112,6 +115,18 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     .$method(event)
                     .into_iter()
                     .filter_map(|response| sse_json_bytes(&response))
+                    .collect()
+            }
+        }};
+    }
+    macro_rules! map_claude_stream {
+        ($state:expr, $method:ident) => {{
+            let mut state = $state;
+            move |event| {
+                state
+                    .$method(event)
+                    .into_iter()
+                    .filter_map(|response| sse_claude_bytes(&response))
                     .collect()
             }
         }};
@@ -199,7 +214,7 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                 let stream_request = gemini_generate_to_stream(gemini_request);
                 run_gemini_stream!(
                     ProxyRequest::GeminiGenerateStream(stream_request),
-                    || map_stream!(GeminiToClaudeStreamState::new(), transform_response)
+                    || map_claude_stream!(GeminiToClaudeStreamState::new(), transform_response)
                 )
             }
             StreamContentPlan::Claude2OpenAIResponses(request) => {
@@ -207,7 +222,7 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     generate_content::claude2openai_response::request::transform_request(request);
                 run_openai_responses_stream!(
                     ProxyRequest::OpenAIResponsesStream(openai_request),
-                    || map_stream!(OpenAIResponseToClaudeStreamState::new(), transform_event)
+                    || map_claude_stream!(OpenAIResponseToClaudeStreamState::new(), transform_event)
                 )
             }
             StreamContentPlan::Claude2OpenAIChat(request) => {
@@ -215,7 +230,12 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                     claude2openai_chat_completions::request::transform_request(request);
                 run_openai_chat_stream!(
                     ProxyRequest::OpenAIChatStream(openai_request),
-                    || map_stream!(OpenAIToClaudeChatCompletionStreamState::new(), transform_chunk)
+                    || {
+                        map_claude_stream!(
+                            OpenAIToClaudeChatCompletionStreamState::new(),
+                            transform_chunk
+                        )
+                    }
                 )
             }
             StreamContentPlan::Gemini2Claude(request) => {

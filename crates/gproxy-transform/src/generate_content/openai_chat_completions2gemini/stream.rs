@@ -25,6 +25,7 @@ pub struct OpenAIChatCompletionToGeminiStreamState {
     content_parts: BTreeMap<i64, Vec<GeminiPart>>,
     tool_calls: BTreeMap<(i64, i64), ToolCallState>,
     usage: Option<UsageMetadata>,
+    pending_finishes: BTreeMap<i64, FinishReason>,
 }
 
 impl OpenAIChatCompletionToGeminiStreamState {
@@ -35,6 +36,7 @@ impl OpenAIChatCompletionToGeminiStreamState {
             content_parts: BTreeMap::new(),
             tool_calls: BTreeMap::new(),
             usage: None,
+            pending_finishes: BTreeMap::new(),
         }
     }
 
@@ -78,7 +80,19 @@ impl OpenAIChatCompletionToGeminiStreamState {
         }
 
         for (choice_index, reason) in finish_reasons {
-            responses.push(self.finish_choice(choice_index, reason));
+            let finish_reason = map_finish_reason(reason);
+            if self.usage.is_some() {
+                responses.push(self.finish_choice(choice_index, finish_reason));
+            } else {
+                self.pending_finishes.insert(choice_index, finish_reason);
+            }
+        }
+
+        if self.usage.is_some() && !self.pending_finishes.is_empty() {
+            let pending = std::mem::take(&mut self.pending_finishes);
+            for (choice_index, reason) in pending {
+                responses.push(self.finish_choice(choice_index, reason));
+            }
         }
 
         responses
@@ -89,10 +103,7 @@ impl OpenAIChatCompletionToGeminiStreamState {
             return Vec::new();
         }
 
-        let parts = self.content_parts.entry(choice_index).or_default();
-        parts.push(text_part(text));
-        let parts_snapshot = parts.clone();
-        vec![self.build_response(choice_index, parts_snapshot, None)]
+        vec![self.build_response(choice_index, vec![text_part(text)], None)]
     }
 
     fn handle_function_call(
@@ -170,12 +181,7 @@ impl OpenAIChatCompletionToGeminiStreamState {
         vec![self.build_response(choice_index, parts_snapshot, None)]
     }
 
-    fn finish_choice(
-        &mut self,
-        choice_index: i64,
-        reason: ChatCompletionFinishReason,
-    ) -> GenerateContentResponse {
-        let finish_reason = map_finish_reason(reason);
+    fn finish_choice(&mut self, choice_index: i64, finish_reason: FinishReason) -> GenerateContentResponse {
         let parts = self.content_parts.remove(&choice_index).unwrap_or_default();
         self.build_response(choice_index, parts, Some(finish_reason))
     }
@@ -212,6 +218,7 @@ impl OpenAIChatCompletionToGeminiStreamState {
         }
     }
 
+
     fn update_from_chunk(&mut self, chunk: &CreateChatCompletionStreamResponse) {
         self.response_id = chunk.id.clone();
         self.model_version = map_model_version(&chunk.model);
@@ -239,6 +246,7 @@ fn text_part(text: String) -> GeminiPart {
         video_metadata: None,
     }
 }
+
 
 fn map_finish_reason(reason: ChatCompletionFinishReason) -> FinishReason {
     match reason {

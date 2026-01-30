@@ -48,6 +48,7 @@ pub struct OpenAIChatCompletionToResponseStreamState {
     output_items: BTreeMap<i64, OutputItem>,
     usage: Option<ResponseUsage>,
     finished: bool,
+    pending_finish: Option<ChatCompletionFinishReason>,
 }
 
 impl OpenAIChatCompletionToResponseStreamState {
@@ -64,6 +65,7 @@ impl OpenAIChatCompletionToResponseStreamState {
             output_items: BTreeMap::new(),
             usage: None,
             finished: false,
+            pending_finish: None,
         }
     }
 
@@ -125,7 +127,13 @@ impl OpenAIChatCompletionToResponseStreamState {
         }
 
         if let Some(reason) = finish_reason {
-            events.extend(self.finish_response(reason));
+            self.pending_finish = Some(reason);
+        }
+
+        if self.pending_finish.is_some() && self.usage.is_some() {
+            if let Some(reason) = self.pending_finish.take() {
+                events.extend(self.finish_response(reason));
+            }
         }
 
         events

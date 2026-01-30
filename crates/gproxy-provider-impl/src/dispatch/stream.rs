@@ -4,6 +4,7 @@ use bytes::Bytes;
 use serde::Serialize;
 
 use gproxy_protocol::gemini;
+use gproxy_protocol::claude::create_message::stream::{BetaStreamEvent, BetaStreamEventKnown};
 use gproxy_protocol::sse::SseParser;
 
 pub(super) fn gemini_stream_to_generate(
@@ -31,6 +32,36 @@ pub(super) fn sse_json_bytes<T: Serialize>(value: &T) -> Option<Bytes> {
     data.extend_from_slice(&payload);
     data.extend_from_slice(b"\n\n");
     Some(Bytes::from(data))
+}
+
+pub(super) fn sse_claude_bytes(event: &BetaStreamEvent) -> Option<Bytes> {
+    let payload = serde_json::to_vec(event).ok()?;
+    let mut data = Vec::with_capacity(payload.len() + 32);
+    if let Some(name) = claude_event_name(event) {
+        data.extend_from_slice(b"event: ");
+        data.extend_from_slice(name.as_bytes());
+        data.extend_from_slice(b"\n");
+    }
+    data.extend_from_slice(b"data: ");
+    data.extend_from_slice(&payload);
+    data.extend_from_slice(b"\n\n");
+    Some(Bytes::from(data))
+}
+
+fn claude_event_name(event: &BetaStreamEvent) -> Option<&'static str> {
+    match event {
+        BetaStreamEvent::Known(kind) => Some(match kind {
+            BetaStreamEventKnown::MessageStart { .. } => "message_start",
+            BetaStreamEventKnown::ContentBlockStart { .. } => "content_block_start",
+            BetaStreamEventKnown::ContentBlockDelta { .. } => "content_block_delta",
+            BetaStreamEventKnown::ContentBlockStop { .. } => "content_block_stop",
+            BetaStreamEventKnown::MessageDelta { .. } => "message_delta",
+            BetaStreamEventKnown::MessageStop => "message_stop",
+            BetaStreamEventKnown::Ping => "ping",
+            BetaStreamEventKnown::Error { .. } => "error",
+        }),
+        BetaStreamEvent::Unknown(_) => None,
+    }
 }
 
 pub(super) fn now_epoch_seconds() -> i64 {
@@ -94,6 +125,7 @@ impl StreamDecoder {
                 if combined.contains("data:")
                     || combined.contains("event:")
                     || combined.starts_with(':')
+                    || matches!(first_non_ws, Some('d' | 'e' | ':'))
                 {
                     let mut parser = SseParser::new();
                     let events = parser.push_str(combined);
@@ -117,15 +149,18 @@ impl StreamDecoder {
                     self.pending.clear();
                     return events;
                 }
+                if matches!(first_non_ws, Some('{')) {
+                    let mut buffer = String::new();
+                    buffer.push_str(combined);
+                    let events = drain_ndjson(&mut buffer);
+                    self.mode = StreamDecoderMode::Ndjson(buffer);
+                    self.pending.clear();
+                    return events;
+                }
                 if first_non_ws.is_none() {
                     return Vec::new();
                 }
-                let mut buffer = String::new();
-                buffer.push_str(combined);
-                let events = drain_ndjson(&mut buffer);
-                self.mode = StreamDecoderMode::Ndjson(buffer);
-                self.pending.clear();
-                events
+                Vec::new()
             }
             StreamDecoderMode::Sse(parser) => parser
                 .push_str(text)
