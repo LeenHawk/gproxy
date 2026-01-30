@@ -10,8 +10,8 @@ pub use credential_pool::{AttemptFailure, CredentialEntry, CredentialPool, PoolS
 pub use disallow::{
     DisallowEntry, DisallowKey, DisallowLevel, DisallowMark, DisallowRecord, DisallowScope,
 };
-pub use provider::{CallContext, Provider};
-pub use request::{GeminiApiVersion, ProxyRequest};
+pub use provider::{DownstreamContext, Provider, UpstreamContext};
+pub use request::ProxyRequest;
 pub use response::{ProxyResponse, StreamBody, UpstreamPassthroughError};
 pub use state::{NoopStateSink, ProviderStateEvent, StateSink};
 pub use traffic::{

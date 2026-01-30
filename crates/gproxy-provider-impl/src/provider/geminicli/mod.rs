@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use serde_json::json;
 
 use gproxy_provider_core::{
-    CallContext, CredentialPool, PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink,
-    UpstreamPassthroughError,
+    CredentialPool, DownstreamContext, PoolSnapshot, Provider, ProxyRequest, ProxyResponse,
+    StateSink, UpstreamPassthroughError,
 };
 
 use crate::credential::BaseCredential;
@@ -55,7 +55,7 @@ impl Provider for GeminiCliProvider {
     async fn call(
         &self,
         _req: ProxyRequest,
-        _ctx: CallContext,
+        _ctx: DownstreamContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError> {
         Err(not_implemented(PROVIDER_NAME))
     }

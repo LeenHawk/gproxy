@@ -6,8 +6,8 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc;
 
 use gproxy_provider_core::{
-    build_downstream_event, build_upstream_event, CallContext, ProxyResponse, StreamBody,
-    UpstreamPassthroughError, UpstreamRecordMeta,
+    build_downstream_event, build_upstream_event, DownstreamContext, ProxyResponse, StreamBody,
+    UpstreamContext, UpstreamPassthroughError, UpstreamRecordMeta,
 };
 use super::stream::StreamDecoder;
 
@@ -18,7 +18,7 @@ pub(super) async fn record_upstream_only(
     response: ProxyResponse,
     meta: UpstreamRecordMeta,
     usage: UsageKind,
-    ctx: CallContext,
+    ctx: UpstreamContext,
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
     match &response {
         ProxyResponse::Json { status, headers, body } => {
@@ -43,7 +43,7 @@ pub(super) async fn record_upstream_and_downstream(
     response: ProxyResponse,
     meta: UpstreamRecordMeta,
     usage: UsageKind,
-    ctx: CallContext,
+    ctx: DownstreamContext,
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
     match response {
         ProxyResponse::Json { status, headers, body } => {
@@ -80,6 +80,7 @@ pub(super) async fn record_upstream_and_downstream(
             tokio::spawn(async move {
                 let mut decoder = StreamDecoder::new();
                 let mut response_body = String::new();
+                let mut response_body_raw = String::new();
                 let mut usage_state = match usage {
                     UsageKind::ClaudeMessage => Some(UsageState::Claude(super::usage::ClaudeUsageState::new())),
                     UsageKind::OpenAIChat => Some(UsageState::OpenAI(super::usage::OpenAIUsageState::new())),
@@ -92,6 +93,8 @@ pub(super) async fn record_upstream_and_downstream(
                     UsageKind::None => None,
                 };
                 while let Some(chunk) = rx.recv().await {
+                    response_body_raw.push_str(&String::from_utf8_lossy(&chunk));
+                    response_body_raw.push('\n');
                     for data in decoder.push(&chunk) {
                         if data.is_empty() || data == "[DONE]" {
                             continue;
@@ -112,10 +115,10 @@ pub(super) async fn record_upstream_and_downstream(
                     }
                 }
                 let usage = usage_state.and_then(|state| state.finish());
-                let body_bytes = if response_body.is_empty() {
+                let body_bytes = if response_body_raw.is_empty() {
                     None
                 } else {
-                    Some(Bytes::from(response_body))
+                    Some(Bytes::from(response_body_raw.clone()))
                 };
                 let upstream_event = build_upstream_event(
                     Some(trace_id.clone()),
@@ -128,12 +131,17 @@ pub(super) async fn record_upstream_and_downstream(
                 );
                 traffic.record_upstream(upstream_event);
                 if let Some(downstream_meta) = downstream_meta {
+                    let downstream_body_bytes = if response_body_raw.is_empty() {
+                        None
+                    } else {
+                        Some(Bytes::from(response_body_raw))
+                    };
                     let downstream_event = build_downstream_event(
                         Some(trace_id.clone()),
                         downstream_meta,
                         status,
                         &response_headers,
-                        body_bytes.as_ref(),
+                        downstream_body_bytes.as_ref(),
                         true,
                     );
                     traffic.record_downstream(downstream_event);

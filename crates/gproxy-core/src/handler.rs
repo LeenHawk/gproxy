@@ -7,7 +7,7 @@ use axum::http::{HeaderMap, HeaderValue, Method, Uri};
 use axum::response::Response;
 use bytes::Bytes;
 use gproxy_provider_core::{
-    CallContext, DownstreamRecordMeta, DownstreamTrafficEvent, ProxyRequest, ProxyResponse,
+    DownstreamContext, DownstreamRecordMeta, DownstreamTrafficEvent, ProxyRequest, ProxyResponse,
     UpstreamPassthroughError,
 };
 use http::header::CONTENT_TYPE;
@@ -81,7 +81,7 @@ pub async fn proxy_handler(
         user_id.as_deref(),
         key_id.as_deref(),
     );
-    let ctx = CallContext {
+    let ctx = DownstreamContext {
         trace_id: trace_id.clone(),
         request_id: request_id(&headers),
         user_id: auth_ctx.user_id,
@@ -370,20 +370,20 @@ fn request_operation_model(request: &ProxyRequest) -> (String, Option<String>) {
         ProxyRequest::ClaudeModelsGet(req) => {
             ("claude.models_get".to_string(), Some(req.path.model_id.clone()))
         }
-        ProxyRequest::GeminiGenerate { version, request } => {
-            (format!("gemini.generate.{version:?}").to_lowercase(), Some(request.path.model.clone()))
+        ProxyRequest::GeminiGenerate(request) => {
+            ("gemini.generate".to_string(), Some(request.path.model.clone()))
         }
-        ProxyRequest::GeminiGenerateStream { version, request } => {
-            (format!("gemini.generate_stream.{version:?}").to_lowercase(), Some(request.path.model.clone()))
+        ProxyRequest::GeminiGenerateStream(request) => {
+            ("gemini.generate_stream".to_string(), Some(request.path.model.clone()))
         }
-        ProxyRequest::GeminiCountTokens { version, request } => {
-            (format!("gemini.count_tokens.{version:?}").to_lowercase(), Some(request.path.model.clone()))
+        ProxyRequest::GeminiCountTokens(request) => {
+            ("gemini.count_tokens".to_string(), Some(request.path.model.clone()))
         }
-        ProxyRequest::GeminiModelsList { version, .. } => {
-            (format!("gemini.models_list.{version:?}").to_lowercase(), None)
+        ProxyRequest::GeminiModelsList(_) => {
+            ("gemini.models_list".to_string(), None)
         }
-        ProxyRequest::GeminiModelsGet { version, request } => {
-            (format!("gemini.models_get.{version:?}").to_lowercase(), Some(request.path.name.clone()))
+        ProxyRequest::GeminiModelsGet(request) => {
+            ("gemini.models_get".to_string(), Some(request.path.name.clone()))
         }
         ProxyRequest::OpenAIChat(req) => ("openai.chat".to_string(), Some(req.body.model.clone())),
         ProxyRequest::OpenAIChatStream(req) => ("openai.chat_stream".to_string(), Some(req.body.model.clone())),

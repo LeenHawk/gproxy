@@ -8,16 +8,17 @@ use serde_json::{json, Value as JsonValue};
 use tracing::{info, warn};
 
 use gproxy_provider_core::{
-    AttemptFailure, CallContext, CredentialPool, DisallowScope, PoolSnapshot, Provider,
-    ProxyRequest, ProxyResponse, StateSink, UpstreamPassthroughError, UpstreamRecordMeta,
+    AttemptFailure, CredentialPool, DisallowScope, DownstreamContext, PoolSnapshot, Provider,
+    ProxyRequest, ProxyResponse, StateSink, UpstreamContext, UpstreamPassthroughError,
+    UpstreamRecordMeta,
 };
 use gproxy_protocol::gemini;
 
 use crate::client::shared_client;
 use crate::credential::BaseCredential;
 use crate::dispatch::{
-    dispatch_request, CountTokensPlan, DispatchPlan, DispatchProvider, GenerateContentPlan,
-    ModelsGetPlan, ModelsListPlan, StreamContentPlan, TransformPlan, UsageKind, UpstreamOk,
+    dispatch_request, DispatchProvider, DispatchTable, TransformTarget, UsageKind, UpstreamOk,
+    native_spec, transform_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, network_failure};
@@ -25,6 +26,42 @@ use crate::ProviderDefault;
 
 pub const PROVIDER_NAME: &str = "vertexexpress";
 const DEFAULT_BASE_URL: &str = "https://aiplatform.googleapis.com";
+const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
+    // Claude messages
+    transform_spec(TransformTarget::Gemini, UsageKind::ClaudeMessage),
+    // Claude messages stream
+    transform_spec(TransformTarget::Gemini, UsageKind::ClaudeMessage),
+    // Claude count tokens
+    transform_spec(TransformTarget::Gemini, UsageKind::None),
+    // Claude models list
+    transform_spec(TransformTarget::Gemini, UsageKind::None),
+    // Claude models get
+    transform_spec(TransformTarget::Gemini, UsageKind::None),
+    // Gemini generate
+    native_spec(UsageKind::GeminiGenerate),
+    // Gemini generate stream
+    native_spec(UsageKind::GeminiGenerate),
+    // Gemini count tokens
+    native_spec(UsageKind::None),
+    // Gemini models list
+    native_spec(UsageKind::None),
+    // Gemini models get
+    native_spec(UsageKind::None),
+    // OpenAI chat
+    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIChat),
+    // OpenAI chat stream
+    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIChat),
+    // OpenAI responses
+    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIResponses),
+    // OpenAI responses stream
+    transform_spec(TransformTarget::Gemini, UsageKind::OpenAIResponses),
+    // OpenAI input tokens
+    transform_spec(TransformTarget::Gemini, UsageKind::None),
+    // OpenAI models list
+    transform_spec(TransformTarget::Gemini, UsageKind::None),
+    // OpenAI models get
+    transform_spec(TransformTarget::Gemini, UsageKind::None),
+]);
 const MODELS_JSON: &str = include_str!("models.json");
 
 pub fn default_provider() -> ProviderDefault {
@@ -67,7 +104,7 @@ impl Provider for VertexExpressProvider {
     async fn call(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: DownstreamContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError> {
         dispatch_request(self, req, ctx).await
     }
@@ -75,150 +112,30 @@ impl Provider for VertexExpressProvider {
 
 #[async_trait]
 impl DispatchProvider for VertexExpressProvider {
-    fn dispatch_plan(&self, req: ProxyRequest) -> DispatchPlan {
-        match req {
-            ProxyRequest::GeminiGenerate { version: _, request } => DispatchPlan::Native {
-                req: ProxyRequest::GeminiGenerate {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                },
-                usage: UsageKind::GeminiGenerate,
-            },
-            ProxyRequest::GeminiGenerateStream { version: _, request } => DispatchPlan::Native {
-                req: ProxyRequest::GeminiGenerateStream {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                },
-                usage: UsageKind::GeminiGenerate,
-            },
-            ProxyRequest::GeminiCountTokens { version: _, request } => DispatchPlan::Native {
-                req: ProxyRequest::GeminiCountTokens {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                },
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiModelsList { version: _, request } => DispatchPlan::Native {
-                req: ProxyRequest::GeminiModelsList {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                },
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiModelsGet { version: _, request } => DispatchPlan::Native {
-                req: ProxyRequest::GeminiModelsGet {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                },
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIResponses(request) => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::OpenAIResponses2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::OpenAIResponses,
-            },
-            ProxyRequest::OpenAIChat(request) => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::OpenAIChat2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::OpenAIChat,
-            },
-            ProxyRequest::OpenAIResponsesStream(request) => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::OpenAIResponses2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::OpenAIResponses,
-            },
-            ProxyRequest::OpenAIChatStream(request) => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::OpenAIChat2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::OpenAIChat,
-            },
-            ProxyRequest::OpenAIInputTokens(request) => DispatchPlan::Transform {
-                plan: TransformPlan::CountTokens(CountTokensPlan::OpenAIInputTokens2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIModelsList(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsList(ModelsListPlan::OpenAI2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIModelsGet(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsGet(ModelsGetPlan::OpenAI2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeMessages(request) => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::Claude2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::ClaudeMessage,
-            },
-            ProxyRequest::ClaudeMessagesStream(request) => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::Claude2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::ClaudeMessage,
-            },
-            ProxyRequest::ClaudeCountTokens(request) => DispatchPlan::Transform {
-                plan: TransformPlan::CountTokens(CountTokensPlan::Claude2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeModelsList(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsList(ModelsListPlan::Claude2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeModelsGet(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsGet(ModelsGetPlan::Claude2Gemini {
-                    version: gproxy_provider_core::GeminiApiVersion::V1Beta,
-                    request,
-                }),
-                usage: UsageKind::None,
-            },
-        }
+    fn dispatch_table(&self) -> &'static DispatchTable {
+        &DISPATCH_TABLE
     }
 
     async fn call_native(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         match req {
-            ProxyRequest::GeminiGenerate { version, request } => {
-                self.handle_generate(version, request, false, ctx).await
+            ProxyRequest::GeminiGenerate(request) => {
+                self.handle_generate(request, false, ctx).await
             }
-            ProxyRequest::GeminiGenerateStream { version, request } => {
-                self.handle_generate_stream(version, request, ctx).await
+            ProxyRequest::GeminiGenerateStream(request) => {
+                self.handle_generate_stream(request, ctx).await
             }
-            ProxyRequest::GeminiCountTokens { version, request } => {
-                self.handle_count_tokens(version, request, ctx).await
+            ProxyRequest::GeminiCountTokens(request) => {
+                self.handle_count_tokens(request, ctx).await
             }
-            ProxyRequest::GeminiModelsList { version, request } => {
-                self.handle_models_list(version, request, ctx).await
+            ProxyRequest::GeminiModelsList(request) => {
+                self.handle_models_list(request, ctx).await
             }
-            ProxyRequest::GeminiModelsGet { version, request } => {
-                self.handle_models_get(version, request, ctx).await
+            ProxyRequest::GeminiModelsGet(request) => {
+                self.handle_models_get(request, ctx).await
             }
             _ => Err(UpstreamPassthroughError::service_unavailable(
                 "non-native operation".to_string(),
@@ -230,10 +147,9 @@ impl DispatchProvider for VertexExpressProvider {
 impl VertexExpressProvider {
     async fn handle_generate(
         &self,
-        version: gproxy_provider_core::GeminiApiVersion,
         request: gemini::generate_content::request::GenerateContentRequest,
         is_stream: bool,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -249,9 +165,8 @@ impl VertexExpressProvider {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
                     let base_url = credential_base_url(credential.value());
-                    let version_prefix = version_prefix(version);
                     let path = format!(
-                        "/{version_prefix}/publishers/google/models/{model}:generateContent"
+                        "/v1beta1/publishers/google/models/{model}:generateContent"
                     );
                     let url = build_url(
                         base_url.as_deref(),
@@ -301,10 +216,7 @@ impl VertexExpressProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "gemini.generate".to_string(),
                         model: Some(model),
@@ -330,9 +242,8 @@ impl VertexExpressProvider {
 
     async fn handle_generate_stream(
         &self,
-        version: gproxy_provider_core::GeminiApiVersion,
         request: gemini::stream_content::request::StreamGenerateContentRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -348,9 +259,8 @@ impl VertexExpressProvider {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
                     let base_url = credential_base_url(credential.value());
-                    let version_prefix = version_prefix(version);
                     let path = format!(
-                        "/{version_prefix}/publishers/google/models/{model}:streamGenerateContent"
+                        "/v1beta1/publishers/google/models/{model}:streamGenerateContent"
                     );
                     let url = build_url(
                         base_url.as_deref(),
@@ -400,10 +310,7 @@ impl VertexExpressProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "gemini.stream_generate".to_string(),
                         model: Some(model),
@@ -429,9 +336,8 @@ impl VertexExpressProvider {
 
     async fn handle_count_tokens(
         &self,
-        version: gproxy_provider_core::GeminiApiVersion,
         request: gemini::count_tokens::request::CountTokensRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -447,9 +353,8 @@ impl VertexExpressProvider {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
                     let base_url = credential_base_url(credential.value());
-                    let version_prefix = version_prefix(version);
                     let path =
-                        format!("/{version_prefix}/publishers/google/models/{model}:countTokens");
+                        format!("/v1beta1/publishers/google/models/{model}:countTokens");
                     let url = build_url(
                         base_url.as_deref(),
                         &format!("{path}?key={api_key}"),
@@ -498,10 +403,7 @@ impl VertexExpressProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "gemini.count_tokens".to_string(),
                         model: Some(model),
@@ -527,9 +429,8 @@ impl VertexExpressProvider {
 
     async fn handle_models_list(
         &self,
-        version: gproxy_provider_core::GeminiApiVersion,
         _request: gemini::list_models::request::ListModelsRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::AllModels;
 
@@ -540,18 +441,14 @@ impl VertexExpressProvider {
                 async move {
                     let _api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let version_prefix = version_prefix(version);
-                    let path = format!("/{version_prefix}/models");
+                    let path = "/v1beta1/models".to_string();
                     let body_json = local_models_json();
                     let body = serde_json::to_vec(&body_json).unwrap_or_default();
                     let mut headers = HeaderMap::new();
                     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "gemini.models_list.local".to_string(),
                         model: None,
@@ -574,9 +471,8 @@ impl VertexExpressProvider {
 
     async fn handle_models_get(
         &self,
-        version: gproxy_provider_core::GeminiApiVersion,
         request: gemini::get_model::request::GetModelRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::AllModels;
         let name = request.path.name;
@@ -589,8 +485,7 @@ impl VertexExpressProvider {
                 async move {
                     let _api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let version_prefix = version_prefix(version);
-                    let path = format!("/{version_prefix}/models/{name}");
+                    let path = format!("/v1beta1/models/{name}");
                     let model = find_local_model(&name);
                     let (status, body_json) = match model {
                         Some(model) => (http::StatusCode::OK, model),
@@ -604,10 +499,7 @@ impl VertexExpressProvider {
                     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "gemini.models_get.local".to_string(),
                         model: Some(name),
@@ -682,13 +574,6 @@ fn build_url(base_url: Option<&str>, path: &str) -> String {
         path = path.trim_start_matches("v1beta1/").trim_start_matches("v1beta1");
     }
     format!("{base}/{path}")
-}
-
-fn version_prefix(version: gproxy_provider_core::GeminiApiVersion) -> &'static str {
-    match version {
-        gproxy_provider_core::GeminiApiVersion::V1 => "v1",
-        gproxy_provider_core::GeminiApiVersion::V1Beta => "v1beta1",
-    }
 }
 
 fn invalid_credential(scope: &DisallowScope, message: &str) -> AttemptFailure {

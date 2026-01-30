@@ -7,9 +7,9 @@ use serde_json::{json, Value as JsonValue};
 use tracing::{info, warn};
 
 use gproxy_provider_core::{
-    AttemptFailure, CallContext, CredentialPool, DisallowLevel, DisallowMark, DisallowScope,
-    PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink, UpstreamPassthroughError,
-    UpstreamRecordMeta,
+    AttemptFailure, CredentialPool, DisallowLevel, DisallowMark, DisallowScope, DownstreamContext,
+    PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink, UpstreamContext,
+    UpstreamPassthroughError, UpstreamRecordMeta,
 };
 use gproxy_protocol::claude;
 use gproxy_protocol::openai;
@@ -17,8 +17,8 @@ use gproxy_protocol::claude::types::{AnthropicBetaHeader, AnthropicVersion};
 use crate::client::shared_client;
 use crate::credential::BaseCredential;
 use crate::dispatch::{
-    dispatch_request, CountTokensPlan, DispatchPlan, DispatchProvider, GenerateContentPlan,
-    ModelsGetPlan, ModelsListPlan, StreamContentPlan, TransformPlan, UsageKind, UpstreamOk,
+    dispatch_request, DispatchProvider, DispatchTable, TransformTarget, UsageKind, UpstreamOk,
+    native_spec, transform_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, network_failure};
@@ -26,6 +26,42 @@ use crate::ProviderDefault;
 
 pub const PROVIDER_NAME: &str = "claude";
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
+const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
+    // Claude messages
+    native_spec(UsageKind::ClaudeMessage),
+    // Claude messages stream
+    native_spec(UsageKind::ClaudeMessage),
+    // Claude count tokens
+    native_spec(UsageKind::None),
+    // Claude models list
+    native_spec(UsageKind::None),
+    // Claude models get
+    native_spec(UsageKind::None),
+    // Gemini generate
+    transform_spec(TransformTarget::Claude, UsageKind::GeminiGenerate),
+    // Gemini generate stream
+    transform_spec(TransformTarget::Claude, UsageKind::GeminiGenerate),
+    // Gemini count tokens
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // Gemini models list
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // Gemini models get
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // OpenAI chat
+    native_spec(UsageKind::OpenAIChat),
+    // OpenAI chat stream
+    native_spec(UsageKind::OpenAIChat),
+    // OpenAI responses
+    transform_spec(TransformTarget::Claude, UsageKind::OpenAIResponses),
+    // OpenAI responses stream
+    transform_spec(TransformTarget::Claude, UsageKind::OpenAIResponses),
+    // OpenAI input tokens
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // OpenAI models list
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // OpenAI models get
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+]);
 const HEADER_API_KEY: &str = "x-api-key";
 const HEADER_VERSION: &str = "anthropic-version";
 const HEADER_BETA: &str = "anthropic-beta";
@@ -70,7 +106,7 @@ impl Provider for ClaudeProvider {
     async fn call(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: DownstreamContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError> {
         dispatch_request(self, req, ctx).await
     }
@@ -78,91 +114,14 @@ impl Provider for ClaudeProvider {
 
 #[async_trait]
 impl DispatchProvider for ClaudeProvider {
-    fn dispatch_plan(&self, req: ProxyRequest) -> DispatchPlan {
-        match req {
-            ProxyRequest::ClaudeMessages(request) => DispatchPlan::Native {
-                req: ProxyRequest::ClaudeMessages(request),
-                usage: UsageKind::ClaudeMessage,
-            },
-            ProxyRequest::ClaudeMessagesStream(request) => DispatchPlan::Native {
-                req: ProxyRequest::ClaudeMessagesStream(request),
-                usage: UsageKind::ClaudeMessage,
-            },
-            ProxyRequest::ClaudeCountTokens(request) => DispatchPlan::Native {
-                req: ProxyRequest::ClaudeCountTokens(request),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeModelsList(request) => DispatchPlan::Native {
-                req: ProxyRequest::ClaudeModelsList(request),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeModelsGet(request) => DispatchPlan::Native {
-                req: ProxyRequest::ClaudeModelsGet(request),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIChat(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIChat(request),
-                usage: UsageKind::OpenAIChat,
-            },
-            ProxyRequest::OpenAIChatStream(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIChatStream(request),
-                usage: UsageKind::OpenAIChat,
-            },
-            ProxyRequest::OpenAIResponses(request) => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::OpenAIResponses2Claude(
-                    request,
-                )),
-                usage: UsageKind::OpenAIResponses,
-            },
-            ProxyRequest::OpenAIResponsesStream(request) => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::OpenAIResponses2Claude(
-                    request,
-                )),
-                usage: UsageKind::OpenAIResponses,
-            },
-            ProxyRequest::OpenAIInputTokens(request) => DispatchPlan::Transform {
-                plan: TransformPlan::CountTokens(CountTokensPlan::OpenAIInputTokens2Claude(
-                    request,
-                )),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIModelsList(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsList(ModelsListPlan::OpenAI2Claude(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIModelsGet(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsGet(ModelsGetPlan::OpenAI2Claude(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiGenerate { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::Gemini2Claude(
-                    request,
-                )),
-                usage: UsageKind::GeminiGenerate,
-            },
-            ProxyRequest::GeminiGenerateStream { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::Gemini2Claude(request)),
-                usage: UsageKind::GeminiGenerate,
-            },
-            ProxyRequest::GeminiCountTokens { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::CountTokens(CountTokensPlan::Gemini2Claude(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiModelsList { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsList(ModelsListPlan::Gemini2Claude(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiModelsGet { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsGet(ModelsGetPlan::Gemini2Claude(request)),
-                usage: UsageKind::None,
-            },
-        }
+    fn dispatch_table(&self) -> &'static DispatchTable {
+        &DISPATCH_TABLE
     }
 
     async fn call_native(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         match req {
             ProxyRequest::ClaudeMessages(request) => self.handle_messages(request, false, ctx).await,
@@ -190,7 +149,7 @@ impl ClaudeProvider {
         &self,
         request: claude::create_message::request::CreateMessageRequest,
         is_stream: bool,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = model_to_string(&request.body.model);
         let scope = DisallowScope::model(model.clone());
@@ -257,10 +216,7 @@ impl ClaudeProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "claude.messages".to_string(),
                         model: Some(model),
@@ -288,7 +244,7 @@ impl ClaudeProvider {
     async fn handle_count_tokens(
         &self,
         request: claude::count_tokens::request::CountTokensRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = model_to_string(&request.body.model);
         let scope = DisallowScope::model(model.clone());
@@ -352,10 +308,7 @@ impl ClaudeProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "claude.count_tokens".to_string(),
                         model: Some(model),
@@ -383,7 +336,7 @@ impl ClaudeProvider {
     async fn handle_models_list(
         &self,
         request: claude::list_models::request::ListModelsRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::AllModels;
         let headers = request.headers;
@@ -448,10 +401,7 @@ impl ClaudeProvider {
                     let request_query = if qs.is_empty() { None } else { Some(qs) };
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "claude.models_list".to_string(),
                         model: None,
@@ -479,7 +429,7 @@ impl ClaudeProvider {
     async fn handle_models_get(
         &self,
         request: claude::get_model::request::GetModelRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::model(request.path.model_id.clone());
         let headers = request.headers;
@@ -543,10 +493,7 @@ impl ClaudeProvider {
 
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "claude.models_get".to_string(),
                         model: Some(model_id.clone()),
@@ -575,7 +522,7 @@ impl ClaudeProvider {
         &self,
         request: openai::create_chat_completions::request::CreateChatCompletionRequest,
         is_stream: bool,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.body.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -654,10 +601,7 @@ impl ClaudeProvider {
 
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "openai.chat.completions".to_string(),
                         model: Some(model),

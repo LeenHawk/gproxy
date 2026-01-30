@@ -7,7 +7,7 @@ use crate::response::{ProxyResponse, UpstreamPassthroughError};
 use crate::traffic::{DownstreamRecordMeta, NoopTrafficSink, SharedTrafficSink};
 
 #[derive(Clone)]
-pub struct CallContext {
+pub struct DownstreamContext {
     pub trace_id: String,
     pub request_id: Option<String>,
     pub user_id: Option<String>,
@@ -17,7 +17,7 @@ pub struct CallContext {
     pub downstream_meta: Option<DownstreamRecordMeta>,
 }
 
-impl Default for CallContext {
+impl Default for DownstreamContext {
     fn default() -> Self {
         Self {
             trace_id: String::new(),
@@ -31,6 +31,28 @@ impl Default for CallContext {
     }
 }
 
+#[derive(Clone)]
+pub struct UpstreamContext {
+    pub trace_id: String,
+    pub provider_id: Option<i64>,
+    pub proxy: Option<String>,
+    pub traffic: SharedTrafficSink,
+}
+
+impl DownstreamContext {
+    pub fn upstream(&self) -> UpstreamContext {
+        UpstreamContext {
+            trace_id: self.trace_id.clone(),
+            provider_id: self
+                .downstream_meta
+                .as_ref()
+                .and_then(|meta| meta.provider_id),
+            proxy: self.proxy.clone(),
+            traffic: self.traffic.clone(),
+        }
+    }
+}
+
 #[async_trait]
 pub trait Provider: Send + Sync {
     fn name(&self) -> &str;
@@ -38,6 +60,6 @@ pub trait Provider: Send + Sync {
     async fn call(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: DownstreamContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError>;
 }

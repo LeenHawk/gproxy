@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_provider_core::{GeminiApiVersion, ProxyRequest};
+use gproxy_provider_core::ProxyRequest;
 use gproxy_protocol::claude;
 use gproxy_protocol::gemini;
 use gproxy_protocol::openai;
@@ -119,11 +119,10 @@ fn classify_gemini(
     query: Option<&str>,
     body: Bytes,
 ) -> Result<ProxyClassified, ProxyError> {
-    let version = match segments.first().copied() {
-        Some("v1") => GeminiApiVersion::V1,
-        Some("v1beta") => GeminiApiVersion::V1Beta,
+    match segments.first().copied() {
+        Some("v1") | Some("v1beta") => {}
         _ => return Err(ProxyError::not_found("unknown gemini path")),
-    };
+    }
 
     match segments {
         [_version_segment, "models"] => {
@@ -132,14 +131,14 @@ fn classify_gemini(
                 parse_query_or_default::<gemini::list_models::request::ListModelsQuery>(query)?;
             let request = gemini::list_models::request::ListModelsRequest { query };
             Ok(ProxyClassified {
-                request: ProxyRequest::GeminiModelsList { version, request },
+                request: ProxyRequest::GeminiModelsList(request),
                 is_stream: false,
             })
         }
         [_version_segment, "models", model_segment] => {
             let (model, action) = split_model_action(model_segment);
             if let Some(action) = action {
-                classify_gemini_action(method, version, model, action, body)
+                classify_gemini_action(method, model, action, body)
             } else {
                 ensure_method(method, Method::GET, "gemini model get")?;
                 let path = gemini::get_model::request::GetModelPath {
@@ -147,7 +146,7 @@ fn classify_gemini(
                 };
                 let request = gemini::get_model::request::GetModelRequest { path };
                 Ok(ProxyClassified {
-                    request: ProxyRequest::GeminiModelsGet { version, request },
+                    request: ProxyRequest::GeminiModelsGet(request),
                     is_stream: false,
                 })
             }
@@ -166,7 +165,7 @@ fn classify_models(
     if let ["v1", "models", model_segment] = segments {
         let (model, action) = split_model_action(model_segment);
         if let Some(action) = action {
-            return classify_gemini_action(method, GeminiApiVersion::V1, model, action, body);
+            return classify_gemini_action(method, model, action, body);
         }
     }
     match detect_models_protocol(headers, query) {
@@ -178,7 +177,6 @@ fn classify_models(
 
 fn classify_gemini_action(
     method: &Method,
-    version: GeminiApiVersion,
     model: &str,
     action: &str,
     body: Bytes,
@@ -195,7 +193,7 @@ fn classify_gemini_action(
             };
             let request = gemini::generate_content::request::GenerateContentRequest { path, body };
             Ok(ProxyClassified {
-                request: ProxyRequest::GeminiGenerate { version, request },
+                request: ProxyRequest::GeminiGenerate(request),
                 is_stream: false,
             })
         }
@@ -212,7 +210,7 @@ fn classify_gemini_action(
                 body,
             };
             Ok(ProxyClassified {
-                request: ProxyRequest::GeminiGenerateStream { version, request },
+                request: ProxyRequest::GeminiGenerateStream(request),
                 is_stream: true,
             })
         }
@@ -226,7 +224,7 @@ fn classify_gemini_action(
             };
             let request = gemini::count_tokens::request::CountTokensRequest { path, body };
             Ok(ProxyClassified {
-                request: ProxyRequest::GeminiCountTokens { version, request },
+                request: ProxyRequest::GeminiCountTokens(request),
                 is_stream: false,
             })
         }

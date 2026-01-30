@@ -8,16 +8,17 @@ use serde_json::{json, Value as JsonValue};
 use tracing::{info, warn};
 
 use gproxy_provider_core::{
-    AttemptFailure, CallContext, CredentialPool, DisallowScope, PoolSnapshot, Provider,
-    ProxyRequest, ProxyResponse, StateSink, UpstreamPassthroughError, UpstreamRecordMeta,
+    AttemptFailure, CredentialPool, DisallowScope, DownstreamContext, PoolSnapshot, Provider,
+    ProxyRequest, ProxyResponse, StateSink, UpstreamContext, UpstreamPassthroughError,
+    UpstreamRecordMeta,
 };
 use gproxy_protocol::openai;
 
 use crate::client::shared_client;
 use crate::credential::BaseCredential;
 use crate::dispatch::{
-    dispatch_request, CountTokensPlan, DispatchPlan, DispatchProvider, GenerateContentPlan,
-    ModelsGetPlan, ModelsListPlan, StreamContentPlan, TransformPlan, UsageKind, UpstreamOk,
+    dispatch_request, DispatchProvider, DispatchTable, TransformTarget, UsageKind, UpstreamOk,
+    native_spec, transform_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, network_failure};
@@ -25,6 +26,42 @@ use crate::ProviderDefault;
 
 pub const PROVIDER_NAME: &str = "openai";
 const DEFAULT_BASE_URL: &str = "https://api.openai.com";
+const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
+    // Claude messages
+    transform_spec(TransformTarget::OpenAI, UsageKind::ClaudeMessage),
+    // Claude messages stream
+    transform_spec(TransformTarget::OpenAI, UsageKind::ClaudeMessage),
+    // Claude count tokens
+    transform_spec(TransformTarget::OpenAI, UsageKind::None),
+    // Claude models list
+    transform_spec(TransformTarget::OpenAI, UsageKind::None),
+    // Claude models get
+    transform_spec(TransformTarget::OpenAI, UsageKind::None),
+    // Gemini generate
+    transform_spec(TransformTarget::OpenAI, UsageKind::GeminiGenerate),
+    // Gemini generate stream
+    transform_spec(TransformTarget::OpenAI, UsageKind::GeminiGenerate),
+    // Gemini count tokens
+    transform_spec(TransformTarget::OpenAI, UsageKind::None),
+    // Gemini models list
+    transform_spec(TransformTarget::OpenAI, UsageKind::None),
+    // Gemini models get
+    transform_spec(TransformTarget::OpenAI, UsageKind::None),
+    // OpenAI chat
+    native_spec(UsageKind::OpenAIChat),
+    // OpenAI chat stream
+    native_spec(UsageKind::OpenAIChat),
+    // OpenAI responses
+    native_spec(UsageKind::OpenAIResponses),
+    // OpenAI responses stream
+    native_spec(UsageKind::OpenAIResponses),
+    // OpenAI input tokens
+    native_spec(UsageKind::None),
+    // OpenAI models list
+    native_spec(UsageKind::None),
+    // OpenAI models get
+    native_spec(UsageKind::None),
+]);
 
 pub fn default_provider() -> ProviderDefault {
     ProviderDefault {
@@ -66,7 +103,7 @@ impl Provider for OpenAIProvider {
     async fn call(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: DownstreamContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError> {
         dispatch_request(self, req, ctx).await
     }
@@ -74,95 +111,14 @@ impl Provider for OpenAIProvider {
 
 #[async_trait]
 impl DispatchProvider for OpenAIProvider {
-    fn dispatch_plan(&self, req: ProxyRequest) -> DispatchPlan {
-        match req {
-            ProxyRequest::OpenAIChat(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIChat(request),
-                usage: UsageKind::OpenAIChat,
-            },
-            ProxyRequest::OpenAIChatStream(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIChatStream(request),
-                usage: UsageKind::OpenAIChat,
-            },
-            ProxyRequest::OpenAIResponses(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIResponses(request),
-                usage: UsageKind::OpenAIResponses,
-            },
-            ProxyRequest::OpenAIResponsesStream(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIResponsesStream(request),
-                usage: UsageKind::OpenAIResponses,
-            },
-            ProxyRequest::OpenAIInputTokens(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIInputTokens(request),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIModelsList(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIModelsList(request),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::OpenAIModelsGet(request) => DispatchPlan::Native {
-                req: ProxyRequest::OpenAIModelsGet(request),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeMessages(request) => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::Claude2OpenAIResponses(
-                    request,
-                )),
-                usage: UsageKind::ClaudeMessage,
-            },
-            ProxyRequest::ClaudeMessagesStream(request) => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::Claude2OpenAIResponses(
-                    request,
-                )),
-                usage: UsageKind::ClaudeMessage,
-            },
-            ProxyRequest::ClaudeCountTokens(request) => DispatchPlan::Transform {
-                plan: TransformPlan::CountTokens(CountTokensPlan::Claude2OpenAIInputTokens(
-                    request,
-                )),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeModelsList(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsList(ModelsListPlan::Claude2OpenAI(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::ClaudeModelsGet(request) => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsGet(ModelsGetPlan::Claude2OpenAI(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiGenerate { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::GenerateContent(GenerateContentPlan::Gemini2OpenAIResponses(
-                    request,
-                )),
-                usage: UsageKind::GeminiGenerate,
-            },
-            ProxyRequest::GeminiGenerateStream { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::StreamContent(StreamContentPlan::Gemini2OpenAIResponses(
-                    request,
-                )),
-                usage: UsageKind::GeminiGenerate,
-            },
-            ProxyRequest::GeminiCountTokens { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::CountTokens(CountTokensPlan::Gemini2OpenAIInputTokens(
-                    request,
-                )),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiModelsList { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsList(ModelsListPlan::Gemini2OpenAI(request)),
-                usage: UsageKind::None,
-            },
-            ProxyRequest::GeminiModelsGet { request, .. } => DispatchPlan::Transform {
-                plan: TransformPlan::ModelsGet(ModelsGetPlan::Gemini2OpenAI(request)),
-                usage: UsageKind::None,
-            },
-        }
+    fn dispatch_table(&self) -> &'static DispatchTable {
+        &DISPATCH_TABLE
     }
 
     async fn call_native(
         &self,
         req: ProxyRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         match req {
             ProxyRequest::OpenAIChat(request) => self.handle_chat(request, false, ctx).await,
@@ -186,7 +142,7 @@ impl OpenAIProvider {
         &self,
         request: openai::create_chat_completions::request::CreateChatCompletionRequest,
         is_stream: bool,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.body.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -266,10 +222,7 @@ impl OpenAIProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "openai.chat.completions".to_string(),
                         model: Some(model),
@@ -297,7 +250,7 @@ impl OpenAIProvider {
         &self,
         request: openai::create_response::request::CreateResponseRequest,
         is_stream: bool,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.body.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -362,10 +315,7 @@ impl OpenAIProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "openai.responses".to_string(),
                         model: Some(model),
@@ -392,7 +342,7 @@ impl OpenAIProvider {
     async fn handle_input_tokens(
         &self,
         request: openai::count_tokens::request::InputTokenCountRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.body.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -454,10 +404,7 @@ impl OpenAIProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "openai.input_tokens".to_string(),
                         model: Some(model),
@@ -484,7 +431,7 @@ impl OpenAIProvider {
     async fn handle_models_list(
         &self,
         _request: openai::list_models::request::ListModelsRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::AllModels;
 
@@ -539,10 +486,7 @@ impl OpenAIProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "openai.models_list".to_string(),
                         model: None,
@@ -569,7 +513,7 @@ impl OpenAIProvider {
     async fn handle_models_get(
         &self,
         request: openai::get_model::request::GetModelRequest,
-        ctx: CallContext,
+        ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
@@ -627,10 +571,7 @@ impl OpenAIProvider {
                     );
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx
-                            .downstream_meta
-                            .as_ref()
-                            .and_then(|meta| meta.provider_id),
+                        provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "openai.models_get".to_string(),
                         model: Some(model),
