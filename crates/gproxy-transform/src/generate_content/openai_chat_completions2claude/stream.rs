@@ -84,6 +84,8 @@ impl OpenAIToClaudeChatCompletionStreamState {
         if let Some(choice) = choice {
             if let Some(content) = &choice.delta.content {
                 events.extend(self.emit_text(content));
+            } else if let Some(reasoning) = &choice.delta.reasoning_content {
+                events.extend(self.emit_text(reasoning));
             }
 
             if let Some(refusal) = &choice.delta.refusal {

@@ -12,7 +12,7 @@ pub fn transform_response(response: OpenAIListModelsResponse) -> ClaudeListModel
         .into_iter()
         .map(|model| ClaudeModelInfo {
             id: model.id.clone(),
-            created_at: OffsetDateTime::from_unix_timestamp(model.created)
+            created_at: OffsetDateTime::from_unix_timestamp(model.created.unwrap_or(0))
                 .unwrap_or(OffsetDateTime::UNIX_EPOCH),
             display_name: model.id,
             r#type: ClaudeModelType::Model,

@@ -160,6 +160,7 @@ impl OpenAIResponseToChatCompletionStreamState {
         let role = self.take_role();
         self.emit_delta(ChatCompletionStreamResponseDelta {
             content: Some(event.delta),
+            reasoning_content: None,
             function_call: None,
             tool_calls: None,
             role,
@@ -182,6 +183,7 @@ impl OpenAIResponseToChatCompletionStreamState {
             let role = self.take_role();
             self.emit_delta(ChatCompletionStreamResponseDelta {
                 content: Some(delta),
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: None,
                 role,
@@ -207,6 +209,7 @@ impl OpenAIResponseToChatCompletionStreamState {
         let role = self.take_role();
         self.emit_delta(ChatCompletionStreamResponseDelta {
             content: None,
+            reasoning_content: None,
             function_call: None,
             tool_calls: None,
             role,
@@ -230,6 +233,7 @@ impl OpenAIResponseToChatCompletionStreamState {
             let role = self.take_role();
             self.emit_delta(ChatCompletionStreamResponseDelta {
                 content: None,
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: None,
                 role,
@@ -463,6 +467,7 @@ impl OpenAIResponseToChatCompletionStreamState {
         let finish_reason = self.resolve_finish_reason();
         let mut delta = ChatCompletionStreamResponseDelta {
             content: None,
+            reasoning_content: None,
             function_call: None,
             tool_calls: None,
             role: self.take_role(),
@@ -594,6 +599,7 @@ impl OpenAIResponseToChatCompletionStreamState {
         let role = self.take_role();
         self.emit_delta(ChatCompletionStreamResponseDelta {
             content: None,
+            reasoning_content: None,
             function_call: None,
             tool_calls: Some(vec![chunk]),
             role,

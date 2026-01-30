@@ -72,6 +72,7 @@ impl ClaudeToOpenAIChatCompletionStreamState {
                     ChatCompletionStreamResponseDelta {
                         role: Some(ChatCompletionRole::Assistant),
                         content: None,
+                        reasoning_content: None,
                         function_call: None,
                         tool_calls: None,
                         refusal: None,
@@ -103,6 +104,7 @@ impl ClaudeToOpenAIChatCompletionStreamState {
                         ChatCompletionStreamResponseDelta {
                             role: None,
                             content: None,
+                            reasoning_content: None,
                             function_call: None,
                             tool_calls: None,
                             refusal: None,
@@ -120,6 +122,7 @@ impl ClaudeToOpenAIChatCompletionStreamState {
                         ChatCompletionStreamResponseDelta {
                             role: None,
                             content: None,
+                            reasoning_content: None,
                             function_call: None,
                             tool_calls: None,
                             refusal: None,
@@ -234,6 +237,7 @@ impl ClaudeToOpenAIChatCompletionStreamState {
             ChatCompletionStreamResponseDelta {
                 role: None,
                 content: None,
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: Some(vec![tool_call]),
                 refusal: None,
@@ -263,6 +267,7 @@ impl ClaudeToOpenAIChatCompletionStreamState {
             ChatCompletionStreamResponseDelta {
                 role: None,
                 content: None,
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: Some(vec![tool_call]),
                 refusal: None,
@@ -278,6 +283,7 @@ impl ClaudeToOpenAIChatCompletionStreamState {
             ChatCompletionStreamResponseDelta {
                 role: None,
                 content: Some(text),
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: None,
                 refusal: None,

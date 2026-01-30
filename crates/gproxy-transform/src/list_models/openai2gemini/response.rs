@@ -21,7 +21,7 @@ pub fn transform_response(response: GeminiListModelsResponse) -> OpenAIListModel
             OpenAIModel {
                 id,
                 // Gemini model metadata does not expose a created timestamp; use 0 as a placeholder.
-                created: 0,
+                created: Some(0),
                 object: OpenAIModelObjectType::Model,
                 owned_by: "unknown".to_string(),
             }

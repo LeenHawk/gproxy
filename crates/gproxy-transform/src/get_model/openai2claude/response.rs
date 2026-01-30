@@ -8,7 +8,7 @@ use gproxy_protocol::openai::get_model::types::{
 pub fn transform_response(response: ClaudeGetModelResponse) -> OpenAIGetModelResponse {
     OpenAIModel {
         id: response.id,
-        created: response.created_at.unix_timestamp(),
+        created: Some(response.created_at.unix_timestamp()),
         object: OpenAIModelObjectType::Model,
         // Claude's model metadata does not include ownership; use a stable placeholder.
         owned_by: "unknown".to_string(),

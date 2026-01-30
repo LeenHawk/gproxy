@@ -12,7 +12,8 @@ pub struct Model {
     /// The model identifier, which can be referenced in the API endpoints.
     pub id: String,
     /// The Unix timestamp (in seconds) when the model was created.
-    pub created: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created: Option<i64>,
     /// The object type, which is always "model".
     pub object: ModelObjectType,
     /// The organization that owns the model.

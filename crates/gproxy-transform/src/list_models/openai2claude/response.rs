@@ -12,7 +12,7 @@ pub fn transform_response(response: ClaudeListModelsResponse) -> OpenAIListModel
         .into_iter()
         .map(|model| OpenAIModel {
             id: model.id,
-            created: model.created_at.unix_timestamp(),
+            created: Some(model.created_at.unix_timestamp()),
             object: OpenAIModelObjectType::Model,
             // Claude model metadata does not include ownership; use a stable placeholder.
             owned_by: "unknown".to_string(),

@@ -58,6 +58,8 @@ impl OpenAIChatCompletionToGeminiStreamState {
 
             if let Some(content) = delta.content {
                 responses.extend(self.emit_text(choice_index, content));
+            } else if let Some(reasoning) = delta.reasoning_content {
+                responses.extend(self.emit_text(choice_index, reasoning));
             }
 
             if let Some(refusal) = delta.refusal {

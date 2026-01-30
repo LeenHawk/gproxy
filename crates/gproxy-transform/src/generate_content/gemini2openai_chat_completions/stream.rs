@@ -177,6 +177,7 @@ impl GeminiToOpenAIChatCompletionStreamState {
             choice_index,
             ChatCompletionStreamResponseDelta {
                 content: Some(delta_text),
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: None,
                 role,
@@ -250,6 +251,7 @@ impl GeminiToOpenAIChatCompletionStreamState {
             choice_index,
             ChatCompletionStreamResponseDelta {
                 content: None,
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: Some(vec![chunk]),
                 role,
@@ -276,6 +278,7 @@ impl GeminiToOpenAIChatCompletionStreamState {
             choice_index,
             ChatCompletionStreamResponseDelta {
                 content: None,
+                reasoning_content: None,
                 function_call: None,
                 tool_calls: None,
                 role,
