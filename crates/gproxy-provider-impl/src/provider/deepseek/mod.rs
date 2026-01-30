@@ -67,8 +67,7 @@ pub fn default_provider() -> ProviderDefault {
     ProviderDefault {
         name: PROVIDER_NAME,
         config_json: json!({
-            "base_url": DEFAULT_BASE_URL,
-            "data_dir": "./data"
+            "base_url": DEFAULT_BASE_URL
         }),
         enabled: true,
     }
@@ -238,10 +237,9 @@ impl DeepSeekProvider {
                 async move {
                     let _api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let data_dir = credential_data_dir(credential.value());
                     let request_body = json_body_to_string(&body);
                     let request_headers = "{}".to_string();
-                    let token_count = count_input_tokens(&body, data_dir.as_deref())?;
+                    let token_count = count_input_tokens(&body)?;
                     let response_body = openai::count_tokens::response::InputTokenCountResponse {
                         object: openai::count_tokens::types::InputTokenObjectType::ResponseInputTokens,
                         input_tokens: token_count,
@@ -419,20 +417,9 @@ fn credential_base_url(credential: &BaseCredential) -> Option<String> {
         .map(|value| value.to_string())
 }
 
-fn credential_data_dir(credential: &BaseCredential) -> Option<String> {
-    credential
-        .meta
-        .get("data_dir")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-}
-
 fn count_input_tokens(
     body: &gproxy_protocol::openai::count_tokens::request::InputTokenCountRequestBody,
-    data_dir: Option<&str>,
 ) -> Result<i64, AttemptFailure> {
-    use std::fs;
-    use std::path::Path;
     use std::sync::{Mutex, OnceLock};
     use tokenizers::Tokenizer;
 
@@ -473,26 +460,7 @@ fn count_input_tokens(
         passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
         mark: None,
     })?;
-    let count = encoding.get_ids().len() as i64;
-
-    if let Some(dir) = data_dir
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
-        let path = Path::new(&dir)
-            .join("cache")
-            .join("tokenizers")
-            .join("deepseek")
-            .join("tokenizer.json");
-        if !path.exists() {
-            if let Some(parent) = path.parent() {
-                let _ = fs::create_dir_all(parent);
-            }
-            let _ = fs::write(path, TOKENIZER_BYTES);
-        }
-    }
-
-    Ok(count)
+    Ok(encoding.get_ids().len() as i64)
 }
 
 fn build_url(base_url: Option<&str>, path: &str) -> String {
