@@ -3,6 +3,7 @@ pub mod dispatch;
 pub mod credential;
 pub mod record;
 pub mod upstream;
+pub mod storage;
 pub mod provider;
 pub mod registry;
 

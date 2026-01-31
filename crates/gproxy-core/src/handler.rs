@@ -392,6 +392,9 @@ fn request_operation_model(request: &ProxyRequest) -> (String, Option<String>) {
         ProxyRequest::OpenAIInputTokens(req) => ("openai.input_tokens".to_string(), Some(req.body.model.clone())),
         ProxyRequest::OpenAIModelsList(_) => ("openai.models_list".to_string(), None),
         ProxyRequest::OpenAIModelsGet(req) => ("openai.models_get".to_string(), Some(req.path.model.clone())),
+        ProxyRequest::CodexOAuthStart { .. } => ("codex.oauth".to_string(), None),
+        ProxyRequest::CodexOAuthCallback { .. } => ("codex.oauth_callback".to_string(), None),
+        ProxyRequest::CodexUsage => ("codex.usage".to_string(), None),
     }
 }
 

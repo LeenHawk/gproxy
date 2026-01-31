@@ -16,7 +16,7 @@ use crate::client::shared_client;
 use crate::credential::BaseCredential;
 use crate::dispatch::{
     dispatch_request, DispatchProvider, DispatchTable, TransformTarget, UsageKind, UpstreamOk,
-    native_spec, transform_spec,
+    native_spec, transform_spec, unsupported_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, send_with_logging};
@@ -59,6 +59,13 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     transform_spec(TransformTarget::Claude, UsageKind::None),
     // OpenAI models get
     transform_spec(TransformTarget::Claude, UsageKind::None),
+
+    // Codex oauth start
+    unsupported_spec(),
+    // Codex oauth callback
+    unsupported_spec(),
+    // Codex usage
+    unsupported_spec(),
 ]);
 const HEADER_API_KEY: &str = "x-api-key";
 const HEADER_VERSION: &str = "anthropic-version";

@@ -1,6 +1,7 @@
 use gproxy_protocol::claude;
 use gproxy_protocol::gemini;
 use gproxy_protocol::openai;
+use http::HeaderMap;
 
 #[derive(Debug, Clone)]
 pub enum ProxyRequest {
@@ -23,4 +24,14 @@ pub enum ProxyRequest {
     OpenAIInputTokens(openai::count_tokens::request::InputTokenCountRequest),
     OpenAIModelsList(openai::list_models::request::ListModelsRequest),
     OpenAIModelsGet(openai::get_model::request::GetModelRequest),
+
+    CodexOAuthStart {
+        query: Option<String>,
+        headers: HeaderMap,
+    },
+    CodexOAuthCallback {
+        query: Option<String>,
+        headers: HeaderMap,
+    },
+    CodexUsage,
 }

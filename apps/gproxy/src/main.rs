@@ -9,6 +9,7 @@ mod dsn;
 mod traffic_sink;
 use gproxy_core::{AuthProvider, Core, MemoryAuth, ProviderLookup};
 use gproxy_provider_impl::{build_registry, default_providers};
+use gproxy_provider_impl::storage as provider_storage;
 mod snapshot;
 use gproxy_storage::{StorageBus, StorageBusConfig, TrafficStorage};
 use time::OffsetDateTime;
@@ -36,6 +37,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let storage = TrafficStorage::connect(&dsn).await?;
     info!(dsn = %dsn, "db connected");
     storage.sync().await?;
+    provider_storage::set_global_storage(storage.clone());
     let defaults = default_providers()
         .into_iter()
         .map(|provider| gproxy_storage::AdminProviderInput {

@@ -29,6 +29,33 @@ pub fn classify_request(
     }
 
     match segments.as_slice() {
+        ["oauth"] => {
+            ensure_method(method, Method::GET, "codex oauth")?;
+            Ok(ProxyClassified {
+                request: ProxyRequest::CodexOAuthStart {
+                    query: query.map(|q| q.to_string()),
+                    headers: headers.clone(),
+                },
+                is_stream: false,
+            })
+        }
+        ["oauth", "callback"] => {
+            ensure_method(method, Method::GET, "codex oauth callback")?;
+            Ok(ProxyClassified {
+                request: ProxyRequest::CodexOAuthCallback {
+                    query: query.map(|q| q.to_string()),
+                    headers: headers.clone(),
+                },
+                is_stream: false,
+            })
+        }
+        ["usage"] => {
+            ensure_method(method, Method::GET, "codex usage")?;
+            Ok(ProxyClassified {
+                request: ProxyRequest::CodexUsage,
+                is_stream: false,
+            })
+        }
         ["v1", "messages", ..] => classify_claude(method, &segments, query, headers, body),
         ["v1", "chat", "completions"] | ["v1", "responses", ..] => {
             classify_openai(method, &segments, body)

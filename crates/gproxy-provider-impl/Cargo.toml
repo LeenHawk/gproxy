@@ -7,11 +7,15 @@ edition = "2024"
 gproxy-provider-core = { path = "../gproxy-provider-core" }
 gproxy-protocol = { path = "../gproxy-protocol" }
 gproxy-transform = { path = "../gproxy-transform" }
+gproxy-storage = { path = "../gproxy-storage" }
 async-trait = "0.1"
+base64 = "0.22"
 bytes = "1"
 futures-util = "0.3"
 http = "1"
 httpdate = "1"
+rand = "0.9"
+sha2 = "0.10"
 tracing = "0.1"
 wreq = { version = "6.0.0-rc.26", features = ["brotli", "charset", "cookies", "deflate", "form", "gzip", "json", "multipart", "query", "socks", "stream", "system-proxy", "tracing", "ws", "zstd"] }
 serde_json = "1"
@@ -20,3 +24,6 @@ serde_qs = "1.0.0-rc.5"
 tokenizers = "0.22"
 tokio = { version = "1", features = ["rt", "sync"] }
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
+tiktoken-rs = "0.9"
+time = { version = "0.3", features = ["formatting"] }
+urlencoding = "2"

@@ -36,10 +36,13 @@ pub enum OperationKind {
     OpenAIInputTokens = 14,
     OpenAIModelsList = 15,
     OpenAIModelsGet = 16,
+    CodexOAuthStart = 17,
+    CodexOAuthCallback = 18,
+    CodexUsage = 19,
 }
 
 impl OperationKind {
-    pub const COUNT: usize = 17;
+    pub const COUNT: usize = 20;
 
     pub fn from_request(req: &ProxyRequest) -> Self {
         match req {
@@ -60,6 +63,9 @@ impl OperationKind {
             ProxyRequest::OpenAIInputTokens(_) => OperationKind::OpenAIInputTokens,
             ProxyRequest::OpenAIModelsList(_) => OperationKind::OpenAIModelsList,
             ProxyRequest::OpenAIModelsGet(_) => OperationKind::OpenAIModelsGet,
+            ProxyRequest::CodexOAuthStart { .. } => OperationKind::CodexOAuthStart,
+            ProxyRequest::CodexOAuthCallback { .. } => OperationKind::CodexOAuthCallback,
+            ProxyRequest::CodexUsage => OperationKind::CodexUsage,
         }
     }
 
@@ -329,6 +335,9 @@ fn build_transform_plan(
             )),
             _ => None,
         },
+        ProxyRequest::CodexOAuthStart { .. }
+        | ProxyRequest::CodexOAuthCallback { .. }
+        | ProxyRequest::CodexUsage => None,
     }
 }
 
