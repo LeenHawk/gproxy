@@ -30,9 +30,9 @@ pub fn classify_request(
 
     match segments.as_slice() {
         ["oauth"] => {
-            ensure_method(method, Method::GET, "codex oauth")?;
+            ensure_method(method, Method::GET, "oauth")?;
             Ok(ProxyClassified {
-                request: ProxyRequest::CodexOAuthStart {
+                request: ProxyRequest::OAuthStart {
                     query: query.map(|q| q.to_string()),
                     headers: headers.clone(),
                 },
@@ -40,9 +40,9 @@ pub fn classify_request(
             })
         }
         ["oauth", "callback"] => {
-            ensure_method(method, Method::GET, "codex oauth callback")?;
+            ensure_method(method, Method::GET, "oauth callback")?;
             Ok(ProxyClassified {
-                request: ProxyRequest::CodexOAuthCallback {
+                request: ProxyRequest::OAuthCallback {
                     query: query.map(|q| q.to_string()),
                     headers: headers.clone(),
                 },
@@ -50,9 +50,9 @@ pub fn classify_request(
             })
         }
         ["usage"] => {
-            ensure_method(method, Method::GET, "codex usage")?;
+            ensure_method(method, Method::GET, "usage")?;
             Ok(ProxyClassified {
-                request: ProxyRequest::CodexUsage,
+                request: ProxyRequest::Usage,
                 is_stream: false,
             })
         }

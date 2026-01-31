@@ -154,13 +154,13 @@ impl DispatchProvider for CodexProvider {
             ProxyRequest::OpenAIInputTokens(request) => self.handle_input_tokens(request, ctx).await,
             ProxyRequest::OpenAIModelsList(request) => self.handle_models_list(request, ctx).await,
             ProxyRequest::OpenAIModelsGet(request) => self.handle_models_get(request, ctx).await,
-            ProxyRequest::CodexOAuthStart { query, headers } => {
+            ProxyRequest::OAuthStart { query, headers } => {
                 oauth::handle_oauth_start(query, headers, ctx).await
             }
-            ProxyRequest::CodexOAuthCallback { query, headers } => {
+            ProxyRequest::OAuthCallback { query, headers } => {
                 oauth::handle_oauth_callback(&self.pool, query, headers, ctx).await
             }
-            ProxyRequest::CodexUsage => usage::handle_usage(&self.pool, ctx).await,
+            ProxyRequest::Usage => usage::handle_usage(&self.pool, ctx).await,
             _ => Err(UpstreamPassthroughError::service_unavailable(
                 "non-native operation".to_string(),
             )),

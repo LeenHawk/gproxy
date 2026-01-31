@@ -1,6 +1,7 @@
 use gproxy_provider_core::ProxyRequest;
 use gproxy_protocol::{gemini, openai};
 
+
 #[derive(Clone, Copy)]
 pub enum UsageKind {
     None,
@@ -15,7 +16,9 @@ pub enum DispatchPlan {
     Transform { plan: TransformPlan, usage: UsageKind },
     Unsupported { reason: &'static str },
 }
-
+/// Upstream usage extraction strategy for dispatch/record.
+/// This represents upstream usage signals (not local stats). Providers without
+/// upstream usage support should use `UsageKind::None`.
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum OperationKind {
@@ -36,9 +39,9 @@ pub enum OperationKind {
     OpenAIInputTokens = 14,
     OpenAIModelsList = 15,
     OpenAIModelsGet = 16,
-    CodexOAuthStart = 17,
-    CodexOAuthCallback = 18,
-    CodexUsage = 19,
+    OAuthStart = 17,
+    OAuthCallback = 18,
+    Usage = 19,
 }
 
 impl OperationKind {
@@ -63,9 +66,9 @@ impl OperationKind {
             ProxyRequest::OpenAIInputTokens(_) => OperationKind::OpenAIInputTokens,
             ProxyRequest::OpenAIModelsList(_) => OperationKind::OpenAIModelsList,
             ProxyRequest::OpenAIModelsGet(_) => OperationKind::OpenAIModelsGet,
-            ProxyRequest::CodexOAuthStart { .. } => OperationKind::CodexOAuthStart,
-            ProxyRequest::CodexOAuthCallback { .. } => OperationKind::CodexOAuthCallback,
-            ProxyRequest::CodexUsage => OperationKind::CodexUsage,
+            ProxyRequest::OAuthStart { .. } => OperationKind::OAuthStart,
+            ProxyRequest::OAuthCallback { .. } => OperationKind::OAuthCallback,
+            ProxyRequest::Usage => OperationKind::Usage,
         }
     }
 
@@ -335,9 +338,9 @@ fn build_transform_plan(
             )),
             _ => None,
         },
-        ProxyRequest::CodexOAuthStart { .. }
-        | ProxyRequest::CodexOAuthCallback { .. }
-        | ProxyRequest::CodexUsage => None,
+        ProxyRequest::OAuthStart { .. }
+        | ProxyRequest::OAuthCallback { .. }
+        | ProxyRequest::Usage => None,
     }
 }
 

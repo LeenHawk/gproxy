@@ -25,13 +25,13 @@ pub enum ProxyRequest {
     OpenAIModelsList(openai::list_models::request::ListModelsRequest),
     OpenAIModelsGet(openai::get_model::request::GetModelRequest),
 
-    CodexOAuthStart {
+    OAuthStart {
         query: Option<String>,
         headers: HeaderMap,
     },
-    CodexOAuthCallback {
+    OAuthCallback {
         query: Option<String>,
         headers: HeaderMap,
     },
-    CodexUsage,
+    Usage,
 }
