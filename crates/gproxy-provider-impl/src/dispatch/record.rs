@@ -154,7 +154,7 @@ pub(super) async fn record_upstream_and_downstream(
                         Some((Ok(bytes), (upstream, tx)))
                     }
                     Some(Err(err)) => Some((
-                        Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+                        Err(io::Error::other(err.to_string())),
                         (upstream, tx),
                     )),
                     None => None,

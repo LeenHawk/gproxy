@@ -389,6 +389,7 @@ impl DeepSeekProvider {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn build_openai_headers(api_key: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     let mut bearer = String::with_capacity(api_key.len() + 7);
@@ -424,6 +425,7 @@ fn credential_base_url(credential: &BaseCredential) -> Option<String> {
         .map(|value| value.to_string())
 }
 
+#[allow(clippy::result_large_err)]
 fn count_input_tokens(
     body: &gproxy_protocol::openai::count_tokens::request::InputTokenCountRequestBody,
 ) -> Result<i64, AttemptFailure> {

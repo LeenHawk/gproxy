@@ -241,6 +241,7 @@ fn generate_state() -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
+#[allow(clippy::result_large_err)]
 fn parse_query<T: DeserializeOwned>(query: Option<&str>) -> Result<T, UpstreamPassthroughError> {
     let query = query.unwrap_or_default();
     serde_qs::from_str(query).map_err(|err| {
@@ -264,6 +265,7 @@ fn prune_oauth_states(states: &mut HashMap<String, OAuthState>) {
     states.retain(|_, state| (now - state.created_at).whole_seconds() < OAUTH_STATE_TTL_SECS);
 }
 
+#[allow(clippy::result_large_err)]
 fn json_response(body: JsonValue) -> Result<ProxyResponse, UpstreamPassthroughError> {
     let bytes = serde_json::to_vec(&body)
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
@@ -339,16 +341,15 @@ async fn persist_credential(
         .await
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
 
-    if let Ok(credentials) = storage.list_credentials().await {
-        if let Some(credential) = credentials.into_iter().find(|credential| {
+    if let Ok(credentials) = storage.list_credentials().await
+        && let Some(credential) = credentials.into_iter().find(|credential| {
             if credential.provider_id != provider_id {
                 return false;
             }
-            if let Some(name) = credential_name.as_ref() {
-                if credential.name.as_ref() == Some(name) {
+            if let Some(name) = credential_name.as_ref()
+                && credential.name.as_ref() == Some(name) {
                     return true;
                 }
-            }
             false
         }) {
             let weight = if credential.weight >= 0 {
@@ -377,7 +378,6 @@ async fn persist_credential(
             let disallow = snapshot.disallow.as_ref().clone();
             pool.replace_snapshot(PoolSnapshot::new(creds, disallow));
         }
-    }
 
     Ok(())
 }

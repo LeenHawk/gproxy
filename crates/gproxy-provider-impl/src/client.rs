@@ -10,6 +10,7 @@ struct SharedClient {
 
 static SHARED_CLIENT: OnceLock<SharedClient> = OnceLock::new();
 
+#[allow(clippy::result_large_err)]
 pub(crate) fn shared_client(proxy: Option<&str>) -> Result<Arc<wreq::Client>, AttemptFailure> {
     let proxy_owned = proxy.map(|value| value.to_string());
     if let Some(shared) = SHARED_CLIENT.get() {

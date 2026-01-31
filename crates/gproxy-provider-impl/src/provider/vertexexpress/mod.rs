@@ -474,11 +474,10 @@ fn find_local_model(name: &str) -> Option<JsonValue> {
     let list = models.get("models")?.as_array()?;
     let prefixed = format!("models/{name}");
     for model in list {
-        if let Some(model_name) = model.get("name").and_then(|value| value.as_str()) {
-            if model_name == name || model_name == prefixed {
+        if let Some(model_name) = model.get("name").and_then(|value| value.as_str())
+            && (model_name == name || model_name == prefixed) {
                 return Some(model.clone());
             }
-        }
     }
     None
 }

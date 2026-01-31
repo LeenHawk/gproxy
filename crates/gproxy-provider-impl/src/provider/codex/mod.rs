@@ -195,11 +195,10 @@ impl CodexProvider {
                         let personality =
                             resolve_non_codex_personality(body.metadata.as_ref(), credential.value());
                         let mut extra = instructions::instructions_for_model(&model, personality);
-                        if let Some(custom) = credential_non_codex_instructions(credential.value()) {
-                            if !custom.trim().is_empty() {
+                        if let Some(custom) = credential_non_codex_instructions(credential.value())
+                            && !custom.trim().is_empty() {
                                 extra = format!("{extra}\n\n{custom}");
                             }
-                        }
                         apply_non_codex_instructions(&mut body, &extra);
                     }
                     let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
@@ -236,10 +235,9 @@ impl CodexProvider {
                         },
                     )
                     .await?;
-                    if response.status() == StatusCode::UNAUTHORIZED
-                        || response.status() == StatusCode::FORBIDDEN
-                    {
-                        if let Some(refresh_token) = refresh_token {
+                    if (response.status() == StatusCode::UNAUTHORIZED
+                        || response.status() == StatusCode::FORBIDDEN)
+                        && let Some(refresh_token) = refresh_token {
                             let refreshed =
                                 refresh::refresh_access_token(credential.value().id, refresh_token, &ctx, &scope)
                                     .await?;
@@ -264,7 +262,6 @@ impl CodexProvider {
                             )
                             .await?;
                         }
-                    }
                     let meta = UpstreamRecordMeta {
                         provider: PROVIDER_NAME.to_string(),
                         provider_id: ctx.provider_id,
@@ -615,7 +612,7 @@ fn credential_personality(credential: &BaseCredential) -> Option<instructions::C
         .get("codex_personality")
         .or_else(|| credential.meta.get("personality"))
         .and_then(|value| value.as_str())
-        .and_then(|value| instructions::parse_personality(value))
+        .and_then(instructions::parse_personality)
 }
 
 fn is_codex_user_agent(user_agent: Option<&str>) -> bool {
@@ -625,6 +622,7 @@ fn is_codex_user_agent(user_agent: Option<&str>) -> bool {
 }
 
 
+#[allow(clippy::result_large_err)]
 fn build_codex_headers(
     access_token: &str,
     account_id: &str,
@@ -646,6 +644,7 @@ fn build_codex_headers(
     Ok(headers)
 }
 
+#[allow(clippy::result_large_err)]
 fn build_codex_json_headers(
     access_token: &str,
     account_id: &str,
@@ -689,9 +688,10 @@ fn passthrough_failure(err: UpstreamPassthroughError) -> AttemptFailure {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn count_input_tokens(body: &openai::count_tokens::request::InputTokenCountRequestBody) -> Result<i64, UpstreamPassthroughError> {
     let bpe = bpe_for_model(Some(&body.model))
-        .map_err(|err| UpstreamPassthroughError::service_unavailable(err))?;
+        .map_err(UpstreamPassthroughError::service_unavailable)?;
     let mut total = 0i64;
 
     if let Some(input) = &body.input {
@@ -824,6 +824,7 @@ fn count_text(text: &str, bpe: &CoreBPE) -> i64 {
 
 static MODELS_CACHE: OnceLock<JsonValue> = OnceLock::new();
 
+#[allow(clippy::result_large_err)]
 fn load_models_value() -> Result<&'static JsonValue, UpstreamPassthroughError> {
     if let Some(value) = MODELS_CACHE.get() {
         return Ok(value);
@@ -831,7 +832,7 @@ fn load_models_value() -> Result<&'static JsonValue, UpstreamPassthroughError> {
     let raw = include_str!("models.json");
     let parsed: JsonValue = serde_json::from_str(raw)
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
-    if !parsed.get("data").and_then(|v| v.as_array()).is_some() {
+    if parsed.get("data").and_then(|v| v.as_array()).is_none() {
         return Err(UpstreamPassthroughError::service_unavailable(
             "models.json missing data array".to_string(),
         ));

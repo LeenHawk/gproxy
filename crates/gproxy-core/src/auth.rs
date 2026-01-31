@@ -29,6 +29,7 @@ impl AuthError {
 }
 
 pub trait AuthProvider: Send + Sync {
+    #[allow(clippy::result_large_err)]
     fn authenticate(&self, headers: &HeaderMap) -> Result<AuthContext, AuthError>;
 }
 

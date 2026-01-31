@@ -13,6 +13,7 @@ fn scrub_headers(headers: &mut HeaderMap) {
     headers.remove(TRANSFER_ENCODING);
 }
 
+#[allow(clippy::result_large_err)]
 pub(super) fn transform_json_response<T, U>(
     response: ProxyResponse,
     ctx: DownstreamContext,

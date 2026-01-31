@@ -81,15 +81,15 @@ impl SseParser {
             if line.ends_with('\r') {
                 line.pop();
             }
-            if line.starts_with("event:") {
-                let value = line[6..].trim_start();
+            if let Some(value) = line.strip_prefix("event:") {
+                let value = value.trim_start();
                 self.event = if value.is_empty() {
                     None
                 } else {
                     Some(value.to_string())
                 };
-            } else if line.starts_with("data:") {
-                let value = line[5..].trim_start();
+            } else if let Some(value) = line.strip_prefix("data:") {
+                let value = value.trim_start();
                 self.data_lines.push(value.to_string());
             }
         }

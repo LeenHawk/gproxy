@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::io;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -348,11 +348,7 @@ impl GeminiCliProvider {
         request: gemini::list_models::request::ListModelsRequest,
         ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
-        let models = build_models_list();
-        let response_body = gemini::list_models::response::ListModelsResponse {
-            models,
-            next_page_token: None,
-        };
+        let response_body = load_models_list()?;
         let body = serde_json::to_vec(&response_body)
             .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
         let mut headers = HeaderMap::new();
@@ -385,12 +381,17 @@ impl GeminiCliProvider {
         ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let name = normalize_model_name(&request.path.name);
-        let model = build_model(&name).ok_or_else(|| {
-            UpstreamPassthroughError::from_status(
-                StatusCode::NOT_FOUND,
-                format!("unknown model: {name}"),
-            )
-        })?;
+        let response_body = load_models_list()?;
+        let model = response_body
+            .models
+            .iter()
+            .find(|item| normalize_model_name(&item.name) == name)
+            .ok_or_else(|| {
+                UpstreamPassthroughError::from_status(
+                    StatusCode::NOT_FOUND,
+                    format!("unknown model: {name}"),
+                )
+            })?;
         let body = serde_json::to_vec(&model)
             .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
         let mut headers = HeaderMap::new();
@@ -418,6 +419,7 @@ impl GeminiCliProvider {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn build_headers(access_token: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -446,6 +448,7 @@ fn wrap_internal_request(
     })
 }
 
+#[allow(clippy::result_large_err)]
 fn unwrap_internal_json(
     response: ProxyResponse,
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
@@ -468,6 +471,7 @@ fn unwrap_internal_json(
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn unwrap_internal_stream(
     response: ProxyResponse,
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
@@ -619,46 +623,30 @@ fn estimate_tokens_from_contents(contents: &[gemini::count_tokens::types::Conten
 
 fn estimate_tokens_from_text(text: &str) -> u32 {
     let chars = text.chars().count() as u32;
-    (chars + 3) / 4
+    chars.div_ceil(4)
 }
 
-fn build_models_list() -> Vec<gemini::types::Model> {
-    base_models()
-        .iter()
-        .filter_map(|model| build_model(model))
-        .collect()
-}
+static MODELS_CACHE: OnceLock<gemini::list_models::response::ListModelsResponse> = OnceLock::new();
 
-fn build_model(model: &str) -> Option<gemini::types::Model> {
-    let base = normalize_model_name(model);
-    Some(gemini::types::Model {
-        name: format!("models/{base}"),
-        base_model_id: Some(base.clone()),
-        version: "1".to_string(),
-        display_name: Some(base.clone()),
-        description: None,
-        input_token_limit: None,
-        output_token_limit: None,
-        supported_generation_methods: Some(vec![
-            "generateContent".to_string(),
-            "countTokens".to_string(),
-            "streamGenerateContent".to_string(),
-        ]),
-        thinking: None,
-        temperature: None,
-        max_temperature: None,
-        top_p: None,
-        top_k: None,
-    })
-}
-
-fn base_models() -> Vec<&'static str> {
-    vec![
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-3-pro-preview",
-        "gemini-3-flash-preview",
-    ]
+#[allow(clippy::result_large_err)]
+fn load_models_list(
+) -> Result<&'static gemini::list_models::response::ListModelsResponse, UpstreamPassthroughError> {
+    if let Some(value) = MODELS_CACHE.get() {
+        return Ok(value);
+    }
+    let raw = include_str!("models.json");
+    let parsed: gemini::list_models::response::ListModelsResponse =
+        serde_json::from_str(raw)
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    if parsed.models.is_empty() {
+        return Err(UpstreamPassthroughError::service_unavailable(
+            "models.json missing models".to_string(),
+        ));
+    }
+    let _ = MODELS_CACHE.set(parsed);
+    Ok(MODELS_CACHE
+        .get()
+        .expect("geminicli models cache initialized"))
 }
 
 fn normalize_model_name(model: &str) -> String {

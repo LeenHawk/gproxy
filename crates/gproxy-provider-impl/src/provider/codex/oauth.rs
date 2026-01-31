@@ -217,6 +217,7 @@ pub(super) async fn handle_oauth_callback(
     Ok(super::UpstreamOk { response, meta })
 }
 
+#[allow(clippy::result_large_err)]
 fn parse_query<T: for<'de> Deserialize<'de> + Default>(
     query: Option<&str>,
 ) -> Result<T, UpstreamPassthroughError> {
@@ -371,17 +372,12 @@ fn default_redirect_uri(headers: &HeaderMap) -> Option<String> {
     Some("http://localhost:1455/auth/callback".to_string())
 }
 
-fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(name)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.to_string())
-}
 
 fn oauth_states() -> &'static tokio::sync::RwLock<HashMap<String, OAuthState>> {
     OAUTH_STATES.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
 }
 
+#[allow(clippy::result_large_err)]
 fn json_response(body: JsonValue) -> Result<ProxyResponse, UpstreamPassthroughError> {
     let bytes = serde_json::to_vec(&body)
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
@@ -470,11 +466,10 @@ async fn persist_codex_credential(
             if credential.provider_id != provider_id {
                 return false;
             }
-            if let Some(name) = credential_name.as_ref() {
-                if credential.name.as_ref() == Some(name) {
+            if let Some(name) = credential_name.as_ref()
+                && credential.name.as_ref() == Some(name) {
                     return true;
                 }
-            }
             credential
                 .secret
                 .get("account_id")
@@ -499,16 +494,15 @@ async fn persist_codex_credential(
         .await
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
 
-    if let Ok(credentials) = storage.list_credentials().await {
-        if let Some(credential) = credentials.into_iter().find(|credential| {
+    if let Ok(credentials) = storage.list_credentials().await
+        && let Some(credential) = credentials.into_iter().find(|credential| {
             if credential.provider_id != provider_id {
                 return false;
             }
-            if let Some(name) = credential_name.as_ref() {
-                if credential.name.as_ref() == Some(name) {
+            if let Some(name) = credential_name.as_ref()
+                && credential.name.as_ref() == Some(name) {
                     return true;
                 }
-            }
             credential
                 .secret
                 .get("account_id")
@@ -542,7 +536,6 @@ async fn persist_codex_credential(
             let disallow = snapshot.disallow.as_ref().clone();
             pool.replace_snapshot(PoolSnapshot::new(credentials, disallow));
         }
-    }
 
     Ok(())
 }

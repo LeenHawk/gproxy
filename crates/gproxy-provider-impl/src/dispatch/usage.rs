@@ -77,8 +77,7 @@ fn extract_openai_chat_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
 fn extract_gemini_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
     if let Ok(parsed) =
         serde_json::from_slice::<gemini::generate_content::response::GenerateContentResponse>(body)
-    {
-        if let Some(usage) = parsed.usage_metadata.as_ref() {
+        && let Some(usage) = parsed.usage_metadata.as_ref() {
             return Some(TrafficUsage {
                 gemini_prompt_tokens: usage.prompt_token_count.map(|v| v as i64),
                 gemini_candidates_tokens: usage.candidates_token_count.map(|v| v as i64),
@@ -87,17 +86,14 @@ fn extract_gemini_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
                 ..Default::default()
             });
         }
-    }
     extract_claude_usage_from_body(body).and_then(map_claude_usage_to_gemini)
 }
 
 fn extract_openai_responses_usage_from_body(body: &Bytes) -> Option<TrafficUsage> {
     if let Ok(parsed) = serde_json::from_slice::<openai::create_response::response::Response>(body)
-    {
-        if let Some(usage) = parsed.usage.as_ref() {
+        && let Some(usage) = parsed.usage.as_ref() {
             return Some(map_openai_responses_usage(usage));
         }
-    }
     extract_claude_usage_from_body(body).and_then(map_claude_usage_to_openai_responses)
 }
 
@@ -195,7 +191,7 @@ fn map_gemini_usage_to_openai_responses(usage: TrafficUsage) -> Option<TrafficUs
 }
 
 pub(super) fn map_usage_for_kind(kind: UsageKind, usage: Option<TrafficUsage>) -> Option<TrafficUsage> {
-    let Some(usage) = usage else { return None };
+    let usage = usage?;
     match kind {
         UsageKind::ClaudeMessage => {
             if usage.claude_total_tokens.is_some()
@@ -319,8 +315,7 @@ impl OpenAIUsageState {
         if let Ok(parsed) = serde_json::from_str::<
             openai::create_chat_completions::stream::CreateChatCompletionStreamResponse,
         >(data)
-        {
-            if let Some(stream_usage) = parsed.usage {
+            && let Some(stream_usage) = parsed.usage {
                 self.usage = Some(TrafficUsage {
                     openai_chat_prompt_tokens: Some(stream_usage.prompt_tokens),
                     openai_chat_completion_tokens: Some(stream_usage.completion_tokens),
@@ -329,7 +324,6 @@ impl OpenAIUsageState {
                 });
                 return;
             }
-        }
 
         let value: serde_json::Value = match serde_json::from_str(data) {
             Ok(value) => value,
@@ -389,11 +383,10 @@ impl OpenAIResponsesUsageState {
                 }
                 _ => None,
             };
-            if let Some(response) = response {
-                if let Some(usage) = response.usage.as_ref() {
+            if let Some(response) = response
+                && let Some(usage) = response.usage.as_ref() {
                     self.usage = Some(map_openai_responses_usage(usage));
                 }
-            }
         }
     }
 
@@ -433,6 +426,7 @@ impl GeminiUsageState {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub(super) enum UsageState {
     Claude(ClaudeUsageState),
     OpenAI(OpenAIUsageState),

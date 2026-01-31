@@ -574,6 +574,7 @@ impl AistudioProvider {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn build_gemini_headers(api_key: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -587,6 +588,7 @@ fn build_gemini_headers(api_key: &str) -> Result<HeaderMap, AttemptFailure> {
     Ok(headers)
 }
 
+#[allow(clippy::result_large_err)]
 fn build_openai_compat_headers(api_key: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     let mut bearer = String::with_capacity(api_key.len() + 7);

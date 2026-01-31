@@ -11,13 +11,11 @@ static SHARED_DB: OnceLock<RwLock<Option<SharedDb>>> = OnceLock::new();
 
 pub async fn connect_shared(dsn: &str) -> Result<DatabaseConnection, DbErr> {
     let lock = SHARED_DB.get_or_init(|| RwLock::new(None));
-    if let Ok(guard) = lock.read() {
-        if let Some(shared) = guard.as_ref() {
-            if shared.dsn == dsn {
+    if let Ok(guard) = lock.read()
+        && let Some(shared) = guard.as_ref()
+            && shared.dsn == dsn {
                 return Ok(shared.connection.clone());
             }
-        }
-    }
 
     let connection = Database::connect(dsn).await?;
     if let Ok(mut guard) = lock.write() {

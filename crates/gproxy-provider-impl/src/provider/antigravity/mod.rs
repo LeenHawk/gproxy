@@ -457,6 +457,7 @@ impl AntiGravityProvider {
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub(super) fn build_headers(access_token: &str, model_name: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     headers.insert(
@@ -501,6 +502,7 @@ fn wrap_internal_request(
     })
 }
 
+#[allow(clippy::result_large_err)]
 fn unwrap_internal_json(
     response: ProxyResponse,
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
@@ -523,6 +525,7 @@ fn unwrap_internal_json(
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn unwrap_internal_stream(
     response: ProxyResponse,
 ) -> Result<ProxyResponse, UpstreamPassthroughError> {
@@ -749,7 +752,7 @@ fn estimate_tokens_from_contents(contents: &[gemini::count_tokens::types::Conten
 
 fn estimate_tokens_from_text(text: &str) -> u32 {
     let chars = text.chars().count() as u32;
-    (chars + 3) / 4
+    chars.div_ceil(4)
 }
 
 fn build_models_list() -> Vec<gemini::types::Model> {

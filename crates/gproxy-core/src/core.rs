@@ -9,11 +9,12 @@ use crate::handler::proxy_handler;
 
 pub type ProviderLookup =
     Arc<dyn Fn(&str) -> Option<Arc<dyn Provider>> + Send + Sync>;
+pub type ProxyResolver = Arc<dyn Fn() -> Option<String> + Send + Sync>;
 
 pub struct CoreState {
     pub lookup: ProviderLookup,
     pub auth: Arc<dyn AuthProvider>,
-    pub proxy: Arc<RwLock<Option<String>>>,
+    pub proxy_resolver: ProxyResolver,
     pub traffic: SharedTrafficSink,
     pub provider_ids: Arc<RwLock<std::collections::HashMap<String, i64>>>,
 }
@@ -26,7 +27,7 @@ impl Core {
     pub fn new(
         lookup: ProviderLookup,
         auth: Arc<dyn AuthProvider>,
-        proxy: Arc<RwLock<Option<String>>>,
+        proxy_resolver: ProxyResolver,
         traffic: Option<SharedTrafficSink>,
         provider_ids: Option<std::collections::HashMap<String, i64>>,
     ) -> Self {
@@ -34,7 +35,7 @@ impl Core {
             state: Arc::new(CoreState {
                 lookup,
                 auth,
-                proxy,
+                proxy_resolver,
                 traffic: traffic.unwrap_or_else(|| Arc::new(NoopTrafficSink)),
                 provider_ids: Arc::new(RwLock::new(provider_ids.unwrap_or_default())),
             }),

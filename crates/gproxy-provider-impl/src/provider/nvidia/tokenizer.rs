@@ -56,8 +56,8 @@ pub async fn load_tokenizer(
     }
 
     let path = tokenizer_path(model, data_dir);
-    if let Ok(bytes) = tokio::fs::read(&path).await {
-        if let Ok(tokenizer) = Tokenizer::from_bytes(bytes.as_slice()) {
+    if let Ok(bytes) = tokio::fs::read(&path).await
+        && let Ok(tokenizer) = Tokenizer::from_bytes(bytes.as_slice()) {
             let tokenizer = Arc::new(tokenizer);
             let mut guard = cache.lock().map_err(|_| AttemptFailure {
                 passthrough: UpstreamPassthroughError::service_unavailable(
@@ -68,7 +68,6 @@ pub async fn load_tokenizer(
             guard.insert(model.to_string(), tokenizer.clone());
             return Ok(tokenizer);
         }
-    }
 
     let base = hf_url
         .map(|value| value.trim_end_matches('/'))
@@ -137,12 +136,11 @@ async fn fetch_tokenizer_bytes(
     let mut current_url = url;
     loop {
         let mut req = client.get(current_url.clone());
-        if let Some(token) = hf_token {
-            if !token.is_empty() {
+        if let Some(token) = hf_token
+            && !token.is_empty() {
                 let bearer = format!("Bearer {token}");
                 req = req.header(AUTHORIZATION, bearer);
             }
-        }
         let resp = req.send().await.map_err(|err| AttemptFailure {
             passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
             mark: None,

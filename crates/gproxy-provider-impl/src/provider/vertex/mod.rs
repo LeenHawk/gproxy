@@ -341,16 +341,13 @@ impl VertexProvider {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
         let mut body = request.body;
-        if body.contents.is_none() {
-            if let Some(generate_request) = body.generate_content_request.as_ref() {
-                if let Some(contents) = generate_request.get("contents") {
-                    if let Ok(contents) = serde_json::from_value(contents.clone()) {
+        if body.contents.is_none()
+            && let Some(generate_request) = body.generate_content_request.as_ref()
+                && let Some(contents) = generate_request.get("contents")
+                    && let Ok(contents) = serde_json::from_value(contents.clone()) {
                         body.contents = Some(contents);
                         body.generate_content_request = None;
                     }
-                }
-            }
-        }
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -637,6 +634,7 @@ impl VertexProvider {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn build_vertex_headers(access_token: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     let mut bearer = String::with_capacity(access_token.len() + 7);
@@ -806,6 +804,7 @@ fn map_vertex_model(model: VertexPublisherModel) -> gemini::get_model::types::Mo
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn map_vertex_models_list_response(
     response: ProxyResponse,
 ) -> Result<ProxyResponse, AttemptFailure> {
@@ -849,6 +848,7 @@ fn map_vertex_models_list_response(
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn map_vertex_model_get_response(
     response: ProxyResponse,
 ) -> Result<ProxyResponse, AttemptFailure> {

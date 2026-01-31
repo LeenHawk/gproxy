@@ -1,3 +1,5 @@
+#![allow(clippy::needless_update)]
+
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveValue, DatabaseConnection, DbErr, QueryOrder, Schema};
@@ -340,6 +342,7 @@ impl TrafficStorage {
             until_at: ActiveValue::Set(input.until_at),
             reason: ActiveValue::Set(input.reason),
             updated_at: ActiveValue::Set(now),
+            ..Default::default()
         };
 
         entities::CredentialDisallow::insert(active)

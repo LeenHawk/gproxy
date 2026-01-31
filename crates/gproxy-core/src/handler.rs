@@ -86,7 +86,7 @@ pub async fn proxy_handler(
         request_id: request_id(&headers),
         user_id: auth_ctx.user_id,
         user_key_id: auth_ctx.key_id,
-        proxy: state.proxy.read().ok().and_then(|guard| guard.clone()),
+        proxy: (state.proxy_resolver)(),
         traffic: state.traffic.clone(),
         downstream_meta: Some(downstream_meta),
         user_agent: headers
@@ -236,6 +236,7 @@ fn request_id(headers: &HeaderMap) -> Option<String> {
         .map(|value| value.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_downstream_event(
     provider: &str,
     provider_id: Option<i64>,
@@ -268,10 +269,10 @@ fn build_downstream_event(
         response_status: status.as_u16() as i32,
         response_headers: headers_to_json(&resp_headers),
         response_body: resp_body,
-        ..Default::default()
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_downstream_event_error(
     provider: &str,
     provider_id: Option<i64>,
@@ -303,10 +304,10 @@ fn build_downstream_event_error(
         response_status: error.status.as_u16() as i32,
         response_headers: headers_to_json(&error.headers),
         response_body: body_to_string(error.body.clone()),
-        ..Default::default()
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_downstream_meta(
     provider: &str,
     provider_id: Option<i64>,

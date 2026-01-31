@@ -15,7 +15,6 @@ use super::{credential_access_token, credential_refresh_token, invalid_credentia
 #[derive(Clone, Debug)]
 pub(super) struct CachedTokens {
     pub(super) access_token: String,
-    pub(super) refresh_token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -29,7 +28,6 @@ struct RefreshRequest {
 #[derive(Deserialize)]
 struct RefreshResponse {
     access_token: Option<String>,
-    refresh_token: Option<String>,
 }
 
 static TOKEN_CACHE: OnceLock<tokio::sync::RwLock<HashMap<i64, CachedTokens>>> = OnceLock::new();
@@ -46,10 +44,7 @@ pub(super) async fn ensure_tokens(
         return Ok(cached);
     }
     if let Some(access_token) = credential_access_token(credential) {
-        let tokens = CachedTokens {
-            access_token,
-            refresh_token: credential_refresh_token(credential),
-        };
+        let tokens = CachedTokens { access_token };
         token_cache().write().await.insert(credential.id, tokens.clone());
         return Ok(tokens);
     }
@@ -111,10 +106,7 @@ async fn refresh_access_token(
         ),
         mark: None,
     })?;
-    let tokens = CachedTokens {
-        access_token,
-        refresh_token: payload.refresh_token.or(Some(refresh_token)),
-    };
+    let tokens = CachedTokens { access_token };
     token_cache().write().await.insert(credential_id, tokens.clone());
     Ok(tokens)
 }

@@ -1,19 +1,95 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use serde_json::json;
+use http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
+use http::{HeaderMap, HeaderValue};
+use serde_json::{json, Value as JsonValue};
 
 use gproxy_provider_core::{
-    CredentialPool, DownstreamContext, PoolSnapshot, Provider, ProxyRequest, ProxyResponse,
-    StateSink, UpstreamPassthroughError,
+    AttemptFailure, CredentialPool, DisallowLevel, DisallowMark, DisallowScope, DownstreamContext,
+    PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink, UpstreamContext,
+    UpstreamPassthroughError, UpstreamRecordMeta,
 };
+use gproxy_protocol::claude;
+use gproxy_protocol::claude::types::{AnthropicBetaHeader, AnthropicVersion};
 
+use crate::client::shared_client;
 use crate::credential::BaseCredential;
+use crate::dispatch::{
+    dispatch_request, DispatchProvider, DispatchTable, TransformTarget, UsageKind, UpstreamOk,
+    native_spec, transform_spec,
+};
+use crate::record::{headers_to_json, json_body_to_string};
+use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
-use crate::provider::not_implemented;
+
+mod oauth;
+mod refresh;
+mod usage;
 
 pub const PROVIDER_NAME: &str = "claudecode";
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
+const HEADER_VERSION: &str = "anthropic-version";
+const HEADER_BETA: &str = "anthropic-beta";
+const CLAUDE_CODE_UA: &str = "claude-code/2.0.32";
+pub(super) const TOKEN_UA: &str = "claude-cli/1.0.56 (external, cli)";
+pub(super) const COOKIE_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
+pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+pub(super) const AUTH_URL: &str = "https://claude.ai/oauth/authorize";
+pub(super) const TOKEN_URL: &str = "https://console.anthropic.com/v1/oauth/token";
+pub(super) const REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
+pub(super) const OAUTH_SCOPE: &str =
+    "org:create_api_key user:profile user:inference user:sessions:claude_code";
+pub(super) const OAUTH_SCOPE_SETUP: &str = "user:inference";
+pub(super) const ORG_URL: &str = "https://claude.ai/api/organizations";
+pub(super) const AUTHORIZE_URL_TEMPLATE: &str = "https://claude.ai/v1/oauth/{org_uuid}/authorize";
+pub(super) const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
+pub(super) const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+
+const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
+    // Claude messages
+    native_spec(UsageKind::ClaudeMessage),
+    // Claude messages stream
+    native_spec(UsageKind::ClaudeMessage),
+    // Claude count tokens
+    native_spec(UsageKind::None),
+    // Claude models list
+    native_spec(UsageKind::None),
+    // Claude models get
+    native_spec(UsageKind::None),
+    // Gemini generate
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
+    // Gemini generate stream
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
+    // Gemini count tokens
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // Gemini models list
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // Gemini models get
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // OpenAI chat
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
+    // OpenAI chat stream
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
+    // OpenAI responses
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
+    // OpenAI responses stream
+    transform_spec(TransformTarget::Claude, UsageKind::ClaudeMessage),
+    // OpenAI input tokens
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // OpenAI models list
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+    // OpenAI models get
+    transform_spec(TransformTarget::Claude, UsageKind::None),
+
+    // OAuth start
+    native_spec(UsageKind::None),
+    // OAuth callback
+    native_spec(UsageKind::None),
+    // Usage
+    native_spec(UsageKind::None),
+]);
 
 pub fn default_provider() -> ProviderDefault {
     ProviderDefault {
@@ -54,9 +130,515 @@ impl Provider for ClaudeCodeProvider {
 
     async fn call(
         &self,
-        _req: ProxyRequest,
-        _ctx: DownstreamContext,
+        req: ProxyRequest,
+        ctx: DownstreamContext,
     ) -> Result<ProxyResponse, UpstreamPassthroughError> {
-        Err(not_implemented(PROVIDER_NAME))
+        dispatch_request(self, req, ctx).await
+    }
+}
+
+#[async_trait]
+impl DispatchProvider for ClaudeCodeProvider {
+    fn dispatch_table(&self) -> &'static DispatchTable {
+        &DISPATCH_TABLE
+    }
+
+    async fn call_native(
+        &self,
+        req: ProxyRequest,
+        ctx: UpstreamContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        match req {
+            ProxyRequest::ClaudeMessages(request) => self.handle_messages(request, false, ctx).await,
+            ProxyRequest::ClaudeMessagesStream(request) => {
+                self.handle_messages(request, true, ctx).await
+            }
+            ProxyRequest::ClaudeCountTokens(request) => self.handle_count_tokens(request, ctx).await,
+            ProxyRequest::ClaudeModelsList(request) => self.handle_models_list(request, ctx).await,
+            ProxyRequest::ClaudeModelsGet(request) => self.handle_models_get(request, ctx).await,
+            ProxyRequest::OAuthStart { query, headers } => {
+                oauth::handle_oauth_start(query, headers, ctx).await
+            }
+            ProxyRequest::OAuthCallback { query, headers } => {
+                oauth::handle_oauth_callback(&self.pool, query, headers, ctx).await
+            }
+            ProxyRequest::Usage => usage::handle_usage(&self.pool, ctx).await,
+            _ => Err(UpstreamPassthroughError::service_unavailable(
+                "non-native operation".to_string(),
+            )),
+        }
+    }
+}
+
+impl ClaudeCodeProvider {
+    async fn handle_messages(
+        &self,
+        request: claude::create_message::request::CreateMessageRequest,
+        is_stream: bool,
+        ctx: UpstreamContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let model = model_to_string(&request.body.model);
+        let scope = DisallowScope::model(model.clone());
+        let headers = request.headers;
+        let mut body = request.body;
+        if is_stream {
+            body.stream = Some(true);
+        }
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let body = body.clone();
+                let scope = scope.clone();
+                let model = model.clone();
+                let pool = &self.pool;
+                async move {
+                    let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
+                    let access_token = tokens.access_token.clone();
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), "/v1/messages");
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers = build_headers(
+                        &access_token,
+                        headers.anthropic_version,
+                        headers.anthropic_beta,
+                        ctx.user_agent.as_deref(),
+                    )?;
+                    let request_body = json_body_to_string(&body);
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claudecode.messages",
+                        "POST",
+                        "/v1/messages",
+                        Some(&model),
+                        is_stream,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx.provider_id,
+                        credential_id: Some(credential.value().id),
+                        operation: "claudecode.messages".to_string(),
+                        model: Some(model),
+                        request_method: "POST".to_string(),
+                        request_path: "/v1/messages".to_string(),
+                        request_query: None,
+                        request_headers,
+                        request_body,
+                    };
+                    let response = handle_response(
+                        response,
+                        is_stream,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_count_tokens(
+        &self,
+        request: claude::count_tokens::request::CountTokensRequest,
+        ctx: UpstreamContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let model = model_to_string(&request.body.model);
+        let scope = DisallowScope::model(model.clone());
+        let headers = request.headers;
+        let body = request.body;
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let body = body.clone();
+                let scope = scope.clone();
+                let model = model.clone();
+                let pool = &self.pool;
+                async move {
+                    let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
+                    let access_token = tokens.access_token.clone();
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), "/v1/messages/count_tokens");
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers = build_headers(
+                        &access_token,
+                        headers.anthropic_version,
+                        headers.anthropic_beta,
+                        ctx.user_agent.as_deref(),
+                    )?;
+                    let request_body = json_body_to_string(&body);
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claudecode.count_tokens",
+                        "POST",
+                        "/v1/messages/count_tokens",
+                        Some(&model),
+                        false,
+                        &scope,
+                        || {
+                            client
+                                .post(url)
+                                .headers(req_headers.clone())
+                                .json(&body)
+                                .send()
+                        },
+                    )
+                    .await?;
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx.provider_id,
+                        credential_id: Some(credential.value().id),
+                        operation: "claudecode.count_tokens".to_string(),
+                        model: Some(model),
+                        request_method: "POST".to_string(),
+                        request_path: "/v1/messages/count_tokens".to_string(),
+                        request_query: None,
+                        request_headers,
+                        request_body,
+                    };
+                    let response = handle_response(
+                        response,
+                        false,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_models_list(
+        &self,
+        request: claude::list_models::request::ListModelsRequest,
+        ctx: UpstreamContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let scope = DisallowScope::AllModels;
+        let headers = request.headers;
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let scope = scope.clone();
+                let pool = &self.pool;
+                async move {
+                    let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
+                    let access_token = tokens.access_token.clone();
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), "/v1/models");
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers = build_headers(
+                        &access_token,
+                        headers.anthropic_version,
+                        headers.anthropic_beta,
+                        ctx.user_agent.as_deref(),
+                    )?;
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claudecode.models_list",
+                        "GET",
+                        "/v1/models",
+                        None,
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx.provider_id,
+                        credential_id: Some(credential.value().id),
+                        operation: "claudecode.models_list".to_string(),
+                        model: None,
+                        request_method: "GET".to_string(),
+                        request_path: "/v1/models".to_string(),
+                        request_query: None,
+                        request_headers,
+                        request_body: String::new(),
+                    };
+                    let response = handle_response(
+                        response,
+                        false,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+    async fn handle_models_get(
+        &self,
+        request: claude::get_model::request::GetModelRequest,
+        ctx: UpstreamContext,
+    ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+        let model = request.path.model_id.clone();
+        let scope = DisallowScope::model(model.clone());
+        let headers = request.headers;
+        let path = format!("/v1/models/{model}");
+
+        self.pool
+            .execute(scope.clone(), |credential| {
+                let ctx = ctx.clone();
+                let headers = headers.clone();
+                let scope = scope.clone();
+                let model = model.clone();
+                let path = path.clone();
+                let pool = &self.pool;
+                async move {
+                    let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
+                    let access_token = tokens.access_token.clone();
+                    let base_url = credential_base_url(credential.value());
+                    let url = build_url(base_url.as_deref(), &path);
+                    let client = shared_client(ctx.proxy.as_deref())?;
+                    let req_headers = build_headers(
+                        &access_token,
+                        headers.anthropic_version,
+                        headers.anthropic_beta,
+                        ctx.user_agent.as_deref(),
+                    )?;
+                    let request_headers = headers_to_json(&req_headers);
+                    let response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claudecode.models_get",
+                        "GET",
+                        &path,
+                        Some(&model),
+                        false,
+                        &scope,
+                        || client.get(url).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
+                    let meta = UpstreamRecordMeta {
+                        provider: PROVIDER_NAME.to_string(),
+                        provider_id: ctx.provider_id,
+                        credential_id: Some(credential.value().id),
+                        operation: "claudecode.models_get".to_string(),
+                        model: Some(model),
+                        request_method: "GET".to_string(),
+                        request_path: path,
+                        request_query: None,
+                        request_headers,
+                        request_body: String::new(),
+                    };
+                    let response = handle_response(
+                        response,
+                        false,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
+                    Ok(UpstreamOk { response, meta })
+                }
+            })
+            .await
+    }
+
+}
+
+#[allow(clippy::result_large_err)]
+fn build_headers(
+    access_token: &str,
+    version: AnthropicVersion,
+    beta: Option<AnthropicBetaHeader>,
+    user_agent: Option<&str>,
+) -> Result<HeaderMap, AttemptFailure> {
+    let mut headers = HeaderMap::new();
+    let mut bearer = String::with_capacity(access_token.len() + 7);
+    bearer.push_str("Bearer ");
+    bearer.push_str(access_token);
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&bearer).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
+    );
+    let version_value = match version {
+        AnthropicVersion::V20230601 => "2023-06-01",
+        AnthropicVersion::V20230101 => "2023-01-01",
+    };
+    headers.insert(HEADER_VERSION, HeaderValue::from_static(version_value));
+    let mut values = collect_beta_values(beta);
+    ensure_oauth_beta(&mut values);
+    if !values.is_empty() {
+        let beta_value = values.join(",");
+        headers.insert(
+            HEADER_BETA,
+            HeaderValue::from_str(&beta_value).map_err(|err| AttemptFailure {
+                passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+                mark: None,
+            })?,
+        );
+    }
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let ua = resolve_claude_code_ua(user_agent);
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_str(ua).unwrap_or_else(|_| HeaderValue::from_static(CLAUDE_CODE_UA)),
+    );
+    Ok(headers)
+}
+
+fn resolve_claude_code_ua(user_agent: Option<&str>) -> &str {
+    match user_agent {
+        Some(value) if is_claude_code_user_agent(value) => value,
+        _ => CLAUDE_CODE_UA,
+    }
+}
+
+fn is_claude_code_user_agent(value: &str) -> bool {
+    value.to_ascii_lowercase().contains("claude-code")
+}
+
+fn collect_beta_values(beta: Option<AnthropicBetaHeader>) -> Vec<String> {
+    match beta {
+        Some(AnthropicBetaHeader::Single(beta)) => vec![match serde_json::to_value(beta) {
+            Ok(JsonValue::String(value)) => value,
+            _ => "unknown".to_string(),
+        }],
+        Some(AnthropicBetaHeader::Multiple(list)) => list
+            .into_iter()
+            .map(|beta| match serde_json::to_value(beta) {
+                Ok(JsonValue::String(value)) => value,
+                _ => "unknown".to_string(),
+            })
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+fn ensure_oauth_beta(values: &mut Vec<String>) {
+    if !values.iter().any(|value| value == OAUTH_BETA) {
+        values.push(OAUTH_BETA.to_string());
+    }
+}
+
+fn credential_claude_oauth(credential: &BaseCredential) -> Option<&JsonValue> {
+    credential
+        .secret
+        .get("claudeAiOauth")
+        .or_else(|| credential.secret.get("claude_ai_oauth"))
+}
+
+pub(super) fn credential_access_token(credential: &BaseCredential) -> Option<String> {
+    credential_claude_oauth(credential)
+        .and_then(|value| value.get("accessToken"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+pub(super) fn credential_refresh_token(credential: &BaseCredential) -> Option<String> {
+    credential_claude_oauth(credential)
+        .and_then(|value| value.get("refreshToken"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+pub(super) fn credential_expires_at(credential: &BaseCredential) -> Option<i64> {
+    credential_claude_oauth(credential)
+        .and_then(|value| value.get("expiresAt"))
+        .and_then(|value| value.as_i64())
+}
+
+#[allow(dead_code)]
+pub(super) fn credential_scopes(credential: &BaseCredential) -> Vec<String> {
+    credential_claude_oauth(credential)
+        .and_then(|value| value.get("scopes"))
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(|v| v.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[allow(dead_code)]
+pub(super) fn credential_subscription_type(credential: &BaseCredential) -> Option<String> {
+    credential_claude_oauth(credential)
+        .and_then(|value| value.get("subscriptionType"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+#[allow(dead_code)]
+pub(super) fn credential_rate_limit_tier(credential: &BaseCredential) -> Option<String> {
+    credential_claude_oauth(credential)
+        .and_then(|value| value.get("rateLimitTier"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+pub(super) fn credential_session_key(credential: &BaseCredential) -> Option<String> {
+    credential
+        .secret
+        .get("sessionKey")
+        .or_else(|| credential.secret.get("session_key"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn credential_base_url(credential: &BaseCredential) -> Option<String> {
+    credential
+        .meta
+        .get("base_url")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn build_url(base_url: Option<&str>, path: &str) -> String {
+    let base = base_url.unwrap_or(DEFAULT_BASE_URL).trim_end_matches('/');
+    let mut path = path.trim_start_matches('/');
+    if base.ends_with("/v1") && (path == "v1" || path.starts_with("v1/")) {
+        path = path.trim_start_matches("v1/").trim_start_matches("v1");
+    }
+    format!("{base}/{path}")
+}
+
+fn model_to_string(model: &claude::count_tokens::types::Model) -> String {
+    match serde_json::to_value(model) {
+        Ok(JsonValue::String(value)) => value,
+        _ => "unknown".to_string(),
+    }
+}
+
+fn invalid_credential(scope: &DisallowScope, message: &str) -> AttemptFailure {
+    AttemptFailure {
+        passthrough: UpstreamPassthroughError::service_unavailable(message.to_string()),
+        mark: Some(DisallowMark {
+            scope: scope.clone(),
+            level: DisallowLevel::Dead,
+            duration: None,
+            reason: Some(message.to_string()),
+        }),
     }
 }

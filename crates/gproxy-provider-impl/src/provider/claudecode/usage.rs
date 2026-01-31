@@ -1,6 +1,6 @@
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue, StatusCode};
-use serde_json::{json, Value as JsonValue};
+use serde_json::Value as JsonValue;
 
 use gproxy_provider_core::{
     AttemptFailure, CredentialPool, DisallowScope, ProxyResponse, UpstreamContext,
@@ -12,10 +12,7 @@ use crate::credential::BaseCredential;
 use crate::dispatch::UpstreamOk;
 use crate::upstream::{classify_status, send_with_logging};
 
-use super::{
-    build_usage_url, build_codex_json_headers, credential_account_id, credential_base_url,
-    credential_refresh_token, invalid_credential, PROVIDER_NAME,
-};
+use super::{credential_refresh_token, PROVIDER_NAME, USAGE_URL, CLAUDE_CODE_UA, OAUTH_BETA};
 use super::refresh;
 
 struct UsageFetch {
@@ -23,21 +20,12 @@ struct UsageFetch {
     credential_id: i64,
 }
 
-pub(super) async fn fetch_usage_payload(
-    pool: &CredentialPool<BaseCredential>,
-    ctx: UpstreamContext,
-) -> Result<JsonValue, UpstreamPassthroughError> {
-    let result = fetch_usage_payload_with_credential(pool, ctx).await?;
-    Ok(result.payload)
-}
-
 pub(super) async fn handle_usage(
     pool: &CredentialPool<BaseCredential>,
     ctx: UpstreamContext,
 ) -> Result<UpstreamOk, UpstreamPassthroughError> {
     let result = fetch_usage_payload_with_credential(pool, ctx.clone()).await?;
-    let summary = summarize_usage(result.payload);
-    let body_bytes = serde_json::to_vec(&summary)
+    let body_bytes = serde_json::to_vec(&result.payload)
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
     let mut headers = HeaderMap::new();
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -50,10 +38,10 @@ pub(super) async fn handle_usage(
         provider: PROVIDER_NAME.to_string(),
         provider_id: ctx.provider_id,
         credential_id: Some(result.credential_id),
-        operation: "codex.usage".to_string(),
+        operation: "claudecode.usage".to_string(),
         model: None,
         request_method: "GET".to_string(),
-        request_path: "/codex/usage".to_string(),
+        request_path: "/claudecode/usage".to_string(),
         request_query: None,
         request_headers: "{}".to_string(),
         request_body: String::new(),
@@ -70,29 +58,24 @@ async fn fetch_usage_payload_with_credential(
         let ctx = ctx.clone();
         let scope = scope.clone();
         async move {
-            let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
+            let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
             let mut access_token = tokens.access_token.clone();
             let refresh_token = tokens
                 .refresh_token
                 .clone()
                 .or_else(|| credential_refresh_token(credential.value()));
-            let account_id = credential_account_id(credential.value())
-                .ok_or_else(|| invalid_credential(&scope, "missing account_id"))?;
-            let base_url = credential_base_url(credential.value());
-            let (url, path) = build_usage_url(base_url.as_deref());
-            let url_req = url.clone();
             let client = shared_client(ctx.proxy.as_deref())?;
-            let mut req_headers = build_codex_json_headers(&access_token, &account_id)?;
+            let mut req_headers = build_usage_headers(&access_token)?;
             let mut response = send_with_logging(
                 &ctx,
                 PROVIDER_NAME,
-                "codex.usage",
+                "claudecode.usage",
                 "GET",
-                &path,
+                "/api/oauth/usage",
                 None,
                 false,
                 &scope,
-                || client.get(url_req).headers(req_headers.clone()).send(),
+                || client.get(USAGE_URL).headers(req_headers.clone()).send(),
             )
             .await?;
             if (response.status() == StatusCode::UNAUTHORIZED
@@ -102,17 +85,17 @@ async fn fetch_usage_payload_with_credential(
                         refresh::refresh_access_token(credential.value().id, refresh_token, &ctx, &scope)
                             .await?;
                     access_token = refreshed.access_token;
-                    req_headers = build_codex_json_headers(&access_token, &account_id)?;
+                    req_headers = build_usage_headers(&access_token)?;
                     response = send_with_logging(
                         &ctx,
                         PROVIDER_NAME,
-                        "codex.usage",
+                        "claudecode.usage",
                         "GET",
-                        &path,
+                        "/api/oauth/usage",
                         None,
                         false,
                         &scope,
-                        || client.get(url.clone()).headers(req_headers.clone()).send(),
+                        || client.get(USAGE_URL).headers(req_headers.clone()).send(),
                     )
                     .await?;
                 }
@@ -145,28 +128,30 @@ async fn fetch_usage_payload_with_credential(
     .await
 }
 
-fn summarize_usage(payload: JsonValue) -> JsonValue {
-    // Response shape example:
-    // {
-    //   "plan_type": "team",
-    //   "primary_window": { "limit_window_seconds": 18000, "reset_after_seconds": 9964, "reset_at": 1769845596, "used_percent": 33 },
-    //   "secondary_window": { "limit_window_seconds": 604800, "reset_after_seconds": 596764, "reset_at": 1770432396, "used_percent": 10 },
-    //   "raw": { ... upstream usage payload ... }
-    // }
-    let plan_type = payload.get("plan_type").cloned().unwrap_or(JsonValue::Null);
-    let rate_limit = payload.get("rate_limit").cloned().unwrap_or(JsonValue::Null);
-    let primary = rate_limit
-        .get("primary_window")
-        .cloned()
-        .unwrap_or(JsonValue::Null);
-    let secondary = rate_limit
-        .get("secondary_window")
-        .cloned()
-        .unwrap_or(JsonValue::Null);
-    json!({
-        "plan_type": plan_type,
-        "primary_window": primary,
-        "secondary_window": secondary,
-        "raw": payload
-    })
+#[allow(clippy::result_large_err)]
+fn build_usage_headers(access_token: &str) -> Result<HeaderMap, AttemptFailure> {
+    let mut headers = HeaderMap::new();
+    let mut bearer = String::with_capacity(access_token.len() + 7);
+    bearer.push_str("Bearer ");
+    bearer.push_str(access_token);
+    headers.insert(
+        http::header::AUTHORIZATION,
+        HeaderValue::from_str(&bearer).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
+    );
+    headers.insert(
+        http::header::ACCEPT,
+        HeaderValue::from_static("application/json"),
+    );
+    headers.insert(
+        http::header::USER_AGENT,
+        HeaderValue::from_static(CLAUDE_CODE_UA),
+    );
+    headers.insert(
+        super::HEADER_BETA,
+        HeaderValue::from_static(OAUTH_BETA),
+    );
+    Ok(headers)
 }

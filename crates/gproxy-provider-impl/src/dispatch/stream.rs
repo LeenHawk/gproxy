@@ -277,11 +277,10 @@ impl JsonArrayDecoder {
                 '{' => self.depth += 1,
                 '}' => {
                     self.depth -= 1;
-                    if self.depth == 0 {
-                        if !self.current.is_empty() {
+                    if self.depth == 0
+                        && !self.current.is_empty() {
                             out.push(std::mem::take(&mut self.current));
                         }
-                    }
                 }
                 _ => {}
             }

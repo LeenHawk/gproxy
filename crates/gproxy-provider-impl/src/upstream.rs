@@ -98,6 +98,7 @@ fn log_upstream_response_err(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn send_with_logging<F, Fut>(
     ctx: &UpstreamContext,
     provider: &str,
@@ -171,7 +172,7 @@ pub async fn handle_response(
 
     if is_stream {
         let stream = response.bytes_stream().map(|item| {
-            item.map_err(|err| io::Error::new(io::ErrorKind::Other, err.to_string()))
+            item.map_err(|err| io::Error::other(err.to_string()))
         });
         Ok(ProxyResponse::Stream {
             status,

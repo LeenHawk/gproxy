@@ -109,10 +109,16 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     }
     registry.apply_pools(pools);
 
-    let bind = format!("{}:{}", config.host, config.port);
+    let config = Arc::new(RwLock::new(config));
+    let bind = {
+        let guard = config.read().map_err(|_| "config lock poisoned")?;
+        format!("{}:{}", guard.host, guard.port)
+    };
     let (bind_tx, bind_rx) = tokio::sync::watch::channel(bind);
-
-    let proxy = Arc::new(RwLock::new(config.proxy.clone()));
+    let proxy_resolver = {
+        let config = config.clone();
+        Arc::new(move || config.read().ok().and_then(|guard| guard.proxy.clone()))
+    };
 
     let lookup: ProviderLookup = {
         let registry = registry.clone();
@@ -125,19 +131,16 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
     let core = Core::new(
         lookup,
         auth_provider,
-        proxy.clone(),
+        proxy_resolver,
         Some(traffic_sink),
         Some(provider_ids.clone()),
     );
     let app = core
         .router()
         .merge(admin_router(
-            config.admin_key.clone(),
-            config.dsn.clone(),
             config.clone(),
             storage.clone(),
             bind_tx.clone(),
-            proxy.clone(),
             registry.clone(),
             auth,
             provider_ids,

@@ -30,15 +30,14 @@ pub fn transform_response(response: OpenAIResponse) -> ClaudeCreateMessageRespon
 }
 
 fn build_content(response: &OpenAIResponse) -> Vec<BetaContentBlock> {
-    if let Some(text) = response.output_text.as_ref() {
-        if !text.is_empty() {
+    if let Some(text) = response.output_text.as_ref()
+        && !text.is_empty() {
             return vec![BetaContentBlock::Text(BetaTextBlock {
                 citations: None,
                 text: text.clone(),
                 r#type: BetaTextBlockType::Text,
             })];
         }
-    }
 
     let mut combined = String::new();
     for item in &response.output {

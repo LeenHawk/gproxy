@@ -34,15 +34,7 @@ pub fn parse_personality(value: &str) -> Option<CodexPersonality> {
 }
 
 pub fn instructions_for_model(model: &str, personality: Option<CodexPersonality>) -> String {
-    if model.starts_with("o3") || model.starts_with("o4-mini") {
-        BASE_INSTRUCTIONS_WITH_APPLY_PATCH.to_string()
-    } else if model.starts_with("codex-mini-latest") {
-        BASE_INSTRUCTIONS_WITH_APPLY_PATCH.to_string()
-    } else if model.starts_with("gpt-4.1") {
-        BASE_INSTRUCTIONS_WITH_APPLY_PATCH.to_string()
-    } else if model.starts_with("gpt-4o") {
-        BASE_INSTRUCTIONS_WITH_APPLY_PATCH.to_string()
-    } else if model.starts_with("gpt-3.5") {
+    if matches_any_prefix(model, &["o3", "o4-mini", "codex-mini-latest", "gpt-4.1", "gpt-4o", "gpt-3.5"]) {
         BASE_INSTRUCTIONS_WITH_APPLY_PATCH.to_string()
     } else if model.starts_with("test-gpt-5") {
         GPT_5_CODEX_INSTRUCTIONS.to_string()
@@ -60,12 +52,6 @@ pub fn instructions_for_model(model: &str, personality: Option<CodexPersonality>
         }
     } else if model.starts_with("gpt-5.1-codex-max") {
         GPT_5_1_CODEX_MAX_INSTRUCTIONS.to_string()
-    } else if (model.starts_with("gpt-5-codex")
-        || model.starts_with("gpt-5.1-codex")
-        || model.starts_with("codex-"))
-        && !model.contains("-mini")
-    {
-        GPT_5_CODEX_INSTRUCTIONS.to_string()
     } else if model.starts_with("gpt-5-codex")
         || model.starts_with("gpt-5.1-codex")
         || model.starts_with("codex-")
@@ -80,4 +66,8 @@ pub fn instructions_for_model(model: &str, personality: Option<CodexPersonality>
     } else {
         BASE_INSTRUCTIONS.to_string()
     }
+}
+
+fn matches_any_prefix(model: &str, prefixes: &[&str]) -> bool {
+    prefixes.iter().any(|prefix| model.starts_with(prefix))
 }

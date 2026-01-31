@@ -132,11 +132,10 @@ impl OpenAIChatCompletionToResponseStreamState {
             self.pending_finish = Some(reason);
         }
 
-        if self.pending_finish.is_some() && self.usage.is_some() {
-            if let Some(reason) = self.pending_finish.take() {
+        if self.pending_finish.is_some() && self.usage.is_some()
+            && let Some(reason) = self.pending_finish.take() {
                 events.extend(self.finish_response(reason));
             }
-        }
 
         events
     }

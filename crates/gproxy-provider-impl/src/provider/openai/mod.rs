@@ -491,6 +491,7 @@ impl OpenAIProvider {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn build_openai_headers(api_key: &str) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     let mut bearer = String::with_capacity(api_key.len() + 7);

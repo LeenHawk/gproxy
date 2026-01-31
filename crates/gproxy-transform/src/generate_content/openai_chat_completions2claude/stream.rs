@@ -106,12 +106,11 @@ impl OpenAIToClaudeChatCompletionStreamState {
         let usage = map_usage(chunk.usage);
         let finish_reason = choice.and_then(|choice| choice.finish_reason.map(map_finish_reason));
 
-        if let Some(reason) = finish_reason {
-            if !self.finish_emitted {
+        if let Some(reason) = finish_reason
+            && !self.finish_emitted {
                 events.extend(self.close_open_blocks());
                 self.pending_finish = Some(reason);
             }
-        }
 
         if let Some(usage) = usage {
             if let Some(reason) = self.pending_finish.take() {

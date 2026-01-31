@@ -158,7 +158,7 @@ where
                             }
                             Some(Err(err)) => {
                                 return Some((
-                                    Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+                                    Err(io::Error::other(err.to_string())),
                                     (upstream, parser, transform, pending, down_tx, up_tx),
                                 ))
                             }
@@ -328,7 +328,7 @@ where
                             }
                             Some(Err(err)) => {
                                 return Some((
-                                    Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+                                    Err(io::Error::other(err.to_string())),
                                     (upstream, decoder, transform, pending, down_tx, up_tx),
                                 ))
                             }
@@ -498,7 +498,7 @@ where
                             }
                             Some(Err(err)) => {
                                 return Some((
-                                    Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+                                    Err(io::Error::other(err.to_string())),
                                     (upstream, decoder, transform, pending, down_tx, up_tx),
                                 ))
                             }
@@ -701,7 +701,7 @@ where
                             }
                             Some(Err(err)) => {
                                 return Some((
-                                    Err(io::Error::new(io::ErrorKind::Other, err.to_string())),
+                                    Err(io::Error::other(err.to_string())),
                                     (upstream, decoder, transform, pending, down_tx, up_tx),
                                 ))
                             }

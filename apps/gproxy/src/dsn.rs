@@ -49,7 +49,11 @@ pub(crate) fn ensure_sqlite_dsn(dsn: &str) -> Result<(), Box<dyn Error + Send + 
         std::fs::create_dir_all(parent)?;
     }
     if !path.exists() {
-        OpenOptions::new().create(true).write(true).open(&path)?;
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&path)?;
     }
 
     Ok(())

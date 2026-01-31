@@ -1,3 +1,5 @@
+#![allow(clippy::needless_update)]
+
 use std::time::Duration;
 
 use sea_orm::entity::prelude::*;
@@ -330,6 +332,7 @@ async fn upsert_disallow(storage: &TrafficStorage, disallow: DisallowUpsert) -> 
         until_at: ActiveValue::Set(disallow.until_at),
         reason: ActiveValue::Set(disallow.reason),
         updated_at: ActiveValue::Set(disallow.updated_at),
+        ..Default::default()
     };
 
     entities::CredentialDisallow::insert(active)

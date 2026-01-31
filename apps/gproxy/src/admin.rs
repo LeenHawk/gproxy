@@ -28,12 +28,9 @@ use crate::snapshot;
 
 #[derive(Clone)]
 struct AdminState {
-    admin_key: Arc<RwLock<String>>,
-    dsn: Arc<RwLock<String>>,
     storage: Arc<RwLock<TrafficStorage>>,
     config: Arc<RwLock<GlobalConfig>>,
     bind_tx: watch::Sender<String>,
-    proxy: Arc<RwLock<Option<String>>>,
     registry: Arc<ProviderRegistry>,
     auth: Arc<MemoryAuth>,
     provider_ids: Arc<RwLock<HashMap<String, i64>>>,
@@ -41,24 +38,18 @@ struct AdminState {
 }
 
 pub(crate) fn admin_router(
-    admin_key: String,
-    dsn: String,
-    config: GlobalConfig,
+    config: Arc<RwLock<GlobalConfig>>,
     storage: TrafficStorage,
     bind_tx: watch::Sender<String>,
-    proxy: Arc<RwLock<Option<String>>>,
     registry: Arc<ProviderRegistry>,
     auth: Arc<MemoryAuth>,
     provider_ids: HashMap<String, i64>,
     provider_names: HashMap<i64, String>,
 ) -> Router {
     let state = AdminState {
-        admin_key: Arc::new(RwLock::new(admin_key)),
-        dsn: Arc::new(RwLock::new(dsn)),
         storage: Arc::new(RwLock::new(storage)),
-        config: Arc::new(RwLock::new(config)),
+        config,
         bind_tx,
-        proxy,
         registry,
         auth,
         provider_ids: Arc::new(RwLock::new(provider_ids)),
@@ -96,6 +87,7 @@ pub(crate) fn admin_router(
         .with_state(state)
 }
 
+#[allow(clippy::result_large_err)]
 impl AdminState {
     fn storage(&self) -> Result<TrafficStorage, Response> {
         self.storage
@@ -126,31 +118,7 @@ impl AdminState {
     }
 
     fn dsn(&self) -> Result<String, Response> {
-        self.dsn
-            .read()
-            .map(|guard| guard.clone())
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "dsn lock poisoned",
-                )
-                    .into_response()
-            })
-    }
-
-    fn set_dsn(&self, dsn: String) -> Result<(), Response> {
-        self.dsn
-            .write()
-            .map(|mut guard| {
-                *guard = dsn;
-            })
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "dsn lock poisoned",
-                )
-                    .into_response()
-            })
+        self.config().map(|config| config.dsn)
     }
 
     fn config(&self) -> Result<GlobalConfig, Response> {
@@ -179,6 +147,10 @@ impl AdminState {
                 )
                     .into_response()
             })
+    }
+
+    fn admin_key(&self) -> Result<String, Response> {
+        self.config().map(|config| config.admin_key)
     }
 }
 
@@ -305,9 +277,6 @@ async fn put_config(
         return (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response();
     }
 
-    if let Ok(mut guard) = state.admin_key.write() {
-        *guard = desired.admin_key.clone();
-    }
     if let Err(err) = effective_storage
         .ensure_admin_user(&desired.admin_key)
         .await
@@ -321,13 +290,8 @@ async fn put_config(
     };
     apply_snapshot(&state, &snapshot);
 
-    if dsn_changed {
-        if let Err(resp) = state.set_storage(effective_storage) {
-            return resp;
-        }
-        if let Err(resp) = state.set_dsn(desired.dsn.clone()) {
-            return resp;
-        }
+    if dsn_changed && let Err(resp) = state.set_storage(effective_storage) {
+        return resp;
     }
     if let Err(resp) = state.set_config(desired.clone()) {
         return resp;
@@ -338,17 +302,6 @@ async fn put_config(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "bind channel closed",
-            )
-                .into_response();
-        }
-    }
-    if proxy_changed {
-        if let Ok(mut guard) = state.proxy.write() {
-            *guard = desired.proxy.clone();
-        } else {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "proxy lock poisoned",
             )
                 .into_response();
         }
@@ -1037,6 +990,7 @@ fn apply_snapshot(state: &AdminState, snapshot: &gproxy_storage::StorageSnapshot
     }
 }
 
+#[allow(clippy::result_large_err)]
 async fn refresh_auth(
     state: &AdminState,
     storage: &TrafficStorage,
@@ -1074,6 +1028,7 @@ async fn refresh_auth(
     Ok(())
 }
 
+#[allow(clippy::result_large_err)]
 async fn provider_id_for_credential(
     storage: &TrafficStorage,
     credential_id: i64,
@@ -1088,6 +1043,7 @@ async fn provider_id_for_credential(
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn resolve_provider_id(
     state: &AdminState,
     provider_id: Option<i64>,
@@ -1119,15 +1075,14 @@ fn insert_provider_map(state: &AdminState, id: i64, name: String) {
 }
 
 fn update_provider_map(state: &AdminState, id: i64, name: String) {
-    if let Ok(mut guard) = state.provider_names.write() {
-        if let Some(old_name) = guard.insert(id, name.clone()) {
+    if let Ok(mut guard) = state.provider_names.write()
+        && let Some(old_name) = guard.insert(id, name.clone()) {
             if let Ok(mut ids) = state.provider_ids.write() {
                 ids.remove(&old_name);
                 ids.insert(name.clone(), id);
             }
             return;
         }
-    }
     if let Ok(mut guard) = state.provider_ids.write() {
         guard.insert(name.clone(), id);
     }
@@ -1137,13 +1092,11 @@ fn update_provider_map(state: &AdminState, id: i64, name: String) {
 }
 
 fn remove_provider_map(state: &AdminState, id: i64) {
-    if let Ok(mut guard) = state.provider_names.write() {
-        if let Some(name) = guard.remove(&id) {
-            if let Ok(mut ids) = state.provider_ids.write() {
+    if let Ok(mut guard) = state.provider_names.write()
+        && let Some(name) = guard.remove(&id)
+            && let Ok(mut ids) = state.provider_ids.write() {
                 ids.remove(&name);
             }
-        }
-    }
 }
 
 fn clear_provider_pool(state: &AdminState, name: &str) {
@@ -1178,6 +1131,7 @@ fn to_system_time(value: OffsetDateTime) -> Option<SystemTime> {
     Some(SystemTime::UNIX_EPOCH + Duration::from_secs(ts as u64))
 }
 
+#[allow(clippy::result_large_err)]
 async fn refresh_provider_pool(
     state: &AdminState,
     storage: &TrafficStorage,
@@ -1279,11 +1233,9 @@ fn collect_one<C>(
     });
 }
 
+#[allow(clippy::result_large_err)]
 fn require_admin(state: &AdminState, headers: &HeaderMap) -> Result<(), Response> {
-    let admin_key = match state.admin_key.read() {
-        Ok(guard) => guard.clone(),
-        Err(_) => return Err((StatusCode::UNAUTHORIZED, "unauthorized").into_response()),
-    };
+    let admin_key = state.admin_key()?;
     if is_admin(headers, &admin_key) {
         Ok(())
     } else {
