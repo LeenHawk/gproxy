@@ -23,11 +23,11 @@ pub struct Model {
     pub response_status: i32,
     pub response_headers: String,
     pub response_body: String,
-    #[sea_orm(belongs_to, from = "provider_id", to = "id")]
+    #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "SetNull")]
     pub provider_ref: HasOne<super::providers::Entity>,
-    #[sea_orm(belongs_to, from = "user_id", to = "id")]
+    #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "SetNull")]
     pub user: HasOne<super::users::Entity>,
-    #[sea_orm(belongs_to, from = "key_id", to = "id")]
+    #[sea_orm(belongs_to, from = "key_id", to = "id", on_delete = "SetNull")]
     pub api_key: HasOne<super::api_keys::Entity>,
 }
 

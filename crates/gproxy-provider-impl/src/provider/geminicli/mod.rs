@@ -7,6 +7,7 @@ use bytes::Bytes;
 use futures_util::StreamExt;
 use http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use http::{HeaderMap, HeaderValue, StatusCode};
+use uuid::Uuid;
 use serde_json::{json, Value as JsonValue};
 
 use gproxy_provider_core::{
@@ -188,7 +189,8 @@ impl GeminiCliProvider {
                     let url = build_url(base_url.as_deref(), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(&tokens.access_token)?;
-                    let wrapped = wrap_internal_request(&model, &project_id, &body);
+                    let user_prompt_id = Uuid::new_v4().to_string();
+                    let wrapped = wrap_internal_request(&model, &project_id, &user_prompt_id, &body);
                     let request_body = json_body_to_string(&wrapped);
                     let request_headers = headers_to_json(&req_headers);
                     let response = send_with_logging(
@@ -258,7 +260,8 @@ impl GeminiCliProvider {
                     let url = build_url(base_url.as_deref(), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(&tokens.access_token)?;
-                    let wrapped = wrap_internal_request(&model, &project_id, &body);
+                    let user_prompt_id = Uuid::new_v4().to_string();
+                    let wrapped = wrap_internal_request(&model, &project_id, &user_prompt_id, &body);
                     let request_body = json_body_to_string(&wrapped);
                     let request_headers = headers_to_json(&req_headers);
                     let response = send_with_logging(
@@ -439,11 +442,13 @@ fn build_headers(access_token: &str) -> Result<HeaderMap, AttemptFailure> {
 fn wrap_internal_request(
     model: &str,
     project_id: &str,
+    user_prompt_id: &str,
     request: &gemini::generate_content::request::GenerateContentRequestBody,
 ) -> JsonValue {
     json!({
         "model": model,
         "project": project_id,
+        "user_prompt_id": user_prompt_id,
         "request": request,
     })
 }
@@ -569,6 +574,10 @@ fn map_event_data(data: &str) -> Vec<Bytes> {
 fn unwrap_internal_value(value: JsonValue) -> JsonValue {
     match value {
         JsonValue::Object(mut map) => match map.remove("response") {
+            Some(JsonValue::Object(mut inner)) => match inner.remove("response") {
+                Some(nested) => nested,
+                None => JsonValue::Object(inner),
+            },
             Some(inner) => inner,
             None => JsonValue::Object(map),
         },

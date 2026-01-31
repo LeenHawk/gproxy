@@ -2,13 +2,14 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use base64::Engine;
-use http::header::CONTENT_TYPE;
+use http::header::{ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value as JsonValue};
 use time::OffsetDateTime;
+use tokio::time::{Duration, sleep};
 
 use gproxy_provider_core::{
     CredentialEntry, CredentialPool, PoolSnapshot, ProxyResponse, UpstreamContext,
@@ -20,7 +21,7 @@ use crate::client::shared_client;
 use crate::credential::BaseCredential;
 use crate::storage::global_storage;
 
-use super::PROVIDER_NAME;
+use super::{DEFAULT_BASE_URL, GEMINICLI_USER_AGENT, PROVIDER_NAME};
 
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
@@ -167,15 +168,26 @@ pub(super) async fn handle_oauth_callback(
         )
     };
 
-    let project_id = project_id.ok_or_else(|| {
-        UpstreamPassthroughError::from_status(
-            StatusCode::BAD_REQUEST,
-            "missing project_id",
-        )
-    })?;
-
     let tokens = exchange_code_for_tokens(&code, &redirect_uri, ctx.proxy.as_deref()).await?;
-    persist_credential(pool, ctx.provider_id, &tokens, &project_id, base_url).await?;
+    let base_url = base_url.unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+    let project_id = match project_id {
+        Some(value) => value,
+        None => detect_project_id(
+            &tokens.access_token,
+            &base_url,
+            GEMINICLI_USER_AGENT,
+            ctx.proxy.as_deref(),
+        )
+        .await?
+        .ok_or_else(|| {
+            UpstreamPassthroughError::from_status(
+                StatusCode::BAD_REQUEST,
+                "missing project_id (auto-detect failed)",
+            )
+        })?,
+    };
+
+    persist_credential(pool, ctx.provider_id, &tokens, &project_id, Some(base_url)).await?;
     let body = json!({
         "access_token": tokens.access_token,
         "refresh_token": tokens.refresh_token,
@@ -195,6 +207,195 @@ pub(super) async fn handle_oauth_callback(
         request_body: String::new(),
     };
     Ok(super::UpstreamOk { response, meta })
+}
+
+async fn detect_project_id(
+    access_token: &str,
+    base_url: &str,
+    user_agent: &str,
+    proxy: Option<&str>,
+) -> Result<Option<String>, UpstreamPassthroughError> {
+    if let Ok(Some(project_id)) = try_load_code_assist(access_token, base_url, user_agent, proxy).await {
+        return Ok(Some(project_id));
+    }
+    try_onboard_user(access_token, base_url, user_agent, proxy).await
+}
+
+async fn try_load_code_assist(
+    access_token: &str,
+    base_url: &str,
+    user_agent: &str,
+    proxy: Option<&str>,
+) -> Result<Option<String>, UpstreamPassthroughError> {
+    let client = shared_client(proxy).map_err(|err| err.passthrough)?;
+    let url = format!("{}/v1internal:loadCodeAssist", base_url.trim_end_matches('/'));
+    let mut headers = build_project_headers(access_token, user_agent)?;
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let body = json!({
+        "metadata": {
+            "ideType": "ANTIGRAVITY",
+            "platform": "PLATFORM_UNSPECIFIED",
+            "pluginType": "GEMINI"
+        }
+    });
+    let response = client
+        .post(url)
+        .headers(headers)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    let status = response.status();
+    let body = response
+        .bytes()
+        .await
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    if !status.is_success() {
+        return Err(UpstreamPassthroughError::service_unavailable(format!(
+            "loadCodeAssist failed: {status}"
+        )));
+    }
+    let payload = serde_json::from_slice::<JsonValue>(&body)
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    let current_tier = payload.get("currentTier");
+    if current_tier.is_none() || current_tier.is_some_and(|value| value.is_null()) {
+        return Ok(None);
+    }
+    let project_id = payload
+        .get("cloudaicompanionProject")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    Ok(project_id)
+}
+
+async fn try_onboard_user(
+    access_token: &str,
+    base_url: &str,
+    user_agent: &str,
+    proxy: Option<&str>,
+) -> Result<Option<String>, UpstreamPassthroughError> {
+    let tier_id = get_onboard_tier(access_token, base_url, user_agent, proxy).await?;
+    let client = shared_client(proxy).map_err(|err| err.passthrough)?;
+    let url = format!("{}/v1internal:onboardUser", base_url.trim_end_matches('/'));
+    let mut headers = build_project_headers(access_token, user_agent)?;
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let body = json!({
+        "tierId": tier_id,
+        "metadata": {
+            "ideType": "ANTIGRAVITY",
+            "platform": "PLATFORM_UNSPECIFIED",
+            "pluginType": "GEMINI"
+        }
+    });
+    for _ in 0..5 {
+        let response = client
+            .post(url.clone())
+            .headers(headers.clone())
+            .json(&body)
+            .send()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let status = response.status();
+        let body = response
+            .bytes()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        if !status.is_success() {
+            return Err(UpstreamPassthroughError::service_unavailable(format!(
+                "onboardUser failed: {status}"
+            )));
+        }
+        let payload = serde_json::from_slice::<JsonValue>(&body)
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        if payload.get("done").and_then(|value| value.as_bool()) == Some(true) {
+            let project_value = payload
+                .get("response")
+                .and_then(|value| value.get("cloudaicompanionProject"));
+            let project_id = project_value
+                .and_then(|value| value.get("id"))
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+                .or_else(|| {
+                    project_value
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.to_string())
+                });
+            return Ok(project_id);
+        }
+        sleep(Duration::from_secs(2)).await;
+    }
+    Ok(None)
+}
+
+async fn get_onboard_tier(
+    access_token: &str,
+    base_url: &str,
+    user_agent: &str,
+    proxy: Option<&str>,
+) -> Result<String, UpstreamPassthroughError> {
+    let client = shared_client(proxy).map_err(|err| err.passthrough)?;
+    let url = format!("{}/v1internal:loadCodeAssist", base_url.trim_end_matches('/'));
+    let mut headers = build_project_headers(access_token, user_agent)?;
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    let body = json!({
+        "metadata": {
+            "ideType": "ANTIGRAVITY",
+            "platform": "PLATFORM_UNSPECIFIED",
+            "pluginType": "GEMINI"
+        }
+    });
+    let response = client
+        .post(url)
+        .headers(headers)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    let status = response.status();
+    let body = response
+        .bytes()
+        .await
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    if !status.is_success() {
+        return Ok("LEGACY".to_string());
+    }
+    let payload = serde_json::from_slice::<JsonValue>(&body)
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    let tiers = payload
+        .get("allowedTiers")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for tier in tiers {
+        if tier.get("isDefault").and_then(|value| value.as_bool()) == Some(true) {
+            if let Some(id) = tier.get("id").and_then(|value| value.as_str()) {
+                return Ok(id.to_string());
+            }
+        }
+    }
+    Ok("LEGACY".to_string())
+}
+
+fn build_project_headers(
+    access_token: &str,
+    user_agent: &str,
+) -> Result<HeaderMap, UpstreamPassthroughError> {
+    let mut headers = HeaderMap::new();
+    let mut bearer = String::with_capacity(access_token.len() + 7);
+    bearer.push_str("Bearer ");
+    bearer.push_str(access_token);
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&bearer)
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?,
+    );
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_str(user_agent)
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?,
+    );
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
+    Ok(headers)
 }
 
 async fn exchange_code_for_tokens(

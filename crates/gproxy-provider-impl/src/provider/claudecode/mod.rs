@@ -11,6 +11,9 @@ use gproxy_provider_core::{
     UpstreamPassthroughError, UpstreamRecordMeta,
 };
 use gproxy_protocol::claude;
+use gproxy_protocol::claude::count_tokens::types::{
+    BetaSystemParam, BetaTextBlockParam, BetaTextBlockType,
+};
 use gproxy_protocol::claude::types::{AnthropicBetaHeader, AnthropicVersion};
 
 use crate::client::shared_client;
@@ -31,19 +34,21 @@ pub const PROVIDER_NAME: &str = "claudecode";
 const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 const HEADER_VERSION: &str = "anthropic-version";
 const HEADER_BETA: &str = "anthropic-beta";
-const CLAUDE_CODE_UA: &str = "claude-code/2.0.32";
-pub(super) const TOKEN_UA: &str = "claude-cli/1.0.56 (external, cli)";
+const CLAUDE_CODE_UA: &str = "claude-code/2.1.27";
+const CLAUDE_CODE_SYSTEM_PRELUDE: &str =
+    "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+pub(super) const TOKEN_UA: &str = "claude-cli/2.1.27 (external, cli)";
 pub(super) const COOKIE_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
 pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-pub(super) const AUTH_URL: &str = "https://claude.ai/oauth/authorize";
-pub(super) const TOKEN_URL: &str = "https://console.anthropic.com/v1/oauth/token";
+pub(super) const AUTH_URL: &str = "https://api.anthropic.com/v1/oauth/authorize";
+pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
 pub(super) const REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub(super) const OAUTH_SCOPE: &str =
     "org:create_api_key user:profile user:inference user:sessions:claude_code";
 pub(super) const OAUTH_SCOPE_SETUP: &str = "user:inference";
-pub(super) const ORG_URL: &str = "https://claude.ai/api/organizations";
-pub(super) const AUTHORIZE_URL_TEMPLATE: &str = "https://claude.ai/v1/oauth/{org_uuid}/authorize";
+pub(super) const ORG_URL: &str = "https://api.anthropic.com/api/organizations";
+pub(super) const AUTHORIZE_URL_TEMPLATE: &str = "https://api.anthropic.com/v1/oauth/{org_uuid}/authorize";
 pub(super) const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
 pub(super) const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 
@@ -82,7 +87,6 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     transform_spec(TransformTarget::Claude, UsageKind::None),
     // OpenAI models get
     transform_spec(TransformTarget::Claude, UsageKind::None),
-
     // OAuth start
     native_spec(UsageKind::None),
     // OAuth callback
@@ -177,13 +181,14 @@ impl ClaudeCodeProvider {
         is_stream: bool,
         ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
-        let model = model_to_string(&request.body.model);
-        let scope = DisallowScope::model(model.clone());
-        let headers = request.headers;
-        let mut body = request.body;
-        if is_stream {
-            body.stream = Some(true);
-        }
+    let model = model_to_string(&request.body.model);
+    let scope = DisallowScope::model(model.clone());
+    let headers = request.headers;
+    let mut body = request.body;
+    if is_stream {
+        body.stream = Some(true);
+    }
+    apply_claude_code_system(&mut body.system, ctx.user_agent.as_deref());
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -256,10 +261,11 @@ impl ClaudeCodeProvider {
         request: claude::count_tokens::request::CountTokensRequest,
         ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
-        let model = model_to_string(&request.body.model);
-        let scope = DisallowScope::model(model.clone());
-        let headers = request.headers;
-        let body = request.body;
+    let model = model_to_string(&request.body.model);
+    let scope = DisallowScope::model(model.clone());
+    let headers = request.headers;
+    let mut body = request.body;
+    apply_claude_code_system(&mut body.system, ctx.user_agent.as_deref());
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -515,7 +521,41 @@ fn resolve_claude_code_ua(user_agent: Option<&str>) -> &str {
 }
 
 fn is_claude_code_user_agent(value: &str) -> bool {
-    value.to_ascii_lowercase().contains("claude-code")
+    let lowered = value.to_ascii_lowercase();
+    lowered.contains("claude-code") || lowered.contains("claude-cli")
+}
+
+fn apply_claude_code_system(system: &mut Option<BetaSystemParam>, user_agent: Option<&str>) {
+    if user_agent
+        .map(|ua| is_claude_code_user_agent(ua))
+        .unwrap_or(false)
+    {
+        return;
+    }
+
+    let prelude = BetaTextBlockParam {
+        text: CLAUDE_CODE_SYSTEM_PRELUDE.to_string(),
+        r#type: BetaTextBlockType::Text,
+        cache_control: None,
+        citations: None,
+    };
+
+    *system = Some(match system.take() {
+        Some(BetaSystemParam::Text(text)) => BetaSystemParam::Blocks(vec![
+            prelude,
+            BetaTextBlockParam {
+                text,
+                r#type: BetaTextBlockType::Text,
+                cache_control: None,
+                citations: None,
+            },
+        ]),
+        Some(BetaSystemParam::Blocks(mut blocks)) => {
+            blocks.insert(0, prelude);
+            BetaSystemParam::Blocks(blocks)
+        }
+        None => BetaSystemParam::Blocks(vec![prelude]),
+    });
 }
 
 fn collect_beta_values(beta: Option<AnthropicBetaHeader>) -> Vec<String> {

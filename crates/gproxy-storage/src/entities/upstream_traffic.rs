@@ -39,9 +39,9 @@ pub struct Model {
     pub openai_responses_total_tokens: Option<i64>,
     pub openai_responses_input_cached_tokens: Option<i64>,
     pub openai_responses_output_reasoning_tokens: Option<i64>,
-    #[sea_orm(belongs_to, from = "provider_id", to = "id")]
+    #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "SetNull")]
     pub provider_ref: HasOne<super::providers::Entity>,
-    #[sea_orm(belongs_to, from = "credential_id", to = "id")]
+    #[sea_orm(belongs_to, from = "credential_id", to = "id", on_delete = "SetNull")]
     pub credential: HasOne<super::credentials::Entity>,
 }
 

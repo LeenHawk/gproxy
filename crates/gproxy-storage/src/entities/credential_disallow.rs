@@ -17,7 +17,7 @@ pub struct Model {
     pub until_at: Option<OffsetDateTime>,
     pub reason: Option<String>,
     pub updated_at: OffsetDateTime,
-    #[sea_orm(belongs_to, from = "credential_id", to = "id")]
+    #[sea_orm(belongs_to, from = "credential_id", to = "id", on_delete = "Cascade")]
     pub credential: HasOne<super::credentials::Entity>,
 }
 

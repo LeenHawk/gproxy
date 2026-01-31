@@ -180,7 +180,7 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                 request,
                 generate_content::openai_response2gemini::request::transform_request,
                 ProxyRequest::GeminiGenerate,
-                generate_content::gemini2openai_response::response::transform_response
+                generate_content::openai_response2gemini::response::transform_response
             ),
             GenerateContentPlan::OpenAIResponses2OpenAIChat(request) => run_json!(
                 request,

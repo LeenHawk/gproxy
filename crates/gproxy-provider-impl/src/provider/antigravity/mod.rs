@@ -17,7 +17,6 @@ use gproxy_provider_core::{
 };
 use gproxy_protocol::gemini;
 use gproxy_protocol::sse::SseParser;
-use gproxy_transform::stream2nostream::gemini::GeminiStreamToResponseState;
 
 use crate::client::shared_client;
 use crate::credential::BaseCredential;
@@ -36,7 +35,6 @@ mod usage;
 pub const PROVIDER_NAME: &str = "antigravity";
 const DEFAULT_BASE_URL: &str = "https://daily-cloudcode-pa.sandbox.googleapis.com";
 const ANTIGRAVITY_USER_AGENT: &str = "antigravity/1.15.8 (Windows; AMD64)";
-const DEFAULT_STREAM2NOSTREAM: bool = true;
 const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Claude messages
     transform_spec(TransformTarget::Gemini, UsageKind::GeminiGenerate),
@@ -84,8 +82,7 @@ pub fn default_provider() -> ProviderDefault {
     ProviderDefault {
         name: PROVIDER_NAME,
         config_json: json!({
-            "base_url": DEFAULT_BASE_URL,
-            "stream2nostream": DEFAULT_STREAM2NOSTREAM
+            "base_url": DEFAULT_BASE_URL
         }),
         enabled: true,
     }
@@ -180,7 +177,11 @@ impl AntiGravityProvider {
         let raw_model = request.path.model.clone();
         let model = normalize_model_name(&raw_model);
         let scope = DisallowScope::model(model.clone());
-        let body = request.body;
+        let mut body = request.body;
+        if let Some(config) = body.generation_config.as_mut() {
+            config.max_output_tokens = None;
+        }
+        prune_generation_config(&mut body);
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -191,18 +192,35 @@ impl AntiGravityProvider {
                 let body = body.clone();
                 async move {
                     let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
-                    let project_id =
-                        credential_project_id(credential.value()).unwrap_or_else(random_project_id);
-                    let base_url = credential_base_url(credential.value());
-                    let stream2nostream =
-                        credential_stream2nostream(credential.value()).unwrap_or(DEFAULT_STREAM2NOSTREAM);
-                    let path = if is_stream || stream2nostream {
+                    let base_url =
+                        credential_base_url(credential.value()).unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+                    let project_id = match credential_project_id(credential.value()) {
+                        Some(value) => value,
+                        None => oauth::detect_project_id(
+                            &tokens.access_token,
+                            &base_url,
+                            ANTIGRAVITY_USER_AGENT,
+                            ctx.proxy.as_deref(),
+                        )
+                        .await
+                        .map_err(|err| AttemptFailure {
+                            passthrough: err,
+                            mark: None,
+                        })?
+                        .ok_or_else(|| AttemptFailure {
+                            passthrough: UpstreamPassthroughError::service_unavailable(
+                                "missing project_id (auto-detect failed)",
+                            ),
+                            mark: None,
+                        })?,
+                    };
+                    let path = if is_stream {
                         "/v1internal:streamGenerateContent?alt=sse"
                     } else {
                         "/v1internal:generateContent"
                     }
                     .to_string();
-                    let url = build_url(base_url.as_deref(), &path);
+                    let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(&tokens.access_token, &raw_model)?;
                     let wrapped = wrap_internal_request(&model, &project_id, &body);
@@ -215,7 +233,7 @@ impl AntiGravityProvider {
                         "POST",
                         &path,
                         Some(&model),
-                        is_stream || stream2nostream,
+                        is_stream,
                         &scope,
                         || {
                             client
@@ -238,26 +256,13 @@ impl AntiGravityProvider {
                         request_headers,
                         request_body,
                     };
-                    let response = handle_response(
-                        response,
-                        is_stream || stream2nostream,
-                        scope.clone(),
-                        &ctx,
-                        Some(meta.clone()),
-                    )
-                    .await?;
+                    let response = handle_response(response, is_stream, scope.clone(), &ctx, Some(meta.clone()))
+                        .await?;
                     let response = if is_stream {
                         unwrap_internal_stream(response).map_err(|err| AttemptFailure {
                             passthrough: err,
                             mark: None,
                         })?
-                    } else if stream2nostream {
-                        stream_to_response(response)
-                            .await
-                            .map_err(|err| AttemptFailure {
-                                passthrough: err,
-                                mark: None,
-                            })?
                     } else {
                         unwrap_internal_json(response).map_err(|err| AttemptFailure {
                             passthrough: err,
@@ -289,11 +294,30 @@ impl AntiGravityProvider {
                 let body = body.clone();
                 async move {
                     let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
-                    let project_id =
-                        credential_project_id(credential.value()).unwrap_or_else(random_project_id);
-                    let base_url = credential_base_url(credential.value());
+                    let base_url =
+                        credential_base_url(credential.value()).unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+                    let project_id = match credential_project_id(credential.value()) {
+                        Some(value) => value,
+                        None => oauth::detect_project_id(
+                            &tokens.access_token,
+                            &base_url,
+                            ANTIGRAVITY_USER_AGENT,
+                            ctx.proxy.as_deref(),
+                        )
+                        .await
+                        .map_err(|err| AttemptFailure {
+                            passthrough: err,
+                            mark: None,
+                        })?
+                        .ok_or_else(|| AttemptFailure {
+                            passthrough: UpstreamPassthroughError::service_unavailable(
+                                "missing project_id (auto-detect failed)",
+                            ),
+                            mark: None,
+                        })?,
+                    };
                     let path = "/v1internal:streamGenerateContent?alt=sse".to_string();
-                    let url = build_url(base_url.as_deref(), &path);
+                    let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(&tokens.access_token, &raw_model)?;
                     let wrapped = wrap_internal_request(&model, &project_id, &body);
@@ -322,16 +346,21 @@ impl AntiGravityProvider {
                         provider_id: ctx.provider_id,
                         credential_id: Some(credential.value().id),
                         operation: "antigravity.stream".to_string(),
-                        model: Some(model),
+                        model: Some(model.clone()),
                         request_method: "POST".to_string(),
                         request_path: path,
                         request_query: None,
-                        request_headers,
-                        request_body,
+                        request_headers: request_headers.clone(),
+                        request_body: request_body.clone(),
                     };
-                    let response =
-                        handle_response(response, true, scope.clone(), &ctx, Some(meta.clone()))
-                            .await?;
+                    let response = handle_response(
+                        response,
+                        true,
+                        scope.clone(),
+                        &ctx,
+                        Some(meta.clone()),
+                    )
+                    .await?;
                     let response = unwrap_internal_stream(response).map_err(|err| AttemptFailure {
                         passthrough: err,
                         mark: None,
@@ -510,7 +539,8 @@ fn unwrap_internal_json(
         ProxyResponse::Json { status, headers, body } => {
             let parsed: JsonValue = serde_json::from_slice(&body)
                 .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
-            let unwrapped = unwrap_internal_value(parsed);
+            let mut unwrapped = unwrap_internal_value(parsed);
+            normalize_gemini_parts(&mut unwrapped);
             let mapped = serde_json::to_vec(&unwrapped)
                 .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
             Ok(ProxyResponse::Json {
@@ -542,81 +572,6 @@ fn unwrap_internal_stream(
             "expected stream response".to_string(),
         )),
     }
-}
-
-async fn stream_to_response(
-    response: ProxyResponse,
-) -> Result<ProxyResponse, UpstreamPassthroughError> {
-    match response {
-        ProxyResponse::Stream { status, headers, body } => {
-            let mut parser = SseParser::new();
-            let mut state = GeminiStreamToResponseState::new();
-            let mut stream = body.stream;
-            let mut final_response = None;
-
-            while let Some(chunk) = stream.next().await {
-                let bytes = chunk.map_err(|err| {
-                    UpstreamPassthroughError::service_unavailable(err.to_string())
-                })?;
-                for event in parser.push_bytes(&bytes) {
-                    if event.data.is_empty() || event.data == "[DONE]" {
-                        continue;
-                    }
-                    for parsed in parse_internal_stream_payload(&event.data) {
-                        if let Some(done) = state.push_chunk(parsed) {
-                            final_response = Some(done);
-                        }
-                    }
-                }
-            }
-            for event in parser.finish() {
-                if event.data.is_empty() || event.data == "[DONE]" {
-                    continue;
-                }
-                for parsed in parse_internal_stream_payload(&event.data) {
-                    if let Some(done) = state.push_chunk(parsed) {
-                        final_response = Some(done);
-                    }
-                }
-            }
-            let response_body = final_response.unwrap_or_else(|| state.finalize_on_eof());
-            let bytes = serde_json::to_vec(&response_body)
-                .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
-            Ok(ProxyResponse::Json {
-                status,
-                headers,
-                body: Bytes::from(bytes),
-            })
-        }
-        ProxyResponse::Json { .. } => Err(UpstreamPassthroughError::service_unavailable(
-            "expected stream response".to_string(),
-        )),
-    }
-}
-
-fn parse_internal_stream_payload(
-    data: &str,
-) -> Vec<gemini::generate_content::response::GenerateContentResponse> {
-    let value: JsonValue = match serde_json::from_str(data) {
-        Ok(value) => value,
-        Err(_) => return Vec::new(),
-    };
-    let value = unwrap_internal_value(value);
-    if let Ok(parsed) =
-        serde_json::from_value::<gemini::generate_content::response::GenerateContentResponse>(
-            value.clone(),
-        )
-    {
-        return vec![parsed];
-    }
-    if let Ok(parsed) =
-        serde_json::from_value::<Vec<gemini::generate_content::response::GenerateContentResponse>>(
-            value,
-        )
-    {
-        return parsed;
-    }
-    Vec::new()
 }
 
 fn map_internal_stream(
@@ -678,10 +633,14 @@ fn map_event_data(data: &str) -> Vec<Bytes> {
         }
     };
     let mut out = Vec::new();
-    match unwrap_internal_value(value) {
+    let mut value = unwrap_internal_value(value);
+    normalize_gemini_parts(&mut value);
+    match value {
         JsonValue::Array(items) => {
             for item in items {
-                if let Some(bytes) = sse_json_bytes(&unwrap_internal_value(item)) {
+                let mut item = unwrap_internal_value(item);
+                normalize_gemini_parts(&mut item);
+                if let Some(bytes) = sse_json_bytes(&item) {
                     out.push(bytes);
                 }
             }
@@ -702,6 +661,42 @@ fn unwrap_internal_value(value: JsonValue) -> JsonValue {
             None => JsonValue::Object(map),
         },
         other => other,
+    }
+}
+
+fn normalize_gemini_parts(value: &mut JsonValue) {
+    match value {
+        JsonValue::Object(map) => {
+            if let Some(JsonValue::Array(candidates)) = map.get_mut("candidates") {
+                for candidate in candidates {
+                    if let JsonValue::Object(candidate) = candidate {
+                        if let Some(JsonValue::Object(content)) = candidate.get_mut("content") {
+                            content
+                                .entry("parts")
+                                .or_insert_with(|| JsonValue::Array(Vec::new()));
+                        }
+                    }
+                }
+            }
+        }
+        JsonValue::Array(items) => {
+            for item in items {
+                normalize_gemini_parts(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn prune_generation_config(body: &mut gemini::generate_content::request::GenerateContentRequestBody) {
+    let Some(config) = body.generation_config.as_mut() else {
+        return;
+    };
+    let Ok(JsonValue::Object(map)) = serde_json::to_value(config) else {
+        return;
+    };
+    if map.values().all(|value| value.is_null()) {
+        body.generation_config = None;
     }
 }
 
@@ -866,13 +861,6 @@ pub(super) fn credential_base_url(credential: &BaseCredential) -> Option<String>
         .get("base_url")
         .and_then(|value| value.as_str())
         .map(|value| value.to_string())
-}
-
-fn credential_stream2nostream(credential: &BaseCredential) -> Option<bool> {
-    credential
-        .meta
-        .get("stream2nostream")
-        .and_then(|value| value.as_bool())
 }
 
 pub(super) fn build_url(base_url: Option<&str>, path: &str) -> String {

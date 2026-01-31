@@ -13,7 +13,7 @@ pub struct Model {
     pub enabled: bool,
     pub created_at: OffsetDateTime,
     pub last_used_at: Option<OffsetDateTime>,
-    #[sea_orm(belongs_to, from = "user_id", to = "id")]
+    #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]
     pub user: HasOne<super::users::Entity>,
 }
 
