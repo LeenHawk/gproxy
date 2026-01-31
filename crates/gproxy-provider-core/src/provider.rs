@@ -15,6 +15,7 @@ pub struct DownstreamContext {
     pub proxy: Option<String>,
     pub traffic: SharedTrafficSink,
     pub downstream_meta: Option<DownstreamRecordMeta>,
+    pub user_agent: Option<String>,
 }
 
 impl Default for DownstreamContext {
@@ -27,6 +28,7 @@ impl Default for DownstreamContext {
             proxy: None,
             traffic: Arc::new(NoopTrafficSink),
             downstream_meta: None,
+            user_agent: None,
         }
     }
 }
@@ -37,6 +39,7 @@ pub struct UpstreamContext {
     pub provider_id: Option<i64>,
     pub proxy: Option<String>,
     pub traffic: SharedTrafficSink,
+    pub user_agent: Option<String>,
 }
 
 impl DownstreamContext {
@@ -49,6 +52,7 @@ impl DownstreamContext {
                 .and_then(|meta| meta.provider_id),
             proxy: self.proxy.clone(),
             traffic: self.traffic.clone(),
+            user_agent: self.user_agent.clone(),
         }
     }
 }

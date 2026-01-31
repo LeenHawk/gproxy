@@ -148,6 +148,13 @@ async fn fetch_usage_payload_with_credential(
 }
 
 fn summarize_usage(payload: JsonValue) -> JsonValue {
+    // Response shape example:
+    // {
+    //   "plan_type": "team",
+    //   "primary_window": { "limit_window_seconds": 18000, "reset_after_seconds": 9964, "reset_at": 1769845596, "used_percent": 33 },
+    //   "secondary_window": { "limit_window_seconds": 604800, "reset_after_seconds": 596764, "reset_at": 1770432396, "used_percent": 10 },
+    //   "raw": { ... upstream usage payload ... }
+    // }
     let plan_type = payload.get("plan_type").cloned().unwrap_or(JsonValue::Null);
     let rate_limit = payload.get("rate_limit").cloned().unwrap_or(JsonValue::Null);
     let primary = rate_limit

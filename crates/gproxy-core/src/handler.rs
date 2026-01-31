@@ -10,7 +10,7 @@ use gproxy_provider_core::{
     DownstreamContext, DownstreamRecordMeta, DownstreamTrafficEvent, ProxyRequest, ProxyResponse,
     UpstreamPassthroughError,
 };
-use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_TYPE, USER_AGENT};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -89,6 +89,10 @@ pub async fn proxy_handler(
         proxy: state.proxy.read().ok().and_then(|guard| guard.clone()),
         traffic: state.traffic.clone(),
         downstream_meta: Some(downstream_meta),
+        user_agent: headers
+            .get(USER_AGENT)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| value.to_string()),
     };
 
     let result = provider_handle.call(classified.request, ctx).await;

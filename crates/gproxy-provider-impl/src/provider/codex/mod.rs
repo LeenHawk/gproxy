@@ -14,6 +14,10 @@ use gproxy_provider_core::{
     UpstreamRecordMeta,
 };
 use gproxy_protocol::openai;
+use openai::create_response::types::{
+    EasyInputMessage, EasyInputMessageContent, EasyInputMessageRole, EasyInputMessageType, InputItem,
+    Instructions, Metadata,
+};
 use gproxy_protocol::sse::SseParser;
 use gproxy_transform::stream2nostream::openai_response::OpenAIResponseStreamToResponseState;
 
@@ -76,6 +80,7 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
 mod refresh;
 mod oauth;
 mod usage;
+mod instructions;
 
 pub fn default_provider() -> ProviderDefault {
     ProviderDefault {
@@ -175,14 +180,28 @@ impl CodexProvider {
         let mut body = request.body;
         body.stream = Some(true);
         body.store = Some(false);
+        // Codex backend does not accept max_output_tokens; strip it to avoid 400s.
+        body.max_output_tokens = None;
+        let is_codex_ua = is_codex_user_agent(ctx.user_agent.as_deref());
 
         self.pool
             .execute(scope.clone(), |credential| {
                 let ctx = ctx.clone();
                 let scope = scope.clone();
                 let model = model.clone();
-                let body = body.clone();
+                let mut body = body.clone();
                 async move {
+                    if !is_codex_ua {
+                        let personality =
+                            resolve_non_codex_personality(body.metadata.as_ref(), credential.value());
+                        let mut extra = instructions::instructions_for_model(&model, personality);
+                        if let Some(custom) = credential_non_codex_instructions(credential.value()) {
+                            if !custom.trim().is_empty() {
+                                extra = format!("{extra}\n\n{custom}");
+                            }
+                        }
+                        apply_non_codex_instructions(&mut body, &extra);
+                    }
                     let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
                     let mut access_token = tokens.access_token.clone();
                     let refresh_token = tokens
@@ -534,6 +553,75 @@ fn credential_base_url(credential: &BaseCredential) -> Option<String> {
         .get("base_url")
         .and_then(|value| value.as_str())
         .map(|value| value.to_string())
+}
+
+fn credential_non_codex_instructions(credential: &BaseCredential) -> Option<String> {
+    credential
+        .meta
+        .get("non_codex_instructions")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn apply_non_codex_instructions(
+    body: &mut openai::create_response::request::CreateResponseRequestBody,
+    extra: &str,
+) {
+    let extra = extra.trim();
+    if extra.is_empty() {
+        return;
+    }
+    let extra_text = extra.to_string();
+    body.instructions = match body.instructions.take() {
+        Some(Instructions::Text(existing)) => {
+            if existing.trim().is_empty() {
+                Some(Instructions::Text(extra_text))
+            } else {
+                Some(Instructions::Text(format!("{existing}\n\n{extra}")))
+            }
+        }
+        Some(Instructions::Items(mut items)) => {
+            items.push(instruction_text_item(extra_text));
+            Some(Instructions::Items(items))
+        }
+        None => Some(Instructions::Text(extra_text)),
+    };
+}
+
+fn instruction_text_item(text: String) -> InputItem {
+    InputItem::EasyMessage(EasyInputMessage {
+        r#type: EasyInputMessageType::Message,
+        role: EasyInputMessageRole::System,
+        content: EasyInputMessageContent::Text(text),
+    })
+}
+
+fn resolve_non_codex_personality(
+    metadata: Option<&Metadata>,
+    credential: &BaseCredential,
+) -> Option<instructions::CodexPersonality> {
+    metadata
+        .and_then(|meta| {
+            meta.get("codex_personality")
+                .or_else(|| meta.get("personality"))
+                .and_then(|value| instructions::parse_personality(value))
+        })
+        .or_else(|| credential_personality(credential))
+}
+
+fn credential_personality(credential: &BaseCredential) -> Option<instructions::CodexPersonality> {
+    credential
+        .meta
+        .get("codex_personality")
+        .or_else(|| credential.meta.get("personality"))
+        .and_then(|value| value.as_str())
+        .and_then(|value| instructions::parse_personality(value))
+}
+
+fn is_codex_user_agent(user_agent: Option<&str>) -> bool {
+    user_agent
+        .map(|ua| ua.to_ascii_lowercase().contains("codex"))
+        .unwrap_or(false)
 }
 
 
