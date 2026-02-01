@@ -3,7 +3,7 @@ use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{json, Value as JsonValue};
 
 use gproxy_provider_core::{
-    AttemptFailure, CredentialPool, DisallowScope, ProxyResponse, UpstreamContext,
+    AttemptFailure, CredentialEntry, CredentialPool, DisallowScope, ProxyResponse, UpstreamContext,
     UpstreamPassthroughError, UpstreamRecordMeta,
 };
 
@@ -28,6 +28,16 @@ pub(super) async fn fetch_usage_payload(
     ctx: UpstreamContext,
 ) -> Result<JsonValue, UpstreamPassthroughError> {
     let result = fetch_usage_payload_with_credential(pool, ctx).await?;
+    Ok(result.payload)
+}
+
+pub(super) async fn fetch_usage_payload_for_credential(
+    pool: &CredentialPool<BaseCredential>,
+    ctx: UpstreamContext,
+    credential_id: i64,
+) -> Result<JsonValue, UpstreamPassthroughError> {
+    let id = credential_id.to_string();
+    let result = fetch_usage_payload_with_credential_id(pool, ctx, &id).await?;
     Ok(result.payload)
 }
 
@@ -65,9 +75,25 @@ async fn fetch_usage_payload_with_credential(
     pool: &CredentialPool<BaseCredential>,
     ctx: UpstreamContext,
 ) -> Result<UsageFetch, UpstreamPassthroughError> {
+    fetch_usage_payload_with(pool, ctx, None).await
+}
+
+async fn fetch_usage_payload_with_credential_id(
+    pool: &CredentialPool<BaseCredential>,
+    ctx: UpstreamContext,
+    credential_id: &str,
+) -> Result<UsageFetch, UpstreamPassthroughError> {
+    fetch_usage_payload_with(pool, ctx, Some(credential_id)).await
+}
+
+async fn fetch_usage_payload_with(
+    pool: &CredentialPool<BaseCredential>,
+    ctx: UpstreamContext,
+    credential_id: Option<&str>,
+) -> Result<UsageFetch, UpstreamPassthroughError> {
     let scope = DisallowScope::AllModels;
     let base_url = channel_base_url(&ctx).await?;
-    pool.execute(scope.clone(), |credential| {
+    let runner = |credential: CredentialEntry<BaseCredential>| {
         let ctx = ctx.clone();
         let scope = scope.clone();
         let base_url = base_url.clone();
@@ -150,8 +176,12 @@ async fn fetch_usage_payload_with_credential(
                 credential_id: credential.value().id,
             })
         }
-    })
-    .await
+    };
+
+    match credential_id {
+        Some(id) => pool.execute_for_id(id, scope.clone(), runner).await,
+        None => pool.execute(scope.clone(), runner).await,
+    }
 }
 
 fn summarize_usage(payload: JsonValue) -> JsonValue {

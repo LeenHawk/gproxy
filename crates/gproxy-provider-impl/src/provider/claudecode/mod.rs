@@ -130,6 +130,14 @@ impl ClaudeCodeProvider {
     pub fn replace_snapshot(&self, snapshot: PoolSnapshot<ClaudeCodeCredential>) {
         self.pool.replace_snapshot(snapshot);
     }
+
+    pub async fn fetch_usage_payload_for_credential(
+        &self,
+        credential_id: i64,
+        ctx: UpstreamContext,
+    ) -> Result<JsonValue, UpstreamPassthroughError> {
+        usage::fetch_usage_payload_for_credential(&self.pool, ctx, credential_id).await
+    }
 }
 
 #[async_trait]

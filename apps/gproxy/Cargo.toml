@@ -16,3 +16,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 time = "0.3"
+rust-embed = { version = "8", features = ["axum-ex", "compression", "include-exclude"] }
+mime_guess = "2"

@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -15,7 +16,8 @@ use tokio::sync::watch;
 
 use gproxy_core::{AuthKeyEntry, AuthSnapshot, MemoryAuth, UserEntry};
 use gproxy_provider_core::{
-    CredentialEntry, DisallowEntry, DisallowKey, DisallowLevel, DisallowScope, PoolSnapshot,
+    CredentialEntry, DisallowEntry, DisallowKey, DisallowLevel, DisallowScope, NoopTrafficSink,
+    PoolSnapshot, UpstreamContext, UpstreamPassthroughError,
 };
 use gproxy_provider_impl::{BaseCredential, ProviderRegistry};
 use gproxy_storage::{
@@ -86,6 +88,7 @@ pub(crate) fn admin_router(
         .route("/admin/reload", post(reload_snapshot))
         .route("/admin/stats", get(stats))
         .route("/admin/upstream_usage", get(get_upstream_usage))
+        .route("/admin/upstream_usage_live", get(get_upstream_usage_live))
         .with_state(state)
 }
 
@@ -941,6 +944,11 @@ struct UpstreamUsageQuery {
     end: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct UpstreamUsageLiveQuery {
+    credential_id: i64,
+}
+
 async fn get_upstream_usage(
     State(state): State<AdminState>,
     headers: HeaderMap,
@@ -1001,6 +1009,68 @@ async fn get_upstream_usage(
         }))
         .into_response(),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
+    }
+}
+
+async fn get_upstream_usage_live(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Query(query): Query<UpstreamUsageLiveQuery>,
+) -> Response {
+    if let Err(resp) = require_admin(&state, &headers) {
+        return resp;
+    }
+
+    let storage = match state.storage() {
+        Ok(storage) => storage,
+        Err(resp) => return resp,
+    };
+
+    let provider_id = match provider_id_for_credential(&storage, query.credential_id).await {
+        Ok(provider_id) => provider_id,
+        Err(resp) => return resp,
+    };
+
+    let provider_name = match resolve_provider_name(&state, &storage, provider_id).await {
+        Ok(name) => name,
+        Err(resp) => return resp,
+    };
+
+    let ctx = match build_upstream_context(&state, provider_id) {
+        Ok(ctx) => ctx,
+        Err(resp) => return resp,
+    };
+
+    let provider_key = normalize_provider_key(&provider_name);
+    let result = if provider_key.contains("codex") {
+        state
+            .registry
+            .codex()
+            .fetch_usage_payload_for_credential(query.credential_id, ctx)
+            .await
+    } else if provider_key.contains("claudecode") {
+        state
+            .registry
+            .claudecode()
+            .fetch_usage_payload_for_credential(query.credential_id, ctx)
+            .await
+    } else if provider_key.contains("antigravity") {
+        state
+            .registry
+            .antigravity()
+            .fetch_usage_payload_for_credential(query.credential_id, ctx)
+            .await
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            "provider does not support upstream usage",
+        )
+            .into_response();
+    };
+
+    match result {
+        Ok(payload) => Json(payload).into_response(),
+        Err(err) => passthrough_response(err),
     }
 }
 
@@ -1114,6 +1184,55 @@ async fn provider_id_for_credential(
         Some(cred) => Ok(cred.provider_id),
         None => Err((StatusCode::NOT_FOUND, "credential not found").into_response()),
     }
+}
+
+async fn resolve_provider_name(
+    state: &AdminState,
+    storage: &TrafficStorage,
+    provider_id: i64,
+) -> Result<String, Response> {
+    if let Ok(map) = state.provider_names.read()
+        && let Some(name) = map.get(&provider_id) {
+            return Ok(name.clone());
+        }
+    let providers = match storage.list_providers().await {
+        Ok(items) => items,
+        Err(err) => return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()),
+    };
+    match providers.iter().find(|provider| provider.id == provider_id) {
+        Some(provider) => Ok(provider.name.clone()),
+        None => Err((StatusCode::NOT_FOUND, "provider not found").into_response()),
+    }
+}
+
+fn build_upstream_context(state: &AdminState, provider_id: i64) -> Result<UpstreamContext, Response> {
+    let config = state.config()?;
+    let trace_id = format!(
+        "admin-{}",
+        OffsetDateTime::now_utc().unix_timestamp_nanos()
+    );
+    Ok(UpstreamContext {
+        trace_id,
+        provider_id: Some(provider_id),
+        proxy: config.proxy,
+        traffic: Arc::new(NoopTrafficSink),
+        user_agent: None,
+    })
+}
+
+fn passthrough_response(err: UpstreamPassthroughError) -> Response {
+    let mut resp = Response::new(Body::from(err.body));
+    *resp.status_mut() = err.status;
+    resp.headers_mut().extend(err.headers);
+    resp
+}
+
+fn normalize_provider_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .flat_map(|ch| ch.to_lowercase())
+        .collect()
 }
 
 #[allow(clippy::result_large_err)]

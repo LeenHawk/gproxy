@@ -110,6 +110,22 @@ impl AntiGravityProvider {
     pub fn replace_snapshot(&self, snapshot: PoolSnapshot<AntiGravityCredential>) {
         self.pool.replace_snapshot(snapshot);
     }
+
+    pub async fn fetch_usage_payload_for_credential(
+        &self,
+        credential_id: i64,
+        ctx: UpstreamContext,
+    ) -> Result<JsonValue, UpstreamPassthroughError> {
+        let result = usage::handle_usage_for_credential(&self.pool, ctx, credential_id).await?;
+        match result.response {
+            ProxyResponse::Json { body, .. } => serde_json::from_slice::<JsonValue>(&body).map_err(
+                |err| UpstreamPassthroughError::service_unavailable(err.to_string()),
+            ),
+            ProxyResponse::Stream { .. } => Err(UpstreamPassthroughError::service_unavailable(
+                "usage response stream not supported",
+            )),
+        }
+    }
 }
 
 #[async_trait]

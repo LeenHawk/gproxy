@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use clap::Parser;
 mod admin;
+mod admin_ui;
 mod cli;
 mod data_dir;
 mod dsn;
@@ -135,8 +136,10 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
         Some(traffic_sink),
         Some(provider_ids.clone()),
     );
-    let app = core
-        .router()
+    let app = axum::Router::new()
+        .route("/", axum::routing::get(admin_ui::ui_fallback))
+        .route("/assets/{*path}", axum::routing::get(admin_ui::ui_fallback))
+        .merge(core.router())
         .merge(admin_router(
             config.clone(),
             storage.clone(),
@@ -145,7 +148,8 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             auth,
             provider_ids,
             provider_names,
-        ));
+        ))
+        .fallback(axum::routing::get(admin_ui::ui_fallback));
 
     serve_loop(app, bind_rx).await?;
 

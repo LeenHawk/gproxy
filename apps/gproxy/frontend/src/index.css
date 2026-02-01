@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --font-display: "IBM Plex Sans", "Inter", sans-serif;
+  --color-ink: #0f172a;
+  --color-ink-soft: #334155;
+  --color-surface: #f8fafc;
+  --color-panel: #ffffff;
+  --color-accent: #2563eb;
+}
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    min-height: 100vh;
+    background-color: var(--color-surface);
+    background-image:
+      radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 45%),
+      radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.08), transparent 55%),
+      linear-gradient(160deg, rgba(248, 250, 252, 0.9), rgba(241, 245, 249, 0.95));
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white/80 shadow-sm backdrop-blur;
+  }
+
+  .card-shadow {
+    box-shadow: 0 20px 50px -30px rgba(15, 23, 42, 0.35);
+  }
+
+  .panel {
+    @apply rounded-2xl border border-slate-200 bg-white/80 p-5;
+  }
+
+  .label {
+    @apply text-xs uppercase tracking-wide text-slate-400;
+  }
+
+  .input {
+    @apply mt-2 w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100;
+  }
+
+  .textarea {
+    @apply mt-2 w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100;
+  }
+
+  .select {
+    @apply mt-2 w-full rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-100;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-slate-900 text-white hover:bg-slate-800;
+  }
+
+  .btn-accent {
+    @apply bg-sky-600 text-white hover:bg-sky-500;
+  }
+
+  .btn-ghost {
+    @apply border border-slate-200 text-slate-600 hover:bg-slate-100;
+  }
+
+  .btn-danger {
+    @apply border border-rose-200 text-rose-600 hover:bg-rose-50;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold;
+  }
+}

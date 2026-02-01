@@ -2,7 +2,7 @@ use http::StatusCode;
 use serde_json::json;
 
 use gproxy_provider_core::{
-    AttemptFailure, CredentialPool, DisallowScope, ProxyResponse, UpstreamContext,
+    AttemptFailure, CredentialEntry, CredentialPool, DisallowScope, ProxyResponse, UpstreamContext,
     UpstreamPassthroughError, UpstreamRecordMeta,
 };
 
@@ -22,8 +22,25 @@ pub(super) async fn handle_usage(
     pool: &CredentialPool<BaseCredential>,
     ctx: UpstreamContext,
 ) -> Result<UpstreamOk, UpstreamPassthroughError> {
+    handle_usage_with(pool, ctx, None).await
+}
+
+pub(super) async fn handle_usage_for_credential(
+    pool: &CredentialPool<BaseCredential>,
+    ctx: UpstreamContext,
+    credential_id: i64,
+) -> Result<UpstreamOk, UpstreamPassthroughError> {
+    let id = credential_id.to_string();
+    handle_usage_with(pool, ctx, Some(id.as_str())).await
+}
+
+async fn handle_usage_with(
+    pool: &CredentialPool<BaseCredential>,
+    ctx: UpstreamContext,
+    credential_id: Option<&str>,
+) -> Result<UpstreamOk, UpstreamPassthroughError> {
     let scope = DisallowScope::AllModels;
-    pool.execute(scope.clone(), |credential| {
+    let runner = |credential: CredentialEntry<BaseCredential>| {
         let ctx = ctx.clone();
         let scope = scope.clone();
         async move {
@@ -139,6 +156,10 @@ pub(super) async fn handle_usage(
                 meta,
             })
         }
-    })
-    .await
+    };
+
+    match credential_id {
+        Some(id) => pool.execute_for_id(id, scope.clone(), runner).await,
+        None => pool.execute(scope.clone(), runner).await,
+    }
 }

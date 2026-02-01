@@ -1,0 +1,8 @@
+node_modules
+.dist
+.DS_Store
+pnpm-debug.log
+vite.config.ts.timestamp-*
+.vite
+
+dist

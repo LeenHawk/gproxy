@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use arc_swap::ArcSwap;
+use http::StatusCode;
 use rand::Rng;
 
 use crate::disallow::{DisallowEntry, DisallowKey, DisallowMark, DisallowRecord, DisallowScope};
@@ -158,6 +159,56 @@ impl<C> CredentialPool<C> {
         Err(UpstreamPassthroughError::service_unavailable(
             "no credential available",
         ))
+    }
+
+    pub async fn execute_for_id<T, F, Fut>(
+        &self,
+        credential_id: &str,
+        scope_hint: DisallowScope,
+        mut f: F,
+    ) -> Result<T, UpstreamPassthroughError>
+    where
+        F: FnMut(CredentialEntry<C>) -> Fut,
+        Fut: std::future::Future<Output = Result<T, AttemptFailure>> + Send,
+    {
+        let snapshot = self.snapshot.load_full();
+        let now = SystemTime::now();
+
+        let Some(credential) = snapshot
+            .credentials
+            .iter()
+            .find(|entry| entry.id == credential_id)
+            .cloned()
+        else {
+            return Err(UpstreamPassthroughError::from_status(
+                StatusCode::NOT_FOUND,
+                "credential not found",
+            ));
+        };
+
+        if !credential.enabled {
+            return Err(UpstreamPassthroughError::from_status(
+                StatusCode::FORBIDDEN,
+                "credential disabled",
+            ));
+        }
+
+        if self.is_disallowed(&snapshot, &credential.id, &scope_hint, now) {
+            return Err(UpstreamPassthroughError::from_status(
+                StatusCode::FORBIDDEN,
+                "credential disallowed",
+            ));
+        }
+
+        match f(credential.clone()).await {
+            Ok(output) => Ok(output),
+            Err(failure) => {
+                if let Some(mark) = failure.mark.clone() {
+                    self.apply_mark(&credential.id, mark).await;
+                }
+                Err(failure.passthrough)
+            }
+        }
     }
 
     fn is_disallowed(

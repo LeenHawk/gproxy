@@ -144,6 +144,14 @@ impl CodexProvider {
     ) -> Result<JsonValue, UpstreamPassthroughError> {
         usage::fetch_usage_payload(&self.pool, ctx).await
     }
+
+    pub async fn fetch_usage_payload_for_credential(
+        &self,
+        credential_id: i64,
+        ctx: UpstreamContext,
+    ) -> Result<JsonValue, UpstreamPassthroughError> {
+        usage::fetch_usage_payload_for_credential(&self.pool, ctx, credential_id).await
+    }
 }
 
 #[async_trait]
