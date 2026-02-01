@@ -1,0 +1,8 @@
+target
+data
+samples
+apps/gproxy/frontend/node_modules
+apps/gproxy/frontend/dist
+**/node_modules
+.git
+.github

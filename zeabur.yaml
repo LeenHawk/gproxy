@@ -1,0 +1,85 @@
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: gproxy
+spec:
+  description: "Multi-provider proxy with admin UI"
+  tags:
+    - ai
+    - proxy
+    - openai
+    - claude
+    - gemini
+  variables:
+    - key: GPROXY_ADMIN_KEY
+      type: STRING
+      name: GPROXY_ADMIN_KEY
+      description: "Admin key (required)"
+    - key: GPROXY_HOST
+      type: STRING
+      name: GPROXY_HOST
+      description: "Bind host (default 0.0.0.0)"
+    - key: GPROXY_PORT
+      type: STRING
+      name: GPROXY_PORT
+      description: "Bind port (default 8787)"
+    - key: GPROXY_DATA_DIR
+      type: STRING
+      name: GPROXY_DATA_DIR
+      description: "Data directory (default /app/data)"
+    - key: GPROXY_DSN
+      type: STRING
+      name: GPROXY_DSN
+      description: "Database DSN (optional, default uses sqlite in data dir)"
+    - key: GPROXY_PROXY
+      type: STRING
+      name: GPROXY_PROXY
+      description: "Upstream proxy URL (optional)"
+    - key: RUST_LOG
+      type: STRING
+      name: RUST_LOG
+      description: "Tracing filter (e.g. info, debug)"
+  readme: |
+    # gproxy on Zeabur
+
+    Recommended settings:
+    - GPROXY_ADMIN_KEY=your-strong-key
+    - GPROXY_HOST=0.0.0.0
+    - GPROXY_PORT=8787
+    - GPROXY_DATA_DIR=/app/data
+
+    Optional:
+    - GPROXY_DSN=sqlite:///app/data/db/gproxy.db
+    - GPROXY_PROXY=http://proxy:port
+
+    Persist `/app/data` to keep database and usage data.
+  services:
+    - name: gproxy
+      template: PREBUILT
+      spec:
+        id: gproxy
+        name: gproxy
+        source:
+          image: ghcr.io/leenhawk/gproxy:latest
+        ports:
+          - id: web
+            port: 8787
+            type: HTTP
+        env:
+          GPROXY_ADMIN_KEY:
+            default: ${GPROXY_ADMIN_KEY}
+          GPROXY_HOST:
+            default: ${GPROXY_HOST}
+          GPROXY_PORT:
+            default: ${GPROXY_PORT}
+          GPROXY_DATA_DIR:
+            default: ${GPROXY_DATA_DIR}
+          GPROXY_DSN:
+            default: ${GPROXY_DSN}
+          GPROXY_PROXY:
+            default: ${GPROXY_PROXY}
+          RUST_LOG:
+            default: ${RUST_LOG}
+        volumes:
+          - id: data
+            dir: /app/data

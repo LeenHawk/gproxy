@@ -1,0 +1,252 @@
+name: build-binaries
+
+on:
+  push:
+    branches: ["main"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: latest
+          cache: pnpm
+          cache-dependency-path: apps/gproxy/frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        run: |
+          cd apps/gproxy/frontend
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/gproxy/frontend/dist
+          retention-days: 1
+
+  build:
+    needs: build-frontend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: gproxy-linux-x86_64.zip
+            ext: ""
+            run_check: true
+            toolchain: stable-x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: gproxy-linux-x86_64-musl.zip
+            ext: ""
+            run_check: true
+            cross: true
+            toolchain: stable-x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: gproxy-linux-aarch64.zip
+            ext: ""
+            run_check: true
+            toolchain: stable-aarch64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            artifact: gproxy-linux-aarch64-musl.zip
+            ext: ""
+            run_check: true
+            cross: true
+            toolchain: stable-aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-linux-android
+            artifact: gproxy-android-x86_64.zip
+            ext: ""
+            android: true
+            android_abi: x86_64
+            toolchain: stable-x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-linux-android
+            artifact: gproxy-android-aarch64.zip
+            ext: ""
+            android: true
+            android_abi: arm64-v8a
+            toolchain: stable-x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: gproxy-windows-x86_64.zip
+            ext: ".exe"
+            run_check: true
+            toolchain: stable-x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: gproxy-windows-aarch64.zip
+            ext: ".exe"
+            run_check: true
+            toolchain: stable-aarch64-pc-windows-msvc
+            boringssl_disable_asm: "1"
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: gproxy-macos-x86_64.zip
+            ext: ""
+            run_check: true
+            toolchain: stable-aarch64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: gproxy-macos-aarch64.zip
+            ext: ""
+            run_check: true
+            toolchain: stable-aarch64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/gproxy/frontend/dist
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.toolchain }}
+
+      - name: Cache Rust builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      - name: Install target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install Android NDK
+        if: ${{ matrix.android }}
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android toolchain
+        if: ${{ matrix.android }}
+        run: |
+          sdkmanager "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          cargo install cargo-ndk --locked
+
+      - name: Install cross
+        if: ${{ matrix.cross }}
+        run: cargo install cross --locked
+
+      - name: Build (unix)
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }} -p gproxy
+          elif [ "${{ matrix.android }}" = "true" ]; then
+            cargo ndk -t ${{ matrix.android_abi }} build --release -p gproxy
+          else
+            cargo build --release --target ${{ matrix.target }} -p gproxy
+          fi
+
+      - name: Build (windows)
+        if: ${{ runner.os == 'Windows' }}
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+          BORINGSSL_DISABLE_ASM: ${{ matrix.boringssl_disable_asm }}
+        run: cargo build --release --target ${{ matrix.target }} -p gproxy
+
+      - name: Run -h check (unix)
+        if: ${{ runner.os != 'Windows' && matrix.run_check }}
+        run: target/${{ matrix.target }}/release/gproxy -h
+
+      - name: Run -h check (windows)
+        if: ${{ runner.os == 'Windows' && matrix.run_check }}
+        shell: pwsh
+        run: .\\target\\${{ matrix.target }}\\release\\gproxy${{ matrix.ext }} -h
+
+      - name: Install UPX (linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends upx-ucl zip
+
+      - name: Install UPX (macos)
+        if: ${{ runner.os == 'macOS' }}
+        run: brew install upx
+
+      - name: Install UPX (windows)
+        if: ${{ runner.os == 'Windows' }}
+        run: choco install upx -y
+
+      - name: Compress binary (non-macos)
+        if: ${{ runner.os != 'macOS' }}
+        run: upx --best --lzma target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
+
+      - name: Compress binary (macos)
+        if: ${{ runner.os == 'macOS' }}
+        run: upx --best --lzma --force-macos target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
+
+      - name: Codesign (macos)
+        if: ${{ runner.os == 'macOS' }}
+        run: codesign --force --sign - target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
+
+      - name: Package (unix)
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/gproxy${{ matrix.ext }} dist/gproxy${{ matrix.ext }}
+          cp LICENSE README.md README_zh.md dist/
+          (cd dist && zip -9 ../${{ matrix.artifact }} gproxy${{ matrix.ext }} LICENSE README.md README_zh.md)
+          shasum -a 256 ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256
+
+      - name: Package (windows)
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Path target\${{ matrix.target }}\release\gproxy${{ matrix.ext }} -Destination dist\gproxy${{ matrix.ext }}
+          Copy-Item -Path LICENSE,README.md,README_zh.md -Destination dist\
+          Compress-Archive -Path dist\gproxy${{ matrix.ext }},dist\LICENSE,dist\README.md,dist\README_zh.md -DestinationPath ${{ matrix.artifact }} -Force
+          $hash = (Get-FileHash ${{ matrix.artifact }} -Algorithm SHA256).Hash.ToLower()
+          "${hash}  ${{ matrix.artifact }}" | Out-File -Encoding ASCII ${{ matrix.artifact }}.sha256
+
+      - name: Upload artifact (push/debug)
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.sha256
+
+      - name: Upload release assets
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ matrix.artifact }}
+            ${{ matrix.artifact }}.sha256
