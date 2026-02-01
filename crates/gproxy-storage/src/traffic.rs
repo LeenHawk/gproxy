@@ -1,8 +1,12 @@
 #![allow(clippy::needless_update)]
 
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::OnConflict;
-use sea_orm::{ActiveValue, DatabaseConnection, DbErr, QueryOrder, Schema};
+use sea_orm::sea_query::{Expr, OnConflict};
+use sea_orm::{
+    ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult, QueryFilter,
+    QueryOrder, QuerySelect, Schema,
+};
+use sea_orm::ExprTrait;
 use time::OffsetDateTime;
 
 use crate::entities;
@@ -57,6 +61,28 @@ pub struct AdminKeyInput {
 #[derive(Clone)]
 pub struct TrafficStorage {
     db: DatabaseConnection,
+}
+
+#[derive(Debug, Clone, Default, FromQueryResult)]
+pub struct UpstreamUsageAggregate {
+    pub count: Option<i64>,
+    pub claude_input_tokens: Option<i64>,
+    pub claude_output_tokens: Option<i64>,
+    pub claude_total_tokens: Option<i64>,
+    pub claude_cache_creation_input_tokens: Option<i64>,
+    pub claude_cache_read_input_tokens: Option<i64>,
+    pub gemini_prompt_tokens: Option<i64>,
+    pub gemini_candidates_tokens: Option<i64>,
+    pub gemini_total_tokens: Option<i64>,
+    pub gemini_cached_tokens: Option<i64>,
+    pub openai_chat_prompt_tokens: Option<i64>,
+    pub openai_chat_completion_tokens: Option<i64>,
+    pub openai_chat_total_tokens: Option<i64>,
+    pub openai_responses_input_tokens: Option<i64>,
+    pub openai_responses_output_tokens: Option<i64>,
+    pub openai_responses_total_tokens: Option<i64>,
+    pub openai_responses_input_cached_tokens: Option<i64>,
+    pub openai_responses_output_reasoning_tokens: Option<i64>,
 }
 
 impl TrafficStorage {
@@ -141,6 +167,100 @@ impl TrafficStorage {
         Ok(())
     }
 
+    pub async fn get_upstream_usage(
+        &self,
+        credential_id: i64,
+        model: Option<&str>,
+        start_at: OffsetDateTime,
+        end_at: OffsetDateTime,
+    ) -> Result<UpstreamUsageAggregate, DbErr> {
+        use entities::upstream_traffic::Column;
+
+        let mut query = entities::UpstreamTraffic::find().select_only();
+        query = query
+            .column_as(Expr::col(Column::Id).count(), "count")
+            .column_as(
+                Expr::col(Column::ClaudeInputTokens).sum(),
+                "claude_input_tokens",
+            )
+            .column_as(
+                Expr::col(Column::ClaudeOutputTokens).sum(),
+                "claude_output_tokens",
+            )
+            .column_as(
+                Expr::col(Column::ClaudeTotalTokens).sum(),
+                "claude_total_tokens",
+            )
+            .column_as(
+                Expr::col(Column::ClaudeCacheCreationInputTokens).sum(),
+                "claude_cache_creation_input_tokens",
+            )
+            .column_as(
+                Expr::col(Column::ClaudeCacheReadInputTokens).sum(),
+                "claude_cache_read_input_tokens",
+            )
+            .column_as(
+                Expr::col(Column::GeminiPromptTokens).sum(),
+                "gemini_prompt_tokens",
+            )
+            .column_as(
+                Expr::col(Column::GeminiCandidatesTokens).sum(),
+                "gemini_candidates_tokens",
+            )
+            .column_as(
+                Expr::col(Column::GeminiTotalTokens).sum(),
+                "gemini_total_tokens",
+            )
+            .column_as(
+                Expr::col(Column::GeminiCachedTokens).sum(),
+                "gemini_cached_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiChatPromptTokens).sum(),
+                "openai_chat_prompt_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiChatCompletionTokens).sum(),
+                "openai_chat_completion_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiChatTotalTokens).sum(),
+                "openai_chat_total_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiResponsesInputTokens).sum(),
+                "openai_responses_input_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiResponsesOutputTokens).sum(),
+                "openai_responses_output_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiResponsesTotalTokens).sum(),
+                "openai_responses_total_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiResponsesInputCachedTokens).sum(),
+                "openai_responses_input_cached_tokens",
+            )
+            .column_as(
+                Expr::col(Column::OpenaiResponsesOutputReasoningTokens).sum(),
+                "openai_responses_output_reasoning_tokens",
+            )
+            .filter(Column::CredentialId.eq(credential_id))
+            .filter(Column::CreatedAt.gte(start_at))
+            .filter(Column::CreatedAt.lte(end_at));
+
+        if let Some(model) = model {
+            query = query.filter(Column::Model.eq(model));
+        }
+
+        let result = query
+            .into_model::<UpstreamUsageAggregate>()
+            .one(&self.db)
+            .await?;
+        Ok(result.unwrap_or_default())
+    }
 
 
     pub async fn upsert_global_config(

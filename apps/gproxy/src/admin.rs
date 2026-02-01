@@ -2,13 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
+use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tokio::sync::watch;
 
@@ -84,6 +85,7 @@ pub(crate) fn admin_router(
         .route("/admin/keys/{id}/disable", put(disable_key))
         .route("/admin/reload", post(reload_snapshot))
         .route("/admin/stats", get(stats))
+        .route("/admin/upstream_usage", get(get_upstream_usage))
         .with_state(state)
 }
 
@@ -931,6 +933,77 @@ async fn stats(
     Json(json!({ "providers": stats })).into_response()
 }
 
+#[derive(Debug, Deserialize)]
+struct UpstreamUsageQuery {
+    credential_id: i64,
+    model: Option<String>,
+    start: String,
+    end: String,
+}
+
+async fn get_upstream_usage(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Query(query): Query<UpstreamUsageQuery>,
+) -> Response {
+    if let Err(resp) = require_admin(&state, &headers) {
+        return resp;
+    }
+
+    let storage = match state.storage() {
+        Ok(storage) => storage,
+        Err(resp) => return resp,
+    };
+
+    let start_at = match parse_timestamp(&query.start) {
+        Ok(value) => value,
+        Err(resp) => return resp,
+    };
+    let end_at = match parse_timestamp(&query.end) {
+        Ok(value) => value,
+        Err(resp) => return resp,
+    };
+
+    match storage
+        .get_upstream_usage(
+            query.credential_id,
+            query.model.as_deref(),
+            start_at,
+            end_at,
+        )
+        .await
+    {
+        Ok(usage) => Json(json!({
+            "credential_id": query.credential_id,
+            "model": query.model,
+            "start": start_at.unix_timestamp(),
+            "end": end_at.unix_timestamp(),
+            "count": usage.count.unwrap_or(0),
+            "tokens": {
+                "claude_input_tokens": usage.claude_input_tokens.unwrap_or(0),
+                "claude_output_tokens": usage.claude_output_tokens.unwrap_or(0),
+                "claude_total_tokens": usage.claude_total_tokens.unwrap_or(0),
+                "claude_cache_creation_input_tokens": usage.claude_cache_creation_input_tokens.unwrap_or(0),
+                "claude_cache_read_input_tokens": usage.claude_cache_read_input_tokens.unwrap_or(0),
+                "gemini_prompt_tokens": usage.gemini_prompt_tokens.unwrap_or(0),
+                "gemini_candidates_tokens": usage.gemini_candidates_tokens.unwrap_or(0),
+                "gemini_total_tokens": usage.gemini_total_tokens.unwrap_or(0),
+                "gemini_cached_tokens": usage.gemini_cached_tokens.unwrap_or(0),
+                "openai_chat_prompt_tokens": usage.openai_chat_prompt_tokens.unwrap_or(0),
+                "openai_chat_completion_tokens": usage.openai_chat_completion_tokens.unwrap_or(0),
+                "openai_chat_total_tokens": usage.openai_chat_total_tokens.unwrap_or(0),
+                "openai_responses_input_tokens": usage.openai_responses_input_tokens.unwrap_or(0),
+                "openai_responses_output_tokens": usage.openai_responses_output_tokens.unwrap_or(0),
+                "openai_responses_total_tokens": usage.openai_responses_total_tokens.unwrap_or(0),
+                "openai_responses_input_cached_tokens": usage.openai_responses_input_cached_tokens.unwrap_or(0),
+                "openai_responses_output_reasoning_tokens": usage.openai_responses_output_reasoning_tokens.unwrap_or(0),
+            }
+        }))
+        .into_response(),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
+    }
+}
+
 fn collect_stats(state: &AdminState) -> Vec<ProviderPoolStats> {
     let mut out = Vec::new();
     collect_one(&mut out, "openai", state.registry.openai().pool().snapshot());
@@ -1274,6 +1347,25 @@ fn ts(value: OffsetDateTime) -> i64 {
 
 fn ts_opt(value: Option<OffsetDateTime>) -> Option<i64> {
     value.map(|v| v.unix_timestamp())
+}
+
+fn parse_timestamp(value: &str) -> Result<OffsetDateTime, Response> {
+    if let Ok(ts) = value.parse::<i64>() {
+        return OffsetDateTime::from_unix_timestamp(ts).map_err(|err| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("invalid unix timestamp: {err}"),
+            )
+                .into_response()
+        });
+    }
+    OffsetDateTime::parse(value, &Rfc3339).map_err(|err| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("invalid timestamp (expected unix seconds or RFC3339): {err}"),
+        )
+            .into_response()
+    })
 }
 
 fn provider_to_json(provider: entities::providers::Model) -> JsonValue {

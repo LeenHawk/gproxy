@@ -25,6 +25,7 @@ use crate::dispatch::{
     native_spec, transform_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
+use crate::storage::global_storage;
 use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 
@@ -182,6 +183,7 @@ impl AntiGravityProvider {
             config.max_output_tokens = None;
         }
         prune_generation_config(&mut body);
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -190,10 +192,9 @@ impl AntiGravityProvider {
                 let model = model.clone();
                 let raw_model = raw_model.clone();
                 let body = body.clone();
+                let base_url = base_url.clone();
                 async move {
                     let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
-                    let base_url =
-                        credential_base_url(credential.value()).unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
                     let project_id = match credential_project_id(credential.value()) {
                         Some(value) => value,
                         None => oauth::detect_project_id(
@@ -284,6 +285,7 @@ impl AntiGravityProvider {
         let model = normalize_model_name(&raw_model);
         let scope = DisallowScope::model(model.clone());
         let body = request.body;
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -292,10 +294,9 @@ impl AntiGravityProvider {
                 let model = model.clone();
                 let raw_model = raw_model.clone();
                 let body = body.clone();
+                let base_url = base_url.clone();
                 async move {
                     let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
-                    let base_url =
-                        credential_base_url(credential.value()).unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
                     let project_id = match credential_project_id(credential.value()) {
                         Some(value) => value,
                         None => oauth::detect_project_id(
@@ -855,12 +856,29 @@ fn credential_project_id(credential: &BaseCredential) -> Option<String> {
         .map(|value| value.to_string())
 }
 
-pub(super) fn credential_base_url(credential: &BaseCredential) -> Option<String> {
-    credential
-        .meta
-        .get("base_url")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
+pub(super) async fn channel_base_url(
+    ctx: &UpstreamContext,
+) -> Result<String, UpstreamPassthroughError> {
+    let mut base_url = DEFAULT_BASE_URL.to_string();
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+                    base_url = value.to_string();
+                }
+            }
+        }
+    }
+    Ok(base_url.trim_end_matches('/').to_string())
 }
 
 pub(super) fn build_url(base_url: Option<&str>, path: &str) -> String {

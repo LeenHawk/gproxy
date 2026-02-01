@@ -21,10 +21,10 @@ use crate::client::shared_client;
 use crate::credential::BaseCredential;
 use crate::storage::global_storage;
 
-use super::{DEFAULT_BASE_URL, GEMINICLI_USER_AGENT, PROVIDER_NAME};
+use super::{GEMINICLI_USER_AGENT, PROVIDER_NAME};
 
-const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/auth";
-const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
+const DEFAULT_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/auth";
+const DEFAULT_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const CLIENT_ID: &str = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
 const CLIENT_SECRET: &str = "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";
 const OAUTH_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile";
@@ -84,7 +84,8 @@ pub(super) async fn handle_oauth_start(
         .redirect_uri
         .unwrap_or_else(default_redirect_uri);
     let state_id = generate_state();
-    let auth_url = build_authorize_url(&redirect_uri, &state_id);
+    let (auth_url, _) = oauth_endpoints(&ctx).await?;
+    let auth_url = build_authorize_url(&auth_url, &redirect_uri, &state_id);
 
     let mut guard = oauth_states().write().await;
     prune_oauth_states(&mut guard);
@@ -140,7 +141,7 @@ pub(super) async fn handle_oauth_callback(
         UpstreamPassthroughError::from_status(StatusCode::BAD_REQUEST, "missing code")
     })?;
 
-    let (redirect_uri, base_url, project_id) = if let Some(state) = params.state.as_deref() {
+    let (redirect_uri, _base_url, project_id) = if let Some(state) = params.state.as_deref() {
         let mut guard = oauth_states().write().await;
         prune_oauth_states(&mut guard);
         if let Some(state) = guard.remove(state) {
@@ -168,8 +169,10 @@ pub(super) async fn handle_oauth_callback(
         )
     };
 
-    let tokens = exchange_code_for_tokens(&code, &redirect_uri, ctx.proxy.as_deref()).await?;
-    let base_url = base_url.unwrap_or_else(|| DEFAULT_BASE_URL.to_string());
+    let (_, token_url) = oauth_endpoints(&ctx).await?;
+    let tokens =
+        exchange_code_for_tokens(&code, &redirect_uri, &token_url, ctx.proxy.as_deref()).await?;
+    let base_url = super::channel_base_url(&ctx).await?;
     let project_id = match project_id {
         Some(value) => value,
         None => detect_project_id(
@@ -187,7 +190,7 @@ pub(super) async fn handle_oauth_callback(
         })?,
     };
 
-    persist_credential(pool, ctx.provider_id, &tokens, &project_id, Some(base_url)).await?;
+    persist_credential(pool, ctx.provider_id, &tokens, &project_id).await?;
     let body = json!({
         "access_token": tokens.access_token,
         "refresh_token": tokens.refresh_token,
@@ -401,6 +404,7 @@ fn build_project_headers(
 async fn exchange_code_for_tokens(
     code: &str,
     redirect_uri: &str,
+    token_url: &str,
     proxy: Option<&str>,
 ) -> Result<TokenResponse, UpstreamPassthroughError> {
     let client = shared_client(proxy).map_err(|err| err.passthrough)?;
@@ -412,7 +416,7 @@ async fn exchange_code_for_tokens(
         grant_type: "authorization_code",
     };
     let response = client
-        .post(TOKEN_URL)
+        .post(token_url)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"))
         .form(&request)
         .send()
@@ -433,11 +437,41 @@ async fn exchange_code_for_tokens(
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))
 }
 
-fn build_authorize_url(redirect_uri: &str, state: &str) -> String {
+async fn oauth_endpoints(
+    ctx: &UpstreamContext,
+) -> Result<(String, String), UpstreamPassthroughError> {
+    let mut auth_url = DEFAULT_AUTH_URL.to_string();
+    let mut token_url = DEFAULT_TOKEN_URL.to_string();
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("oauth_auth_url").and_then(|v| v.as_str()) {
+                    auth_url = value.to_string();
+                }
+                if let Some(value) = map.get("oauth_token_url").and_then(|v| v.as_str()) {
+                    token_url = value.to_string();
+                }
+            }
+        }
+    }
+    Ok((auth_url, token_url))
+}
+
+fn build_authorize_url(auth_url: &str, redirect_uri: &str, state: &str) -> String {
     let scope = urlencoding::encode(OAUTH_SCOPE);
     let redirect_uri = urlencoding::encode(redirect_uri);
     format!(
-        "{AUTH_URL}?response_type=code&client_id={CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}&access_type=offline&prompt=consent&include_granted_scopes=true&state={state}"
+        "{}?response_type=code&client_id={CLIENT_ID}&redirect_uri={redirect_uri}&scope={scope}&access_type=offline&prompt=consent&include_granted_scopes=true&state={state}",
+        auth_url.trim_end_matches('/')
     )
 }
 
@@ -490,7 +524,6 @@ async fn persist_credential(
     provider_id_hint: Option<i64>,
     tokens: &TokenResponse,
     project_id: &str,
-    base_url: Option<String>,
 ) -> Result<(), UpstreamPassthroughError> {
     let storage = global_storage().ok_or_else(|| {
         UpstreamPassthroughError::service_unavailable("storage unavailable")
@@ -527,11 +560,7 @@ async fn persist_credential(
         "refresh_token": tokens.refresh_token,
         "project_id": project_id,
     });
-    let meta_json = if let Some(base_url) = base_url {
-        json!({ "base_url": base_url })
-    } else {
-        json!({})
-    };
+    let meta_json = json!({});
 
     let input = AdminCredentialInput {
         id: None,

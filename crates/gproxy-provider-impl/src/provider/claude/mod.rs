@@ -19,6 +19,7 @@ use crate::dispatch::{
     native_spec, transform_spec, unsupported_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
+use crate::storage::global_storage;
 use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 
@@ -77,6 +78,31 @@ pub fn default_provider() -> ProviderDefault {
         config_json: json!({ "base_url": DEFAULT_BASE_URL }),
         enabled: true,
     }
+}
+
+async fn channel_base_url(
+    ctx: &UpstreamContext,
+) -> Result<String, UpstreamPassthroughError> {
+    let mut base_url = DEFAULT_BASE_URL.to_string();
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+                    base_url = value.to_string();
+                }
+            }
+        }
+    }
+    Ok(base_url.trim_end_matches('/').to_string())
 }
 
 #[derive(Debug)]
@@ -163,6 +189,7 @@ impl ClaudeProvider {
         if is_stream {
             body.stream = Some(true);
         }
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -171,11 +198,11 @@ impl ClaudeProvider {
                 let body = body.clone();
                 let scope = scope.clone();
                 let model = model.clone();
+                let base_url = base_url.clone();
                 async move {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), "/v1/messages");
+                    let url = build_url(Some(&base_url), "/v1/messages");
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers =
                         build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
@@ -235,6 +262,7 @@ impl ClaudeProvider {
         let scope = DisallowScope::model(model.clone());
         let headers = request.headers;
         let body = request.body;
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -243,11 +271,11 @@ impl ClaudeProvider {
                 let body = body.clone();
                 let scope = scope.clone();
                 let model = model.clone();
+                let base_url = base_url.clone();
                 async move {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), "/v1/messages/count_tokens");
+                    let url = build_url(Some(&base_url), "/v1/messages/count_tokens");
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers =
                         build_headers(&api_key, headers.anthropic_version, headers.anthropic_beta)?;
@@ -306,6 +334,7 @@ impl ClaudeProvider {
         let scope = DisallowScope::AllModels;
         let headers = request.headers;
         let query = request.query;
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -313,12 +342,12 @@ impl ClaudeProvider {
                 let headers = headers.clone();
                 let query = query.clone();
                 let scope = scope.clone();
+                let base_url = base_url.clone();
                 async move {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let base_url = credential_base_url(credential.value());
                     let qs = serde_qs::to_string(&query).unwrap_or_default();
-                    let mut url = build_url(base_url.as_deref(), "/v1/models");
+                    let mut url = build_url(Some(&base_url), "/v1/models");
                     if !qs.is_empty() {
                         url = format!("{url}?{qs}");
                     }
@@ -375,6 +404,7 @@ impl ClaudeProvider {
         let scope = DisallowScope::model(request.path.model_id.clone());
         let headers = request.headers;
         let model_id = request.path.model_id;
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -382,12 +412,12 @@ impl ClaudeProvider {
                 let headers = headers.clone();
                 let model_id = model_id.clone();
                 let scope = scope.clone();
+                let base_url = base_url.clone();
                 async move {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let base_url = credential_base_url(credential.value());
                     let url = build_url(
-                        base_url.as_deref(),
+                        Some(&base_url),
                         &format!("/v1/models/{model_id}"),
                     );
                     let client = shared_client(ctx.proxy.as_deref())?;
@@ -461,6 +491,7 @@ impl ClaudeProvider {
                 }
             }
         }
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), move |credential| {
@@ -468,11 +499,11 @@ impl ClaudeProvider {
                 let scope = scope.clone();
                 let model = model.clone();
                 let body = body.clone();
+                let base_url = base_url.clone();
                 async move {
                     let api_key = credential_api_key(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing api_key"))?;
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), "/v1/chat/completions");
+                    let url = build_url(Some(&base_url), "/v1/chat/completions");
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_openai_compat_headers(&api_key)?;
                     let request_body = json_body_to_string(&body);
@@ -596,14 +627,6 @@ fn credential_api_key(credential: &BaseCredential) -> Option<String> {
     credential
         .secret
         .get("api_key")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-}
-
-fn credential_base_url(credential: &BaseCredential) -> Option<String> {
-    credential
-        .meta
-        .get("base_url")
         .and_then(|value| value.as_str())
         .map(|value| value.to_string())
 }

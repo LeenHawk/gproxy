@@ -149,12 +149,21 @@ pub fn build_provider_pools(
     pools
 }
 
+const CHANNEL_META_KEYS: &[&str] = &[
+    "base_url",
+    "claude_ai_base_url",
+    "console_base_url",
+];
+
 fn merge_meta(provider: &serde_json::Value, credential: &serde_json::Value) -> serde_json::Value {
     match credential {
         serde_json::Value::Object(cred_map) => match provider {
             serde_json::Value::Object(provider_map) => {
                 let mut merged = provider_map.clone();
                 for (key, value) in cred_map {
+                    if CHANNEL_META_KEYS.contains(&key.as_str()) {
+                        continue;
+                    }
                     merged.insert(key.clone(), value.clone());
                 }
                 serde_json::Value::Object(merged)

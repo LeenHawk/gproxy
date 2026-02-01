@@ -33,7 +33,7 @@ struct RefreshResponse {
 }
 
 static TOKEN_CACHE: OnceLock<tokio::sync::RwLock<HashMap<i64, CachedTokens>>> = OnceLock::new();
-const REFRESH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
+const DEFAULT_REFRESH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const CLIENT_ID: &str = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
 const CLIENT_SECRET: &str = "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";
 
@@ -42,6 +42,7 @@ pub(super) async fn ensure_tokens(
     ctx: &UpstreamContext,
     scope: &DisallowScope,
 ) -> Result<CachedTokens, AttemptFailure> {
+    let refresh_url = refresh_token_url(ctx).await.unwrap_or_else(|_| DEFAULT_REFRESH_TOKEN_URL.to_string());
     if let Some(cached) = token_cache().read().await.get(&credential.id).cloned() {
         return Ok(cached);
     }
@@ -54,7 +55,7 @@ pub(super) async fn ensure_tokens(
         return Ok(tokens);
     }
     if let Some(refresh_token) = credential_refresh_token(credential) {
-        return refresh_access_token(credential.id, refresh_token, ctx, scope).await;
+        return refresh_access_token(credential.id, refresh_token, &refresh_url, ctx, scope).await;
     }
     Err(invalid_credential(scope, "missing access_token/refresh_token"))
 }
@@ -62,6 +63,7 @@ pub(super) async fn ensure_tokens(
 pub(super) async fn refresh_access_token(
     credential_id: i64,
     refresh_token: String,
+    refresh_url: &str,
     ctx: &UpstreamContext,
     scope: &DisallowScope,
 ) -> Result<CachedTokens, AttemptFailure> {
@@ -73,7 +75,7 @@ pub(super) async fn refresh_access_token(
         refresh_token: refresh_token.clone(),
     };
     let response = client
-        .post(REFRESH_TOKEN_URL)
+        .post(refresh_url)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"))
         .form(&request)
         .send()
@@ -121,4 +123,28 @@ pub(super) async fn refresh_access_token(
 
 fn token_cache() -> &'static tokio::sync::RwLock<HashMap<i64, CachedTokens>> {
     TOKEN_CACHE.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
+}
+
+pub(super) async fn refresh_token_url(
+    ctx: &UpstreamContext,
+) -> Result<String, UpstreamPassthroughError> {
+    if let Some(storage) = crate::storage::global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == super::PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("oauth_token_url").and_then(|v| v.as_str()) {
+                    return Ok(value.to_string());
+                }
+            }
+        }
+    }
+    Ok(DEFAULT_REFRESH_TOKEN_URL.to_string())
 }

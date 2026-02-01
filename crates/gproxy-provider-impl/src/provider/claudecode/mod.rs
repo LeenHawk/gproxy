@@ -6,8 +6,9 @@ use http::{HeaderMap, HeaderValue};
 use serde_json::{json, Value as JsonValue};
 
 use gproxy_provider_core::{
-    AttemptFailure, CredentialPool, DisallowLevel, DisallowMark, DisallowScope, DownstreamContext,
-    PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink, UpstreamContext,
+    AttemptFailure, CredentialEntry, CredentialPool, DisallowLevel, DisallowMark, DisallowScope,
+    DownstreamContext, PoolSnapshot, Provider, ProxyRequest, ProxyResponse, StateSink,
+    UpstreamContext,
     UpstreamPassthroughError, UpstreamRecordMeta,
 };
 use gproxy_protocol::claude;
@@ -25,34 +26,33 @@ use crate::dispatch::{
 use crate::record::{headers_to_json, json_body_to_string};
 use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
+use crate::storage::global_storage;
+
+use gproxy_storage::AdminCredentialInput;
 
 mod oauth;
 mod refresh;
 mod usage;
 
 pub const PROVIDER_NAME: &str = "claudecode";
-const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
+const DEFAULT_API_BASE_URL: &str = "https://api.anthropic.com";
+const DEFAULT_CLAUDE_AI_BASE_URL: &str = "https://claude.ai";
+const DEFAULT_CONSOLE_BASE_URL: &str = "https://console.anthropic.com";
 const HEADER_VERSION: &str = "anthropic-version";
 const HEADER_BETA: &str = "anthropic-beta";
 const CLAUDE_CODE_UA: &str = "claude-code/2.1.27";
 const CLAUDE_CODE_SYSTEM_PRELUDE: &str =
     "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
+const CLAUDE_BETA_CONTEXT_1M: &str = "context-1m-2025-08-07";
 pub(super) const TOKEN_UA: &str = "claude-cli/2.1.27 (external, cli)";
 pub(super) const COOKIE_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
 pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-pub(super) const AUTH_URL: &str = "https://claude.ai/oauth/authorize";
-pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
-pub(super) const REDIRECT_URI: &str = "https://console.anthropic.com/oauth/code/callback";
 pub(super) const OAUTH_SCOPE: &str =
     "org:create_api_key user:profile user:inference user:sessions:claude_code";
 pub(super) const OAUTH_SCOPE_SESSION: &str =
     "user:profile user:inference user:sessions:claude_code";
 pub(super) const OAUTH_SCOPE_SETUP: &str = "user:inference";
-pub(super) const ORG_URL: &str = "https://claude.ai/api/organizations";
-pub(super) const AUTHORIZE_URL_TEMPLATE: &str = "https://api.anthropic.com/v1/oauth/{org_uuid}/authorize";
-pub(super) const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
-pub(super) const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 
 const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
     // Claude messages
@@ -100,7 +100,11 @@ const DISPATCH_TABLE: DispatchTable = DispatchTable::new([
 pub fn default_provider() -> ProviderDefault {
     ProviderDefault {
         name: PROVIDER_NAME,
-        config_json: json!({ "base_url": DEFAULT_BASE_URL }),
+        config_json: json!({
+            "base_url": DEFAULT_API_BASE_URL,
+            "claude_ai_base_url": DEFAULT_CLAUDE_AI_BASE_URL,
+            "console_base_url": DEFAULT_CONSOLE_BASE_URL,
+        }),
         enabled: true,
     }
 }
@@ -203,56 +207,109 @@ impl ClaudeCodeProvider {
                 async move {
                     let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
                     let access_token = tokens.access_token.clone();
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), "/v1/messages");
+                    let channel = channel_urls(&ctx)
+                        .await
+                        .map_err(|err| AttemptFailure { passthrough: err, mark: None })?;
+                    let url = build_url(Some(channel.api_base.as_str()), "/v1/messages");
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let req_headers = build_headers(
-                        &access_token,
-                        headers.anthropic_version,
-                        headers.anthropic_beta,
-                        ctx.user_agent.as_deref(),
-                    )?;
-                    let request_body = json_body_to_string(&body);
-                    let request_headers = headers_to_json(&req_headers);
-                    let response = send_with_logging(
-                        &ctx,
-                        PROVIDER_NAME,
-                        "claudecode.messages",
-                        "POST",
-                        "/v1/messages",
-                        Some(&model),
-                        is_stream,
-                        &scope,
-                        || {
-                            client
-                                .post(url)
-                                .headers(req_headers.clone())
-                                .json(&body)
-                                .send()
-                        },
-                    )
-                    .await?;
-                    let meta = UpstreamRecordMeta {
-                        provider: PROVIDER_NAME.to_string(),
-                        provider_id: ctx.provider_id,
-                        credential_id: Some(credential.value().id),
-                        operation: "claudecode.messages".to_string(),
-                        model: Some(model),
-                        request_method: "POST".to_string(),
-                        request_path: "/v1/messages".to_string(),
-                        request_query: None,
-                        request_headers,
-                        request_body,
+                    let supports_1m = credential_supports_1m(credential.value());
+                    let is_sonnet = is_sonnet4_model(&model);
+                    let attempts: Vec<bool> = if is_sonnet {
+                        match supports_1m {
+                            Some(true) => vec![true],
+                            Some(false) => vec![false],
+                            None => vec![true, false],
+                        }
+                    } else {
+                        vec![false]
                     };
-                    let response = handle_response(
-                        response,
-                        is_stream,
-                        scope.clone(),
-                        &ctx,
-                        Some(meta.clone()),
-                    )
-                    .await?;
-                    Ok(UpstreamOk { response, meta })
+
+                    let version = headers.anthropic_version;
+                    let beta = headers.anthropic_beta.clone();
+                    for (idx, use_1m) in attempts.iter().copied().enumerate() {
+                        let mut req_headers = build_headers(
+                            &access_token,
+                            version,
+                            beta.clone(),
+                            ctx.user_agent.as_deref(),
+                        )?;
+                        if use_1m {
+                            add_beta_value(&mut req_headers, CLAUDE_BETA_CONTEXT_1M)?;
+                        }
+                        let request_body = json_body_to_string(&body);
+                        let request_headers = headers_to_json(&req_headers);
+                        let response = send_with_logging(
+                            &ctx,
+                            PROVIDER_NAME,
+                            "claudecode.messages",
+                            "POST",
+                            "/v1/messages",
+                            Some(&model),
+                            is_stream,
+                            &scope,
+                            || {
+                                client
+                                    .post(&url)
+                                    .headers(req_headers.clone())
+                                    .json(&body)
+                                    .send()
+                            },
+                        )
+                        .await?;
+                        let meta = UpstreamRecordMeta {
+                            provider: PROVIDER_NAME.to_string(),
+                            provider_id: ctx.provider_id,
+                            credential_id: Some(credential.value().id),
+                            operation: "claudecode.messages".to_string(),
+                            model: Some(model.clone()),
+                            request_method: "POST".to_string(),
+                            request_path: "/v1/messages".to_string(),
+                            request_query: None,
+                            request_headers,
+                            request_body,
+                        };
+                        match handle_response(
+                            response,
+                            is_stream,
+                            scope.clone(),
+                            &ctx,
+                            Some(meta.clone()),
+                        )
+                        .await {
+                            Ok(response) => {
+                                if is_sonnet && use_1m && supports_1m != Some(true) {
+                                    let _ = persist_claude_1m_support(
+                                        pool,
+                                        &ctx,
+                                        credential.value(),
+                                        true,
+                                    )
+                                    .await;
+                                }
+                                return Ok(UpstreamOk { response, meta });
+                            }
+                            Err(err) => {
+                                let is_last = idx + 1 == attempts.len();
+                                let can_fallback =
+                                    use_1m && is_sonnet && !is_last && is_context_1m_forbidden(&err.passthrough);
+                                if can_fallback {
+                                    if supports_1m != Some(false) {
+                                        let _ = persist_claude_1m_support(
+                                            pool,
+                                            &ctx,
+                                            credential.value(),
+                                            false,
+                                        )
+                                        .await;
+                                    }
+                                    continue;
+                                }
+                                return Err(err);
+                            }
+                        }
+                    }
+
+                    Err(invalid_credential(&scope, "claude messages failed"))
                 }
             })
             .await
@@ -280,8 +337,10 @@ impl ClaudeCodeProvider {
                 async move {
                     let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
                     let access_token = tokens.access_token.clone();
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), "/v1/messages/count_tokens");
+                    let channel = channel_urls(&ctx)
+                        .await
+                        .map_err(|err| AttemptFailure { passthrough: err, mark: None })?;
+                    let url = build_url(Some(channel.api_base.as_str()), "/v1/messages/count_tokens");
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(
                         &access_token,
@@ -352,8 +411,10 @@ impl ClaudeCodeProvider {
                 async move {
                     let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
                     let access_token = tokens.access_token.clone();
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), "/v1/models");
+                    let channel = channel_urls(&ctx)
+                        .await
+                        .map_err(|err| AttemptFailure { passthrough: err, mark: None })?;
+                    let url = build_url(Some(channel.api_base.as_str()), "/v1/models");
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(
                         &access_token,
@@ -421,8 +482,10 @@ impl ClaudeCodeProvider {
                 async move {
                     let tokens = refresh::ensure_tokens(pool, credential.value(), &ctx, &scope).await?;
                     let access_token = tokens.access_token.clone();
-                    let base_url = credential_base_url(credential.value());
-                    let url = build_url(base_url.as_deref(), &path);
+                    let channel = channel_urls(&ctx)
+                        .await
+                        .map_err(|err| AttemptFailure { passthrough: err, mark: None })?;
+                    let url = build_url(Some(channel.api_base.as_str()), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let req_headers = build_headers(
                         &access_token,
@@ -583,6 +646,147 @@ fn ensure_oauth_beta(values: &mut Vec<String>) {
     }
 }
 
+fn add_beta_value(headers: &mut HeaderMap, value: &str) -> Result<(), AttemptFailure> {
+    let mut values: Vec<String> = headers
+        .get(HEADER_BETA)
+        .and_then(|v| v.to_str().ok())
+        .map(|raw| {
+            raw.split(',')
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    if !values.iter().any(|item| item == value) {
+        values.push(value.to_string());
+    }
+    let combined = values.join(",");
+    headers.insert(
+        HEADER_BETA,
+        HeaderValue::from_str(&combined).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
+    );
+    Ok(())
+}
+
+fn is_context_1m_forbidden(error: &UpstreamPassthroughError) -> bool {
+    if error.status != http::StatusCode::FORBIDDEN
+        && error.status != http::StatusCode::BAD_REQUEST
+    {
+        return false;
+    }
+    let Ok(payload) = serde_json::from_slice::<JsonValue>(&error.body) else {
+        return false;
+    };
+    let message = payload
+        .get("error")
+        .and_then(|err| err.get("message"))
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+    message.contains("the long context beta is not yet available for this subscription.")
+        || message.contains(
+            "this authentication style is incompatible with the long context beta header.",
+        )
+}
+
+fn is_sonnet4_model(model: &str) -> bool {
+    let lowered = model.to_ascii_lowercase();
+    lowered.contains("claude-sonnet-4")
+}
+
+fn credential_supports_1m(credential: &BaseCredential) -> Option<bool> {
+    credential
+        .meta
+        .get("claude_1m")
+        .and_then(|value| value.as_bool())
+}
+
+async fn persist_claude_1m_support(
+    pool: &CredentialPool<BaseCredential>,
+    ctx: &UpstreamContext,
+    credential: &BaseCredential,
+    value: bool,
+) -> Result<(), UpstreamPassthroughError> {
+    let storage = global_storage().ok_or_else(|| {
+        UpstreamPassthroughError::service_unavailable("storage unavailable")
+    })?;
+    let provider_id = match ctx.provider_id {
+        Some(id) => id,
+        None => {
+            let providers = storage
+                .list_providers()
+                .await
+                .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+            providers
+                .iter()
+                .find(|provider| provider.name == PROVIDER_NAME)
+                .map(|provider| provider.id)
+                .ok_or_else(|| {
+                    UpstreamPassthroughError::service_unavailable("provider not found")
+                })?
+        }
+    };
+    let credentials = storage
+        .list_credentials()
+        .await
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+    let Some(record) = credentials
+        .into_iter()
+        .find(|item| item.id == credential.id)
+    else {
+        return Ok(());
+    };
+    let mut meta = match record.meta_json {
+        JsonValue::Object(map) => map,
+        _ => serde_json::Map::new(),
+    };
+    meta.insert("claude_1m".to_string(), JsonValue::Bool(value));
+    let meta_json = JsonValue::Object(meta.clone());
+    let input = AdminCredentialInput {
+        id: Some(record.id),
+        provider_id,
+        name: record.name.clone(),
+        secret: record.secret.clone(),
+        meta_json: meta_json.clone(),
+        weight: record.weight,
+        enabled: record.enabled,
+    };
+    storage
+        .upsert_credential(input)
+        .await
+        .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+
+    let weight = if record.weight >= 0 {
+        record.weight as u32
+    } else {
+        0
+    };
+    let entry = CredentialEntry::new(
+        record.id.to_string(),
+        record.enabled,
+        weight,
+        BaseCredential {
+            id: record.id,
+            name: record.name,
+            secret: record.secret,
+            meta: meta_json,
+        },
+    );
+    let snapshot = pool.snapshot();
+    let mut credentials = snapshot.credentials.as_ref().clone();
+    if let Some(pos) = credentials.iter().position(|item| item.id == entry.id) {
+        credentials[pos] = entry;
+    } else {
+        credentials.push(entry);
+    }
+    let disallow = snapshot.disallow.as_ref().clone();
+    pool.replace_snapshot(PoolSnapshot::new(credentials, disallow));
+    Ok(())
+}
+
 fn credential_claude_oauth(credential: &BaseCredential) -> Option<&JsonValue> {
     credential
         .secret
@@ -649,16 +853,54 @@ pub(super) fn credential_session_key(credential: &BaseCredential) -> Option<Stri
         .map(|value| value.to_string())
 }
 
-fn credential_base_url(credential: &BaseCredential) -> Option<String> {
-    credential
-        .meta
-        .get("base_url")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
+#[derive(Debug, Clone)]
+pub(super) struct ClaudeCodeUrls {
+    pub(super) api_base: String,
+    pub(super) claude_ai_base: String,
+    pub(super) console_base: String,
+}
+
+pub(super) async fn channel_urls(
+    ctx: &UpstreamContext,
+) -> Result<ClaudeCodeUrls, UpstreamPassthroughError> {
+    let mut api_base = DEFAULT_API_BASE_URL.to_string();
+    let mut claude_ai_base = DEFAULT_CLAUDE_AI_BASE_URL.to_string();
+    let mut console_base = DEFAULT_CONSOLE_BASE_URL.to_string();
+
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+                    api_base = value.to_string();
+                }
+                if let Some(value) = map.get("claude_ai_base_url").and_then(|v| v.as_str()) {
+                    claude_ai_base = value.to_string();
+                }
+                if let Some(value) = map.get("console_base_url").and_then(|v| v.as_str()) {
+                    console_base = value.to_string();
+                }
+            }
+        }
+    }
+
+    Ok(ClaudeCodeUrls {
+        api_base: api_base.trim_end_matches('/').to_string(),
+        claude_ai_base: claude_ai_base.trim_end_matches('/').to_string(),
+        console_base: console_base.trim_end_matches('/').to_string(),
+    })
 }
 
 fn build_url(base_url: Option<&str>, path: &str) -> String {
-    let base = base_url.unwrap_or(DEFAULT_BASE_URL).trim_end_matches('/');
+    let base = base_url.unwrap_or(DEFAULT_API_BASE_URL).trim_end_matches('/');
     let mut path = path.trim_start_matches('/');
     if base.ends_with("/v1") && (path == "v1" || path.starts_with("v1/")) {
         path = path.trim_start_matches("v1/").trim_start_matches("v1");

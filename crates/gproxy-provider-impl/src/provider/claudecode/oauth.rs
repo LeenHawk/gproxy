@@ -22,8 +22,8 @@ use crate::credential::BaseCredential;
 use crate::storage::global_storage;
 
 use super::{
-    headers_to_json, AUTH_URL, CLIENT_ID, CLAUDE_CODE_UA, OAUTH_SCOPE, OAUTH_SCOPE_SETUP,
-    PROFILE_URL, PROVIDER_NAME, REDIRECT_URI, TOKEN_UA, TOKEN_URL,
+    channel_urls, headers_to_json, CLAUDE_CODE_UA, CLIENT_ID, OAUTH_SCOPE, OAUTH_SCOPE_SETUP,
+    PROVIDER_NAME, TOKEN_UA,
 };
 
 const OAUTH_STATE_TTL_SECS: i64 = 600;
@@ -33,14 +33,12 @@ struct OAuthState {
     code_verifier: String,
     redirect_uri: String,
     created_at: OffsetDateTime,
-    base_url: Option<String>,
     scope: String,
 }
 
 #[derive(Debug, Deserialize, Default)]
 struct OAuthStartQuery {
     redirect_uri: Option<String>,
-    base_url: Option<String>,
     scope: Option<String>,
     setup: Option<bool>,
 }
@@ -90,15 +88,24 @@ pub(super) async fn handle_oauth_start(
     headers: HeaderMap,
     ctx: UpstreamContext,
 ) -> Result<super::UpstreamOk, UpstreamPassthroughError> {
+    let channel = channel_urls(&ctx).await?;
     let params: OAuthStartQuery = parse_query(query.as_deref())?;
-    let redirect_uri = params.redirect_uri.unwrap_or_else(|| REDIRECT_URI.to_string());
+    let redirect_uri = params
+        .redirect_uri
+        .unwrap_or_else(|| format!("{}/oauth/code/callback", channel.console_base));
     let scope = if params.setup.unwrap_or(false) {
         OAUTH_SCOPE_SETUP.to_string()
     } else {
         params.scope.unwrap_or_else(|| OAUTH_SCOPE.to_string())
     };
     let (state_id, pkce) = generate_state_and_pkce();
-    let auth_url = build_authorize_url(&redirect_uri, &pkce.code_challenge, &state_id, &scope);
+    let auth_url = build_authorize_url(
+        &channel.claude_ai_base,
+        &redirect_uri,
+        &pkce.code_challenge,
+        &state_id,
+        &scope,
+    );
 
     let mut guard = oauth_states().write().await;
     prune_oauth_states(&mut guard);
@@ -108,7 +115,6 @@ pub(super) async fn handle_oauth_start(
             code_verifier: pkce.code_verifier,
             redirect_uri: redirect_uri.clone(),
             created_at: OffsetDateTime::now_utc(),
-            base_url: params.base_url,
             scope,
         },
     );
@@ -180,6 +186,7 @@ pub(super) async fn handle_oauth_callback(
         ));
     };
 
+    let channel = channel_urls(&ctx).await?;
     let mut tokens = exchange_code_for_tokens(
         &oauth_state.redirect_uri,
         &oauth_state.code_verifier,
@@ -187,9 +194,13 @@ pub(super) async fn handle_oauth_callback(
         oauth_state.scope.as_str(),
         state_param.as_deref(),
         ctx.proxy.as_deref(),
+        &channel.api_base,
+        &channel.claude_ai_base,
     )
     .await?;
-    enrich_with_profile(&mut tokens, ctx.proxy.as_deref()).await.ok();
+    enrich_with_profile(&mut tokens, ctx.proxy.as_deref(), &channel.api_base)
+        .await
+        .ok();
     tokens.session_key = None;
 
     persist_claudecode_credential(
@@ -197,7 +208,6 @@ pub(super) async fn handle_oauth_callback(
         ctx.provider_id,
         None,
         tokens.clone(),
-        oauth_state.base_url.clone(),
     )
     .await?;
 
@@ -208,7 +218,6 @@ pub(super) async fn handle_oauth_callback(
         "email": tokens.email,
         "plan": tokens.subscription_type,
         "rate_limit_tier": tokens.rate_limit_tier,
-        "base_url": oauth_state.base_url,
     });
     let response = json_response(body)?;
     let meta = UpstreamRecordMeta {
@@ -233,6 +242,8 @@ pub(super) async fn exchange_code_for_tokens(
     scope: &str,
     state: Option<&str>,
     proxy: Option<&str>,
+    api_base: &str,
+    claude_ai_base: &str,
 ) -> Result<OAuthTokens, UpstreamPassthroughError> {
     let client = shared_client(proxy).map_err(|err| err.passthrough)?;
     let cleaned_code = code.split('#').next().unwrap_or(code);
@@ -252,8 +263,13 @@ pub(super) async fn exchange_code_for_tokens(
         .map(|(key, value)| format!("{}={}", key, urlencoding::encode(&value)))
         .collect::<Vec<_>>()
         .join("&");
+    let token_url = format!(
+        "{}/v1/oauth/token",
+        api_base.trim_end_matches('/')
+    );
+    let origin = claude_ai_base.trim_end_matches('/');
     let response = client
-        .post(TOKEN_URL)
+        .post(token_url)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"))
         .header(USER_AGENT, HeaderValue::from_static(TOKEN_UA))
         .header("accept", HeaderValue::from_static("application/json, text/plain, */*"))
@@ -261,8 +277,12 @@ pub(super) async fn exchange_code_for_tokens(
             "accept-language",
             HeaderValue::from_static("en-US,en;q=0.9"),
         )
-        .header("origin", HeaderValue::from_static("https://claude.ai"))
-        .header("referer", HeaderValue::from_static("https://claude.ai/"))
+        .header("origin", HeaderValue::from_str(&origin).unwrap_or_else(|_| HeaderValue::from_static("https://claude.ai")))
+        .header(
+            "referer",
+            HeaderValue::from_str(&format!("{origin}/"))
+                .unwrap_or_else(|_| HeaderValue::from_static("https://claude.ai/")),
+        )
         .body(payload)
         .send()
         .await
@@ -313,6 +333,7 @@ pub(super) async fn exchange_code_for_tokens(
 pub(super) async fn enrich_with_profile(
     tokens: &mut OAuthTokens,
     proxy: Option<&str>,
+    api_base: &str,
 ) -> Result<(), UpstreamPassthroughError> {
     let client = shared_client(proxy).map_err(|err| err.passthrough)?;
     let mut headers = HeaderMap::new();
@@ -333,8 +354,12 @@ pub(super) async fn enrich_with_profile(
         super::HEADER_BETA,
         HeaderValue::from_static(super::OAUTH_BETA),
     );
+    let profile_url = format!(
+        "{}/api/oauth/profile",
+        api_base.trim_end_matches('/')
+    );
     let response = client
-        .get(PROFILE_URL)
+        .get(profile_url)
         .headers(headers)
         .send()
         .await
@@ -397,7 +422,6 @@ pub(super) async fn persist_claudecode_credential(
     provider_id_hint: Option<i64>,
     existing_id: Option<i64>,
     tokens: OAuthTokens,
-    base_url: Option<String>,
 ) -> Result<(), UpstreamPassthroughError> {
     let storage = global_storage().ok_or_else(|| {
         UpstreamPassthroughError::service_unavailable("storage unavailable")
@@ -460,9 +484,6 @@ pub(super) async fn persist_claudecode_credential(
     let secret = JsonValue::Object(secret_map);
 
     let mut meta_map = JsonMap::new();
-    if let Some(base_url) = base_url.clone() {
-        meta_map.insert("base_url".to_string(), JsonValue::String(base_url));
-    }
     if let Some(email) = tokens.email.clone() {
         meta_map.insert("email".to_string(), JsonValue::String(email));
     }
@@ -575,11 +596,17 @@ fn generate_pkce() -> PkceCodes {
     }
 }
 
-fn build_authorize_url(redirect_uri: &str, code_challenge: &str, state: &str, scope: &str) -> String {
+fn build_authorize_url(
+    claude_ai_base: &str,
+    redirect_uri: &str,
+    code_challenge: &str,
+    state: &str,
+    scope: &str,
+) -> String {
     let redirect_uri = urlencoding::encode(redirect_uri);
     let scope = urlencoding::encode(scope);
     format!(
-        "{AUTH_URL}?code=true&client_id={CLIENT_ID}&response_type=code&redirect_uri={redirect_uri}&scope={scope}&code_challenge={code_challenge}&code_challenge_method=S256&state={state}"
+        "{claude_ai_base}/oauth/authorize?code=true&client_id={CLIENT_ID}&response_type=code&redirect_uri={redirect_uri}&scope={scope}&code_challenge={code_challenge}&code_challenge_method=S256&state={state}"
     )
 }
 

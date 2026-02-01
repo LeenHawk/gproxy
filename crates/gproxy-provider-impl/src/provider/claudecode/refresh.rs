@@ -16,9 +16,9 @@ use crate::client::shared_client;
 use crate::credential::BaseCredential;
 
 use super::{
-    credential_access_token, credential_expires_at, credential_refresh_token,
-    credential_session_key, invalid_credential, AUTHORIZE_URL_TEMPLATE, CLIENT_ID, COOKIE_UA,
-    OAUTH_SCOPE_SESSION, ORG_URL, REDIRECT_URI, TOKEN_UA, TOKEN_URL,
+    channel_urls, credential_access_token, credential_expires_at, credential_refresh_token,
+    credential_session_key, invalid_credential, ClaudeCodeUrls, CLIENT_ID, COOKIE_UA,
+    OAUTH_SCOPE_SESSION, TOKEN_UA,
 };
 use super::oauth::{exchange_code_for_tokens, enrich_with_profile, persist_claudecode_credential, OAuthTokens};
 
@@ -55,19 +55,22 @@ pub(super) async fn ensure_tokens(
         }
     }
 
+    let urls = channel_urls(ctx)
+        .await
+        .map_err(|err| AttemptFailure { passthrough: err, mark: None })?;
+
     if let Some(refresh_token) = credential_refresh_token(credential)
         && let Ok(tokens) =
-            refresh_access_token(credential.id, refresh_token, ctx, scope).await
+            refresh_access_token(credential.id, refresh_token, ctx, scope, &urls).await
         {
             return Ok(tokens);
         }
 
     if let Some(session_key) = credential_session_key(credential) {
-        let mut tokens = oauth_with_session_key(&session_key, ctx).await?;
+        let mut tokens = oauth_with_session_key(&session_key, ctx, &urls).await?;
         tokens.session_key = Some(session_key);
         let existing_id = Some(credential.id);
-        let base_url = credential.meta.get("base_url").and_then(|v| v.as_str()).map(|v| v.to_string());
-        persist_claudecode_credential(pool, ctx.provider_id, existing_id, tokens.clone(), base_url)
+        persist_claudecode_credential(pool, ctx.provider_id, existing_id, tokens.clone())
             .await
             .map_err(|err| AttemptFailure {
                 passthrough: err,
@@ -90,6 +93,7 @@ pub(super) async fn refresh_access_token(
     refresh_token: String,
     ctx: &UpstreamContext,
     scope: &DisallowScope,
+    urls: &ClaudeCodeUrls,
 ) -> Result<CachedTokens, AttemptFailure> {
     let client = shared_client(ctx.proxy.as_deref())?;
     let payload = serde_json::json!({
@@ -97,8 +101,10 @@ pub(super) async fn refresh_access_token(
         "client_id": CLIENT_ID,
         "refresh_token": refresh_token,
     });
+    let origin = urls.claude_ai_base.trim_end_matches('/');
+    let token_url = format!("{}/v1/oauth/token", urls.api_base.trim_end_matches('/'));
     let response = client
-        .post(TOKEN_URL)
+        .post(token_url)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
         .header(http::header::USER_AGENT, HeaderValue::from_static(TOKEN_UA))
         .header("accept", HeaderValue::from_static("application/json, text/plain, */*"))
@@ -106,8 +112,15 @@ pub(super) async fn refresh_access_token(
             "accept-language",
             HeaderValue::from_static("en-US,en;q=0.9"),
         )
-        .header("origin", HeaderValue::from_static("https://claude.ai"))
-        .header("referer", HeaderValue::from_static("https://claude.ai/"))
+        .header(
+            "origin",
+            HeaderValue::from_str(origin).unwrap_or_else(|_| HeaderValue::from_static("https://claude.ai")),
+        )
+        .header(
+            "referer",
+            HeaderValue::from_str(&format!("{origin}/"))
+                .unwrap_or_else(|_| HeaderValue::from_static("https://claude.ai/")),
+        )
         .json(&payload)
         .send()
         .await
@@ -187,23 +200,27 @@ fn is_expired(expires_at: Option<i64>) -> bool {
 pub(super) async fn oauth_with_session_key(
     session_key: &str,
     ctx: &UpstreamContext,
+    urls: &ClaudeCodeUrls,
 ) -> Result<OAuthTokens, AttemptFailure> {
-    let org = get_organization_info(session_key, ctx).await?;
-    let (code, verifier, scope, state) = authorize_with_cookie(session_key, &org, ctx).await?;
+    let org = get_organization_info(session_key, ctx, urls).await?;
+    let (code, verifier, scope, state) =
+        authorize_with_cookie(session_key, &org, ctx, urls).await?;
     let mut tokens = exchange_code_for_tokens(
-        REDIRECT_URI,
+        &format!("{}/oauth/code/callback", urls.console_base),
         &verifier,
         &code,
         &scope,
         Some(&state),
         ctx.proxy.as_deref(),
+        &urls.api_base,
+        &urls.claude_ai_base,
     )
     .await
     .map_err(|err| AttemptFailure {
         passthrough: err,
         mark: None,
     })?;
-    enrich_with_profile(&mut tokens, ctx.proxy.as_deref())
+    enrich_with_profile(&mut tokens, ctx.proxy.as_deref(), &urls.api_base)
         .await
         .ok();
     Ok(tokens)
@@ -221,11 +238,13 @@ struct OrgInfo {
 async fn get_organization_info(
     session_key: &str,
     ctx: &UpstreamContext,
+    urls: &ClaudeCodeUrls,
 ) -> Result<OrgInfo, AttemptFailure> {
     let client = shared_client(ctx.proxy.as_deref())?;
-    let headers = build_cookie_headers(session_key)?;
+    let headers = build_cookie_headers(session_key, urls)?;
+    let url = format!("{}/api/organizations", urls.claude_ai_base);
     let response = client
-        .get(ORG_URL)
+        .get(url)
         .headers(headers)
         .send()
         .await
@@ -308,6 +327,7 @@ async fn authorize_with_cookie(
     session_key: &str,
     org: &OrgInfo,
     ctx: &UpstreamContext,
+    urls: &ClaudeCodeUrls,
 ) -> Result<(String, String, String, String), AttemptFailure> {
     let code_verifier = generate_code_verifier();
     let code_challenge = generate_code_challenge(&code_verifier);
@@ -317,14 +337,14 @@ async fn authorize_with_cookie(
         "response_type": "code",
         "client_id": CLIENT_ID,
         "organization_uuid": org.uuid,
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": format!("{}/oauth/code/callback", urls.console_base),
         "scope": scope,
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
     });
-    let url = AUTHORIZE_URL_TEMPLATE.replace("{org_uuid}", &org.uuid);
-    let mut headers = build_cookie_headers(session_key)?;
+    let url = format!("{}/v1/oauth/{}/authorize", urls.api_base, org.uuid);
+    let mut headers = build_cookie_headers(session_key, urls)?;
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     let client = shared_client(ctx.proxy.as_deref())?;
     let response = client
@@ -350,7 +370,7 @@ async fn authorize_with_cookie(
             event = "claudecode.sessionkey_authorize",
             status = %status.as_u16(),
             url = %url,
-            redirect_uri = %REDIRECT_URI,
+            redirect_uri = %format!("{}/oauth/code/callback", urls.console_base),
             scope = %scope,
             body = %String::from_utf8_lossy(&body)
         );
@@ -384,7 +404,10 @@ async fn authorize_with_cookie(
 }
 
 #[allow(clippy::result_large_err)]
-fn build_cookie_headers(session_key: &str) -> Result<HeaderMap, AttemptFailure> {
+fn build_cookie_headers(
+    session_key: &str,
+    urls: &ClaudeCodeUrls,
+) -> Result<HeaderMap, AttemptFailure> {
     let mut headers = HeaderMap::new();
     headers.insert(
         http::header::ACCEPT,
@@ -405,13 +428,21 @@ fn build_cookie_headers(session_key: &str) -> Result<HeaderMap, AttemptFailure> 
             mark: None,
         })?,
     );
+    let origin = urls.claude_ai_base.trim_end_matches('/');
+    let referer = format!("{origin}/new");
     headers.insert(
         http::header::ORIGIN,
-        HeaderValue::from_static("https://claude.ai"),
+        HeaderValue::from_str(origin).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
     );
     headers.insert(
         http::header::REFERER,
-        HeaderValue::from_static("https://claude.ai/new"),
+        HeaderValue::from_str(&referer).map_err(|err| AttemptFailure {
+            passthrough: UpstreamPassthroughError::service_unavailable(err.to_string()),
+            mark: None,
+        })?,
     );
     headers.insert(http::header::USER_AGENT, HeaderValue::from_static(COOKIE_UA));
     Ok(headers)

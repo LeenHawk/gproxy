@@ -33,13 +33,11 @@ struct OAuthState {
     code_verifier: String,
     redirect_uri: String,
     created_at: OffsetDateTime,
-    base_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
 struct OAuthStartQuery {
     redirect_uri: Option<String>,
-    base_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -91,7 +89,8 @@ pub(super) async fn handle_oauth_start(
         }
     };
     let (state_id, pkce) = generate_state_and_pkce();
-    let auth_url = build_authorize_url(&redirect_uri, &pkce.code_challenge, &state_id);
+    let issuer = oauth_issuer(&ctx).await?;
+    let auth_url = build_authorize_url(&issuer, &redirect_uri, &pkce.code_challenge, &state_id);
 
     let mut guard = oauth_states().write().await;
     prune_oauth_states(&mut guard);
@@ -101,7 +100,6 @@ pub(super) async fn handle_oauth_start(
             code_verifier: pkce.code_verifier,
             redirect_uri: redirect_uri.clone(),
             created_at: OffsetDateTime::now_utc(),
-            base_url: params.base_url,
         },
     );
 
@@ -168,7 +166,9 @@ pub(super) async fn handle_oauth_callback(
         ));
     };
 
+    let issuer = oauth_issuer(&ctx).await?;
     let tokens = exchange_code_for_tokens(
+        &issuer,
         &oauth_state.redirect_uri,
         &oauth_state.code_verifier,
         &code,
@@ -187,7 +187,6 @@ pub(super) async fn handle_oauth_callback(
         ctx.provider_id,
         &tokens,
         &claims,
-        oauth_state.base_url.clone(),
     )
     .await?;
 
@@ -199,7 +198,6 @@ pub(super) async fn handle_oauth_callback(
         "email": claims.email,
         "plan": claims.plan,
         "last_refresh": last_refresh,
-        "base_url": oauth_state.base_url,
     });
     let response = json_response(body)?;
     let meta = UpstreamRecordMeta {
@@ -252,6 +250,7 @@ fn generate_pkce() -> PkceCodes {
 }
 
 fn build_authorize_url(
+    issuer: &str,
     redirect_uri: &str,
     code_challenge: &str,
     state: &str,
@@ -273,7 +272,7 @@ fn build_authorize_url(
         .map(|(k, v)| format!("{k}={}", urlencoding::encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    format!("{DEFAULT_ISSUER}/oauth/authorize?{qs}")
+    format!("{}/oauth/authorize?{qs}", issuer.trim_end_matches('/'))
 }
 
 fn prune_oauth_states(states: &mut HashMap<String, OAuthState>) {
@@ -282,6 +281,7 @@ fn prune_oauth_states(states: &mut HashMap<String, OAuthState>) {
 }
 
 async fn exchange_code_for_tokens(
+    issuer: &str,
     redirect_uri: &str,
     code_verifier: &str,
     code: &str,
@@ -296,7 +296,7 @@ async fn exchange_code_for_tokens(
         urlencoding::encode(code_verifier),
     );
     let response = client
-        .post(format!("{DEFAULT_ISSUER}/oauth/token"))
+        .post(format!("{}/oauth/token", issuer.trim_end_matches('/')))
         .header(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"))
         .body(body)
         .send()
@@ -315,6 +315,29 @@ async fn exchange_code_for_tokens(
         .json::<TokenResponse>()
         .await
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))
+}
+
+async fn oauth_issuer(ctx: &UpstreamContext) -> Result<String, UpstreamPassthroughError> {
+    let mut issuer = DEFAULT_ISSUER.to_string();
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("oauth_issuer").and_then(|v| v.as_str()) {
+                    issuer = value.to_string();
+                }
+            }
+        }
+    }
+    Ok(issuer)
 }
 
 fn parse_id_token_claims(id_token: &str) -> IdTokenClaims {
@@ -395,7 +418,6 @@ async fn persist_codex_credential(
     provider_id_hint: Option<i64>,
     tokens: &TokenResponse,
     claims: &IdTokenClaims,
-    base_url: Option<String>,
 ) -> Result<(), UpstreamPassthroughError> {
     let storage = global_storage().ok_or_else(|| {
         UpstreamPassthroughError::service_unavailable("storage unavailable")
@@ -446,9 +468,6 @@ async fn persist_codex_credential(
     let secret = JsonValue::Object(secret_map);
 
     let mut meta_map = serde_json::Map::new();
-    if let Some(base_url) = base_url.clone() {
-        meta_map.insert("base_url".to_string(), JsonValue::String(base_url));
-    }
     if let Some(email) = claims.email.clone() {
         meta_map.insert("email".to_string(), JsonValue::String(email));
     }

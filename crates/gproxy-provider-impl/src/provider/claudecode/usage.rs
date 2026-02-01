@@ -15,8 +15,8 @@ use crate::upstream::{classify_status, send_with_logging};
 use tracing::warn;
 
 use super::{
-    credential_refresh_token, credential_session_key, PROVIDER_NAME, USAGE_URL, CLAUDE_CODE_UA,
-    OAUTH_BETA,
+    channel_urls, credential_refresh_token, credential_session_key, CLAUDE_CODE_UA, OAUTH_BETA,
+    PROVIDER_NAME,
 };
 use super::oauth;
 use super::refresh;
@@ -71,6 +71,10 @@ async fn fetch_usage_payload_with_credential(
                 .clone()
                 .or_else(|| credential_refresh_token(credential.value()));
             let client = shared_client(ctx.proxy.as_deref())?;
+            let channel = channel_urls(&ctx)
+                .await
+                .map_err(|err| AttemptFailure { passthrough: err, mark: None })?;
+            let usage_url = format!("{}/api/oauth/usage", channel.api_base);
             let mut req_headers = build_usage_headers(&access_token)?;
             let mut response = send_with_logging(
                 &ctx,
@@ -81,7 +85,7 @@ async fn fetch_usage_payload_with_credential(
                 None,
                 false,
                 &scope,
-                || client.get(USAGE_URL).headers(req_headers.clone()).send(),
+                || client.get(usage_url.clone()).headers(req_headers.clone()).send(),
             )
             .await?;
             let mut status = response.status();
@@ -98,21 +102,15 @@ async fn fetch_usage_payload_with_credential(
                         status = %status.as_u16(),
                         body = %String::from_utf8_lossy(&body)
                     );
-                    let mut tokens = refresh::oauth_with_session_key(&session_key, &ctx).await?;
+                    let mut tokens =
+                        refresh::oauth_with_session_key(&session_key, &ctx, &channel).await?;
                     tokens.session_key = Some(session_key.clone());
                     let existing_id = Some(credential.value().id);
-                    let base_url = credential
-                        .value()
-                        .meta
-                        .get("base_url")
-                        .and_then(|value| value.as_str())
-                        .map(|value| value.to_string());
                     oauth::persist_claudecode_credential(
                         pool,
                         ctx.provider_id,
                         existing_id,
                         tokens.clone(),
-                        base_url,
                     )
                     .await
                     .map_err(|err| AttemptFailure {
@@ -136,7 +134,7 @@ async fn fetch_usage_payload_with_credential(
                         None,
                         false,
                         &scope,
-                        || client.get(USAGE_URL).headers(req_headers.clone()).send(),
+                        || client.get(usage_url.clone()).headers(req_headers.clone()).send(),
                     )
                     .await?;
                     status = response.status();
@@ -149,7 +147,13 @@ async fn fetch_usage_payload_with_credential(
             } else if (status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN)
                 && let Some(refresh_token) = refresh_token {
                     let refreshed =
-                        refresh::refresh_access_token(credential.value().id, refresh_token, &ctx, &scope)
+                        refresh::refresh_access_token(
+                            credential.value().id,
+                            refresh_token,
+                            &ctx,
+                            &scope,
+                            &channel,
+                        )
                             .await?;
                     access_token = refreshed.access_token;
                     req_headers = build_usage_headers(&access_token)?;
@@ -162,7 +166,7 @@ async fn fetch_usage_payload_with_credential(
                         None,
                         false,
                         &scope,
-                        || client.get(USAGE_URL).headers(req_headers.clone()).send(),
+                        || client.get(usage_url.clone()).headers(req_headers.clone()).send(),
                     )
                     .await?;
                     status = response.status();

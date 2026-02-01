@@ -33,13 +33,14 @@ struct RefreshResponse {
 }
 
 static TOKEN_CACHE: OnceLock<tokio::sync::RwLock<HashMap<i64, CachedTokens>>> = OnceLock::new();
-const REFRESH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
+const DEFAULT_REFRESH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 
 pub(super) async fn ensure_tokens(
     credential: &BaseCredential,
     ctx: &UpstreamContext,
     scope: &DisallowScope,
 ) -> Result<CachedTokens, AttemptFailure> {
+    let refresh_url = refresh_token_url(ctx).await.unwrap_or_else(|_| DEFAULT_REFRESH_TOKEN_URL.to_string());
     if let Some(cached) = token_cache().read().await.get(&credential.id).cloned() {
         return Ok(cached);
     }
@@ -52,7 +53,7 @@ pub(super) async fn ensure_tokens(
         return Ok(tokens);
     }
     if let Some(refresh_token) = credential_refresh_token(credential) {
-        return refresh_access_token(credential.id, refresh_token, ctx, scope).await;
+        return refresh_access_token(credential.id, refresh_token, &refresh_url, ctx, scope).await;
     }
     Err(invalid_credential(
         scope,
@@ -63,6 +64,7 @@ pub(super) async fn ensure_tokens(
 pub(super) async fn refresh_access_token(
     credential_id: i64,
     refresh_token: String,
+    refresh_url: &str,
     ctx: &UpstreamContext,
     scope: &DisallowScope,
 ) -> Result<CachedTokens, AttemptFailure> {
@@ -74,7 +76,7 @@ pub(super) async fn refresh_access_token(
         scope: "openid profile email",
     };
     let response = client
-        .post(REFRESH_TOKEN_URL)
+        .post(refresh_url)
         .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
         .json(&request)
         .send()
@@ -124,4 +126,28 @@ pub(super) async fn refresh_access_token(
 
 fn token_cache() -> &'static tokio::sync::RwLock<HashMap<i64, CachedTokens>> {
     TOKEN_CACHE.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
+}
+
+pub(super) async fn refresh_token_url(
+    ctx: &UpstreamContext,
+) -> Result<String, UpstreamPassthroughError> {
+    if let Some(storage) = crate::storage::global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == super::PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("oauth_issuer").and_then(|v| v.as_str()) {
+                    return Ok(format!("{}/oauth/token", value.trim_end_matches('/')));
+                }
+            }
+        }
+    }
+    Ok(DEFAULT_REFRESH_TOKEN_URL.to_string())
 }

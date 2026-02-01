@@ -24,6 +24,7 @@ use crate::dispatch::{
     native_spec, transform_spec, unsupported_spec,
 };
 use crate::record::{headers_to_json, json_body_to_string};
+use crate::storage::global_storage;
 use crate::upstream::{handle_response, send_with_logging};
 
 pub const PROVIDER_NAME: &str = "vertex";
@@ -86,6 +87,8 @@ pub fn default_provider() -> ProviderDefault {
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
             "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/REPLACE_ME",
             "universe_domain": "googleapis.com",
+            "oauth_auth_url": "https://accounts.google.com/o/oauth2/auth",
+            "oauth_token_url": DEFAULT_TOKEN_URI,
         }),
         enabled: true,
     }
@@ -191,6 +194,7 @@ impl VertexProvider {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
         let body = request.body;
+        let channel = channel_config(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -198,24 +202,21 @@ impl VertexProvider {
                 let scope = scope.clone();
                 let model = model.clone();
                 let body = body.clone();
+                let channel = channel.clone();
                 async move {
                     let sa = credential_service_account(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing service_account"))?;
                     let project_id = credential_project_id(credential.value(), &sa)
                         .ok_or_else(|| invalid_credential(&scope, "missing project_id"))?;
-                    let location = credential_location(credential.value());
-                    let base_url = resolve_vertex_base_url(
-                        credential_base_url(credential.value()).as_deref(),
-                        &location,
-                    );
+                    let location = channel.location.clone();
+                    let base_url = resolve_vertex_base_url(Some(&channel.base_url), &location);
                     let model_id = normalize_model_name(&model);
                     let path = format!(
                         "/v1beta1/projects/{project_id}/locations/{location}/publishers/google/models/{model_id}:generateContent"
                     );
                     let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let token_uri = credential_token_uri(credential.value());
-                    let access_token = fetch_access_token(&client, &sa, &token_uri).await?;
+                    let access_token = fetch_access_token(&client, &sa, &channel.token_uri).await?;
                     let req_headers = build_vertex_headers(&access_token)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
@@ -266,6 +267,7 @@ impl VertexProvider {
         let model = request.path.model.clone();
         let scope = DisallowScope::model(model.clone());
         let body = request.body;
+        let channel = channel_config(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -273,24 +275,21 @@ impl VertexProvider {
                 let scope = scope.clone();
                 let model = model.clone();
                 let body = body.clone();
+                let channel = channel.clone();
                 async move {
                     let sa = credential_service_account(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing service_account"))?;
                     let project_id = credential_project_id(credential.value(), &sa)
                         .ok_or_else(|| invalid_credential(&scope, "missing project_id"))?;
-                    let location = credential_location(credential.value());
-                    let base_url = resolve_vertex_base_url(
-                        credential_base_url(credential.value()).as_deref(),
-                        &location,
-                    );
+                    let location = channel.location.clone();
+                    let base_url = resolve_vertex_base_url(Some(&channel.base_url), &location);
                     let model_id = normalize_model_name(&model);
                     let path = format!(
                         "/v1beta1/projects/{project_id}/locations/{location}/publishers/google/models/{model_id}:streamGenerateContent"
                     );
                     let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let token_uri = credential_token_uri(credential.value());
-                    let access_token = fetch_access_token(&client, &sa, &token_uri).await?;
+                    let access_token = fetch_access_token(&client, &sa, &channel.token_uri).await?;
                     let req_headers = build_vertex_headers(&access_token)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
@@ -348,6 +347,7 @@ impl VertexProvider {
                         body.contents = Some(contents);
                         body.generate_content_request = None;
                     }
+        let channel = channel_config(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -355,21 +355,21 @@ impl VertexProvider {
                 let scope = scope.clone();
                 let model = model.clone();
                 let body = body.clone();
+                let channel = channel.clone();
                 async move {
                     let sa = credential_service_account(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing service_account"))?;
                     let project_id = credential_project_id(credential.value(), &sa)
                         .ok_or_else(|| invalid_credential(&scope, "missing project_id"))?;
-                    let location = credential_location(credential.value());
-                    let base_url = credential_base_url(credential.value());
+                    let location = channel.location.clone();
+                    let base_url = resolve_vertex_base_url(Some(&channel.base_url), &location);
                     let model_id = normalize_model_name(&model);
                     let path = format!(
                         "/v1beta1/projects/{project_id}/locations/{location}/publishers/google/models/{model_id}:countTokens"
                     );
-                    let url = build_url(base_url.as_deref(), &path);
+                    let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let token_uri = credential_token_uri(credential.value());
-                    let access_token = fetch_access_token(&client, &sa, &token_uri).await?;
+                    let access_token = fetch_access_token(&client, &sa, &channel.token_uri).await?;
                     let req_headers = build_vertex_headers(&access_token)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
@@ -418,26 +418,24 @@ impl VertexProvider {
         ctx: UpstreamContext,
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::AllModels;
+        let channel = channel_config(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
                 let ctx = ctx.clone();
                 let scope = scope.clone();
+                let channel = channel.clone();
                 async move {
                     let sa = credential_service_account(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing service_account"))?;
                     let _project_id = credential_project_id(credential.value(), &sa)
                         .ok_or_else(|| invalid_credential(&scope, "missing project_id"))?;
-                    let location = credential_location(credential.value());
-                    let base_url = resolve_vertex_base_url(
-                        credential_base_url(credential.value()).as_deref(),
-                        &location,
-                    );
+                    let location = channel.location.clone();
+                    let base_url = resolve_vertex_base_url(Some(&channel.base_url), &location);
                     let path = "/v1beta1/publishers/google/models".to_string();
                     let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let token_uri = credential_token_uri(credential.value());
-                    let access_token = fetch_access_token(&client, &sa, &token_uri).await?;
+                    let access_token = fetch_access_token(&client, &sa, &channel.token_uri).await?;
                     let req_headers = build_vertex_headers(&access_token)?;
                     let request_headers = headers_to_json(&req_headers);
                     let response = send_with_logging(
@@ -481,28 +479,26 @@ impl VertexProvider {
     ) -> Result<UpstreamOk, UpstreamPassthroughError> {
         let scope = DisallowScope::AllModels;
         let name = request.path.name;
+        let channel = channel_config(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
                 let ctx = ctx.clone();
                 let scope = scope.clone();
                 let name = name.clone();
+                let channel = channel.clone();
                 async move {
                     let sa = credential_service_account(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing service_account"))?;
                     let _project_id = credential_project_id(credential.value(), &sa)
                         .ok_or_else(|| invalid_credential(&scope, "missing project_id"))?;
-                    let location = credential_location(credential.value());
-                    let base_url = resolve_vertex_base_url(
-                        credential_base_url(credential.value()).as_deref(),
-                        &location,
-                    );
+                    let location = channel.location.clone();
+                    let base_url = resolve_vertex_base_url(Some(&channel.base_url), &location);
                     let model_id = normalize_model_name(&name);
                     let path = format!("/v1beta1/publishers/google/models/{model_id}");
                     let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let token_uri = credential_token_uri(credential.value());
-                    let access_token = fetch_access_token(&client, &sa, &token_uri).await?;
+                    let access_token = fetch_access_token(&client, &sa, &channel.token_uri).await?;
                     let req_headers = build_vertex_headers(&access_token)?;
                     let request_headers = headers_to_json(&req_headers);
                     let response = send_with_logging(
@@ -567,6 +563,7 @@ impl VertexProvider {
                 }
             }
         }
+        let channel = channel_config(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -574,23 +571,20 @@ impl VertexProvider {
                 let scope = scope.clone();
                 let model = model.clone();
                 let body = body.clone();
+                let channel = channel.clone();
                 async move {
                     let sa = credential_service_account(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing service_account"))?;
                     let project_id = credential_project_id(credential.value(), &sa)
                         .ok_or_else(|| invalid_credential(&scope, "missing project_id"))?;
-                    let location = credential_location(credential.value());
-                    let base_url = resolve_vertex_base_url(
-                        credential_base_url(credential.value()).as_deref(),
-                        &location,
-                    );
+                    let location = channel.location.clone();
+                    let base_url = resolve_vertex_base_url(Some(&channel.base_url), &location);
                     let endpoint_path =
                         format!("projects/{project_id}/locations/{location}/endpoints/openapi");
                     let path = format!("/v1beta1/{endpoint_path}/chat/completions");
                     let url = build_url(Some(&base_url), &path);
                     let client = shared_client(ctx.proxy.as_deref())?;
-                    let token_uri = credential_token_uri(credential.value());
-                    let access_token = fetch_access_token(&client, &sa, &token_uri).await?;
+                    let access_token = fetch_access_token(&client, &sa, &channel.token_uri).await?;
                     let req_headers = build_vertex_headers(&access_token)?;
                     let request_body = json_body_to_string(&body);
                     let request_headers = headers_to_json(&req_headers);
@@ -675,21 +669,48 @@ fn credential_project_id(credential: &BaseCredential, sa: &ServiceAccountKey) ->
         .or_else(|| Some(sa.project_id.clone()))
 }
 
-fn credential_location(credential: &BaseCredential) -> String {
-    credential
-        .meta
-        .get("location")
-        .and_then(|value| value.as_str())
-        .unwrap_or(DEFAULT_LOCATION)
-        .to_string()
+#[derive(Debug, Clone)]
+struct VertexChannelConfig {
+    base_url: String,
+    location: String,
+    token_uri: String,
 }
 
-fn credential_base_url(credential: &BaseCredential) -> Option<String> {
-    credential
-        .meta
-        .get("base_url")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
+async fn channel_config(
+    ctx: &UpstreamContext,
+) -> Result<VertexChannelConfig, UpstreamPassthroughError> {
+    let mut base_url = DEFAULT_BASE_URL.to_string();
+    let mut location = DEFAULT_LOCATION.to_string();
+    let mut token_uri = DEFAULT_TOKEN_URI.to_string();
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+                    base_url = value.to_string();
+                }
+                if let Some(value) = map.get("location").and_then(|v| v.as_str()) {
+                    location = value.to_string();
+                }
+                if let Some(value) = map.get("token_uri").and_then(|v| v.as_str()) {
+                    token_uri = value.to_string();
+                }
+            }
+        }
+    }
+    Ok(VertexChannelConfig {
+        base_url: base_url.trim_end_matches('/').to_string(),
+        location,
+        token_uri,
+    })
 }
 
 fn resolve_vertex_base_url(base_url: Option<&str>, location: &str) -> String {
@@ -701,14 +722,6 @@ fn resolve_vertex_base_url(base_url: Option<&str>, location: &str) -> String {
     }
 }
 
-fn credential_token_uri(credential: &BaseCredential) -> String {
-    credential
-        .meta
-        .get("token_uri")
-        .and_then(|value| value.as_str())
-        .unwrap_or(DEFAULT_TOKEN_URI)
-        .to_string()
-}
 
 fn normalize_model_name(name: &str) -> String {
     let name = name.strip_prefix("models/").unwrap_or(name);

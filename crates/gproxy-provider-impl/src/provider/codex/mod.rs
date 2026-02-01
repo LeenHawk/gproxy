@@ -28,6 +28,7 @@ use crate::dispatch::{
     native_spec, transform_spec,
 };
 use crate::record::json_body_to_string;
+use crate::storage::global_storage;
 use crate::upstream::{handle_response, send_with_logging};
 use crate::ProviderDefault;
 
@@ -88,6 +89,31 @@ pub fn default_provider() -> ProviderDefault {
         config_json: json!({ "base_url": DEFAULT_BASE_URL }),
         enabled: true,
     }
+}
+
+async fn channel_base_url(
+    ctx: &UpstreamContext,
+) -> Result<String, UpstreamPassthroughError> {
+    let mut base_url = DEFAULT_BASE_URL.to_string();
+    if let Some(storage) = global_storage() {
+        let providers = storage
+            .list_providers()
+            .await
+            .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
+        let provider = if let Some(id) = ctx.provider_id {
+            providers.iter().find(|provider| provider.id == id)
+        } else {
+            providers.iter().find(|provider| provider.name == PROVIDER_NAME)
+        };
+        if let Some(provider) = provider {
+            if let Some(map) = provider.config_json.as_object() {
+                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+                    base_url = value.to_string();
+                }
+            }
+        }
+    }
+    Ok(base_url.trim_end_matches('/').to_string())
 }
 
 #[derive(Debug)]
@@ -183,6 +209,7 @@ impl CodexProvider {
         // Codex backend does not accept max_output_tokens; strip it to avoid 400s.
         body.max_output_tokens = None;
         let is_codex_ua = is_codex_user_agent(ctx.user_agent.as_deref());
+        let base_url = channel_base_url(&ctx).await?;
 
         self.pool
             .execute(scope.clone(), |credential| {
@@ -190,6 +217,7 @@ impl CodexProvider {
                 let scope = scope.clone();
                 let model = model.clone();
                 let mut body = body.clone();
+                let base_url = base_url.clone();
                 async move {
                     if !is_codex_ua {
                         let personality =
@@ -209,9 +237,8 @@ impl CodexProvider {
                         .or_else(|| credential_refresh_token(credential.value()));
                     let account_id = credential_account_id(credential.value())
                         .ok_or_else(|| invalid_credential(&scope, "missing account_id"))?;
-                    let base_url = credential_base_url(credential.value());
                     let path = "/responses".to_string();
-                    let url = build_url(base_url.as_deref(), &path);
+                    let url = build_url(Some(&base_url), &path);
                     let url_req = url.clone();
                     let client = shared_client(ctx.proxy.as_deref())?;
                     let mut req_headers = build_codex_headers(&access_token, &account_id)?;
@@ -238,9 +265,17 @@ impl CodexProvider {
                     if (response.status() == StatusCode::UNAUTHORIZED
                         || response.status() == StatusCode::FORBIDDEN)
                         && let Some(refresh_token) = refresh_token {
-                            let refreshed =
-                                refresh::refresh_access_token(credential.value().id, refresh_token, &ctx, &scope)
-                                    .await?;
+                    let refresh_url = refresh::refresh_token_url(&ctx)
+                        .await
+                        .unwrap_or_else(|_| "https://auth.openai.com/oauth/token".to_string());
+                    let refreshed = refresh::refresh_access_token(
+                        credential.value().id,
+                        refresh_token,
+                        &refresh_url,
+                        &ctx,
+                        &scope,
+                    )
+                    .await?;
                             access_token = refreshed.access_token;
                             req_headers = build_codex_headers(&access_token, &account_id)?;
                             response = send_with_logging(
@@ -540,14 +575,6 @@ fn credential_account_id(credential: &BaseCredential) -> Option<String> {
     credential
         .secret
         .get("account_id")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
-}
-
-fn credential_base_url(credential: &BaseCredential) -> Option<String> {
-    credential
-        .meta
-        .get("base_url")
         .and_then(|value| value.as_str())
         .map(|value| value.to_string())
 }

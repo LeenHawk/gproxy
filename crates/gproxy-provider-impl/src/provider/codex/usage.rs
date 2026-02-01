@@ -13,7 +13,7 @@ use crate::dispatch::UpstreamOk;
 use crate::upstream::{classify_status, send_with_logging};
 
 use super::{
-    build_usage_url, build_codex_json_headers, credential_account_id, credential_base_url,
+    build_usage_url, build_codex_json_headers, channel_base_url, credential_account_id,
     credential_refresh_token, invalid_credential, PROVIDER_NAME,
 };
 use super::refresh;
@@ -66,9 +66,11 @@ async fn fetch_usage_payload_with_credential(
     ctx: UpstreamContext,
 ) -> Result<UsageFetch, UpstreamPassthroughError> {
     let scope = DisallowScope::AllModels;
+    let base_url = channel_base_url(&ctx).await?;
     pool.execute(scope.clone(), |credential| {
         let ctx = ctx.clone();
         let scope = scope.clone();
+        let base_url = base_url.clone();
         async move {
             let tokens = refresh::ensure_tokens(credential.value(), &ctx, &scope).await?;
             let mut access_token = tokens.access_token.clone();
@@ -78,8 +80,7 @@ async fn fetch_usage_payload_with_credential(
                 .or_else(|| credential_refresh_token(credential.value()));
             let account_id = credential_account_id(credential.value())
                 .ok_or_else(|| invalid_credential(&scope, "missing account_id"))?;
-            let base_url = credential_base_url(credential.value());
-            let (url, path) = build_usage_url(base_url.as_deref());
+            let (url, path) = build_usage_url(Some(&base_url));
             let url_req = url.clone();
             let client = shared_client(ctx.proxy.as_deref())?;
             let mut req_headers = build_codex_json_headers(&access_token, &account_id)?;
@@ -98,9 +99,17 @@ async fn fetch_usage_payload_with_credential(
             if (response.status() == StatusCode::UNAUTHORIZED
                 || response.status() == StatusCode::FORBIDDEN)
                 && let Some(refresh_token) = refresh_token {
-                    let refreshed =
-                        refresh::refresh_access_token(credential.value().id, refresh_token, &ctx, &scope)
-                            .await?;
+                    let refresh_url = refresh::refresh_token_url(&ctx)
+                        .await
+                        .unwrap_or_else(|_| "https://auth.openai.com/oauth/token".to_string());
+                    let refreshed = refresh::refresh_access_token(
+                        credential.value().id,
+                        refresh_token,
+                        &refresh_url,
+                        &ctx,
+                        &scope,
+                    )
+                    .await?;
                     access_token = refreshed.access_token;
                     req_headers = build_codex_json_headers(&access_token, &account_id)?;
                     response = send_with_logging(
