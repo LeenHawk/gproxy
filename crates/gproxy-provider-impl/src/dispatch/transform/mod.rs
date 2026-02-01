@@ -174,7 +174,7 @@ pub(super) async fn dispatch_transform<P: DispatchProvider>(
                 request,
                 generate_content::openai_response2claude::request::transform_request,
                 ProxyRequest::ClaudeMessages,
-                generate_content::openai_response2claude::response::transform_response
+                generate_content::claude2openai_response::response::transform_response
             ),
             GenerateContentPlan::OpenAIResponses2Gemini(request) => run_json!(
                 request,

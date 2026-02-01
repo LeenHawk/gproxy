@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::{json, Map as JsonMap, Value as JsonValue};
 use sha2::Digest;
 use time::OffsetDateTime;
+use tracing::warn;
 
 use gproxy_provider_core::{
     CredentialEntry, CredentialPool, PoolSnapshot, ProxyResponse, UpstreamContext,
@@ -142,22 +143,25 @@ pub(super) async fn handle_oauth_callback(
     let params: OAuthCallbackQuery = parse_query(query.as_deref())?;
     if let Some(error) = params.error {
         let message = params.error_description.unwrap_or(error);
+        warn!(event = "claudecode.oauth_callback", error = %message);
         return Err(UpstreamPassthroughError::from_status(
             StatusCode::BAD_REQUEST,
             message,
         ));
     }
     let Some(code) = params.code else {
+        warn!(event = "claudecode.oauth_callback", error = "missing code");
         return Err(UpstreamPassthroughError::from_status(
             StatusCode::BAD_REQUEST,
             "missing code",
         ));
     };
+    let state_param = params.state.clone();
     let oauth_state = {
         let mut guard = oauth_states().write().await;
         prune_oauth_states(&mut guard);
         match params.state {
-            Some(state_id) => guard.remove(&state_id),
+            Some(ref state_id) => guard.remove(state_id),
             None => {
                 if guard.len() == 1 {
                     let key = guard.keys().next().cloned();
@@ -169,6 +173,7 @@ pub(super) async fn handle_oauth_callback(
         }
     };
     let Some(oauth_state) = oauth_state else {
+        warn!(event = "claudecode.oauth_callback", error = "missing state");
         return Err(UpstreamPassthroughError::from_status(
             StatusCode::BAD_REQUEST,
             "missing state (multiple or no pending oauth states)",
@@ -180,6 +185,7 @@ pub(super) async fn handle_oauth_callback(
         &oauth_state.code_verifier,
         &code,
         oauth_state.scope.as_str(),
+        state_param.as_deref(),
         ctx.proxy.as_deref(),
     )
     .await?;
@@ -225,20 +231,30 @@ pub(super) async fn exchange_code_for_tokens(
     code_verifier: &str,
     code: &str,
     scope: &str,
+    state: Option<&str>,
     proxy: Option<&str>,
 ) -> Result<OAuthTokens, UpstreamPassthroughError> {
     let client = shared_client(proxy).map_err(|err| err.passthrough)?;
-    let payload = json!({
-        "grant_type": "authorization_code",
-        "client_id": CLIENT_ID,
-        "code": code,
-        "redirect_uri": redirect_uri,
-        "code_verifier": code_verifier,
-        "state": null,
-    });
+    let cleaned_code = code.split('#').next().unwrap_or(code);
+    let cleaned_code = cleaned_code.split('&').next().unwrap_or(cleaned_code);
+    let mut form = vec![
+        ("grant_type", "authorization_code".to_string()),
+        ("client_id", CLIENT_ID.to_string()),
+        ("code", cleaned_code.to_string()),
+        ("redirect_uri", redirect_uri.to_string()),
+        ("code_verifier", code_verifier.to_string()),
+    ];
+    if let Some(state) = state {
+        form.push(("state", state.to_string()));
+    }
+    let payload = form
+        .into_iter()
+        .map(|(key, value)| format!("{}={}", key, urlencoding::encode(&value)))
+        .collect::<Vec<_>>()
+        .join("&");
     let response = client
         .post(TOKEN_URL)
-        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+        .header(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"))
         .header(USER_AGENT, HeaderValue::from_static(TOKEN_UA))
         .header("accept", HeaderValue::from_static("application/json, text/plain, */*"))
         .header(
@@ -247,7 +263,7 @@ pub(super) async fn exchange_code_for_tokens(
         )
         .header("origin", HeaderValue::from_static("https://claude.ai"))
         .header("referer", HeaderValue::from_static("https://claude.ai/"))
-        .json(&payload)
+        .body(payload)
         .send()
         .await
         .map_err(|err| UpstreamPassthroughError::service_unavailable(err.to_string()))?;
@@ -276,6 +292,10 @@ pub(super) async fn exchange_code_for_tokens(
             .map(|value| value.to_string())
             .collect();
     }
+    warn!(
+        event = "claudecode.oauth_scope",
+        scope = %scopes.join(" ")
+    );
 
     let subscription_type = extract_subscription(&raw).map(|value| value.to_string());
     Ok(OAuthTokens {

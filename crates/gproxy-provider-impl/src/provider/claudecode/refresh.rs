@@ -8,6 +8,7 @@ use rand::RngCore;
 use serde_json::Value as JsonValue;
 use sha2::Digest;
 use time::OffsetDateTime;
+use tracing::warn;
 
 use gproxy_provider_core::{AttemptFailure, DisallowScope, UpstreamContext, UpstreamPassthroughError};
 
@@ -17,7 +18,7 @@ use crate::credential::BaseCredential;
 use super::{
     credential_access_token, credential_expires_at, credential_refresh_token,
     credential_session_key, invalid_credential, AUTHORIZE_URL_TEMPLATE, CLIENT_ID, COOKIE_UA,
-    OAUTH_SCOPE, OAUTH_SCOPE_SETUP, ORG_URL, REDIRECT_URI, TOKEN_UA, TOKEN_URL,
+    OAUTH_SCOPE_SESSION, ORG_URL, REDIRECT_URI, TOKEN_UA, TOKEN_URL,
 };
 use super::oauth::{exchange_code_for_tokens, enrich_with_profile, persist_claudecode_credential, OAuthTokens};
 
@@ -183,17 +184,18 @@ fn is_expired(expires_at: Option<i64>) -> bool {
     now_ms >= expires_at.saturating_sub(60_000)
 }
 
-async fn oauth_with_session_key(
+pub(super) async fn oauth_with_session_key(
     session_key: &str,
     ctx: &UpstreamContext,
 ) -> Result<OAuthTokens, AttemptFailure> {
     let org = get_organization_info(session_key, ctx).await?;
-    let (code, verifier, scope) = authorize_with_cookie(session_key, &org, ctx).await?;
+    let (code, verifier, scope, state) = authorize_with_cookie(session_key, &org, ctx).await?;
     let mut tokens = exchange_code_for_tokens(
         REDIRECT_URI,
         &verifier,
         &code,
         &scope,
+        Some(&state),
         ctx.proxy.as_deref(),
     )
     .await
@@ -205,6 +207,10 @@ async fn oauth_with_session_key(
         .await
         .ok();
     Ok(tokens)
+}
+
+pub(super) async fn cache_tokens(credential_id: i64, tokens: CachedTokens) {
+    token_cache().write().await.insert(credential_id, tokens);
 }
 
 struct OrgInfo {
@@ -236,6 +242,11 @@ async fn get_organization_info(
             mark: None,
         })?;
     if !status.is_success() {
+        warn!(
+            event = "claudecode.sessionkey_org",
+            status = %status.as_u16(),
+            body = %String::from_utf8_lossy(&body)
+        );
         return Err(AttemptFailure {
             passthrough: UpstreamPassthroughError::service_unavailable(format!(
                 "sessionKey org lookup failed: {status}"
@@ -297,15 +308,11 @@ async fn authorize_with_cookie(
     session_key: &str,
     org: &OrgInfo,
     ctx: &UpstreamContext,
-) -> Result<(String, String, String), AttemptFailure> {
+) -> Result<(String, String, String, String), AttemptFailure> {
     let code_verifier = generate_code_verifier();
     let code_challenge = generate_code_challenge(&code_verifier);
     let state = generate_state();
-    let scope = if org.capabilities.iter().any(|value| value == "claude_code") {
-        OAUTH_SCOPE
-    } else {
-        OAUTH_SCOPE_SETUP
-    };
+    let scope = OAUTH_SCOPE_SESSION;
     let payload = serde_json::json!({
         "response_type": "code",
         "client_id": CLIENT_ID,
@@ -321,7 +328,7 @@ async fn authorize_with_cookie(
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     let client = shared_client(ctx.proxy.as_deref())?;
     let response = client
-        .post(url)
+        .post(&url)
         .headers(headers)
         .json(&payload)
         .send()
@@ -339,6 +346,14 @@ async fn authorize_with_cookie(
             mark: None,
         })?;
     if !status.is_success() {
+        warn!(
+            event = "claudecode.sessionkey_authorize",
+            status = %status.as_u16(),
+            url = %url,
+            redirect_uri = %REDIRECT_URI,
+            scope = %scope,
+            body = %String::from_utf8_lossy(&body)
+        );
         return Err(AttemptFailure {
             passthrough: UpstreamPassthroughError::service_unavailable(format!(
                 "sessionKey authorize failed: {status}"
@@ -365,7 +380,7 @@ async fn authorize_with_cookie(
         ),
         mark: None,
     })?;
-    Ok((code, code_verifier, scope.to_string()))
+    Ok((code, code_verifier, scope.to_string(), state))
 }
 
 #[allow(clippy::result_large_err)]

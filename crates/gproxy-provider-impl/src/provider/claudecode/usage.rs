@@ -12,7 +12,13 @@ use crate::credential::BaseCredential;
 use crate::dispatch::UpstreamOk;
 use crate::upstream::{classify_status, send_with_logging};
 
-use super::{credential_refresh_token, PROVIDER_NAME, USAGE_URL, CLAUDE_CODE_UA, OAUTH_BETA};
+use tracing::warn;
+
+use super::{
+    credential_refresh_token, credential_session_key, PROVIDER_NAME, USAGE_URL, CLAUDE_CODE_UA,
+    OAUTH_BETA,
+};
+use super::oauth;
 use super::refresh;
 
 struct UsageFetch {
@@ -78,8 +84,69 @@ async fn fetch_usage_payload_with_credential(
                 || client.get(USAGE_URL).headers(req_headers.clone()).send(),
             )
             .await?;
-            if (response.status() == StatusCode::UNAUTHORIZED
-                || response.status() == StatusCode::FORBIDDEN)
+            let mut status = response.status();
+            let mut headers = response.headers().clone();
+            let mut body = response
+                .bytes()
+                .await
+                .map_err(|err| crate::upstream::network_failure(err, &scope))?;
+
+            if status == StatusCode::FORBIDDEN && is_scope_error(&body) {
+                if let Some(session_key) = credential_session_key(credential.value()) {
+                    warn!(
+                        event = "claudecode.usage_scope_retry",
+                        status = %status.as_u16(),
+                        body = %String::from_utf8_lossy(&body)
+                    );
+                    let mut tokens = refresh::oauth_with_session_key(&session_key, &ctx).await?;
+                    tokens.session_key = Some(session_key.clone());
+                    let existing_id = Some(credential.value().id);
+                    let base_url = credential
+                        .value()
+                        .meta
+                        .get("base_url")
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.to_string());
+                    oauth::persist_claudecode_credential(
+                        pool,
+                        ctx.provider_id,
+                        existing_id,
+                        tokens.clone(),
+                        base_url,
+                    )
+                    .await
+                    .map_err(|err| AttemptFailure {
+                        passthrough: err,
+                        mark: None,
+                    })?;
+                    let cached = refresh::CachedTokens {
+                        access_token: tokens.access_token,
+                        refresh_token: tokens.refresh_token,
+                        expires_at: tokens.expires_at,
+                    };
+                    refresh::cache_tokens(credential.value().id, cached.clone()).await;
+                    access_token = cached.access_token;
+                    req_headers = build_usage_headers(&access_token)?;
+                    response = send_with_logging(
+                        &ctx,
+                        PROVIDER_NAME,
+                        "claudecode.usage",
+                        "GET",
+                        "/api/oauth/usage",
+                        None,
+                        false,
+                        &scope,
+                        || client.get(USAGE_URL).headers(req_headers.clone()).send(),
+                    )
+                    .await?;
+                    status = response.status();
+                    headers = response.headers().clone();
+                    body = response
+                        .bytes()
+                        .await
+                        .map_err(|err| crate::upstream::network_failure(err, &scope))?;
+                }
+            } else if (status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN)
                 && let Some(refresh_token) = refresh_token {
                     let refreshed =
                         refresh::refresh_access_token(credential.value().id, refresh_token, &ctx, &scope)
@@ -98,14 +165,14 @@ async fn fetch_usage_payload_with_credential(
                         || client.get(USAGE_URL).headers(req_headers.clone()).send(),
                     )
                     .await?;
+                    status = response.status();
+                    headers = response.headers().clone();
+                    body = response
+                        .bytes()
+                        .await
+                        .map_err(|err| crate::upstream::network_failure(err, &scope))?;
                 }
 
-            let status = response.status();
-            let headers = response.headers().clone();
-            let body = response
-                .bytes()
-                .await
-                .map_err(|err| crate::upstream::network_failure(err, &scope))?;
             if !status.is_success() {
                 let mark = classify_status(status, &headers, &scope);
                 return Err(AttemptFailure {
@@ -146,6 +213,10 @@ fn build_usage_headers(access_token: &str) -> Result<HeaderMap, AttemptFailure> 
         HeaderValue::from_static("application/json"),
     );
     headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    headers.insert(
         http::header::USER_AGENT,
         HeaderValue::from_static(CLAUDE_CODE_UA),
     );
@@ -154,4 +225,20 @@ fn build_usage_headers(access_token: &str) -> Result<HeaderMap, AttemptFailure> 
         HeaderValue::from_static(OAUTH_BETA),
     );
     Ok(headers)
+}
+
+fn is_scope_error(body: &[u8]) -> bool {
+    let Ok(payload) = serde_json::from_slice::<JsonValue>(body) else {
+        return false;
+    };
+    let error = payload.get("error");
+    let Some(error) = error else {
+        return false;
+    };
+    let error_type = error.get("type").and_then(|value| value.as_str());
+    let message = error.get("message").and_then(|value| value.as_str());
+    matches!(error_type, Some("permission_error"))
+        && message
+            .map(|text| text.contains("scope requirement"))
+            .unwrap_or(false)
 }
