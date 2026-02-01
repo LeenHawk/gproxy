@@ -3,8 +3,8 @@
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult, QueryFilter,
-    QueryOrder, QuerySelect, Schema,
+    ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Schema,
 };
 use sea_orm::ExprTrait;
 use time::OffsetDateTime;
@@ -260,6 +260,50 @@ impl TrafficStorage {
             .one(&self.db)
             .await?;
         Ok(result.unwrap_or_default())
+    }
+
+    pub async fn list_downstream_traffic(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<entities::downstream_traffic::Model>, u64), DbErr> {
+        use entities::downstream_traffic::Column;
+
+        let page = std::cmp::Ord::max(page, 1);
+        let page_size = std::cmp::Ord::max(page_size, 1);
+        let paginator = entities::DownstreamTraffic::find()
+            .order_by_desc(Column::CreatedAt)
+            .order_by_desc(Column::Id)
+            .paginate(&self.db, page_size);
+        let num_pages = paginator.num_pages().await?;
+        let items = if num_pages == 0 || page > num_pages {
+            Vec::new()
+        } else {
+            paginator.fetch_page(page - 1).await?
+        };
+        Ok((items, num_pages))
+    }
+
+    pub async fn list_upstream_traffic(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<entities::upstream_traffic::Model>, u64), DbErr> {
+        use entities::upstream_traffic::Column;
+
+        let page = std::cmp::Ord::max(page, 1);
+        let page_size = std::cmp::Ord::max(page_size, 1);
+        let paginator = entities::UpstreamTraffic::find()
+            .order_by_desc(Column::CreatedAt)
+            .order_by_desc(Column::Id)
+            .paginate(&self.db, page_size);
+        let num_pages = paginator.num_pages().await?;
+        let items = if num_pages == 0 || page > num_pages {
+            Vec::new()
+        } else {
+            paginator.fetch_page(page - 1).await?
+        };
+        Ok((items, num_pages))
     }
 
 

@@ -91,13 +91,11 @@ async fn channel_base_url(
         } else {
             providers.iter().find(|provider| provider.name == PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
-                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object()
+                && let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
                     base_url = value.to_string();
                 }
-            }
-        }
     }
     Ok(base_url.trim_end_matches('/').to_string())
 }

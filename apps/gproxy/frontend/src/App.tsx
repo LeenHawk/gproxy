@@ -11,6 +11,7 @@ import UsersSection from "./sections/UsersSection";
 import KeysSection from "./sections/KeysSection";
 import StatsSection from "./sections/StatsSection";
 import UsageSection from "./sections/UsageSection";
+import LogsSection from "./sections/LogsSection";
 import ConfigSection from "./sections/ConfigSection";
 import AboutSection from "./sections/AboutSection";
 
@@ -22,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "keys", label: "Keys", description: "Access tokens" },
   { id: "stats", label: "Stats", description: "Pool coverage" },
   { id: "usage", label: "Usage", description: "Token analytics" },
+  { id: "logs", label: "Logs", description: "Upstream & downstream" },
   { id: "config", label: "Config", description: "Runtime settings" },
   { id: "about", label: "About", description: "Panel info" }
 ];
@@ -110,6 +112,8 @@ export default function App() {
         return <StatsSection adminKey={adminKey} notify={notify} />;
       case "usage":
         return <UsageSection adminKey={adminKey} notify={notify} />;
+      case "logs":
+        return <LogsSection adminKey={adminKey} notify={notify} />;
       case "config":
         return (
           <ConfigSection

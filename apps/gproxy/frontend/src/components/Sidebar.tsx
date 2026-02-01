@@ -60,6 +60,14 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M3 12h5l2 5 4-10 2 5h5" />
     </svg>
   ),
+  logs: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M7 7h10M7 12h10M7 17h6" />
+      <rect x="3" y="5" width="2" height="2" rx="0.5" />
+      <rect x="3" y="10" width="2" height="2" rx="0.5" />
+      <rect x="3" y="15" width="2" height="2" rx="0.5" />
+    </svg>
+  ),
   config: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
       <circle cx="12" cy="12" r="3" />

@@ -329,12 +329,11 @@ async fn oauth_issuer(ctx: &UpstreamContext) -> Result<String, UpstreamPassthrou
         } else {
             providers.iter().find(|provider| provider.name == PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
-                if let Some(value) = map.get("oauth_issuer").and_then(|v| v.as_str()) {
-                    issuer = value.to_string();
-                }
-            }
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object()
+            && let Some(value) = map.get("oauth_issuer").and_then(|v| v.as_str())
+        {
+            issuer = value.to_string();
         }
     }
     Ok(issuer)

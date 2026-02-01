@@ -87,6 +87,8 @@ pub(crate) fn admin_router(
         .route("/admin/keys/{id}/disable", put(disable_key))
         .route("/admin/reload", post(reload_snapshot))
         .route("/admin/stats", get(stats))
+        .route("/admin/logs/downstream", get(list_downstream_logs))
+        .route("/admin/logs/upstream", get(list_upstream_logs))
         .route("/admin/upstream_usage", get(get_upstream_usage))
         .route("/admin/upstream_usage_live", get(get_upstream_usage_live))
         .with_state(state)
@@ -949,6 +951,12 @@ struct UpstreamUsageLiveQuery {
     credential_id: i64,
 }
 
+#[derive(Debug, Deserialize)]
+struct LogQuery {
+    page: Option<u64>,
+    page_size: Option<u64>,
+}
+
 async fn get_upstream_usage(
     State(state): State<AdminState>,
     headers: HeaderMap,
@@ -1010,6 +1018,82 @@ async fn get_upstream_usage(
         .into_response(),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
+}
+
+async fn list_downstream_logs(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Query(query): Query<LogQuery>,
+) -> Response {
+    if let Err(resp) = require_admin(&state, &headers) {
+        return resp;
+    }
+
+    let page = query.page.unwrap_or(1).max(1);
+    let page_size = query.page_size.unwrap_or(40).clamp(1, 200);
+
+    let storage = match state.storage() {
+        Ok(storage) => storage,
+        Err(resp) => return resp,
+    };
+
+    let (items, num_pages) = match storage.list_downstream_traffic(page, page_size).await {
+        Ok(result) => result,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to load downstream logs: {err}"),
+            )
+                .into_response();
+        }
+    };
+
+    let has_more = page < num_pages;
+    Json(json!({
+        "page": page,
+        "page_size": page_size,
+        "has_more": has_more,
+        "items": items.into_iter().map(downstream_log_to_json).collect::<Vec<_>>()
+    }))
+    .into_response()
+}
+
+async fn list_upstream_logs(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Query(query): Query<LogQuery>,
+) -> Response {
+    if let Err(resp) = require_admin(&state, &headers) {
+        return resp;
+    }
+
+    let page = query.page.unwrap_or(1).max(1);
+    let page_size = query.page_size.unwrap_or(40).clamp(1, 200);
+
+    let storage = match state.storage() {
+        Ok(storage) => storage,
+        Err(resp) => return resp,
+    };
+
+    let (items, num_pages) = match storage.list_upstream_traffic(page, page_size).await {
+        Ok(result) => result,
+        Err(err) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to load upstream logs: {err}"),
+            )
+                .into_response();
+        }
+    };
+
+    let has_more = page < num_pages;
+    Json(json!({
+        "page": page,
+        "page_size": page_size,
+        "has_more": has_more,
+        "items": items.into_iter().map(upstream_log_to_json).collect::<Vec<_>>()
+    }))
+    .into_response()
 }
 
 async fn get_upstream_usage_live(
@@ -1542,5 +1626,65 @@ fn key_to_json(key: entities::api_keys::Model) -> JsonValue {
         "enabled": key.enabled,
         "created_at": ts(key.created_at),
         "last_used_at": ts_opt(key.last_used_at),
+    })
+}
+
+fn downstream_log_to_json(record: entities::downstream_traffic::Model) -> JsonValue {
+    json!({
+        "id": record.id,
+        "created_at": ts(record.created_at),
+        "provider": record.provider,
+        "provider_id": record.provider_id,
+        "operation": record.operation,
+        "model": record.model,
+        "user_id": record.user_id,
+        "key_id": record.key_id,
+        "trace_id": record.trace_id,
+        "request_method": record.request_method,
+        "request_path": record.request_path,
+        "request_query": record.request_query,
+        "request_headers": record.request_headers,
+        "request_body": record.request_body,
+        "response_status": record.response_status,
+        "response_headers": record.response_headers,
+        "response_body": record.response_body,
+    })
+}
+
+fn upstream_log_to_json(record: entities::upstream_traffic::Model) -> JsonValue {
+    json!({
+        "id": record.id,
+        "created_at": ts(record.created_at),
+        "provider": record.provider,
+        "provider_id": record.provider_id,
+        "operation": record.operation,
+        "model": record.model,
+        "credential_id": record.credential_id,
+        "trace_id": record.trace_id,
+        "request_method": record.request_method,
+        "request_path": record.request_path,
+        "request_query": record.request_query,
+        "request_headers": record.request_headers,
+        "request_body": record.request_body,
+        "response_status": record.response_status,
+        "response_headers": record.response_headers,
+        "response_body": record.response_body,
+        "claude_input_tokens": record.claude_input_tokens,
+        "claude_output_tokens": record.claude_output_tokens,
+        "claude_total_tokens": record.claude_total_tokens,
+        "claude_cache_creation_input_tokens": record.claude_cache_creation_input_tokens,
+        "claude_cache_read_input_tokens": record.claude_cache_read_input_tokens,
+        "gemini_prompt_tokens": record.gemini_prompt_tokens,
+        "gemini_candidates_tokens": record.gemini_candidates_tokens,
+        "gemini_total_tokens": record.gemini_total_tokens,
+        "gemini_cached_tokens": record.gemini_cached_tokens,
+        "openai_chat_prompt_tokens": record.openai_chat_prompt_tokens,
+        "openai_chat_completion_tokens": record.openai_chat_completion_tokens,
+        "openai_chat_total_tokens": record.openai_chat_total_tokens,
+        "openai_responses_input_tokens": record.openai_responses_input_tokens,
+        "openai_responses_output_tokens": record.openai_responses_output_tokens,
+        "openai_responses_total_tokens": record.openai_responses_total_tokens,
+        "openai_responses_input_cached_tokens": record.openai_responses_input_cached_tokens,
+        "openai_responses_output_reasoning_tokens": record.openai_responses_output_reasoning_tokens,
     })
 }

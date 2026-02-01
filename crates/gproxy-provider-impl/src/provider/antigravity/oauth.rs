@@ -364,15 +364,16 @@ async fn get_onboard_tier(
         .cloned()
         .unwrap_or_default();
     for tier in tiers {
-        if tier.get("isDefault").and_then(|value| value.as_bool()) == Some(true) {
-            if let Some(id) = tier.get("id").and_then(|value| value.as_str()) {
-                return Ok(id.to_string());
-            }
+        if tier.get("isDefault").and_then(|value| value.as_bool()) == Some(true)
+            && let Some(id) = tier.get("id").and_then(|value| value.as_str())
+        {
+            return Ok(id.to_string());
         }
     }
     Ok("LEGACY".to_string())
 }
 
+#[allow(clippy::result_large_err)]
 fn build_project_headers(
     access_token: &str,
     user_agent: &str,
@@ -446,14 +447,14 @@ async fn oauth_endpoints(
         } else {
             providers.iter().find(|provider| provider.name == PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
-                if let Some(value) = map.get("oauth_auth_url").and_then(|v| v.as_str()) {
-                    auth_url = value.to_string();
-                }
-                if let Some(value) = map.get("oauth_token_url").and_then(|v| v.as_str()) {
-                    token_url = value.to_string();
-                }
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object()
+        {
+            if let Some(value) = map.get("oauth_auth_url").and_then(|v| v.as_str()) {
+                auth_url = value.to_string();
+            }
+            if let Some(value) = map.get("oauth_token_url").and_then(|v| v.as_str()) {
+                token_url = value.to_string();
             }
         }
     }

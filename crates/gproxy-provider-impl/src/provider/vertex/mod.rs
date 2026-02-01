@@ -692,8 +692,8 @@ async fn channel_config(
         } else {
             providers.iter().find(|provider| provider.name == PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object() {
                 if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
                     base_url = value.to_string();
                 }
@@ -704,7 +704,6 @@ async fn channel_config(
                     token_uri = value.to_string();
                 }
             }
-        }
     }
     Ok(VertexChannelConfig {
         base_url: base_url.trim_end_matches('/').to_string(),

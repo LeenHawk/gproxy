@@ -235,6 +235,7 @@ pub(super) async fn handle_oauth_callback(
     Ok(super::UpstreamOk { response, meta })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn exchange_code_for_tokens(
     redirect_uri: &str,
     code_verifier: &str,
@@ -277,7 +278,7 @@ pub(super) async fn exchange_code_for_tokens(
             "accept-language",
             HeaderValue::from_static("en-US,en;q=0.9"),
         )
-        .header("origin", HeaderValue::from_str(&origin).unwrap_or_else(|_| HeaderValue::from_static("https://claude.ai")))
+        .header("origin", HeaderValue::from_str(origin).unwrap_or_else(|_| HeaderValue::from_static("https://claude.ai")))
         .header(
             "referer",
             HeaderValue::from_str(&format!("{origin}/"))

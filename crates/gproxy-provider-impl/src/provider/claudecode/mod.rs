@@ -599,10 +599,7 @@ fn is_claude_code_user_agent(value: &str) -> bool {
 }
 
 fn apply_claude_code_system(system: &mut Option<BetaSystemParam>, user_agent: Option<&str>) {
-    if user_agent
-        .map(|ua| is_claude_code_user_agent(ua))
-        .unwrap_or(false)
-    {
+    if user_agent.map(is_claude_code_user_agent).unwrap_or(false) {
         return;
     }
 
@@ -654,6 +651,7 @@ fn ensure_oauth_beta(values: &mut Vec<String>) {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn add_beta_value(headers: &mut HeaderMap, value: &str) -> Result<(), AttemptFailure> {
     let mut values: Vec<String> = headers
         .get(HEADER_BETA)
@@ -885,17 +883,17 @@ pub(super) async fn channel_urls(
         } else {
             providers.iter().find(|provider| provider.name == PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
-                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
-                    api_base = value.to_string();
-                }
-                if let Some(value) = map.get("claude_ai_base_url").and_then(|v| v.as_str()) {
-                    claude_ai_base = value.to_string();
-                }
-                if let Some(value) = map.get("console_base_url").and_then(|v| v.as_str()) {
-                    console_base = value.to_string();
-                }
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object()
+        {
+            if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
+                api_base = value.to_string();
+            }
+            if let Some(value) = map.get("claude_ai_base_url").and_then(|v| v.as_str()) {
+                claude_ai_base = value.to_string();
+            }
+            if let Some(value) = map.get("console_base_url").and_then(|v| v.as_str()) {
+                console_base = value.to_string();
             }
         }
     }

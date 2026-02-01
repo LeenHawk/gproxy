@@ -128,13 +128,11 @@ async fn refresh_token_url(ctx: &UpstreamContext) -> Result<String, UpstreamPass
         } else {
             providers.iter().find(|provider| provider.name == super::PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
-                if let Some(value) = map.get("oauth_token_url").and_then(|v| v.as_str()) {
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object()
+                && let Some(value) = map.get("oauth_token_url").and_then(|v| v.as_str()) {
                     return Ok(value.to_string());
                 }
-            }
-        }
     }
     Ok(DEFAULT_REFRESH_TOKEN_URL.to_string())
 }

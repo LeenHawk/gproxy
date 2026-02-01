@@ -193,7 +193,7 @@ jobs:
         run: choco install upx -y
 
       - name: Compress binary (non-macos)
-        if: ${{ runner.os != 'macOS' }}
+        if: ${{ runner.os != 'macOS' && matrix.target != 'aarch64-pc-windows-msvc' }}
         run: upx --best --lzma target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
 
       - name: Compress binary (macos)

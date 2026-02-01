@@ -686,12 +686,12 @@ fn normalize_gemini_parts(value: &mut JsonValue) {
         JsonValue::Object(map) => {
             if let Some(JsonValue::Array(candidates)) = map.get_mut("candidates") {
                 for candidate in candidates {
-                    if let JsonValue::Object(candidate) = candidate {
-                        if let Some(JsonValue::Object(content)) = candidate.get_mut("content") {
-                            content
-                                .entry("parts")
-                                .or_insert_with(|| JsonValue::Array(Vec::new()));
-                        }
+                    if let JsonValue::Object(candidate) = candidate
+                        && let Some(JsonValue::Object(content)) = candidate.get_mut("content")
+                    {
+                        content
+                            .entry("parts")
+                            .or_insert_with(|| JsonValue::Array(Vec::new()));
                     }
                 }
             }
@@ -886,12 +886,11 @@ pub(super) async fn channel_base_url(
         } else {
             providers.iter().find(|provider| provider.name == PROVIDER_NAME)
         };
-        if let Some(provider) = provider {
-            if let Some(map) = provider.config_json.as_object() {
-                if let Some(value) = map.get("base_url").and_then(|v| v.as_str()) {
-                    base_url = value.to_string();
-                }
-            }
+        if let Some(provider) = provider
+            && let Some(map) = provider.config_json.as_object()
+            && let Some(value) = map.get("base_url").and_then(|v| v.as_str())
+        {
+            base_url = value.to_string();
         }
     }
     Ok(base_url.trim_end_matches('/').to_string())
