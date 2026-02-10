@@ -10,7 +10,7 @@ gproxy-provider-core = { path = "../gproxy-provider-core" }
 gproxy-protocol = { path = "../gproxy-protocol" }
 bytes.workspace = true
 base64 = "0.22"
-rand = "0.9"
+rand = "0.10"
 sha2 = "0.10"
 serde.workspace = true
 serde_json.workspace = true
