@@ -18,7 +18,7 @@ serde_urlencoded = "0.7"
 urlencoding = "2"
 tokenizers = "0.22"
 tiktoken-rs = "0.9"
-wreq = { version = "6.0.0-rc.27", features = ["json","cookies", "socks", "gzip", "stream"] }
+wreq = { version = "6.0.0-rc.28", features = ["json","cookies", "socks", "gzip", "stream"] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 async-trait.workspace = true

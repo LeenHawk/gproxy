@@ -24,5 +24,5 @@ serde_urlencoded = "0.7"
 time.workspace = true
 tokio = { workspace = true, features = ["net", "rt", "sync", "time"] }
 uuid = { version = "1", features = ["v4"] }
-wreq = { version = "6.0.0-rc.27", features = ["stream"] }
+wreq = { version = "6.0.0-rc.28", features = ["stream"] }
 wreq-util = "3.0.0-rc.9"
