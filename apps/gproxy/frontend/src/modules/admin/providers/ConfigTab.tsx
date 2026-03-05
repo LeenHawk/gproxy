@@ -300,7 +300,7 @@ export function ConfigTab({
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>{t("field.id")}</Label>
-          <Input value={providerForm.id} onChange={(v) => setProviderForm((p) => ({ ...p, id: v }))} />
+          <Input value={providerForm.id} onChange={() => {}} disabled />
         </div>
         <div>
           <Label>{t("field.name")}</Label>

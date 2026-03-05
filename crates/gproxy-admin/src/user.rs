@@ -79,10 +79,6 @@ pub struct UpsertMyKeyInput {
     pub enabled: bool,
 }
 
-fn next_local_id(keys: &HashMap<String, MemoryUserKey>) -> i64 {
-    keys.values().map(|row| row.id).max().unwrap_or(-1) + 1
-}
-
 pub async fn upsert_my_user_key(
     writer: &StorageWriteSender,
     current_api_key: &str,
@@ -91,9 +87,12 @@ pub async fn upsert_my_user_key(
     input: UpsertMyKeyInput,
 ) -> Result<UserKeyWrite, AdminApiError> {
     let me = authenticate_user_key(users, keys, current_api_key).await?;
+    let id = input
+        .id
+        .ok_or_else(|| AdminApiError::InvalidInput("id is required".to_string()))?;
     let existing_by_id = input
         .id
-        .and_then(|id| keys.values().find(|row| row.id == id));
+        .and_then(|key_id| keys.values().find(|row| row.id == key_id));
     if let Some(existing) = existing_by_id
         && existing.user_id != me.user_id
     {
@@ -107,7 +106,7 @@ pub async fn upsert_my_user_key(
     };
 
     let payload = UserKeyWrite {
-        id: input.id.unwrap_or_else(|| next_local_id(keys)),
+        id,
         user_id: me.user_id,
         api_key,
         label: input.label,

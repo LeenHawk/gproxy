@@ -1,4 +1,5 @@
 pub mod entities;
+mod store_mutation;
 mod store_query;
 mod write_sink;
 

@@ -30,7 +30,7 @@ export function CredentialSingleSection({
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <Label>{t("field.id")}</Label>
-          <Input value={credentialForm.id} onChange={(v) => setCredentialForm((p) => ({ ...p, id: v }))} />
+          <Input value={credentialForm.id} onChange={() => {}} disabled />
         </div>
         <div>
           <Label>{t("field.nameOptional")}</Label>

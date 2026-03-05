@@ -1,5 +1,69 @@
 # Release Notes
 
+## v0.3.22
+
+### Added
+
+- Added signed self-update verification for release assets:
+  - updater now resolves `<asset>.sha256` and `<asset>.sha256.sig`
+  - checksum signatures are verified with Ed25519 before binary install.
+- Added web-hosted self-update source support:
+  - updater can read channel manifests from `<downloads-base>/{releases|staging}/manifest.json`
+  - manifest assets can provide `sha256`, `sha256_url`, `sha256_sig_url`, `key_id`.
+- Added raw payload execution path for provider routes:
+  - providers now support `*_payload_with_retry` flow for raw-lane passthrough requests without typed decode.
+- Added explicit SeaORM create mutations:
+  - `create_provider`, `create_credential`, `create_user`, `create_user_key`.
+- Added CI workflow for repository quality checks:
+  - Rust: `cargo fmt --check`, `cargo clippy`, `cargo test`
+  - frontend: `pnpm typecheck`, `pnpm lint`, `pnpm test`.
+- Added Starlight docs `ThemeSelect` override to stabilize auto/light/dark switching behavior.
+
+### Changed
+
+- Updated global update-source model and defaults:
+  - canonical values are now `github` and `web-hosted`
+  - default `update_source` changed to `github` in runtime defaults, storage defaults, examples, and admin UI.
+- Updated Antigravity upstream shaping for project-scoped forward requests:
+  - wrapped request payload now injects `request.sessionId`
+  - upstream request headers now include `x-machine-session-id`
+  - `sessionId` is deterministically derived from `credential_id + project_id` to keep stable cache behavior across retries and process restarts
+  - non-project routes (such as model list/get, embedding, and usage reporting) remain unchanged.
+- Updated admin create/upsert APIs to use storage-assigned IDs:
+  - `/admin/providers/upsert`, `/admin/credentials/upsert`, `/admin/users/upsert` now accept optional `id` and return `{ ok, id }`
+  - Admin UI now treats IDs as backend-assigned (ID inputs are read-only during create flows).
+- Updated user key generation flows to avoid in-memory incremental IDs:
+  - login auto-key generation, `/admin/user-keys/generate`, and `/user/keys/generate` now create rows directly in DB with unique-retry handling.
+- Updated TOML import behavior for providers/credentials:
+  - missing provider/credential rows are created directly in storage (instead of synthetic incremental IDs)
+  - credential status upsert now re-resolves inserted status IDs when needed.
+- Updated provider usage-recording flow:
+  - stream usage fallback now parses OpenAI Responses SSE frames for `usage`
+  - request payload bytes are retained for token estimation when upstream usage is unavailable.
+- Updated release workflow to publish signed checksum artifacts (`*.zip.sha256.sig`) in release/staging assets and generated S3 manifests.
+
+### Fixed
+
+- Fixed OpenAI Responses compatibility for reasoning/message item serialization:
+  - `ResponseReasoningItem.id` is now optional
+  - empty reasoning summaries (`summary: []`) are preserved during serialization
+  - empty `ResponseOutputMessage.id` is now omitted instead of serialized as an empty string.
+- Fixed provider-prefix extraction/model detection robustness by switching to JSON payload pointer extraction across operation/protocol combinations.
+
+### Docs
+
+- Updated EN/ZH `getting-started` examples:
+  - use unscoped `GET /v1/models` as the minimal verification path
+  - added scoped channel example (`/claudecode/v1/models`).
+
+### Compatibility
+
+- `global.update_source` should now use `github` or `web-hosted`.
+  - legacy values such as `international` / `china` are normalized to `github`.
+- Antigravity project-scoped forward requests now consistently carry a deterministic session identifier (`request.sessionId` and `x-machine-session-id`).
+- Self-update verification now expects signed checksum metadata (`.sha256` + `.sha256.sig`) in release assets/manifests.
+- Admin upsert clients should read returned `id` for newly created providers/credentials/users.
+
 ## v0.3.21
 
 ### Added

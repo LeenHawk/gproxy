@@ -1600,7 +1600,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1627,7 +1627,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-admin"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "gproxy-storage",
  "sea-orm",
@@ -1638,7 +1638,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1665,7 +1665,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-middleware"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1678,7 +1678,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "http",
  "serde",
@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-provider"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "base64 0.22.1",
  "dashmap",
@@ -1711,7 +1711,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "sea-orm",
  "serde",
@@ -2836,9 +2836,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "3.4.0"
+version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "219cb19e96be00ab2e37d6e299658a0cfa83e52429179969b0f0121b4ac46983"
+checksum = "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f"
 dependencies = [
  "toml_edit",
 ]
@@ -3328,9 +3328,9 @@ dependencies = [
 
 [[package]]
 name = "sea-orm"
-version = "2.0.0-rc.35"
+version = "2.0.0-rc.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41c847ddcc05ba1c4a8ad6bf781ac8d3750123f6e95642c2268b0551101931de"
+checksum = "844d97615ecd2661fe4aba04df28b80a91ad34cc6c476e683f3103381b0c33bd"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -3373,9 +3373,9 @@ dependencies = [
 
 [[package]]
 name = "sea-orm-macros"
-version = "2.0.0-rc.35"
+version = "2.0.0-rc.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a172f9ceaceafa0fe40f6f15df0231750755284c80bd8ba98d10d5ae611ecaf0"
+checksum = "60b22cd368ed2053ee7b9ccae5ef33621a55c4499dd3b64cdb518e69661b83e4"
 dependencies = [
  "heck 0.5.0",
  "itertools 0.14.0",
@@ -4228,26 +4228,17 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "1.0.3+spec-1.1.0"
+version = "1.0.4+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7614eaf19ad818347db24addfa201729cf2a9b6fdfd9eb0ab870fcacc606c0c"
+checksum = "c94c3321114413476740df133f0d8862c61d87c8d26f04c6841e033c8c80db47"
 dependencies = [
  "indexmap",
  "serde_core",
  "serde_spanned",
- "toml_datetime 1.0.0+spec-1.1.0",
+ "toml_datetime",
  "toml_parser",
  "toml_writer",
  "winnow",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.7.5+spec-1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
-dependencies = [
- "serde_core",
 ]
 
 [[package]]
@@ -4261,12 +4252,12 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.23.10+spec-1.0.0"
+version = "0.25.4+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84c8b9f757e028cee9fa244aea147aab2a9ec09d5325a9b01e0a49730c2b5269"
+checksum = "7193cbd0ce53dc966037f54351dbbcf0d5a642c7f0038c382ef9e677ce8c13f2"
 dependencies = [
  "indexmap",
- "toml_datetime 0.7.5+spec-1.1.0",
+ "toml_datetime",
  "toml_parser",
  "winnow",
 ]

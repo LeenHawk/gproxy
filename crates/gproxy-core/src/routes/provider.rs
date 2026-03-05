@@ -410,10 +410,6 @@ where
         .map_err(|_| bad_request(format!("invalid query parameter `{key}`: {raw}")))
 }
 
-fn next_incremental_id(values: impl Iterator<Item = i64>) -> i64 {
-    values.max().unwrap_or(-1) + 1
-}
-
 async fn resolve_provider_id(state: &AppState, channel: &ChannelId) -> Result<i64, HttpError> {
     let storage = state.load_storage();
     let rows = storage
@@ -429,16 +425,33 @@ async fn resolve_provider_id(state: &AppState, channel: &ChannelId) -> Result<i6
         return Ok(row.id);
     }
 
-    let all = storage
-        .list_providers(&ProviderQuery {
-            channel: Scope::All,
-            name: Scope::All,
-            enabled: Scope::All,
-            limit: None,
-        })
-        .await
+    let provider = state
+        .config
+        .load()
+        .providers
+        .get(channel)
+        .cloned()
+        .ok_or_else(|| {
+            internal_error(format!("provider {} not found in config", channel.as_str()))
+        })?;
+    let provider_settings_json =
+        gproxy_provider::provider_settings_to_json_string_with_credential_pick_mode(
+            &provider.settings,
+            provider.credential_pick_mode,
+        )
         .map_err(|err| internal_error(err.to_string()))?;
-    Ok(next_incremental_id(all.into_iter().map(|row| row.id)))
+    let provider_dispatch_json =
+        serde_json::to_string(&provider.dispatch).map_err(|err| internal_error(err.to_string()))?;
+    storage
+        .create_provider(
+            channel.as_str(),
+            channel.as_str(),
+            provider_settings_json.as_str(),
+            provider_dispatch_json.as_str(),
+            true,
+        )
+        .await
+        .map_err(|err| internal_error(err.to_string()))
 }
 
 async fn resolve_credential_id(
@@ -468,19 +481,19 @@ async fn resolve_credential_id(
         return Ok(row.id);
     }
 
-    let all_credentials = storage
-        .list_credentials(&CredentialQuery {
-            provider_id: Scope::All,
-            kind: Scope::All,
-            enabled: Scope::All,
-            limit: None,
-        })
-        .await
+    let credential_secret_json = serde_json::to_string(&credential.credential)
         .map_err(|err| internal_error(err.to_string()))?;
-
-    Ok(next_incremental_id(
-        all_credentials.into_iter().map(|row| row.id),
-    ))
+    storage
+        .create_credential(
+            provider_id,
+            Some(expected_name.as_str()),
+            credential_kind_for_storage(&credential.credential).as_str(),
+            None,
+            credential_secret_json.as_str(),
+            true,
+        )
+        .await
+        .map_err(|err| internal_error(err.to_string()))
 }
 
 async fn persist_provider_and_credential(
@@ -498,7 +511,6 @@ async fn persist_provider_and_credential(
         .map_err(|err| internal_error(err.to_string()))?;
     let provider_dispatch_json =
         serde_json::to_string(&provider.dispatch).map_err(|err| internal_error(err.to_string()))?;
-
     let provider_write = ProviderWrite {
         id: provider_id,
         name: channel.as_str().to_string(),
@@ -507,10 +519,11 @@ async fn persist_provider_and_credential(
         dispatch_json: provider_dispatch_json,
         enabled: true,
     };
+    let credential_id = resolve_credential_id(state, provider_id, credential).await?;
     let credential_secret_json = serde_json::to_string(&credential.credential)
         .map_err(|err| internal_error(err.to_string()))?;
     let credential_write = CredentialWrite {
-        id: credential.id,
+        id: credential_id,
         provider_id,
         name: credential
             .label

@@ -2,6 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use gproxy_middleware::{OperationFamily, ProtocolKind, TransformRequest, TransformResponse};
 use serde_json::{Map, Value, json};
+use sha2::{Digest as _, Sha256};
 use wreq::{Client as WreqClient, Method as WreqMethod, Response as WreqResponse};
 
 use super::constants::ANTIGRAVITY_USER_AGENT;
@@ -243,11 +244,17 @@ async fn execute_antigravity_with_prepared(
                     ));
                 }
 
+                let session_id = session_id_for_kind(
+                    &kind,
+                    attempt.credential_id,
+                    attempt.material.project_id.as_str(),
+                );
                 let body_bytes = match build_request_body_bytes(
                     body.as_ref(),
                     model.as_deref(),
                     &kind,
                     attempt.material.project_id.as_str(),
+                    session_id.as_deref(),
                 ) {
                     Ok(bytes) => bytes,
                     Err(err) => {
@@ -276,6 +283,7 @@ async fn execute_antigravity_with_prepared(
                     resolved_access_token.access_token.as_str(),
                     user_agent.as_str(),
                     request_type,
+                    session_id.as_deref(),
                     body_bytes.as_deref(),
                     request_id.as_str(),
                 )
@@ -353,6 +361,7 @@ async fn execute_antigravity_with_prepared(
                         refreshed_access_token.access_token.as_str(),
                         user_agent.as_str(),
                         request_type,
+                        session_id.as_deref(),
                         body_bytes.as_deref(),
                         request_id.as_str(),
                     )
@@ -643,6 +652,7 @@ pub async fn execute_antigravity_upstream_usage_with_retry(
                     resolved_access_token.access_token.as_str(),
                     user_agent.as_str(),
                     None,
+                    None,
                     Some(usage_body.as_slice()),
                     request_id.as_str(),
                 )
@@ -719,6 +729,7 @@ pub async fn execute_antigravity_upstream_usage_with_retry(
                         usage_url.as_str(),
                         refreshed_access_token.access_token.as_str(),
                         user_agent.as_str(),
+                        None,
                         None,
                         Some(usage_body.as_slice()),
                         request_id.as_str(),
@@ -825,6 +836,7 @@ async fn send_antigravity_request(
     access_token: &str,
     user_agent: &str,
     request_type: Option<&str>,
+    session_id: Option<&str>,
     body: Option<&[u8]>,
     request_id: &str,
 ) -> Result<(WreqResponse, UpstreamRequestMeta), wreq::Error> {
@@ -840,6 +852,9 @@ async fn send_antigravity_request(
     ];
     if let Some(value) = request_type {
         headers.push(("requesttype".to_string(), value.to_string()));
+    }
+    if let Some(value) = session_id.map(str::trim).filter(|value| !value.is_empty()) {
+        headers.push(("x-machine-session-id".to_string(), value.to_string()));
     }
     if body.is_some() {
         headers.push(("content-type".to_string(), "application/json".to_string()));
@@ -1093,6 +1108,7 @@ fn build_request_body_bytes(
     model: Option<&str>,
     kind: &AntigravityRequestKind,
     project_id: &str,
+    session_id: Option<&str>,
 ) -> Result<Option<Vec<u8>>, UpstreamError> {
     match kind {
         AntigravityRequestKind::Forward {
@@ -1125,6 +1141,11 @@ fn build_request_body_bytes(
                 config_obj.remove("logprobs");
                 config_obj.remove("responseLogprobs");
                 config_obj.remove("response_logprobs");
+            }
+            if let Some(value) = session_id.map(str::trim).filter(|value| !value.is_empty())
+                && let Some(request_obj) = request.as_object_mut()
+            {
+                request_obj.insert("sessionId".to_string(), Value::String(value.to_string()));
             }
             let wrapped = json!({
                 "model": model,
@@ -1505,6 +1526,32 @@ fn make_request_id() -> String {
         .map(|value| value.as_nanos())
         .unwrap_or(0);
     format!("gproxy-{nanos}")
+}
+
+fn session_id_for_kind(
+    kind: &AntigravityRequestKind,
+    credential_id: i64,
+    project_id: &str,
+) -> Option<String> {
+    match kind {
+        AntigravityRequestKind::Forward {
+            requires_project: true,
+            ..
+        } => Some(stable_session_id(credential_id, project_id)),
+        _ => None,
+    }
+}
+
+fn stable_session_id(credential_id: i64, project_id: &str) -> String {
+    let normalized_project = project_id.trim();
+    let seed = format!("antigravity:{credential_id}:{normalized_project}");
+    let digest = Sha256::digest(seed.as_bytes());
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(&mut hex, "{byte:02x}");
+    }
+    format!("gproxy-{hex}")
 }
 
 fn antigravity_credential_update(

@@ -38,7 +38,10 @@ import {
   supportsUpstreamUsage
 } from "./providers";
 
-const CUSTOM_PROVIDER_ID_START = 1000;
+type UpsertEntityAck = {
+  ok: boolean;
+  id: number;
+};
 
 export function ProvidersModule({
   apiKey,
@@ -185,19 +188,6 @@ export function ProvidersModule({
     return options;
   }, [providerForm.channel]);
 
-  const nextCustomProviderId = useMemo(() => {
-    const taken = new Set(
-      providerRows
-        .filter((row) => isCustomChannel(row.channel))
-        .map((row) => row.id)
-    );
-    let nextId = CUSTOM_PROVIDER_ID_START;
-    while (taken.has(nextId)) {
-      nextId += 1;
-    }
-    return nextId;
-  }, [providerRows]);
-
   useEffect(() => {
     if (!showWorkspace && activeTab !== "config") {
       setActiveTab("config");
@@ -222,7 +212,6 @@ export function ProvidersModule({
 
   const beginCreateProvider = () => {
     beginCreateProviderData();
-    setProviderForm((prev) => ({ ...prev, id: String(nextCustomProviderId) }));
     setIsCreatingProvider(true);
     setActiveTab("config");
   };
@@ -241,7 +230,8 @@ export function ProvidersModule({
 
   const upsertProvider = async () => {
     try {
-      const savedId = parseRequiredI64(providerForm.id, "id");
+      const currentId =
+        providerForm.id.trim() === "" ? null : parseRequiredI64(providerForm.id, "id");
       const rules = normalizeDispatchRules(providerForm.dispatchRules);
       const dispatchJson = buildDispatchJson(rules);
       const settingsPayload = buildChannelSettingsJson(providerForm.channel, providerForm.settings);
@@ -250,11 +240,11 @@ export function ProvidersModule({
       settingsPayload.credential_cache_affinity_enabled =
         providerForm.credentialRoundRobinEnabled &&
         providerForm.credentialCacheAffinityEnabled;
-      await apiRequest("/admin/providers/upsert", {
+      const saved = await apiRequest<UpsertEntityAck>("/admin/providers/upsert", {
         apiKey,
         method: "POST",
         body: {
-          id: savedId,
+          ...(currentId === null ? {} : { id: currentId }),
           name: providerForm.name.trim(),
           channel: providerForm.channel.trim(),
           settings_json: JSON.stringify(settingsPayload),
@@ -264,7 +254,7 @@ export function ProvidersModule({
       });
       notify("success", t("providers.saved"));
       setIsCreatingProvider(false);
-      setSelectedProviderId(savedId);
+      setSelectedProviderId(saved.id);
       await loadProviders();
     } catch (error) {
       notify("error", formatError(error));
@@ -366,7 +356,8 @@ export function ProvidersModule({
       return;
     }
     try {
-      const id = parseRequiredI64(credentialForm.id, "id");
+      const existingId =
+        credentialForm.id.trim() === "" ? null : parseRequiredI64(credentialForm.id, "id");
       const secretJson = buildCredentialSecretJson(
         selectedProvider.channel,
         credentialForm.secretValues
@@ -377,11 +368,11 @@ export function ProvidersModule({
           selectedProvider.channel,
           credentialForm.secretValues
         );
-      await apiRequest("/admin/credentials/upsert", {
+      const saved = await apiRequest<UpsertEntityAck>("/admin/credentials/upsert", {
         apiKey,
         method: "POST",
         body: {
-          id,
+          ...(existingId === null ? {} : { id: existingId }),
           provider_id: selectedProvider.id,
           name: resolvedName,
           kind: currentCredentialSchema.kind,
@@ -395,6 +386,7 @@ export function ProvidersModule({
       const now = new Date().toISOString();
       setCredentialRows((prev) => {
         const next = prev.slice();
+        const id = saved.id;
         const index = next.findIndex((row) => row.id === id);
         const row: CredentialQueryRow = {
           id,
@@ -415,7 +407,7 @@ export function ProvidersModule({
         return next;
       });
       notify("success", t("providers.credentials.saved"));
-      await refreshProviderScopedData([id]);
+      await refreshProviderScopedData([saved.id]);
     } catch (error) {
       notify("error", formatError(error));
     }
@@ -432,25 +424,9 @@ export function ProvidersModule({
     }
 
     try {
-      const takenIds = new Set(credentialRows.map((row) => row.id));
-      const usedInBatch = new Set<number>();
       const importedIds: number[] = [];
-      let nextId = credentialRows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
 
       for (const entry of entries) {
-        const candidateId = entry.id;
-        let id: number;
-        if (typeof candidateId === "number") {
-          id = candidateId;
-        } else {
-          while (takenIds.has(nextId) || usedInBatch.has(nextId)) {
-            nextId += 1;
-          }
-          id = nextId;
-          usedInBatch.add(id);
-          nextId += 1;
-        }
-
         const secretJson = buildCredentialSecretJson(
           selectedProvider.channel,
           entry.secretValues
@@ -462,11 +438,11 @@ export function ProvidersModule({
             entry.secretValues
           );
 
-        await apiRequest("/admin/credentials/upsert", {
+        const saved = await apiRequest<UpsertEntityAck>("/admin/credentials/upsert", {
           apiKey,
           method: "POST",
           body: {
-            id,
+            ...(typeof entry.id === "number" ? { id: entry.id } : {}),
             provider_id: selectedProvider.id,
             name: resolvedName,
             kind: currentCredentialSchema.kind,
@@ -477,7 +453,7 @@ export function ProvidersModule({
             enabled: entry.enabled ?? true
           }
         });
-        importedIds.push(id);
+        importedIds.push(saved.id);
       }
 
       notify("success", t("providers.bulk.imported", { count: entries.length }));

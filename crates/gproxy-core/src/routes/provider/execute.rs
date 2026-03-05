@@ -130,24 +130,20 @@ pub(super) fn wrap_stream_with_upstream_record(
             context.stream_usage = None;
         }
         let recorder = UpstreamStreamRecordGuard::new(context);
-        let mut downstream_closed = false;
         while let Some(item) = input.next().await {
             match item {
                 Ok(chunk) => {
                     recorder.push_chunk(chunk.as_ref());
-                    if !downstream_closed
-                        && tx
-                            .send(Ok::<Bytes, MiddlewareTransformError>(chunk))
-                            .await
-                            .is_err()
+                    if tx
+                        .send(Ok::<Bytes, MiddlewareTransformError>(chunk))
+                        .await
+                        .is_err()
                     {
-                        downstream_closed = true;
+                        break;
                     }
                 }
                 Err(err) => {
-                    if !downstream_closed {
-                        let _ = tx.send(Err::<Bytes, MiddlewareTransformError>(err)).await;
-                    }
+                    let _ = tx.send(Err::<Bytes, MiddlewareTransformError>(err)).await;
                     break;
                 }
             }
@@ -191,25 +187,20 @@ pub(super) fn wrap_io_stream_with_upstream_record(
             context.stream_usage = None;
         }
         let recorder = UpstreamStreamRecordGuard::new(context);
-        let mut downstream_closed = false;
         while let Some(item) = input.next().await {
             match item {
                 Ok(chunk) => {
                     recorder.push_chunk(chunk.as_ref());
-                    if !downstream_closed
-                        && tx.send(Ok::<Bytes, std::io::Error>(chunk)).await.is_err()
-                    {
-                        downstream_closed = true;
+                    if tx.send(Ok::<Bytes, std::io::Error>(chunk)).await.is_err() {
+                        break;
                     }
                 }
                 Err(err) => {
-                    if !downstream_closed {
-                        let _ = tx
-                            .send(Err::<Bytes, std::io::Error>(std::io::Error::other(
-                                err.to_string(),
-                            )))
-                            .await;
-                    }
+                    let _ = tx
+                        .send(Err::<Bytes, std::io::Error>(std::io::Error::other(
+                            err.to_string(),
+                        )))
+                        .await;
                     break;
                 }
             }

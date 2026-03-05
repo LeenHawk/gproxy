@@ -83,7 +83,7 @@ export function UserListPane({
           <div className="grid gap-3">
             <div>
               <Label>{t("field.id")}</Label>
-              <Input value={form.id} onChange={(value) => onChangeForm({ id: value })} />
+              <Input value={form.id} onChange={() => {}} disabled />
             </div>
             <div>
               <Label>{t("field.name")}</Label>

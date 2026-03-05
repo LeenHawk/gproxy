@@ -60,7 +60,14 @@ If `gproxy.toml` is missing, the service starts with in-memory defaults and auto
 ## 4. Send a minimal verification request
 
 ```bash
-curl -sS http://127.0.0.1:8787/openai/v1/models \
+curl -sS http://127.0.0.1:8787/v1/models \
+  -H "x-api-key: <your user key or admin key>"
+```
+
+or just provider-scoop like
+
+```bash
+curl -sS http://127.0.0.1:8787/claudecode/v1/models \
   -H "x-api-key: <your user key or admin key>"
 ```
 

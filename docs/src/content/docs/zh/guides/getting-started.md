@@ -60,8 +60,15 @@ gproxy.exe
 ## 4. 发送最小验证请求
 
 ```bash
-curl -sS http://127.0.0.1:8787/openai/v1/models \
+curl -sS http://127.0.0.1:8787/v1/models \
   -H "x-api-key: <你的 user key 或 admin key>"
+```
+
+如果只想用某个渠道的模型的话
+
+```bash
+curl -sS http://127.0.0.1:8787/claudecode/v1/models \
+  -H "x-api-key: <your user key or admin key>"
 ```
 
 如果返回模型列表 JSON，说明路由、鉴权和上游连接已打通。

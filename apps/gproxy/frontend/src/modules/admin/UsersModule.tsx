@@ -16,6 +16,11 @@ type GeneratedUserKey = {
   api_key: string;
 };
 
+type UpsertEntityAck = {
+  ok: boolean;
+  id: number;
+};
+
 export function UsersModule({
   apiKey,
   notify
@@ -95,13 +100,12 @@ export function UsersModule({
 
   const upsert = async () => {
     try {
-      const nextId = rows.reduce((maxId, row) => Math.max(maxId, row.id), -1) + 1;
-      const id = form.id.trim() === "" ? nextId : parseRequiredI64(form.id, "id");
-      await apiRequest("/admin/users/upsert", {
+      const id = form.id.trim() === "" ? null : parseRequiredI64(form.id, "id");
+      const saved = await apiRequest<UpsertEntityAck>("/admin/users/upsert", {
         apiKey,
         method: "POST",
         body: {
-          id,
+          ...(id === null ? {} : { id }),
           name: form.name.trim(),
           password: form.password.trim(),
           enabled: form.enabled
@@ -109,6 +113,7 @@ export function UsersModule({
       });
       notify("success", t("users.saved"));
       setShowUserEditor(false);
+      setSelectedUserId(saved.id);
       await loadUsers();
     } catch (error) {
       notify("error", formatError(error));

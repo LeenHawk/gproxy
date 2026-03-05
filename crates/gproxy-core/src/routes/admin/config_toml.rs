@@ -26,8 +26,6 @@ use super::{
     ImportCredentialHealth, ImportGlobalConfig, ImportTomlPayload, authorize_admin,
 };
 
-const CUSTOM_PROVIDER_ID_START: i64 = 1000;
-
 pub(super) async fn export_config_toml(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -323,17 +321,6 @@ pub(super) async fn apply_imported_channels(
         .iter()
         .map(|row| (row.channel.clone(), row.id))
         .collect::<HashMap<_, _>>();
-    let mut used_provider_ids = existing_providers
-        .iter()
-        .map(|row| row.id)
-        .collect::<HashSet<_>>();
-    let mut next_provider_id = existing_providers
-        .iter()
-        .map(|row| row.id)
-        .max()
-        .unwrap_or(-1)
-        + 1;
-    let mut next_custom_provider_id = next_provider_id.max(CUSTOM_PROVIDER_ID_START);
 
     let existing_credentials = gproxy_admin::query_credentials(
         &storage,
@@ -353,16 +340,13 @@ pub(super) async fn apply_imported_channels(
                 .map(|label| ((row.provider_id, label.clone()), row.id))
         })
         .collect::<HashMap<_, _>>();
-    let mut used_credential_ids = existing_credentials
-        .iter()
-        .map(|row| row.id)
-        .collect::<HashSet<_>>();
-    let mut next_credential_id = existing_credentials
-        .iter()
-        .map(|row| row.id)
-        .max()
-        .unwrap_or(-1)
-        + 1;
+    let mut credential_ids_by_provider =
+        existing_credentials
+            .iter()
+            .fold(HashMap::<i64, HashSet<i64>>::new(), |mut map, row| {
+                map.entry(row.provider_id).or_default().insert(row.id);
+                map
+            });
 
     let existing_statuses = gproxy_admin::query_credential_statuses(
         &storage,
@@ -375,7 +359,7 @@ pub(super) async fn apply_imported_channels(
         },
     )
     .await?;
-    let status_id_by_credential_channel = existing_statuses
+    let mut status_id_by_credential_channel = existing_statuses
         .into_iter()
         .map(|row| ((row.credential_id, row.channel.clone()), row.id))
         .collect::<HashMap<_, _>>();
@@ -389,33 +373,7 @@ pub(super) async fn apply_imported_channels(
             ));
         }
         let channel = ChannelId::parse(channel_name);
-        let provider_id = if let Some(existing) = provider_id_by_channel.get(channel_name).copied()
-        {
-            existing
-        } else {
-            let id = match channel {
-                ChannelId::Builtin(_) => {
-                    while used_provider_ids.contains(&next_provider_id) {
-                        next_provider_id += 1;
-                    }
-                    let id = next_provider_id;
-                    used_provider_ids.insert(id);
-                    next_provider_id += 1;
-                    id
-                }
-                ChannelId::Custom(_) => {
-                    while used_provider_ids.contains(&next_custom_provider_id) {
-                        next_custom_provider_id += 1;
-                    }
-                    let id = next_custom_provider_id;
-                    used_provider_ids.insert(id);
-                    next_custom_provider_id += 1;
-                    id
-                }
-            };
-            provider_id_by_channel.insert(channel_name.to_string(), id);
-            id
-        };
+        let channel_name_owned = channel_name.to_string();
 
         let settings =
             gproxy_provider::parse_provider_settings_value_for_channel(&channel, &item.settings)
@@ -431,14 +389,6 @@ pub(super) async fn apply_imported_channels(
             ChannelId::Builtin(builtin) => ProviderDispatchTable::default_for_builtin(builtin),
             ChannelId::Custom(_) => ProviderDispatchTable::default_for_custom(),
         });
-
-        state.upsert_provider_in_memory(
-            channel.clone(),
-            settings.clone(),
-            dispatch.clone(),
-            credential_pick_mode,
-            item.enabled,
-        );
         let settings_json =
             gproxy_provider::provider_settings_to_json_string_with_credential_pick_mode(
                 &settings,
@@ -456,33 +406,120 @@ pub(super) async fn apply_imported_channels(
                 format!("serialize dispatch failed for {channel_name}: {err}"),
             )
         })?;
-        gproxy_admin::upsert_provider(
-            &state.storage_writes,
-            gproxy_storage::ProviderWrite {
-                id: provider_id,
-                name: channel_name.to_string(),
-                channel: channel_name.to_string(),
-                settings_json,
-                dispatch_json,
-                enabled: item.enabled,
-            },
-        )
-        .await?;
+        let provider_id = if let Some(existing) = provider_id_by_channel.get(channel_name).copied()
+        {
+            gproxy_admin::upsert_provider(
+                &state.storage_writes,
+                gproxy_storage::ProviderWrite {
+                    id: existing,
+                    name: channel_name_owned.clone(),
+                    channel: channel_name_owned.clone(),
+                    settings_json: settings_json.clone(),
+                    dispatch_json: dispatch_json.clone(),
+                    enabled: item.enabled,
+                },
+            )
+            .await?;
+            existing
+        } else {
+            let created_provider_id = storage
+                .create_provider(
+                    channel_name,
+                    channel_name,
+                    settings_json.as_str(),
+                    dispatch_json.as_str(),
+                    item.enabled,
+                )
+                .await
+                .map_err(|err| {
+                    HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+                })?;
+            provider_id_by_channel.insert(channel_name_owned.clone(), created_provider_id);
+            credential_ids_by_provider
+                .entry(created_provider_id)
+                .or_default();
+            created_provider_id
+        };
+        state.upsert_provider_in_memory(
+            channel.clone(),
+            settings.clone(),
+            dispatch.clone(),
+            credential_pick_mode,
+            item.enabled,
+        );
 
         for credential_item in &item.credentials {
             let credential = build_import_channel_credential(&channel, credential_item)?;
-            let credential_id = resolve_import_credential_id(
-                provider_id,
-                credential_item,
-                &credential_id_by_provider_label,
-                &mut used_credential_ids,
-                &mut next_credential_id,
-            );
-
-            if let Some(label) = credential_item.label.clone() {
+            let parsed_id = credential_item
+                .id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .and_then(|value| value.parse::<i64>().ok());
+            let normalized_label = credential_item
+                .label
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToOwned::to_owned);
+            let secret_json = serde_json::to_string(&credential).map_err(|err| {
+                HttpError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("serialize credential failed: {err}"),
+                )
+            })?;
+            let kind = credential_kind_for_storage(&credential);
+            let existing_id = parsed_id
+                .filter(|candidate| {
+                    credential_ids_by_provider
+                        .get(&provider_id)
+                        .is_some_and(|ids| ids.contains(candidate))
+                })
+                .or_else(|| {
+                    normalized_label.as_ref().and_then(|label| {
+                        credential_id_by_provider_label
+                            .get(&(provider_id, label.clone()))
+                            .copied()
+                    })
+                });
+            let credential_id = if let Some(existing_id) = existing_id {
+                gproxy_admin::upsert_credential(
+                    &state.storage_writes,
+                    gproxy_storage::CredentialWrite {
+                        id: existing_id,
+                        provider_id,
+                        name: credential_item.label.clone(),
+                        kind: kind.clone(),
+                        settings_json: None,
+                        secret_json: secret_json.clone(),
+                        enabled: true,
+                    },
+                )
+                .await?;
+                existing_id
+            } else {
+                let created_id = storage
+                    .create_credential(
+                        provider_id,
+                        credential_item.label.as_deref(),
+                        kind.as_str(),
+                        None,
+                        secret_json.as_str(),
+                        true,
+                    )
+                    .await
+                    .map_err(|err| {
+                        HttpError::new(StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
+                    })?;
+                credential_ids_by_provider
+                    .entry(provider_id)
+                    .or_default()
+                    .insert(created_id);
+                created_id
+            };
+            if let Some(label) = normalized_label {
                 credential_id_by_provider_label.insert((provider_id, label), credential_id);
             }
-
             state.upsert_provider_credential_in_memory(
                 &channel,
                 CredentialRef {
@@ -491,28 +528,11 @@ pub(super) async fn apply_imported_channels(
                     credential: credential.clone(),
                 },
             );
-            gproxy_admin::upsert_credential(
-                &state.storage_writes,
-                gproxy_storage::CredentialWrite {
-                    id: credential_id,
-                    provider_id,
-                    name: credential_item.label.clone(),
-                    kind: credential_kind_for_storage(&credential),
-                    settings_json: None,
-                    secret_json: serde_json::to_string(&credential).map_err(|err| {
-                        HttpError::new(
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            format!("serialize credential failed: {err}"),
-                        )
-                    })?,
-                    enabled: true,
-                },
-            )
-            .await?;
 
             if let Some(status) = credential_item.state.as_ref() {
                 let (runtime_health, health_kind, health_json) =
                     import_health_to_storage(&status.health);
+                let status_key = (credential_id, channel_name_owned.clone());
                 state.upsert_credential_state(ChannelCredentialState {
                     channel: channel.clone(),
                     credential_id,
@@ -523,11 +543,9 @@ pub(super) async fn apply_imported_channels(
                 gproxy_admin::upsert_credential_status(
                     &state.storage_writes,
                     gproxy_storage::CredentialStatusWrite {
-                        id: status_id_by_credential_channel
-                            .get(&(credential_id, channel_name.to_string()))
-                            .copied(),
+                        id: status_id_by_credential_channel.get(&status_key).copied(),
                         credential_id,
-                        channel: channel_name.to_string(),
+                        channel: channel_name_owned.clone(),
                         health_kind,
                         health_json,
                         checked_at_unix_ms: status
@@ -537,55 +555,29 @@ pub(super) async fn apply_imported_channels(
                     },
                 )
                 .await?;
+                if let std::collections::hash_map::Entry::Vacant(entry) =
+                    status_id_by_credential_channel.entry(status_key)
+                {
+                    let status_rows = gproxy_admin::query_credential_statuses(
+                        &storage,
+                        gproxy_storage::CredentialStatusQuery {
+                            id: Scope::All,
+                            credential_id: Scope::Eq(credential_id),
+                            channel: Scope::Eq(channel_name_owned.clone()),
+                            health_kind: Scope::All,
+                            limit: Some(1),
+                        },
+                    )
+                    .await?;
+                    if let Some(row) = status_rows.into_iter().next() {
+                        entry.insert(row.id);
+                    }
+                }
             }
         }
     }
 
     Ok(())
-}
-
-pub(super) fn resolve_import_credential_id(
-    provider_id: i64,
-    credential: &ImportCredentialConfig,
-    credential_id_by_provider_label: &HashMap<(i64, String), i64>,
-    used_credential_ids: &mut HashSet<i64>,
-    next_credential_id: &mut i64,
-) -> i64 {
-    if let Some(id) = credential
-        .id
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .and_then(|value| value.parse::<i64>().ok())
-    {
-        used_credential_ids.insert(id);
-        if id >= *next_credential_id {
-            *next_credential_id = id + 1;
-        }
-        return id;
-    }
-
-    if let Some(label) = credential
-        .label
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        && let Some(id) = credential_id_by_provider_label
-            .get(&(provider_id, label))
-            .copied()
-    {
-        used_credential_ids.insert(id);
-        return id;
-    }
-
-    while used_credential_ids.contains(next_credential_id) {
-        *next_credential_id += 1;
-    }
-    let id = *next_credential_id;
-    used_credential_ids.insert(id);
-    *next_credential_id += 1;
-    id
 }
 
 pub(super) fn build_import_channel_credential(

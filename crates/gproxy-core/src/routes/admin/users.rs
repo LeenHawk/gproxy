@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
+use serde::Serialize;
 
 use crate::AppState;
 
@@ -22,7 +23,7 @@ pub(super) async fn upsert_user(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<UpsertUserPayload>,
-) -> Result<Json<Ack>, HttpError> {
+) -> Result<Json<UpsertUserAck>, HttpError> {
     authorize_admin(&headers, &state)?;
     let name = payload.name.trim();
     if name.is_empty() {
@@ -36,15 +37,30 @@ pub(super) async fn upsert_user(
             "user password cannot be empty".to_string(),
         )));
     }
-    let id = payload.id.unwrap_or_else(|| {
+    let id = if let Some(id) = payload.id {
+        if !state.load_users().iter().any(|row| row.id == id) {
+            return Err(HttpError::from(gproxy_admin::AdminApiError::NotFound(
+                format!("user {id}"),
+            )));
+        }
+        gproxy_admin::upsert_user(
+            &state.storage_writes,
+            gproxy_storage::UserWrite {
+                id,
+                name: name.to_string(),
+                password: password.to_string(),
+                enabled: payload.enabled,
+            },
+        )
+        .await?;
+        id
+    } else {
         state
-            .load_users()
-            .iter()
-            .map(|row| row.id)
-            .max()
-            .unwrap_or(-1)
-            + 1
-    });
+            .load_storage()
+            .create_user(name, password, payload.enabled)
+            .await
+            .map_err(gproxy_admin::AdminApiError::from)?
+    };
     let write = gproxy_storage::UserWrite {
         id,
         name: name.to_string(),
@@ -52,8 +68,7 @@ pub(super) async fn upsert_user(
         enabled: payload.enabled,
     };
     state.upsert_user_in_memory(write.clone());
-    gproxy_admin::upsert_user(&state.storage_writes, write).await?;
-    Ok(Json(Ack { ok: true }))
+    Ok(Json(UpsertUserAck { ok: true, id }))
 }
 
 pub(super) async fn delete_user(
@@ -65,4 +80,10 @@ pub(super) async fn delete_user(
     state.delete_user_in_memory(payload.id);
     gproxy_admin::delete_user(&state.storage_writes, payload.id).await?;
     Ok(Json(Ack { ok: true }))
+}
+
+#[derive(Debug, Serialize)]
+pub(super) struct UpsertUserAck {
+    pub ok: bool,
+    pub id: i64,
 }

@@ -639,23 +639,37 @@ pub(super) async fn enqueue_stream_usage_event_with_estimate(
         .unwrap_or("deepseek_fallback")
         .to_string();
 
-    let usage = stream_usage.as_ref();
-    let mut input_tokens = usage.and_then(|value| value.input_tokens).map(u64_to_i64);
-    let mut output_tokens = usage.and_then(|value| value.output_tokens).map(u64_to_i64);
-    let cache_read_input_tokens = usage
+    let mut usage = stream_usage;
+    let mut input_tokens = usage
+        .as_ref()
+        .and_then(|value| value.input_tokens)
+        .map(u64_to_i64);
+    let mut output_tokens = usage
+        .as_ref()
+        .and_then(|value| value.output_tokens)
+        .map(u64_to_i64);
+    let mut cache_read_input_tokens = usage
+        .as_ref()
         .and_then(|value| value.cache_read_input_tokens)
         .map(u64_to_i64);
-    let cache_creation_input_tokens = usage
+    let mut cache_creation_input_tokens = usage
+        .as_ref()
         .and_then(|value| value.cache_creation_input_tokens)
         .map(u64_to_i64);
-    let cache_creation_input_tokens_5min = usage
+    let mut cache_creation_input_tokens_5min = usage
+        .as_ref()
         .and_then(|value| value.cache_creation_input_tokens_5min)
         .map(u64_to_i64);
-    let cache_creation_input_tokens_1h = usage
+    let mut cache_creation_input_tokens_1h = usage
+        .as_ref()
         .and_then(|value| value.cache_creation_input_tokens_1h)
         .map(u64_to_i64);
 
-    if let Some(total) = usage.and_then(|value| value.total_tokens).map(u64_to_i64) {
+    if let Some(total) = usage
+        .as_ref()
+        .and_then(|value| value.total_tokens)
+        .map(u64_to_i64)
+    {
         match (input_tokens, output_tokens) {
             (None, Some(output)) => {
                 input_tokens = Some(total.saturating_sub(output));
@@ -664,6 +678,43 @@ pub(super) async fn enqueue_stream_usage_event_with_estimate(
                 output_tokens = Some(total.saturating_sub(input));
             }
             _ => {}
+        }
+    }
+
+    if input_tokens.is_none()
+        && output_tokens.is_none()
+        && cache_read_input_tokens.is_none()
+        && cache_creation_input_tokens.is_none()
+        && cache_creation_input_tokens_5min.is_none()
+        && cache_creation_input_tokens_1h.is_none()
+    {
+        usage = extract_usage_from_stream_body(
+            context.request.operation(),
+            context.request.protocol(),
+            stream_response_body,
+        )
+        .await;
+        if let Some(parsed_usage) = usage.as_ref() {
+            input_tokens = parsed_usage.input_tokens.map(u64_to_i64);
+            output_tokens = parsed_usage.output_tokens.map(u64_to_i64);
+            cache_read_input_tokens = parsed_usage.cache_read_input_tokens.map(u64_to_i64);
+            cache_creation_input_tokens = parsed_usage.cache_creation_input_tokens.map(u64_to_i64);
+            cache_creation_input_tokens_5min = parsed_usage
+                .cache_creation_input_tokens_5min
+                .map(u64_to_i64);
+            cache_creation_input_tokens_1h =
+                parsed_usage.cache_creation_input_tokens_1h.map(u64_to_i64);
+            if let Some(total) = parsed_usage.total_tokens.map(u64_to_i64) {
+                match (input_tokens, output_tokens) {
+                    (None, Some(output)) => {
+                        input_tokens = Some(total.saturating_sub(output));
+                    }
+                    (Some(input), None) => {
+                        output_tokens = Some(total.saturating_sub(input));
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 
@@ -716,6 +767,119 @@ pub(super) async fn enqueue_stream_usage_event_with_estimate(
         .await
     {
         eprintln!("provider: stream usage event enqueue failed: {err}");
+    }
+}
+
+async fn extract_usage_from_stream_body(
+    operation: OperationFamily,
+    protocol: ProtocolKind,
+    body: &[u8],
+) -> Option<UsageSnapshot> {
+    if body.is_empty() || operation != OperationFamily::StreamGenerateContent {
+        return None;
+    }
+    match protocol {
+        ProtocolKind::OpenAi => extract_openai_response_usage_from_sse(body),
+        _ => None,
+    }
+}
+
+fn extract_openai_response_usage_from_sse(body: &[u8]) -> Option<UsageSnapshot> {
+    let mut cursor = 0usize;
+    let mut latest = None;
+    while let Some(frame) = next_sse_frame(body, &mut cursor) {
+        let Some(data) = parse_sse_data_from_frame(frame) else {
+            continue;
+        };
+        if data == "[DONE]" {
+            continue;
+        }
+        let Ok(event) = serde_json::from_str::<
+            gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+        >(&data) else {
+            continue;
+        };
+        if let Some(usage) = usage_from_openai_response_stream_event(&event) {
+            latest = Some(usage);
+        }
+    }
+    latest
+}
+
+fn usage_from_openai_response_stream_event(
+    event: &gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+) -> Option<UsageSnapshot> {
+    use gproxy_protocol::openai::create_response::stream::ResponseStreamEvent;
+    match event {
+        ResponseStreamEvent::Created { response, .. }
+        | ResponseStreamEvent::Queued { response, .. }
+        | ResponseStreamEvent::InProgress { response, .. }
+        | ResponseStreamEvent::Failed { response, .. }
+        | ResponseStreamEvent::Incomplete { response, .. }
+        | ResponseStreamEvent::Completed { response, .. } => response
+            .usage
+            .as_ref()
+            .map(usage_from_openai_response_usage),
+        _ => None,
+    }
+}
+
+fn usage_from_openai_response_usage(usage: &ResponseUsage) -> UsageSnapshot {
+    UsageSnapshot {
+        input_tokens: Some(usage.input_tokens),
+        output_tokens: Some(usage.output_tokens),
+        total_tokens: Some(usage.total_tokens),
+        cache_creation_input_tokens: None,
+        cache_creation_input_tokens_5min: None,
+        cache_creation_input_tokens_1h: None,
+        cache_read_input_tokens: Some(usage.input_tokens_details.cached_tokens),
+        reasoning_tokens: Some(usage.output_tokens_details.reasoning_tokens),
+        thoughts_tokens: None,
+        tool_use_prompt_tokens: None,
+    }
+}
+
+fn next_sse_frame<'a>(body: &'a [u8], cursor: &mut usize) -> Option<&'a [u8]> {
+    if *cursor >= body.len() {
+        return None;
+    }
+    let rest = &body[*cursor..];
+    let lf_pos = rest.windows(2).position(|window| window == b"\n\n");
+    let crlf_pos = rest.windows(4).position(|window| window == b"\r\n\r\n");
+    let (pos, delim_len) = match (lf_pos, crlf_pos) {
+        (Some(a), Some(b)) if a <= b => (a, 2),
+        (Some(_), Some(b)) => (b, 4),
+        (Some(a), None) => (a, 2),
+        (None, Some(b)) => (b, 4),
+        (None, None) => {
+            *cursor = body.len();
+            return Some(rest);
+        }
+    };
+    let frame = &rest[..pos];
+    *cursor += pos + delim_len;
+    Some(frame)
+}
+
+fn parse_sse_data_from_frame(frame: &[u8]) -> Option<String> {
+    if frame.is_empty() {
+        return None;
+    }
+    let text = std::str::from_utf8(frame).ok()?;
+    let mut lines = Vec::new();
+    for raw_line in text.lines() {
+        let line = raw_line.trim_end_matches('\r');
+        if line.is_empty() || line.starts_with(':') {
+            continue;
+        }
+        if let Some(value) = line.strip_prefix("data:") {
+            lines.push(value.trim_start().to_string());
+        }
+    }
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
     }
 }
 

@@ -17,6 +17,9 @@ export default defineConfig({
 			},
 			defaultLocale: 'root',
 			customCss: ['./src/styles/custom.css'],
+			components: {
+				ThemeSelect: './src/components/starlight/ThemeSelect.astro',
+			},
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/LeenHawk/gproxy' }],
 			sidebar: [
 				{

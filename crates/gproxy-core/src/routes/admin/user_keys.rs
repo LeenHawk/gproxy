@@ -39,23 +39,50 @@ pub(super) async fn generate_user_key(
         )));
     }
     let keys = state.load_keys();
-    let api_key = gproxy_admin::generate_unique_user_api_key(&keys)?;
-    let next_id = keys.values().map(|row| row.id).max().unwrap_or(-1) + 1;
+    let mut id = None;
+    let mut api_key = None;
+    for _ in 0..8 {
+        let candidate = gproxy_admin::generate_unique_user_api_key(&keys)?;
+        let create_result = state
+            .load_storage()
+            .create_user_key(
+                payload.user_id,
+                candidate.as_str(),
+                payload.label.as_deref(),
+                true,
+            )
+            .await;
+        match create_result {
+            Ok(created_id) => {
+                id = Some(created_id);
+                api_key = Some(candidate);
+                break;
+            }
+            Err(err) => {
+                let message = err.to_string().to_ascii_lowercase();
+                if !message.contains("unique") {
+                    return Err(HttpError::from(gproxy_admin::AdminApiError::from(err)));
+                }
+            }
+        }
+    }
+    let id = id.ok_or_else(|| {
+        HttpError::from(gproxy_admin::AdminApiError::InvalidInput(
+            "failed to generate unique user key".to_string(),
+        ))
+    })?;
+    let api_key = api_key.ok_or_else(|| {
+        HttpError::from(gproxy_admin::AdminApiError::InvalidInput(
+            "failed to generate unique user key".to_string(),
+        ))
+    })?;
     let write = gproxy_storage::UserKeyWrite {
-        id: next_id,
+        id,
         user_id: payload.user_id,
         api_key,
         label: payload.label.filter(|v| !v.trim().is_empty()),
         enabled: true,
     };
-    state
-        .storage_writes
-        .enqueue(gproxy_storage::StorageWriteEvent::UpsertUserKey(
-            write.clone(),
-        ))
-        .await
-        .map_err(gproxy_admin::AdminApiError::from)
-        .map_err(HttpError::from)?;
     state.upsert_user_key_in_memory(write.clone());
     Ok(Json(write))
 }
