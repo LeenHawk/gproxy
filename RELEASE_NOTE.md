@@ -1,5 +1,57 @@
 # Release Notes
 
+## v0.3.23
+
+### Added
+
+- Added end-to-end OpenAI Responses WebSocket and Gemini Live support across protocol, transform, provider dispatch, and provider route layers.
+- Added transform bridges for WebSocket/HTTP interop:
+  - OpenAI Responses WebSocket `<->` OpenAI HTTP stream/non-stream
+  - Gemini Live WebSocket `<->` Gemini HTTP stream/non-stream
+  - direct OpenAI Responses WebSocket `<->` Gemini Live mapping.
+- Added upstream WebSocket credential retry support in provider routes via `websocket_retry` (health-aware credential rotation for connect failures).
+- Added Codex-specific session affinity hint extraction for OpenAI Responses:
+  - affinity key now prefers `prompt_cache_key`, then `conversation.id`, then `previous_response_id`
+  - affinity bind TTL uses 24h for Codex session continuity.
+- Added Request Log payload actions:
+  - copy `resp headers`
+  - clear selected or all upstream/downstream request-log payloads (`headers/body` for request + response).
+- Added admin request-log payload clear APIs:
+  - `/admin/requests/upstream/clear`
+  - `/admin/requests/downstream/clear`
+  - both support either selected `trace_ids` or `all=true`.
+- Added ClaudeCode model-list synthetic variants for every base model:
+  - `${model}-thinking`
+  - `${model}-adaptive-thinking`.
+
+### Changed
+
+- Updated provider dispatch wiring to explicitly support `OpenAiResponseWebSocket` and `GeminiLive` operation families across builtin channels.
+- Updated Codex/AI Studio/OpenAI provider upstream paths to align WebSocket-originated traffic with stream generate-content execution and retry flow.
+- Updated ClaudeCode thinking suffix behavior:
+  - `${model}-thinking` now normalizes back to `${model}` and injects `thinking: {"type":"enabled","budget_tokens":4096}`
+  - `${model}-adaptive-thinking` now normalizes back to `${model}` and injects `thinking: {"type":"adaptive"}`.
+- Updated cache-control magic-trigger cleanup logic to simplify trigger stripping in text blocks.
+- Updated admin Providers/credentials UX and related i18n text for OAuth and credential management flow refinements.
+- Updated CI Rust-quality workflow to prepare a frontend `dist` placeholder before Rust checks.
+- Updated release tooling/workflow around CNB sync and binary manifest publication scripts.
+
+### Fixed
+
+- Fixed Request Log payload detail rendering where `resp headers` could appear missing when empty; the section now remains visible with a `-` placeholder.
+- Fixed Codex cache-affinity behavior for multi-turn sessions by using session-derived affinity markers instead of generic OpenAI-only hints.
+- Fixed cache-affinity candidate selection to continue scanning candidates after misses, avoiding false fallback/random picks when later candidates are valid hits.
+- Fixed typed-decode payload compatibility by wrapping bare request bodies into a full request envelope (`method/path/query/headers/body`) before decode.
+- Fixed disabled-credential runtime behavior:
+  - disabling a credential now immediately removes it from in-memory runtime candidate pools
+  - bootstrap runtime hydration now loads enabled credentials only.
+
+### Compatibility
+
+- If you maintain custom dispatch overrides, ensure WebSocket operation families (`OpenAiResponseWebSocket`, `GeminiLive`) are covered where needed.
+- Codex credential selection stickiness may shift after upgrade because affinity keys are now session-aware (prompt/session marker based).
+- ClaudeCode `/v1/models` consumers may now receive additional synthetic IDs ending with `-thinking` and `-adaptive-thinking`.
+
 ## v0.3.22
 
 ### Added
