@@ -159,7 +159,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                     if !output_content.is_empty() {
                         input_items.push(ot::ResponseInputItem::OutputMessage(
                             ot::ResponseOutputMessage {
-                                id: format!("assistant_{index}"),
+                                id: format!("msg_{index}"),
                                 content: output_content,
                                 role: ot::ResponseOutputMessageRole::Assistant,
                                 phase: Some(ot::ResponseMessagePhase::FinalAnswer),
@@ -375,5 +375,49 @@ mod tests {
         assert_eq!(reasoning.summary.len(), 1);
         assert_eq!(reasoning.summary[0].text, "reasoning text");
         assert_eq!(reasoning.content.as_ref().map(|parts| parts.len()), Some(1));
+    }
+
+    #[test]
+    fn chat_assistant_history_uses_msg_prefixed_output_message_id() {
+        let request = OpenAiChatCompletionsRequest {
+            method: ct::HttpMethod::Post,
+            path: oreq::PathParameters::default(),
+            query: oreq::QueryParameters::default(),
+            headers: oreq::RequestHeaders::default(),
+            body: oreq::RequestBody {
+                model: "gpt-5".to_string(),
+                messages: vec![ct::ChatCompletionMessageParam::Assistant(
+                    ct::ChatCompletionAssistantMessageParam {
+                        role: ct::ChatCompletionAssistantRole::Assistant,
+                        audio: None,
+                        content: Some(ct::ChatCompletionAssistantContent::Text(
+                            "previous answer".to_string(),
+                        )),
+                        reasoning_content: None,
+                        function_call: None,
+                        name: None,
+                        refusal: None,
+                        tool_calls: None,
+                    },
+                )],
+                ..oreq::RequestBody::default()
+            },
+        };
+
+        let converted = OpenAiCreateResponseRequest::try_from(request).unwrap();
+        let items = match converted.body.input {
+            Some(ot::ResponseInput::Items(items)) => items,
+            other => panic!("unexpected input: {other:?}"),
+        };
+
+        let output_message = items
+            .into_iter()
+            .find_map(|item| match item {
+                ot::ResponseInputItem::OutputMessage(message) => Some(message),
+                _ => None,
+            })
+            .expect("output message");
+
+        assert_eq!(output_message.id, "msg_0");
     }
 }

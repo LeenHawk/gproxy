@@ -94,7 +94,7 @@ pub(super) async fn execute_codex_with_prepared(
         |attempt| {
             let method = method_template.clone();
             let path = path_template.clone();
-            let body = body_template.clone();
+            let body_template = body_template.clone();
             let model = model_template.clone();
             let kind = kind_template.clone();
             let extra_headers = extra_headers_template.clone();
@@ -103,6 +103,10 @@ pub(super) async fn execute_codex_with_prepared(
 
             async move {
                 let url = join_base_url_and_path(base_url.as_str(), path.as_str());
+                let body = apply_codex_priority_tier_override(
+                    body_template.as_deref(),
+                    attempt.material.priority_tier,
+                );
                 let token_cache_key =
                     format!("{}::{}", provider.channel.as_str(), attempt.credential_id);
                 let mut credential_update = None;

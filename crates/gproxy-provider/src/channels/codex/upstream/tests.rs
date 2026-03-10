@@ -1,8 +1,8 @@
 use serde_json::json;
 
 use super::{
-    CodexPreparedRequest, SESSION_ID_HEADER, WreqMethod, normalize_codex_response_request_body,
-    stable_codex_session_id,
+    CodexPreparedRequest, SESSION_ID_HEADER, WreqMethod, apply_codex_priority_tier_override,
+    normalize_codex_response_request_body, stable_codex_session_id,
 };
 use gproxy_middleware::{OperationFamily, ProtocolKind};
 
@@ -260,5 +260,48 @@ fn codex_normalizes_session_id_header_name() {
     assert_eq!(
         prepared.extra_headers,
         vec![(SESSION_ID_HEADER.to_string(), "sess-123".to_string())]
+    );
+}
+
+#[test]
+fn codex_priority_tier_override_sets_priority_service_tier() {
+    let body = serde_json::to_vec(&json!({
+        "model": "gpt-5.3-codex",
+        "service_tier": "auto",
+        "input": [{"role": "user", "content": "hello"}]
+    }))
+    .expect("serialize body");
+
+    let overridden = apply_codex_priority_tier_override(Some(body.as_slice()), Some(true))
+        .expect("override body");
+    let overridden_json = serde_json::from_slice::<serde_json::Value>(overridden.as_slice())
+        .expect("parse overridden body");
+
+    assert_eq!(
+        overridden_json
+            .get("service_tier")
+            .and_then(|value| value.as_str()),
+        Some("priority")
+    );
+}
+
+#[test]
+fn codex_priority_tier_override_false_preserves_service_tier() {
+    let body = serde_json::to_vec(&json!({
+        "model": "gpt-5.3-codex",
+        "service_tier": "auto",
+        "input": [{"role": "user", "content": "hello"}]
+    }))
+    .expect("serialize body");
+
+    let overridden = apply_codex_priority_tier_override(Some(body.as_slice()), Some(false))
+        .expect("override body");
+    let overridden_json = serde_json::from_slice::<serde_json::Value>(overridden.as_slice())
+        .expect("parse overridden body");
+    assert_eq!(
+        overridden_json
+            .get("service_tier")
+            .and_then(|value| value.as_str()),
+        Some("auto")
     );
 }

@@ -8,7 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-sea-orm = { version = "2.0.0-rc.32", features = ["macros", "runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres", "with-time", "with-uuid", "with-json", "schema-sync", "entity-registry"] }
+sea-orm = { version = "2.0.0-rc.37", features = ["macros", "runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres", "with-time", "with-uuid", "with-json", "schema-sync", "entity-registry"] }
 sqlx = { version = "0.8", default-features = false, features = ["sqlite", "mysql", "postgres"] }
 base64 = "0.22"
 chacha20poly1305 = { version = "0.10", features = ["std"] }

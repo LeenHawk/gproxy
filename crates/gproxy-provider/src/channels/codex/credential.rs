@@ -5,6 +5,7 @@ pub struct CodexCredential {
     pub access_token: String,
     pub refresh_token: String,
     pub id_token: String,
+    pub priority_tier: Option<bool>,
     pub user_email: Option<String>,
     pub account_id: String,
     pub expires_at: i64,

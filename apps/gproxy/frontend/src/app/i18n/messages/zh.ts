@@ -374,6 +374,7 @@ export const zhMessages = {
     "field.private_key": "私钥",
     "field.private_key_id": "私钥 ID",
     "field.project_id": "项目 ID",
+    "field.priority_tier": "强制 priority tier",
     "field.rate_limit_tier": "速率限制层级",
     "field.refresh_token": "刷新令牌",
     "field.cookie": "Cookie",

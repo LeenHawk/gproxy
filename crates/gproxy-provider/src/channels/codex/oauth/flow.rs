@@ -262,6 +262,7 @@ pub(super) fn build_callback_result(
             access_token: access_token.clone(),
             refresh_token: refresh_token.clone(),
             id_token: id_token.clone(),
+            priority_tier: None,
             user_email: claims.email.clone(),
             account_id: account_id.clone(),
             expires_at: expires_at_unix_ms.min(i64::MAX as u64) as i64,

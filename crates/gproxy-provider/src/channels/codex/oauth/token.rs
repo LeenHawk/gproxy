@@ -40,6 +40,7 @@ pub(crate) fn codex_auth_material_from_credential(
         refresh_token: value.refresh_token.trim().to_string(),
         id_token: value.id_token.trim().to_string(),
         account_id: account_id.to_string(),
+        priority_tier: value.priority_tier,
         expires_at_unix_ms: normalize_expires_at_ms(value.expires_at),
     })
 }

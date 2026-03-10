@@ -379,6 +379,7 @@ export const enMessages = {
     "field.private_key": "private_key",
     "field.private_key_id": "private_key_id",
     "field.project_id": "project_id",
+    "field.priority_tier": "priority tier override",
     "field.rate_limit_tier": "rate_limit_tier",
     "field.refresh_token": "refresh_token",
     "field.cookie": "cookie",

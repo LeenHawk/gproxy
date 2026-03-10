@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 gproxy-storage = { path = "../gproxy-storage" }
-sea-orm = "2.0.0-rc.32"
+sea-orm = "2.0.0-rc.37"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 uuid = { version = "1", features = ["serde", "v7"] }

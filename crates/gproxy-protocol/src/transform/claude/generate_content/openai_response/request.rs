@@ -1399,7 +1399,7 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiCreateResponseRequest {
                 (BetaMessageRole::Assistant, ct::BetaMessageContent::Text(text)) => {
                     if !text.is_empty() {
                         input_items.push(output_message_item(
-                            format!("assistant_message_{assistant_message_index}"),
+                            format!("msg_{assistant_message_index}"),
                             text,
                         ));
                         assistant_message_index += 1;
@@ -1411,7 +1411,7 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiCreateResponseRequest {
                             ct::BetaContentBlockParam::Text(block) => {
                                 if !block.text.is_empty() {
                                     input_items.push(output_message_item(
-                                        format!("assistant_message_{assistant_message_index}"),
+                                        format!("msg_{assistant_message_index}"),
                                         block.text,
                                     ));
                                     assistant_message_index += 1;
@@ -1733,14 +1733,14 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiCreateResponseRequest {
                             }
                             ct::BetaContentBlockParam::ContainerUpload(block) => {
                                 input_items.push(output_message_item(
-                                    format!("assistant_message_{assistant_message_index}"),
+                                    format!("msg_{assistant_message_index}"),
                                     format!("container_upload:{}", block.file_id),
                                 ));
                                 assistant_message_index += 1;
                             }
                             other => {
                                 input_items.push(output_message_item(
-                                    format!("assistant_message_{assistant_message_index}"),
+                                    format!("msg_{assistant_message_index}"),
                                     json_string(&other),
                                 ));
                                 assistant_message_index += 1;

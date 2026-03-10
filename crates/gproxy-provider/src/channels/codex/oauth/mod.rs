@@ -50,6 +50,7 @@ pub(crate) struct CodexAuthMaterial {
     refresh_token: String,
     id_token: String,
     pub(crate) account_id: String,
+    pub(crate) priority_tier: Option<bool>,
     expires_at_unix_ms: u64,
 }
 

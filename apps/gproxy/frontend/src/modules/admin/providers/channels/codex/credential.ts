@@ -22,6 +22,11 @@ export const CREDENTIAL_SCHEMA: ChannelCredentialSchema = {
       "type": "string"
     },
     {
+      "key": "priority_tier",
+      "label": "priority_tier",
+      "type": "optional_boolean"
+    },
+    {
       "key": "user_email",
       "label": "user_email",
       "type": "optional_string"
