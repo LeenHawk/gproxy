@@ -35,7 +35,8 @@ import {
   normalizeDispatchRules,
   secretValuesFromSecretJson,
   supportsOAuth,
-  supportsUpstreamUsage
+  supportsUpstreamUsage,
+  toProviderFormState
 } from "./providers";
 
 type UpsertEntityAck = {
@@ -262,8 +263,10 @@ export function ProvidersModule({
       const currentId =
         providerForm.id.trim() === "" ? null : parseRequiredI64(providerForm.id, "id");
       const rules = normalizeDispatchRules(providerForm.dispatchRules);
+      const trimmedName = providerForm.name.trim();
+      const trimmedChannel = providerForm.channel.trim();
       const dispatchJson = buildDispatchJson(rules);
-      const settingsPayload = buildChannelSettingsJson(providerForm.channel, providerForm.settings);
+      const settingsPayload = buildChannelSettingsJson(trimmedChannel, providerForm.settings);
       settingsPayload.credential_round_robin_enabled =
         providerForm.credentialRoundRobinEnabled;
       settingsPayload.credential_cache_affinity_enabled =
@@ -279,8 +282,8 @@ export function ProvidersModule({
         method: "POST",
         body: {
           ...(currentId === null ? {} : { id: currentId }),
-          name: providerForm.name.trim(),
-          channel: providerForm.channel.trim(),
+          name: trimmedName,
+          channel: trimmedChannel,
           settings_json: JSON.stringify(settingsPayload),
           dispatch_json: JSON.stringify(dispatchJson),
           enabled: providerForm.enabled
@@ -289,7 +292,18 @@ export function ProvidersModule({
       notify("success", t("providers.saved"));
       setIsCreatingProvider(false);
       setSelectedProviderId(saved.id);
-      await loadProviders();
+      const latestProviders = await loadProviders();
+      const savedRow = latestProviders.find((row) => row.id === saved.id);
+      if (savedRow) {
+        setProviderForm(toProviderFormState(savedRow));
+      } else {
+        setProviderForm((prev) => ({
+          ...prev,
+          id: String(saved.id),
+          name: trimmedName,
+          channel: trimmedChannel
+        }));
+      }
     } catch (error) {
       notify("error", formatError(error));
     }
