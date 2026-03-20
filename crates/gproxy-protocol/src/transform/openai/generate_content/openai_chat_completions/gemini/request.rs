@@ -436,10 +436,7 @@ mod tests {
         assert_eq!(content.role, Some(gt::GeminiContentRole::Model));
         let part = content.parts.first().expect("first part");
         assert_eq!(part.thought, Some(true));
-        assert_eq!(
-            part.thought_signature.as_deref(),
-            Some("rs_0_0")
-        );
+        assert_eq!(part.thought_signature.as_deref(), Some("rs_0_0"));
         assert_eq!(part.text.as_deref(), Some("reasoning text"));
     }
 

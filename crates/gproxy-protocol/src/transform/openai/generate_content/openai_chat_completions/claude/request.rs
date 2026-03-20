@@ -19,7 +19,7 @@ use crate::transform::openai::generate_content::openai_chat_completions::openai:
     chat_reasoning_to_response_reasoning, chat_response_text_config, chat_stop_to_vec,
     chat_text_content_to_plain_text, chat_text_content_to_response_input_message_content,
     chat_tool_choice_to_response_tool_choice, chat_tools_to_response_tools,
-    chat_user_content_to_response_input_message_content, pseudo_reasoning_signature,
+    chat_user_content_to_response_input_message_content,
 };
 use crate::transform::utils::TransformError;
 
@@ -110,7 +110,6 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
                     seen_non_system = true;
                     let oct::ChatCompletionAssistantMessageParam {
                         content,
-                        reasoning_content,
                         refusal,
                         function_call,
                         tool_calls,
@@ -148,18 +147,6 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
                         && !refusal.is_empty()
                     {
                         blocks.push(text_block(refusal));
-                    }
-
-                    if let Some(reasoning_content) = reasoning_content
-                        && !reasoning_content.is_empty()
-                    {
-                        blocks.push(ct::BetaContentBlockParam::Thinking(
-                            ct::BetaThinkingBlockParam {
-                                signature: pseudo_reasoning_signature(message_index, 0),
-                                thinking: reasoning_content,
-                                type_: ct::BetaThinkingBlockType::Thinking,
-                            },
-                        ));
                     }
 
                     if let Some(function_call) = function_call {
@@ -514,11 +501,10 @@ fn default_chat_thinking() -> ct::BetaThinkingConfigParam {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::claude::count_tokens::types as cct;
     use crate::openai::create_chat_completions::request as oreq;
 
     #[test]
-    fn chat_reasoning_content_maps_to_claude_thinking_with_pseudo_signature() {
+    fn chat_reasoning_content_is_not_sent_as_claude_thinking() {
         let request = OpenAiChatCompletionsRequest {
             method: oct::HttpMethod::Post,
             path: oreq::PathParameters::default(),
@@ -543,21 +529,7 @@ mod tests {
         };
 
         let converted = ClaudeCreateMessageRequest::try_from(request).unwrap();
-        let message = converted.body.messages.first().expect("assistant message");
-        let blocks = match &message.content {
-            cct::BetaMessageContent::Blocks(blocks) => blocks,
-            other => panic!("unexpected content: {other:?}"),
-        };
-        let thinking_block = blocks
-            .iter()
-            .find_map(|block| match block {
-                cct::BetaContentBlockParam::Thinking(thinking) => Some(thinking),
-                _ => None,
-            })
-            .expect("thinking block");
-
-        assert_eq!(thinking_block.signature, "rs_0_0");
-        assert_eq!(thinking_block.thinking, "reasoning text");
+        assert!(converted.body.messages.is_empty());
     }
 
     #[test]
