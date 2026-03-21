@@ -125,13 +125,21 @@ function parseJsonObjects(rawText: string): Record<string, unknown>[] {
   }
 }
 
+function looksLikeJsonBulkInput(rawText: string): boolean {
+  const trimmed = rawText.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return trimmed.startsWith("{") || trimmed.startsWith("[");
+}
+
 export function availableBulkModes(
   channel: string,
   schema: ChannelCredentialSchema,
   supportsOAuth: boolean
 ): CredentialBulkMode[] {
   if (channel === "claudecode") {
-    return ["keys"];
+    return ["json", "claudecode_cookie"];
   }
   if (isKeyOnlySchema(schema)) {
     return ["keys"];
@@ -249,6 +257,10 @@ export function parseBulkCredentialText(args: {
   }
 
   if (mode === "keys") {
+    if (looksLikeJsonBulkInput(rawText)) {
+      const rows = parseJsonObjects(rawText);
+      return rows.map((row) => entryFromJsonObject(channel, schema, row));
+    }
     const keyField = fieldByKey(schema, "api_key") ?? fieldByKey(schema, "cookie");
     if (!keyField) {
       throw new Error("this channel does not support key-line bulk import");
@@ -257,6 +269,10 @@ export function parseBulkCredentialText(args: {
   }
 
   if (mode === "claudecode_cookie") {
+    if (looksLikeJsonBulkInput(rawText)) {
+      const rows = parseJsonObjects(rawText);
+      return rows.map((row) => entryFromJsonObject(channel, schema, row));
+    }
     const cookieField = fieldByKey(schema, "cookie");
     if (!cookieField) {
       throw new Error("this channel does not support cookie-line bulk import");

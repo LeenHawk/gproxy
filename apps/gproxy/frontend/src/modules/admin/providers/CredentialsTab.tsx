@@ -374,9 +374,6 @@ export function CredentialsTab({
 
   const bulkPlaceholder = useMemo(() => {
     if (bulkMode === "keys") {
-      if (channel === "claudecode") {
-        return `${t("providers.bulk.placeholder.cookieLineA")}\n${t("providers.bulk.placeholder.cookieLineB")}`;
-      }
       return `${t("providers.bulk.placeholder.keyLineA")}\n${t("providers.bulk.placeholder.keyLineB")}`;
     }
     if (bulkMode === "claudecode_cookie") {
