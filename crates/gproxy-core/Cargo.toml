@@ -31,3 +31,6 @@ uuid = { version = "1", features = ["serde", "v5"] }
 wreq = { version = "6.0.0-rc.28", features = ["json","cookies", "socks", "stream", "deflate", "gzip", "zstd", "brotli"] }
 wreq-util = "3.0.0-rc.10"
 zip = "8"
+
+[dev-dependencies]
+tower = "0.5"

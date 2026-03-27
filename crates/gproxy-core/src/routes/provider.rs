@@ -4,7 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use axum::body::{Body, Bytes};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::header::HeaderValue;
+use axum::http::{HeaderMap, Method, Request, StatusCode};
 use axum::middleware::from_fn;
 use axum::response::Response;
 use axum::routing::{get, post};
@@ -72,6 +73,12 @@ const AUTHORIZATION: &str = "authorization";
 const CLAUDE_ANTHROPIC_VERSION_HEADER: &str = "anthropic-version";
 const CLAUDE_ANTHROPIC_BETA_HEADER: &str = "anthropic-beta";
 const BODY_CAPTURE_LIMIT_BYTES: usize = 50 * 1024 * 1024;
+const ACCESS_CONTROL_ALLOW_ORIGIN_HEADER: &str = "access-control-allow-origin";
+const ACCESS_CONTROL_ALLOW_METHODS_HEADER: &str = "access-control-allow-methods";
+const ACCESS_CONTROL_ALLOW_HEADERS_HEADER: &str = "access-control-allow-headers";
+const PROVIDER_CORS_ALLOW_ORIGIN: &str = "*";
+const PROVIDER_CORS_ALLOW_METHODS: &str = "GET, POST, OPTIONS";
+const PROVIDER_CORS_DEFAULT_ALLOW_HEADERS: &str = "authorization, content-type, x-api-key, x-goog-api-key, anthropic-version, anthropic-beta, openai-beta";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ModelProtocolPreference {
@@ -179,6 +186,45 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/{provider}/v1beta/{*target}", post(v1beta_post_target))
         .route("/{provider}/v1/{*target}", post(v1_post_target))
         .layer(from_fn(normalize_provider_auth_header))
+        .layer(from_fn(handle_provider_cors))
+}
+
+fn apply_provider_allow_origin(response: &mut Response) {
+    response.headers_mut().insert(
+        ACCESS_CONTROL_ALLOW_ORIGIN_HEADER,
+        HeaderValue::from_static(PROVIDER_CORS_ALLOW_ORIGIN),
+    );
+}
+
+fn provider_preflight_response() -> Response {
+    let mut response = Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Body::empty())
+        .unwrap_or_else(|_| Response::new(Body::empty()));
+    let headers = response.headers_mut();
+    headers.insert(
+        ACCESS_CONTROL_ALLOW_ORIGIN_HEADER,
+        HeaderValue::from_static(PROVIDER_CORS_ALLOW_ORIGIN),
+    );
+    headers.insert(
+        ACCESS_CONTROL_ALLOW_METHODS_HEADER,
+        HeaderValue::from_static(PROVIDER_CORS_ALLOW_METHODS),
+    );
+    headers.insert(
+        ACCESS_CONTROL_ALLOW_HEADERS_HEADER,
+        HeaderValue::from_static(PROVIDER_CORS_DEFAULT_ALLOW_HEADERS),
+    );
+    response
+}
+
+async fn handle_provider_cors(request: Request<Body>, next: axum::middleware::Next) -> Response {
+    if request.method() == Method::OPTIONS {
+        return provider_preflight_response();
+    }
+
+    let mut response = next.run(request).await;
+    apply_provider_allow_origin(&mut response);
+    response
 }
 
 fn oauth_response_to_axum(response: UpstreamOAuthResponse) -> Response {
@@ -241,9 +287,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use axum::http::{HeaderMap, HeaderName, HeaderValue};
+    use axum::Router;
+    use axum::body::Body;
+    use axum::http::{HeaderMap, HeaderName, HeaderValue, Request, StatusCode};
+    use axum::middleware::from_fn;
+    use axum::response::IntoResponse;
+    use axum::response::Response;
+    use axum::routing::post;
+    use tower::ServiceExt;
 
-    use super::{ModelProtocolPreference, model_protocol_preference};
+    use super::{
+        ACCESS_CONTROL_ALLOW_HEADERS_HEADER, ACCESS_CONTROL_ALLOW_METHODS_HEADER,
+        ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, Method, ModelProtocolPreference,
+        PROVIDER_CORS_DEFAULT_ALLOW_HEADERS, handle_provider_cors, model_protocol_preference,
+    };
 
     fn headers(values: &[(&str, &str)]) -> HeaderMap {
         let mut headers = HeaderMap::new();
@@ -311,6 +368,86 @@ mod tests {
         assert_eq!(
             model_protocol_preference(&headers, None),
             ModelProtocolPreference::OpenAi
+        );
+    }
+
+    #[tokio::test]
+    async fn options_preflight_is_handled_locally() {
+        let app: Router<()> = Router::new()
+            .route(
+                "/v1/test",
+                post(|| async { StatusCode::OK.into_response() }),
+            )
+            .layer(from_fn(handle_provider_cors));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::OPTIONS)
+                    .uri("/v1/test")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(
+            response
+                .headers()
+                .get(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("*")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(ACCESS_CONTROL_ALLOW_METHODS_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("GET, POST, OPTIONS")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(ACCESS_CONTROL_ALLOW_HEADERS_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some(PROVIDER_CORS_DEFAULT_ALLOW_HEADERS)
+        );
+    }
+
+    #[tokio::test]
+    async fn normal_provider_response_gets_cors_headers() {
+        let app: Router<()> = Router::new()
+            .route(
+                "/v1/test",
+                post(|| async {
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header("content-type", "application/json")
+                        .body(Body::from("{}"))
+                        .expect("response")
+                }),
+            )
+            .layer(from_fn(handle_provider_cors));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/v1/test")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("*")
         );
     }
 }

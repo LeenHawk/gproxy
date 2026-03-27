@@ -1742,6 +1742,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.29.0",
  "toml",
+ "tower",
  "url",
  "uuid",
  "wreq",

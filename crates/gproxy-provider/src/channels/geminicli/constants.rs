@@ -19,8 +19,8 @@ pub fn geminicli_user_agent(model: Option<&str>) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or(DEFAULT_UA_MODEL);
     format!(
-        "GeminiCLI/{}/{model} ({}; {})",
-        "0.32.1",
+        "GeminiCLI/{}/{model} ({}; {}; cloud-shell)",
+        "0.35.2",
         std::env::consts::OS,
         std::env::consts::ARCH
     )

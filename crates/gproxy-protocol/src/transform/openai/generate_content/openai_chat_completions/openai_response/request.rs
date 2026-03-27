@@ -213,7 +213,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                                             call_id: call.id.clone(),
                                             name: call.function.name,
                                             type_: ot::ResponseFunctionToolCallType::FunctionCall,
-                                            id: Some(call.id),
+                                            id: None,
                                             status: None,
                                         },
                                     ));
@@ -225,7 +225,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                                             input: call.custom.input,
                                             name: call.custom.name,
                                             type_: ot::ResponseCustomToolCallType::CustomToolCall,
-                                            id: Some(call.id),
+                                            id: None,
                                         },
                                     ));
                                 }
@@ -419,5 +419,78 @@ mod tests {
             .expect("output message");
 
         assert_eq!(output_message.id, "msg_0");
+    }
+
+    #[test]
+    fn chat_tool_call_ids_only_map_to_response_call_id() {
+        let request = OpenAiChatCompletionsRequest {
+            method: ct::HttpMethod::Post,
+            path: oreq::PathParameters::default(),
+            query: oreq::QueryParameters::default(),
+            headers: oreq::RequestHeaders::default(),
+            body: oreq::RequestBody {
+                model: "gpt-5".to_string(),
+                messages: vec![ct::ChatCompletionMessageParam::Assistant(
+                    ct::ChatCompletionAssistantMessageParam {
+                        role: ct::ChatCompletionAssistantRole::Assistant,
+                        audio: None,
+                        content: None,
+                        reasoning_content: None,
+                        function_call: None,
+                        name: None,
+                        refusal: None,
+                        tool_calls: Some(vec![
+                            ct::ChatCompletionMessageToolCall::Function(
+                                ct::ChatCompletionMessageFunctionToolCall {
+                                    id: "call_function_1".to_string(),
+                                    function: ct::ChatCompletionFunctionCall {
+                                        name: "get_weather".to_string(),
+                                        arguments: "{\"city\":\"Boston\"}".to_string(),
+                                    },
+                                    type_: ct::ChatCompletionMessageFunctionToolCallType::Function,
+                                },
+                            ),
+                            ct::ChatCompletionMessageToolCall::Custom(
+                                ct::ChatCompletionMessageCustomToolCall {
+                                    id: "call_custom_1".to_string(),
+                                    custom: ct::ChatCompletionMessageCustomToolCallPayload {
+                                        name: "exec_command".to_string(),
+                                        input: "ls".to_string(),
+                                    },
+                                    type_: ct::ChatCompletionMessageCustomToolCallType::Custom,
+                                },
+                            ),
+                        ]),
+                    },
+                )],
+                ..oreq::RequestBody::default()
+            },
+        };
+
+        let converted = OpenAiCreateResponseRequest::try_from(request).unwrap();
+        let items = match converted.body.input {
+            Some(ot::ResponseInput::Items(items)) => items,
+            other => panic!("unexpected input: {other:?}"),
+        };
+
+        let function_call = items
+            .iter()
+            .find_map(|item| match item {
+                ot::ResponseInputItem::FunctionToolCall(call) => Some(call),
+                _ => None,
+            })
+            .expect("function tool call");
+        assert_eq!(function_call.call_id, "call_function_1");
+        assert!(function_call.id.is_none());
+
+        let custom_call = items
+            .iter()
+            .find_map(|item| match item {
+                ot::ResponseInputItem::CustomToolCall(call) => Some(call),
+                _ => None,
+            })
+            .expect("custom tool call");
+        assert_eq!(custom_call.call_id, "call_custom_1");
+        assert!(custom_call.id.is_none());
     }
 }
