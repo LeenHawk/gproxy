@@ -212,17 +212,25 @@ pub fn add_or_replace_header(
     headers.push((name.to_string(), value));
 }
 
+fn should_strip_extra_header(name: &str) -> bool {
+    name.eq_ignore_ascii_case("http-referer") || name.eq_ignore_ascii_case("x-title")
+}
+
 pub fn merge_extra_headers(
     headers: &mut Vec<(String, String)>,
     extra_headers: &[(String, String)],
 ) {
     for (name, value) in extra_headers {
+        if should_strip_extra_header(name) {
+            continue;
+        }
         add_or_replace_header(headers, name, value.clone());
     }
 }
 
 fn header_pairs_from_map(map: &BTreeMap<String, String>) -> Vec<(String, String)> {
     map.iter()
+        .filter(|(name, _)| !should_strip_extra_header(name))
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect()
 }
@@ -270,6 +278,9 @@ pub fn extra_headers_from_payload_value(value: &Value) -> Vec<(String, String)> 
     let mut headers = Vec::new();
     if let Some(map) = value.pointer("/headers/extra").and_then(Value::as_object) {
         for (name, value) in map {
+            if should_strip_extra_header(name) {
+                continue;
+            }
             if let Some(value) = value.as_str() {
                 add_or_replace_header(&mut headers, name, value.to_string());
             }
@@ -278,6 +289,9 @@ pub fn extra_headers_from_payload_value(value: &Value) -> Vec<(String, String)> 
     if let Some(map) = value.pointer("/headers").and_then(Value::as_object) {
         for (name, value) in map {
             if name == "extra" {
+                continue;
+            }
+            if should_strip_extra_header(name) {
                 continue;
             }
             if let Some(value) = value.as_str() {
@@ -612,7 +626,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        extra_headers_from_payload_value, payload_header_string, payload_header_string_array,
+        extra_headers_from_payload_value, merge_extra_headers, payload_header_string,
+        payload_header_string_array,
     };
 
     #[test]
@@ -648,6 +663,78 @@ mod tests {
             flat_headers
                 .iter()
                 .any(|(name, value)| name == "openai-beta" && value == "assistants=v2")
+        );
+    }
+
+    #[test]
+    fn extra_headers_strip_http_referer_and_x_title() {
+        let payload = json!({
+            "headers": {
+                "http-referer": "https://example.com",
+                "X-Title": "Example",
+                "x-one": "1",
+                "extra": {
+                    "HTTP-Referer": "https://example.org",
+                    "x-title": "Other",
+                    "x-two": "2"
+                }
+            }
+        });
+
+        let headers = extra_headers_from_payload_value(&payload);
+
+        assert!(
+            headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("http-referer"))
+        );
+        assert!(
+            headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("x-title"))
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(name, value)| name == "x-one" && value == "1")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(name, value)| name == "x-two" && value == "2")
+        );
+    }
+
+    #[test]
+    fn merge_extra_headers_strips_http_referer_and_x_title_case_insensitively() {
+        let mut headers = vec![("accept".to_string(), "application/json".to_string())];
+
+        merge_extra_headers(
+            &mut headers,
+            &[
+                (
+                    "HTTP-Referer".to_string(),
+                    "https://example.com".to_string(),
+                ),
+                ("x-title".to_string(), "Example".to_string()),
+                ("x-trace-id".to_string(), "trace-1".to_string()),
+            ],
+        );
+
+        assert!(
+            headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("http-referer"))
+        );
+        assert!(
+            headers
+                .iter()
+                .all(|(name, _)| !name.eq_ignore_ascii_case("x-title"))
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(name, value)| name == "x-trace-id" && value == "trace-1")
         );
     }
 
