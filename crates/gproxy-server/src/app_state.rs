@@ -232,7 +232,13 @@ impl AppState {
         self.rate_counters
             .try_acquire(user_id, model, rule.rpm, rule.rpd)?;
 
-        // Check cost quota
+        self.check_quota(user_id)?;
+        Ok(())
+    }
+
+    /// Check if user has remaining cost quota. Separated from rate limiting
+    /// to allow future replacement with QuotaBackend pre-hold model.
+    pub fn check_quota(&self, user_id: i64) -> Result<(), RateLimitRejection> {
         let (quota, cost_used) = self.get_user_quota(user_id);
         if quota > 0.0 && cost_used >= quota {
             return Err(RateLimitRejection::QuotaExhausted { quota, cost_used });
