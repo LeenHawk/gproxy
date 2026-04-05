@@ -16,6 +16,7 @@ use gproxy_server::{AppState, OperationFamily, ProtocolKind};
 
 use crate::auth::AuthenticatedUser;
 use crate::error::HttpError;
+use gproxy_storage::repository::FileRepository;
 
 type ProviderQuotaHold =
     <gproxy_sdk::provider::InMemoryQuota as gproxy_sdk::provider::QuotaBackend>::Hold;
@@ -1463,7 +1464,7 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
             let _ = ctx
                 .state
                 .storage()
-                .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUserCredentialFile(
+                .upsert_user_credential_file(
                     gproxy_storage::UserCredentialFileWrite {
                         user_id: ctx.user_id,
                         user_key_id: ctx.user_key_id,
@@ -1475,12 +1476,12 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
                         updated_at_unix_ms: now_ms,
                         deleted_at_unix_ms: None,
                     },
-                ))
+                )
                 .await;
             let _ = ctx
                 .state
                 .storage()
-                .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertClaudeFile(
+                .upsert_claude_file(
                     gproxy_storage::ClaudeFileWrite {
                         provider_id,
                         file_id: metadata.id.clone(),
@@ -1493,7 +1494,7 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
                             .unwrap_or_else(|_| "{}".to_string()),
                         updated_at_unix_ms: now_ms,
                     },
-                ))
+                )
                 .await;
             ctx.state.upsert_user_file_in_memory(file_record);
             ctx.state
@@ -1518,7 +1519,7 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
             let _ = ctx
                 .state
                 .storage()
-                .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUserCredentialFile(
+                .upsert_user_credential_file(
                     gproxy_storage::UserCredentialFileWrite {
                         user_id: file.user_id,
                         user_key_id: file.user_key_id,
@@ -1530,7 +1531,7 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
                         updated_at_unix_ms: now_ms,
                         deleted_at_unix_ms: Some(now_ms),
                     },
-                ))
+                )
                 .await;
             ctx.state
                 .deactivate_user_file_in_memory(file.user_id, file.provider_id, &file.file_id);
