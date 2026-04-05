@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
-use serde::{Deserialize, Serialize};
+pub use gproxy_core::ModelAliasTarget;
 
 use crate::app_state::AppState;
 
@@ -13,13 +13,6 @@ use crate::app_state::AppState;
 pub struct ResolvedAlias {
     pub provider_name: Option<String>,
     pub model_id: Option<String>,
-}
-
-/// Target of a model alias resolution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelAliasTarget {
-    pub provider_name: String,
-    pub model_id: String,
 }
 
 /// Axum middleware: resolve model aliases.

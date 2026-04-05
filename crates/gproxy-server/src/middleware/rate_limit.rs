@@ -5,22 +5,13 @@ use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
 use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
+pub use gproxy_core::RateLimitRule;
 
 use crate::app_state::AppState;
 
 // ---------------------------------------------------------------------------
 // Configuration types
 // ---------------------------------------------------------------------------
-
-/// Rate limit rule for a user+model pattern.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateLimitRule {
-    pub model_pattern: String,
-    pub rpm: Option<i32>,
-    pub rpd: Option<i32>,
-    pub total_tokens: Option<i64>,
-}
 
 #[derive(Debug)]
 pub enum RateLimitRejection {

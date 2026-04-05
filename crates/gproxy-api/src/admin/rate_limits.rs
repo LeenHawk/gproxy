@@ -89,6 +89,7 @@ pub async fn upsert_rate_limit(
     state.upsert_rate_limit_in_memory(
         payload.user_id,
         RateLimitRule {
+            id: payload.id,
             model_pattern: payload.model_pattern.clone(),
             rpm: payload.rpm,
             rpd: payload.rpd,
@@ -135,6 +136,7 @@ pub async fn batch_upsert_rate_limits(
         state.upsert_rate_limit_in_memory(
             item.user_id,
             RateLimitRule {
+                id: item.id,
                 model_pattern: item.model_pattern.clone(),
                 rpm: item.rpm,
                 rpd: item.rpd,

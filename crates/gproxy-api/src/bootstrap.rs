@@ -422,6 +422,7 @@ pub async fn reload_from_db(
     let mut limit_map: HashMap<i64, Vec<RateLimitRule>> = HashMap::new();
     for l in limits {
         limit_map.entry(l.user_id).or_default().push(RateLimitRule {
+            id: l.id,
             model_pattern: l.model_pattern,
             rpm: l.rpm,
             rpd: l.rpd,
@@ -808,6 +809,7 @@ pub async fn seed_from_toml(
     for (i, r) in config.rate_limits.iter().enumerate() {
         if let Some(&user_id) = user_id_map.get(&r.user_name) {
             limit_map.entry(user_id).or_default().push(RateLimitRule {
+                id: (i + 1) as i64,
                 model_pattern: r.model_pattern.clone(),
                 rpm: r.rpm,
                 rpd: r.rpd,

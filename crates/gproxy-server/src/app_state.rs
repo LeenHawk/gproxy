@@ -14,6 +14,7 @@ use crate::middleware::rate_limit::{
     RateLimitCounters, RateLimitRejection, RateLimitRule, find_matching_rule,
 };
 use crate::principal::{MemoryUser, MemoryUserKey};
+pub use gproxy_core::{MemoryClaudeFile, MemoryModel, MemoryUserCredentialFile, PriceTier};
 
 // Re-export middleware types
 pub use crate::middleware::model_alias::ModelAliasTarget as ModelAliasTargetExport;
@@ -22,57 +23,6 @@ pub use crate::middleware::permission::PermissionEntry as PermissionEntryExport;
 pub use crate::middleware::rate_limit::{
     RateLimitRejection as RateLimitRejectionExport, RateLimitRule as RateLimitRuleExport,
 };
-
-/// A price tier based on input_tokens threshold.
-///
-/// When `input_tokens` in usage falls within this tier's range,
-/// all token types use this tier's prices.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PriceTier {
-    /// Upper bound of input_tokens for this tier (exclusive).
-    /// Use `i64::MAX` or omit for the last tier.
-    pub input_tokens_up_to: i64,
-    pub price_input_tokens: Option<f64>,
-    pub price_output_tokens: Option<f64>,
-    pub price_cache_read_input_tokens: Option<f64>,
-    pub price_cache_creation_input_tokens: Option<f64>,
-    pub price_cache_creation_input_tokens_5min: Option<f64>,
-    pub price_cache_creation_input_tokens_1h: Option<f64>,
-}
-
-/// In-memory model record (from models table).
-#[derive(Debug, Clone)]
-pub struct MemoryModel {
-    pub id: i64,
-    pub provider_id: i64,
-    pub model_id: String,
-    pub display_name: Option<String>,
-    pub enabled: bool,
-    pub price_each_call: Option<f64>,
-    /// Tiered pricing: the first tier whose `input_tokens_up_to`
-    /// exceeds the request's input_tokens is used for per-token prices.
-    /// Sorted by `input_tokens_up_to` ascending.
-    pub price_tiers: Vec<PriceTier>,
-}
-
-#[derive(Debug, Clone)]
-pub struct MemoryUserCredentialFile {
-    pub user_id: i64,
-    pub user_key_id: i64,
-    pub provider_id: i64,
-    pub credential_id: i64,
-    pub file_id: String,
-    pub active: bool,
-    pub created_at_unix_ms: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct MemoryClaudeFile {
-    pub provider_id: i64,
-    pub file_id: String,
-    pub file_created_at_unix_ms: i64,
-    pub metadata: gproxy_sdk::protocol::claude::types::FileMetadata,
-}
 
 /// Central application state shared across all request handlers.
 pub struct AppState {
@@ -262,6 +212,7 @@ impl AppState {
         let (quota, _cost_used) = self.get_user_quota(user_id);
         if quota > 0.0 {
             // Set total quota in backend (cost_used tracking is separate)
+            #[allow(clippy::let_underscore_future)]
             let _ = std::pin::pin!(
                 gproxy_sdk::provider::QuotaBackend::set_quota(
                     &self.quota_backend,
