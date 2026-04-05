@@ -1797,6 +1797,7 @@ dependencies = [
  "dashmap",
  "futures-util",
  "gproxy-api",
+ "gproxy-core",
  "gproxy-sdk",
  "gproxy-server",
  "gproxy-storage",
