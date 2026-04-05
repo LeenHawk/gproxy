@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
+gproxy-core = { workspace = true }
 gproxy-sdk = { workspace = true }
 gproxy-server = { workspace = true }
 gproxy-storage = { workspace = true }
