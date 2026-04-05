@@ -4,6 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, FilePermissionEntry};
+use gproxy_storage::repository::PermissionRepository;
 use gproxy_storage::Scope;
 use std::sync::Arc;
 
@@ -123,18 +124,14 @@ pub async fn upsert_file_permission(
     if let Some(delete_id) = delete_id {
         state
             .storage()
-            .apply_write_event(
-                gproxy_storage::StorageWriteEvent::DeleteUserFilePermission { id: delete_id },
-            )
+            .delete_user_file_permission(delete_id)
             .await?;
         state.remove_file_permission_from_memory(delete_id);
     }
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUserFilePermission(
-            payload.clone(),
-        ))
+        .upsert_user_file_permission(payload.clone())
         .await?;
 
     state.upsert_file_permission_in_memory(
@@ -160,9 +157,7 @@ pub async fn delete_file_permission(
     authorize_admin(&headers, &state)?;
     state
         .storage()
-        .apply_write_event(
-            gproxy_storage::StorageWriteEvent::DeleteUserFilePermission { id: payload.id },
-        )
+        .delete_user_file_permission(payload.id)
         .await?;
     state.remove_file_permission_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -179,17 +174,13 @@ pub async fn batch_upsert_file_permissions(
         if let Some(delete_id) = delete_id {
             state
                 .storage()
-                .apply_write_event(
-                    gproxy_storage::StorageWriteEvent::DeleteUserFilePermission { id: delete_id },
-                )
+                .delete_user_file_permission(delete_id)
                 .await?;
             state.remove_file_permission_from_memory(delete_id);
         }
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUserFilePermission(
-                item.clone(),
-            ))
+            .upsert_user_file_permission(item.clone())
             .await?;
         state.upsert_file_permission_in_memory(
             item.user_id,
@@ -211,9 +202,7 @@ pub async fn batch_delete_file_permissions(
     for payload in payloads {
         state
             .storage()
-            .apply_write_event(
-                gproxy_storage::StorageWriteEvent::DeleteUserFilePermission { id: payload.id },
-            )
+            .delete_user_file_permission(payload.id)
             .await?;
         state.remove_file_permission_from_memory(payload.id);
     }

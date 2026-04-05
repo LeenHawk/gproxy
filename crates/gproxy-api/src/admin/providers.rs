@@ -8,6 +8,7 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::AppState;
+use gproxy_storage::repository::ProviderRepository;
 use gproxy_storage::{CredentialQuery, ProviderQuery, ProviderQueryRow, Scope};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -252,9 +253,7 @@ pub async fn upsert_provider(
     let previous_name = existing.get(&payload.id).map(|row| row.name.clone());
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertProvider(
-            payload.clone(),
-        ))
+        .upsert_provider(payload.clone())
         .await?;
     sync_provider_runtime(&state, &payload, previous_name.as_deref()).await?;
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -275,7 +274,7 @@ pub async fn delete_provider(
     let provider_id = resolve_provider_id_by_name(&state, &payload.name).await?;
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteProvider { id: provider_id })
+        .delete_provider(provider_id)
         .await?;
     state.engine().store().remove_provider(&payload.name);
     state.remove_provider_name_from_memory(&payload.name);
@@ -301,9 +300,7 @@ pub async fn batch_upsert_providers(
         let previous_name = existing.get(&item.id).map(|row| row.name.as_str());
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertProvider(
-                item.clone(),
-            ))
+            .upsert_provider(item.clone())
             .await?;
         sync_provider_runtime(&state, &item, previous_name).await?;
     }
@@ -320,9 +317,7 @@ pub async fn batch_delete_providers(
         let provider_id = resolve_provider_id_by_name(&state, name).await?;
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteProvider {
-                id: provider_id,
-            })
+            .delete_provider(provider_id)
             .await?;
         state.engine().store().remove_provider(name);
         state.remove_provider_name_from_memory(name);

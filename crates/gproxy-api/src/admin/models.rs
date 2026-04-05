@@ -4,6 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, MemoryModel, ModelAliasTarget, PriceTier};
+use gproxy_storage::repository::ModelRepository;
 use gproxy_storage::Scope;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -124,9 +125,7 @@ pub async fn upsert_model(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertModel(
-            payload.clone(),
-        ))
+        .upsert_model(payload.clone())
         .await?;
 
     let price_tiers: Vec<PriceTier> = payload
@@ -160,7 +159,7 @@ pub async fn delete_model(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteModel { id: payload.id })
+        .delete_model(payload.id)
         .await?;
 
     state.remove_model_from_memory(payload.id);
@@ -204,9 +203,7 @@ pub async fn upsert_model_alias(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertModelAlias(
-            payload.clone(),
-        ))
+        .upsert_model_alias(payload.clone())
         .await?;
 
     state.upsert_model_alias_in_memory(
@@ -234,7 +231,7 @@ pub async fn delete_model_alias(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteModelAlias { id })
+        .delete_model_alias(id)
         .await?;
 
     state.remove_model_alias_from_memory(&payload.alias);
@@ -250,7 +247,7 @@ pub async fn batch_upsert_models(
     for item in items {
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertModel(item.clone()))
+            .upsert_model(item.clone())
             .await?;
         let price_tiers: Vec<PriceTier> = item
             .price_tiers_json
@@ -279,7 +276,7 @@ pub async fn batch_delete_models(
     for id in ids {
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteModel { id })
+            .delete_model(id)
             .await?;
         state.remove_model_from_memory(id);
     }
@@ -299,9 +296,7 @@ pub async fn batch_upsert_model_aliases(
     for item in items {
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertModelAlias(
-                item.clone(),
-            ))
+            .upsert_model_alias(item.clone())
             .await?;
         let provider_name = provider_name_map
             .get(&item.provider_id)
@@ -328,7 +323,7 @@ pub async fn batch_delete_model_aliases(
         let id = resolve_model_alias_id(&state, &p.alias).await?;
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteModelAlias { id })
+            .delete_model_alias(id)
             .await?;
         state.remove_model_alias_from_memory(&p.alias);
     }

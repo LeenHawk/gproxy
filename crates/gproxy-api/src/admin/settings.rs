@@ -6,7 +6,8 @@ use axum::http::HeaderMap;
 use serde::Serialize;
 
 use gproxy_server::AppState;
-use gproxy_storage::{GlobalSettingsWrite, StorageWriteEvent};
+use gproxy_storage::GlobalSettingsWrite;
+use gproxy_storage::repository::SettingsRepository;
 
 use crate::auth::authorize_admin;
 use crate::error::{AckResponse, HttpError};
@@ -74,7 +75,7 @@ pub async fn upsert_global_settings(
         let new_storage = previous_storage.reconnect(&payload.dsn).await?;
         new_storage.sync().await?;
         new_storage
-            .apply_write_event(StorageWriteEvent::UpsertGlobalSettings(payload))
+            .upsert_global_settings(payload)
             .await?;
 
         state.replace_storage(new_storage);
@@ -89,7 +90,7 @@ pub async fn upsert_global_settings(
     } else {
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertGlobalSettings(payload.clone()))
+            .upsert_global_settings(payload.clone())
             .await?;
 
         state.replace_config(gproxy_server::GlobalConfig {

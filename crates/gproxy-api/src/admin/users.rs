@@ -5,6 +5,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::AppState;
+use gproxy_storage::repository::UserRepository;
 use gproxy_storage::Scope;
 use serde::Serialize;
 use std::sync::Arc;
@@ -68,9 +69,7 @@ pub async fn upsert_user(
     payload.password = normalize_password_for_storage(&payload.password);
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUser(
-            payload.clone(),
-        ))
+        .upsert_user(payload.clone())
         .await?;
     state.upsert_user_in_memory(gproxy_server::MemoryUser {
         id: payload.id,
@@ -94,7 +93,7 @@ pub async fn delete_user(
     authorize_admin(&headers, &state)?;
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteUser { id: payload.id })
+        .delete_user(payload.id)
         .await?;
     state.remove_user_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -182,7 +181,7 @@ pub async fn delete_user_key(
     authorize_admin(&headers, &state)?;
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteUserKey { id: payload.id })
+        .delete_user_key(payload.id)
         .await?;
     state.remove_key_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -198,7 +197,7 @@ pub async fn batch_upsert_users(
         item.password = normalize_password_for_storage(&item.password);
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUser(item.clone()))
+            .upsert_user(item.clone())
             .await?;
         state.upsert_user_in_memory(gproxy_server::MemoryUser {
             id: item.id,
@@ -219,7 +218,7 @@ pub async fn batch_delete_users(
     for id in &ids {
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteUser { id: *id })
+            .delete_user(*id)
             .await?;
         state.remove_user_from_memory(*id);
     }
@@ -235,7 +234,7 @@ pub async fn batch_delete_user_keys(
     for id in &ids {
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteUserKey { id: *id })
+            .delete_user_key(*id)
             .await?;
         state.remove_key_from_memory(*id);
     }

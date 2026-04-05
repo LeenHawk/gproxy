@@ -4,6 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::AppState;
+use gproxy_storage::repository::CredentialRepository;
 use gproxy_storage::{ProviderQuery, ProviderQueryRow, Scope};
 use serde::Serialize;
 use std::sync::Arc;
@@ -120,7 +121,7 @@ async fn create_credential_and_sync_runtime(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteCredential { id })
+        .delete_credential(id)
         .await?;
     Err(HttpError::not_found(format!(
         "provider '{}' not found",
@@ -158,7 +159,7 @@ pub async fn delete_credential(
     let cred_id = resolve_credential_db_id(&state, &provider.name, payload.index)?;
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteCredential { id: cred_id })
+        .delete_credential(cred_id)
         .await?;
     state
         .engine()
@@ -204,7 +205,7 @@ pub async fn batch_delete_credentials(
         let cred_id = resolve_credential_db_id(&state, &provider.name, item.index)?;
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteCredential { id: cred_id })
+            .delete_credential(cred_id)
             .await?;
         let _ = store.remove_credential(&item.provider_name, item.index);
         state.remove_provider_credential_index_in_memory(&item.provider_name, item.index);
@@ -272,17 +273,15 @@ pub async fn update_credential_status(
     let health_kind = payload.status.clone();
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertCredentialStatus(
-            gproxy_storage::CredentialStatusWrite {
-                id: None,
-                credential_id,
-                channel: provider.channel,
-                health_kind,
-                health_json: None,
-                checked_at_unix_ms: Some(now_ms),
-                last_error: None,
-            },
-        ))
+        .upsert_credential_status(gproxy_storage::CredentialStatusWrite {
+            id: None,
+            credential_id,
+            channel: provider.channel,
+            health_kind,
+            health_json: None,
+            checked_at_unix_ms: Some(now_ms),
+            last_error: None,
+        })
         .await?;
     match payload.status.as_str() {
         "dead" => {

@@ -4,6 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, PermissionEntry};
+use gproxy_storage::repository::PermissionRepository;
 use gproxy_storage::Scope;
 use std::sync::Arc;
 
@@ -139,18 +140,14 @@ pub async fn upsert_permission(
     if let Some(delete_id) = delete_id {
         state
             .storage()
-            .apply_write_event(
-                gproxy_storage::StorageWriteEvent::DeleteUserModelPermission { id: delete_id },
-            )
+            .delete_user_permission(delete_id)
             .await?;
         state.remove_permission_from_memory(delete_id);
     }
 
     state
         .storage()
-        .apply_write_event(
-            gproxy_storage::StorageWriteEvent::UpsertUserModelPermission(payload.clone()),
-        )
+        .upsert_user_permission(payload.clone())
         .await?;
 
     state.upsert_permission_in_memory(
@@ -177,9 +174,7 @@ pub async fn delete_permission(
     authorize_admin(&headers, &state)?;
     state
         .storage()
-        .apply_write_event(
-            gproxy_storage::StorageWriteEvent::DeleteUserModelPermission { id: payload.id },
-        )
+        .delete_user_permission(payload.id)
         .await?;
 
     state.remove_permission_from_memory(payload.id);
@@ -197,17 +192,13 @@ pub async fn batch_upsert_permissions(
         if let Some(delete_id) = delete_id {
             state
                 .storage()
-                .apply_write_event(
-                    gproxy_storage::StorageWriteEvent::DeleteUserModelPermission { id: delete_id },
-                )
+                .delete_user_permission(delete_id)
                 .await?;
             state.remove_permission_from_memory(delete_id);
         }
         state
             .storage()
-            .apply_write_event(
-                gproxy_storage::StorageWriteEvent::UpsertUserModelPermission(item.clone()),
-            )
+            .upsert_user_permission(item.clone())
             .await?;
         state.upsert_permission_in_memory(
             item.user_id,
@@ -230,9 +221,7 @@ pub async fn batch_delete_permissions(
     for p in payloads {
         state
             .storage()
-            .apply_write_event(
-                gproxy_storage::StorageWriteEvent::DeleteUserModelPermission { id: p.id },
-            )
+            .delete_user_permission(p.id)
             .await?;
         state.remove_permission_from_memory(p.id);
     }

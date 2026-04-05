@@ -63,7 +63,7 @@ async fn run(
 }
 
 async fn flush(storage: &SeaOrmStorage, buffer: &mut Vec<UsageWrite>) {
-    let batch: Vec<UsageWrite> = buffer.drain(..).collect();
+    let batch = std::mem::take(buffer);
     let count = batch.len();
     let mut write_batch = StorageWriteBatch::default();
     for record in batch {

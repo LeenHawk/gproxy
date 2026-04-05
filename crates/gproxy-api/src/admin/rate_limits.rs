@@ -4,6 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, RateLimitRule};
+use gproxy_storage::repository::PermissionRepository;
 use gproxy_storage::Scope;
 use std::sync::Arc;
 
@@ -82,9 +83,7 @@ pub async fn upsert_rate_limit(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUserRateLimit(
-            payload.clone(),
-        ))
+        .upsert_user_rate_limit(payload.clone())
         .await?;
 
     state.upsert_rate_limit_in_memory(
@@ -115,7 +114,7 @@ pub async fn delete_rate_limit(
 
     state
         .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteUserRateLimit { id })
+        .delete_user_rate_limit(id)
         .await?;
 
     state.remove_rate_limit_from_memory(payload.user_id, &payload.model_pattern);
@@ -131,9 +130,7 @@ pub async fn batch_upsert_rate_limits(
     for item in items {
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUserRateLimit(
-                item.clone(),
-            ))
+            .upsert_user_rate_limit(item.clone())
             .await?;
         state.upsert_rate_limit_in_memory(
             item.user_id,
@@ -158,7 +155,7 @@ pub async fn batch_delete_rate_limits(
         let id = resolve_rate_limit_id(&state, p.user_id, &p.model_pattern).await?;
         state
             .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::DeleteUserRateLimit { id })
+            .delete_user_rate_limit(id)
             .await?;
         state.remove_rate_limit_from_memory(p.user_id, &p.model_pattern);
     }
