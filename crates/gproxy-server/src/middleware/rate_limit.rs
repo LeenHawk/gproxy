@@ -128,27 +128,25 @@ pub async fn rate_limit_middleware(
 // Logic (called by AppState convenience methods)
 // ---------------------------------------------------------------------------
 
-/// Find the most specific matching rule. Priority: exact > prefix wildcard > `*`.
+/// Thin adapter over `gproxy-routing` that preserves the server crate's rule type.
 pub fn find_matching_rule<'a>(
     rules: &'a [RateLimitRule],
     model: &str,
 ) -> Option<&'a RateLimitRule> {
-    if let Some(r) = rules.iter().find(|r| r.model_pattern == model) {
-        return Some(r);
-    }
-    let mut best: Option<&RateLimitRule> = None;
-    let mut best_len = 0;
-    for rule in rules {
-        if let Some(prefix) = rule.model_pattern.strip_suffix('*')
-            && model.starts_with(prefix)
-            && prefix.len() > best_len
-        {
-            best = Some(rule);
-            best_len = prefix.len();
-        }
-    }
-    if best.is_some() {
-        return best;
-    }
-    rules.iter().find(|r| r.model_pattern == "*")
+    let routing_rules: Vec<gproxy_routing::rate_limit::RateLimitRule> = rules
+        .iter()
+        .map(|rule| gproxy_routing::rate_limit::RateLimitRule {
+            model_pattern: rule.model_pattern.clone(),
+            rpm: rule.rpm,
+            rpd: rule.rpd,
+            total_tokens: rule.total_tokens,
+        })
+        .collect();
+
+    let matched = gproxy_routing::rate_limit::find_matching_rule(&routing_rules, model)?;
+    let matched_index = routing_rules
+        .iter()
+        .position(|rule| std::ptr::eq(rule, matched))?;
+
+    rules.get(matched_index)
 }

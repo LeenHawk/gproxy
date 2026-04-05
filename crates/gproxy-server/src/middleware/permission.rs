@@ -4,6 +4,7 @@ use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
 pub use gproxy_core::{FilePermissionEntry, PermissionEntry};
+pub use gproxy_routing::permission::pattern_matches;
 
 use crate::app_state::AppState;
 
@@ -18,15 +19,4 @@ pub async fn permission_middleware(
     next: Next,
 ) -> Response {
     next.run(request).await
-}
-
-/// Match a model name against a pattern.
-pub fn pattern_matches(pattern: &str, model: &str) -> bool {
-    if pattern == "*" {
-        return true;
-    }
-    if let Some(prefix) = pattern.strip_suffix('*') {
-        return model.starts_with(prefix);
-    }
-    pattern == model
 }
