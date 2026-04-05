@@ -8,7 +8,10 @@ use gproxy_server::{
     MemoryUserCredentialFile, MemoryUserKey, ModelAliasTarget, PermissionEntry, PriceTier,
     RateLimitRule,
 };
-use gproxy_storage::StorageWriteEvent;
+use gproxy_storage::repository::{
+    CredentialRepository, ModelRepository, PermissionRepository, ProviderRepository,
+    QuotaRepository, SettingsRepository, UserRepository,
+};
 
 use crate::admin::config_toml::{GproxyToml, ProviderToml};
 
@@ -528,46 +531,42 @@ pub async fn seed_from_toml(
         };
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertGlobalSettings(
-                gproxy_storage::GlobalSettingsWrite {
-                    host: gc.host.clone(),
-                    port: gc.port,
-                    admin_key: gc.admin_key.clone(),
-                    proxy: gc.proxy.clone(),
-                    spoof_emulation: gc.spoof_emulation.clone(),
-                    update_source: gc.update_source.clone(),
-                    enable_usage: gc.enable_usage,
-                    enable_upstream_log: gc.enable_upstream_log,
-                    enable_upstream_log_body: gc.enable_upstream_log_body,
-                    enable_downstream_log: gc.enable_downstream_log,
-                    enable_downstream_log_body: gc.enable_downstream_log_body,
-                    dsn: gc.dsn.clone(),
-                    data_dir: gc.data_dir.clone(),
-                },
-            ))
+            .upsert_global_settings(gproxy_storage::GlobalSettingsWrite {
+                host: gc.host.clone(),
+                port: gc.port,
+                admin_key: gc.admin_key.clone(),
+                proxy: gc.proxy.clone(),
+                spoof_emulation: gc.spoof_emulation.clone(),
+                update_source: gc.update_source.clone(),
+                enable_usage: gc.enable_usage,
+                enable_upstream_log: gc.enable_upstream_log,
+                enable_upstream_log_body: gc.enable_upstream_log_body,
+                enable_downstream_log: gc.enable_downstream_log,
+                enable_downstream_log_body: gc.enable_downstream_log_body,
+                dsn: gc.dsn.clone(),
+                data_dir: gc.data_dir.clone(),
+            })
             .await?;
         state.replace_config(gc);
     } else {
         let cfg = state.config().clone();
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertGlobalSettings(
-                gproxy_storage::GlobalSettingsWrite {
-                    host: cfg.host.clone(),
-                    port: cfg.port,
-                    admin_key: cfg.admin_key.clone(),
-                    proxy: cfg.proxy.clone(),
-                    spoof_emulation: cfg.spoof_emulation.clone(),
-                    update_source: cfg.update_source.clone(),
-                    enable_usage: cfg.enable_usage,
-                    enable_upstream_log: cfg.enable_upstream_log,
-                    enable_upstream_log_body: cfg.enable_upstream_log_body,
-                    enable_downstream_log: cfg.enable_downstream_log,
-                    enable_downstream_log_body: cfg.enable_downstream_log_body,
-                    dsn: cfg.dsn.clone(),
-                    data_dir: cfg.data_dir.clone(),
-                },
-            ))
+            .upsert_global_settings(gproxy_storage::GlobalSettingsWrite {
+                host: cfg.host.clone(),
+                port: cfg.port,
+                admin_key: cfg.admin_key.clone(),
+                proxy: cfg.proxy.clone(),
+                spoof_emulation: cfg.spoof_emulation.clone(),
+                update_source: cfg.update_source.clone(),
+                enable_usage: cfg.enable_usage,
+                enable_upstream_log: cfg.enable_upstream_log,
+                enable_upstream_log_body: cfg.enable_upstream_log_body,
+                enable_downstream_log: cfg.enable_downstream_log,
+                enable_downstream_log_body: cfg.enable_downstream_log_body,
+                dsn: cfg.dsn.clone(),
+                data_dir: cfg.data_dir.clone(),
+            })
             .await?;
     }
 
@@ -584,15 +583,13 @@ pub async fn seed_from_toml(
         // Persist provider
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertProvider(
-                gproxy_storage::ProviderWrite {
-                    id: provider_id,
-                    name: p.name.clone(),
-                    channel: p.channel.clone(),
-                    settings_json: serde_json::to_string(&p.settings).unwrap_or_default(),
-                    dispatch_json: String::new(),
-                },
-            ))
+            .upsert_provider(gproxy_storage::ProviderWrite {
+                id: provider_id,
+                name: p.name.clone(),
+                channel: p.channel.clone(),
+                settings_json: serde_json::to_string(&p.settings).unwrap_or_default(),
+                dispatch_json: String::new(),
+            })
             .await?;
         // Persist credentials
         for (credential_id, credential) in collect_valid_toml_provider_credentials(
@@ -603,16 +600,14 @@ pub async fn seed_from_toml(
         ) {
             state
                 .storage()
-                .apply_write_event(StorageWriteEvent::UpsertCredential(
-                    gproxy_storage::CredentialWrite {
-                        id: credential_id,
-                        provider_id,
-                        name: None,
-                        kind: p.channel.clone(),
-                        enabled: true,
-                        secret_json: serde_json::to_string(&credential).unwrap_or_default(),
-                    },
-                ))
+                .upsert_credential(gproxy_storage::CredentialWrite {
+                    id: credential_id,
+                    provider_id,
+                    name: None,
+                    kind: p.channel.clone(),
+                    enabled: true,
+                    secret_json: serde_json::to_string(&credential).unwrap_or_default(),
+                })
                 .await?;
         }
     }
@@ -629,12 +624,12 @@ pub async fn seed_from_toml(
         let hashed_password = crate::login::normalize_password_for_storage(&u.password);
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertUser(gproxy_storage::UserWrite {
+            .upsert_user(gproxy_storage::UserWrite {
                 id: user_id,
                 name: u.name.clone(),
                 password: hashed_password.clone(),
                 enabled: u.enabled,
-            }))
+            })
             .await?;
         state.upsert_user_in_memory(MemoryUser {
             id: user_id,
@@ -646,15 +641,13 @@ pub async fn seed_from_toml(
             let key_id = user_id * 1000 + j as i64;
             state
                 .storage()
-                .apply_write_event(StorageWriteEvent::UpsertUserKey(
-                    gproxy_storage::UserKeyWrite {
-                        id: key_id,
-                        user_id,
-                        api_key: key.api_key.clone(),
-                        label: key.label.clone(),
-                        enabled: key.enabled,
-                    },
-                ))
+                .upsert_user_key(gproxy_storage::UserKeyWrite {
+                    id: key_id,
+                    user_id,
+                    api_key: key.api_key.clone(),
+                    label: key.label.clone(),
+                    enabled: key.enabled,
+                })
                 .await?;
             state.upsert_key_in_memory(MemoryUserKey {
                 id: key_id,
@@ -691,7 +684,7 @@ pub async fn seed_from_toml(
     for m in &models {
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertModel(gproxy_storage::ModelWrite {
+            .upsert_model(gproxy_storage::ModelWrite {
                 id: m.id,
                 provider_id: m.provider_id,
                 model_id: m.model_id.clone(),
@@ -703,7 +696,7 @@ pub async fn seed_from_toml(
                 } else {
                     serde_json::to_string(&m.price_tiers).ok()
                 },
-            }))
+            })
             .await?;
     }
     state.replace_models(models);
@@ -721,15 +714,13 @@ pub async fn seed_from_toml(
             .unwrap_or(0);
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertModelAlias(
-                gproxy_storage::ModelAliasWrite {
-                    id: i as i64 + 1,
-                    alias: a.alias.clone(),
-                    provider_id,
-                    model_id: a.model_id.clone(),
-                    enabled: true,
-                },
-            ))
+            .upsert_model_alias(gproxy_storage::ModelAliasWrite {
+                id: i as i64 + 1,
+                alias: a.alias.clone(),
+                provider_id,
+                model_id: a.model_id.clone(),
+                enabled: true,
+            })
             .await?;
         alias_map.insert(
             a.alias.clone(),
@@ -769,14 +760,12 @@ pub async fn seed_from_toml(
     for ((user_id, provider_id, model_pattern), entry) in perm_writes {
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertUserModelPermission(
-                gproxy_storage::UserModelPermissionWrite {
-                    id: entry.id,
-                    user_id,
-                    provider_id,
-                    model_pattern,
-                },
-            ))
+            .upsert_user_permission(gproxy_storage::UserModelPermissionWrite {
+                id: entry.id,
+                user_id,
+                provider_id,
+                model_pattern,
+            })
             .await?;
         perm_map.entry(user_id).or_default().push(entry);
     }
@@ -805,13 +794,11 @@ pub async fn seed_from_toml(
     for ((user_id, provider_id), entry) in file_permission_writes {
         state
             .storage()
-            .apply_write_event(StorageWriteEvent::UpsertUserFilePermission(
-                gproxy_storage::UserFilePermissionWrite {
-                    id: entry.id,
-                    user_id,
-                    provider_id,
-                },
-            ))
+            .upsert_user_file_permission(gproxy_storage::UserFilePermissionWrite {
+                id: entry.id,
+                user_id,
+                provider_id,
+            })
             .await?;
         file_permission_map.entry(user_id).or_default().push(entry);
     }
@@ -828,16 +815,14 @@ pub async fn seed_from_toml(
             });
             state
                 .storage()
-                .apply_write_event(StorageWriteEvent::UpsertUserRateLimit(
-                    gproxy_storage::UserRateLimitWrite {
-                        id: i as i64 + 1,
-                        user_id,
-                        model_pattern: r.model_pattern.clone(),
-                        rpm: r.rpm,
-                        rpd: r.rpd,
-                        total_tokens: r.total_tokens,
-                    },
-                ))
+                .upsert_user_rate_limit(gproxy_storage::UserRateLimitWrite {
+                    id: i as i64 + 1,
+                    user_id,
+                    model_pattern: r.model_pattern.clone(),
+                    rpm: r.rpm,
+                    rpd: r.rpd,
+                    total_tokens: r.total_tokens,
+                })
                 .await?;
         }
     }
@@ -848,13 +833,11 @@ pub async fn seed_from_toml(
         if let Some(&user_id) = user_id_map.get(&q.user_name) {
             state
                 .storage()
-                .apply_write_event(StorageWriteEvent::UpsertUserQuota(
-                    gproxy_storage::UserQuotaWrite {
-                        user_id,
-                        quota: q.quota,
-                        cost_used: q.cost_used,
-                    },
-                ))
+                .upsert_user_quota(gproxy_storage::UserQuotaWrite {
+                    user_id,
+                    quota: q.quota,
+                    cost_used: q.cost_used,
+                })
                 .await?;
             quota_map.insert(user_id, (q.quota, q.cost_used));
         }
@@ -871,23 +854,21 @@ pub async fn seed_defaults(
     let cfg = state.config().clone();
     state
         .storage()
-        .apply_write_event(StorageWriteEvent::UpsertGlobalSettings(
-            gproxy_storage::GlobalSettingsWrite {
-                host: cfg.host.clone(),
-                port: cfg.port,
-                admin_key: cfg.admin_key.clone(),
-                proxy: cfg.proxy.clone(),
-                spoof_emulation: cfg.spoof_emulation.clone(),
-                update_source: cfg.update_source.clone(),
-                enable_usage: cfg.enable_usage,
-                enable_upstream_log: cfg.enable_upstream_log,
-                enable_upstream_log_body: cfg.enable_upstream_log_body,
-                enable_downstream_log: cfg.enable_downstream_log,
-                enable_downstream_log_body: cfg.enable_downstream_log_body,
-                dsn: cfg.dsn.clone(),
-                data_dir: cfg.data_dir.clone(),
-            },
-        ))
+        .upsert_global_settings(gproxy_storage::GlobalSettingsWrite {
+            host: cfg.host.clone(),
+            port: cfg.port,
+            admin_key: cfg.admin_key.clone(),
+            proxy: cfg.proxy.clone(),
+            spoof_emulation: cfg.spoof_emulation.clone(),
+            update_source: cfg.update_source.clone(),
+            enable_usage: cfg.enable_usage,
+            enable_upstream_log: cfg.enable_upstream_log,
+            enable_upstream_log_body: cfg.enable_upstream_log_body,
+            enable_downstream_log: cfg.enable_downstream_log,
+            enable_downstream_log_body: cfg.enable_downstream_log_body,
+            dsn: cfg.dsn.clone(),
+            data_dir: cfg.data_dir.clone(),
+        })
         .await?;
     Ok(())
 }
