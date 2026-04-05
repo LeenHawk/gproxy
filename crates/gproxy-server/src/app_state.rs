@@ -97,6 +97,8 @@ pub struct AppState {
     /// When set, `record_usage` sends through this channel instead of
     /// synchronous DB writes.
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
+    /// Quota backend for pre-hold/settle pattern.
+    pub quota_backend: gproxy_sdk::provider::InMemoryQuota,
 }
 
 impl AppState {
@@ -253,6 +255,21 @@ impl AppState {
             return Err(RateLimitRejection::QuotaExhausted { quota, cost_used });
         }
         Ok(())
+    }
+
+    /// Sync a user's quota into the QuotaBackend for pre-hold support.
+    pub fn sync_quota_to_backend(&self, user_id: i64) {
+        let (quota, _cost_used) = self.get_user_quota(user_id);
+        if quota > 0.0 {
+            // Set total quota in backend (cost_used tracking is separate)
+            let _ = std::pin::pin!(
+                gproxy_sdk::provider::QuotaBackend::set_quota(
+                    &self.quota_backend,
+                    user_id,
+                    (quota * 1_000_000.0) as u64, // Convert to micro-units for integer precision
+                )
+            );
+        }
     }
 
     /// Atomically add cost to a user's quota usage. Returns (quota, new_cost_used).
@@ -843,6 +860,7 @@ impl AppStateBuilder {
             user_quotas: DashMap::new(),
             rate_counters: RateLimitCounters::new(),
             usage_tx: self.usage_tx,
+            quota_backend: gproxy_sdk::provider::InMemoryQuota::new(),
         }
     }
 }
