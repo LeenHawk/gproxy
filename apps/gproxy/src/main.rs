@@ -123,7 +123,14 @@ async fn main() -> anyhow::Result<()> {
         data_dir: active_data_dir.clone(),
     };
 
-    // 8. Build empty engine + AppState
+    // 8. Start background workers (before AppState so usage_tx is available)
+    let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
+    let usage_tx = workers::usage_sink::spawn(
+        storage.as_ref().clone(),
+        worker_set.subscribe(),
+    );
+
+    // 9. Build empty engine + AppState
     let engine = GproxyEngineBuilder::new()
         .configure_clients(config.proxy.as_deref(), Some(&config.spoof_emulation))
         .build();
@@ -133,10 +140,11 @@ async fn main() -> anyhow::Result<()> {
             .engine(engine)
             .storage(storage.clone())
             .config(config)
+            .usage_tx(usage_tx)
             .build(),
     );
 
-    // 9. Bootstrap: load from DB or seed from TOML / defaults
+    // 10. Bootstrap: load from DB or seed from TOML / defaults
     let has_data = persisted_settings_exist;
 
     if has_data {
@@ -236,18 +244,12 @@ async fn main() -> anyhow::Result<()> {
             .await?;
     }
 
-    // 10. Start background workers
-    let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
-    let _usage_tx = workers::usage_sink::spawn(
-        storage.as_ref().clone(),
-        worker_set.subscribe(),
-    );
+    // 13. Start remaining background workers
     worker_set.register(workers::quota_reconciler::spawn(worker_set.subscribe()));
     worker_set.register(workers::rate_limit_gc::spawn(
         gproxy_sdk::provider::InMemoryRateLimit::new(),
         worker_set.subscribe(),
     ));
-    // Wire health broadcaster to SDK engine event stream
     let health_rx = state.engine().store().subscribe();
     worker_set.register(workers::health_broadcaster::spawn(
         health_rx,
@@ -256,7 +258,7 @@ async fn main() -> anyhow::Result<()> {
     ));
     tracing::info!("background workers started");
 
-    // 11. Build router and start server
+    // 14. Build router and start server
     let app = gproxy_api::api_router(state);
     let bind_addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&bind_addr).await?;

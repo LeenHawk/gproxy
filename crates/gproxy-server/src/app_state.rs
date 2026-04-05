@@ -93,6 +93,10 @@ pub struct AppState {
     user_rate_limits: ArcSwap<HashMap<i64, Vec<RateLimitRule>>>,
     user_quotas: DashMap<i64, (f64, f64)>,
     pub rate_counters: RateLimitCounters,
+    /// Optional async usage sink for non-blocking data plane writes.
+    /// When set, `record_usage` sends through this channel instead of
+    /// synchronous DB writes.
+    usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
 }
 
 impl AppState {
@@ -110,6 +114,11 @@ impl AppState {
 
     pub fn config(&self) -> Arc<GlobalConfig> {
         self.config.load_full()
+    }
+
+    /// Get the async usage sink sender, if configured.
+    pub fn usage_tx(&self) -> Option<&tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>> {
+        self.usage_tx.as_ref()
     }
 
     pub fn authenticate_api_key(&self, api_key: &str) -> Option<MemoryUserKey> {
@@ -759,6 +768,7 @@ pub struct AppStateBuilder {
     config: Option<GlobalConfig>,
     users: Vec<MemoryUser>,
     keys: Vec<MemoryUserKey>,
+    usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
 }
 
 impl AppStateBuilder {
@@ -769,6 +779,7 @@ impl AppStateBuilder {
             config: None,
             users: Vec::new(),
             keys: Vec::new(),
+            usage_tx: None,
         }
     }
 
@@ -794,6 +805,12 @@ impl AppStateBuilder {
 
     pub fn keys(mut self, keys: Vec<MemoryUserKey>) -> Self {
         self.keys = keys;
+        self
+    }
+
+    /// Set the async usage sink sender for non-blocking data plane writes.
+    pub fn usage_tx(mut self, tx: tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>) -> Self {
+        self.usage_tx = Some(tx);
         self
     }
 
@@ -825,6 +842,7 @@ impl AppStateBuilder {
             user_rate_limits: ArcSwap::from_pointee(HashMap::new()),
             user_quotas: DashMap::new(),
             rate_counters: RateLimitCounters::new(),
+            usage_tx: self.usage_tx,
         }
     }
 }
