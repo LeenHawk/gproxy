@@ -9,6 +9,8 @@ use gproxy_sdk::provider::engine::GproxyEngineBuilder;
 use gproxy_server::{AppStateBuilder, GlobalConfig};
 use gproxy_storage::{SeaOrmStorage, StorageWriteEvent};
 
+mod workers;
+
 #[derive(Parser)]
 #[command(name = "gproxy", about = "High-performance LLM proxy server")]
 struct Cli {
@@ -234,7 +236,27 @@ async fn main() -> anyhow::Result<()> {
             .await?;
     }
 
-    // 10. Build router and start server
+    // 10. Start background workers
+    let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
+    let _usage_tx = workers::usage_sink::spawn(
+        storage.as_ref().clone(),
+        worker_set.subscribe(),
+    );
+    worker_set.register(workers::quota_reconciler::spawn(worker_set.subscribe()));
+    worker_set.register(workers::rate_limit_gc::spawn(
+        gproxy_sdk::provider::InMemoryRateLimit::new(),
+        worker_set.subscribe(),
+    ));
+    // Wire health broadcaster to SDK engine event stream
+    let health_rx = state.engine().store().subscribe();
+    worker_set.register(workers::health_broadcaster::spawn(
+        health_rx,
+        storage.as_ref().clone(),
+        worker_set.subscribe(),
+    ));
+    tracing::info!("background workers started");
+
+    // 11. Build router and start server
     let app = gproxy_api::api_router(state);
     let bind_addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&bind_addr).await?;
@@ -243,6 +265,10 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+
+    // 12. Graceful shutdown: drain workers
+    tracing::info!("shutting down background workers...");
+    worker_set.shutdown().await;
 
     tracing::info!("gproxy shut down");
     Ok(())

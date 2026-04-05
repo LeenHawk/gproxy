@@ -15,7 +15,7 @@ const BATCH_SIZE: usize = 100;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Spawn the usage sink worker. Returns the sender handle for producers.
-pub fn spawn(storage: SeaOrmStorage, mut shutdown: ShutdownRx) -> mpsc::Sender<UsageWrite> {
+pub fn spawn(storage: SeaOrmStorage, shutdown: ShutdownRx) -> mpsc::Sender<UsageWrite> {
     let (tx, rx) = mpsc::channel(1024);
     tokio::spawn(run(storage, rx, shutdown));
     tx

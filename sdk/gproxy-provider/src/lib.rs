@@ -15,6 +15,8 @@
 
 mod affinity;
 
+/// Backend abstractions and in-memory implementations.
+pub mod backend;
 pub mod billing;
 pub mod channel;
 pub mod channels;
@@ -35,6 +37,11 @@ pub mod usage;
 pub mod utils;
 
 pub use billing::{ModelPrice, ModelPriceTier};
+pub use backend::memory::{InMemoryAffinity, InMemoryQuota, InMemoryRateLimit};
+pub use backend::traits::{AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend};
+pub use backend::types::{
+    BackendError, QuotaBalance, QuotaError, QuotaExhausted, RateLimitExceeded, RateLimitWindow,
+};
 pub use channel::{Channel, ChannelCredential, ChannelSettings, OAuthFlow};
 pub use dispatch::DispatchTable;
 pub use engine::{ExecuteBody, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig, Usage};
