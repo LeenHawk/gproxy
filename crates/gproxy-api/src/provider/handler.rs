@@ -1511,6 +1511,10 @@ pub(crate) struct UsageRecordContext {
 }
 
 /// Record usage (cost tracking + storage write). Shared by HTTP and WebSocket handlers.
+///
+/// When an async usage sink is configured (via `AppState::usage_tx`), the usage
+/// record is sent through the mpsc channel for batched, non-blocking DB writes.
+/// Otherwise falls back to synchronous storage write.
 pub(crate) async fn record_usage(ctx: &UsageRecordContext, usage: &Usage) {
     let cost = ctx
         .precomputed_cost
@@ -1548,19 +1552,33 @@ pub(crate) async fn record_usage(ctx: &UsageRecordContext, usage: &Usage) {
         cache_creation_input_tokens_5min: usage.cache_creation_input_tokens_5min,
         cache_creation_input_tokens_1h: usage.cache_creation_input_tokens_1h,
     };
-    match ctx
-        .state
-        .storage()
-        .record_usage_and_quota_cost(usage_write, cost)
-        .await
-    {
-        Ok(Some((quota, cost_used))) => {
-            ctx.state
-                .upsert_user_quota_in_memory(ctx.user_id, quota, cost_used);
+
+    // Update in-memory quota tracking (always synchronous, fast)
+    if cost > 0.0 {
+        ctx.state.add_cost_usage(ctx.user_id, cost);
+    }
+
+    // Send usage to async sink if available (non-blocking); otherwise sync write
+    if let Some(tx) = ctx.state.usage_tx() {
+        if let Err(err) = tx.try_send(usage_write) {
+            tracing::warn!(user_id = ctx.user_id, %err, "usage sink channel full, dropping record");
         }
-        Ok(None) => {}
-        Err(err) => {
-            tracing::error!(user_id = ctx.user_id, cost, error = %err, "failed to persist usage and quota atomically");
+    } else {
+        // Fallback: synchronous DB write (legacy path)
+        match ctx
+            .state
+            .storage()
+            .record_usage_and_quota_cost(usage_write, cost)
+            .await
+        {
+            Ok(Some((quota, cost_used))) => {
+                ctx.state
+                    .upsert_user_quota_in_memory(ctx.user_id, quota, cost_used);
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::error!(user_id = ctx.user_id, cost, error = %err, "failed to persist usage");
+            }
         }
     }
 }
