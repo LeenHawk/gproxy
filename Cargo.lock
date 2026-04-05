@@ -1849,6 +1849,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-core"
+version = "1.0.0"
+dependencies = [
+ "arc-swap",
+ "dashmap",
+ "gproxy-sdk",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "gproxy-protocol"
 version = "1.0.0"
 dependencies = [

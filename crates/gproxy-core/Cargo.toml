@@ -1,0 +1,18 @@
+[package]
+name = "gproxy-core"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+description.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+gproxy-sdk = { workspace = true }
+arc-swap = { workspace = true }
+dashmap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
