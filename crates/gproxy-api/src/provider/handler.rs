@@ -17,6 +17,9 @@ use gproxy_server::{AppState, OperationFamily, ProtocolKind};
 use crate::auth::AuthenticatedUser;
 use crate::error::HttpError;
 
+type ProviderQuotaHold =
+    <gproxy_sdk::provider::InMemoryQuota as gproxy_sdk::provider::QuotaBackend>::Hold;
+
 /// Proxy handler for provider-scoped routes: `/{provider}/v1/...`
 pub async fn proxy(
     State(state): State<Arc<AppState>>,
@@ -139,7 +142,8 @@ pub async fn proxy(
         .and_then(FileOperationPlan::deleted_file)
         .cloned();
 
-    let result = state
+    let mut quota_hold = try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
+    let result = match state
         .engine()
         .execute(ExecuteRequest {
             provider: effective_provider.clone(),
@@ -150,7 +154,27 @@ pub async fn proxy(
             model: effective_model.clone(),
             forced_credential_index,
         })
-        .await?;
+        .await
+    {
+        Ok(result) => result,
+        Err(err) => {
+            if let Err(release_err) = finalize_quota_hold(quota_hold.take(), Some(0.0)).await {
+                tracing::error!(
+                    user_id = user_key.user_id,
+                    error = %release_err,
+                    "failed to release reserved quota after execute error"
+                );
+            }
+            return Err(err.into());
+        }
+    };
+    if let Err(err) = finalize_quota_hold(quota_hold.take(), result.cost).await {
+        tracing::error!(
+            user_id = user_key.user_id,
+            error = %err,
+            "failed to finalize reserved quota"
+        );
+    }
     let result_status = result.status;
     let result_credential_index = result.credential_index;
     let upload_body = match &result.body {
@@ -366,7 +390,8 @@ pub async fn proxy_unscoped(
         return Err(HttpError::too_many_requests(format!("{rejection:?}")));
     }
 
-    let result = state
+    let mut quota_hold = try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
+    let result = match state
         .engine()
         .execute(ExecuteRequest {
             provider: target_provider.clone(),
@@ -377,7 +402,27 @@ pub async fn proxy_unscoped(
             model: Some(target_model.clone()),
             forced_credential_index: None,
         })
-        .await?;
+        .await
+    {
+        Ok(result) => result,
+        Err(err) => {
+            if let Err(release_err) = finalize_quota_hold(quota_hold.take(), Some(0.0)).await {
+                tracing::error!(
+                    user_id = user_key.user_id,
+                    error = %release_err,
+                    "failed to release reserved quota after execute error"
+                );
+            }
+            return Err(err.into());
+        }
+    };
+    if let Err(err) = finalize_quota_hold(quota_hold.take(), result.cost).await {
+        tracing::error!(
+            user_id = user_key.user_id,
+            error = %err,
+            "failed to finalize reserved quota"
+        );
+    }
 
     let usage_ctx = UsageRecordContext {
         state: state.clone(),
@@ -2200,6 +2245,89 @@ pub(crate) fn extract_requested_total_tokens(
     }
 }
 
+fn estimate_quota_hold_cost_micro(request_body: &[u8]) -> u64 {
+    const BYTES_PER_INPUT_TOKEN: u64 = 4;
+    const ESTIMATED_OUTPUT_TOKENS: u64 = 2048;
+    const COST_PER_TOKEN_MICRO: u64 = 10;
+
+    let input_tokens = (request_body.len() as u64).div_ceil(BYTES_PER_INPUT_TOKEN);
+    input_tokens
+        .saturating_add(ESTIMATED_OUTPUT_TOKENS)
+        .saturating_mul(COST_PER_TOKEN_MICRO)
+}
+
+async fn seed_quota_backend_if_needed(
+    quota_backend: &gproxy_sdk::provider::InMemoryQuota,
+    user_id: i64,
+    quota: f64,
+    cost_used: f64,
+) -> Result<(), gproxy_sdk::provider::QuotaError> {
+    let remaining_micro = ((quota - cost_used).max(0.0) * 1_000_000.0) as u64;
+    if remaining_micro == 0 {
+        return Ok(());
+    }
+
+    let balance = gproxy_sdk::provider::QuotaBackend::balance(quota_backend, user_id).await?;
+    if balance.total == 0 && balance.used == 0 && balance.reserved == 0 {
+        gproxy_sdk::provider::QuotaBackend::set_quota(quota_backend, user_id, remaining_micro)
+            .await?;
+    }
+    Ok(())
+}
+
+async fn try_reserve_quota_hold(
+    state: &AppState,
+    user_id: i64,
+    request_body: &[u8],
+) -> Result<Option<ProviderQuotaHold>, HttpError> {
+    let (quota, cost_used) = state.get_user_quota(user_id);
+    if quota <= 0.0 {
+        return Ok(None);
+    }
+
+    seed_quota_backend_if_needed(&state.quota_backend, user_id, quota, cost_used)
+        .await
+        .map_err(|err| {
+            tracing::error!(user_id, error = %err, "failed to seed quota backend");
+            HttpError::internal("failed to initialize quota tracking")
+        })?;
+
+    let estimated_cost_micro = estimate_quota_hold_cost_micro(request_body);
+    match gproxy_sdk::provider::QuotaBackend::try_reserve(
+        &state.quota_backend,
+        user_id,
+        estimated_cost_micro,
+    )
+    .await
+    {
+        Ok(hold) => Ok(Some(hold)),
+        Err(exhausted) => {
+            let remaining = exhausted.remaining as f64 / 1_000_000.0;
+            Err(HttpError::too_many_requests(format!(
+                "quota exhausted: remaining={remaining:.6}, used={cost_used:.6}"
+            )))
+        }
+    }
+}
+
+async fn finalize_quota_hold(
+    quota_hold: Option<ProviderQuotaHold>,
+    actual_cost: Option<f64>,
+) -> Result<(), gproxy_sdk::provider::QuotaError> {
+    let Some(quota_hold) = quota_hold else {
+        return Ok(());
+    };
+
+    if let Some(cost) = actual_cost {
+        let actual_micro = (cost.max(0.0) * 1_000_000.0) as u64;
+        gproxy_sdk::provider::QuotaHold::settle(quota_hold, actual_micro).await?;
+    } else {
+        drop(quota_hold);
+    }
+
+    Ok(())
+}
+
 fn build_model_request_body(
     operation: OperationFamily,
     _request_path: &str,
@@ -2239,6 +2367,79 @@ fn build_model_request_body(
     }
 
     serde_json::to_vec(&serde_json::Value::Object(root)).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend};
+
+    use super::{
+        estimate_quota_hold_cost_micro, finalize_quota_hold, seed_quota_backend_if_needed,
+    };
+
+    #[test]
+    fn estimate_quota_hold_cost_includes_input_and_output_allowance() {
+        let body = vec![b'x'; 12];
+        assert_eq!(estimate_quota_hold_cost_micro(&body), 20_510);
+    }
+
+    #[tokio::test]
+    async fn seed_quota_backend_uses_current_remaining_quota() {
+        let backend = InMemoryQuota::new();
+
+        seed_quota_backend_if_needed(&backend, 9, 2.5, 1.25)
+            .await
+            .expect("quota seed should succeed");
+
+        let balance = QuotaBackend::balance(&backend, 9)
+            .await
+            .expect("balance lookup should succeed");
+        assert_eq!(balance.total, 1_250_000);
+        assert_eq!(balance.used, 0);
+        assert_eq!(balance.reserved, 0);
+    }
+
+    #[tokio::test]
+    async fn finalize_quota_hold_settles_actual_cost() {
+        let backend = InMemoryQuota::new();
+        QuotaBackend::set_quota(&backend, 7, 1_000)
+            .await
+            .expect("quota setup should succeed");
+        let hold = QuotaBackend::try_reserve(&backend, 7, 300)
+            .await
+            .expect("reserve should succeed");
+
+        finalize_quota_hold(Some(hold), Some(0.000_042))
+            .await
+            .expect("settlement should succeed");
+
+        let balance = QuotaBackend::balance(&backend, 7)
+            .await
+            .expect("balance lookup should succeed");
+        assert_eq!(balance.used, 42);
+        assert_eq!(balance.reserved, 0);
+    }
+
+    #[tokio::test]
+    async fn finalize_quota_hold_without_actual_cost_charges_reserved_estimate() {
+        let backend = InMemoryQuota::new();
+        QuotaBackend::set_quota(&backend, 11, 1_000)
+            .await
+            .expect("quota setup should succeed");
+        let hold = QuotaBackend::try_reserve(&backend, 11, 300)
+            .await
+            .expect("reserve should succeed");
+
+        finalize_quota_hold(Some(hold), None)
+            .await
+            .expect("dropping hold should not fail");
+
+        let balance = QuotaBackend::balance(&backend, 11)
+            .await
+            .expect("balance lookup should succeed");
+        assert_eq!(balance.used, 300);
+        assert_eq!(balance.reserved, 0);
+    }
 }
 
 fn build_file_request_body(
