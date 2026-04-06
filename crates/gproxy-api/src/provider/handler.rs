@@ -18,9 +18,6 @@ use crate::auth::AuthenticatedUser;
 use crate::error::HttpError;
 use gproxy_storage::repository::FileRepository;
 
-type ProviderQuotaHold =
-    <gproxy_sdk::provider::InMemoryQuota as gproxy_sdk::provider::QuotaBackend>::Hold;
-
 /// Proxy handler for provider-scoped routes: `/{provider}/v1/...`
 pub async fn proxy(
     State(state): State<Arc<AppState>>,
@@ -147,8 +144,6 @@ pub async fn proxy(
         .and_then(FileOperationPlan::deleted_file)
         .cloned();
 
-    let mut quota_hold =
-        try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
     let result = match state
         .engine()
         .execute(ExecuteRequest {
@@ -163,24 +158,8 @@ pub async fn proxy(
         .await
     {
         Ok(result) => result,
-        Err(err) => {
-            if let Err(release_err) = finalize_quota_hold(quota_hold.take(), Some(0.0)).await {
-                tracing::error!(
-                    user_id = user_key.user_id,
-                    error = %release_err,
-                    "failed to release reserved quota after execute error"
-                );
-            }
-            return Err(err.into());
-        }
+        Err(err) => return Err(err.into()),
     };
-    if let Err(err) = finalize_quota_hold(quota_hold.take(), result.cost).await {
-        tracing::error!(
-            user_id = user_key.user_id,
-            error = %err,
-            "failed to finalize reserved quota"
-        );
-    }
     let result_status = result.status;
     let result_credential_index = result.credential_index;
     let upload_body = match &result.body {
@@ -398,8 +377,6 @@ pub async fn proxy_unscoped(
         ));
     }
 
-    let mut quota_hold =
-        try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
     let result = match state
         .engine()
         .execute(ExecuteRequest {
@@ -414,24 +391,8 @@ pub async fn proxy_unscoped(
         .await
     {
         Ok(result) => result,
-        Err(err) => {
-            if let Err(release_err) = finalize_quota_hold(quota_hold.take(), Some(0.0)).await {
-                tracing::error!(
-                    user_id = user_key.user_id,
-                    error = %release_err,
-                    "failed to release reserved quota after execute error"
-                );
-            }
-            return Err(err.into());
-        }
+        Err(err) => return Err(err.into()),
     };
-    if let Err(err) = finalize_quota_hold(quota_hold.take(), result.cost).await {
-        tracing::error!(
-            user_id = user_key.user_id,
-            error = %err,
-            "failed to finalize reserved quota"
-        );
-    }
 
     let usage_ctx = UsageRecordContext {
         state: state.clone(),
@@ -2252,93 +2213,6 @@ pub(crate) fn extract_requested_total_tokens(
     }
 }
 
-fn estimate_quota_hold_cost_micro(request_body: &[u8]) -> u64 {
-    const BYTES_PER_INPUT_TOKEN: u64 = 4;
-    const ESTIMATED_OUTPUT_TOKENS: u64 = 2048;
-    const COST_PER_TOKEN_MICRO: u64 = 10;
-
-    let input_tokens = (request_body.len() as u64).div_ceil(BYTES_PER_INPUT_TOKEN);
-    input_tokens
-        .saturating_add(ESTIMATED_OUTPUT_TOKENS)
-        .saturating_mul(COST_PER_TOKEN_MICRO)
-}
-
-async fn seed_quota_backend_if_needed(
-    quota_backend: &gproxy_sdk::provider::InMemoryQuota,
-    user_id: i64,
-    quota: f64,
-    cost_used: f64,
-) -> Result<(), gproxy_sdk::provider::QuotaError> {
-    let remaining_micro = ((quota - cost_used).max(0.0) * 1_000_000.0) as u64;
-    if remaining_micro == 0 {
-        return Ok(());
-    }
-
-    let balance = gproxy_sdk::provider::QuotaBackend::balance(quota_backend, user_id).await?;
-    if balance.total == 0 && balance.used == 0 && balance.reserved == 0 {
-        gproxy_sdk::provider::QuotaBackend::set_quota(quota_backend, user_id, remaining_micro)
-            .await?;
-    }
-    Ok(())
-}
-
-async fn try_reserve_quota_hold(
-    state: &AppState,
-    user_id: i64,
-    request_body: &[u8],
-) -> Result<Option<ProviderQuotaHold>, HttpError> {
-    let (quota, cost_used) = state.get_user_quota(user_id);
-    if quota <= 0.0 {
-        return Ok(None);
-    }
-
-    seed_quota_backend_if_needed(&state.quota_backend, user_id, quota, cost_used)
-        .await
-        .map_err(|err| {
-            tracing::error!(user_id, error = %err, "failed to seed quota backend");
-            HttpError::internal("failed to initialize quota tracking")
-        })?;
-
-    let estimated_cost_micro = estimate_quota_hold_cost_micro(request_body);
-    match gproxy_sdk::provider::QuotaBackend::try_reserve(
-        &state.quota_backend,
-        user_id,
-        estimated_cost_micro,
-    )
-    .await
-    {
-        Ok(hold) => Ok(Some(hold)),
-        Err(exhausted) => {
-            tracing::debug!(
-                user_id,
-                remaining = exhausted.remaining,
-                cost_used,
-                "quota exhausted"
-            );
-            Err(HttpError::too_many_requests("quota exhausted".to_string()))
-        }
-    }
-}
-
-async fn finalize_quota_hold(
-    quota_hold: Option<ProviderQuotaHold>,
-    actual_cost: Option<f64>,
-) -> Result<(), gproxy_sdk::provider::QuotaError> {
-    let Some(quota_hold) = quota_hold else {
-        return Ok(());
-    };
-
-    // For non-streaming: settle with actual cost.
-    // For streaming (cost = None): settle with 0 to release the hold.
-    // Streaming cost is tracked by record_usage at stream end, not by pre-hold.
-    let actual_micro = actual_cost
-        .map(|c| (c.max(0.0) * 1_000_000.0) as u64)
-        .unwrap_or(0);
-    gproxy_sdk::provider::QuotaHold::settle(quota_hold, actual_micro).await?;
-
-    Ok(())
-}
-
 fn build_model_request_body(
     operation: OperationFamily,
     _request_path: &str,
@@ -2382,76 +2256,178 @@ fn build_model_request_body(
 
 #[cfg(test)]
 mod tests {
-    use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend};
+    use std::collections::HashMap;
+    use std::sync::Arc;
 
-    use super::{
-        estimate_quota_hold_cost_micro, finalize_quota_hold, seed_quota_backend_if_needed,
+    use axum::body::Body;
+    use axum::extract::{Extension, Request, State};
+    use axum::http::StatusCode;
+    use axum::routing::post;
+    use axum::{Json, Router};
+    use bytes::Bytes;
+    use gproxy_sdk::provider::engine::{GproxyEngine, ProviderConfig};
+    use gproxy_server::middleware::classify::{BufferedBodyBytes, Classification};
+    use gproxy_server::middleware::request_model::ExtractedModel;
+    use gproxy_server::{
+        AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey, PermissionEntry, RateLimitRule,
     };
+    use gproxy_storage::SeaOrmStorage;
+    use serde_json::json;
+    use tokio::net::TcpListener;
 
-    #[test]
-    fn estimate_quota_hold_cost_includes_input_and_output_allowance() {
-        let body = vec![b'x'; 12];
-        assert_eq!(estimate_quota_hold_cost_micro(&body), 20_510);
+    use crate::auth::AuthenticatedUser;
+    use super::proxy_unscoped;
+
+    async fn spawn_mock_openai_server() -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock upstream");
+        let addr = listener.local_addr().expect("mock upstream addr");
+        let app = Router::new().route(
+            "/v1/chat/completions",
+            post(|| async move {
+                Json(json!({
+                    "id": "chatcmpl-test",
+                    "object": "chat.completion",
+                    "model": "demo",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "ok"
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ]
+                }))
+            }),
+        );
+
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("mock upstream should serve");
+        });
+
+        (format!("http://{addr}"), handle)
+    }
+
+    async fn build_unscoped_proxy_state(base_url: String) -> Arc<gproxy_server::AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        let engine = GproxyEngine::builder()
+            .add_provider_json(ProviderConfig {
+                name: "test".to_string(),
+                channel: "custom".to_string(),
+                settings_json: json!({
+                    "base_url": base_url,
+                    "auth_scheme": "bearer"
+                }),
+                credentials: vec![json!({
+                    "api_key": "sk-upstream"
+                })],
+            })
+            .expect("custom provider config should be valid")
+            .build();
+        let state = AppStateBuilder::new()
+            .engine(engine)
+            .storage(storage)
+            .config(GlobalConfig {
+                admin_key: "admin-key".to_string(),
+                dsn: "sqlite::memory:".to_string(),
+                ..GlobalConfig::default()
+            })
+            .users(vec![MemoryUser {
+                id: 1,
+                name: "alice".to_string(),
+                enabled: true,
+                password_hash: "hash".to_string(),
+            }])
+            .keys(vec![MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            }])
+            .build();
+
+        state.replace_provider_names(HashMap::from([("test".to_string(), 42)]));
+        state.replace_user_permissions(HashMap::from([(
+            1,
+            vec![PermissionEntry {
+                id: 1,
+                provider_id: Some(42),
+                model_pattern: "*".to_string(),
+            }],
+        )]));
+        state.replace_user_rate_limits(HashMap::from([(
+            1,
+            vec![RateLimitRule {
+                id: 2,
+                model_pattern: "*".to_string(),
+                rpm: None,
+                rpd: None,
+                total_tokens: None,
+            }],
+        )]));
+        state.upsert_user_quota_in_memory(1, 1.0, 0.999);
+
+        Arc::new(state)
     }
 
     #[tokio::test]
-    async fn seed_quota_backend_uses_current_remaining_quota() {
-        let backend = InMemoryQuota::new();
+    async fn proxy_unscoped_allows_request_when_quota_service_has_remaining_balance() {
+        let (base_url, server_handle) = spawn_mock_openai_server().await;
+        let state = build_unscoped_proxy_state(base_url).await;
+        let body = serde_json::to_vec(&json!({
+            "model": "test/demo",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello"
+                }
+            ]
+        }))
+        .expect("request body should serialize");
 
-        seed_quota_backend_if_needed(&backend, 9, 2.5, 1.25)
-            .await
-            .expect("quota seed should succeed");
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/v1/chat/completions")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+        request
+            .extensions_mut()
+            .insert(BufferedBodyBytes(Bytes::from(body.clone())));
+        request.extensions_mut().insert(Classification::new(
+            gproxy_server::OperationFamily::GenerateContent,
+            gproxy_server::ProtocolKind::OpenAiChatCompletion,
+        ));
+        request
+            .extensions_mut()
+            .insert(ExtractedModel(Some("test/demo".to_string())));
 
-        let balance = QuotaBackend::balance(&backend, 9)
-            .await
-            .expect("balance lookup should succeed");
-        assert_eq!(balance.total, 1_250_000);
-        assert_eq!(balance.used, 0);
-        assert_eq!(balance.reserved, 0);
-    }
+        let response = proxy_unscoped(
+            State(state),
+            Extension(AuthenticatedUser(MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })),
+            request,
+        )
+        .await;
 
-    #[tokio::test]
-    async fn finalize_quota_hold_settles_actual_cost() {
-        let backend = InMemoryQuota::new();
-        QuotaBackend::set_quota(&backend, 7, 1_000)
-            .await
-            .expect("quota setup should succeed");
-        let hold = QuotaBackend::try_reserve(&backend, 7, 300)
-            .await
-            .expect("reserve should succeed");
+        server_handle.abort();
 
-        finalize_quota_hold(Some(hold), Some(0.000_042))
-            .await
-            .expect("settlement should succeed");
-
-        let balance = QuotaBackend::balance(&backend, 7)
-            .await
-            .expect("balance lookup should succeed");
-        assert_eq!(balance.used, 42);
-        assert_eq!(balance.reserved, 0);
-    }
-
-    #[tokio::test]
-    async fn finalize_quota_hold_without_actual_cost_releases_hold() {
-        let backend = InMemoryQuota::new();
-        QuotaBackend::set_quota(&backend, 11, 1_000)
-            .await
-            .expect("quota setup should succeed");
-        let hold = QuotaBackend::try_reserve(&backend, 11, 300)
-            .await
-            .expect("reserve should succeed");
-
-        // Streaming path: actual_cost = None → settle with 0 to release hold.
-        // Actual cost is tracked by record_usage at stream end.
-        finalize_quota_hold(Some(hold), None)
-            .await
-            .expect("settling hold should not fail");
-
-        let balance = QuotaBackend::balance(&backend, 11)
-            .await
-            .expect("balance lookup should succeed");
-        assert_eq!(balance.used, 0); // No cost charged — stream end handles it
-        assert_eq!(balance.reserved, 0); // Hold released
+        let response = response.expect("request should not be rejected before upstream call");
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
 

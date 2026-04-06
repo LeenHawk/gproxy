@@ -5,7 +5,7 @@ use arc_swap::ArcSwap;
 use dashmap::DashMap;
 
 use gproxy_core::{ConfigService, FileService, IdentityService, PolicyService, RoutingService};
-use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend, engine::GproxyEngine};
+use gproxy_sdk::provider::engine::GproxyEngine;
 use gproxy_storage::SeaOrmStorage;
 
 use crate::config::GlobalConfig;
@@ -139,8 +139,6 @@ pub struct AppState {
     /// When set, `record_usage` sends through this channel instead of
     /// synchronous DB writes.
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
-    /// Quota backend for pre-hold/settle pattern.
-    pub quota_backend: InMemoryQuota,
     /// Session tokens for /user/* routes (short-lived, memory-only).
     /// Key: session token string, Value: (user_id, user_key_id, expires_at_unix_ms)
     sessions: DashMap<String, (i64, i64, i64)>,
@@ -344,26 +342,13 @@ impl AppState {
         Ok(())
     }
 
-    /// Check if user has remaining cost quota. Separated from rate limiting
-    /// to allow future replacement with QuotaBackend pre-hold model.
+    /// Check if user has remaining cost quota.
     pub fn check_quota(&self, user_id: i64) -> Result<(), RateLimitRejection> {
         let (quota, cost_used) = self.get_user_quota(user_id);
         if quota > 0.0 && cost_used >= quota {
             return Err(RateLimitRejection::QuotaExhausted { quota, cost_used });
         }
         Ok(())
-    }
-
-    /// Sync a user's quota into the quota backend for pre-hold support.
-    pub async fn sync_quota_to_backend(&self, user_id: i64) {
-        let (quota, _cost_used) = self.get_user_quota(user_id);
-        if quota > 0.0 {
-            let micro_units = (quota * 1_000_000.0) as u64;
-            self.quota_backend
-                .set_quota(user_id, micro_units)
-                .await
-                .expect("in-memory quota sync should not fail");
-        }
     }
 
     /// Atomically add cost to a user's quota usage. Returns (quota, new_cost_used).
@@ -863,7 +848,6 @@ impl AppStateBuilder {
             user_quotas: gproxy_core::QuotaService::new(),
             rate_counters: RateLimitCounters::new(),
             usage_tx,
-            quota_backend: InMemoryQuota::new(),
             sessions: DashMap::new(),
         };
 
