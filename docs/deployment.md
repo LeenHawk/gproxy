@@ -1,6 +1,12 @@
-# 部署指南
+# 部署指南 / Deployment Guide
 
-## 编译
+[中文](#中文) | [English](#english)
+
+---
+
+## 中文
+
+### 编译
 
 单实例构建：
 
@@ -16,33 +22,31 @@ cargo build -p gproxy --release --features redis
 
 构建产物位于 `target/release/gproxy`。
 
-## 环境变量
+### 环境变量
 
 `apps/gproxy/src/main.rs` 中定义了完整的启动参数和对应环境变量：
 
-| 环境变量 | 默认值 | 必填 | 说明 |
+| 环境变量 / Environment Variable | 默认值 / Default | 必填 / Required | 说明 / Description |
 | --- | --- | --- | --- |
-| `GPROXY_HOST` | `127.0.0.1` | 否 | 监听地址。 |
-| `GPROXY_PORT` | `8787` | 否 | 监听端口。 |
-| `GPROXY_ADMIN_KEY` | 无；首次冷启动可自动生成 | 否 | 管理员 API Key。首次启动且没有现成数据时，如未提供会生成一个 UUID v7 并写回数据库。 |
-| `GPROXY_DSN` | 若未设置，则自动生成 `sqlite://<data_dir>/gproxy.db?mode=rwc` | 否 | 数据库连接串。 |
-| `GPROXY_PROXY` | 无 | 否 | 上游 HTTP 代理。 |
-| `GPROXY_SPOOF` | `chrome_136` | 否 | TLS 指纹模拟名称。 |
-| `DATABASE_SECRET_KEY` | 无 | 否 | 数据库存储加密密钥；设置后，凭证、密码和 API Key 会以 XChaCha20Poly1305 方式静态加密。 |
-| `GPROXY_REDIS_URL` | 无 | 否 | Redis 连接串；只有编译了 `redis` feature 时才会真正启用 Redis backend。 |
-| `GPROXY_CONFIG` | `gproxy.toml` | 否 | 首次初始化时用于 seed 的 TOML 配置文件路径。 |
-| `GPROXY_DATA_DIR` | `./data` | 否 | 数据目录；默认 SQLite 文件和运行期数据都基于这个目录。 |
+| `GPROXY_HOST` | `127.0.0.1` | 否 / No | 监听地址。 / Listen address. |
+| `GPROXY_PORT` | `8787` | 否 / No | 监听端口。 / Listen port. |
+| `GPROXY_ADMIN_KEY` | 无；首次冷启动可自动生成。 / None; can be generated automatically on first cold start. | 否 / No | 管理员 API Key。首次启动且没有现成数据时，如未提供会生成一个 UUID v7 并写回数据库。 / Admin API key. On first startup with no existing data, a UUID v7 is generated and written back to the database if not provided. |
+| `GPROXY_DSN` | 若未设置，则自动生成 `sqlite://<data_dir>/gproxy.db?mode=rwc`。 / If unset, `sqlite://<data_dir>/gproxy.db?mode=rwc` is generated automatically. | 否 / No | 数据库连接串。 / Database DSN. |
+| `GPROXY_PROXY` | 无 / None | 否 / No | 上游 HTTP 代理。 / Upstream HTTP proxy. |
+| `GPROXY_SPOOF` | `chrome_136` | 否 / No | TLS 指纹模拟名称。 / TLS fingerprint emulation name. |
+| `DATABASE_SECRET_KEY` | 无 / None | 否 / No | 数据库存储加密密钥；设置后，凭证、密码和 API Key 会以 XChaCha20Poly1305 方式静态加密。 / Database-at-rest encryption key; when set, credentials, passwords, and API keys are encrypted at rest with XChaCha20Poly1305. |
+| `GPROXY_REDIS_URL` | 无 / None | 否 / No | Redis 连接串；只有编译了 `redis` feature 时才会真正启用 Redis backend。 / Redis DSN; the Redis backend is enabled only when the binary is built with the `redis` feature. |
+| `GPROXY_CONFIG` | `gproxy.toml` | 否 / No | 首次初始化时用于 seed 的 TOML 配置文件路径。 / TOML config path used as the seed file during first-time initialization. |
+| `GPROXY_DATA_DIR` | `./data` | 否 / No | 数据目录；默认 SQLite 文件和运行期数据都基于这个目录。 / Data directory; the default SQLite file and runtime data are based on this directory. |
 
 补充说明：
 
 - CLI 参数和环境变量都由 `clap` 解析，命令行显式传参优先于默认值。
 - 如果数据库里已经有 `global_settings`，且启动时没有显式传入 `GPROXY_DSN` / `GPROXY_DATA_DIR`，进程会按持久化配置重新连接数据库。
 
-## TOML 配置文件格式
+### TOML 配置文件格式
 
 `GPROXY_CONFIG` 指向的 TOML 只在“数据库没有现成数据”时参与初始化。对应结构定义在 `crates/gproxy-api/src/admin/config_toml.rs`。
-
-示例：
 
 ```toml
 [global]
@@ -122,15 +126,15 @@ cost_used = 0.0
 - `[[users.keys]]` 是嵌套数组表，表示该用户的 API Key 列表。
 - `[[permissions]]`、`[[file_permissions]]`、`[[rate_limits]]`、`[[quotas]]` 分别对应模型权限、文件权限、限流和成本配额。
 
-## 数据库支持
+### 数据库支持
 
 `gproxy-storage` 通过 SeaORM / SQLx 编译进了三类数据库支持：
 
-| 数据库 | DSN 前缀 | 说明 |
+| 数据库 / Database | DSN 前缀 / DSN Prefix | 说明 / Description |
 | --- | --- | --- |
-| SQLite | `sqlite:` | 默认模式；如果未显式设置 `GPROXY_DSN`，启动时会自动生成 SQLite 文件 DSN。 |
-| PostgreSQL | `postgres:` | 由 `sqlx-postgres` / SeaORM Postgres feature 提供。 |
-| MySQL | `mysql:` | 由 `sqlx-mysql` / SeaORM MySQL feature 提供。 |
+| SQLite | `sqlite:` | 默认模式；如果未显式设置 `GPROXY_DSN`，启动时会自动生成 SQLite 文件 DSN。 / Default mode; if `GPROXY_DSN` is not set explicitly, startup generates a SQLite file DSN automatically. |
+| PostgreSQL | `postgres:` | 由 `sqlx-postgres` / SeaORM Postgres feature 提供。 / Provided by `sqlx-postgres` and the SeaORM Postgres feature. |
+| MySQL | `mysql:` | 由 `sqlx-mysql` / SeaORM MySQL feature 提供。 / Provided by `sqlx-mysql` and the SeaORM MySQL feature. |
 
 常见 DSN 示例：
 
@@ -146,9 +150,9 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 2. 按数据库类型应用连接优化参数。
 3. 连接数据库并执行 `sync()` 以同步 schema。
 
-## 多实例部署
+### 多实例部署
 
-### 基本方式
+#### 基本方式
 
 当前仓库支持“共享数据库 + 可选共享 Redis backend”的多实例部署：
 
@@ -156,7 +160,7 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 2. 所有实例都编译 `--features redis`。
 3. 所有实例都设置同一个 `GPROXY_REDIS_URL`。
 
-### Redis backend 当前覆盖范围
+#### Redis backend 当前覆盖范围
 
 按 `apps/gproxy/src/main.rs` 的实际注入逻辑，当前二进制会在运行时启用：
 
@@ -165,7 +169,7 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 
 `gproxy-core` 里虽然还实现了 `RedisAffinity`，但当前 `apps/gproxy` 没有把它注入 `AppStateBuilder`，所以本仓库现状下它还不是已启用的共享 backend。
 
-### 什么是共享的，什么是本地的
+#### 什么是共享的，什么是本地的
 
 共享状态：
 
@@ -184,7 +188,7 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 - quota 额外有一个每 30 秒运行一次的 `QuotaReconciler`，会把数据库配额修正回本地内存。
 - 因此，多实例场景下如果你在某个实例上改了管理配置，其他实例通常还需要执行 `/admin/reload` 或重启，才能立刻看到新缓存；quota 是少数有周期性自愈同步的例外。
 
-## Graceful Shutdown
+### Graceful Shutdown
 
 优雅停机行为由 `apps/gproxy/src/main.rs` 和 `apps/gproxy/src/workers/mod.rs` 共同实现：
 
@@ -196,3 +200,33 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 6. `HealthBroadcaster` 会把防抖窗口里尚未落库的健康状态补写到数据库。
 7. `QuotaReconciler` 和 `RateLimitGC` 收到信号后直接退出下一轮循环。
 8. 如果 5 秒内还有 worker 没结束，进程会记录 warning，但不会无限阻塞。
+
+---
+
+## English
+
+### Build
+
+The shared `bash` commands above show the single-instance release build and the multi-instance release build with the `redis` feature enabled. The output binary is `target/release/gproxy`.
+
+### Environment Variables
+
+See the shared bilingual table above for the full startup parameter surface defined in `apps/gproxy/src/main.rs`. As in the Chinese section, CLI arguments and environment variables are both parsed by `clap`, explicit CLI values win over defaults, and persisted `global_settings` can cause a reconnect when `GPROXY_DSN` and `GPROXY_DATA_DIR` were not passed explicitly at startup.
+
+### TOML Config Format
+
+The shared `toml` example above is only used when the database does not already contain initialized data. The field bullets in the Chinese section map directly to the same structures defined in `crates/gproxy-api/src/admin/config_toml.rs`.
+
+### Database Support
+
+See the shared bilingual table above for the supported databases and their DSN prefixes. The shared `text` block shows common DSN examples, and `SeaOrmStorage::connect()` still follows the same three-step flow described in Chinese: optionally load the `DATABASE_SECRET_KEY` encryptor, apply per-database connection tuning, then connect and run `sync()`.
+
+### Multi-Instance Deployment
+
+The repository supports multi-instance deployment with a shared database and an optional shared Redis backend. The Chinese section above gives the exact constraints and currently enabled runtime coverage: `RedisQuota` and `RedisRateLimit` are injected today, while `RedisAffinity` exists in `gproxy-core` but is not currently wired into `AppStateBuilder`.
+
+The same section also distinguishes shared state from local state and explains the implied synchronization behavior: most caches refresh on startup or `POST /admin/reload`, while quota additionally self-heals every 30 seconds through `QuotaReconciler`.
+
+### Graceful Shutdown
+
+The Chinese section above lists the full shutdown sequence. In short, the process listens for `Ctrl+C` and `SIGTERM`, stops the Axum server through `with_graceful_shutdown`, broadcasts shutdown to workers through `worker_set.shutdown()`, waits up to five seconds, and allows `UsageSink` and `HealthBroadcaster` to flush their buffered state before exit.
