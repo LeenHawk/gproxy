@@ -5,7 +5,7 @@
 //! against timing attacks. The raw API key is never used as a HashMap key.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 use sha2::{Digest, Sha256};
@@ -32,6 +32,8 @@ pub struct IdentityService {
     users: ArcSwap<Vec<MemoryUser>>,
     /// Keys indexed by HMAC digest of the API key (not the raw key).
     keys: ArcSwap<HashMap<String, MemoryUserKey>>,
+    /// Serializes single-item write operations to prevent lost updates.
+    write_lock: Mutex<()>,
 }
 
 impl IdentityService {
@@ -40,6 +42,7 @@ impl IdentityService {
         Self {
             users: ArcSwap::from(Arc::new(Vec::new())),
             keys: ArcSwap::from(Arc::new(HashMap::new())),
+            write_lock: Mutex::new(()),
         }
     }
 
@@ -97,6 +100,7 @@ impl IdentityService {
 
     /// Upsert a user in memory.
     pub fn upsert_user(&self, user: MemoryUser) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut users = (*self.users.load_full()).clone();
         if let Some(existing) = users.iter_mut().find(|u| u.id == user.id) {
             *existing = user;
@@ -108,6 +112,7 @@ impl IdentityService {
 
     /// Remove a user and their keys from memory.
     pub fn remove_user(&self, user_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut users = (*self.users.load_full()).clone();
         users.retain(|u| u.id != user_id);
         self.users.store(Arc::new(users));
@@ -118,6 +123,7 @@ impl IdentityService {
 
     /// Upsert a key in memory.
     pub fn upsert_key(&self, key: MemoryUserKey) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut keys = (*self.keys.load_full()).clone();
         // Remove old entry for same key id (might have different digest if api_key changed)
         keys.retain(|_, k| k.id != key.id);
@@ -128,6 +134,7 @@ impl IdentityService {
 
     /// Remove a key from memory by ID.
     pub fn remove_key(&self, key_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut keys = (*self.keys.load_full()).clone();
         keys.retain(|_, k| k.id != key_id);
         self.keys.store(Arc::new(keys));
