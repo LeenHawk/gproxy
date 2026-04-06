@@ -187,32 +187,57 @@ pub async fn reload_from_db(
 ) -> Result<ReloadCounts, Box<dyn std::error::Error + Send + Sync>> {
     let storage = state.storage();
 
-    // Global settings
-    if let Some(settings) = storage.get_global_settings().await? {
-        state.replace_config(GlobalConfig {
-            host: settings.host,
-            port: settings.port as u16,
-            admin_key: settings.admin_key,
-            proxy: settings.proxy,
-            spoof_emulation: settings.spoof_emulation.unwrap_or_default(),
-            update_source: settings.update_source.unwrap_or_default(),
-            enable_usage: settings.enable_usage,
-            enable_upstream_log: settings.enable_upstream_log,
-            enable_upstream_log_body: settings.enable_upstream_log_body,
-            enable_downstream_log: settings.enable_downstream_log,
-            enable_downstream_log_body: settings.enable_downstream_log_body,
-            dsn: settings.dsn,
-            data_dir: settings.data_dir,
-        });
-    }
-    let config = state.config().clone();
+    // Phase 1: read and build everything from the DB without mutating memory.
+    let replacement_config = storage.get_global_settings().await?.map(|settings| GlobalConfig {
+        host: settings.host,
+        port: settings.port as u16,
+        admin_key: settings.admin_key,
+        proxy: settings.proxy,
+        spoof_emulation: settings.spoof_emulation.unwrap_or_default(),
+        update_source: settings.update_source.unwrap_or_default(),
+        enable_usage: settings.enable_usage,
+        enable_upstream_log: settings.enable_upstream_log,
+        enable_upstream_log_body: settings.enable_upstream_log_body,
+        enable_downstream_log: settings.enable_downstream_log,
+        enable_downstream_log_body: settings.enable_downstream_log_body,
+        dsn: settings.dsn,
+        data_dir: settings.data_dir,
+    });
+    let config = replacement_config
+        .clone()
+        .unwrap_or_else(|| (*state.config()).clone());
 
-    // Providers + credentials → engine
     let providers = storage
         .list_providers(&gproxy_storage::ProviderQuery::default())
         .await?;
     let all_credentials = storage
         .list_credentials(&gproxy_storage::CredentialQuery::default())
+        .await?;
+    let users = storage
+        .list_users(&gproxy_storage::UserQuery::default())
+        .await?;
+    let keys = storage.list_user_keys_for_memory().await?;
+    let models = storage
+        .list_models(&gproxy_storage::ModelQuery::default())
+        .await?;
+    let aliases = storage
+        .list_model_aliases(&gproxy_storage::ModelAliasQuery::default())
+        .await?;
+    let perms = storage
+        .list_user_model_permissions(&gproxy_storage::UserModelPermissionQuery::default())
+        .await?;
+    let file_permissions = storage
+        .list_user_file_permissions(&gproxy_storage::UserFilePermissionQuery::default())
+        .await?;
+    let limits = storage
+        .list_user_rate_limits(&gproxy_storage::UserRateLimitQuery::default())
+        .await?;
+    let quotas = storage.list_user_quotas().await?;
+    let user_files = storage
+        .list_user_credential_files(&gproxy_storage::UserCredentialFileQuery::default())
+        .await?;
+    let claude_files = storage
+        .list_claude_files(&gproxy_storage::ClaudeFileQuery::default())
         .await?;
 
     let mut builder = GproxyEngineBuilder::new().configure_clients(
@@ -253,7 +278,7 @@ pub async fn reload_from_db(
         })?;
         provider_count += 1;
     }
-    state.replace_engine(builder.build());
+    let engine = builder.build();
 
     let credential_positions: HashMap<i64, (String, usize)> = providers
         .iter()
@@ -271,7 +296,28 @@ pub async fn reload_from_db(
                 })
         })
         .collect();
-    apply_persisted_credential_statuses(state, &credential_positions).await?;
+    let credential_statuses = if credential_positions.is_empty() {
+        Vec::new()
+    } else {
+        storage
+            .list_credential_statuses(&gproxy_storage::CredentialStatusQuery::default())
+            .await?
+    };
+    let engine_store = engine.store().clone();
+    for status in credential_statuses {
+        let Some((provider_name, index)) = credential_positions.get(&status.credential_id) else {
+            continue;
+        };
+        match status.health_kind.as_str() {
+            "dead" => {
+                engine_store.mark_credential_dead(provider_name, *index);
+            }
+            "healthy" => {
+                engine_store.mark_credential_healthy(provider_name, *index);
+            }
+            _ => {}
+        }
+    }
     let provider_credentials: HashMap<String, Vec<i64>> = providers
         .iter()
         .map(|provider| {
@@ -284,123 +330,93 @@ pub async fn reload_from_db(
             (provider.name.clone(), ids)
         })
         .collect();
-    state.replace_provider_credentials(provider_credentials);
-
-    // Provider name → id map for permission checks
     let provider_name_map: HashMap<String, i64> =
-        providers.iter().map(|p| (p.name.clone(), p.id)).collect();
-    state.replace_provider_names(provider_name_map.clone());
+        providers.iter().map(|provider| (provider.name.clone(), provider.id)).collect();
     let provider_channel_map: HashMap<String, String> = providers
         .iter()
-        .map(|p| (p.name.clone(), p.channel.clone()))
+        .map(|provider| (provider.name.clone(), provider.channel.clone()))
         .collect();
-    state.replace_provider_channels(provider_channel_map);
 
-    // Users — atomic replace to remove stale entries
-    let users = storage
-        .list_users(&gproxy_storage::UserQuery::default())
-        .await?;
     let user_count = users.len();
     let memory_users: Vec<MemoryUser> = users
         .iter()
-        .map(|u| MemoryUser {
-            id: u.id,
-            name: u.name.clone(),
-            enabled: u.enabled,
-            password_hash: u.password.clone(),
+        .map(|user| MemoryUser {
+            id: user.id,
+            name: user.name.clone(),
+            enabled: user.enabled,
+            password_hash: user.password.clone(),
         })
         .collect();
-    state.replace_users(memory_users);
 
-    // User keys — atomic replace to remove stale entries
-    let keys = storage.list_user_keys_for_memory().await?;
     let key_count = keys.len();
     let memory_keys: Vec<MemoryUserKey> = keys
         .iter()
-        .map(|k| MemoryUserKey {
-            id: k.id,
-            user_id: k.user_id,
-            api_key: k.api_key.clone(),
-            label: k.label.clone(),
-            enabled: k.enabled,
+        .map(|key| MemoryUserKey {
+            id: key.id,
+            user_id: key.user_id,
+            api_key: key.api_key.clone(),
+            label: key.label.clone(),
+            enabled: key.enabled,
         })
         .collect();
-    state.replace_keys(memory_keys);
 
-    // Models
-    let models = storage
-        .list_models(&gproxy_storage::ModelQuery::default())
-        .await?;
     let model_count = models.len();
     let memory_models: Vec<MemoryModel> = models
         .iter()
-        .map(|m| {
-            let price_tiers: Vec<PriceTier> = m
+        .map(|model| {
+            let price_tiers: Vec<PriceTier> = model
                 .price_tiers_json
                 .as_deref()
-                .and_then(|s| serde_json::from_str(s).ok())
+                .and_then(|json| serde_json::from_str(json).ok())
                 .unwrap_or_default();
             MemoryModel {
-                id: m.id,
-                provider_id: m.provider_id,
-                model_id: m.model_id.clone(),
-                display_name: m.display_name.clone(),
-                enabled: m.enabled,
-                price_each_call: m.price_each_call,
+                id: model.id,
+                provider_id: model.provider_id,
+                model_id: model.model_id.clone(),
+                display_name: model.display_name.clone(),
+                enabled: model.enabled,
+                price_each_call: model.price_each_call,
                 price_tiers,
             }
         })
         .collect();
-    state.replace_models(memory_models);
 
-    // Model aliases
-    let aliases = storage
-        .list_model_aliases(&gproxy_storage::ModelAliasQuery::default())
-        .await?;
     let alias_count = aliases.len();
-    let provider_name_map: HashMap<i64, String> =
-        providers.iter().map(|p| (p.id, p.name.clone())).collect();
-    let alias_map = aliases
+    let provider_name_by_id: HashMap<i64, String> = providers
+        .iter()
+        .map(|provider| (provider.id, provider.name.clone()))
+        .collect();
+    let alias_map: HashMap<String, ModelAliasTarget> = aliases
         .into_iter()
-        .filter(|a| a.enabled)
-        .map(|a| {
-            let provider_name = provider_name_map
-                .get(&a.provider_id)
+        .filter(|alias| alias.enabled)
+        .map(|alias| {
+            let provider_name = provider_name_by_id
+                .get(&alias.provider_id)
                 .cloned()
-                .unwrap_or_else(|| a.provider_id.to_string());
+                .unwrap_or_else(|| alias.provider_id.to_string());
             (
-                a.alias,
+                alias.alias,
                 ModelAliasTarget {
                     provider_name,
-                    model_id: a.model_id,
+                    model_id: alias.model_id,
                 },
             )
         })
         .collect();
-    state.replace_model_aliases(alias_map);
 
-    // Permissions
-    let perms = storage
-        .list_user_model_permissions(&gproxy_storage::UserModelPermissionQuery::default())
-        .await?;
     let perm_count = perms.len();
     let mut perm_map: HashMap<i64, Vec<PermissionEntry>> = HashMap::new();
-    for p in perms {
+    for permission in perms {
         perm_map
-            .entry(p.user_id)
+            .entry(permission.user_id)
             .or_default()
             .push(PermissionEntry {
-                id: p.id,
-                provider_id: p.provider_id,
-                model_pattern: p.model_pattern,
+                id: permission.id,
+                provider_id: permission.provider_id,
+                model_pattern: permission.model_pattern,
             });
     }
-    state.replace_user_permissions(perm_map);
 
-    // File permissions
-    let file_permissions = storage
-        .list_user_file_permissions(&gproxy_storage::UserFilePermissionQuery::default())
-        .await?;
     let file_permission_count = file_permissions.len();
     let mut file_permission_map: HashMap<i64, Vec<FilePermissionEntry>> = HashMap::new();
     for permission in file_permissions {
@@ -412,58 +428,39 @@ pub async fn reload_from_db(
                 provider_id: permission.provider_id,
             });
     }
-    state.replace_user_file_permissions(file_permission_map);
 
-    // Rate limits
-    let limits = storage
-        .list_user_rate_limits(&gproxy_storage::UserRateLimitQuery::default())
-        .await?;
     let limit_count = limits.len();
     let mut limit_map: HashMap<i64, Vec<RateLimitRule>> = HashMap::new();
-    for l in limits {
-        limit_map.entry(l.user_id).or_default().push(RateLimitRule {
-            id: l.id,
-            model_pattern: l.model_pattern,
-            rpm: l.rpm,
-            rpd: l.rpd,
-            total_tokens: l.total_tokens,
+    for limit in limits {
+        limit_map.entry(limit.user_id).or_default().push(RateLimitRule {
+            id: limit.id,
+            model_pattern: limit.model_pattern,
+            rpm: limit.rpm,
+            rpd: limit.rpd,
+            total_tokens: limit.total_tokens,
         });
     }
-    state.replace_user_rate_limits(limit_map);
 
-    // Quotas
-    let quotas = storage.list_user_quotas().await?;
     let quota_count = quotas.len();
     let quota_map: HashMap<i64, (f64, f64)> = quotas
         .into_iter()
-        .map(|q| (q.user_id, (q.quota, q.cost_used)))
+        .map(|quota| (quota.user_id, (quota.quota, quota.cost_used)))
         .collect();
-    state.replace_user_quotas(quota_map);
 
-    // File ownership
-    let user_files = storage
-        .list_user_credential_files(&gproxy_storage::UserCredentialFileQuery::default())
-        .await?;
     let user_file_count = user_files.len();
-    state.replace_user_files(
-        user_files
-            .into_iter()
-            .map(|file| MemoryUserCredentialFile {
-                user_id: file.user_id,
-                user_key_id: file.user_key_id,
-                provider_id: file.provider_id,
-                credential_id: file.credential_id,
-                file_id: file.file_id,
-                active: file.active,
-                created_at_unix_ms: file.created_at.unix_timestamp_nanos() as i64 / 1_000_000,
-            })
-            .collect(),
-    );
+    let memory_user_files: Vec<MemoryUserCredentialFile> = user_files
+        .into_iter()
+        .map(|file| MemoryUserCredentialFile {
+            user_id: file.user_id,
+            user_key_id: file.user_key_id,
+            provider_id: file.provider_id,
+            credential_id: file.credential_id,
+            file_id: file.file_id,
+            active: file.active,
+            created_at_unix_ms: file.created_at.unix_timestamp_nanos() as i64 / 1_000_000,
+        })
+        .collect();
 
-    // Claude file metadata
-    let claude_files = storage
-        .list_claude_files(&gproxy_storage::ClaudeFileQuery::default())
-        .await?;
     let claude_file_count = claude_files.len();
     let claude_file_map: HashMap<(i64, String), MemoryClaudeFile> = claude_files
         .into_iter()
@@ -489,6 +486,24 @@ pub async fn reload_from_db(
             ))
         })
         .collect();
+
+    // Phase 2: commit the fully prepared replacement state to memory.
+    if let Some(config) = replacement_config {
+        state.replace_config(config);
+    }
+    state.replace_engine(engine);
+    state.replace_provider_credentials(provider_credentials);
+    state.replace_provider_names(provider_name_map);
+    state.replace_provider_channels(provider_channel_map);
+    state.replace_users(memory_users);
+    state.replace_keys(memory_keys);
+    state.replace_models(memory_models);
+    state.replace_model_aliases(alias_map);
+    state.replace_user_permissions(perm_map);
+    state.replace_user_file_permissions(file_permission_map);
+    state.replace_user_rate_limits(limit_map);
+    state.replace_user_quotas(quota_map);
+    state.replace_user_files(memory_user_files);
     state.replace_claude_files(claude_file_map);
 
     Ok(ReloadCounts {
@@ -877,10 +892,17 @@ pub async fn seed_defaults(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use sea_orm::ConnectionTrait;
     use serde_json::json;
 
-    use super::build_seed_provider_runtime_state;
+    use super::{build_seed_provider_runtime_state, reload_from_db};
     use crate::admin::config_toml::ProviderToml;
+    use gproxy_server::{AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey};
+    use gproxy_storage::{
+        GlobalSettingsWrite, SeaOrmStorage, SettingsRepository, UserRepository,
+    };
 
     #[test]
     fn seed_provider_runtime_matches_reload_shape() {
@@ -954,5 +976,89 @@ mod tests {
             Some(&("openai".to_string(), 0))
         );
         assert!(!state.credential_positions.contains_key(&1001));
+    }
+
+    #[tokio::test]
+    async fn reload_from_db_keeps_memory_unchanged_when_a_late_db_read_fails() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+
+        let state = AppStateBuilder::new()
+            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .storage(storage.clone())
+            .config(GlobalConfig {
+                admin_key: "memory-admin".to_string(),
+                dsn: "sqlite::memory:".to_string(),
+                ..GlobalConfig::default()
+            })
+            .users(vec![MemoryUser {
+                id: 9,
+                name: "memory-user".to_string(),
+                enabled: true,
+                password_hash: "memory-hash".to_string(),
+            }])
+            .keys(vec![MemoryUserKey {
+                id: 99,
+                user_id: 9,
+                api_key: "memory-key".to_string(),
+                label: Some("memory-label".to_string()),
+                enabled: true,
+            }])
+            .build();
+
+        storage
+            .upsert_global_settings(GlobalSettingsWrite {
+                host: "127.0.0.1".to_string(),
+                port: 8787,
+                proxy: Some("http://db-proxy".to_string()),
+                spoof_emulation: "chrome_136".to_string(),
+                update_source: "github".to_string(),
+                admin_key: "db-admin".to_string(),
+                enable_usage: false,
+                enable_upstream_log: true,
+                enable_upstream_log_body: true,
+                enable_downstream_log: true,
+                enable_downstream_log_body: true,
+                dsn: "sqlite::memory:".to_string(),
+                data_dir: "/tmp/db-data".to_string(),
+            })
+            .await
+            .expect("seed global settings");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "db-user".to_string(),
+                password: "db-password".to_string(),
+                enabled: false,
+            })
+            .await
+            .expect("seed db user");
+
+        storage
+            .connection()
+            .execute_unprepared("DROP TABLE claude_files")
+            .await
+            .expect("drop late-read table");
+
+        reload_from_db(&state)
+            .await
+            .expect_err("reload should fail after the late table drop");
+
+        assert_eq!(state.config().admin_key, "memory-admin");
+        assert_eq!(state.config().proxy, None);
+
+        let users = state.users_snapshot();
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].id, 9);
+        assert_eq!(users[0].name, "memory-user");
+
+        let keys = state.keys_for_user(9);
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].id, 99);
+        assert_eq!(keys[0].api_key, "memory-key");
     }
 }
