@@ -90,14 +90,8 @@ fn parse_query_string(query: Option<&str>) -> HashMap<String, String> {
     let Some(query) = query else {
         return HashMap::new();
     };
-    query
-        .split('&')
-        .filter_map(|pair| {
-            let mut it = pair.splitn(2, '=');
-            let key = it.next()?;
-            let value = it.next().unwrap_or("");
-            Some((key.to_string(), value.to_string()))
-        })
+    url::form_urlencoded::parse(query.as_bytes())
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
         .collect()
 }
 
@@ -108,4 +102,29 @@ fn json_response(value: &serde_json::Value) -> Result<Response, HttpError> {
         .header("content-type", "application/json")
         .body(Body::from(body))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::parse_query_string;
+
+    #[test]
+    fn parse_query_string_decodes_percent_encoded_values() {
+        let parsed = parse_query_string(Some(
+            "callback_url=https%3A%2F%2Flocalhost%2Fcb%3Fcode%3Dabc%26state%3Dxyz&mode=authorization_code",
+        ));
+
+        assert_eq!(
+            parsed,
+            HashMap::from([
+                (
+                    "callback_url".to_string(),
+                    "https://localhost/cb?code=abc&state=xyz".to_string(),
+                ),
+                ("mode".to_string(), "authorization_code".to_string()),
+            ])
+        );
+    }
 }
