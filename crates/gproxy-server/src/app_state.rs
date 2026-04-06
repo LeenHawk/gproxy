@@ -4,7 +4,7 @@ use std::sync::Arc;
 use arc_swap::ArcSwap;
 
 use gproxy_core::{ConfigService, FileService, IdentityService, PolicyService, RoutingService};
-use gproxy_sdk::provider::engine::GproxyEngine;
+use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend, engine::GproxyEngine};
 use gproxy_storage::SeaOrmStorage;
 
 use crate::config::GlobalConfig;
@@ -138,8 +138,8 @@ pub struct AppState {
     /// When set, `record_usage` sends through this channel instead of
     /// synchronous DB writes.
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
-    /// Quota backend for pre-hold/settle pattern (InMemory or Redis).
-    pub quota_backend: gproxy_core::dispatch::QuotaDispatch,
+    /// Quota backend for pre-hold/settle pattern.
+    pub quota_backend: InMemoryQuota,
 }
 
 impl AppState {
@@ -311,21 +311,15 @@ impl AppState {
         Ok(())
     }
 
-    /// Sync a user's quota into the QuotaBackend for pre-hold support.
-    pub fn sync_quota_to_backend(&self, user_id: i64) {
-        use std::task::Context;
+    /// Sync a user's quota into the quota backend for pre-hold support.
+    pub async fn sync_quota_to_backend(&self, user_id: i64) {
         let (quota, _cost_used) = self.get_user_quota(user_id);
         if quota > 0.0 {
             let micro_units = (quota * 1_000_000.0) as u64;
-            // InMemoryQuota::set_quota returns Ready — poll once to execute.
-            let mut fut = std::pin::pin!(gproxy_sdk::provider::QuotaBackend::set_quota(
-                &self.quota_backend,
-                user_id,
-                micro_units,
-            ));
-            let waker = futures_util::task::noop_waker();
-            let mut cx = Context::from_waker(&waker);
-            let _ = fut.as_mut().poll(&mut cx);
+            self.quota_backend
+                .set_quota(user_id, micro_units)
+                .await
+                .expect("in-memory quota sync should not fail");
         }
     }
 
@@ -754,8 +748,6 @@ pub struct AppStateBuilder {
     users: Vec<MemoryUser>,
     keys: Vec<MemoryUserKey>,
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
-    quota_backend: Option<gproxy_core::dispatch::QuotaDispatch>,
-    rate_limit_backend: Option<gproxy_core::dispatch::RateLimitDispatch>,
 }
 
 impl AppStateBuilder {
@@ -767,8 +759,6 @@ impl AppStateBuilder {
             users: Vec::new(),
             keys: Vec::new(),
             usage_tx: None,
-            quota_backend: None,
-            rate_limit_backend: None,
         }
     }
 
@@ -803,18 +793,6 @@ impl AppStateBuilder {
         self
     }
 
-    /// Set a custom quota backend (e.g. Redis). Defaults to InMemory if not set.
-    pub fn quota_backend(mut self, backend: gproxy_core::dispatch::QuotaDispatch) -> Self {
-        self.quota_backend = Some(backend);
-        self
-    }
-
-    /// Set a custom rate limit backend (e.g. Redis). Defaults to InMemory if not set.
-    pub fn rate_limit_backend(mut self, backend: gproxy_core::dispatch::RateLimitDispatch) -> Self {
-        self.rate_limit_backend = Some(backend);
-        self
-    }
-
     pub fn build(self) -> AppState {
         let AppStateBuilder {
             engine,
@@ -823,8 +801,6 @@ impl AppStateBuilder {
             users,
             keys,
             usage_tx,
-            quota_backend,
-            rate_limit_backend,
         } = self;
 
         let config = config.unwrap_or_default();
@@ -842,14 +818,9 @@ impl AppStateBuilder {
             file_mirror: FileMirror::new(),
             policy_mirror: PolicyMirror::new(),
             user_quotas: gproxy_core::QuotaService::new(),
-            rate_counters: match rate_limit_backend {
-                Some(backend) => RateLimitCounters::with_backend(backend),
-                None => RateLimitCounters::new(),
-            },
+            rate_counters: RateLimitCounters::new(),
             usage_tx,
-            quota_backend: quota_backend.unwrap_or(gproxy_core::dispatch::QuotaDispatch::Memory(
-                gproxy_sdk::provider::InMemoryQuota::new(),
-            )),
+            quota_backend: InMemoryQuota::new(),
         };
 
         state.replace_config(config);

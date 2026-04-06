@@ -19,7 +19,7 @@ use crate::error::HttpError;
 use gproxy_storage::repository::FileRepository;
 
 type ProviderQuotaHold =
-    <gproxy_core::dispatch::QuotaDispatch as gproxy_sdk::provider::QuotaBackend>::Hold;
+    <gproxy_sdk::provider::InMemoryQuota as gproxy_sdk::provider::QuotaBackend>::Hold;
 
 /// Proxy handler for provider-scoped routes: `/{provider}/v1/...`
 pub async fn proxy(
@@ -2262,7 +2262,7 @@ fn estimate_quota_hold_cost_micro(request_body: &[u8]) -> u64 {
 }
 
 async fn seed_quota_backend_if_needed(
-    quota_backend: &gproxy_core::dispatch::QuotaDispatch,
+    quota_backend: &gproxy_sdk::provider::InMemoryQuota,
     user_id: i64,
     quota: f64,
     cost_used: f64,
@@ -2379,7 +2379,6 @@ fn build_model_request_body(
 
 #[cfg(test)]
 mod tests {
-    use gproxy_core::dispatch::QuotaDispatch;
     use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend};
 
     use super::{
@@ -2394,7 +2393,7 @@ mod tests {
 
     #[tokio::test]
     async fn seed_quota_backend_uses_current_remaining_quota() {
-        let backend = QuotaDispatch::Memory(InMemoryQuota::new());
+        let backend = InMemoryQuota::new();
 
         seed_quota_backend_if_needed(&backend, 9, 2.5, 1.25)
             .await
@@ -2410,7 +2409,7 @@ mod tests {
 
     #[tokio::test]
     async fn finalize_quota_hold_settles_actual_cost() {
-        let backend = QuotaDispatch::Memory(InMemoryQuota::new());
+        let backend = InMemoryQuota::new();
         QuotaBackend::set_quota(&backend, 7, 1_000)
             .await
             .expect("quota setup should succeed");
@@ -2431,7 +2430,7 @@ mod tests {
 
     #[tokio::test]
     async fn finalize_quota_hold_without_actual_cost_charges_reserved_estimate() {
-        let backend = QuotaDispatch::Memory(InMemoryQuota::new());
+        let backend = InMemoryQuota::new();
         QuotaBackend::set_quota(&backend, 11, 1_000)
             .await
             .expect("quota setup should succeed");

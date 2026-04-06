@@ -4,18 +4,12 @@
 //! focused service structs, each owning a coherent slice of runtime state.
 
 pub mod config;
-pub mod dispatch;
 pub mod file;
 pub mod identity;
 pub mod policy;
 pub mod quota;
 pub mod routing;
 pub mod types;
-
-/// Redis-backed implementations of backend traits for multi-instance deployments.
-/// Enable with `features = ["redis"]`.
-#[cfg(feature = "redis")]
-pub mod redis_backend;
 
 pub use config::ConfigService;
 pub use file::FileService;

@@ -50,12 +50,6 @@ struct Cli {
     /// When set, credentials, passwords, and API keys are encrypted at rest.
     #[arg(long, env = "DATABASE_SECRET_KEY")]
     database_secret_key: Option<String>,
-
-    /// Redis URL for multi-instance state sharing (rate limits, quotas, affinity).
-    /// When set, Redis backends are used instead of in-memory defaults.
-    /// Example: redis://localhost:6379
-    #[arg(long, env = "GPROXY_REDIS_URL")]
-    redis_url: Option<String>,
 }
 
 fn is_explicit(matches: &clap::ArgMatches, id: &str) -> bool {
@@ -129,24 +123,6 @@ async fn main() -> anyhow::Result<()> {
         data_dir: active_data_dir.clone(),
     };
 
-    // 8. Optional: connect to Redis for multi-instance state sharing
-    #[cfg(feature = "redis")]
-    let _redis_conn = if let Some(ref redis_url) = cli.redis_url {
-        tracing::info!(url = %redis_url, "connecting to Redis for multi-instance backends");
-        let client = redis::Client::open(redis_url.as_str())
-            .map_err(|e| anyhow::anyhow!("invalid Redis URL: {e}"))?;
-        let conn = redis::aio::ConnectionManager::new(client)
-            .await
-            .map_err(|e| anyhow::anyhow!("Redis connection failed: {e}"))?;
-        tracing::info!("Redis connected — backends available for injection");
-        // TODO: inject Redis backends into AppState when it supports trait-object or
-        // generic backend selection. For now, Redis connection is established and
-        // RedisRateLimit/RedisQuota/RedisAffinity are available in gproxy_core::redis_backend.
-        Some(conn)
-    } else {
-        None
-    };
-
     // 9. Start background workers (before AppState so usage_tx is available)
     let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
     let usage_tx = workers::usage_sink::spawn(storage.as_ref().clone(), worker_set.subscribe());
@@ -161,22 +137,6 @@ async fn main() -> anyhow::Result<()> {
         .storage(storage.clone())
         .config(config)
         .usage_tx(usage_tx);
-
-    // Inject Redis backends if redis_url is configured
-    #[cfg(feature = "redis")]
-    let app_builder = if let Some(ref conn) = _redis_conn {
-        let app_builder = app_builder
-            .quota_backend(gproxy_core::dispatch::QuotaDispatch::Redis(
-                gproxy_core::redis_backend::RedisQuota::new(conn.clone()),
-            ))
-            .rate_limit_backend(gproxy_core::dispatch::RateLimitDispatch::Redis(
-                gproxy_core::redis_backend::RedisRateLimit::new(conn.clone()),
-            ));
-        tracing::info!("using Redis quota + rate limit backends");
-        app_builder
-    } else {
-        app_builder
-    };
 
     let state = Arc::new(app_builder.build());
 

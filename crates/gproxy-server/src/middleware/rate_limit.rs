@@ -16,20 +16,13 @@ pub enum RateLimitRejection {
 }
 
 // ---------------------------------------------------------------------------
-// Counters (pluggable backend via RateLimitDispatch)
+// Counters
 // ---------------------------------------------------------------------------
 
 const MINUTE: Duration = Duration::from_secs(60);
 const DAY: Duration = Duration::from_secs(86400);
 
-/// Rate limit counters with pluggable backend.
-///
-/// For single-instance: uses InMemory via RateLimitDispatch::Memory.
-/// For multi-instance: uses Redis via RateLimitDispatch::Redis.
 pub struct RateLimitCounters {
-    backend: gproxy_core::dispatch::RateLimitDispatch,
-    /// Fallback local counters for when backend is sync (InMemory).
-    /// Used to maintain the sliding window semantics of the original impl.
     local: DashMap<(i64, String), RequestWindowCounter>,
 }
 
@@ -41,27 +34,10 @@ struct RequestWindowCounter {
 }
 
 impl RateLimitCounters {
-    /// Create with default InMemory backend.
     pub fn new() -> Self {
         Self {
-            backend: gproxy_core::dispatch::RateLimitDispatch::Memory(
-                gproxy_sdk::provider::InMemoryRateLimit::new(),
-            ),
             local: DashMap::new(),
         }
-    }
-
-    /// Create with a specific backend dispatch.
-    pub fn with_backend(backend: gproxy_core::dispatch::RateLimitDispatch) -> Self {
-        Self {
-            backend,
-            local: DashMap::new(),
-        }
-    }
-
-    /// Get a reference to the underlying backend for GC operations.
-    pub fn backend(&self) -> &gproxy_core::dispatch::RateLimitDispatch {
-        &self.backend
     }
 
     pub fn try_acquire(
@@ -71,9 +47,6 @@ impl RateLimitCounters {
         rpm: Option<i32>,
         rpd: Option<i32>,
     ) -> Result<(), RateLimitRejection> {
-        // Use local sliding window counters (same as original implementation).
-        // The RateLimitDispatch backend is available for future migration
-        // where RPM/RPD checks are delegated to Redis for cross-instance enforcement.
         let key = (user_id, model.to_string());
         let mut entry = self.local.entry(key).or_insert(RequestWindowCounter {
             minute_count: 0,

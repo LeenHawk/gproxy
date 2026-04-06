@@ -3,9 +3,8 @@
 use std::collections::HashMap;
 
 use gproxy_core::{
-    FilePermissionEntry, FileService, GlobalConfig, IdentityService, MemoryClaudeFile, MemoryModel,
-    MemoryUser, MemoryUserCredentialFile, MemoryUserKey, ModelAliasTarget, PermissionEntry,
-    PolicyService, PriceTier, RateLimitRule, RoutingService,
+    FileService, IdentityService, MemoryUser, MemoryUserCredentialFile, MemoryUserKey,
+    ModelAliasTarget, PermissionEntry, PolicyService, RoutingService,
 };
 
 #[test]
