@@ -1,7 +1,7 @@
 //! Routing service: models, aliases, and provider index lookups.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 
@@ -14,6 +14,8 @@ pub struct RoutingService {
     provider_names: ArcSwap<HashMap<String, i64>>,
     provider_channels: ArcSwap<HashMap<String, String>>,
     provider_credentials: ArcSwap<HashMap<String, Vec<i64>>>,
+    /// Serializes single-item write operations to prevent lost updates.
+    write_lock: Mutex<()>,
 }
 
 impl RoutingService {
@@ -25,6 +27,7 @@ impl RoutingService {
             provider_names: ArcSwap::from(Arc::new(HashMap::new())),
             provider_channels: ArcSwap::from(Arc::new(HashMap::new())),
             provider_credentials: ArcSwap::from(Arc::new(HashMap::new())),
+            write_lock: Mutex::new(()),
         }
     }
 
@@ -115,6 +118,7 @@ impl RoutingService {
 
     /// Upsert a provider name → id mapping.
     pub fn upsert_provider_name(&self, name: String, provider_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut names = (*self.provider_names.load_full()).clone();
         names.insert(name, provider_id);
         self.provider_names.store(Arc::new(names));
@@ -122,6 +126,7 @@ impl RoutingService {
 
     /// Remove a provider name mapping.
     pub fn remove_provider_name(&self, name: &str) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut names = (*self.provider_names.load_full()).clone();
         names.remove(name);
         self.provider_names.store(Arc::new(names));
@@ -129,6 +134,7 @@ impl RoutingService {
 
     /// Upsert a provider channel mapping.
     pub fn upsert_provider_channel(&self, name: String, channel: String) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut channels = (*self.provider_channels.load_full()).clone();
         channels.insert(name, channel);
         self.provider_channels.store(Arc::new(channels));
@@ -136,6 +142,7 @@ impl RoutingService {
 
     /// Remove a provider channel mapping.
     pub fn remove_provider_channel(&self, name: &str) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut channels = (*self.provider_channels.load_full()).clone();
         channels.remove(name);
         self.provider_channels.store(Arc::new(channels));
@@ -143,6 +150,7 @@ impl RoutingService {
 
     /// Replace credential IDs for a single provider.
     pub fn replace_provider_credential_ids(&self, name: String, ids: Vec<i64>) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut map = (*self.provider_credentials.load_full()).clone();
         map.insert(name, ids);
         self.provider_credentials.store(Arc::new(map));
@@ -150,6 +158,7 @@ impl RoutingService {
 
     /// Append a credential ID to a provider's list.
     pub fn append_provider_credential_id(&self, name: &str, credential_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut map = (*self.provider_credentials.load_full()).clone();
         map.entry(name.to_string()).or_default().push(credential_id);
         self.provider_credentials.store(Arc::new(map));

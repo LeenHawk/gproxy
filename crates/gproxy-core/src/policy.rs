@@ -1,7 +1,7 @@
 //! Policy service: permissions, file permissions, and rate limit rules.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 
@@ -12,6 +12,8 @@ pub struct PolicyService {
     user_permissions: ArcSwap<HashMap<i64, Vec<PermissionEntry>>>,
     user_file_permissions: ArcSwap<HashMap<i64, Vec<FilePermissionEntry>>>,
     user_rate_limits: ArcSwap<HashMap<i64, Vec<RateLimitRule>>>,
+    /// Serializes single-item write operations to prevent lost updates.
+    write_lock: Mutex<()>,
 }
 
 impl PolicyService {
@@ -21,6 +23,7 @@ impl PolicyService {
             user_permissions: ArcSwap::from(Arc::new(HashMap::new())),
             user_file_permissions: ArcSwap::from(Arc::new(HashMap::new())),
             user_rate_limits: ArcSwap::from(Arc::new(HashMap::new())),
+            write_lock: Mutex::new(()),
         }
     }
 
@@ -94,6 +97,7 @@ impl PolicyService {
 
     /// Upsert a permission entry for a user.
     pub fn upsert_permission(&self, user_id: i64, entry: PermissionEntry) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut perms = (*self.user_permissions.load_full()).clone();
         let user_perms = perms.entry(user_id).or_default();
         if let Some(existing) = user_perms.iter_mut().find(|e| e.id == entry.id) {
@@ -106,6 +110,7 @@ impl PolicyService {
 
     /// Remove a permission entry by ID.
     pub fn remove_permission(&self, user_id: i64, permission_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut perms = (*self.user_permissions.load_full()).clone();
         if let Some(user_perms) = perms.get_mut(&user_id) {
             user_perms.retain(|e| e.id != permission_id);
@@ -115,6 +120,7 @@ impl PolicyService {
 
     /// Upsert a file permission entry for a user.
     pub fn upsert_file_permission(&self, user_id: i64, entry: FilePermissionEntry) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut perms = (*self.user_file_permissions.load_full()).clone();
         let user_perms = perms.entry(user_id).or_default();
         if let Some(existing) = user_perms.iter_mut().find(|e| e.id == entry.id) {
@@ -127,6 +133,7 @@ impl PolicyService {
 
     /// Remove a file permission entry by ID.
     pub fn remove_file_permission(&self, user_id: i64, permission_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut perms = (*self.user_file_permissions.load_full()).clone();
         if let Some(user_perms) = perms.get_mut(&user_id) {
             user_perms.retain(|e| e.id != permission_id);
@@ -136,6 +143,7 @@ impl PolicyService {
 
     /// Remove all file permissions for a user.
     pub fn remove_file_permissions_for_user(&self, user_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut perms = (*self.user_file_permissions.load_full()).clone();
         perms.remove(&user_id);
         self.user_file_permissions.store(Arc::new(perms));
@@ -143,6 +151,7 @@ impl PolicyService {
 
     /// Upsert a rate limit rule for a user.
     pub fn upsert_rate_limit(&self, user_id: i64, rule: RateLimitRule) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut limits = (*self.user_rate_limits.load_full()).clone();
         let user_limits = limits.entry(user_id).or_default();
         if let Some(existing) = user_limits.iter_mut().find(|r| r.id == rule.id) {
@@ -155,6 +164,7 @@ impl PolicyService {
 
     /// Remove a rate limit rule by ID.
     pub fn remove_rate_limit(&self, user_id: i64, rule_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut limits = (*self.user_rate_limits.load_full()).clone();
         if let Some(user_limits) = limits.get_mut(&user_id) {
             user_limits.retain(|r| r.id != rule_id);
