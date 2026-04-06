@@ -754,6 +754,7 @@ pub struct AppStateBuilder {
     keys: Vec<MemoryUserKey>,
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
     quota_backend: Option<gproxy_core::dispatch::QuotaDispatch>,
+    rate_limit_backend: Option<gproxy_core::dispatch::RateLimitDispatch>,
 }
 
 impl AppStateBuilder {
@@ -766,6 +767,7 @@ impl AppStateBuilder {
             keys: Vec::new(),
             usage_tx: None,
             quota_backend: None,
+            rate_limit_backend: None,
         }
     }
 
@@ -806,6 +808,12 @@ impl AppStateBuilder {
         self
     }
 
+    /// Set a custom rate limit backend (e.g. Redis). Defaults to InMemory if not set.
+    pub fn rate_limit_backend(mut self, backend: gproxy_core::dispatch::RateLimitDispatch) -> Self {
+        self.rate_limit_backend = Some(backend);
+        self
+    }
+
     pub fn build(self) -> AppState {
         let AppStateBuilder {
             engine,
@@ -815,6 +823,7 @@ impl AppStateBuilder {
             keys,
             usage_tx,
             quota_backend,
+            rate_limit_backend,
         } = self;
 
         let config = config.unwrap_or_default();
@@ -832,7 +841,10 @@ impl AppStateBuilder {
             file_mirror: FileMirror::new(),
             policy_mirror: PolicyMirror::new(),
             user_quotas: gproxy_core::QuotaService::new(),
-            rate_counters: RateLimitCounters::new(),
+            rate_counters: match rate_limit_backend {
+                Some(backend) => RateLimitCounters::with_backend(backend),
+                None => RateLimitCounters::new(),
+            },
             usage_tx,
             quota_backend: quota_backend.unwrap_or(
                 gproxy_core::dispatch::QuotaDispatch::Memory(

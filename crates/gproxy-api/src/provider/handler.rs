@@ -98,22 +98,22 @@ pub async fn proxy(
 
     if !is_file_operation(operation)
         && let Some(ref m) = effective_model
-        && let Err(rejection) = state.check_rate_limit_request(
+        && let Err(_rejection) = state.check_rate_limit_request(
             user_key.user_id,
             m,
             extract_requested_total_tokens(operation, protocol, &req_body),
         )
     {
-        return Err(HttpError::too_many_requests(format!("{rejection:?}")));
+        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
     }
     if is_file_operation(operation)
-        && let Err(rejection) = state.check_rate_limit_request(
+        && let Err(_rejection) = state.check_rate_limit_request(
             user_key.user_id,
             &file_rate_limit_key(&effective_provider, operation),
             None,
         )
     {
-        return Err(HttpError::too_many_requests(format!("{rejection:?}")));
+        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
     }
 
     if let Some(FileOperationPlan::ShortCircuitJson(resp_body)) = &file_plan {
@@ -383,12 +383,12 @@ pub async fn proxy_unscoped(
     let req_body = normalize_unscoped_request_body(operation, protocol, req_body, &target_model);
 
     // Check rate limit after rewriting the request body to the canonical target model.
-    if let Err(rejection) = state.check_rate_limit_request(
+    if let Err(_rejection) = state.check_rate_limit_request(
         user_key.user_id,
         &target_model,
         extract_requested_total_tokens(operation, protocol, &req_body),
     ) {
-        return Err(HttpError::too_many_requests(format!("{rejection:?}")));
+        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
     }
 
     let mut quota_hold = try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
@@ -574,12 +574,12 @@ pub async fn proxy_unscoped_files(
         req_query.as_deref(),
     )?;
 
-    if let Err(rejection) = state.check_rate_limit_request(
+    if let Err(_rejection) = state.check_rate_limit_request(
         user_key.user_id,
         &file_rate_limit_key(&target_provider, operation),
         None,
     ) {
-        return Err(HttpError::too_many_requests(format!("{rejection:?}")));
+        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
     }
 
     if let Some(FileOperationPlan::ShortCircuitJson(resp_body)) = &file_plan {
@@ -1599,15 +1599,16 @@ pub(crate) async fn record_usage(ctx: &UsageRecordContext, usage: &Usage) {
         cache_creation_input_tokens_1h: usage.cache_creation_input_tokens_1h,
     };
 
-    // Update in-memory quota tracking (always synchronous, fast)
-    if cost > 0.0 {
-        ctx.state.add_cost_usage(ctx.user_id, cost);
-    }
-
-    // Send usage to async sink if available (non-blocking); otherwise sync write
+    // Send usage to async sink if available (non-blocking); otherwise sync write.
+    // Quota is charged only after usage record is successfully queued/persisted,
+    // preventing invisible cost accumulation when records are dropped.
     if let Some(tx) = ctx.state.usage_tx() {
         if let Err(err) = tx.try_send(usage_write) {
-            tracing::warn!(user_id = ctx.user_id, %err, "usage sink channel full, dropping record");
+            tracing::warn!(user_id = ctx.user_id, %err, "usage sink full, record dropped, quota not charged");
+            return;
+        }
+        if cost > 0.0 {
+            ctx.state.add_cost_usage(ctx.user_id, cost);
         }
     } else {
         // Fallback: synchronous DB write (legacy path)

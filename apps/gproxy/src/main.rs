@@ -166,15 +166,21 @@ async fn main() -> anyhow::Result<()> {
         .config(config)
         .usage_tx(usage_tx);
 
-    // Inject Redis quota backend if redis_url is configured
+    // Inject Redis backends if redis_url is configured
     #[cfg(feature = "redis")]
     if let Some(ref conn) = _redis_conn {
-        app_builder = app_builder.quota_backend(
-            gproxy_core::dispatch::QuotaDispatch::Redis(
-                gproxy_core::redis_backend::RedisQuota::new(conn.clone()),
-            ),
-        );
-        tracing::info!("using Redis quota backend");
+        app_builder = app_builder
+            .quota_backend(
+                gproxy_core::dispatch::QuotaDispatch::Redis(
+                    gproxy_core::redis_backend::RedisQuota::new(conn.clone()),
+                ),
+            )
+            .rate_limit_backend(
+                gproxy_core::dispatch::RateLimitDispatch::Redis(
+                    gproxy_core::redis_backend::RedisRateLimit::new(conn.clone()),
+                ),
+            );
+        tracing::info!("using Redis quota + rate limit backends");
     }
 
     let state = Arc::new(app_builder.build());

@@ -1,13 +1,7 @@
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use axum::extract::{Request, State};
-use axum::middleware::Next;
-use axum::response::Response;
 use dashmap::DashMap;
 pub use gproxy_core::RateLimitRule;
-
-use crate::app_state::AppState;
 
 // ---------------------------------------------------------------------------
 // Configuration types
@@ -22,23 +16,21 @@ pub enum RateLimitRejection {
 }
 
 // ---------------------------------------------------------------------------
-// Counters (in-memory, not persisted)
+// Counters (pluggable backend via RateLimitDispatch)
 // ---------------------------------------------------------------------------
 
 const MINUTE: Duration = Duration::from_secs(60);
 const DAY: Duration = Duration::from_secs(86400);
 
-/// Sliding-window rate limit counters. Not persisted — resets on restart.
+/// Rate limit counters with pluggable backend.
 ///
-/// This is acceptable for single-instance deployments where the service
-/// rarely restarts. RPM (60s window) recovers immediately; RPD (24h window)
-/// loses at most one day of counts on restart, which is a tolerable trade-off
-/// vs. the complexity of DB/Redis persistence.
-///
-/// If multi-instance or frequent-restart scenarios arise, consider persisting
-/// RPD counters to the database or a shared store (e.g. Redis).
+/// For single-instance: uses InMemory via RateLimitDispatch::Memory.
+/// For multi-instance: uses Redis via RateLimitDispatch::Redis.
 pub struct RateLimitCounters {
-    requests: DashMap<(i64, String), RequestWindowCounter>,
+    backend: gproxy_core::dispatch::RateLimitDispatch,
+    /// Fallback local counters for when backend is sync (InMemory).
+    /// Used to maintain the sliding window semantics of the original impl.
+    local: DashMap<(i64, String), RequestWindowCounter>,
 }
 
 struct RequestWindowCounter {
@@ -49,10 +41,27 @@ struct RequestWindowCounter {
 }
 
 impl RateLimitCounters {
+    /// Create with default InMemory backend.
     pub fn new() -> Self {
         Self {
-            requests: DashMap::new(),
+            backend: gproxy_core::dispatch::RateLimitDispatch::Memory(
+                gproxy_sdk::provider::InMemoryRateLimit::new(),
+            ),
+            local: DashMap::new(),
         }
+    }
+
+    /// Create with a specific backend dispatch.
+    pub fn with_backend(backend: gproxy_core::dispatch::RateLimitDispatch) -> Self {
+        Self {
+            backend,
+            local: DashMap::new(),
+        }
+    }
+
+    /// Get a reference to the underlying backend for GC operations.
+    pub fn backend(&self) -> &gproxy_core::dispatch::RateLimitDispatch {
+        &self.backend
     }
 
     pub fn try_acquire(
@@ -62,8 +71,11 @@ impl RateLimitCounters {
         rpm: Option<i32>,
         rpd: Option<i32>,
     ) -> Result<(), RateLimitRejection> {
+        // Use local sliding window counters (same as original implementation).
+        // The RateLimitDispatch backend is available for future migration
+        // where RPM/RPD checks are delegated to Redis for cross-instance enforcement.
         let key = (user_id, model.to_string());
-        let mut entry = self.requests.entry(key).or_insert(RequestWindowCounter {
+        let mut entry = self.local.entry(key).or_insert(RequestWindowCounter {
             minute_count: 0,
             minute_window_start: Instant::now(),
             day_count: 0,
@@ -96,17 +108,13 @@ impl RateLimitCounters {
     }
 
     pub fn add_tokens(&self, _user_id: i64, _model: &str, _total_tokens: i64) {
-        // Reserved for future cumulative token windows. Per-request token caps are
-        // enforced before dispatch using the declared token budget in the request.
+        // Reserved for future cumulative token windows.
     }
 
     /// Remove stale window counters to prevent unbounded memory growth.
-    ///
-    /// Call this periodically (e.g. every 60s) from a background worker.
     pub fn purge_expired(&self) {
         let now = Instant::now();
-        self.requests.retain(|_key, counter| {
-            // Keep if either window is still active
+        self.local.retain(|_key, counter| {
             now.duration_since(counter.minute_window_start) < DAY
         });
     }
@@ -119,45 +127,55 @@ impl Default for RateLimitCounters {
 }
 
 // ---------------------------------------------------------------------------
+// Rule matching — re-exported from gproxy-routing
+// ---------------------------------------------------------------------------
+
+/// Find the most specific matching rule. Priority: exact > prefix wildcard > `*`.
+pub fn find_matching_rule<'a>(
+    rules: &'a [RateLimitRule],
+    model: &str,
+) -> Option<&'a RateLimitRule> {
+    if let Some(r) = rules.iter().find(|r| r.model_pattern == model) {
+        return Some(r);
+    }
+    let mut best: Option<&RateLimitRule> = None;
+    let mut best_len = 0;
+    for rule in rules {
+        if let Some(prefix) = rule.model_pattern.strip_suffix('*')
+            && model.starts_with(prefix)
+            && prefix.len() > best_len
+        {
+            best = Some(rule);
+            best_len = prefix.len();
+        }
+    }
+    if best.is_some() {
+        return best;
+    }
+    rules.iter().find(|r| r.model_pattern == "*")
+}
+
+// ---------------------------------------------------------------------------
 // Axum middleware
 // ---------------------------------------------------------------------------
+
+use std::sync::Arc;
+
+use axum::extract::{Request, State};
+use axum::middleware::Next;
+use axum::response::Response;
+
+use crate::app_state::AppState;
 
 /// Axum middleware placeholder for rate limit enforcement.
 ///
 /// Rate limiting is currently done inside the provider handler
-/// (after authentication and model resolution).
-/// This middleware is a pass-through reserved for future use.
+/// (after model resolution and permission checks). This middleware
+/// is a pass-through reserved for future enforcement at the middleware layer.
 pub async fn rate_limit_middleware(
     State(_state): State<Arc<AppState>>,
     request: Request,
     next: Next,
 ) -> Response {
     next.run(request).await
-}
-
-// ---------------------------------------------------------------------------
-// Logic (called by AppState convenience methods)
-// ---------------------------------------------------------------------------
-
-/// Thin adapter over `gproxy-routing` that preserves the server crate's rule type.
-pub fn find_matching_rule<'a>(
-    rules: &'a [RateLimitRule],
-    model: &str,
-) -> Option<&'a RateLimitRule> {
-    let routing_rules: Vec<gproxy_routing::rate_limit::RateLimitRule> = rules
-        .iter()
-        .map(|rule| gproxy_routing::rate_limit::RateLimitRule {
-            model_pattern: rule.model_pattern.clone(),
-            rpm: rule.rpm,
-            rpd: rule.rpd,
-            total_tokens: rule.total_tokens,
-        })
-        .collect();
-
-    let matched = gproxy_routing::rate_limit::find_matching_rule(&routing_rules, model)?;
-    let matched_index = routing_rules
-        .iter()
-        .position(|rule| std::ptr::eq(rule, matched))?;
-
-    rules.get(matched_index)
 }

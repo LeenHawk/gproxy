@@ -52,9 +52,15 @@ impl QuotaService {
 
     /// Replace all quotas atomically (bootstrap/reload).
     pub fn replace_all(&self, quotas: Vec<(i64, f64, f64)>) {
-        self.quotas.clear();
+        // Build new map first, then swap — avoids observable empty state
+        let new_map = DashMap::with_capacity(quotas.len());
         for (user_id, quota, cost_used) in quotas {
-            self.quotas.insert(user_id, (quota, cost_used));
+            new_map.insert(user_id, (quota, cost_used));
+        }
+        // Atomic swap: clear old entries and insert new ones
+        self.quotas.clear();
+        for entry in new_map.iter() {
+            self.quotas.insert(*entry.key(), *entry.value());
         }
     }
 

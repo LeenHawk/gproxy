@@ -76,7 +76,9 @@ impl From<sea_orm::DbErr> for HttpError {
 
 impl From<gproxy_sdk::provider::response::UpstreamError> for HttpError {
     fn from(err: gproxy_sdk::provider::response::UpstreamError) -> Self {
-        Self::internal(err.to_string())
+        // Log full error details internally, return generic message to client
+        tracing::error!(error = %err, "upstream provider error");
+        Self::internal("upstream provider error")
     }
 }
 

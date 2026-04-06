@@ -72,10 +72,46 @@ pub async fn query_credentials(
         .map(|c| CredentialRow {
             provider: c.provider,
             index: c.index,
-            credential: c.credential,
+            credential: mask_credential_secrets(&c.credential),
         })
         .collect();
     Ok(Json(rows))
+}
+
+/// Mask sensitive fields in credential JSON to prevent secret leakage.
+///
+/// Replaces values of known secret fields (api_key, secret_key, access_token,
+/// refresh_token, cookie, private_key) with masked versions showing only
+/// the first 4 and last 4 characters.
+fn mask_credential_secrets(value: &serde_json::Value) -> serde_json::Value {
+    const SECRET_FIELDS: &[&str] = &[
+        "api_key", "secret_key", "access_token", "refresh_token",
+        "cookie", "private_key", "token", "password", "key",
+    ];
+
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut masked = serde_json::Map::new();
+            for (k, v) in map {
+                if SECRET_FIELDS.iter().any(|&f| k.eq_ignore_ascii_case(f)) {
+                    if let Some(s) = v.as_str() {
+                        let masked_val = if s.len() > 8 {
+                            format!("{}***{}", &s[..4], &s[s.len()-4..])
+                        } else {
+                            "***".to_string()
+                        };
+                        masked.insert(k.clone(), serde_json::Value::String(masked_val));
+                    } else {
+                        masked.insert(k.clone(), serde_json::Value::String("***".to_string()));
+                    }
+                } else {
+                    masked.insert(k.clone(), mask_credential_secrets(v));
+                }
+            }
+            serde_json::Value::Object(masked)
+        }
+        other => other.clone(),
+    }
 }
 
 #[derive(serde::Deserialize)]
