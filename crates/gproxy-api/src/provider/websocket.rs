@@ -154,6 +154,53 @@ fn authorize_openai_ws_client_frame(
     })
 }
 
+/// Authorize a Gemini Live client frame.
+///
+/// Parses the JSON to detect `setup.model`. If present, validates the model
+/// against user permissions and enforces rate limiting. Returns the model
+/// name from the frame (if any) or Ok(None) for non-setup messages.
+fn authorize_gemini_ws_client_frame(
+    state: &AppState,
+    user_id: i64,
+    provider_name: &str,
+    raw_text: &str,
+) -> Result<Option<String>, HttpError> {
+    // Quick check: does the frame contain "setup"?
+    if !raw_text.contains("\"setup\"") {
+        return Ok(None);
+    }
+
+    // Try to parse as a setup message
+    let parsed: serde_json::Value = serde_json::from_str(raw_text)
+        .map_err(|e| HttpError::bad_request(format!("invalid JSON: {e}")))?;
+
+    let Some(setup) = parsed.get("setup") else {
+        return Ok(None);
+    };
+    let Some(model_raw) = setup.get("model").and_then(|m| m.as_str()) else {
+        return Ok(None);
+    };
+
+    // Gemini uses "models/{model}" format — strip the prefix
+    let model = model_raw.strip_prefix("models/").unwrap_or(model_raw);
+
+    // Permission check
+    if !state.check_model_permission(user_id, provider_name, model) {
+        return Err(HttpError::forbidden(
+            "model not authorized for this user",
+        ));
+    }
+
+    // Rate limit check (per-frame for Gemini Live setup messages)
+    if let Err(_rejection) = state.check_rate_limit_request(user_id, model, None) {
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
+    }
+
+    Ok(Some(model.to_string()))
+}
+
 /// OpenAI Responses WebSocket: `GET /{provider}/v1/responses`
 pub async fn openai_responses_ws(
     State(state): State<Arc<AppState>>,
@@ -510,6 +557,27 @@ async fn run_ws_bridge_with_protocol(
                                 &outbound_text,
                             ) {
                                 Ok(frame) => outbound_text = frame.outbound_text,
+                                Err(err) => {
+                                    send_ws_error(downstream, &err.message).await;
+                                    break;
+                                }
+                            }
+                        } else {
+                            // Gemini Live: authorize setup frames (model switch + rate limit)
+                            match authorize_gemini_ws_client_frame(
+                                &ctx.state,
+                                ctx.user_id,
+                                &ctx.provider_name,
+                                &outbound_text,
+                            ) {
+                                Ok(Some(model)) => {
+                                    tracing::debug!(
+                                        user_id = ctx.user_id,
+                                        %model,
+                                        "gemini live setup frame authorized"
+                                    );
+                                }
+                                Ok(None) => {} // non-setup frame, pass through
                                 Err(err) => {
                                     send_ws_error(downstream, &err.message).await;
                                     break;
