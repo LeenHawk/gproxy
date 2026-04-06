@@ -19,7 +19,7 @@ use crate::error::HttpError;
 use gproxy_storage::repository::FileRepository;
 
 type ProviderQuotaHold =
-    <gproxy_sdk::provider::InMemoryQuota as gproxy_sdk::provider::QuotaBackend>::Hold;
+    <gproxy_core::dispatch::QuotaDispatch as gproxy_sdk::provider::QuotaBackend>::Hold;
 
 /// Proxy handler for provider-scoped routes: `/{provider}/v1/...`
 pub async fn proxy(
@@ -2258,7 +2258,7 @@ fn estimate_quota_hold_cost_micro(request_body: &[u8]) -> u64 {
 }
 
 async fn seed_quota_backend_if_needed(
-    quota_backend: &gproxy_sdk::provider::InMemoryQuota,
+    quota_backend: &gproxy_core::dispatch::QuotaDispatch,
     user_id: i64,
     quota: f64,
     cost_used: f64,

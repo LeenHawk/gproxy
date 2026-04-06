@@ -138,8 +138,8 @@ pub struct AppState {
     /// When set, `record_usage` sends through this channel instead of
     /// synchronous DB writes.
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
-    /// Quota backend for pre-hold/settle pattern.
-    pub quota_backend: gproxy_sdk::provider::InMemoryQuota,
+    /// Quota backend for pre-hold/settle pattern (InMemory or Redis).
+    pub quota_backend: gproxy_core::dispatch::QuotaDispatch,
 }
 
 impl AppState {
@@ -753,6 +753,7 @@ pub struct AppStateBuilder {
     users: Vec<MemoryUser>,
     keys: Vec<MemoryUserKey>,
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
+    quota_backend: Option<gproxy_core::dispatch::QuotaDispatch>,
 }
 
 impl AppStateBuilder {
@@ -764,6 +765,7 @@ impl AppStateBuilder {
             users: Vec::new(),
             keys: Vec::new(),
             usage_tx: None,
+            quota_backend: None,
         }
     }
 
@@ -798,6 +800,12 @@ impl AppStateBuilder {
         self
     }
 
+    /// Set a custom quota backend (e.g. Redis). Defaults to InMemory if not set.
+    pub fn quota_backend(mut self, backend: gproxy_core::dispatch::QuotaDispatch) -> Self {
+        self.quota_backend = Some(backend);
+        self
+    }
+
     pub fn build(self) -> AppState {
         let AppStateBuilder {
             engine,
@@ -806,6 +814,7 @@ impl AppStateBuilder {
             users,
             keys,
             usage_tx,
+            quota_backend,
         } = self;
 
         let config = config.unwrap_or_default();
@@ -825,7 +834,11 @@ impl AppStateBuilder {
             user_quotas: gproxy_core::QuotaService::new(),
             rate_counters: RateLimitCounters::new(),
             usage_tx,
-            quota_backend: gproxy_sdk::provider::InMemoryQuota::new(),
+            quota_backend: quota_backend.unwrap_or(
+                gproxy_core::dispatch::QuotaDispatch::Memory(
+                    gproxy_sdk::provider::InMemoryQuota::new(),
+                ),
+            ),
         };
 
         state.replace_config(config);

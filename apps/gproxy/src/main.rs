@@ -159,14 +159,25 @@ async fn main() -> anyhow::Result<()> {
         .configure_clients(config.proxy.as_deref(), Some(&config.spoof_emulation))
         .build();
 
-    let state = Arc::new(
-        AppStateBuilder::new()
-            .engine(engine)
-            .storage(storage.clone())
-            .config(config)
-            .usage_tx(usage_tx)
-            .build(),
-    );
+    #[allow(unused_mut)]
+    let mut app_builder = AppStateBuilder::new()
+        .engine(engine)
+        .storage(storage.clone())
+        .config(config)
+        .usage_tx(usage_tx);
+
+    // Inject Redis quota backend if redis_url is configured
+    #[cfg(feature = "redis")]
+    if let Some(ref conn) = _redis_conn {
+        app_builder = app_builder.quota_backend(
+            gproxy_core::dispatch::QuotaDispatch::Redis(
+                gproxy_core::redis_backend::RedisQuota::new(conn.clone()),
+            ),
+        );
+        tracing::info!("using Redis quota backend");
+    }
+
+    let state = Arc::new(app_builder.build());
 
     // 10. Bootstrap: load from DB or seed from TOML / defaults
     let has_data = persisted_settings_exist;

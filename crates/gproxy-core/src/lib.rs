@@ -4,6 +4,7 @@
 //! focused service structs, each owning a coherent slice of runtime state.
 
 pub mod config;
+pub mod dispatch;
 pub mod file;
 pub mod identity;
 pub mod policy;
