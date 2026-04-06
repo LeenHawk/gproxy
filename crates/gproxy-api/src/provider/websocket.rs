@@ -127,7 +127,7 @@ fn authorize_openai_ws_client_frame(
         .map_err(|_| HttpError::bad_request("failed to encode OpenAI websocket request"))?;
 
     if consume_request_budget
-        && let Err(rejection) = state.check_rate_limit_request(
+        && let Err(_rejection) = state.check_rate_limit_request(
             user_id,
             &effective_model,
             super::handler::extract_requested_total_tokens(
@@ -137,7 +137,9 @@ fn authorize_openai_ws_client_frame(
             ),
         )
     {
-        return Err(HttpError::too_many_requests(format!("{rejection:?}")));
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
     }
 
     session.current_model = Some(effective_model.clone());
@@ -218,9 +220,11 @@ pub async fn gemini_live(
 
     // Rate limit check
     if let Some(ref m) = model
-        && let Err(rejection) = state.check_rate_limit_request(user_key.user_id, m, None)
+        && let Err(_rejection) = state.check_rate_limit_request(user_key.user_id, m, None)
     {
-        return Err(HttpError::too_many_requests(format!("{rejection:?}")));
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
     }
 
     let user_id = user_key.user_id;

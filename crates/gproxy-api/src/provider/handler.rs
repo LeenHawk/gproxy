@@ -2307,10 +2307,13 @@ async fn try_reserve_quota_hold(
     {
         Ok(hold) => Ok(Some(hold)),
         Err(exhausted) => {
-            let remaining = exhausted.remaining as f64 / 1_000_000.0;
-            Err(HttpError::too_many_requests(format!(
-                "quota exhausted: remaining={remaining:.6}, used={cost_used:.6}"
-            )))
+            tracing::debug!(
+                user_id,
+                remaining = exhausted.remaining,
+                cost_used,
+                "quota exhausted"
+            );
+            Err(HttpError::too_many_requests("quota exhausted".to_string()))
         }
     }
 }

@@ -1,7 +1,7 @@
 //! File service: user credential files and Claude file metadata.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
 
@@ -11,6 +11,8 @@ use crate::types::{MemoryClaudeFile, MemoryUserCredentialFile};
 pub struct FileService {
     user_files: ArcSwap<Vec<MemoryUserCredentialFile>>,
     claude_files: ArcSwap<HashMap<(i64, String), MemoryClaudeFile>>,
+    /// Serializes single-item write operations to prevent lost updates.
+    write_lock: Mutex<()>,
 }
 
 impl FileService {
@@ -19,6 +21,7 @@ impl FileService {
         Self {
             user_files: ArcSwap::from(Arc::new(Vec::new())),
             claude_files: ArcSwap::from(Arc::new(HashMap::new())),
+            write_lock: Mutex::new(()),
         }
     }
 
@@ -75,6 +78,7 @@ impl FileService {
 
     /// Upsert a user file record.
     pub fn upsert_user_file(&self, file: MemoryUserCredentialFile) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut files = (*self.user_files.load_full()).clone();
         let key = (file.user_id, file.provider_id, file.file_id.clone());
         if let Some(existing) = files.iter_mut().find(|f| {
@@ -89,6 +93,7 @@ impl FileService {
 
     /// Remove all files for a user.
     pub fn remove_user_files_for_user(&self, user_id: i64) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut files = (*self.user_files.load_full()).clone();
         files.retain(|f| f.user_id != user_id);
         self.user_files.store(Arc::new(files));
@@ -96,6 +101,7 @@ impl FileService {
 
     /// Upsert a Claude file metadata record.
     pub fn upsert_claude_file(&self, file: MemoryClaudeFile) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut files = (*self.claude_files.load_full()).clone();
         files.insert((file.provider_id, file.file_id.clone()), file);
         self.claude_files.store(Arc::new(files));

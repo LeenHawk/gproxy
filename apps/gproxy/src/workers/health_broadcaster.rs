@@ -68,10 +68,13 @@ async fn flush_pending(state: &AppState, pending: &mut HashMap<(String, usize), 
             );
             continue;
         }
+        let channel = state
+            .provider_channel_for_name(provider)
+            .unwrap_or_else(|| provider.clone());
         let write = CredentialStatusWrite {
             id: None,
             credential_id,
-            channel: provider.clone(),
+            channel,
             health_kind: status.clone(),
             health_json: None,
             checked_at_unix_ms: Some(

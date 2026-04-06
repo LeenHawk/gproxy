@@ -273,7 +273,6 @@ pub async fn batch_upsert_user_keys(
 pub fn generate_unique_api_key_for(state: &AppState) -> String {
     use rand::RngExt;
     let admin_key = state.config().admin_key.clone();
-    let keys = state.keys_snapshot();
     let mut rng = rand::rng();
     loop {
         let n: u64 = rng.random_range(0..1u64 << 48);
@@ -281,7 +280,8 @@ pub fn generate_unique_api_key_for(state: &AppState) -> String {
         if key == admin_key {
             continue;
         }
-        if keys.contains_key(&key) {
+        // Use authenticate_api_key which does SHA-256 digest lookup
+        if state.authenticate_api_key(&key).is_some() {
             continue;
         }
         return key;
