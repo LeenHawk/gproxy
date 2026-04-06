@@ -2,6 +2,8 @@ use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::*;
 use time::OffsetDateTime;
 
+use gproxy_core::api_key_digest;
+
 use crate::seaorm::SeaOrmStorage;
 use crate::seaorm::entities::*;
 use crate::write::UsageWrite;
@@ -88,10 +90,12 @@ impl SeaOrmStorage {
         enabled: bool,
     ) -> Result<i64, DbErr> {
         let encrypted_key = self.encrypt_string(api_key);
+        let api_key_digest = api_key_digest(api_key);
         let now = OffsetDateTime::now_utc();
         let model = user_keys::ActiveModel {
             user_id: Set(user_id),
-            api_key: Set(encrypted_key),
+            api_key_ciphertext: Set(encrypted_key),
+            api_key_digest: Set(api_key_digest),
             label: Set(label.map(String::from)),
             enabled: Set(enabled),
             created_at: Set(now),
@@ -378,4 +382,42 @@ impl SeaOrmStorage {
 fn unix_ms_to_datetime(ms: i64) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(ms as i128 * 1_000_000)
         .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SeaOrmStorage;
+
+    #[tokio::test]
+    async fn create_user_key_rejects_duplicate_plaintext_keys_when_encryption_is_enabled() {
+        let storage = SeaOrmStorage::connect("sqlite::memory:", Some("test-secret"))
+            .await
+            .expect("connect storage");
+        storage.sync().await.expect("sync schema");
+
+        let user_id_1 = storage
+            .create_user("alice", "password", true, false)
+            .await
+            .expect("create first user");
+        let user_id_2 = storage
+            .create_user("bob", "password", true, false)
+            .await
+            .expect("create second user");
+
+        storage
+            .create_user_key(user_id_1, "sk-duplicate", Some("first"), true)
+            .await
+            .expect("create first key");
+
+        let err = storage
+            .create_user_key(user_id_2, "sk-duplicate", Some("second"), true)
+            .await
+            .expect_err("duplicate plaintext key must be rejected");
+
+        let message = err.to_string().to_lowercase();
+        assert!(
+            message.contains("unique") || message.contains("duplicate"),
+            "unexpected duplicate-key error: {message}"
+        );
+    }
 }

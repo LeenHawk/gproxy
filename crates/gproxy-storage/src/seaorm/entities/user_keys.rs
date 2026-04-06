@@ -8,8 +8,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = true)]
     pub id: i64,
     pub user_id: i64,
-    #[sea_orm(unique_key = "user_api_key")]
-    pub api_key: String,
+    pub api_key_ciphertext: String,
+    #[sea_orm(unique_key = "user_api_key_digest")]
+    pub api_key_digest: String,
     pub label: Option<String>,
     pub enabled: bool,
     pub created_at: OffsetDateTime,

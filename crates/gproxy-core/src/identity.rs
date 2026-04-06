@@ -8,24 +8,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use arc_swap::ArcSwap;
-use sha2::{Digest, Sha256};
 
+use crate::api_key::api_key_digest;
 use crate::types::{MemoryUser, MemoryUserKey};
-
-/// HMAC-like key derivation for API key storage.
-///
-/// Uses SHA-256 with a domain separator to create a fixed-length digest
-/// for HashMap lookup. This prevents timing attacks on the key comparison
-/// since HashMap uses the hash (not the raw key) for bucket selection,
-/// and the digest is a fixed-length uniform distribution.
-fn api_key_digest(api_key: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(b"gproxy-api-key-v1:");
-    hasher.update(api_key.as_bytes());
-    let hash = hasher.finalize();
-    // Manual hex encoding to avoid extra dependency
-    hash.iter().map(|b| format!("{b:02x}")).collect()
-}
 
 /// Manages user records and API keys for authentication.
 pub struct IdentityService {

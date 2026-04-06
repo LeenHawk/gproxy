@@ -2,6 +2,8 @@ use sea_orm::sea_query::OnConflict;
 use sea_orm::*;
 use time::OffsetDateTime;
 
+use gproxy_core::api_key_digest;
+
 use crate::seaorm::SeaOrmStorage;
 use crate::seaorm::entities::*;
 use crate::write::*;
@@ -314,11 +316,13 @@ impl SeaOrmStorage {
                 .iter()
                 .map(|k| {
                     let api_key = self.encrypt_string_for_write(&k.api_key);
+                    let api_key_digest = api_key_digest(&k.api_key);
                     let now = OffsetDateTime::now_utc();
                     user_keys::ActiveModel {
                         id: Set(k.id),
                         user_id: Set(k.user_id),
-                        api_key: Set(api_key),
+                        api_key_ciphertext: Set(api_key),
+                        api_key_digest: Set(api_key_digest),
                         label: Set(k.label.clone()),
                         enabled: Set(k.enabled),
                         created_at: Set(now),
@@ -331,7 +335,8 @@ impl SeaOrmStorage {
                     OnConflict::column(user_keys::Column::Id)
                         .update_columns([
                             user_keys::Column::UserId,
-                            user_keys::Column::ApiKey,
+                            user_keys::Column::ApiKeyCiphertext,
+                            user_keys::Column::ApiKeyDigest,
                             user_keys::Column::Label,
                             user_keys::Column::Enabled,
                             user_keys::Column::UpdatedAt,

@@ -1,5 +1,7 @@
 use sea_orm::*;
 
+use gproxy_core::api_key_digest;
+
 use crate::query::*;
 use crate::seaorm::SeaOrmStorage;
 use crate::seaorm::entities::*;
@@ -211,18 +213,31 @@ impl SeaOrmStorage {
         let mut select = user_keys::Entity::find();
         if let Scope::Eq(ref v) = query.id {
             select = select.filter(user_keys::Column::Id.eq(*v));
+        } else if let Scope::In(ref v) = query.id {
+            select = select.filter(user_keys::Column::Id.is_in(v.clone()));
         }
         if let Scope::Eq(ref v) = query.user_id {
             select = select.filter(user_keys::Column::UserId.eq(*v));
+        } else if let Scope::In(ref v) = query.user_id {
+            select = select.filter(user_keys::Column::UserId.is_in(v.clone()));
+        }
+        if let Scope::Eq(ref v) = query.api_key {
+            select = select.filter(user_keys::Column::ApiKeyDigest.eq(api_key_digest(v)));
+        } else if let Scope::In(ref v) = query.api_key {
+            select = select.filter(
+                user_keys::Column::ApiKeyDigest.is_in(v.iter().map(|key| api_key_digest(key))),
+            );
         }
         if let Scope::Eq(ref v) = query.enabled {
             select = select.filter(user_keys::Column::Enabled.eq(*v));
+        } else if let Scope::In(ref v) = query.enabled {
+            select = select.filter(user_keys::Column::Enabled.is_in(v.clone()));
         }
         let rows = select.all(&self.db).await?;
         Ok(rows
             .into_iter()
             .map(|r| {
-                let api_key = self.decrypt_string(&r.api_key);
+                let api_key = self.decrypt_string(&r.api_key_ciphertext);
                 UserKeyQueryRow {
                     id: r.id,
                     user_id: r.user_id,
@@ -239,7 +254,7 @@ impl SeaOrmStorage {
         Ok(rows
             .into_iter()
             .map(|r| {
-                let api_key = self.decrypt_string(&r.api_key);
+                let api_key = self.decrypt_string(&r.api_key_ciphertext);
                 UserKeyMemoryRow {
                     id: r.id,
                     user_id: r.user_id,
