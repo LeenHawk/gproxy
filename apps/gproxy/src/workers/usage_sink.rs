@@ -29,11 +29,7 @@ pub fn spawn_with_receiver(
     tokio::spawn(run(state, rx, shutdown));
 }
 
-async fn run(
-    state: Arc<AppState>,
-    mut rx: mpsc::Receiver<UsageWrite>,
-    mut shutdown: ShutdownRx,
-) {
+async fn run(state: Arc<AppState>, mut rx: mpsc::Receiver<UsageWrite>, mut shutdown: ShutdownRx) {
     let mut buffer: Vec<UsageWrite> = Vec::with_capacity(BATCH_SIZE);
 
     loop {

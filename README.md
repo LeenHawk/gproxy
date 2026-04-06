@@ -24,7 +24,9 @@ The full set of startup parameters and their corresponding environment variables
 | --- | --- | --- | --- |
 | `GPROXY_HOST` | `127.0.0.1` | No | Listen address. |
 | `GPROXY_PORT` | `8787` | No | Listen port. |
-| `GPROXY_ADMIN_KEY` | None; can be generated automatically on first cold start. | No | Admin API key. On first startup with no existing data, a UUID v7 is generated and written back to the database if not provided. |
+| `GPROXY_ADMIN_USER` | `admin` | No | Bootstrap admin username used when creating or reconciling the admin account. |
+| `GPROXY_ADMIN_PASSWORD` | None | No | Bootstrap admin password. On first startup, if an admin account must be created and no password is provided, one is generated and logged once. |
+| `GPROXY_ADMIN_API_KEY` | None | No | Bootstrap admin API key. On first startup, if an admin account must be created and no API key is provided, one is generated and logged once. |
 | `GPROXY_DSN` | If unset, `sqlite://<data_dir>/gproxy.db?mode=rwc` is generated automatically. | No | Database DSN. |
 | `GPROXY_PROXY` | None | No | Upstream HTTP proxy. |
 | `GPROXY_SPOOF` | `chrome_136` | No | TLS fingerprint emulation name. |
@@ -46,7 +48,6 @@ The TOML file pointed to by `GPROXY_CONFIG` is only used during initialization w
 [global]
 host = "0.0.0.0"
 port = 8787
-admin_key = "admin-secret"
 proxy = "http://127.0.0.1:7890"
 spoof_emulation = "chrome_136"
 update_source = "github"
@@ -116,6 +117,7 @@ Field Descriptions:
 - `[global]` covers global listen address, logging, update source, DSN, and data directory configuration.
 - `[[providers]]` defines a provider; `settings` and `credentials` are both JSON values read via `serde_json::Value`.
 - `[[models]]` / `[[model_aliases]]` define forwardable models and their aliases.
+- Admin access is represented by `[[users]]` entries with `is_admin = true` and at least one enabled `[[users.keys]]` entry. If the seed config does not define such an admin, startup can bootstrap one from `GPROXY_ADMIN_USER`, `GPROXY_ADMIN_PASSWORD`, and `GPROXY_ADMIN_API_KEY`.
 - The `password` field under `[[users]]` can be either plaintext or a direct Argon2 PHC hash.
 - `[[users.keys]]` is a nested array table representing the user's API key list.
 - `[[permissions]]`, `[[file_permissions]]`, `[[rate_limits]]`, and `[[quotas]]` correspond to model permissions, file permissions, rate limiting, and cost quotas respectively.

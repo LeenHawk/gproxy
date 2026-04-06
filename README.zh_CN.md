@@ -24,7 +24,9 @@ cargo build -p gproxy --release --features redis
 | --- | --- | --- | --- |
 | `GPROXY_HOST` | `127.0.0.1` | 否 | 监听地址。 |
 | `GPROXY_PORT` | `8787` | 否 | 监听端口。 |
-| `GPROXY_ADMIN_KEY` | 无；首次冷启动可自动生成。 | 否 | 管理员 API Key。首次启动且没有现成数据时，如未提供会生成一个 UUID v7 并写回数据库。 |
+| `GPROXY_ADMIN_USER` | `admin` | 否 | 创建或对齐 bootstrap 管理员账号时使用的用户名。 |
+| `GPROXY_ADMIN_PASSWORD` | 无 | 否 | bootstrap 管理员密码。首次启动需要创建管理员且未提供时，会自动生成并只在日志中输出一次。 |
+| `GPROXY_ADMIN_API_KEY` | 无 | 否 | bootstrap 管理员 API Key。首次启动需要创建管理员且未提供时，会自动生成并只在日志中输出一次。 |
 | `GPROXY_DSN` | 若未设置，则自动生成 `sqlite://<data_dir>/gproxy.db?mode=rwc`。 | 否 | 数据库连接串。 |
 | `GPROXY_PROXY` | 无 | 否 | 上游 HTTP 代理。 |
 | `GPROXY_SPOOF` | `chrome_136` | 否 | TLS 指纹模拟名称。 |
@@ -46,7 +48,6 @@ cargo build -p gproxy --release --features redis
 [global]
 host = "0.0.0.0"
 port = 8787
-admin_key = "admin-secret"
 proxy = "http://127.0.0.1:7890"
 spoof_emulation = "chrome_136"
 update_source = "github"
@@ -116,6 +117,7 @@ cost_used = 0.0
 - `[global]` 对应全局监听、日志、更新源、DSN 和数据目录配置。
 - `[[providers]]` 定义 Provider；`settings` 与 `credentials` 都是 JSON 值，经 `serde_json::Value` 读取。
 - `[[models]]` / `[[model_aliases]]` 定义可转发模型和别名。
+- 管理员身份通过 `[[users]]` 中 `is_admin = true` 且至少有一个启用中的 `[[users.keys]]` 来表示。如果 seed 配置里没有这样的管理员，启动时可以用 `GPROXY_ADMIN_USER`、`GPROXY_ADMIN_PASSWORD`、`GPROXY_ADMIN_API_KEY` 自动补一个 bootstrap 管理员。
 - `[[users]]` 下的 `password` 既可以是明文，也可以直接是 Argon2 PHC hash。
 - `[[users.keys]]` 是嵌套数组表，表示该用户的 API Key 列表。
 - `[[permissions]]`、`[[file_permissions]]`、`[[rate_limits]]`、`[[quotas]]` 分别对应模型权限、文件权限、限流和成本配额。

@@ -2,16 +2,18 @@
 
 ### Authentication Conventions
 
-- Admin routes use the admin API key.
-- User routes, Provider HTTP routes, and Provider WebSocket routes use a user API key.
-- API keys may be sent in any of these headers: `Authorization: Bearer <key>`, `x-api-key`, or `x-goog-api-key`.
+- Admin routes accept either an admin session token from `/admin/login` or an API key owned by an admin user.
+- User routes under `/user/*` accept a non-admin session token from `/login`.
+- Provider HTTP routes and Provider WebSocket routes use a user API key.
+- Session tokens and API keys may be sent in any of these headers: `Authorization: Bearer <token>`, `x-api-key`, or `x-goog-api-key`.
 - Regular HTTP routes accept request bodies up to 50 MiB, while file routes accept bodies up to 500 MiB.
 
 ### Login
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/login` | None | Logs in with username and password; after successful password validation, returns the first enabled API key for that user. |
+| POST | `/login` | None | Logs in a non-admin user with username and password and returns a user session token. |
+| POST | `/admin/login` | None | Logs in an admin user with username and password and returns an admin session token. |
 
 ### Admin API
 
@@ -19,126 +21,126 @@
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/admin/health` | Admin API Key | Returns service status, provider count, user count, and a timestamp. |
-| POST | `/admin/reload` | Admin API Key | Reloads all in-memory caches from the database. |
-| GET | `/admin/global-settings` | Admin API Key | Reads the current global configuration. |
-| POST | `/admin/global-settings/upsert` | Admin API Key | Updates the global configuration; if the DSN changes, the process reconnects to the database and bootstraps again. |
+| GET | `/admin/health` | Admin Session or Admin User API Key | Returns service status, provider count, user count, and a timestamp. |
+| POST | `/admin/reload` | Admin Session or Admin User API Key | Reloads all in-memory caches from the database. |
+| GET | `/admin/global-settings` | Admin Session or Admin User API Key | Reads the current global configuration. |
+| POST | `/admin/global-settings/upsert` | Admin Session or Admin User API Key | Updates the global configuration; if the DSN changes, the process reconnects to the database and bootstraps again. |
 
 #### Providers
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/providers/query` | Admin API Key | Queries providers. |
-| POST | `/admin/providers/upsert` | Admin API Key | Adds or updates one provider. |
-| POST | `/admin/providers/delete` | Admin API Key | Deletes one provider. |
-| POST | `/admin/providers/batch-upsert` | Admin API Key | Adds or updates providers in batch. |
-| POST | `/admin/providers/batch-delete` | Admin API Key | Deletes providers in batch. |
+| POST | `/admin/providers/query` | Admin Session or Admin User API Key | Queries providers. |
+| POST | `/admin/providers/upsert` | Admin Session or Admin User API Key | Adds or updates one provider. |
+| POST | `/admin/providers/delete` | Admin Session or Admin User API Key | Deletes one provider. |
+| POST | `/admin/providers/batch-upsert` | Admin Session or Admin User API Key | Adds or updates providers in batch. |
+| POST | `/admin/providers/batch-delete` | Admin Session or Admin User API Key | Deletes providers in batch. |
 
 #### Credentials
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/credentials/query` | Admin API Key | Queries provider credentials. |
-| POST | `/admin/credentials/upsert` | Admin API Key | Adds or updates one credential. |
-| POST | `/admin/credentials/delete` | Admin API Key | Deletes one credential. |
-| POST | `/admin/credentials/batch-upsert` | Admin API Key | Adds or updates credentials in batch. |
-| POST | `/admin/credentials/batch-delete` | Admin API Key | Deletes credentials in batch. |
-| POST | `/admin/credential-statuses/query` | Admin API Key | Queries credential health statuses. |
-| POST | `/admin/credential-statuses/update` | Admin API Key | Updates credential health status manually. |
+| POST | `/admin/credentials/query` | Admin Session or Admin User API Key | Queries provider credentials. |
+| POST | `/admin/credentials/upsert` | Admin Session or Admin User API Key | Adds or updates one credential. |
+| POST | `/admin/credentials/delete` | Admin Session or Admin User API Key | Deletes one credential. |
+| POST | `/admin/credentials/batch-upsert` | Admin Session or Admin User API Key | Adds or updates credentials in batch. |
+| POST | `/admin/credentials/batch-delete` | Admin Session or Admin User API Key | Deletes credentials in batch. |
+| POST | `/admin/credential-statuses/query` | Admin Session or Admin User API Key | Queries credential health statuses. |
+| POST | `/admin/credential-statuses/update` | Admin Session or Admin User API Key | Updates credential health status manually. |
 
 #### Models and Aliases
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/models/query` | Admin API Key | Queries models. |
-| POST | `/admin/models/upsert` | Admin API Key | Adds or updates one model. |
-| POST | `/admin/models/delete` | Admin API Key | Deletes one model. |
-| POST | `/admin/models/batch-upsert` | Admin API Key | Adds or updates models in batch. |
-| POST | `/admin/models/batch-delete` | Admin API Key | Deletes models in batch. |
-| POST | `/admin/model-aliases/query` | Admin API Key | Queries model aliases. |
-| POST | `/admin/model-aliases/upsert` | Admin API Key | Adds or updates one model alias. |
-| POST | `/admin/model-aliases/delete` | Admin API Key | Deletes one model alias. |
-| POST | `/admin/model-aliases/batch-upsert` | Admin API Key | Adds or updates model aliases in batch. |
-| POST | `/admin/model-aliases/batch-delete` | Admin API Key | Deletes model aliases in batch. |
+| POST | `/admin/models/query` | Admin Session or Admin User API Key | Queries models. |
+| POST | `/admin/models/upsert` | Admin Session or Admin User API Key | Adds or updates one model. |
+| POST | `/admin/models/delete` | Admin Session or Admin User API Key | Deletes one model. |
+| POST | `/admin/models/batch-upsert` | Admin Session or Admin User API Key | Adds or updates models in batch. |
+| POST | `/admin/models/batch-delete` | Admin Session or Admin User API Key | Deletes models in batch. |
+| POST | `/admin/model-aliases/query` | Admin Session or Admin User API Key | Queries model aliases. |
+| POST | `/admin/model-aliases/upsert` | Admin Session or Admin User API Key | Adds or updates one model alias. |
+| POST | `/admin/model-aliases/delete` | Admin Session or Admin User API Key | Deletes one model alias. |
+| POST | `/admin/model-aliases/batch-upsert` | Admin Session or Admin User API Key | Adds or updates model aliases in batch. |
+| POST | `/admin/model-aliases/batch-delete` | Admin Session or Admin User API Key | Deletes model aliases in batch. |
 
 #### Users and Keys
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/users/query` | Admin API Key | Queries users. |
-| POST | `/admin/users/upsert` | Admin API Key | Adds or updates one user. |
-| POST | `/admin/users/delete` | Admin API Key | Deletes one user. |
-| POST | `/admin/users/batch-upsert` | Admin API Key | Adds or updates users in batch. |
-| POST | `/admin/users/batch-delete` | Admin API Key | Deletes users in batch. |
-| POST | `/admin/user-keys/query` | Admin API Key | Queries user API keys. |
-| POST | `/admin/user-keys/generate` | Admin API Key | Generates a new API key for the specified user. |
-| POST | `/admin/user-keys/delete` | Admin API Key | Deletes one user API key. |
-| POST | `/admin/user-keys/batch-upsert` | Admin API Key | Adds or updates user API keys in batch. |
-| POST | `/admin/user-keys/batch-delete` | Admin API Key | Deletes user API keys in batch. |
+| POST | `/admin/users/query` | Admin Session or Admin User API Key | Queries users. |
+| POST | `/admin/users/upsert` | Admin Session or Admin User API Key | Adds or updates one user. |
+| POST | `/admin/users/delete` | Admin Session or Admin User API Key | Deletes one user. |
+| POST | `/admin/users/batch-upsert` | Admin Session or Admin User API Key | Adds or updates users in batch. |
+| POST | `/admin/users/batch-delete` | Admin Session or Admin User API Key | Deletes users in batch. |
+| POST | `/admin/user-keys/query` | Admin Session or Admin User API Key | Queries user API keys. |
+| POST | `/admin/user-keys/generate` | Admin Session or Admin User API Key | Generates a new API key for the specified user. |
+| POST | `/admin/user-keys/delete` | Admin Session or Admin User API Key | Deletes one user API key. |
+| POST | `/admin/user-keys/batch-upsert` | Admin Session or Admin User API Key | Adds or updates user API keys in batch. |
+| POST | `/admin/user-keys/batch-delete` | Admin Session or Admin User API Key | Deletes user API keys in batch. |
 
 #### Permissions
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/user-permissions/query` | Admin API Key | Queries user model permissions. |
-| POST | `/admin/user-permissions/upsert` | Admin API Key | Adds or updates one model permission. |
-| POST | `/admin/user-permissions/delete` | Admin API Key | Deletes one model permission. |
-| POST | `/admin/user-permissions/batch-upsert` | Admin API Key | Adds or updates model permissions in batch. |
-| POST | `/admin/user-permissions/batch-delete` | Admin API Key | Deletes model permissions in batch. |
+| POST | `/admin/user-permissions/query` | Admin Session or Admin User API Key | Queries user model permissions. |
+| POST | `/admin/user-permissions/upsert` | Admin Session or Admin User API Key | Adds or updates one model permission. |
+| POST | `/admin/user-permissions/delete` | Admin Session or Admin User API Key | Deletes one model permission. |
+| POST | `/admin/user-permissions/batch-upsert` | Admin Session or Admin User API Key | Adds or updates model permissions in batch. |
+| POST | `/admin/user-permissions/batch-delete` | Admin Session or Admin User API Key | Deletes model permissions in batch. |
 
 #### File Permissions
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/user-file-permissions/query` | Admin API Key | Queries user file permissions. |
-| POST | `/admin/user-file-permissions/upsert` | Admin API Key | Adds or updates one file permission. |
-| POST | `/admin/user-file-permissions/delete` | Admin API Key | Deletes one file permission. |
-| POST | `/admin/user-file-permissions/batch-upsert` | Admin API Key | Adds or updates file permissions in batch. |
-| POST | `/admin/user-file-permissions/batch-delete` | Admin API Key | Deletes file permissions in batch. |
+| POST | `/admin/user-file-permissions/query` | Admin Session or Admin User API Key | Queries user file permissions. |
+| POST | `/admin/user-file-permissions/upsert` | Admin Session or Admin User API Key | Adds or updates one file permission. |
+| POST | `/admin/user-file-permissions/delete` | Admin Session or Admin User API Key | Deletes one file permission. |
+| POST | `/admin/user-file-permissions/batch-upsert` | Admin Session or Admin User API Key | Adds or updates file permissions in batch. |
+| POST | `/admin/user-file-permissions/batch-delete` | Admin Session or Admin User API Key | Deletes file permissions in batch. |
 
 #### Rate Limits
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/user-rate-limits/query` | Admin API Key | Queries user rate-limit rules. |
-| POST | `/admin/user-rate-limits/upsert` | Admin API Key | Adds or updates one rate-limit rule. |
-| POST | `/admin/user-rate-limits/delete` | Admin API Key | Deletes one rate-limit rule. |
-| POST | `/admin/user-rate-limits/batch-upsert` | Admin API Key | Adds or updates rate-limit rules in batch. |
-| POST | `/admin/user-rate-limits/batch-delete` | Admin API Key | Deletes rate-limit rules in batch. |
+| POST | `/admin/user-rate-limits/query` | Admin Session or Admin User API Key | Queries user rate-limit rules. |
+| POST | `/admin/user-rate-limits/upsert` | Admin Session or Admin User API Key | Adds or updates one rate-limit rule. |
+| POST | `/admin/user-rate-limits/delete` | Admin Session or Admin User API Key | Deletes one rate-limit rule. |
+| POST | `/admin/user-rate-limits/batch-upsert` | Admin Session or Admin User API Key | Adds or updates rate-limit rules in batch. |
+| POST | `/admin/user-rate-limits/batch-delete` | Admin Session or Admin User API Key | Deletes rate-limit rules in batch. |
 
 #### Requests
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/requests/upstream/query` | Admin API Key | Queries upstream request logs. |
-| POST | `/admin/requests/upstream/count` | Admin API Key | Counts upstream request logs. |
-| POST | `/admin/requests/upstream/delete` | Admin API Key | Deletes one upstream request log or deletes by condition. |
-| POST | `/admin/requests/upstream/batch-delete` | Admin API Key | Deletes upstream request logs in batch. |
-| POST | `/admin/requests/downstream/query` | Admin API Key | Queries downstream request logs. |
-| POST | `/admin/requests/downstream/count` | Admin API Key | Counts downstream request logs. |
-| POST | `/admin/requests/downstream/delete` | Admin API Key | Deletes one downstream request log or deletes by condition. |
-| POST | `/admin/requests/downstream/batch-delete` | Admin API Key | Deletes downstream request logs in batch. |
+| POST | `/admin/requests/upstream/query` | Admin Session or Admin User API Key | Queries upstream request logs. |
+| POST | `/admin/requests/upstream/count` | Admin Session or Admin User API Key | Counts upstream request logs. |
+| POST | `/admin/requests/upstream/delete` | Admin Session or Admin User API Key | Deletes one upstream request log or deletes by condition. |
+| POST | `/admin/requests/upstream/batch-delete` | Admin Session or Admin User API Key | Deletes upstream request logs in batch. |
+| POST | `/admin/requests/downstream/query` | Admin Session or Admin User API Key | Queries downstream request logs. |
+| POST | `/admin/requests/downstream/count` | Admin Session or Admin User API Key | Counts downstream request logs. |
+| POST | `/admin/requests/downstream/delete` | Admin Session or Admin User API Key | Deletes one downstream request log or deletes by condition. |
+| POST | `/admin/requests/downstream/batch-delete` | Admin Session or Admin User API Key | Deletes downstream request logs in batch. |
 
 #### Usages
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/usages/query` | Admin API Key | Queries usage records. |
-| POST | `/admin/usages/count` | Admin API Key | Counts usage records. |
-| POST | `/admin/usages/batch-delete` | Admin API Key | Deletes usage records in batch. |
+| POST | `/admin/usages/query` | Admin Session or Admin User API Key | Queries usage records. |
+| POST | `/admin/usages/count` | Admin Session or Admin User API Key | Counts usage records. |
+| POST | `/admin/usages/batch-delete` | Admin Session or Admin User API Key | Deletes usage records in batch. |
 
 #### Config
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/config/export-toml` | Admin API Key | Exports the current in-memory and configuration state as TOML. |
+| POST | `/admin/config/export-toml` | Admin Session or Admin User API Key | Exports the current in-memory and configuration state as TOML. |
 
 #### Update
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/admin/update/check` | Admin API Key | Checks for a new version and returns the download URL. |
-| POST | `/admin/update` | Admin API Key | Downloads, verifies, and replaces the current executable, then schedules a restart. |
+| POST | `/admin/update/check` | Admin Session or Admin User API Key | Checks for a new version and returns the download URL. |
+| POST | `/admin/update` | Admin Session or Admin User API Key | Downloads, verifies, and replaces the current executable, then schedules a restart. |
 
 ### User API
 
@@ -146,21 +148,21 @@
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/user/keys/query` | User API Key | Queries API keys owned by the current user. |
-| POST | `/user/keys/generate` | User API Key | Generates a new API key for the current user. |
+| POST | `/user/keys/query` | User Session Token | Queries API keys owned by the current user. |
+| POST | `/user/keys/generate` | User Session Token | Generates a new API key for the current user. |
 
 #### Quota
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/user/quota` | User API Key | Returns the current user's total quota, used cost, and remaining budget. |
+| GET | `/user/quota` | User Session Token | Returns the current user's total quota, used cost, and remaining budget. |
 
 #### Usages
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/user/usages/query` | User API Key | Queries usage records for the current user. |
-| POST | `/user/usages/count` | User API Key | Counts usage records for the current user. |
+| POST | `/user/usages/query` | User Session Token | Queries usage records for the current user. |
+| POST | `/user/usages/count` | User Session Token | Counts usage records for the current user. |
 
 ### Provider HTTP API
 
@@ -231,10 +233,10 @@ File routes come in scoped and unscoped variants. Scoped routes select the provi
 
 ### Provider Admin API
 
-These routes do not use the `/admin` prefix, but they still require the admin API key.
+These routes do not use the `/admin` prefix, but they still require an admin session token or an API key owned by an admin user.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/{provider}/v1/oauth` | Admin API Key | Starts the OAuth flow for the specified provider. |
-| GET | `/{provider}/v1/oauth/callback` | Admin API Key | Handles the OAuth callback for the specified provider. |
-| GET | `/{provider}/v1/usage` | Admin API Key | Queries upstream usage or quota information for the specified provider. |
+| GET | `/{provider}/v1/oauth` | Admin Session or Admin User API Key | Starts the OAuth flow for the specified provider. |
+| GET | `/{provider}/v1/oauth/callback` | Admin Session or Admin User API Key | Handles the OAuth callback for the specified provider. |
+| GET | `/{provider}/v1/usage` | Admin Session or Admin User API Key | Queries upstream usage or quota information for the specified provider. |
