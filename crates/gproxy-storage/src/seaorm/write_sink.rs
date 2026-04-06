@@ -93,13 +93,11 @@ impl SeaOrmStorage {
 
         // Global settings
         if let Some(gs) = batch.global_settings {
-            let admin_key = self.encrypt_string_for_write(&gs.admin_key);
             let now = OffsetDateTime::now_utc();
             let model = global_settings::ActiveModel {
                 id: Set(1),
                 host: Set(gs.host),
                 port: Set(gs.port as i32),
-                admin_key: Set(admin_key),
                 proxy: Set(gs.proxy),
                 spoof_emulation: Set(Some(gs.spoof_emulation)),
                 update_source: Set(Some(gs.update_source)),
@@ -118,7 +116,6 @@ impl SeaOrmStorage {
                         .update_columns([
                             global_settings::Column::Host,
                             global_settings::Column::Port,
-                            global_settings::Column::AdminKey,
                             global_settings::Column::Proxy,
                             global_settings::Column::SpoofEmulation,
                             global_settings::Column::UpdateSource,
@@ -284,6 +281,7 @@ impl SeaOrmStorage {
                         name: Set(u.name.clone()),
                         password: Set(Some(password)),
                         enabled: Set(u.enabled),
+                        is_admin: Set(u.is_admin),
                         created_at: Set(now),
                         updated_at: Set(now),
                     }
@@ -296,6 +294,7 @@ impl SeaOrmStorage {
                             users::Column::Name,
                             users::Column::Password,
                             users::Column::Enabled,
+                            users::Column::IsAdmin,
                             users::Column::UpdatedAt,
                         ])
                         .to_owned(),

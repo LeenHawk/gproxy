@@ -6,7 +6,7 @@ use arc_swap::ArcSwap;
 
 use crate::types::GlobalConfig;
 
-/// Manages server-wide configuration (host, port, admin_key, logging flags, etc.).
+/// Manages server-wide configuration (host, port, proxy, logging flags, etc.).
 pub struct ConfigService {
     config: ArcSwap<GlobalConfig>,
 }

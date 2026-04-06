@@ -2337,7 +2337,6 @@ mod tests {
             .engine(engine)
             .storage(storage)
             .config(GlobalConfig {
-                admin_key: "admin-key".to_string(),
                 dsn: "sqlite::memory:".to_string(),
                 ..GlobalConfig::default()
             })
@@ -2345,6 +2344,7 @@ mod tests {
                 id: 1,
                 name: "alice".to_string(),
                 enabled: true,
+                is_admin: false,
                 password_hash: "hash".to_string(),
             }])
             .keys(vec![MemoryUserKey {

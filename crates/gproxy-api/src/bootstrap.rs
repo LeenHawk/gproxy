@@ -1,6 +1,7 @@
 //! Bootstrap logic shared by the startup path and admin reload endpoint.
 
 use std::collections::HashMap;
+use std::io::Error as IoError;
 
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
@@ -31,6 +32,19 @@ pub struct ReloadCounts {
     pub quotas: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct BootstrapAdmin {
+    pub username: String,
+    pub password: Option<String>,
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BootstrapAdminOutcome {
+    pub generated_password: Option<String>,
+    pub generated_api_key: Option<String>,
+}
+
 struct SeedProviderRuntimeState {
     provider_configs: Vec<ProviderConfig>,
     provider_name_to_id: HashMap<String, i64>,
@@ -45,6 +59,146 @@ fn synthetic_provider_id(index: usize) -> i64 {
 
 fn synthetic_credential_id(provider_id: i64, index: usize) -> i64 {
     provider_id * 1000 + index as i64
+}
+
+pub fn config_has_enabled_admin_with_key(config: &GproxyToml) -> bool {
+    config
+        .users
+        .iter()
+        .any(|user| user.enabled && user.is_admin && user.keys.iter().any(|key| key.enabled))
+}
+
+fn next_user_id(state: &AppState) -> i64 {
+    state
+        .users_snapshot()
+        .iter()
+        .map(|user| user.id)
+        .max()
+        .unwrap_or(0)
+        + 1
+}
+
+fn next_user_key_id(state: &AppState) -> i64 {
+    state
+        .keys_snapshot()
+        .values()
+        .map(|key| key.id)
+        .max()
+        .unwrap_or(0)
+        + 1
+}
+
+pub async fn reconcile_bootstrap_admin(
+    state: &AppState,
+    admin: &BootstrapAdmin,
+    generate_missing: bool,
+) -> Result<BootstrapAdminOutcome, Box<dyn std::error::Error + Send + Sync>> {
+    let existing_user = state
+        .users_snapshot()
+        .iter()
+        .find(|user| user.name == admin.username)
+        .cloned();
+    let user_id = existing_user
+        .as_ref()
+        .map(|user| user.id)
+        .unwrap_or_else(|| next_user_id(state));
+
+    let mut outcome = BootstrapAdminOutcome::default();
+    let password_input = if let Some(password) = admin.password.clone() {
+        password
+    } else if let Some(user) = &existing_user {
+        user.password_hash.clone()
+    } else if generate_missing {
+        let generated = uuid::Uuid::now_v7().to_string();
+        outcome.generated_password = Some(generated.clone());
+        generated
+    } else {
+        return Err(IoError::other(format!(
+            "bootstrap admin '{}' requires a password override or an existing stored password",
+            admin.username
+        ))
+        .into());
+    };
+    let password_hash = crate::login::normalize_password_for_storage(&password_input);
+
+    state
+        .storage()
+        .upsert_user(gproxy_storage::UserWrite {
+            id: user_id,
+            name: admin.username.clone(),
+            password: password_hash.clone(),
+            enabled: true,
+            is_admin: true,
+        })
+        .await?;
+    state.upsert_user_in_memory(MemoryUser {
+        id: user_id,
+        name: admin.username.clone(),
+        enabled: true,
+        is_admin: true,
+        password_hash: password_hash.clone(),
+    });
+
+    let existing_user_keys = state.keys_for_user(user_id);
+    let (key_id, api_key, label) = if let Some(api_key) = admin.api_key.clone() {
+        if let Some(existing_key) = state.authenticate_api_key(&api_key) {
+            if existing_key.user_id != user_id {
+                return Err(IoError::other(format!(
+                    "bootstrap admin API key '{}' is already owned by another user",
+                    api_key
+                ))
+                .into());
+            }
+            (existing_key.id, api_key, existing_key.label)
+        } else {
+            (
+                next_user_key_id(state),
+                api_key,
+                Some("bootstrap-admin".to_string()),
+            )
+        }
+    } else if let Some(existing_key) = existing_user_keys
+        .iter()
+        .find(|key| key.enabled)
+        .cloned()
+        .or_else(|| existing_user_keys.first().cloned())
+    {
+        (existing_key.id, existing_key.api_key, existing_key.label)
+    } else if generate_missing {
+        let generated = crate::admin::users::generate_unique_api_key_for(state);
+        outcome.generated_api_key = Some(generated.clone());
+        (
+            next_user_key_id(state),
+            generated,
+            Some("bootstrap-admin".to_string()),
+        )
+    } else {
+        return Err(IoError::other(format!(
+            "bootstrap admin '{}' requires an API key override or an existing stored API key",
+            admin.username
+        ))
+        .into());
+    };
+
+    state
+        .storage()
+        .upsert_user_key(gproxy_storage::UserKeyWrite {
+            id: key_id,
+            user_id,
+            api_key: api_key.clone(),
+            label: label.clone(),
+            enabled: true,
+        })
+        .await?;
+    state.upsert_key_in_memory(MemoryUserKey {
+        id: key_id,
+        user_id,
+        api_key,
+        label,
+        enabled: true,
+    });
+
+    Ok(outcome)
 }
 
 fn collect_valid_toml_provider_credentials(
@@ -194,7 +348,6 @@ pub async fn reload_from_db(
         .map(|settings| GlobalConfig {
             host: settings.host,
             port: settings.port as u16,
-            admin_key: settings.admin_key,
             proxy: settings.proxy,
             spoof_emulation: settings.spoof_emulation.unwrap_or_default(),
             update_source: settings.update_source.unwrap_or_default(),
@@ -349,6 +502,7 @@ pub async fn reload_from_db(
             id: user.id,
             name: user.name.clone(),
             enabled: user.enabled,
+            is_admin: user.is_admin,
             password_hash: user.password.clone(),
         })
         .collect();
@@ -533,7 +687,15 @@ pub async fn reload_from_db(
 pub async fn seed_from_toml(
     state: &AppState,
     toml_str: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<BootstrapAdminOutcome, Box<dyn std::error::Error + Send + Sync>> {
+    seed_from_toml_with_bootstrap(state, toml_str, None).await
+}
+
+pub async fn seed_from_toml_with_bootstrap(
+    state: &AppState,
+    toml_str: &str,
+    bootstrap_admin: Option<&BootstrapAdmin>,
+) -> Result<BootstrapAdminOutcome, Box<dyn std::error::Error + Send + Sync>> {
     let config: GproxyToml = toml::from_str(toml_str)?;
 
     // 1. Global settings → memory + DB
@@ -541,7 +703,6 @@ pub async fn seed_from_toml(
         let gc = GlobalConfig {
             host: gs.host.clone(),
             port: gs.port,
-            admin_key: gs.admin_key.clone(),
             proxy: gs.proxy.clone(),
             spoof_emulation: gs.spoof_emulation.clone(),
             update_source: gs.update_source.clone(),
@@ -558,7 +719,6 @@ pub async fn seed_from_toml(
             .upsert_global_settings(gproxy_storage::GlobalSettingsWrite {
                 host: gc.host.clone(),
                 port: gc.port,
-                admin_key: gc.admin_key.clone(),
                 proxy: gc.proxy.clone(),
                 spoof_emulation: gc.spoof_emulation.clone(),
                 update_source: gc.update_source.clone(),
@@ -579,7 +739,6 @@ pub async fn seed_from_toml(
             .upsert_global_settings(gproxy_storage::GlobalSettingsWrite {
                 host: cfg.host.clone(),
                 port: cfg.port,
-                admin_key: cfg.admin_key.clone(),
                 proxy: cfg.proxy.clone(),
                 spoof_emulation: cfg.spoof_emulation.clone(),
                 update_source: cfg.update_source.clone(),
@@ -653,25 +812,18 @@ pub async fn seed_from_toml(
                 name: u.name.clone(),
                 password: hashed_password.clone(),
                 enabled: u.enabled,
+                is_admin: u.is_admin,
             })
             .await?;
         state.upsert_user_in_memory(MemoryUser {
             id: user_id,
             name: u.name.clone(),
             enabled: u.enabled,
+            is_admin: u.is_admin,
             password_hash: hashed_password.clone(),
         });
         for (j, key) in u.keys.iter().enumerate() {
             let key_id = user_id * 1000 + j as i64;
-            // Validate key doesn't collide with admin_key
-            let admin_key = state.config().admin_key.clone();
-            if key.api_key == admin_key {
-                tracing::warn!(
-                    user = %u.name,
-                    "TOML key matches admin_key — skipping to prevent identity ambiguity"
-                );
-                continue;
-            }
             // Check for duplicate keys across users
             if state.authenticate_api_key(&key.api_key).is_some() {
                 tracing::warn!(
@@ -699,6 +851,12 @@ pub async fn seed_from_toml(
             });
         }
     }
+
+    let outcome = if let Some(bootstrap_admin) = bootstrap_admin {
+        reconcile_bootstrap_admin(state, bootstrap_admin, true).await?
+    } else {
+        BootstrapAdminOutcome::default()
+    };
 
     // 4. Models → memory + DB
     let models: Vec<MemoryModel> = config
@@ -886,20 +1044,20 @@ pub async fn seed_from_toml(
     }
     state.replace_user_quotas(quota_map);
 
-    Ok(())
+    Ok(outcome)
 }
 
 /// Seed the database with minimal defaults (global_settings only).
 pub async fn seed_defaults(
     state: &AppState,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    bootstrap_admin: &BootstrapAdmin,
+) -> Result<BootstrapAdminOutcome, Box<dyn std::error::Error + Send + Sync>> {
     let cfg = state.config().clone();
     state
         .storage()
         .upsert_global_settings(gproxy_storage::GlobalSettingsWrite {
             host: cfg.host.clone(),
             port: cfg.port,
-            admin_key: cfg.admin_key.clone(),
             proxy: cfg.proxy.clone(),
             spoof_emulation: cfg.spoof_emulation.clone(),
             update_source: cfg.update_source.clone(),
@@ -912,7 +1070,8 @@ pub async fn seed_defaults(
             data_dir: cfg.data_dir.clone(),
         })
         .await?;
-    Ok(())
+
+    reconcile_bootstrap_admin(state, bootstrap_admin, true).await
 }
 
 #[cfg(test)]
@@ -922,10 +1081,15 @@ mod tests {
     use sea_orm::ConnectionTrait;
     use serde_json::json;
 
-    use super::{build_seed_provider_runtime_state, reload_from_db};
-    use crate::admin::config_toml::ProviderToml;
+    use super::{
+        BootstrapAdmin, build_seed_provider_runtime_state, config_has_enabled_admin_with_key,
+        reconcile_bootstrap_admin, reload_from_db, seed_from_toml_with_bootstrap,
+    };
+    use crate::admin::config_toml::{GproxyToml, ProviderToml, UserKeyToml, UserToml};
     use gproxy_server::{AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey};
-    use gproxy_storage::{GlobalSettingsWrite, SeaOrmStorage, SettingsRepository, UserRepository};
+    use gproxy_storage::{
+        GlobalSettingsWrite, Scope, SeaOrmStorage, SettingsRepository, UserKeyQuery, UserRepository,
+    };
 
     #[test]
     fn seed_provider_runtime_matches_reload_shape() {
@@ -1014,7 +1178,6 @@ mod tests {
             .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
             .storage(storage.clone())
             .config(GlobalConfig {
-                admin_key: "memory-admin".to_string(),
                 dsn: "sqlite::memory:".to_string(),
                 ..GlobalConfig::default()
             })
@@ -1022,6 +1185,7 @@ mod tests {
                 id: 9,
                 name: "memory-user".to_string(),
                 enabled: true,
+                is_admin: true,
                 password_hash: "memory-hash".to_string(),
             }])
             .keys(vec![MemoryUserKey {
@@ -1040,7 +1204,6 @@ mod tests {
                 proxy: Some("http://db-proxy".to_string()),
                 spoof_emulation: "chrome_136".to_string(),
                 update_source: "github".to_string(),
-                admin_key: "db-admin".to_string(),
                 enable_usage: false,
                 enable_upstream_log: true,
                 enable_upstream_log_body: true,
@@ -1057,6 +1220,7 @@ mod tests {
                 name: "db-user".to_string(),
                 password: "db-password".to_string(),
                 enabled: false,
+                is_admin: false,
             })
             .await
             .expect("seed db user");
@@ -1071,17 +1235,291 @@ mod tests {
             .await
             .expect_err("reload should fail after the late table drop");
 
-        assert_eq!(state.config().admin_key, "memory-admin");
+        assert_eq!(state.config().dsn, "sqlite::memory:");
         assert_eq!(state.config().proxy, None);
 
         let users = state.users_snapshot();
         assert_eq!(users.len(), 1);
         assert_eq!(users[0].id, 9);
         assert_eq!(users[0].name, "memory-user");
+        assert!(users[0].is_admin);
 
         let keys = state.keys_for_user(9);
         assert_eq!(keys.len(), 1);
         assert_eq!(keys[0].id, 99);
         assert_eq!(keys[0].api_key, "memory-key");
+    }
+
+    #[tokio::test]
+    async fn seed_defaults_creates_real_admin_user_and_key() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+
+        let state = AppStateBuilder::new()
+            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .storage(storage.clone())
+            .config(GlobalConfig {
+                dsn: "sqlite::memory:".to_string(),
+                ..GlobalConfig::default()
+            })
+            .build();
+
+        super::seed_defaults(
+            &state,
+            &BootstrapAdmin {
+                username: "admin".to_string(),
+                password: Some("secret-password".to_string()),
+                api_key: Some("sk-admin".to_string()),
+            },
+        )
+        .await
+        .expect("seed defaults");
+
+        let users = storage
+            .list_users(&gproxy_storage::UserQuery::default())
+            .await
+            .expect("query users");
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].name, "admin");
+        assert!(users[0].enabled);
+        assert!(users[0].is_admin);
+
+        let keys = storage
+            .list_user_keys(&UserKeyQuery {
+                user_id: Scope::Eq(users[0].id),
+                ..Default::default()
+            })
+            .await
+            .expect("query user keys");
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].api_key, "sk-admin");
+        assert!(keys[0].enabled);
+    }
+
+    #[tokio::test]
+    async fn seed_from_toml_bootstraps_admin_when_toml_has_no_admin_user() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+
+        let state = AppStateBuilder::new()
+            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .storage(storage.clone())
+            .config(GlobalConfig {
+                dsn: "sqlite://data/gproxy.db?mode=rwc".to_string(),
+                data_dir: "./data".to_string(),
+                ..GlobalConfig::default()
+            })
+            .build();
+
+        let toml_str = r#"
+[global]
+host = "127.0.0.1"
+port = 8787
+dsn = "sqlite://data/gproxy.db?mode=rwc"
+data_dir = "./data"
+
+[[users]]
+name = "alice"
+password = "alice-password"
+enabled = true
+"#;
+
+        seed_from_toml_with_bootstrap(
+            &state,
+            toml_str,
+            Some(&BootstrapAdmin {
+                username: "admin".to_string(),
+                password: Some("bootstrap-password".to_string()),
+                api_key: Some("sk-bootstrap-admin".to_string()),
+            }),
+        )
+        .await
+        .expect("seed from toml");
+
+        let users = storage
+            .list_users(&gproxy_storage::UserQuery::default())
+            .await
+            .expect("query users");
+        assert_eq!(users.len(), 2);
+        assert!(
+            users
+                .iter()
+                .any(|user| user.name == "admin" && user.is_admin)
+        );
+
+        let admin = users
+            .iter()
+            .find(|user| user.name == "admin")
+            .expect("admin user");
+        let keys = storage
+            .list_user_keys(&UserKeyQuery {
+                user_id: Scope::Eq(admin.id),
+                ..Default::default()
+            })
+            .await
+            .expect("query user keys");
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].api_key, "sk-bootstrap-admin");
+    }
+
+    #[test]
+    fn config_has_enabled_admin_with_key_matches_expected_shape() {
+        let config = GproxyToml {
+            global: None,
+            providers: Vec::new(),
+            models: Vec::new(),
+            model_aliases: Vec::new(),
+            users: vec![
+                UserToml {
+                    name: "alice".to_string(),
+                    password: "pw".to_string(),
+                    enabled: true,
+                    is_admin: false,
+                    keys: vec![],
+                },
+                UserToml {
+                    name: "admin".to_string(),
+                    password: "pw".to_string(),
+                    enabled: true,
+                    is_admin: true,
+                    keys: vec![UserKeyToml {
+                        api_key: "sk-admin".to_string(),
+                        label: None,
+                        enabled: true,
+                    }],
+                },
+            ],
+            permissions: Vec::new(),
+            file_permissions: Vec::new(),
+            rate_limits: Vec::new(),
+            quotas: Vec::new(),
+        };
+
+        assert!(config_has_enabled_admin_with_key(&config));
+    }
+
+    #[tokio::test]
+    async fn reconcile_bootstrap_admin_overwrites_named_user_and_preserves_other_admins() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage.clone())
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .users(vec![
+                    MemoryUser {
+                        id: 1,
+                        name: "admin".to_string(),
+                        enabled: false,
+                        is_admin: false,
+                        password_hash: crate::login::hash_password("old-password"),
+                    },
+                    MemoryUser {
+                        id: 2,
+                        name: "other-admin".to_string(),
+                        enabled: true,
+                        is_admin: true,
+                        password_hash: crate::login::hash_password("other-password"),
+                    },
+                ])
+                .keys(vec![MemoryUserKey {
+                    id: 20,
+                    user_id: 2,
+                    api_key: "sk-other-admin".to_string(),
+                    label: Some("other".to_string()),
+                    enabled: true,
+                }])
+                .build(),
+        );
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "admin".to_string(),
+                password: crate::login::hash_password("old-password"),
+                enabled: false,
+                is_admin: false,
+            })
+            .await
+            .expect("seed admin user");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 2,
+                name: "other-admin".to_string(),
+                password: crate::login::hash_password("other-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed other admin user");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 20,
+                user_id: 2,
+                api_key: "sk-other-admin".to_string(),
+                label: Some("other".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed other admin key");
+
+        reconcile_bootstrap_admin(
+            &state,
+            &BootstrapAdmin {
+                username: "admin".to_string(),
+                password: Some("new-password".to_string()),
+                api_key: Some("sk-admin-new".to_string()),
+            },
+            false,
+        )
+        .await
+        .expect("reconcile bootstrap admin");
+
+        let users = storage
+            .list_users(&gproxy_storage::UserQuery::default())
+            .await
+            .expect("query users");
+        assert_eq!(users.len(), 2);
+        assert!(
+            users
+                .iter()
+                .any(|user| user.name == "admin" && user.is_admin && user.enabled)
+        );
+        assert!(
+            users
+                .iter()
+                .any(|user| user.name == "other-admin" && user.is_admin && user.enabled)
+        );
+
+        let admin = users
+            .iter()
+            .find(|user| user.name == "admin")
+            .expect("admin");
+        let admin_keys = storage
+            .list_user_keys(&UserKeyQuery {
+                user_id: Scope::Eq(admin.id),
+                ..Default::default()
+            })
+            .await
+            .expect("query admin keys");
+        assert_eq!(admin_keys.len(), 1);
+        assert_eq!(admin_keys[0].api_key, "sk-admin-new");
+        assert!(admin_keys[0].enabled);
     }
 }

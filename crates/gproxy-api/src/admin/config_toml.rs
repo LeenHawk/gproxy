@@ -39,7 +39,6 @@ pub struct GproxyToml {
 pub struct GlobalSettingsToml {
     pub host: String,
     pub port: u16,
-    pub admin_key: String,
     #[serde(default)]
     pub proxy: Option<String>,
     #[serde(default = "default_spoof")]
@@ -127,6 +126,8 @@ pub struct UserToml {
     pub password: String,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default = "default_false")]
+    pub is_admin: bool,
     #[serde(default)]
     pub keys: Vec<UserKeyToml>,
 }
@@ -183,7 +184,6 @@ pub async fn export_toml(
     let global = GlobalSettingsToml {
         host: config.host.clone(),
         port: config.port,
-        admin_key: config.admin_key.clone(),
         proxy: config.proxy.clone(),
         spoof_emulation: config.spoof_emulation.clone(),
         update_source: config.update_source.clone(),
@@ -267,6 +267,7 @@ pub async fn export_toml(
                 name: u.name.clone(),
                 password: u.password_hash.clone(),
                 enabled: u.enabled,
+                is_admin: u.is_admin,
                 keys: user_keys
                     .into_iter()
                     .map(|k| UserKeyToml {
@@ -375,6 +376,7 @@ mod tests {
             name: "alice".to_string(),
             password: hash.clone(),
             enabled: true,
+            is_admin: true,
             keys: vec![UserKeyToml {
                 api_key: "sk-api01-demo".to_string(),
                 label: Some("default".to_string()),
@@ -393,5 +395,6 @@ mod tests {
         assert_eq!(parsed.keys[0].api_key, "sk-api01-demo");
         assert_eq!(parsed.keys[0].label.as_deref(), Some("default"));
         assert!(!parsed.keys[0].enabled);
+        assert!(parsed.is_admin);
     }
 }

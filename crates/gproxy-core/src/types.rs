@@ -8,6 +8,7 @@ pub struct MemoryUser {
     pub id: i64,
     pub name: String,
     pub enabled: bool,
+    pub is_admin: bool,
     #[serde(skip)]
     pub password_hash: String,
 }
@@ -107,7 +108,6 @@ pub struct GlobalConfig {
     pub host: String,
     #[serde(default = "default_port")]
     pub port: u16,
-    pub admin_key: String,
     #[serde(default)]
     pub proxy: Option<String>,
     #[serde(default = "default_spoof_emulation")]
@@ -134,7 +134,6 @@ impl Default for GlobalConfig {
         Self {
             host: default_host(),
             port: default_port(),
-            admin_key: String::new(),
             proxy: None,
             spoof_emulation: default_spoof_emulation(),
             update_source: default_update_source(),

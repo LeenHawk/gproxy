@@ -5,6 +5,7 @@ use clap::{CommandFactory, FromArgMatches, Parser, parser::ValueSource};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
+use gproxy_api::admin::config_toml::GproxyToml;
 use gproxy_sdk::provider::engine::GproxyEngineBuilder;
 use gproxy_server::{AppStateBuilder, GlobalConfig};
 use gproxy_storage::{SeaOrmStorage, StorageWriteEvent};
@@ -22,9 +23,17 @@ struct Cli {
     #[arg(long, env = "GPROXY_PORT", default_value_t = 8787)]
     port: u16,
 
-    /// Admin API key (generated randomly if not set)
-    #[arg(long, env = "GPROXY_ADMIN_KEY")]
-    admin_key: Option<String>,
+    /// Bootstrap admin username on first start
+    #[arg(long, env = "GPROXY_ADMIN_USER", default_value = "admin")]
+    admin_user: String,
+
+    /// Bootstrap admin password on first start (generated randomly if not set)
+    #[arg(long, env = "GPROXY_ADMIN_PASSWORD")]
+    admin_password: Option<String>,
+
+    /// Bootstrap admin API key on first start (generated randomly if not set)
+    #[arg(long, env = "GPROXY_ADMIN_API_KEY")]
+    admin_api_key: Option<String>,
 
     /// Database connection string (default: sqlite in data_dir)
     #[arg(long, env = "GPROXY_DSN")]
@@ -58,6 +67,26 @@ fn is_explicit(matches: &clap::ArgMatches, id: &str) -> bool {
         .is_some_and(|source| source != ValueSource::DefaultValue)
 }
 
+fn log_generated_bootstrap_admin(
+    admin_user: &str,
+    outcome: &gproxy_api::bootstrap::BootstrapAdminOutcome,
+) {
+    if let Some(password) = outcome.generated_password.as_deref() {
+        tracing::info!(
+            admin_user = %admin_user,
+            admin_password = %password,
+            "generated bootstrap admin password (save this!)"
+        );
+    }
+    if let Some(api_key) = outcome.generated_api_key.as_deref() {
+        tracing::info!(
+            admin_user = %admin_user,
+            admin_api_key = %api_key,
+            "generated bootstrap admin API key (save this!)"
+        );
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // 1. Init tracing
@@ -70,6 +99,11 @@ async fn main() -> anyhow::Result<()> {
     // 2. Parse CLI
     let matches = Cli::command().get_matches();
     let cli = Cli::from_arg_matches(&matches)?;
+    let admin_user_explicit = is_explicit(&matches, "admin_user");
+    let admin_password_explicit = is_explicit(&matches, "admin_password");
+    let admin_api_key_explicit = is_explicit(&matches, "admin_api_key");
+    let has_admin_override =
+        admin_user_explicit || admin_password_explicit || admin_api_key_explicit;
 
     // 3. Resolve DSN
     let mut dsn = cli.dsn.clone().unwrap_or_else(|| {
@@ -110,7 +144,6 @@ async fn main() -> anyhow::Result<()> {
     let config = GlobalConfig {
         host: cli.host.clone(),
         port: cli.port,
-        admin_key: cli.admin_key.clone().unwrap_or_default(),
         proxy: cli.proxy.clone(),
         spoof_emulation: cli.spoof_emulation.clone(),
         update_source: "github".to_string(),
@@ -158,20 +191,56 @@ async fn main() -> anyhow::Result<()> {
             models = counts.models,
             "bootstrap from database complete"
         );
+        if has_admin_override {
+            let outcome = gproxy_api::bootstrap::reconcile_bootstrap_admin(
+                &state,
+                &gproxy_api::bootstrap::BootstrapAdmin {
+                    username: cli.admin_user.clone(),
+                    password: cli.admin_password.clone(),
+                    api_key: cli.admin_api_key.clone(),
+                },
+                false,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            log_generated_bootstrap_admin(&cli.admin_user, &outcome);
+        }
     } else {
         let toml_path = Path::new(&cli.config);
         if toml_path.exists() {
             tracing::info!(path = %toml_path.display(), "seeding from TOML config");
             let toml_str = std::fs::read_to_string(toml_path)?;
-            gproxy_api::bootstrap::seed_from_toml(&state, &toml_str)
-                .await
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let toml_config: GproxyToml = toml::from_str(&toml_str)?;
+            let should_bootstrap_admin = has_admin_override
+                || !gproxy_api::bootstrap::config_has_enabled_admin_with_key(&toml_config);
+            let bootstrap_admin =
+                should_bootstrap_admin.then(|| gproxy_api::bootstrap::BootstrapAdmin {
+                    username: cli.admin_user.clone(),
+                    password: cli.admin_password.clone(),
+                    api_key: cli.admin_api_key.clone(),
+                });
+            let outcome = gproxy_api::bootstrap::seed_from_toml_with_bootstrap(
+                &state,
+                &toml_str,
+                bootstrap_admin.as_ref(),
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            log_generated_bootstrap_admin(&cli.admin_user, &outcome);
             tracing::info!("TOML seed complete, data persisted to database");
         } else {
             tracing::info!("no existing data or config file, creating defaults");
-            gproxy_api::bootstrap::seed_defaults(&state)
-                .await
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let outcome = gproxy_api::bootstrap::seed_defaults(
+                &state,
+                &gproxy_api::bootstrap::BootstrapAdmin {
+                    username: cli.admin_user.clone(),
+                    password: cli.admin_password.clone(),
+                    api_key: cli.admin_api_key.clone(),
+                },
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+            log_generated_bootstrap_admin(&cli.admin_user, &outcome);
         }
     }
 
@@ -204,24 +273,6 @@ async fn main() -> anyhow::Result<()> {
         persist_global_settings = true;
     }
 
-    let startup_admin_key = if let Some(admin_key) = cli.admin_key.clone() {
-        Some(admin_key)
-    } else if !has_data && state.config().admin_key.is_empty() {
-        let key = uuid::Uuid::now_v7().to_string();
-        // Intentional bootstrap behavior: on first start there is no separate
-        // provisioning channel for the generated admin key, so it is emitted to
-        // the startup log once and then persisted.
-        tracing::info!(admin_key = %key, "generated admin key (save this!)");
-        Some(key)
-    } else {
-        None
-    };
-
-    if let Some(startup_admin_key) = startup_admin_key {
-        config.admin_key = startup_admin_key.clone();
-        persist_global_settings = true;
-    }
-
     if persist_global_settings {
         state.replace_config(config.clone());
         state
@@ -233,7 +284,6 @@ async fn main() -> anyhow::Result<()> {
                     proxy: config.proxy.clone(),
                     spoof_emulation: config.spoof_emulation.clone(),
                     update_source: config.update_source.clone(),
-                    admin_key: config.admin_key.clone(),
                     enable_usage: config.enable_usage,
                     enable_upstream_log: config.enable_upstream_log,
                     enable_upstream_log_body: config.enable_upstream_log_body,

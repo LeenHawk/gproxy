@@ -19,7 +19,6 @@ pub struct GlobalSettingsWrite {
     pub spoof_emulation: String,
     #[serde(default = "default_update_source")]
     pub update_source: String,
-    pub admin_key: String,
     pub enable_usage: bool,
     pub enable_upstream_log: bool,
     pub enable_upstream_log_body: bool,
@@ -71,6 +70,7 @@ pub struct UserWrite {
     pub name: String,
     pub password: String,
     pub enabled: bool,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

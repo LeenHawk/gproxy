@@ -4,7 +4,6 @@ use axum::extract::{Request, State};
 use axum::http::HeaderMap;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use subtle::ConstantTimeEq;
 
 use gproxy_server::AppState;
 use gproxy_server::principal::MemoryUserKey;
@@ -51,31 +50,38 @@ pub fn extract_api_key(headers: &HeaderMap) -> Result<String, HttpError> {
 }
 
 /// Authenticate a user API key and return the key record.
-///
-/// Rejects the admin key to prevent identity ambiguity — the admin key
-/// must only authenticate via `authorize_admin`, never as a user.
 pub fn authenticate_user(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<MemoryUserKey, HttpError> {
     let api_key = extract_api_key(headers)?;
-    // Reject admin key in user auth path to prevent identity ambiguity
-    let config = state.config();
-    if api_key.as_bytes().ct_eq(config.admin_key.as_bytes()).into() {
-        return Err(HttpError::forbidden(
-            "admin key cannot be used for user authentication",
-        ));
-    }
     state
         .authenticate_api_key(&api_key)
         .ok_or_else(|| HttpError::unauthorized("invalid or disabled API key"))
 }
 
-/// Authenticate as admin (check against global admin_key).
+/// Authenticate as admin using either an admin session token or an API key
+/// owned by an admin user.
 pub fn authorize_admin(headers: &HeaderMap, state: &AppState) -> Result<(), HttpError> {
-    let api_key = extract_api_key(headers)?;
-    let config = state.config();
-    if api_key.as_bytes().ct_eq(config.admin_key.as_bytes()).into() {
+    let token = extract_api_key(headers)?;
+
+    if token.starts_with("sess-") {
+        let session = state
+            .validate_session(&token)
+            .ok_or_else(|| HttpError::unauthorized("session expired or invalid"))?;
+        if session.is_admin {
+            return Ok(());
+        }
+        return Err(HttpError::forbidden("admin access required"));
+    }
+
+    let user_key = state
+        .authenticate_api_key(&token)
+        .ok_or_else(|| HttpError::unauthorized("invalid or disabled API key"))?;
+    let user = state
+        .find_user(user_key.user_id)
+        .ok_or_else(|| HttpError::unauthorized("user not found"))?;
+    if user.is_admin {
         Ok(())
     } else {
         Err(HttpError::forbidden("admin access required"))
@@ -111,7 +117,6 @@ pub async fn require_admin_middleware(
 #[derive(Debug, Clone)]
 pub struct SessionUser {
     pub user_id: i64,
-    pub user_key_id: i64,
 }
 
 /// Middleware for /user/* routes: requires a session token (from /login).
@@ -133,12 +138,15 @@ pub async fn require_user_session_middleware(
     // Accept session tokens (sess-*) for /user/* routes
     if token.starts_with("sess-") {
         match state.validate_session(&token) {
-            Some((user_id, user_key_id)) => {
+            Some(session) if !session.is_admin => {
                 request.extensions_mut().insert(SessionUser {
-                    user_id,
-                    user_key_id,
+                    user_id: session.user_id,
                 });
                 return next.run(request).await;
+            }
+            Some(_) => {
+                return HttpError::forbidden("admin session cannot access /user routes")
+                    .into_response();
             }
             None => {
                 return HttpError::unauthorized("session expired or invalid").into_response();
@@ -146,16 +154,168 @@ pub async fn require_user_session_middleware(
         }
     }
 
-    // Fallback: also accept admin key for /user/* (admin can do anything)
-    let config = state.config();
-    if token.as_bytes().ct_eq(config.admin_key.as_bytes()).into() {
-        // Admin accessing user routes — use user_id=0 sentinel
-        request.extensions_mut().insert(SessionUser {
-            user_id: 0,
-            user_key_id: 0,
-        });
-        return next.run(request).await;
+    HttpError::unauthorized("session token required (use /login to obtain one)").into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::Router;
+    use axum::body::Body;
+    use axum::http::{Request as HttpRequest, StatusCode};
+    use axum::middleware::from_fn_with_state;
+    use axum::routing::get;
+    use tower::ServiceExt;
+
+    use super::{require_admin_middleware, require_user_session_middleware};
+    use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{SeaOrmStorage, repository::UserRepository};
+
+    async fn build_test_state() -> Arc<AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "admin".to_string(),
+                password: crate::login::hash_password("admin-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed admin");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-admin".to_string(),
+                label: Some("admin".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed admin key");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 2,
+                name: "alice".to_string(),
+                password: crate::login::hash_password("user-password"),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 20,
+                user_id: 2,
+                api_key: "sk-user".to_string(),
+                label: Some("user".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed user key");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+        crate::bootstrap::reload_from_db(&state)
+            .await
+            .expect("reload state");
+        state
     }
 
-    HttpError::unauthorized("session token required (use /login to obtain one)").into_response()
+    fn admin_router(state: Arc<AppState>) -> Router {
+        Router::new()
+            .route("/check", get(|| async { StatusCode::NO_CONTENT }))
+            .layer(from_fn_with_state(state.clone(), require_admin_middleware))
+            .with_state(state)
+    }
+
+    fn user_router(state: Arc<AppState>) -> Router {
+        Router::new()
+            .route("/check", get(|| async { StatusCode::NO_CONTENT }))
+            .layer(from_fn_with_state(
+                state.clone(),
+                require_user_session_middleware,
+            ))
+            .with_state(state)
+    }
+
+    #[tokio::test]
+    async fn admin_route_accepts_admin_owned_api_key() {
+        let state = build_test_state().await;
+        let response = admin_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/check")
+                    .header("authorization", "Bearer sk-admin")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn admin_route_accepts_admin_session() {
+        let state = build_test_state().await;
+        let token = state.create_session(1, true, 60);
+        let response = admin_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/check")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn user_route_rejects_admin_session() {
+        let state = build_test_state().await;
+        let token = state.create_session(1, true, 60);
+        let response = user_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/check")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn admin_route_rejects_non_admin_api_key() {
+        let state = build_test_state().await;
+        let response = admin_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/check")
+                    .header("authorization", "Bearer sk-user")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
 }

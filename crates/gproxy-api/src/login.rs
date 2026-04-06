@@ -7,7 +7,7 @@ use axum::extract::State;
 use serde::{Deserialize, Serialize};
 
 use gproxy_server::AppState;
-use gproxy_storage::Scope;
+use gproxy_storage::{Scope, UserQueryRow};
 
 use crate::error::HttpError;
 
@@ -57,17 +57,17 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub user_id: i64,
     pub session_token: String,
     pub expires_in_secs: u64,
 }
 
-pub async fn login(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, HttpError> {
+async fn authenticate_password_login(
+    state: &AppState,
+    payload: &LoginRequest,
+) -> Result<UserQueryRow, HttpError> {
     let storage = state.storage();
     let users = storage
         .list_users(&gproxy_storage::UserQuery {
@@ -78,6 +78,7 @@ pub async fn login(
 
     let user = users
         .first()
+        .cloned()
         .ok_or_else(|| HttpError::unauthorized("invalid username or password"))?;
 
     if !verify_password(&payload.password, &user.password) {
@@ -88,22 +89,39 @@ pub async fn login(
         return Err(HttpError::forbidden("user is disabled"));
     }
 
-    let keys = storage
-        .list_user_keys(&gproxy_storage::UserKeyQuery {
-            user_id: Scope::Eq(user.id),
-            enabled: Scope::Eq(true),
-            ..Default::default()
-        })
-        .await?;
+    Ok(user)
+}
 
-    let key = keys
-        .first()
-        .ok_or_else(|| HttpError::internal("user has no API key"))?;
+pub async fn login(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, HttpError> {
+    let user = authenticate_password_login(&state, &payload).await?;
+    if user.is_admin {
+        return Err(HttpError::forbidden("admin users must use /admin/login"));
+    }
 
-    // Create session token (24h TTL) instead of returning the API key directly.
-    // This prevents a leaked inference key from being used to access /user/* routes.
     let ttl_secs = 24 * 60 * 60;
-    let session_token = state.create_session(user.id, key.id, ttl_secs);
+    let session_token = state.create_session(user.id, false, ttl_secs);
+
+    Ok(Json(LoginResponse {
+        user_id: user.id,
+        session_token,
+        expires_in_secs: ttl_secs,
+    }))
+}
+
+pub async fn admin_login(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, HttpError> {
+    let user = authenticate_password_login(&state, &payload).await?;
+    if !user.is_admin {
+        return Err(HttpError::forbidden("admin access required"));
+    }
+
+    let ttl_secs = 24 * 60 * 60;
+    let session_token = state.create_session(user.id, true, ttl_secs);
 
     Ok(Json(LoginResponse {
         user_id: user.id,
@@ -114,7 +132,61 @@ pub async fn login(
 
 #[cfg(test)]
 mod tests {
-    use super::{hash_password, normalize_password_for_storage, verify_password};
+    use std::sync::Arc;
+
+    use axum::{Json, extract::State};
+    use http::StatusCode;
+
+    use super::{
+        LoginRequest, admin_login, hash_password, login, normalize_password_for_storage,
+        verify_password,
+    };
+    use gproxy_server::{AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{SeaOrmStorage, repository::UserRepository};
+
+    async fn build_test_state() -> Arc<gproxy_server::AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "alice".to_string(),
+                password: hash_password("user-password"),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 2,
+                name: "admin".to_string(),
+                password: hash_password("admin-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed admin");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+        crate::bootstrap::reload_from_db(&state)
+            .await
+            .expect("reload state");
+        state
+    }
 
     #[test]
     fn normalize_password_hashes_plaintext() {
@@ -127,5 +199,56 @@ mod tests {
     fn normalize_password_preserves_argon2_hashes() {
         let hash = hash_password("secret-password");
         assert_eq!(normalize_password_for_storage(&hash), hash);
+    }
+
+    #[tokio::test]
+    async fn login_rejects_admin_user() {
+        let state = build_test_state().await;
+        let err = login(
+            State(state),
+            Json(LoginRequest {
+                username: "admin".to_string(),
+                password: "admin-password".to_string(),
+            }),
+        )
+        .await
+        .expect_err("admin user must not login via /login");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn admin_login_rejects_non_admin_user() {
+        let state = build_test_state().await;
+        let err = admin_login(
+            State(state),
+            Json(LoginRequest {
+                username: "alice".to_string(),
+                password: "user-password".to_string(),
+            }),
+        )
+        .await
+        .expect_err("non-admin user must not login via /admin/login");
+        assert_eq!(err.status, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn admin_login_creates_admin_session() {
+        let state = build_test_state().await;
+        let response = admin_login(
+            State(state.clone()),
+            Json(LoginRequest {
+                username: "admin".to_string(),
+                password: "admin-password".to_string(),
+            }),
+        )
+        .await
+        .expect("admin login should succeed")
+        .0;
+        assert!(response.session_token.starts_with("sess-"));
+        let session = state
+            .validate_session(&response.session_token)
+            .expect("session should exist");
+        assert_eq!(session.user_id, 2);
+        assert!(session.is_admin);
     }
 }

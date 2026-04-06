@@ -11,6 +11,7 @@ pub struct Model {
     pub name: String,
     pub password: Option<String>,
     pub enabled: bool,
+    pub is_admin: bool,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     #[sea_orm(has_many)]

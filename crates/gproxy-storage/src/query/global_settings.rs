@@ -6,7 +6,6 @@ pub struct GlobalSettingsRow {
     pub id: i64,
     pub host: String,
     pub port: i32,
-    pub admin_key: String,
     pub proxy: Option<String>,
     pub spoof_emulation: Option<String>,
     pub update_source: Option<String>,

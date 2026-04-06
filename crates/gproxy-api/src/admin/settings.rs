@@ -57,13 +57,6 @@ pub async fn upsert_global_settings(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    // Prevent setting admin_key to an existing user API key
-    if state.authenticate_api_key(&payload.admin_key).is_some() {
-        return Err(HttpError::bad_request(
-            "admin_key collides with an existing user API key",
-        ));
-    }
-
     let current = state.config();
     let dsn_changed = payload.dsn != current.dsn;
 
@@ -101,7 +94,6 @@ pub async fn upsert_global_settings(
         state.replace_config(gproxy_server::GlobalConfig {
             host: payload.host.clone(),
             port: payload.port,
-            admin_key: payload.admin_key.clone(),
             proxy: payload.proxy.clone(),
             spoof_emulation: payload.spoof_emulation.clone(),
             update_source: payload.update_source.clone(),

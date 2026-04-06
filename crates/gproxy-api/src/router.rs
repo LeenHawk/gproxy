@@ -26,6 +26,7 @@ pub fn api_router(state: Arc<AppState>) -> Router {
         // dedicated login policy or enforce it at the edge instead of coupling
         // it to inference rate limits.
         .route("/login", post(crate::login::login))
+        .route("/admin/login", post(crate::login::admin_login))
         .nest("/admin", admin_router)
         .nest("/user", user_router)
         .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_BYTES));

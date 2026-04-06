@@ -15,6 +15,7 @@ pub struct MemoryUserRow {
     pub id: i64,
     pub name: String,
     pub enabled: bool,
+    pub is_admin: bool,
 }
 
 #[derive(Serialize)]
@@ -55,6 +56,7 @@ pub async fn query_users(
             id: u.id,
             name: u.name.clone(),
             enabled: u.enabled,
+            is_admin: u.is_admin,
         })
         .collect();
     Ok(Json(rows))
@@ -72,6 +74,7 @@ pub async fn upsert_user(
         id: payload.id,
         name: payload.name.clone(),
         enabled: payload.enabled,
+        is_admin: payload.is_admin,
         password_hash: payload.password.clone(),
     });
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -191,6 +194,7 @@ pub async fn batch_upsert_users(
             id: item.id,
             name: item.name.clone(),
             enabled: item.enabled,
+            is_admin: item.is_admin,
             password_hash: item.password.clone(),
         });
     }
@@ -269,17 +273,12 @@ pub async fn batch_upsert_user_keys(
 }
 
 /// Generate a unique API key in `sk-api01-{random hex}` format.
-/// Ensures the key doesn't collide with admin_key or existing keys.
 pub fn generate_unique_api_key_for(state: &AppState) -> String {
     use rand::RngExt;
-    let admin_key = state.config().admin_key.clone();
     let mut rng = rand::rng();
     loop {
         let n: u64 = rng.random_range(0..1u64 << 48);
         let key = format!("sk-api01-{n:012x}");
-        if key == admin_key {
-            continue;
-        }
         // Use authenticate_api_key which does SHA-256 digest lookup
         if state.authenticate_api_key(&key).is_some() {
             continue;

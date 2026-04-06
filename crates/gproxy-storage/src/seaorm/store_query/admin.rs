@@ -17,12 +17,10 @@ impl SeaOrmStorage {
         let Some(row) = row else {
             return Ok(None);
         };
-        let admin_key = self.decrypt_string(&row.admin_key);
         Ok(Some(GlobalSettingsRow {
             id: row.id,
             host: row.host,
             port: row.port,
-            admin_key,
             proxy: row.proxy,
             spoof_emulation: row.spoof_emulation,
             update_source: row.update_source,
@@ -200,6 +198,7 @@ impl SeaOrmStorage {
                     name: r.name,
                     password,
                     enabled: r.enabled,
+                    is_admin: r.is_admin,
                 }
             })
             .collect())

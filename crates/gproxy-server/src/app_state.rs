@@ -121,6 +121,13 @@ fn normalize_file_permissions(
         .collect()
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct SessionEntry {
+    pub user_id: i64,
+    pub is_admin: bool,
+    pub expires_at_unix_ms: i64,
+}
+
 /// Central application state shared across all request handlers.
 pub struct AppState {
     engine: ArcSwap<GproxyEngine>,
@@ -139,9 +146,8 @@ pub struct AppState {
     /// When set, `record_usage` sends through this channel instead of
     /// synchronous DB writes.
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
-    /// Session tokens for /user/* routes (short-lived, memory-only).
-    /// Key: session token string, Value: (user_id, user_key_id, expires_at_unix_ms)
-    sessions: DashMap<String, (i64, i64, i64)>,
+    /// Session tokens for browser-facing routes (short-lived, memory-only).
+    sessions: DashMap<String, SessionEntry>,
 }
 
 impl AppState {
@@ -219,7 +225,7 @@ impl AppState {
 
     /// Create a session token for a user. Returns the token string.
     /// Session expires after `ttl_secs` seconds.
-    pub fn create_session(&self, user_id: i64, user_key_id: i64, ttl_secs: u64) -> String {
+    pub fn create_session(&self, user_id: i64, is_admin: bool, ttl_secs: u64) -> String {
         use rand::RngExt;
         let token = format!("sess-{:016x}", rand::rng().random::<u64>());
         let expires_at = std::time::SystemTime::now()
@@ -227,25 +233,31 @@ impl AppState {
             .unwrap_or_default()
             .as_millis() as i64
             + (ttl_secs * 1000) as i64;
-        self.sessions
-            .insert(token.clone(), (user_id, user_key_id, expires_at));
+        self.sessions.insert(
+            token.clone(),
+            SessionEntry {
+                user_id,
+                is_admin,
+                expires_at_unix_ms: expires_at,
+            },
+        );
         token
     }
 
-    /// Validate a session token. Returns (user_id, user_key_id) if valid.
-    pub fn validate_session(&self, token: &str) -> Option<(i64, i64)> {
+    /// Validate a session token.
+    pub fn validate_session(&self, token: &str) -> Option<SessionEntry> {
         let entry = self.sessions.get(token)?;
-        let (user_id, user_key_id, expires_at) = *entry.value();
+        let session = *entry.value();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as i64;
-        if now > expires_at {
+        if now > session.expires_at_unix_ms {
             drop(entry);
             self.sessions.remove(token);
             return None;
         }
-        Some((user_id, user_key_id))
+        Some(session)
     }
 
     /// Remove expired sessions (call periodically from GC worker).
@@ -255,7 +267,7 @@ impl AppState {
             .unwrap_or_default()
             .as_millis() as i64;
         self.sessions
-            .retain(|_, (_, _, expires_at)| *expires_at > now);
+            .retain(|_, session| session.expires_at_unix_ms > now);
     }
 
     pub fn authenticate_api_key(&self, api_key: &str) -> Option<MemoryUserKey> {
@@ -270,6 +282,14 @@ impl AppState {
     /// Get all users (from memory).
     pub fn users_snapshot(&self) -> Arc<Vec<MemoryUser>> {
         self.identity.users_snapshot()
+    }
+
+    pub fn find_user(&self, user_id: i64) -> Option<MemoryUser> {
+        self.identity
+            .users_snapshot()
+            .iter()
+            .find(|user| user.id == user_id)
+            .cloned()
     }
 
     /// Get all keys (from memory).
@@ -887,7 +907,6 @@ mod tests {
             .engine(GproxyEngine::builder().build())
             .storage(storage)
             .config(GlobalConfig {
-                admin_key: "admin-key".to_string(),
                 dsn: "sqlite::memory:".to_string(),
                 ..GlobalConfig::default()
             })
@@ -895,6 +914,7 @@ mod tests {
                 id: 1,
                 name: "alice".to_string(),
                 enabled: true,
+                is_admin: true,
                 password_hash: "hash".to_string(),
             }])
             .keys(vec![MemoryUserKey {
@@ -911,11 +931,12 @@ mod tests {
     async fn builder_seeds_identity_and_config_services() {
         let state = build_test_state().await;
 
-        assert_eq!(state.config().admin_key, "admin-key");
-        assert_eq!(state.config_service.get().admin_key, "admin-key");
+        assert_eq!(state.config().dsn, "sqlite::memory:");
+        assert_eq!(state.config_service.get().dsn, "sqlite::memory:");
 
         assert_eq!(state.users_snapshot().len(), 1);
         assert_eq!(state.identity.users_snapshot().len(), 1);
+        assert!(state.users_snapshot()[0].is_admin);
 
         assert_eq!(state.keys_for_user(1).len(), 1);
         assert_eq!(state.identity.keys_for_user(1).len(), 1);

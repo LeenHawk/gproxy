@@ -14,6 +14,7 @@ pub struct UserQueryRow {
     pub name: String,
     pub password: String,
     pub enabled: bool,
+    pub is_admin: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

@@ -14,6 +14,7 @@ fn identity_service_authenticates_valid_key() {
         id: 1,
         name: "alice".into(),
         enabled: true,
+        is_admin: false,
         password_hash: String::new(),
     }]);
     svc.replace_keys(vec![MemoryUserKey {
@@ -36,6 +37,7 @@ fn identity_service_rejects_disabled_user() {
         id: 1,
         name: "alice".into(),
         enabled: false,
+        is_admin: false,
         password_hash: String::new(),
     }]);
     svc.replace_keys(vec![MemoryUserKey {
@@ -56,6 +58,7 @@ fn identity_service_rejects_disabled_key() {
         id: 1,
         name: "alice".into(),
         enabled: true,
+        is_admin: false,
         password_hash: String::new(),
     }]);
     svc.replace_keys(vec![MemoryUserKey {

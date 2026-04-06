@@ -63,6 +63,7 @@ impl SeaOrmStorage {
         name: &str,
         password: &str,
         enabled: bool,
+        is_admin: bool,
     ) -> Result<i64, DbErr> {
         let encrypted_password = self.encrypt_string(password);
         let now = OffsetDateTime::now_utc();
@@ -70,6 +71,7 @@ impl SeaOrmStorage {
             name: Set(name.to_string()),
             password: Set(Some(encrypted_password)),
             enabled: Set(enabled),
+            is_admin: Set(is_admin),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
