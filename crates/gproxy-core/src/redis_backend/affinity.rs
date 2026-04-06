@@ -29,10 +29,7 @@ impl RedisAffinity {
 }
 
 impl AffinityBackend for RedisAffinity {
-    fn get_binding(
-        &self,
-        key: &str,
-    ) -> impl std::future::Future<Output = Option<String>> + Send {
+    fn get_binding(&self, key: &str) -> impl std::future::Future<Output = Option<String>> + Send {
         let mut conn = self.conn.clone();
         let redis_key = format!("{}{}", self.key_prefix, key);
 
@@ -63,9 +60,9 @@ impl AffinityBackend for RedisAffinity {
                 .arg(ttl_secs)
                 .query_async(&mut conn)
                 .await
-                .map_err(|e| BackendError::from(
-                    Box::new(e) as Box<dyn std::error::Error + Send + Sync>
-                ))?;
+                .map_err(|e| {
+                    BackendError::from(Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+                })?;
             Ok(())
         }
     }
@@ -78,11 +75,9 @@ impl AffinityBackend for RedisAffinity {
         let redis_key = format!("{}{}", self.key_prefix, key);
 
         async move {
-            let _: () = conn.del(&redis_key)
-                .await
-                .map_err(|e| BackendError::from(
-                    Box::new(e) as Box<dyn std::error::Error + Send + Sync>
-                ))?;
+            let _: () = conn.del(&redis_key).await.map_err(|e| {
+                BackendError::from(Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            })?;
             Ok(())
         }
     }

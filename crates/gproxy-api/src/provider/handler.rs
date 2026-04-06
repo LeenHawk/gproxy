@@ -104,7 +104,9 @@ pub async fn proxy(
             extract_requested_total_tokens(operation, protocol, &req_body),
         )
     {
-        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
     }
     if is_file_operation(operation)
         && let Err(_rejection) = state.check_rate_limit_request(
@@ -113,7 +115,9 @@ pub async fn proxy(
             None,
         )
     {
-        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
     }
 
     if let Some(FileOperationPlan::ShortCircuitJson(resp_body)) = &file_plan {
@@ -143,7 +147,8 @@ pub async fn proxy(
         .and_then(FileOperationPlan::deleted_file)
         .cloned();
 
-    let mut quota_hold = try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
+    let mut quota_hold =
+        try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
     let result = match state
         .engine()
         .execute(ExecuteRequest {
@@ -388,10 +393,13 @@ pub async fn proxy_unscoped(
         &target_model,
         extract_requested_total_tokens(operation, protocol, &req_body),
     ) {
-        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
     }
 
-    let mut quota_hold = try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
+    let mut quota_hold =
+        try_reserve_quota_hold(state.as_ref(), user_key.user_id, &req_body).await?;
     let result = match state
         .engine()
         .execute(ExecuteRequest {
@@ -579,7 +587,9 @@ pub async fn proxy_unscoped_files(
         &file_rate_limit_key(&target_provider, operation),
         None,
     ) {
-        return Err(HttpError::too_many_requests("rate limit exceeded".to_string()));
+        return Err(HttpError::too_many_requests(
+            "rate limit exceeded".to_string(),
+        ));
     }
 
     if let Some(FileOperationPlan::ShortCircuitJson(resp_body)) = &file_plan {
@@ -1464,37 +1474,32 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
             let _ = ctx
                 .state
                 .storage()
-                .upsert_user_credential_file(
-                    gproxy_storage::UserCredentialFileWrite {
-                        user_id: ctx.user_id,
-                        user_key_id: ctx.user_key_id,
-                        provider_id,
-                        credential_id,
-                        file_id: metadata.id.clone(),
-                        active: true,
-                        created_at_unix_ms: now_ms,
-                        updated_at_unix_ms: now_ms,
-                        deleted_at_unix_ms: None,
-                    },
-                )
+                .upsert_user_credential_file(gproxy_storage::UserCredentialFileWrite {
+                    user_id: ctx.user_id,
+                    user_key_id: ctx.user_key_id,
+                    provider_id,
+                    credential_id,
+                    file_id: metadata.id.clone(),
+                    active: true,
+                    created_at_unix_ms: now_ms,
+                    updated_at_unix_ms: now_ms,
+                    deleted_at_unix_ms: None,
+                })
                 .await;
             let _ = ctx
                 .state
                 .storage()
-                .upsert_claude_file(
-                    gproxy_storage::ClaudeFileWrite {
-                        provider_id,
-                        file_id: metadata.id.clone(),
-                        file_created_at: metadata.created_at.clone(),
-                        filename: metadata.filename.clone(),
-                        mime_type: metadata.mime_type.clone(),
-                        size_bytes: metadata.size_bytes as i64,
-                        downloadable: metadata.downloadable,
-                        raw_json: serde_json::to_string(&metadata)
-                            .unwrap_or_else(|_| "{}".to_string()),
-                        updated_at_unix_ms: now_ms,
-                    },
-                )
+                .upsert_claude_file(gproxy_storage::ClaudeFileWrite {
+                    provider_id,
+                    file_id: metadata.id.clone(),
+                    file_created_at: metadata.created_at.clone(),
+                    filename: metadata.filename.clone(),
+                    mime_type: metadata.mime_type.clone(),
+                    size_bytes: metadata.size_bytes as i64,
+                    downloadable: metadata.downloadable,
+                    raw_json: serde_json::to_string(&metadata).unwrap_or_else(|_| "{}".to_string()),
+                    updated_at_unix_ms: now_ms,
+                })
                 .await;
             ctx.state.upsert_user_file_in_memory(file_record);
             ctx.state
@@ -1519,19 +1524,17 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
             let _ = ctx
                 .state
                 .storage()
-                .upsert_user_credential_file(
-                    gproxy_storage::UserCredentialFileWrite {
-                        user_id: file.user_id,
-                        user_key_id: file.user_key_id,
-                        provider_id: file.provider_id,
-                        credential_id: file.credential_id,
-                        file_id: file.file_id.clone(),
-                        active: false,
-                        created_at_unix_ms: file.created_at_unix_ms,
-                        updated_at_unix_ms: now_ms,
-                        deleted_at_unix_ms: Some(now_ms),
-                    },
-                )
+                .upsert_user_credential_file(gproxy_storage::UserCredentialFileWrite {
+                    user_id: file.user_id,
+                    user_key_id: file.user_key_id,
+                    provider_id: file.provider_id,
+                    credential_id: file.credential_id,
+                    file_id: file.file_id.clone(),
+                    active: false,
+                    created_at_unix_ms: file.created_at_unix_ms,
+                    updated_at_unix_ms: now_ms,
+                    deleted_at_unix_ms: Some(now_ms),
+                })
                 .await;
             ctx.state
                 .deactivate_user_file_in_memory(file.user_id, file.provider_id, &file.file_id);

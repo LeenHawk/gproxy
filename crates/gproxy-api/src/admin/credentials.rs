@@ -85,8 +85,15 @@ pub async fn query_credentials(
 /// the first 4 and last 4 characters.
 fn mask_credential_secrets(value: &serde_json::Value) -> serde_json::Value {
     const SECRET_FIELDS: &[&str] = &[
-        "api_key", "secret_key", "access_token", "refresh_token",
-        "cookie", "private_key", "token", "password", "key",
+        "api_key",
+        "secret_key",
+        "access_token",
+        "refresh_token",
+        "cookie",
+        "private_key",
+        "token",
+        "password",
+        "key",
     ];
 
     match value {
@@ -96,7 +103,7 @@ fn mask_credential_secrets(value: &serde_json::Value) -> serde_json::Value {
                 if SECRET_FIELDS.iter().any(|&f| k.eq_ignore_ascii_case(f)) {
                     if let Some(s) = v.as_str() {
                         let masked_val = if s.len() > 8 {
-                            format!("{}***{}", &s[..4], &s[s.len()-4..])
+                            format!("{}***{}", &s[..4], &s[s.len() - 4..])
                         } else {
                             "***".to_string()
                         };
@@ -155,10 +162,7 @@ async fn create_credential_and_sync_runtime(
         return Ok(id);
     }
 
-    state
-        .storage()
-        .delete_credential(id)
-        .await?;
+    state.storage().delete_credential(id).await?;
     Err(HttpError::not_found(format!(
         "provider '{}' not found",
         provider.name
@@ -193,10 +197,7 @@ pub async fn delete_credential(
     authorize_admin(&headers, &state)?;
     let provider = resolve_provider_by_name(&state, &payload.provider_name).await?;
     let cred_id = resolve_credential_db_id(&state, &provider.name, payload.index)?;
-    state
-        .storage()
-        .delete_credential(cred_id)
-        .await?;
+    state.storage().delete_credential(cred_id).await?;
     state
         .engine()
         .store()
@@ -239,10 +240,7 @@ pub async fn batch_delete_credentials(
     for item in &sorted {
         let provider = resolve_provider_by_name(&state, &item.provider_name).await?;
         let cred_id = resolve_credential_db_id(&state, &provider.name, item.index)?;
-        state
-            .storage()
-            .delete_credential(cred_id)
-            .await?;
+        state.storage().delete_credential(cred_id).await?;
         let _ = store.remove_credential(&item.provider_name, item.index);
         state.remove_provider_credential_index_in_memory(&item.provider_name, item.index);
         state.remove_user_files_for_credential(cred_id);

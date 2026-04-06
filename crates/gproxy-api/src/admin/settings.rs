@@ -74,9 +74,7 @@ pub async fn upsert_global_settings(
 
         let new_storage = previous_storage.reconnect(&payload.dsn).await?;
         new_storage.sync().await?;
-        new_storage
-            .upsert_global_settings(payload)
-            .await?;
+        new_storage.upsert_global_settings(payload).await?;
 
         state.replace_storage(new_storage);
         if let Err(err) = crate::bootstrap::reload_from_db(&state).await {

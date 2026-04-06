@@ -56,12 +56,7 @@ impl RateLimitBackend for RedisRateLimit {
         window: RateLimitWindow,
     ) -> impl std::future::Future<Output = Result<u64, RateLimitExceeded>> + Send {
         let mut conn = self.conn.clone();
-        let redis_key = format!(
-            "{}{}:{}",
-            self.key_prefix,
-            key,
-            window_epoch(window)
-        );
+        let redis_key = format!("{}{}:{}", self.key_prefix, key, window_epoch(window));
         let limit = window_limit(window);
         let ttl_secs = window_seconds(window);
 
@@ -99,12 +94,7 @@ impl RateLimitBackend for RedisRateLimit {
         window: RateLimitWindow,
     ) -> impl std::future::Future<Output = u64> + Send {
         let mut conn = self.conn.clone();
-        let redis_key = format!(
-            "{}{}:{}",
-            self.key_prefix,
-            key,
-            window_epoch(window)
-        );
+        let redis_key = format!("{}{}:{}", self.key_prefix, key, window_epoch(window));
 
         async move {
             conn.get::<_, Option<u64>>(&redis_key)

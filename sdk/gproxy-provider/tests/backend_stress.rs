@@ -5,9 +5,7 @@ use std::task::{Context, Poll};
 
 use gproxy_provider::backend::memory::{InMemoryQuota, InMemoryQuotaHold, InMemoryRateLimit};
 use gproxy_provider::backend::traits::{QuotaBackend, QuotaHold, RateLimitBackend};
-use gproxy_provider::backend::types::{
-    QuotaExhausted, RateLimitExceeded, RateLimitWindow,
-};
+use gproxy_provider::backend::types::{QuotaExhausted, RateLimitExceeded, RateLimitWindow};
 
 // ---------------------------------------------------------------------------
 // Sync helpers — InMemory futures are always Ready, so we can poll them once.
@@ -23,7 +21,11 @@ fn poll_set_quota(q: &InMemoryQuota, id: i64, total: u64) {
     }
 }
 
-fn poll_try_reserve(q: &InMemoryQuota, id: i64, amount: u64) -> Result<InMemoryQuotaHold, QuotaExhausted> {
+fn poll_try_reserve(
+    q: &InMemoryQuota,
+    id: i64,
+    amount: u64,
+) -> Result<InMemoryQuotaHold, QuotaExhausted> {
     let waker = futures_util::task::noop_waker();
     let mut cx = Context::from_waker(&waker);
     let mut fut = std::pin::pin!(QuotaBackend::try_reserve(q, id, amount));
@@ -43,7 +45,11 @@ fn poll_settle(hold: InMemoryQuotaHold, cost: u64) {
     }
 }
 
-fn poll_try_acquire(rl: &InMemoryRateLimit, key: &str, window: RateLimitWindow) -> Result<u64, RateLimitExceeded> {
+fn poll_try_acquire(
+    rl: &InMemoryRateLimit,
+    key: &str,
+    window: RateLimitWindow,
+) -> Result<u64, RateLimitExceeded> {
     let waker = futures_util::task::noop_waker();
     let mut cx = Context::from_waker(&waker);
     let mut fut = std::pin::pin!(RateLimitBackend::try_acquire(rl, key, window));
@@ -114,7 +120,10 @@ async fn concurrent_rate_limit_does_not_exceed() {
         .collect();
 
     let succeeded = results.iter().filter(|&&r| r).count();
-    assert_eq!(succeeded, 50, "expected exactly 50 acquires, got {succeeded}");
+    assert_eq!(
+        succeeded, 50,
+        "expected exactly 50 acquires, got {succeeded}"
+    );
 }
 
 #[test]

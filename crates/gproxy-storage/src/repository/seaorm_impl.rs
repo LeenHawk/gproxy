@@ -61,8 +61,7 @@ impl CredentialRepository for SeaOrmStorage {
         self.apply_write_event(StorageWriteEvent::UpsertCredentialStatus(status))
     }
 
-    fn delete_credential_status(&self, id: i64)
-    -> impl Future<Output = Result<(), DbErr>> + Send {
+    fn delete_credential_status(&self, id: i64) -> impl Future<Output = Result<(), DbErr>> + Send {
         self.apply_write_event(StorageWriteEvent::DeleteCredentialStatus { id })
     }
 }
@@ -187,10 +186,16 @@ impl WriteSink for SeaOrmStorage {
     }
 
     fn send_upstream_request(&self, request: UpstreamRequestWrite) {
-        send_write_event(self.clone(), StorageWriteEvent::UpsertUpstreamRequest(request));
+        send_write_event(
+            self.clone(),
+            StorageWriteEvent::UpsertUpstreamRequest(request),
+        );
     }
 
     fn send_downstream_request(&self, request: DownstreamRequestWrite) {
-        send_write_event(self.clone(), StorageWriteEvent::UpsertDownstreamRequest(request));
+        send_write_event(
+            self.clone(),
+            StorageWriteEvent::UpsertDownstreamRequest(request),
+        );
     }
 }

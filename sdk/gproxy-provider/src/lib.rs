@@ -36,12 +36,12 @@ pub mod transform_dispatch;
 pub mod usage;
 pub mod utils;
 
-pub use billing::{ModelPrice, ModelPriceTier};
 pub use backend::memory::{InMemoryAffinity, InMemoryQuota, InMemoryRateLimit};
 pub use backend::traits::{AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend};
 pub use backend::types::{
     BackendError, QuotaBalance, QuotaError, QuotaExhausted, RateLimitExceeded, RateLimitWindow,
 };
+pub use billing::{ModelPrice, ModelPriceTier};
 pub use channel::{Channel, ChannelCredential, ChannelSettings, OAuthFlow};
 pub use dispatch::DispatchTable;
 pub use engine::{ExecuteBody, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig, Usage};

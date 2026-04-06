@@ -66,10 +66,7 @@ impl RoutingService {
 
     /// Get all credential IDs for a provider.
     pub fn provider_credential_ids(&self, provider_name: &str) -> Option<Vec<i64>> {
-        self.provider_credentials
-            .load()
-            .get(provider_name)
-            .cloned()
+        self.provider_credentials.load().get(provider_name).cloned()
     }
 
     /// Find (provider_name, index) for a credential ID.

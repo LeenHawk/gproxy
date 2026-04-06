@@ -54,19 +54,18 @@ pub fn spawn(
     })
 }
 
-async fn flush_pending(
-    state: &AppState,
-    pending: &mut HashMap<(String, usize), String>,
-) {
+async fn flush_pending(state: &AppState, pending: &mut HashMap<(String, usize), String>) {
     let entries: Vec<_> = pending.drain().collect();
     let storage = state.storage();
     for ((provider, index), status) in &entries {
         // Resolve credential DB id from provider name + index
-        let credential_id = state
-            .credential_id_for_index(provider, *index)
-            .unwrap_or(0);
+        let credential_id = state.credential_id_for_index(provider, *index).unwrap_or(0);
         if credential_id == 0 {
-            tracing::debug!(provider, index, "skipping health persist: credential_id not found");
+            tracing::debug!(
+                provider,
+                index,
+                "skipping health persist: credential_id not found"
+            );
             continue;
         }
         let write = CredentialStatusWrite {

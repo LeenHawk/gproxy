@@ -4,8 +4,8 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, PermissionEntry};
-use gproxy_storage::repository::PermissionRepository;
 use gproxy_storage::Scope;
+use gproxy_storage::repository::PermissionRepository;
 use std::sync::Arc;
 
 /// Response row for permissions from memory.
@@ -138,10 +138,7 @@ pub async fn upsert_permission(
     let (payload, delete_id) = canonicalize_permission_write(&state, &payload);
 
     if let Some(delete_id) = delete_id {
-        state
-            .storage()
-            .delete_user_permission(delete_id)
-            .await?;
+        state.storage().delete_user_permission(delete_id).await?;
         state.remove_permission_from_memory(delete_id);
     }
 
@@ -172,10 +169,7 @@ pub async fn delete_permission(
     Json(payload): Json<DeletePermissionPayload>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    state
-        .storage()
-        .delete_user_permission(payload.id)
-        .await?;
+    state.storage().delete_user_permission(payload.id).await?;
 
     state.remove_permission_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -190,16 +184,10 @@ pub async fn batch_upsert_permissions(
     for item in items {
         let (item, delete_id) = canonicalize_permission_write(&state, &item);
         if let Some(delete_id) = delete_id {
-            state
-                .storage()
-                .delete_user_permission(delete_id)
-                .await?;
+            state.storage().delete_user_permission(delete_id).await?;
             state.remove_permission_from_memory(delete_id);
         }
-        state
-            .storage()
-            .upsert_user_permission(item.clone())
-            .await?;
+        state.storage().upsert_user_permission(item.clone()).await?;
         state.upsert_permission_in_memory(
             item.user_id,
             PermissionEntry {
@@ -219,10 +207,7 @@ pub async fn batch_delete_permissions(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for p in payloads {
-        state
-            .storage()
-            .delete_user_permission(p.id)
-            .await?;
+        state.storage().delete_user_permission(p.id).await?;
         state.remove_permission_from_memory(p.id);
     }
     Ok(Json(AckResponse { ok: true, id: None }))

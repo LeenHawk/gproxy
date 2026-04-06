@@ -119,7 +119,10 @@ pub fn strip_provider_from_uri_path(path: &str) -> Option<(String, String)> {
     Some((provider, new_path))
 }
 
-fn body_model_pointers(operation: OperationFamily, protocol: ProtocolKind) -> &'static [&'static str] {
+fn body_model_pointers(
+    operation: OperationFamily,
+    protocol: ProtocolKind,
+) -> &'static [&'static str] {
     match (operation, protocol) {
         (OperationFamily::ModelGet, ProtocolKind::Gemini | ProtocolKind::GeminiNDJson) => &[],
         (

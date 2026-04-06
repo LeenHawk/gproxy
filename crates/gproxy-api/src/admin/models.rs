@@ -4,8 +4,8 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, MemoryModel, ModelAliasTarget, PriceTier};
-use gproxy_storage::repository::ModelRepository;
 use gproxy_storage::Scope;
+use gproxy_storage::repository::ModelRepository;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -123,10 +123,7 @@ pub async fn upsert_model(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    state
-        .storage()
-        .upsert_model(payload.clone())
-        .await?;
+    state.storage().upsert_model(payload.clone()).await?;
 
     let price_tiers: Vec<PriceTier> = payload
         .price_tiers_json
@@ -157,10 +154,7 @@ pub async fn delete_model(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    state
-        .storage()
-        .delete_model(payload.id)
-        .await?;
+    state.storage().delete_model(payload.id).await?;
 
     state.remove_model_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -201,10 +195,7 @@ pub async fn upsert_model_alias(
     // Resolve provider_id → provider_name from storage
     let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
 
-    state
-        .storage()
-        .upsert_model_alias(payload.clone())
-        .await?;
+    state.storage().upsert_model_alias(payload.clone()).await?;
 
     state.upsert_model_alias_in_memory(
         payload.alias.clone(),
@@ -229,10 +220,7 @@ pub async fn delete_model_alias(
     authorize_admin(&headers, &state)?;
     let id = resolve_model_alias_id(&state, &payload.alias).await?;
 
-    state
-        .storage()
-        .delete_model_alias(id)
-        .await?;
+    state.storage().delete_model_alias(id).await?;
 
     state.remove_model_alias_from_memory(&payload.alias);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -245,10 +233,7 @@ pub async fn batch_upsert_models(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for item in items {
-        state
-            .storage()
-            .upsert_model(item.clone())
-            .await?;
+        state.storage().upsert_model(item.clone()).await?;
         let price_tiers: Vec<PriceTier> = item
             .price_tiers_json
             .as_deref()
@@ -274,10 +259,7 @@ pub async fn batch_delete_models(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for id in ids {
-        state
-            .storage()
-            .delete_model(id)
-            .await?;
+        state.storage().delete_model(id).await?;
         state.remove_model_from_memory(id);
     }
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -294,10 +276,7 @@ pub async fn batch_upsert_model_aliases(
     let provider_name_map = resolve_provider_names(&state).await?;
 
     for item in items {
-        state
-            .storage()
-            .upsert_model_alias(item.clone())
-            .await?;
+        state.storage().upsert_model_alias(item.clone()).await?;
         let provider_name = provider_name_map
             .get(&item.provider_id)
             .cloned()
@@ -321,10 +300,7 @@ pub async fn batch_delete_model_aliases(
     authorize_admin(&headers, &state)?;
     for p in payloads {
         let id = resolve_model_alias_id(&state, &p.alias).await?;
-        state
-            .storage()
-            .delete_model_alias(id)
-            .await?;
+        state.storage().delete_model_alias(id).await?;
         state.remove_model_alias_from_memory(&p.alias);
     }
     Ok(Json(AckResponse { ok: true, id: None }))

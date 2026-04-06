@@ -106,16 +106,17 @@ impl QuotaBackend for RedisQuota {
         let key = format!("{}{}", self.key_prefix, identity_id);
 
         async move {
-            let (total, used, reserved): (Option<u64>, Option<u64>, Option<u64>) =
-                redis::pipe()
-                    .hget(&key, "total")
-                    .hget(&key, "used")
-                    .hget(&key, "reserved")
-                    .query_async(&mut conn)
-                    .await
-                    .map_err(|e| QuotaError::Backend(BackendError::from(
+            let (total, used, reserved): (Option<u64>, Option<u64>, Option<u64>) = redis::pipe()
+                .hget(&key, "total")
+                .hget(&key, "used")
+                .hget(&key, "reserved")
+                .query_async(&mut conn)
+                .await
+                .map_err(|e| {
+                    QuotaError::Backend(BackendError::from(
                         Box::new(e) as Box<dyn std::error::Error + Send + Sync>
-                    )))?;
+                    ))
+                })?;
 
             Ok(QuotaBalance {
                 total: total.unwrap_or(0),
@@ -140,9 +141,11 @@ impl QuotaBackend for RedisQuota {
                 .arg(total)
                 .query_async(&mut conn)
                 .await
-                .map_err(|e| QuotaError::Backend(BackendError::from(
-                    Box::new(e) as Box<dyn std::error::Error + Send + Sync>
-                )))?;
+                .map_err(|e| {
+                    QuotaError::Backend(BackendError::from(
+                        Box::new(e) as Box<dyn std::error::Error + Send + Sync>
+                    ))
+                })?;
             Ok(())
         }
     }
@@ -173,9 +176,11 @@ impl QuotaHold for RedisQuotaHold {
                     .arg(actual_cost)
                     .invoke_async(&mut conn)
                     .await
-                    .map_err(|e| QuotaError::Backend(BackendError::from(
-                        Box::new(e) as Box<dyn std::error::Error + Send + Sync>
-                    )))?;
+                    .map_err(|e| {
+                        QuotaError::Backend(BackendError::from(
+                            Box::new(e) as Box<dyn std::error::Error + Send + Sync>
+                        ))
+                    })?;
             }
             Ok(())
         }

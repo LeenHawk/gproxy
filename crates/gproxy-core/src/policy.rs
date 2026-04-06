@@ -30,12 +30,7 @@ impl PolicyService {
     /// Check if a user has permission to access a model on a given provider.
     ///
     /// `provider_id` should be resolved by the caller (from SDK ProviderRegistry).
-    pub fn check_model_permission(
-        &self,
-        user_id: i64,
-        provider_id: i64,
-        model: &str,
-    ) -> bool {
+    pub fn check_model_permission(&self, user_id: i64, provider_id: i64, model: &str) -> bool {
         let perms = self.user_permissions.load();
         let Some(entries) = perms.get(&user_id) else {
             return false;

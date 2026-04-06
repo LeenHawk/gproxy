@@ -127,7 +127,10 @@ pub fn classify_route(
         ));
     }
     if normalized_path == "/responses/compact" {
-        return Ok(Classification::new(OperationFamily::Compact, ProtocolKind::OpenAi));
+        return Ok(Classification::new(
+            OperationFamily::Compact,
+            ProtocolKind::OpenAi,
+        ));
     }
     if normalized_path == "/embeddings" {
         return Ok(Classification::new(

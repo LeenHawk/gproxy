@@ -5,8 +5,8 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::AppState;
-use gproxy_storage::repository::UserRepository;
 use gproxy_storage::Scope;
+use gproxy_storage::repository::UserRepository;
 use serde::Serialize;
 use std::sync::Arc;
 
@@ -67,10 +67,7 @@ pub async fn upsert_user(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     payload.password = normalize_password_for_storage(&payload.password);
-    state
-        .storage()
-        .upsert_user(payload.clone())
-        .await?;
+    state.storage().upsert_user(payload.clone()).await?;
     state.upsert_user_in_memory(gproxy_server::MemoryUser {
         id: payload.id,
         name: payload.name.clone(),
@@ -91,10 +88,7 @@ pub async fn delete_user(
     Json(payload): Json<DeleteUserPayload>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    state
-        .storage()
-        .delete_user(payload.id)
-        .await?;
+    state.storage().delete_user(payload.id).await?;
     state.remove_user_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -179,10 +173,7 @@ pub async fn delete_user_key(
     Json(payload): Json<DeleteUserKeyPayload>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    state
-        .storage()
-        .delete_user_key(payload.id)
-        .await?;
+    state.storage().delete_user_key(payload.id).await?;
     state.remove_key_from_memory(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -195,10 +186,7 @@ pub async fn batch_upsert_users(
     authorize_admin(&headers, &state)?;
     for mut item in items {
         item.password = normalize_password_for_storage(&item.password);
-        state
-            .storage()
-            .upsert_user(item.clone())
-            .await?;
+        state.storage().upsert_user(item.clone()).await?;
         state.upsert_user_in_memory(gproxy_server::MemoryUser {
             id: item.id,
             name: item.name.clone(),
@@ -216,10 +204,7 @@ pub async fn batch_delete_users(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for id in &ids {
-        state
-            .storage()
-            .delete_user(*id)
-            .await?;
+        state.storage().delete_user(*id).await?;
         state.remove_user_from_memory(*id);
     }
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -232,10 +217,7 @@ pub async fn batch_delete_user_keys(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for id in &ids {
-        state
-            .storage()
-            .delete_user_key(*id)
-            .await?;
+        state.storage().delete_user_key(*id).await?;
         state.remove_key_from_memory(*id);
     }
     Ok(Json(AckResponse { ok: true, id: None }))

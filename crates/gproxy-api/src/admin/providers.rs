@@ -251,10 +251,7 @@ pub async fn upsert_provider(
     ensure_provider_channel_immutable(existing.get(&payload.id), &payload)?;
     validate_provider_payload(&payload)?;
     let previous_name = existing.get(&payload.id).map(|row| row.name.clone());
-    state
-        .storage()
-        .upsert_provider(payload.clone())
-        .await?;
+    state.storage().upsert_provider(payload.clone()).await?;
     sync_provider_runtime(&state, &payload, previous_name.as_deref()).await?;
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -272,10 +269,7 @@ pub async fn delete_provider(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     let provider_id = resolve_provider_id_by_name(&state, &payload.name).await?;
-    state
-        .storage()
-        .delete_provider(provider_id)
-        .await?;
+    state.storage().delete_provider(provider_id).await?;
     state.engine().store().remove_provider(&payload.name);
     state.remove_provider_name_from_memory(&payload.name);
     state.remove_provider_channel_from_memory(&payload.name);
@@ -298,10 +292,7 @@ pub async fn batch_upsert_providers(
     }
     for item in items {
         let previous_name = existing.get(&item.id).map(|row| row.name.as_str());
-        state
-            .storage()
-            .upsert_provider(item.clone())
-            .await?;
+        state.storage().upsert_provider(item.clone()).await?;
         sync_provider_runtime(&state, &item, previous_name).await?;
     }
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -315,10 +306,7 @@ pub async fn batch_delete_providers(
     authorize_admin(&headers, &state)?;
     for name in &names {
         let provider_id = resolve_provider_id_by_name(&state, name).await?;
-        state
-            .storage()
-            .delete_provider(provider_id)
-            .await?;
+        state.storage().delete_provider(provider_id).await?;
         state.engine().store().remove_provider(name);
         state.remove_provider_name_from_memory(name);
         state.remove_provider_channel_from_memory(name);

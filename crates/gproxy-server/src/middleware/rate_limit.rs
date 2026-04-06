@@ -114,9 +114,8 @@ impl RateLimitCounters {
     /// Remove stale window counters to prevent unbounded memory growth.
     pub fn purge_expired(&self) {
         let now = Instant::now();
-        self.local.retain(|_key, counter| {
-            now.duration_since(counter.minute_window_start) < DAY
-        });
+        self.local
+            .retain(|_key, counter| now.duration_since(counter.minute_window_start) < DAY);
     }
 }
 

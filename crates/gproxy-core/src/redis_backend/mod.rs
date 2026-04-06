@@ -6,10 +6,10 @@
 //! Each backend uses atomic Redis operations (INCR, Lua scripts) to
 //! ensure correct behavior under concurrent access from multiple instances.
 
-mod rate_limit;
-mod quota;
 mod affinity;
+mod quota;
+mod rate_limit;
 
-pub use rate_limit::RedisRateLimit;
-pub use quota::{RedisQuota, RedisQuotaHold};
 pub use affinity::RedisAffinity;
+pub use quota::{RedisQuota, RedisQuotaHold};
+pub use rate_limit::RedisRateLimit;

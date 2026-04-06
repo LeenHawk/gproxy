@@ -248,7 +248,10 @@ impl AppState {
     }
 
     pub fn check_model_permission(&self, user_id: i64, provider_name: &str, model: &str) -> bool {
-        let provider_id = self.routing.provider_id_for_name(provider_name).unwrap_or(0);
+        let provider_id = self
+            .routing
+            .provider_id_for_name(provider_name)
+            .unwrap_or(0);
         self.policy
             .check_model_permission(user_id, provider_id, model)
     }
@@ -315,13 +318,11 @@ impl AppState {
         if quota > 0.0 {
             let micro_units = (quota * 1_000_000.0) as u64;
             // InMemoryQuota::set_quota returns Ready — poll once to execute.
-            let mut fut = std::pin::pin!(
-                gproxy_sdk::provider::QuotaBackend::set_quota(
-                    &self.quota_backend,
-                    user_id,
-                    micro_units,
-                )
-            );
+            let mut fut = std::pin::pin!(gproxy_sdk::provider::QuotaBackend::set_quota(
+                &self.quota_backend,
+                user_id,
+                micro_units,
+            ));
             let waker = futures_util::task::noop_waker();
             let mut cx = Context::from_waker(&waker);
             let _ = fut.as_mut().poll(&mut cx);
@@ -846,11 +847,9 @@ impl AppStateBuilder {
                 None => RateLimitCounters::new(),
             },
             usage_tx,
-            quota_backend: quota_backend.unwrap_or(
-                gproxy_core::dispatch::QuotaDispatch::Memory(
-                    gproxy_sdk::provider::InMemoryQuota::new(),
-                ),
-            ),
+            quota_backend: quota_backend.unwrap_or(gproxy_core::dispatch::QuotaDispatch::Memory(
+                gproxy_sdk::provider::InMemoryQuota::new(),
+            )),
         };
 
         state.replace_config(config);
@@ -1002,7 +1001,10 @@ mod tests {
         )]));
 
         assert_eq!(state.find_model("claude-3-5-sonnet").unwrap().id, 100);
-        assert_eq!(state.routing.find_model("claude-3-5-sonnet").unwrap().id, 100);
+        assert_eq!(
+            state.routing.find_model("claude-3-5-sonnet").unwrap().id,
+            100
+        );
 
         assert_eq!(
             state.resolve_model_alias("sonnet").unwrap().provider_name,
@@ -1033,7 +1035,10 @@ mod tests {
         );
 
         assert_eq!(state.credential_id_for_index("anthropic", 1), Some(1001));
-        assert_eq!(state.routing.credential_id_for_index("anthropic", 1), Some(1001));
+        assert_eq!(
+            state.routing.credential_id_for_index("anthropic", 1),
+            Some(1001)
+        );
 
         assert_eq!(
             state.provider_credential_ids_for("anthropic"),
@@ -1054,9 +1059,11 @@ mod tests {
         );
 
         assert!(state.check_model_permission(1, "anthropic", "claude-3-5-sonnet"));
-        assert!(state
-            .policy
-            .check_model_permission(1, 42, "claude-3-5-sonnet"));
+        assert!(
+            state
+                .policy
+                .check_model_permission(1, 42, "claude-3-5-sonnet")
+        );
 
         assert!(state.check_provider_access(1, "anthropic"));
         assert!(state.policy.check_provider_access(1, 42));
@@ -1071,7 +1078,11 @@ mod tests {
         assert_eq!(state.file.list_user_files(1, 42).len(), 1);
 
         assert_eq!(
-            state.find_claude_file(42, "file-1").unwrap().metadata.filename,
+            state
+                .find_claude_file(42, "file-1")
+                .unwrap()
+                .metadata
+                .filename,
             "doc.txt"
         );
         assert_eq!(

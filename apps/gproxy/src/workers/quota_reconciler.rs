@@ -36,15 +36,18 @@ async fn reconcile(state: &AppState) {
                 let (current_quota, current_used) = state.get_user_quota(row.user_id);
                 // Only update if DB has a different quota total (admin changed it)
                 // or if DB cost_used is higher (another instance charged more)
-                if (row.quota - current_quota).abs() > f64::EPSILON
-                    || row.cost_used > current_used
+                if (row.quota - current_quota).abs() > f64::EPSILON || row.cost_used > current_used
                 {
                     state.upsert_user_quota_in_memory(row.user_id, row.quota, row.cost_used);
                     updated += 1;
                 }
             }
             if updated > 0 {
-                tracing::debug!(updated, total = rows.len(), "quota reconciler synced from DB");
+                tracing::debug!(
+                    updated,
+                    total = rows.len(),
+                    "quota reconciler synced from DB"
+                );
             } else {
                 tracing::trace!(total = rows.len(), "quota reconciler tick (no changes)");
             }

@@ -36,8 +36,7 @@ pub trait CredentialRepository: Send + Sync {
     ) -> impl Future<Output = Result<(), DbErr>> + Send;
 
     /// Deletes a credential status record by id.
-    fn delete_credential_status(&self, id: i64)
-    -> impl Future<Output = Result<(), DbErr>> + Send;
+    fn delete_credential_status(&self, id: i64) -> impl Future<Output = Result<(), DbErr>> + Send;
 }
 
 /// Persists user aggregate root writes.

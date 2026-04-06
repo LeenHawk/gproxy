@@ -4,8 +4,8 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, RateLimitRule};
-use gproxy_storage::repository::PermissionRepository;
 use gproxy_storage::Scope;
+use gproxy_storage::repository::PermissionRepository;
 use std::sync::Arc;
 
 async fn resolve_rate_limit_id(
@@ -113,10 +113,7 @@ pub async fn delete_rate_limit(
     authorize_admin(&headers, &state)?;
     let id = resolve_rate_limit_id(&state, payload.user_id, &payload.model_pattern).await?;
 
-    state
-        .storage()
-        .delete_user_rate_limit(id)
-        .await?;
+    state.storage().delete_user_rate_limit(id).await?;
 
     state.remove_rate_limit_from_memory(payload.user_id, &payload.model_pattern);
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -129,10 +126,7 @@ pub async fn batch_upsert_rate_limits(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for item in items {
-        state
-            .storage()
-            .upsert_user_rate_limit(item.clone())
-            .await?;
+        state.storage().upsert_user_rate_limit(item.clone()).await?;
         state.upsert_rate_limit_in_memory(
             item.user_id,
             RateLimitRule {
@@ -155,10 +149,7 @@ pub async fn batch_delete_rate_limits(
     authorize_admin(&headers, &state)?;
     for p in payloads {
         let id = resolve_rate_limit_id(&state, p.user_id, &p.model_pattern).await?;
-        state
-            .storage()
-            .delete_user_rate_limit(id)
-            .await?;
+        state.storage().delete_user_rate_limit(id).await?;
         state.remove_rate_limit_from_memory(p.user_id, &p.model_pattern);
     }
     Ok(Json(AckResponse { ok: true, id: None }))

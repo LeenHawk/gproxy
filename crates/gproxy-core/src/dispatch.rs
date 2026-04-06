@@ -7,8 +7,12 @@
 use std::future::Future;
 use std::time::Duration;
 
-use gproxy_sdk::provider::backend::memory::{InMemoryAffinity, InMemoryQuota, InMemoryQuotaHold, InMemoryRateLimit};
-use gproxy_sdk::provider::backend::traits::{AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend};
+use gproxy_sdk::provider::backend::memory::{
+    InMemoryAffinity, InMemoryQuota, InMemoryQuotaHold, InMemoryRateLimit,
+};
+use gproxy_sdk::provider::backend::traits::{
+    AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend,
+};
 use gproxy_sdk::provider::backend::types::{
     BackendError, QuotaBalance, QuotaError, QuotaExhausted, RateLimitExceeded, RateLimitWindow,
 };
@@ -28,7 +32,11 @@ pub enum RateLimitDispatch {
 
 #[allow(clippy::manual_async_fn)]
 impl RateLimitBackend for RateLimitDispatch {
-    fn try_acquire(&self, key: &str, window: RateLimitWindow) -> impl Future<Output = Result<u64, RateLimitExceeded>> + Send {
+    fn try_acquire(
+        &self,
+        key: &str,
+        window: RateLimitWindow,
+    ) -> impl Future<Output = Result<u64, RateLimitExceeded>> + Send {
         async move {
             match self {
                 Self::Memory(m) => RateLimitBackend::try_acquire(m, key, window).await,
@@ -38,7 +46,11 @@ impl RateLimitBackend for RateLimitDispatch {
         }
     }
 
-    fn current_count(&self, key: &str, window: RateLimitWindow) -> impl Future<Output = u64> + Send {
+    fn current_count(
+        &self,
+        key: &str,
+        window: RateLimitWindow,
+    ) -> impl Future<Output = u64> + Send {
         async move {
             match self {
                 Self::Memory(m) => RateLimitBackend::current_count(m, key, window).await,
@@ -71,7 +83,11 @@ pub enum QuotaHoldDispatch {
 impl QuotaBackend for QuotaDispatch {
     type Hold = QuotaHoldDispatch;
 
-    fn try_reserve(&self, identity_id: i64, estimated_cost: u64) -> impl Future<Output = Result<Self::Hold, QuotaExhausted>> + Send {
+    fn try_reserve(
+        &self,
+        identity_id: i64,
+        estimated_cost: u64,
+    ) -> impl Future<Output = Result<Self::Hold, QuotaExhausted>> + Send {
         async move {
             match self {
                 Self::Memory(m) => QuotaBackend::try_reserve(m, identity_id, estimated_cost)
@@ -85,7 +101,10 @@ impl QuotaBackend for QuotaDispatch {
         }
     }
 
-    fn balance(&self, identity_id: i64) -> impl Future<Output = Result<QuotaBalance, QuotaError>> + Send {
+    fn balance(
+        &self,
+        identity_id: i64,
+    ) -> impl Future<Output = Result<QuotaBalance, QuotaError>> + Send {
         async move {
             match self {
                 Self::Memory(m) => QuotaBackend::balance(m, identity_id).await,
@@ -95,7 +114,11 @@ impl QuotaBackend for QuotaDispatch {
         }
     }
 
-    fn set_quota(&self, identity_id: i64, total: u64) -> impl Future<Output = Result<(), QuotaError>> + Send {
+    fn set_quota(
+        &self,
+        identity_id: i64,
+        total: u64,
+    ) -> impl Future<Output = Result<(), QuotaError>> + Send {
         async move {
             match self {
                 Self::Memory(m) => QuotaBackend::set_quota(m, identity_id, total).await,
@@ -142,7 +165,12 @@ impl AffinityBackend for AffinityDispatch {
         }
     }
 
-    fn set_binding(&self, key: &str, credential_id: &str, ttl: Duration) -> impl Future<Output = Result<(), BackendError>> + Send {
+    fn set_binding(
+        &self,
+        key: &str,
+        credential_id: &str,
+        ttl: Duration,
+    ) -> impl Future<Output = Result<(), BackendError>> + Send {
         let cred = credential_id.to_string();
         async move {
             match self {

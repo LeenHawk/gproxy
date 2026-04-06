@@ -4,8 +4,8 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::{AppState, FilePermissionEntry};
-use gproxy_storage::repository::PermissionRepository;
 use gproxy_storage::Scope;
+use gproxy_storage::repository::PermissionRepository;
 use std::sync::Arc;
 
 #[derive(serde::Serialize)]

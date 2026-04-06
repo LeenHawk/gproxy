@@ -32,7 +32,12 @@ impl FileService {
         self.user_files
             .load()
             .iter()
-            .find(|r| r.active && r.user_id == user_id && r.provider_id == provider_id && r.file_id == file_id)
+            .find(|r| {
+                r.active
+                    && r.user_id == user_id
+                    && r.provider_id == provider_id
+                    && r.file_id == file_id
+            })
             .cloned()
     }
 
