@@ -4,20 +4,22 @@
 //! changes to the database with a 500ms debounce window.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::broadcast;
 
 use super::ShutdownRx;
 use gproxy_sdk::provider::store::EngineEvent;
-use gproxy_storage::{CredentialStatusWrite, SeaOrmStorage, StorageWriteEvent};
+use gproxy_server::AppState;
+use gproxy_storage::{CredentialStatusWrite, StorageWriteEvent};
 
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(500);
 
 /// Spawn the health broadcaster worker.
 pub fn spawn(
     mut event_rx: broadcast::Receiver<EngineEvent>,
-    storage: SeaOrmStorage,
+    state: Arc<AppState>,
     mut shutdown: ShutdownRx,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -40,27 +42,36 @@ pub fn spawn(
                     }
                 }
                 _ = tokio::time::sleep(DEBOUNCE_WINDOW), if !pending.is_empty() => {
-                    flush_pending(&storage, &mut pending).await;
+                    flush_pending(&state, &mut pending).await;
                 }
             }
         }
 
         if !pending.is_empty() {
-            flush_pending(&storage, &mut pending).await;
+            flush_pending(&state, &mut pending).await;
         }
         tracing::debug!("health broadcaster worker shut down");
     })
 }
 
 async fn flush_pending(
-    storage: &SeaOrmStorage,
+    state: &AppState,
     pending: &mut HashMap<(String, usize), String>,
 ) {
     let entries: Vec<_> = pending.drain().collect();
-    for ((provider, _index), status) in &entries {
+    let storage = state.storage();
+    for ((provider, index), status) in &entries {
+        // Resolve credential DB id from provider name + index
+        let credential_id = state
+            .credential_id_for_index(provider, *index)
+            .unwrap_or(0);
+        if credential_id == 0 {
+            tracing::debug!(provider, index, "skipping health persist: credential_id not found");
+            continue;
+        }
         let write = CredentialStatusWrite {
             id: None,
-            credential_id: 0, // TODO: resolve from SDK ProviderRegistry
+            credential_id,
             channel: provider.clone(),
             health_kind: status.clone(),
             health_json: None,
@@ -79,5 +90,7 @@ async fn flush_pending(
             tracing::error!(%err, provider, "failed to persist credential health");
         }
     }
-    tracing::trace!(count = entries.len(), "flushed health state changes");
+    if !entries.is_empty() {
+        tracing::trace!(count = entries.len(), "flushed health state changes");
+    }
 }

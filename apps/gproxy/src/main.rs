@@ -245,7 +245,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // 13. Start remaining background workers
-    worker_set.register(workers::quota_reconciler::spawn(worker_set.subscribe()));
+    worker_set.register(workers::quota_reconciler::spawn(state.clone(), worker_set.subscribe()));
     worker_set.register(workers::rate_limit_gc::spawn(
         state.clone(),
         worker_set.subscribe(),
@@ -253,7 +253,7 @@ async fn main() -> anyhow::Result<()> {
     let health_rx = state.engine().store().subscribe();
     worker_set.register(workers::health_broadcaster::spawn(
         health_rx,
-        storage.as_ref().clone(),
+        state.clone(),
         worker_set.subscribe(),
     ));
     tracing::info!("background workers started");
