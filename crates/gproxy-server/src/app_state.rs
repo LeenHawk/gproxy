@@ -314,17 +314,21 @@ impl AppState {
 
     /// Sync a user's quota into the QuotaBackend for pre-hold support.
     pub fn sync_quota_to_backend(&self, user_id: i64) {
+        use std::task::Context;
         let (quota, _cost_used) = self.get_user_quota(user_id);
         if quota > 0.0 {
-            // Set total quota in backend (cost_used tracking is separate)
-            #[allow(clippy::let_underscore_future)]
-            let _ = std::pin::pin!(
+            let micro_units = (quota * 1_000_000.0) as u64;
+            // InMemoryQuota::set_quota returns Ready — poll once to execute.
+            let mut fut = std::pin::pin!(
                 gproxy_sdk::provider::QuotaBackend::set_quota(
                     &self.quota_backend,
                     user_id,
-                    (quota * 1_000_000.0) as u64, // Convert to micro-units for integer precision
+                    micro_units,
                 )
             );
+            let waker = futures_util::task::noop_waker();
+            let mut cx = Context::from_waker(&waker);
+            let _ = fut.as_mut().poll(&mut cx);
         }
     }
 

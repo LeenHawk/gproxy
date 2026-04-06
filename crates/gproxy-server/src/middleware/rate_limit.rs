@@ -99,6 +99,17 @@ impl RateLimitCounters {
         // Reserved for future cumulative token windows. Per-request token caps are
         // enforced before dispatch using the declared token budget in the request.
     }
+
+    /// Remove stale window counters to prevent unbounded memory growth.
+    ///
+    /// Call this periodically (e.g. every 60s) from a background worker.
+    pub fn purge_expired(&self) {
+        let now = Instant::now();
+        self.requests.retain(|_key, counter| {
+            // Keep if either window is still active
+            now.duration_since(counter.minute_window_start) < DAY
+        });
+    }
 }
 
 impl Default for RateLimitCounters {

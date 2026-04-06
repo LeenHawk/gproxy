@@ -247,7 +247,7 @@ async fn main() -> anyhow::Result<()> {
     // 13. Start remaining background workers
     worker_set.register(workers::quota_reconciler::spawn(worker_set.subscribe()));
     worker_set.register(workers::rate_limit_gc::spawn(
-        gproxy_sdk::provider::InMemoryRateLimit::new(),
+        state.clone(),
         worker_set.subscribe(),
     ));
     let health_rx = state.engine().store().subscribe();
