@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
-use dashmap::DashMap;
 
 use gproxy_core::{ConfigService, FileService, IdentityService, PolicyService, RoutingService};
 use gproxy_sdk::provider::engine::GproxyEngine;
@@ -133,7 +132,7 @@ pub struct AppState {
     routing_mirror: RoutingMirror,
     file_mirror: FileMirror,
     policy_mirror: PolicyMirror,
-    user_quotas: DashMap<i64, (f64, f64)>,
+    user_quotas: gproxy_core::QuotaService,
     pub rate_counters: RateLimitCounters,
     /// Optional async usage sink for non-blocking data plane writes.
     /// When set, `record_usage` sends through this channel instead of
@@ -241,10 +240,7 @@ impl AppState {
 
     /// Get user quota info: (quota, cost_used). Returns (0, 0) if not set.
     pub fn get_user_quota(&self, user_id: i64) -> (f64, f64) {
-        self.user_quotas
-            .get(&user_id)
-            .map(|e| *e.value())
-            .unwrap_or((0.0, 0.0))
+        self.user_quotas.get_quota(user_id)
     }
 
     pub fn resolve_model_alias(&self, alias: &str) -> Option<ModelAliasTarget> {
@@ -334,13 +330,11 @@ impl AppState {
 
     /// Atomically add cost to a user's quota usage. Returns (quota, new_cost_used).
     pub fn add_cost_usage(&self, user_id: i64, cost: f64) -> (f64, f64) {
-        let mut entry = self.user_quotas.entry(user_id).or_insert((0.0, 0.0));
-        entry.1 += cost;
-        *entry.value()
+        self.user_quotas.add_cost(user_id, cost)
     }
 
     pub fn upsert_user_quota_in_memory(&self, user_id: i64, quota: f64, cost_used: f64) {
-        self.user_quotas.insert(user_id, (quota, cost_used));
+        self.user_quotas.upsert(user_id, quota, cost_used);
     }
 
     pub fn provider_id_for_name(&self, provider_name: &str) -> Option<i64> {
@@ -584,16 +578,15 @@ impl AppState {
 
     pub fn user_quotas_snapshot(&self) -> HashMap<i64, (f64, f64)> {
         self.user_quotas
-            .iter()
-            .map(|e| (*e.key(), *e.value()))
+            .snapshot()
+            .into_iter()
+            .map(|(id, q, c)| (id, (q, c)))
             .collect()
     }
 
     pub fn replace_user_quotas(&self, quotas: HashMap<i64, (f64, f64)>) {
-        self.user_quotas.clear();
-        for (k, v) in quotas {
-            self.user_quotas.insert(k, v);
-        }
+        let vec: Vec<(i64, f64, f64)> = quotas.into_iter().map(|(id, (q, c))| (id, q, c)).collect();
+        self.user_quotas.replace_all(vec);
     }
 
     // --- Models ---
@@ -829,7 +822,7 @@ impl AppStateBuilder {
             routing_mirror: RoutingMirror::new(),
             file_mirror: FileMirror::new(),
             policy_mirror: PolicyMirror::new(),
-            user_quotas: DashMap::new(),
+            user_quotas: gproxy_core::QuotaService::new(),
             rate_counters: RateLimitCounters::new(),
             usage_tx,
             quota_backend: gproxy_sdk::provider::InMemoryQuota::new(),
