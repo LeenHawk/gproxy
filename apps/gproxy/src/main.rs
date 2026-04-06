@@ -123,11 +123,11 @@ async fn main() -> anyhow::Result<()> {
         data_dir: active_data_dir.clone(),
     };
 
-    // 9. Start background workers (before AppState so usage_tx is available)
+    // 9. Create usage channel (sender goes into AppState, receiver to worker)
+    let (usage_tx, usage_rx) = tokio::sync::mpsc::channel::<gproxy_storage::UsageWrite>(1024);
     let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
-    let usage_tx = workers::usage_sink::spawn(storage.as_ref().clone(), worker_set.subscribe());
 
-    // 9. Build empty engine + AppState
+    // 10. Build empty engine + AppState
     let engine = GproxyEngineBuilder::new()
         .configure_clients(config.proxy.as_deref(), Some(&config.spoof_emulation))
         .build();
@@ -139,6 +139,9 @@ async fn main() -> anyhow::Result<()> {
         .usage_tx(usage_tx);
 
     let state = Arc::new(app_builder.build());
+
+    // 11. Start usage sink worker (after AppState, so it reads fresh storage)
+    workers::usage_sink::spawn_with_receiver(state.clone(), usage_rx, worker_set.subscribe());
 
     // 10. Bootstrap: load from DB or seed from TOML / defaults
     let has_data = persisted_settings_exist;

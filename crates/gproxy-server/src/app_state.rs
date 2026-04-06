@@ -323,6 +323,11 @@ impl AppState {
         model: &str,
         requested_total_tokens: Option<i64>,
     ) -> Result<(), RateLimitRejection> {
+        // Quota check runs unconditionally — not gated on rate-limit rules.
+        // Previously this was at the end, after early returns for missing rules,
+        // allowing users without rate-limit config to bypass quota entirely.
+        self.check_quota(user_id)?;
+
         let limits = self.policy_mirror.user_rate_limits.load();
         let Some(user_limits) = limits.get(&user_id) else {
             return Ok(());
@@ -340,7 +345,6 @@ impl AppState {
         self.rate_counters
             .try_acquire(user_id, model, rule.rpm, rule.rpd)?;
 
-        self.check_quota(user_id)?;
         Ok(())
     }
 

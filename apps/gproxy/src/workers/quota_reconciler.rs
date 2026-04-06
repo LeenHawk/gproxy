@@ -34,10 +34,14 @@ async fn reconcile(state: &AppState) {
             let mut updated = 0usize;
             for row in &rows {
                 let (current_quota, current_used) = state.get_user_quota(row.user_id);
-                // Only update if DB has a different quota total (admin changed it)
-                // or if DB cost_used is higher (another instance charged more)
-                if (row.quota - current_quota).abs() > f64::EPSILON || row.cost_used > current_used
-                {
+                // Sync if DB has different quota total (admin changed it)
+                // OR if DB cost_used differs from memory in either direction:
+                // - DB > memory: another instance charged more
+                // - DB < memory: usage_sink failed to persist, memory is inflated
+                //   (prevents permanently locking users out after transient DB errors)
+                let quota_changed = (row.quota - current_quota).abs() > f64::EPSILON;
+                let cost_diverged = (row.cost_used - current_used).abs() > f64::EPSILON;
+                if quota_changed || cost_diverged {
                     state.upsert_user_quota_in_memory(row.user_id, row.quota, row.cost_used);
                     updated += 1;
                 }
