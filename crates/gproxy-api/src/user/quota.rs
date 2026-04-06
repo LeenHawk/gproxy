@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use gproxy_server::AppState;
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::SessionUser;
 use crate::error::HttpError;
 
 #[derive(Serialize)]
@@ -23,12 +23,12 @@ pub struct QuotaResponse {
 /// Get the authenticated user's quota and cost.
 pub async fn get_quota(
     State(state): State<Arc<AppState>>,
-    Extension(authenticated): Extension<AuthenticatedUser>,
+    Extension(session): Extension<SessionUser>,
 ) -> Result<Json<QuotaResponse>, HttpError> {
-    let user_key = authenticated.0;
-    let (quota, cost_used) = state.get_user_quota(user_key.user_id);
+    let user_id = session.user_id;
+    let (quota, cost_used) = state.get_user_quota(user_id);
     Ok(Json(QuotaResponse {
-        user_id: user_key.user_id,
+        user_id,
         quota,
         cost_used,
         remaining: (quota - cost_used).max(0.0),

@@ -20,7 +20,8 @@ pub fn spawn(state: Arc<AppState>, mut shutdown: ShutdownRx) -> tokio::task::Joi
                 _ = shutdown.changed() => break,
                 _ = tokio::time::sleep(GC_INTERVAL) => {
                     state.rate_counters.purge_expired();
-                    tracing::trace!("rate-limit GC sweep completed");
+                    state.purge_expired_sessions();
+                    tracing::trace!("rate-limit + session GC sweep completed");
                 }
             }
         }

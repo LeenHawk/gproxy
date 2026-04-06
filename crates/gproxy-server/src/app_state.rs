@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
+use dashmap::DashMap;
 
 use gproxy_core::{ConfigService, FileService, IdentityService, PolicyService, RoutingService};
 use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend, engine::GproxyEngine};
@@ -140,6 +141,9 @@ pub struct AppState {
     usage_tx: Option<tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>>,
     /// Quota backend for pre-hold/settle pattern.
     pub quota_backend: InMemoryQuota,
+    /// Session tokens for /user/* routes (short-lived, memory-only).
+    /// Key: session token string, Value: (user_id, user_key_id, expires_at_unix_ms)
+    sessions: DashMap<String, (i64, i64, i64)>,
 }
 
 impl AppState {
@@ -213,6 +217,45 @@ impl AppState {
     /// Get the async usage sink sender, if configured.
     pub fn usage_tx(&self) -> Option<&tokio::sync::mpsc::Sender<gproxy_storage::UsageWrite>> {
         self.usage_tx.as_ref()
+    }
+
+    /// Create a session token for a user. Returns the token string.
+    /// Session expires after `ttl_secs` seconds.
+    pub fn create_session(&self, user_id: i64, user_key_id: i64, ttl_secs: u64) -> String {
+        use rand::RngExt;
+        let token = format!("sess-{:016x}", rand::rng().random::<u64>());
+        let expires_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64
+            + (ttl_secs * 1000) as i64;
+        self.sessions.insert(token.clone(), (user_id, user_key_id, expires_at));
+        token
+    }
+
+    /// Validate a session token. Returns (user_id, user_key_id) if valid.
+    pub fn validate_session(&self, token: &str) -> Option<(i64, i64)> {
+        let entry = self.sessions.get(token)?;
+        let (user_id, user_key_id, expires_at) = *entry.value();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        if now > expires_at {
+            drop(entry);
+            self.sessions.remove(token);
+            return None;
+        }
+        Some((user_id, user_key_id))
+    }
+
+    /// Remove expired sessions (call periodically from GC worker).
+    pub fn purge_expired_sessions(&self) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        self.sessions.retain(|_, (_, _, expires_at)| *expires_at > now);
     }
 
     pub fn authenticate_api_key(&self, api_key: &str) -> Option<MemoryUserKey> {
@@ -821,6 +864,7 @@ impl AppStateBuilder {
             rate_counters: RateLimitCounters::new(),
             usage_tx,
             quota_backend: InMemoryQuota::new(),
+            sessions: DashMap::new(),
         };
 
         state.replace_config(config);

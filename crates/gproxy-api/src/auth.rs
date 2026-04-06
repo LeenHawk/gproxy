@@ -96,3 +96,50 @@ pub async fn require_admin_middleware(
         Err(err) => err.into_response(),
     }
 }
+
+/// Authenticated session user (from session token, not API key).
+#[derive(Debug, Clone)]
+pub struct SessionUser {
+    pub user_id: i64,
+    pub user_key_id: i64,
+}
+
+/// Middleware for /user/* routes: requires a session token (from /login).
+///
+/// Session tokens are short-lived (24h) and memory-only.
+/// This separates user management auth from provider proxy auth,
+/// so a leaked inference API key cannot be used to generate new keys
+/// or enumerate existing ones.
+pub async fn require_user_session_middleware(
+    State(state): State<Arc<AppState>>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let token = match extract_api_key(request.headers()) {
+        Ok(t) => t,
+        Err(err) => return err.into_response(),
+    };
+
+    // Accept session tokens (sess-*) for /user/* routes
+    if token.starts_with("sess-") {
+        match state.validate_session(&token) {
+            Some((user_id, user_key_id)) => {
+                request.extensions_mut().insert(SessionUser { user_id, user_key_id });
+                return next.run(request).await;
+            }
+            None => {
+                return HttpError::unauthorized("session expired or invalid").into_response();
+            }
+        }
+    }
+
+    // Fallback: also accept admin key for /user/* (admin can do anything)
+    let config = state.config();
+    if token.as_bytes().ct_eq(config.admin_key.as_bytes()).into() {
+        // Admin accessing user routes — use user_id=0 sentinel
+        request.extensions_mut().insert(SessionUser { user_id: 0, user_key_id: 0 });
+        return next.run(request).await;
+    }
+
+    HttpError::unauthorized("session token required (use /login to obtain one)").into_response()
+}

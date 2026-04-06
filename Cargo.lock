@@ -1973,6 +1973,7 @@ dependencies = [
  "gproxy-storage",
  "http",
  "http-body-util",
+ "rand 0.10.0",
  "serde",
  "serde_json",
  "sha2 0.11.0",

@@ -7,7 +7,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use gproxy_server::AppState;
 
-use crate::auth::{require_admin_middleware, require_user_middleware};
+use crate::auth::{require_admin_middleware, require_user_session_middleware};
 use crate::cors::CorsLayer;
 
 const MAX_REQUEST_BODY_BYTES: usize = 50 * 1024 * 1024;
@@ -17,7 +17,7 @@ pub fn api_router(state: Arc<AppState>) -> Router {
     let admin_router =
         crate::admin::router().layer(from_fn_with_state(state.clone(), require_admin_middleware));
     let user_router =
-        crate::user::router().layer(from_fn_with_state(state.clone(), require_user_middleware));
+        crate::user::router().layer(from_fn_with_state(state.clone(), require_user_session_middleware));
     let app_router = Router::new()
         .route("/login", post(crate::login::login))
         .nest("/admin", admin_router)

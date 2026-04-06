@@ -60,7 +60,8 @@ pub struct LoginRequest {
 #[derive(Serialize)]
 pub struct LoginResponse {
     pub user_id: i64,
-    pub api_key: String,
+    pub session_token: String,
+    pub expires_in_secs: u64,
 }
 
 pub async fn login(
@@ -99,9 +100,15 @@ pub async fn login(
         .first()
         .ok_or_else(|| HttpError::internal("user has no API key"))?;
 
+    // Create session token (24h TTL) instead of returning the API key directly.
+    // This prevents a leaked inference key from being used to access /user/* routes.
+    let ttl_secs = 24 * 60 * 60;
+    let session_token = state.create_session(user.id, key.id, ttl_secs);
+
     Ok(Json(LoginResponse {
         user_id: user.id,
-        api_key: key.api_key.clone(),
+        session_token,
+        expires_in_secs: ttl_secs,
     }))
 }
 
