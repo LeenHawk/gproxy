@@ -188,21 +188,24 @@ pub async fn reload_from_db(
     let storage = state.storage();
 
     // Phase 1: read and build everything from the DB without mutating memory.
-    let replacement_config = storage.get_global_settings().await?.map(|settings| GlobalConfig {
-        host: settings.host,
-        port: settings.port as u16,
-        admin_key: settings.admin_key,
-        proxy: settings.proxy,
-        spoof_emulation: settings.spoof_emulation.unwrap_or_default(),
-        update_source: settings.update_source.unwrap_or_default(),
-        enable_usage: settings.enable_usage,
-        enable_upstream_log: settings.enable_upstream_log,
-        enable_upstream_log_body: settings.enable_upstream_log_body,
-        enable_downstream_log: settings.enable_downstream_log,
-        enable_downstream_log_body: settings.enable_downstream_log_body,
-        dsn: settings.dsn,
-        data_dir: settings.data_dir,
-    });
+    let replacement_config = storage
+        .get_global_settings()
+        .await?
+        .map(|settings| GlobalConfig {
+            host: settings.host,
+            port: settings.port as u16,
+            admin_key: settings.admin_key,
+            proxy: settings.proxy,
+            spoof_emulation: settings.spoof_emulation.unwrap_or_default(),
+            update_source: settings.update_source.unwrap_or_default(),
+            enable_usage: settings.enable_usage,
+            enable_upstream_log: settings.enable_upstream_log,
+            enable_upstream_log_body: settings.enable_upstream_log_body,
+            enable_downstream_log: settings.enable_downstream_log,
+            enable_downstream_log_body: settings.enable_downstream_log_body,
+            dsn: settings.dsn,
+            data_dir: settings.data_dir,
+        });
     let config = replacement_config
         .clone()
         .unwrap_or_else(|| (*state.config()).clone());
@@ -330,8 +333,10 @@ pub async fn reload_from_db(
             (provider.name.clone(), ids)
         })
         .collect();
-    let provider_name_map: HashMap<String, i64> =
-        providers.iter().map(|provider| (provider.name.clone(), provider.id)).collect();
+    let provider_name_map: HashMap<String, i64> = providers
+        .iter()
+        .map(|provider| (provider.name.clone(), provider.id))
+        .collect();
     let provider_channel_map: HashMap<String, String> = providers
         .iter()
         .map(|provider| (provider.name.clone(), provider.channel.clone()))
@@ -432,13 +437,16 @@ pub async fn reload_from_db(
     let limit_count = limits.len();
     let mut limit_map: HashMap<i64, Vec<RateLimitRule>> = HashMap::new();
     for limit in limits {
-        limit_map.entry(limit.user_id).or_default().push(RateLimitRule {
-            id: limit.id,
-            model_pattern: limit.model_pattern,
-            rpm: limit.rpm,
-            rpd: limit.rpd,
-            total_tokens: limit.total_tokens,
-        });
+        limit_map
+            .entry(limit.user_id)
+            .or_default()
+            .push(RateLimitRule {
+                id: limit.id,
+                model_pattern: limit.model_pattern,
+                rpm: limit.rpm,
+                rpd: limit.rpd,
+                total_tokens: limit.total_tokens,
+            });
     }
 
     let quota_count = quotas.len();
@@ -917,9 +925,7 @@ mod tests {
     use super::{build_seed_provider_runtime_state, reload_from_db};
     use crate::admin::config_toml::ProviderToml;
     use gproxy_server::{AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey};
-    use gproxy_storage::{
-        GlobalSettingsWrite, SeaOrmStorage, SettingsRepository, UserRepository,
-    };
+    use gproxy_storage::{GlobalSettingsWrite, SeaOrmStorage, SettingsRepository, UserRepository};
 
     #[test]
     fn seed_provider_runtime_matches_reload_shape() {

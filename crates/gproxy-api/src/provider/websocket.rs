@@ -186,9 +186,7 @@ fn authorize_gemini_ws_client_frame(
 
     // Permission check
     if !state.check_model_permission(user_id, provider_name, model) {
-        return Err(HttpError::forbidden(
-            "model not authorized for this user",
-        ));
+        return Err(HttpError::forbidden("model not authorized for this user"));
     }
 
     // Rate limit check (per-frame for Gemini Live setup messages)

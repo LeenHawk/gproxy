@@ -227,7 +227,8 @@ impl AppState {
             .unwrap_or_default()
             .as_millis() as i64
             + (ttl_secs * 1000) as i64;
-        self.sessions.insert(token.clone(), (user_id, user_key_id, expires_at));
+        self.sessions
+            .insert(token.clone(), (user_id, user_key_id, expires_at));
         token
     }
 
@@ -253,7 +254,8 @@ impl AppState {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as i64;
-        self.sessions.retain(|_, (_, _, expires_at)| *expires_at > now);
+        self.sessions
+            .retain(|_, (_, _, expires_at)| *expires_at > now);
     }
 
     pub fn authenticate_api_key(&self, api_key: &str) -> Option<MemoryUserKey> {

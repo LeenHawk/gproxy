@@ -134,7 +134,10 @@ pub async fn require_user_session_middleware(
     if token.starts_with("sess-") {
         match state.validate_session(&token) {
             Some((user_id, user_key_id)) => {
-                request.extensions_mut().insert(SessionUser { user_id, user_key_id });
+                request.extensions_mut().insert(SessionUser {
+                    user_id,
+                    user_key_id,
+                });
                 return next.run(request).await;
             }
             None => {
@@ -147,7 +150,10 @@ pub async fn require_user_session_middleware(
     let config = state.config();
     if token.as_bytes().ct_eq(config.admin_key.as_bytes()).into() {
         // Admin accessing user routes — use user_id=0 sentinel
-        request.extensions_mut().insert(SessionUser { user_id: 0, user_key_id: 0 });
+        request.extensions_mut().insert(SessionUser {
+            user_id: 0,
+            user_key_id: 0,
+        });
         return next.run(request).await;
     }
 

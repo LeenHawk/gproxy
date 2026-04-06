@@ -22,11 +22,7 @@ pub fn spawn(storage: SeaOrmStorage, shutdown: ShutdownRx) -> mpsc::Sender<Usage
     tx
 }
 
-async fn run(
-    storage: SeaOrmStorage,
-    mut rx: mpsc::Receiver<UsageWrite>,
-    mut shutdown: ShutdownRx,
-) {
+async fn run(storage: SeaOrmStorage, mut rx: mpsc::Receiver<UsageWrite>, mut shutdown: ShutdownRx) {
     let mut buffer: Vec<UsageWrite> = Vec::with_capacity(BATCH_SIZE);
 
     loop {

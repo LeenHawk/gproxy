@@ -2275,8 +2275,8 @@ mod tests {
     use serde_json::json;
     use tokio::net::TcpListener;
 
-    use crate::auth::AuthenticatedUser;
     use super::proxy_unscoped;
+    use crate::auth::AuthenticatedUser;
 
     async fn spawn_mock_openai_server() -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0")
