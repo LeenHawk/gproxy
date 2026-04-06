@@ -1,4 +1,4 @@
-use argon2::Argon2;
+use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chacha20poly1305::aead::Aead;
@@ -58,7 +58,8 @@ impl DatabaseCipher {
 
     pub(crate) fn from_secret(secret: &str) -> Self {
         let mut okm = [0u8; 32];
-        Argon2::default()
+        let params = Params::new(19 * 1024, 2, 1, Some(32)).expect("valid argon2 params");
+        Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
             .hash_password_into(secret.as_bytes(), ARGON2_SALT, &mut okm)
             .expect("argon2 key derivation");
         let cipher = XChaCha20Poly1305::new((&okm).into());

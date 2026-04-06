@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use axum::Json;
 use axum::extract::State;
 use serde::{Deserialize, Serialize};
@@ -11,12 +11,16 @@ use gproxy_storage::Scope;
 
 use crate::error::HttpError;
 
+/// Configured Argon2id instance with explicit OWASP-recommended parameters.
+fn argon2_instance() -> Argon2<'static> {
+    let params = Params::new(19 * 1024, 2, 1, None).expect("valid argon2 params");
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+}
+
 /// Hash a password with Argon2id and a random salt.
-/// Returns a PHC-format string containing algorithm, salt, and hash.
 pub fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
-    let argon2 = Argon2::default();
-    argon2
+    argon2_instance()
         .hash_password(password.as_bytes(), &salt)
         .expect("argon2 hash")
         .to_string()
@@ -42,7 +46,7 @@ pub fn verify_password(password: &str, stored_hash: &str) -> bool {
     let Ok(parsed) = PasswordHash::new(stored_hash) else {
         return false;
     };
-    Argon2::default()
+    argon2_instance()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
 }
