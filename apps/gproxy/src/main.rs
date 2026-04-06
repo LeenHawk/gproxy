@@ -149,18 +149,14 @@ async fn main() -> anyhow::Result<()> {
 
     // 9. Start background workers (before AppState so usage_tx is available)
     let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
-    let usage_tx = workers::usage_sink::spawn(
-        storage.as_ref().clone(),
-        worker_set.subscribe(),
-    );
+    let usage_tx = workers::usage_sink::spawn(storage.as_ref().clone(), worker_set.subscribe());
 
     // 9. Build empty engine + AppState
     let engine = GproxyEngineBuilder::new()
         .configure_clients(config.proxy.as_deref(), Some(&config.spoof_emulation))
         .build();
 
-    #[allow(unused_mut)]
-    let mut app_builder = AppStateBuilder::new()
+    let app_builder = AppStateBuilder::new()
         .engine(engine)
         .storage(storage.clone())
         .config(config)
@@ -168,20 +164,19 @@ async fn main() -> anyhow::Result<()> {
 
     // Inject Redis backends if redis_url is configured
     #[cfg(feature = "redis")]
-    if let Some(ref conn) = _redis_conn {
-        app_builder = app_builder
-            .quota_backend(
-                gproxy_core::dispatch::QuotaDispatch::Redis(
-                    gproxy_core::redis_backend::RedisQuota::new(conn.clone()),
-                ),
-            )
-            .rate_limit_backend(
-                gproxy_core::dispatch::RateLimitDispatch::Redis(
-                    gproxy_core::redis_backend::RedisRateLimit::new(conn.clone()),
-                ),
-            );
+    let app_builder = if let Some(ref conn) = _redis_conn {
+        let app_builder = app_builder
+            .quota_backend(gproxy_core::dispatch::QuotaDispatch::Redis(
+                gproxy_core::redis_backend::RedisQuota::new(conn.clone()),
+            ))
+            .rate_limit_backend(gproxy_core::dispatch::RateLimitDispatch::Redis(
+                gproxy_core::redis_backend::RedisRateLimit::new(conn.clone()),
+            ));
         tracing::info!("using Redis quota + rate limit backends");
-    }
+        app_builder
+    } else {
+        app_builder
+    };
 
     let state = Arc::new(app_builder.build());
 
@@ -286,7 +281,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // 13. Start remaining background workers
-    worker_set.register(workers::quota_reconciler::spawn(state.clone(), worker_set.subscribe()));
+    worker_set.register(workers::quota_reconciler::spawn(
+        state.clone(),
+        worker_set.subscribe(),
+    ));
     worker_set.register(workers::rate_limit_gc::spawn(
         state.clone(),
         worker_set.subscribe(),
