@@ -66,10 +66,8 @@ pub fn authorize_admin(headers: &HeaderMap, state: &AppState) -> Result<(), Http
     let token = extract_api_key(headers)?;
 
     if token.starts_with("sess-") {
-        let session = state
-            .validate_session(&token)
-            .ok_or_else(|| HttpError::unauthorized("session expired or invalid"))?;
-        if session.is_admin {
+        let session_user = authenticate_session(&token, state)?;
+        if session_user.is_admin {
             return Ok(());
         }
         return Err(HttpError::forbidden("admin access required"));
@@ -117,6 +115,23 @@ pub async fn require_admin_middleware(
 #[derive(Debug, Clone)]
 pub struct SessionUser {
     pub user_id: i64,
+    pub is_admin: bool,
+}
+
+fn authenticate_session(token: &str, state: &AppState) -> Result<SessionUser, HttpError> {
+    let session = state
+        .validate_session(token)
+        .ok_or_else(|| HttpError::unauthorized("session expired or invalid"))?;
+    let user = state
+        .find_user(session.user_id)
+        .ok_or_else(|| HttpError::unauthorized("user not found"))?;
+    if !user.enabled {
+        return Err(HttpError::forbidden("user is disabled"));
+    }
+    Ok(SessionUser {
+        user_id: user.id,
+        is_admin: user.is_admin,
+    })
 }
 
 /// Middleware for /user/* routes: requires a session token (from /login).
@@ -137,20 +152,12 @@ pub async fn require_user_session_middleware(
 
     // Accept session tokens (sess-*) for /user/* routes
     if token.starts_with("sess-") {
-        match state.validate_session(&token) {
-            Some(session) if !session.is_admin => {
-                request.extensions_mut().insert(SessionUser {
-                    user_id: session.user_id,
-                });
+        match authenticate_session(&token, &state) {
+            Ok(session_user) => {
+                request.extensions_mut().insert(session_user);
                 return next.run(request).await;
             }
-            Some(_) => {
-                return HttpError::forbidden("admin session cannot access /user routes")
-                    .into_response();
-            }
-            None => {
-                return HttpError::unauthorized("session expired or invalid").into_response();
-            }
+            Err(err) => return err.into_response(),
         }
     }
 
@@ -272,7 +279,7 @@ mod tests {
     #[tokio::test]
     async fn admin_route_accepts_admin_session() {
         let state = build_test_state().await;
-        let token = state.create_session(1, true, 60);
+        let token = state.create_session(1, 60);
         let response = admin_router(state)
             .oneshot(
                 HttpRequest::builder()
@@ -287,10 +294,50 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn user_route_rejects_admin_session() {
+    async fn user_route_accepts_admin_session() {
         let state = build_test_state().await;
-        let token = state.create_session(1, true, 60);
+        let token = state.create_session(1, 60);
         let response = user_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/check")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn admin_route_rejects_non_admin_api_key() {
+        let state = build_test_state().await;
+        let response = admin_router(state)
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/check")
+                    .header("authorization", "Bearer sk-user")
+                    .body(Body::empty())
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn admin_route_rejects_session_after_admin_role_removed() {
+        let state = build_test_state().await;
+        let token = state.create_session(1, 60);
+        state.upsert_user_in_memory(gproxy_server::MemoryUser {
+            id: 1,
+            name: "admin".to_string(),
+            enabled: true,
+            is_admin: false,
+            password_hash: crate::login::hash_password("admin-password"),
+        });
+        let response = admin_router(state)
             .oneshot(
                 HttpRequest::builder()
                     .uri("/check")
@@ -304,13 +351,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn admin_route_rejects_non_admin_api_key() {
+    async fn user_route_rejects_disabled_session_user() {
         let state = build_test_state().await;
-        let response = admin_router(state)
+        let token = state.create_session(2, 60);
+        state.upsert_user_in_memory(gproxy_server::MemoryUser {
+            id: 2,
+            name: "alice".to_string(),
+            enabled: false,
+            is_admin: false,
+            password_hash: crate::login::hash_password("user-password"),
+        });
+        let response = user_router(state)
             .oneshot(
                 HttpRequest::builder()
                     .uri("/check")
-                    .header("authorization", "Bearer sk-user")
+                    .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .expect("build request"),
             )

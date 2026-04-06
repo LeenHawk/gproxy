@@ -1,6 +1,6 @@
 use crate::auth::authorize_admin;
 use crate::error::{AckResponse, HttpError};
-use crate::login::normalize_password_for_storage;
+use crate::login::{normalize_password_for_storage, verify_password};
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
@@ -68,7 +68,9 @@ pub async fn upsert_user(
     Json(mut payload): Json<gproxy_storage::UserWrite>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    payload.password = normalize_password_for_storage(&payload.password);
+    let previous = state.find_user(payload.id);
+    payload.password = normalize_password_for_update(previous.as_ref(), &payload.password);
+    let revoke_sessions = should_revoke_sessions(previous.as_ref(), &payload);
     state.storage().upsert_user(payload.clone()).await?;
     state.upsert_user_in_memory(gproxy_server::MemoryUser {
         id: payload.id,
@@ -77,6 +79,9 @@ pub async fn upsert_user(
         is_admin: payload.is_admin,
         password_hash: payload.password.clone(),
     });
+    if revoke_sessions {
+        state.revoke_sessions_for_user(payload.id);
+    }
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -93,6 +98,7 @@ pub async fn delete_user(
     authorize_admin(&headers, &state)?;
     state.storage().delete_user(payload.id).await?;
     state.remove_user_from_memory(payload.id);
+    state.revoke_sessions_for_user(payload.id);
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -188,7 +194,9 @@ pub async fn batch_upsert_users(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for mut item in items {
-        item.password = normalize_password_for_storage(&item.password);
+        let previous = state.find_user(item.id);
+        item.password = normalize_password_for_update(previous.as_ref(), &item.password);
+        let revoke_sessions = should_revoke_sessions(previous.as_ref(), &item);
         state.storage().upsert_user(item.clone()).await?;
         state.upsert_user_in_memory(gproxy_server::MemoryUser {
             id: item.id,
@@ -197,6 +205,9 @@ pub async fn batch_upsert_users(
             is_admin: item.is_admin,
             password_hash: item.password.clone(),
         });
+        if revoke_sessions {
+            state.revoke_sessions_for_user(item.id);
+        }
     }
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -210,6 +221,7 @@ pub async fn batch_delete_users(
     for id in &ids {
         state.storage().delete_user(*id).await?;
         state.remove_user_from_memory(*id);
+        state.revoke_sessions_for_user(*id);
     }
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -284,5 +296,199 @@ pub fn generate_unique_api_key_for(state: &AppState) -> String {
             continue;
         }
         return key;
+    }
+}
+
+fn normalize_password_for_update(
+    previous: Option<&gproxy_server::MemoryUser>,
+    password_or_hash: &str,
+) -> String {
+    if let Some(previous) = previous {
+        if password_or_hash == previous.password_hash
+            || verify_password(password_or_hash, &previous.password_hash)
+        {
+            return previous.password_hash.clone();
+        }
+    }
+    normalize_password_for_storage(password_or_hash)
+}
+
+fn should_revoke_sessions(
+    previous: Option<&gproxy_server::MemoryUser>,
+    payload: &gproxy_storage::UserWrite,
+) -> bool {
+    let Some(previous) = previous else {
+        return false;
+    };
+    previous.enabled != payload.enabled
+        || previous.is_admin != payload.is_admin
+        || previous.password_hash != payload.password
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::{Json, extract::State};
+    use http::HeaderMap;
+
+    use super::{batch_delete_users, batch_upsert_users, delete_user, upsert_user};
+    use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{SeaOrmStorage, repository::UserRepository};
+
+    async fn build_test_state() -> Arc<AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "admin".to_string(),
+                password: crate::login::hash_password("admin-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed admin");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-admin".to_string(),
+                label: Some("admin".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed admin key");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 2,
+                name: "alice".to_string(),
+                password: crate::login::hash_password("user-password"),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+        crate::bootstrap::reload_from_db(&state)
+            .await
+            .expect("reload state");
+        state
+    }
+
+    fn admin_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer sk-admin".parse().expect("header"));
+        headers
+    }
+
+    #[tokio::test]
+    async fn upsert_user_revokes_sessions_when_password_changes() {
+        let state = build_test_state().await;
+        let token = state.create_session(2, 60);
+
+        let _ = upsert_user(
+            State(state.clone()),
+            admin_headers(),
+            Json(gproxy_storage::UserWrite {
+                id: 2,
+                name: "alice".to_string(),
+                password: "new-password".to_string(),
+                enabled: true,
+                is_admin: false,
+            }),
+        )
+        .await
+        .expect("upsert user");
+
+        assert!(state.validate_session(&token).is_none());
+    }
+
+    #[tokio::test]
+    async fn upsert_user_keeps_sessions_when_only_name_changes() {
+        let state = build_test_state().await;
+        let token = state.create_session(2, 60);
+        let existing_password = state.find_user(2).expect("existing user").password_hash;
+
+        let _ = upsert_user(
+            State(state.clone()),
+            admin_headers(),
+            Json(gproxy_storage::UserWrite {
+                id: 2,
+                name: "alice-renamed".to_string(),
+                password: existing_password,
+                enabled: true,
+                is_admin: false,
+            }),
+        )
+        .await
+        .expect("upsert user");
+
+        assert!(state.validate_session(&token).is_some());
+    }
+
+    #[tokio::test]
+    async fn delete_user_revokes_sessions() {
+        let state = build_test_state().await;
+        let token = state.create_session(2, 60);
+
+        let _ = delete_user(
+            State(state.clone()),
+            admin_headers(),
+            Json(super::DeleteUserPayload { id: 2 }),
+        )
+        .await
+        .expect("delete user");
+
+        assert!(state.validate_session(&token).is_none());
+    }
+
+    #[tokio::test]
+    async fn batch_upsert_users_revokes_sessions_when_role_changes() {
+        let state = build_test_state().await;
+        let token = state.create_session(2, 60);
+        let existing_password = state.find_user(2).expect("existing user").password_hash;
+
+        let _ = batch_upsert_users(
+            State(state.clone()),
+            admin_headers(),
+            Json(vec![gproxy_storage::UserWrite {
+                id: 2,
+                name: "alice".to_string(),
+                password: existing_password,
+                enabled: true,
+                is_admin: true,
+            }]),
+        )
+        .await
+        .expect("batch upsert users");
+
+        assert!(state.validate_session(&token).is_none());
+    }
+
+    #[tokio::test]
+    async fn batch_delete_users_revokes_sessions() {
+        let state = build_test_state().await;
+        let token = state.create_session(2, 60);
+
+        let _ = batch_delete_users(State(state.clone()), admin_headers(), Json(vec![2]))
+            .await
+            .expect("batch delete users");
+
+        assert!(state.validate_session(&token).is_none());
     }
 }

@@ -2,8 +2,8 @@
 
 ### Authentication Conventions
 
-- Admin routes accept either an admin session token from `/admin/login` or an API key owned by an admin user.
-- User routes under `/user/*` accept a non-admin session token from `/login`.
+- Admin routes accept either a session token from `/login` belonging to a currently enabled admin user, or an API key owned by an admin user.
+- User routes under `/user/*` accept a session token from `/login` belonging to any currently enabled user, including admins.
 - Provider HTTP routes and Provider WebSocket routes use a user API key.
 - Session tokens and API keys may be sent in any of these headers: `Authorization: Bearer <token>`, `x-api-key`, or `x-goog-api-key`.
 - Regular HTTP routes accept request bodies up to 50 MiB, while file routes accept bodies up to 500 MiB.
@@ -12,8 +12,7 @@
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/login` | None | Logs in a non-admin user with username and password and returns a user session token. |
-| POST | `/admin/login` | None | Logs in an admin user with username and password and returns an admin session token. |
+| POST | `/login` | None | Logs in any enabled user with username and password and returns a session token plus the current `is_admin` flag. |
 
 ### Admin API
 

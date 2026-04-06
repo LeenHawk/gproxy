@@ -124,7 +124,6 @@ fn normalize_file_permissions(
 #[derive(Debug, Clone, Copy)]
 pub struct SessionEntry {
     pub user_id: i64,
-    pub is_admin: bool,
     pub expires_at_unix_ms: i64,
 }
 
@@ -225,7 +224,7 @@ impl AppState {
 
     /// Create a session token for a user. Returns the token string.
     /// Session expires after `ttl_secs` seconds.
-    pub fn create_session(&self, user_id: i64, is_admin: bool, ttl_secs: u64) -> String {
+    pub fn create_session(&self, user_id: i64, ttl_secs: u64) -> String {
         use rand::RngExt;
         let token = format!("sess-{:016x}", rand::rng().random::<u64>());
         let expires_at = std::time::SystemTime::now()
@@ -237,7 +236,6 @@ impl AppState {
             token.clone(),
             SessionEntry {
                 user_id,
-                is_admin,
                 expires_at_unix_ms: expires_at,
             },
         );
@@ -268,6 +266,12 @@ impl AppState {
             .as_millis() as i64;
         self.sessions
             .retain(|_, session| session.expires_at_unix_ms > now);
+    }
+
+    /// Remove all sessions belonging to a user.
+    pub fn revoke_sessions_for_user(&self, user_id: i64) {
+        self.sessions
+            .retain(|_, session| session.user_id != user_id);
     }
 
     pub fn authenticate_api_key(&self, api_key: &str) -> Option<MemoryUserKey> {
@@ -1128,5 +1132,28 @@ mod tests {
                 requested: 101
             })
         ));
+    }
+
+    #[tokio::test]
+    async fn revoke_sessions_for_user_removes_only_target_users_sessions() {
+        let state = build_test_state().await;
+
+        state.upsert_user_in_memory(MemoryUser {
+            id: 2,
+            name: "bob".to_string(),
+            enabled: true,
+            is_admin: false,
+            password_hash: "hash-2".to_string(),
+        });
+
+        let alice_token_a = state.create_session(1, 60);
+        let alice_token_b = state.create_session(1, 60);
+        let bob_token = state.create_session(2, 60);
+
+        state.revoke_sessions_for_user(1);
+
+        assert!(state.validate_session(&alice_token_a).is_none());
+        assert!(state.validate_session(&alice_token_b).is_none());
+        assert!(state.validate_session(&bob_token).is_some());
     }
 }

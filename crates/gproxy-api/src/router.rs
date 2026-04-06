@@ -21,12 +21,11 @@ pub fn api_router(state: Arc<AppState>) -> Router {
         require_user_session_middleware,
     ));
     let app_router = Router::new()
-        // Intentional design: `/login` and `/admin/login` stay outside the
+        // Intentional design: `/login` stays outside the
         // provider data-plane middleware chain. Brute-force protection is
         // expected to be handled by WAF / reverse proxy / edge policy, not by
         // coupling password login to inference-specific rate-limit logic here.
         .route("/login", post(crate::login::login))
-        .route("/admin/login", post(crate::login::admin_login))
         .nest("/admin", admin_router)
         .nest("/user", user_router)
         .layer(RequestBodyLimitLayer::new(MAX_REQUEST_BODY_BYTES));

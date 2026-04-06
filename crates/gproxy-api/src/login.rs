@@ -62,6 +62,7 @@ pub struct LoginResponse {
     pub user_id: i64,
     pub session_token: String,
     pub expires_in_secs: u64,
+    pub is_admin: bool,
 }
 
 async fn authenticate_password_login(
@@ -97,36 +98,14 @@ pub async fn login(
     Json(payload): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, HttpError> {
     let user = authenticate_password_login(&state, &payload).await?;
-    if user.is_admin {
-        return Err(HttpError::forbidden("admin users must use /admin/login"));
-    }
-
     let ttl_secs = 24 * 60 * 60;
-    let session_token = state.create_session(user.id, false, ttl_secs);
+    let session_token = state.create_session(user.id, ttl_secs);
 
     Ok(Json(LoginResponse {
         user_id: user.id,
         session_token,
         expires_in_secs: ttl_secs,
-    }))
-}
-
-pub async fn admin_login(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, HttpError> {
-    let user = authenticate_password_login(&state, &payload).await?;
-    if !user.is_admin {
-        return Err(HttpError::forbidden("admin access required"));
-    }
-
-    let ttl_secs = 24 * 60 * 60;
-    let session_token = state.create_session(user.id, true, ttl_secs);
-
-    Ok(Json(LoginResponse {
-        user_id: user.id,
-        session_token,
-        expires_in_secs: ttl_secs,
+        is_admin: user.is_admin,
     }))
 }
 
@@ -134,13 +113,10 @@ pub async fn admin_login(
 mod tests {
     use std::sync::Arc;
 
-    use axum::{Json, extract::State};
-    use http::StatusCode;
-
     use super::{
-        LoginRequest, admin_login, hash_password, login, normalize_password_for_storage,
-        verify_password,
+        LoginRequest, hash_password, login, normalize_password_for_storage, verify_password,
     };
+    use axum::{Json, extract::State};
     use gproxy_server::{AppStateBuilder, GlobalConfig};
     use gproxy_storage::{SeaOrmStorage, repository::UserRepository};
 
@@ -202,39 +178,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn login_rejects_admin_user() {
+    async fn login_allows_admin_user() {
         let state = build_test_state().await;
-        let err = login(
-            State(state),
-            Json(LoginRequest {
-                username: "admin".to_string(),
-                password: "admin-password".to_string(),
-            }),
-        )
-        .await
-        .expect_err("admin user must not login via /login");
-        assert_eq!(err.status, StatusCode::FORBIDDEN);
-    }
-
-    #[tokio::test]
-    async fn admin_login_rejects_non_admin_user() {
-        let state = build_test_state().await;
-        let err = admin_login(
-            State(state),
-            Json(LoginRequest {
-                username: "alice".to_string(),
-                password: "user-password".to_string(),
-            }),
-        )
-        .await
-        .expect_err("non-admin user must not login via /admin/login");
-        assert_eq!(err.status, StatusCode::FORBIDDEN);
-    }
-
-    #[tokio::test]
-    async fn admin_login_creates_admin_session() {
-        let state = build_test_state().await;
-        let response = admin_login(
+        let response = login(
             State(state.clone()),
             Json(LoginRequest {
                 username: "admin".to_string(),
@@ -242,13 +188,48 @@ mod tests {
             }),
         )
         .await
-        .expect("admin login should succeed")
+        .expect("admin user should login via /login")
+        .0;
+        assert!(response.is_admin);
+        let session = state
+            .validate_session(&response.session_token)
+            .expect("session should exist");
+        assert_eq!(session.user_id, 2);
+    }
+
+    #[tokio::test]
+    async fn login_response_marks_non_admin_user() {
+        let state = build_test_state().await;
+        let response = login(
+            State(state),
+            Json(LoginRequest {
+                username: "alice".to_string(),
+                password: "user-password".to_string(),
+            }),
+        )
+        .await
+        .expect("user login should succeed")
+        .0;
+        assert!(!response.is_admin);
+    }
+
+    #[tokio::test]
+    async fn login_creates_session() {
+        let state = build_test_state().await;
+        let response = login(
+            State(state.clone()),
+            Json(LoginRequest {
+                username: "alice".to_string(),
+                password: "user-password".to_string(),
+            }),
+        )
+        .await
+        .expect("login should succeed")
         .0;
         assert!(response.session_token.starts_with("sess-"));
         let session = state
             .validate_session(&response.session_token)
             .expect("session should exist");
-        assert_eq!(session.user_id, 2);
-        assert!(session.is_admin);
+        assert_eq!(session.user_id, 1);
     }
 }

@@ -2,8 +2,8 @@
 
 ### 鉴权约定
 
-- 管理员路由接受 `/admin/login` 返回的管理员 Session Token，或管理员用户自己的 API Key。
-- `/user/*` 路由接受 `/login` 返回的普通用户 Session Token。
+- 管理员路由接受 `/login` 返回且当前用户仍为管理员的 Session Token，或管理员用户自己的 API Key。
+- `/user/*` 路由接受 `/login` 返回的 Session Token，任何当前启用的用户都可以访问，包括管理员。
 - Provider HTTP 路由和 Provider WebSocket 路由使用用户 API Key。
 - Session Token 和 API Key 都可以放在以下任一请求头中：`Authorization: Bearer <token>`、`x-api-key`、`x-goog-api-key`。
 - 普通 HTTP 路由请求体上限为 50 MiB；文件路由请求体上限为 500 MiB。
@@ -12,8 +12,7 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
-| POST | `/login` | 无 | 非管理员用户使用用户名 + 密码登录，返回用户 Session Token。 |
-| POST | `/admin/login` | 无 | 管理员用户使用用户名 + 密码登录，返回管理员 Session Token。 |
+| POST | `/login` | 无 | 任意启用用户使用用户名 + 密码登录，返回统一 Session Token 和当前 `is_admin` 标记。 |
 
 ### Admin API
 
