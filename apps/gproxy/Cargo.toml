@@ -7,12 +7,17 @@ description.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+redis = ["gproxy-core/redis", "dep:redis"]
+
 [dependencies]
 gproxy-api = { workspace = true }
 gproxy-core = { workspace = true }
 gproxy-sdk = { workspace = true }
 gproxy-server = { workspace = true }
 gproxy-storage = { workspace = true }
+redis = { workspace = true, optional = true }
 anyhow = { workspace = true }
 async-stream = { workspace = true }
 axum = { workspace = true }

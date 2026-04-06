@@ -7,12 +7,18 @@ description.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
+[features]
+default = []
+redis = ["dep:redis"]
+
 [dependencies]
 gproxy-sdk = { workspace = true }
 arc-swap = { workspace = true }
 dashmap = { workspace = true }
+redis = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 regex = { workspace = true }

@@ -50,6 +50,12 @@ struct Cli {
     /// When set, credentials, passwords, and API keys are encrypted at rest.
     #[arg(long, env = "DATABASE_SECRET_KEY")]
     database_secret_key: Option<String>,
+
+    /// Redis URL for multi-instance state sharing (rate limits, quotas, affinity).
+    /// When set, Redis backends are used instead of in-memory defaults.
+    /// Example: redis://localhost:6379
+    #[arg(long, env = "GPROXY_REDIS_URL")]
+    redis_url: Option<String>,
 }
 
 fn is_explicit(matches: &clap::ArgMatches, id: &str) -> bool {
@@ -123,7 +129,22 @@ async fn main() -> anyhow::Result<()> {
         data_dir: active_data_dir.clone(),
     };
 
-    // 8. Start background workers (before AppState so usage_tx is available)
+    // 8. Optional: connect to Redis for multi-instance state sharing
+    #[cfg(feature = "redis")]
+    let redis_conn = if let Some(ref redis_url) = cli.redis_url {
+        tracing::info!(url = %redis_url, "connecting to Redis for multi-instance backends");
+        let client = redis::Client::open(redis_url.as_str())
+            .map_err(|e| anyhow::anyhow!("invalid Redis URL: {e}"))?;
+        let conn = redis::aio::ConnectionManager::new(client)
+            .await
+            .map_err(|e| anyhow::anyhow!("Redis connection failed: {e}"))?;
+        tracing::info!("Redis connected");
+        Some(conn)
+    } else {
+        None
+    };
+
+    // 9. Start background workers (before AppState so usage_tx is available)
     let (mut worker_set, _shutdown_rx) = workers::WorkerSet::new();
     let usage_tx = workers::usage_sink::spawn(
         storage.as_ref().clone(),
