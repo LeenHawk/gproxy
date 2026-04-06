@@ -88,11 +88,21 @@ impl IdentityService {
     }
 
     /// Replace all keys atomically. Keys are indexed by their HMAC digest.
+    ///
+    /// Logs a warning if duplicate API keys are detected (same plaintext key
+    /// on multiple rows — last-write-wins, which may cause silent identity loss).
     pub fn replace_keys(&self, keys: Vec<MemoryUserKey>) {
-        let map: HashMap<String, MemoryUserKey> = keys
-            .into_iter()
-            .map(|k| (api_key_digest(&k.api_key), k))
-            .collect();
+        let mut map = HashMap::with_capacity(keys.len());
+        for k in keys {
+            let digest = api_key_digest(&k.api_key);
+            if let Some(prev) = map.insert(digest, k) {
+                tracing::warn!(
+                    key_id = prev.id,
+                    user_id = prev.user_id,
+                    "duplicate API key detected during bulk load — overwritten by later entry"
+                );
+            }
+        }
         self.keys.store(Arc::new(map));
     }
 

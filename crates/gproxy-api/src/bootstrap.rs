@@ -655,6 +655,23 @@ pub async fn seed_from_toml(
         });
         for (j, key) in u.keys.iter().enumerate() {
             let key_id = user_id * 1000 + j as i64;
+            // Validate key doesn't collide with admin_key
+            let admin_key = state.config().admin_key.clone();
+            if key.api_key == admin_key {
+                tracing::warn!(
+                    user = %u.name,
+                    "TOML key matches admin_key — skipping to prevent identity ambiguity"
+                );
+                continue;
+            }
+            // Check for duplicate keys across users
+            if state.authenticate_api_key(&key.api_key).is_some() {
+                tracing::warn!(
+                    user = %u.name,
+                    "TOML key already exists — skipping duplicate"
+                );
+                continue;
+            }
             state
                 .storage()
                 .upsert_user_key(gproxy_storage::UserKeyWrite {

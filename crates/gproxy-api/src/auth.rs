@@ -51,11 +51,21 @@ pub fn extract_api_key(headers: &HeaderMap) -> Result<String, HttpError> {
 }
 
 /// Authenticate a user API key and return the key record.
+///
+/// Rejects the admin key to prevent identity ambiguity — the admin key
+/// must only authenticate via `authorize_admin`, never as a user.
 pub fn authenticate_user(
     headers: &HeaderMap,
     state: &AppState,
 ) -> Result<MemoryUserKey, HttpError> {
     let api_key = extract_api_key(headers)?;
+    // Reject admin key in user auth path to prevent identity ambiguity
+    let config = state.config();
+    if api_key.as_bytes().ct_eq(config.admin_key.as_bytes()).into() {
+        return Err(HttpError::forbidden(
+            "admin key cannot be used for user authentication",
+        ));
+    }
     state
         .authenticate_api_key(&api_key)
         .ok_or_else(|| HttpError::unauthorized("invalid or disabled API key"))
