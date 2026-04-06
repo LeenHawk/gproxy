@@ -132,6 +132,10 @@ pub struct UsageWrite {
     pub cache_creation_input_tokens: Option<i64>,
     pub cache_creation_input_tokens_5min: Option<i64>,
     pub cache_creation_input_tokens_1h: Option<i64>,
+    /// Computed cost for quota tracking. When non-zero, the usage sink
+    /// will atomically update user_quotas.cost_used in the same DB transaction.
+    #[serde(default)]
+    pub cost: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

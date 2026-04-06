@@ -1600,9 +1600,10 @@ pub(crate) async fn record_usage(ctx: &UsageRecordContext, usage: &Usage) {
         cache_creation_input_tokens: usage.cache_creation_input_tokens,
         cache_creation_input_tokens_5min: usage.cache_creation_input_tokens_5min,
         cache_creation_input_tokens_1h: usage.cache_creation_input_tokens_1h,
+        cost,
     };
 
-    // Send usage to async sink if available (non-blocking); otherwise sync write.
+    // Send usage to async sink (includes cost for durable quota tracking).
     // Quota is charged only after usage record is successfully queued/persisted,
     // preventing invisible cost accumulation when records are dropped.
     if let Some(tx) = ctx.state.usage_tx() {
@@ -1798,6 +1799,7 @@ async fn record_stream_usage(ctx: &UsageRecordContext, usage: Usage) {
         cache_creation_input_tokens: usage.cache_creation_input_tokens,
         cache_creation_input_tokens_5min: usage.cache_creation_input_tokens_5min,
         cache_creation_input_tokens_1h: usage.cache_creation_input_tokens_1h,
+        cost,
     };
     match ctx
         .state
@@ -2326,12 +2328,13 @@ async fn finalize_quota_hold(
         return Ok(());
     };
 
-    if let Some(cost) = actual_cost {
-        let actual_micro = (cost.max(0.0) * 1_000_000.0) as u64;
-        gproxy_sdk::provider::QuotaHold::settle(quota_hold, actual_micro).await?;
-    } else {
-        drop(quota_hold);
-    }
+    // For non-streaming: settle with actual cost.
+    // For streaming (cost = None): settle with 0 to release the hold.
+    // Streaming cost is tracked by record_usage at stream end, not by pre-hold.
+    let actual_micro = actual_cost
+        .map(|c| (c.max(0.0) * 1_000_000.0) as u64)
+        .unwrap_or(0);
+    gproxy_sdk::provider::QuotaHold::settle(quota_hold, actual_micro).await?;
 
     Ok(())
 }
@@ -2429,7 +2432,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn finalize_quota_hold_without_actual_cost_charges_reserved_estimate() {
+    async fn finalize_quota_hold_without_actual_cost_releases_hold() {
         let backend = InMemoryQuota::new();
         QuotaBackend::set_quota(&backend, 11, 1_000)
             .await
@@ -2438,15 +2441,17 @@ mod tests {
             .await
             .expect("reserve should succeed");
 
+        // Streaming path: actual_cost = None → settle with 0 to release hold.
+        // Actual cost is tracked by record_usage at stream end.
         finalize_quota_hold(Some(hold), None)
             .await
-            .expect("dropping hold should not fail");
+            .expect("settling hold should not fail");
 
         let balance = QuotaBackend::balance(&backend, 11)
             .await
             .expect("balance lookup should succeed");
-        assert_eq!(balance.used, 300);
-        assert_eq!(balance.reserved, 0);
+        assert_eq!(balance.used, 0); // No cost charged — stream end handles it
+        assert_eq!(balance.reserved, 0); // Hold released
     }
 }
 

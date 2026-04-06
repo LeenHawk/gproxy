@@ -1,15 +1,16 @@
-//! Batched usage log writer.
+//! Batched usage log writer with durable quota persistence.
 //!
 //! Receives usage records via an mpsc channel and writes them to the database
-//! in batches. Batches flush when either 100 records accumulate or 500ms pass,
-//! whichever comes first.
+//! in batches. Each record's cost is atomically applied to the user's quota
+//! in the same DB transaction via `record_usage_and_quota_cost`, ensuring
+//! billing durability across restarts.
 
 use std::time::Duration;
 
 use tokio::sync::mpsc;
 
 use super::ShutdownRx;
-use gproxy_storage::{SeaOrmStorage, StorageWriteBatch, StorageWriteEvent, UsageWrite};
+use gproxy_storage::{SeaOrmStorage, UsageWrite};
 
 const BATCH_SIZE: usize = 100;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(500);
@@ -21,7 +22,11 @@ pub fn spawn(storage: SeaOrmStorage, shutdown: ShutdownRx) -> mpsc::Sender<Usage
     tx
 }
 
-async fn run(storage: SeaOrmStorage, mut rx: mpsc::Receiver<UsageWrite>, mut shutdown: ShutdownRx) {
+async fn run(
+    storage: SeaOrmStorage,
+    mut rx: mpsc::Receiver<UsageWrite>,
+    mut shutdown: ShutdownRx,
+) {
     let mut buffer: Vec<UsageWrite> = Vec::with_capacity(BATCH_SIZE);
 
     loop {
@@ -61,13 +66,18 @@ async fn run(storage: SeaOrmStorage, mut rx: mpsc::Receiver<UsageWrite>, mut shu
 async fn flush(storage: &SeaOrmStorage, buffer: &mut Vec<UsageWrite>) {
     let batch = std::mem::take(buffer);
     let count = batch.len();
-    let mut write_batch = StorageWriteBatch::default();
+    let mut success = 0usize;
+    // Use record_usage_and_quota_cost to atomically persist both the
+    // usage log entry AND the quota cost_used increment in one transaction.
     for record in batch {
-        write_batch.apply(StorageWriteEvent::UpsertUsage(record));
+        let cost = record.cost;
+        if let Err(err) = storage.record_usage_and_quota_cost(record, cost).await {
+            tracing::error!(%err, "failed to persist usage+quota record");
+        } else {
+            success += 1;
+        }
     }
-    if let Err(err) = storage.apply_write_batch(write_batch).await {
-        tracing::error!(count, %err, "failed to flush usage batch");
-    } else {
-        tracing::trace!(count, "flushed usage batch");
+    if success > 0 {
+        tracing::trace!(success, count, "flushed usage+quota batch");
     }
 }
