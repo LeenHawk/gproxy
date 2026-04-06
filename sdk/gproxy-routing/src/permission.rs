@@ -23,12 +23,21 @@ pub struct FilePermissionEntry {
 }
 
 /// Checks whether a model string matches a permission pattern.
+///
+/// Supports:
+/// - `*` matches all models
+/// - `prefix*` matches models starting with `prefix`
+/// - `*suffix` matches models ending with `suffix`
+/// - exact match otherwise
 pub fn pattern_matches(pattern: &str, model: &str) -> bool {
     if pattern == "*" {
         return true;
     }
     if let Some(prefix) = pattern.strip_suffix('*') {
         return model.starts_with(prefix);
+    }
+    if let Some(suffix) = pattern.strip_prefix('*') {
+        return model.ends_with(suffix);
     }
     pattern == model
 }
