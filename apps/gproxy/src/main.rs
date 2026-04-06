@@ -205,6 +205,9 @@ async fn main() -> anyhow::Result<()> {
         Some(admin_key)
     } else if !has_data && state.config().admin_key.is_empty() {
         let key = uuid::Uuid::now_v7().to_string();
+        // Intentional bootstrap behavior: on first start there is no separate
+        // provisioning channel for the generated admin key, so it is emitted to
+        // the startup log once and then persisted.
         tracing::info!(admin_key = %key, "generated admin key (save this!)");
         Some(key)
     } else {

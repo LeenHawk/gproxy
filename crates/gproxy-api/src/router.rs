@@ -16,9 +16,15 @@ const MAX_REQUEST_BODY_BYTES: usize = 50 * 1024 * 1024;
 pub fn api_router(state: Arc<AppState>) -> Router {
     let admin_router =
         crate::admin::router().layer(from_fn_with_state(state.clone(), require_admin_middleware));
-    let user_router =
-        crate::user::router().layer(from_fn_with_state(state.clone(), require_user_session_middleware));
+    let user_router = crate::user::router().layer(from_fn_with_state(
+        state.clone(),
+        require_user_session_middleware,
+    ));
     let app_router = Router::new()
+        // Intentional design: `/login` stays outside the provider data-plane
+        // middleware chain. If a deployment needs brute-force protection, add a
+        // dedicated login policy or enforce it at the edge instead of coupling
+        // it to inference rate limits.
         .route("/login", post(crate::login::login))
         .nest("/admin", admin_router)
         .nest("/user", user_router)
@@ -27,6 +33,9 @@ pub fn api_router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(app_router)
         .merge(crate::provider::router(state.clone()))
+        // Intentional design: browser-facing admin/user tooling may live on
+        // arbitrary origins. Deployments that need a stricter browser boundary
+        // should swap this for `CorsLayer::with_origins(...)`.
         .layer(CorsLayer::permissive())
         .with_state(state)
 }
