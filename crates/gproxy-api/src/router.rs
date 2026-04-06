@@ -21,10 +21,10 @@ pub fn api_router(state: Arc<AppState>) -> Router {
         require_user_session_middleware,
     ));
     let app_router = Router::new()
-        // Intentional design: `/login` stays outside the provider data-plane
-        // middleware chain. If a deployment needs brute-force protection, add a
-        // dedicated login policy or enforce it at the edge instead of coupling
-        // it to inference rate limits.
+        // Intentional design: `/login` and `/admin/login` stay outside the
+        // provider data-plane middleware chain. Brute-force protection is
+        // expected to be handled by WAF / reverse proxy / edge policy, not by
+        // coupling password login to inference-specific rate-limit logic here.
         .route("/login", post(crate::login::login))
         .route("/admin/login", post(crate::login::admin_login))
         .nest("/admin", admin_router)
@@ -34,9 +34,10 @@ pub fn api_router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(app_router)
         .merge(crate::provider::router(state.clone()))
-        // Intentional design: browser-facing admin/user tooling may live on
-        // arbitrary origins. Deployments that need a stricter browser boundary
-        // should swap this for `CorsLayer::with_origins(...)`.
+        // Intentional design: keep the application CORS policy permissive so
+        // deployments can front it with their own browser boundary. If a
+        // deployment needs origin allowlisting, do it at the edge or replace
+        // this with `CorsLayer::with_origins(...)`.
         .layer(CorsLayer::permissive())
         .with_state(state)
 }
