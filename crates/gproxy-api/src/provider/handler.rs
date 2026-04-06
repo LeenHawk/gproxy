@@ -1565,32 +1565,49 @@ pub(crate) async fn record_usage(ctx: &UsageRecordContext, usage: &Usage) {
     };
 
     // Send usage to async sink (includes cost for durable quota tracking).
-    // Quota is charged only after usage record is successfully queued/persisted,
-    // preventing invisible cost accumulation when records are dropped.
+    // If the sink is unavailable or saturated, fall back to direct persistence
+    // so requests never become "free" under backpressure.
     if let Some(tx) = ctx.state.usage_tx() {
-        if let Err(err) = tx.try_send(usage_write) {
-            tracing::warn!(user_id = ctx.user_id, %err, "usage sink full, record dropped, quota not charged");
-            return;
-        }
-        if cost > 0.0 {
-            ctx.state.add_cost_usage(ctx.user_id, cost);
+        match tx.try_send(usage_write) {
+            Ok(()) => {
+                if cost > 0.0 {
+                    ctx.state.add_cost_usage(ctx.user_id, cost);
+                }
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Full(usage_write)) => {
+                tracing::warn!(
+                    user_id = ctx.user_id,
+                    "usage sink full, persisting usage synchronously"
+                );
+                persist_usage_write_now(ctx, usage_write, cost).await;
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(usage_write)) => {
+                tracing::warn!(
+                    user_id = ctx.user_id,
+                    "usage sink closed, persisting usage synchronously"
+                );
+                persist_usage_write_now(ctx, usage_write, cost).await;
+            }
         }
     } else {
-        // Fallback: synchronous DB write (legacy path)
-        match ctx
-            .state
-            .storage()
-            .record_usage_and_quota_cost(usage_write, cost)
-            .await
-        {
-            Ok(Some((quota, cost_used))) => {
-                ctx.state
-                    .upsert_user_quota_in_memory(ctx.user_id, quota, cost_used);
-            }
-            Ok(None) => {}
-            Err(err) => {
-                tracing::error!(user_id = ctx.user_id, cost, error = %err, "failed to persist usage");
-            }
+        persist_usage_write_now(ctx, usage_write, cost).await;
+    }
+}
+
+async fn persist_usage_write_now(ctx: &UsageRecordContext, usage_write: gproxy_storage::UsageWrite, cost: f64) {
+    match ctx
+        .state
+        .storage()
+        .record_usage_and_quota_cost(usage_write, cost)
+        .await
+    {
+        Ok(Some((quota, cost_used))) => {
+            ctx.state
+                .upsert_user_quota_in_memory(ctx.user_id, quota, cost_used);
+        }
+        Ok(None) => {}
+        Err(err) => {
+            tracing::error!(user_id = ctx.user_id, cost, error = %err, "failed to persist usage");
         }
     }
 }
@@ -1762,21 +1779,7 @@ async fn record_stream_usage(ctx: &UsageRecordContext, usage: Usage) {
         cache_creation_input_tokens_1h: usage.cache_creation_input_tokens_1h,
         cost,
     };
-    match ctx
-        .state
-        .storage()
-        .record_usage_and_quota_cost(usage_write, cost)
-        .await
-    {
-        Ok(Some((quota, cost_used))) => {
-            ctx.state
-                .upsert_user_quota_in_memory(ctx.user_id, quota, cost_used);
-        }
-        Ok(None) => {}
-        Err(err) => {
-            tracing::error!(user_id = ctx.user_id, cost, error = %err, "failed to persist streamed usage and quota atomically");
-        }
-    }
+    persist_usage_write_now(ctx, usage_write, cost).await;
 }
 
 enum UsageChunkDecoder {
@@ -2265,17 +2268,17 @@ mod tests {
     use axum::routing::post;
     use axum::{Json, Router};
     use bytes::Bytes;
-    use gproxy_sdk::provider::engine::{GproxyEngine, ProviderConfig};
+    use gproxy_sdk::provider::engine::{GproxyEngine, ProviderConfig, Usage};
     use gproxy_server::middleware::classify::{BufferedBodyBytes, Classification};
     use gproxy_server::middleware::request_model::ExtractedModel;
     use gproxy_server::{
         AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey, PermissionEntry, RateLimitRule,
     };
-    use gproxy_storage::SeaOrmStorage;
+    use gproxy_storage::{SeaOrmStorage, UsageQuery, repository::UserRepository};
     use serde_json::json;
     use tokio::net::TcpListener;
 
-    use super::proxy_unscoped;
+    use super::{UsageRecordContext, proxy_unscoped, record_usage};
     use crate::auth::AuthenticatedUser;
 
     async fn spawn_mock_openai_server() -> (String, tokio::task::JoinHandle<()>) {
@@ -2428,6 +2431,118 @@ mod tests {
 
         let response = response.expect("request should not be rejected before upstream call");
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn record_usage_persists_and_charges_quota_when_queue_is_full() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "alice".to_string(),
+                password: "hash".to_string(),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed user key");
+
+        let (usage_tx, _usage_rx) = tokio::sync::mpsc::channel(1);
+        usage_tx
+            .try_send(gproxy_storage::UsageWrite {
+                downstream_trace_id: None,
+                at_unix_ms: 0,
+                provider_id: None,
+                credential_id: None,
+                user_id: Some(999),
+                user_key_id: None,
+                operation: "seed".to_string(),
+                protocol: "seed".to_string(),
+                model: None,
+                input_tokens: None,
+                output_tokens: None,
+                cache_read_input_tokens: None,
+                cache_creation_input_tokens: None,
+                cache_creation_input_tokens_5min: None,
+                cache_creation_input_tokens_1h: None,
+                cost: 0.0,
+            })
+            .expect("seed queue");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .usage_tx(usage_tx)
+                .build(),
+        );
+
+        let ctx = UsageRecordContext {
+            state: state.clone(),
+            user_id: 1,
+            user_key_id: 10,
+            provider_name: "test".to_string(),
+            credential_index: None,
+            precomputed_cost: Some(0.25),
+            model: Some("demo".to_string()),
+            billing_context: None,
+            operation: gproxy_server::OperationFamily::GenerateContent,
+            protocol: gproxy_server::ProtocolKind::OpenAiChatCompletion,
+            downstream_trace_id: Some(42),
+        };
+
+        record_usage(
+            &ctx,
+            &Usage {
+                input_tokens: Some(10),
+                output_tokens: Some(20),
+                cache_read_input_tokens: None,
+                cache_creation_input_tokens: None,
+                cache_creation_input_tokens_5min: None,
+                cache_creation_input_tokens_1h: None,
+            },
+        )
+        .await;
+
+        let usages = state
+            .storage()
+            .query_usages(&UsageQuery::default())
+            .await
+            .expect("query usages");
+        assert_eq!(usages.len(), 1);
+        assert_eq!(usages[0].user_id, Some(1));
+        assert_eq!(usages[0].input_tokens, Some(10));
+        assert_eq!(usages[0].output_tokens, Some(20));
+
+        let quotas = state
+            .storage()
+            .list_user_quotas()
+            .await
+            .expect("list quotas");
+        assert_eq!(quotas.len(), 1);
+        assert_eq!(quotas[0].user_id, 1);
+        assert_eq!(quotas[0].cost_used, 0.25);
+
+        assert_eq!(state.get_user_quota(1), (0.0, 0.25));
     }
 }
 

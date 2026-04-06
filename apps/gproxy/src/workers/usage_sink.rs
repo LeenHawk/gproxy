@@ -25,8 +25,8 @@ pub fn spawn_with_receiver(
     state: Arc<AppState>,
     rx: mpsc::Receiver<UsageWrite>,
     shutdown: ShutdownRx,
-) {
-    tokio::spawn(run(state, rx, shutdown));
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(run(state, rx, shutdown))
 }
 
 async fn run(state: Arc<AppState>, mut rx: mpsc::Receiver<UsageWrite>, mut shutdown: ShutdownRx) {
@@ -101,5 +101,97 @@ async fn flush(state: &AppState, buffer: &mut Vec<UsageWrite>) {
     }
     if success > 0 {
         tracing::trace!(success, count, "flushed usage+quota batch");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use gproxy_sdk::provider::engine::GproxyEngine;
+    use gproxy_server::{AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{SeaOrmStorage, UsageQuery, UsageWrite, repository::UserRepository};
+
+    use super::{super::WorkerSet, spawn_with_receiver};
+
+    #[tokio::test]
+    async fn registered_usage_sink_flushes_pending_usage_on_shutdown() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "alice".to_string(),
+                password: "hash".to_string(),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+
+        let (tx, rx) = tokio::sync::mpsc::channel(8);
+        let (mut worker_set, _shutdown_rx) = WorkerSet::new();
+        worker_set.register(spawn_with_receiver(
+            state.clone(),
+            rx,
+            worker_set.subscribe(),
+        ));
+
+        tx.send(UsageWrite {
+            downstream_trace_id: Some(7),
+            at_unix_ms: 1,
+            provider_id: None,
+            credential_id: None,
+            user_id: Some(1),
+            user_key_id: None,
+            operation: "generate_content".to_string(),
+            protocol: "openai_chat_completions".to_string(),
+            model: Some("demo".to_string()),
+            input_tokens: Some(10),
+            output_tokens: Some(20),
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            cache_creation_input_tokens_5min: None,
+            cache_creation_input_tokens_1h: None,
+            cost: 0.5,
+        })
+        .await
+        .expect("enqueue usage");
+
+        worker_set.shutdown().await;
+
+        let usages = state
+            .storage()
+            .query_usages(&UsageQuery::default())
+            .await
+            .expect("query usages");
+        assert_eq!(usages.len(), 1);
+        assert_eq!(usages[0].user_id, Some(1));
+        assert_eq!(usages[0].input_tokens, Some(10));
+        assert_eq!(usages[0].output_tokens, Some(20));
+
+        let quotas = state
+            .storage()
+            .list_user_quotas()
+            .await
+            .expect("list quotas");
+        assert_eq!(quotas.len(), 1);
+        assert_eq!(quotas[0].user_id, 1);
+        assert_eq!(quotas[0].cost_used, 0.5);
     }
 }

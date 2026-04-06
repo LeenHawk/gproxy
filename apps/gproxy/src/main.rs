@@ -174,7 +174,11 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(app_builder.build());
 
     // 11. Start usage sink worker (after AppState, so it reads fresh storage)
-    workers::usage_sink::spawn_with_receiver(state.clone(), usage_rx, worker_set.subscribe());
+    worker_set.register(workers::usage_sink::spawn_with_receiver(
+        state.clone(),
+        usage_rx,
+        worker_set.subscribe(),
+    ));
 
     // 10. Bootstrap: load from DB or seed from TOML / defaults
     let has_data = persisted_settings_exist;

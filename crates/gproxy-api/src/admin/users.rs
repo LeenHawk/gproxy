@@ -303,13 +303,12 @@ fn normalize_password_for_update(
     previous: Option<&gproxy_server::MemoryUser>,
     password_or_hash: &str,
 ) -> String {
-    if let Some(previous) = previous {
-        if password_or_hash == previous.password_hash
-            || verify_password(password_or_hash, &previous.password_hash)
+    if let Some(previous) = previous
+        && (password_or_hash == previous.password_hash
+            || verify_password(password_or_hash, &previous.password_hash))
         {
             return previous.password_hash.clone();
         }
-    }
     normalize_password_for_storage(password_or_hash)
 }
 
