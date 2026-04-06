@@ -2373,6 +2373,7 @@ fn build_model_request_body(
 
 #[cfg(test)]
 mod tests {
+    use gproxy_core::dispatch::QuotaDispatch;
     use gproxy_sdk::provider::{InMemoryQuota, QuotaBackend};
 
     use super::{
@@ -2387,7 +2388,7 @@ mod tests {
 
     #[tokio::test]
     async fn seed_quota_backend_uses_current_remaining_quota() {
-        let backend = InMemoryQuota::new();
+        let backend = QuotaDispatch::Memory(InMemoryQuota::new());
 
         seed_quota_backend_if_needed(&backend, 9, 2.5, 1.25)
             .await
@@ -2403,7 +2404,7 @@ mod tests {
 
     #[tokio::test]
     async fn finalize_quota_hold_settles_actual_cost() {
-        let backend = InMemoryQuota::new();
+        let backend = QuotaDispatch::Memory(InMemoryQuota::new());
         QuotaBackend::set_quota(&backend, 7, 1_000)
             .await
             .expect("quota setup should succeed");
@@ -2424,7 +2425,7 @@ mod tests {
 
     #[tokio::test]
     async fn finalize_quota_hold_without_actual_cost_charges_reserved_estimate() {
-        let backend = InMemoryQuota::new();
+        let backend = QuotaDispatch::Memory(InMemoryQuota::new());
         QuotaBackend::set_quota(&backend, 11, 1_000)
             .await
             .expect("quota setup should succeed");
