@@ -36,6 +36,19 @@ impl RedisRateLimit {
     }
 }
 
+/// Lua script: atomic INCR + conditional EXPIRE + limit check.
+/// Returns count if under limit, -1 if over.
+const ACQUIRE_SCRIPT: &str = r#"
+local key = KEYS[1]
+local limit = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local c = tonumber(redis.call('GET', key) or '0')
+if c >= limit then return -1 end
+c = redis.call('INCR', key)
+if c == 1 then redis.call('EXPIRE', key, ttl) end
+return c
+"#;
+
 impl RateLimitBackend for RedisRateLimit {
     fn try_acquire(
         &self,
@@ -53,33 +66,29 @@ impl RateLimitBackend for RedisRateLimit {
         let ttl_secs = window_seconds(window);
 
         async move {
-            // Atomic INCR — creates key with value 1 if it doesn't exist
-            let count: u64 = redis::cmd("INCR")
-                .arg(&redis_key)
-                .query_async(&mut conn)
+            let result: i64 = redis::Script::new(ACQUIRE_SCRIPT)
+                .key(&redis_key)
+                .arg(limit)
+                .arg(ttl_secs)
+                .invoke_async(&mut conn)
                 .await
                 .map_err(|_| RateLimitExceeded {
                     retry_after: Duration::from_secs(ttl_secs),
                     window,
                 })?;
 
-            // Set TTL on first increment (when count == 1)
-            if count == 1 {
-                let _: () = conn
-                    .expire(&redis_key, ttl_secs as i64)
+            if result < 0 {
+                let ttl: i64 = redis::cmd("TTL")
+                    .arg(&redis_key)
+                    .query_async(&mut conn)
                     .await
-                    .unwrap_or(());
-            }
-
-            if count > limit {
-                // Over limit — get TTL for retry-after
-                let ttl: i64 = conn.ttl(&redis_key).await.unwrap_or(ttl_secs as i64);
+                    .unwrap_or(ttl_secs as i64);
                 Err(RateLimitExceeded {
                     retry_after: Duration::from_secs(ttl.max(1) as u64),
                     window,
                 })
             } else {
-                Ok(count)
+                Ok(result as u64)
             }
         }
     }

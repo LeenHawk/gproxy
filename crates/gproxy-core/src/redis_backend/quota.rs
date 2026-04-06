@@ -34,9 +34,9 @@ impl RedisQuota {
 const RESERVE_SCRIPT: &str = r#"
 local key = KEYS[1]
 local amount = tonumber(ARGV[1])
-local total = tonumber(redis.call('HGET', key, 'total') or '0')
-local used = tonumber(redis.call('HGET', key, 'used') or '0')
-local reserved = tonumber(redis.call('HGET', key, 'reserved') or '0')
+local total = tonumber(redis.call('HGET', key, 'total')) or 0
+local used = tonumber(redis.call('HGET', key, 'used')) or 0
+local reserved = tonumber(redis.call('HGET', key, 'reserved')) or 0
 local remaining = total - used - reserved
 if remaining < amount then
     return {-1, remaining}

@@ -131,14 +131,17 @@ async fn main() -> anyhow::Result<()> {
 
     // 8. Optional: connect to Redis for multi-instance state sharing
     #[cfg(feature = "redis")]
-    let redis_conn = if let Some(ref redis_url) = cli.redis_url {
+    let _redis_conn = if let Some(ref redis_url) = cli.redis_url {
         tracing::info!(url = %redis_url, "connecting to Redis for multi-instance backends");
         let client = redis::Client::open(redis_url.as_str())
             .map_err(|e| anyhow::anyhow!("invalid Redis URL: {e}"))?;
         let conn = redis::aio::ConnectionManager::new(client)
             .await
             .map_err(|e| anyhow::anyhow!("Redis connection failed: {e}"))?;
-        tracing::info!("Redis connected");
+        tracing::info!("Redis connected — backends available for injection");
+        // TODO: inject Redis backends into AppState when it supports trait-object or
+        // generic backend selection. For now, Redis connection is established and
+        // RedisRateLimit/RedisQuota/RedisAffinity are available in gproxy_core::redis_backend.
         Some(conn)
     } else {
         None
