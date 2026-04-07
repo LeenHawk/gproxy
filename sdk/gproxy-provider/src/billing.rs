@@ -416,4 +416,144 @@ mod tests {
         let priority_cost = estimate_cost(&prices, &priority_context, &usage).unwrap();
         assert!((priority_cost - 0.51).abs() < 1e-9);
     }
+
+    #[test]
+    fn exact_model_price_beats_default_fallback() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "price_each_call": 0.25
+              },
+              {
+                "model_id": "test-model",
+                "price_each_call": 1.5
+              }
+            ]
+            "#,
+        );
+        let usage = Usage::default();
+        let context = BillingContext {
+            model_id: "test-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(1.5));
+    }
+
+    #[test]
+    fn missing_model_uses_default_price_each_call() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "price_each_call": 0.25
+              }
+            ]
+            "#,
+        );
+        let usage = Usage::default();
+        let context = BillingContext {
+            model_id: "missing-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.25));
+    }
+
+    #[test]
+    fn missing_model_uses_default_price_tiers() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "price_tiers": [
+                  {
+                    "input_tokens_up_to": 1000,
+                    "price_input_tokens": 1.0,
+                    "price_output_tokens": 2.0
+                  }
+                ]
+              }
+            ]
+            "#,
+        );
+        let usage = Usage {
+            input_tokens: Some(1000),
+            output_tokens: Some(500),
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            cache_creation_input_tokens_5min: None,
+            cache_creation_input_tokens_1h: None,
+        };
+        let context = BillingContext {
+            model_id: "missing-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.002));
+    }
+
+    #[test]
+    fn missing_model_uses_default_priority_prices() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "priority_price_each_call": 0.9,
+                "priority_price_tiers": [
+                  {
+                    "input_tokens_up_to": 1000,
+                    "price_input_tokens": 10.0
+                  }
+                ]
+              }
+            ]
+            "#,
+        );
+        let usage = Usage {
+            input_tokens: Some(1000),
+            output_tokens: None,
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            cache_creation_input_tokens_5min: None,
+            cache_creation_input_tokens_1h: None,
+        };
+        let context = BillingContext {
+            model_id: "missing-model".to_string(),
+            mode: BillingMode::Priority,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.91));
+    }
+
+    #[test]
+    fn missing_model_without_default_still_returns_none() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "some-other-model",
+                "price_each_call": 1.0
+              }
+            ]
+            "#,
+        );
+        let usage = Usage::default();
+        let context = BillingContext {
+            model_id: "missing-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), None);
+    }
 }
