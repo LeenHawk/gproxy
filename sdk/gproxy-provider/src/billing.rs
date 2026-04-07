@@ -122,7 +122,9 @@ fn split_model_prices<'a>(
     model_id: &str,
 ) -> (Option<&'a ModelPrice>, Option<&'a ModelPrice>) {
     let exact_model = model_prices.iter().find(|model| model.model_id == model_id);
-    let default_model = model_prices.iter().find(|model| model.model_id == "default");
+    let default_model = model_prices
+        .iter()
+        .find(|model| model.model_id == "default");
     (exact_model, default_model)
 }
 
@@ -150,7 +152,9 @@ fn price_tiers_for_mode<'a>(
     mode: BillingMode,
 ) -> Option<&'a [ModelPriceTier]> {
     let tiers = match mode {
-        BillingMode::Flex if !model.flex_price_tiers.is_empty() => model.flex_price_tiers.as_slice(),
+        BillingMode::Flex if !model.flex_price_tiers.is_empty() => {
+            model.flex_price_tiers.as_slice()
+        }
         BillingMode::Scale if !model.scale_price_tiers.is_empty() => {
             model.scale_price_tiers.as_slice()
         }
