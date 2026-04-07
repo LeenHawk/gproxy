@@ -306,9 +306,9 @@ fn normalize_password_for_update(
     if let Some(previous) = previous
         && (password_or_hash == previous.password_hash
             || verify_password(password_or_hash, &previous.password_hash))
-        {
-            return previous.password_hash.clone();
-        }
+    {
+        return previous.password_hash.clone();
+    }
     normalize_password_for_storage(password_or_hash)
 }
 

@@ -1594,7 +1594,11 @@ pub(crate) async fn record_usage(ctx: &UsageRecordContext, usage: &Usage) {
     }
 }
 
-async fn persist_usage_write_now(ctx: &UsageRecordContext, usage_write: gproxy_storage::UsageWrite, cost: f64) {
+async fn persist_usage_write_now(
+    ctx: &UsageRecordContext,
+    usage_write: gproxy_storage::UsageWrite,
+    cost: f64,
+) {
     match ctx
         .state
         .storage()

@@ -124,7 +124,11 @@ fn select_model_price<'a>(
     model_prices
         .iter()
         .find(|model| model.model_id == model_id)
-        .or_else(|| model_prices.iter().find(|model| model.model_id == "default"))
+        .or_else(|| {
+            model_prices
+                .iter()
+                .find(|model| model.model_id == "default")
+        })
 }
 
 pub fn estimate_billing(
