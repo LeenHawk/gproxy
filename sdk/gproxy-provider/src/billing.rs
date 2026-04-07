@@ -117,18 +117,60 @@ pub fn build_billing_context(
     })
 }
 
-fn select_model_price<'a>(
+fn split_model_prices<'a>(
     model_prices: &'a [ModelPrice],
     model_id: &str,
-) -> Option<&'a ModelPrice> {
-    model_prices
-        .iter()
-        .find(|model| model.model_id == model_id)
-        .or_else(|| {
-            model_prices
-                .iter()
-                .find(|model| model.model_id == "default")
-        })
+) -> (Option<&'a ModelPrice>, Option<&'a ModelPrice>) {
+    let exact_model = model_prices.iter().find(|model| model.model_id == model_id);
+    let default_model = model_prices.iter().find(|model| model.model_id == "default");
+    (exact_model, default_model)
+}
+
+fn price_each_call_for_mode(model: &ModelPrice, mode: BillingMode) -> Option<f64> {
+    match mode {
+        BillingMode::Flex => model.flex_price_each_call.or(model.price_each_call),
+        BillingMode::Scale => model.scale_price_each_call.or(model.price_each_call),
+        BillingMode::Priority => model.priority_price_each_call.or(model.price_each_call),
+        BillingMode::Default => model.price_each_call,
+    }
+}
+
+fn select_price_each_call(
+    exact_model: Option<&ModelPrice>,
+    default_model: Option<&ModelPrice>,
+    mode: BillingMode,
+) -> Option<f64> {
+    exact_model
+        .and_then(|model| price_each_call_for_mode(model, mode))
+        .or_else(|| default_model.and_then(|model| price_each_call_for_mode(model, mode)))
+}
+
+fn price_tiers_for_mode<'a>(
+    model: &'a ModelPrice,
+    mode: BillingMode,
+) -> Option<&'a [ModelPriceTier]> {
+    let tiers = match mode {
+        BillingMode::Flex if !model.flex_price_tiers.is_empty() => model.flex_price_tiers.as_slice(),
+        BillingMode::Scale if !model.scale_price_tiers.is_empty() => {
+            model.scale_price_tiers.as_slice()
+        }
+        BillingMode::Priority if !model.priority_price_tiers.is_empty() => {
+            model.priority_price_tiers.as_slice()
+        }
+        _ if !model.price_tiers.is_empty() => model.price_tiers.as_slice(),
+        _ => return None,
+    };
+    Some(tiers)
+}
+
+fn select_price_tiers<'a>(
+    exact_model: Option<&'a ModelPrice>,
+    default_model: Option<&'a ModelPrice>,
+    mode: BillingMode,
+) -> Option<&'a [ModelPriceTier]> {
+    exact_model
+        .and_then(|model| price_tiers_for_mode(model, mode))
+        .or_else(|| default_model.and_then(|model| price_tiers_for_mode(model, mode)))
 }
 
 pub fn estimate_billing(
@@ -136,28 +178,15 @@ pub fn estimate_billing(
     context: &BillingContext,
     usage: &Usage,
 ) -> Option<BillingResult> {
-    let model = select_model_price(model_prices, &context.model_id)?;
+    let (exact_model, default_model) = split_model_prices(model_prices, &context.model_id);
+    if exact_model.is_none() && default_model.is_none() {
+        return None;
+    }
     let mut total_cost = 0.0;
     let mut line_items = Vec::new();
 
-    let price_each_call = match context.mode {
-        BillingMode::Flex => model.flex_price_each_call.or(model.price_each_call),
-        BillingMode::Scale => model.scale_price_each_call.or(model.price_each_call),
-        BillingMode::Priority => model.priority_price_each_call.or(model.price_each_call),
-        BillingMode::Default => model.price_each_call,
-    };
-    let price_tiers = match context.mode {
-        BillingMode::Flex if !model.flex_price_tiers.is_empty() => {
-            model.flex_price_tiers.as_slice()
-        }
-        BillingMode::Scale if !model.scale_price_tiers.is_empty() => {
-            model.scale_price_tiers.as_slice()
-        }
-        BillingMode::Priority if !model.priority_price_tiers.is_empty() => {
-            model.priority_price_tiers.as_slice()
-        }
-        _ => model.price_tiers.as_slice(),
-    };
+    let price_each_call = select_price_each_call(exact_model, default_model, context.mode);
+    let price_tiers = select_price_tiers(exact_model, default_model, context.mode).unwrap_or(&[]);
 
     if let Some(price) = price_each_call {
         total_cost += price;
@@ -215,13 +244,21 @@ pub fn estimate_billing(
     }
 
     for tool_key in &context.tool_keys {
-        if let Some(price) = model.tool_call_prices.get(tool_key) {
+        if let Some(price) = exact_model
+            .and_then(|model| model.tool_call_prices.get(tool_key))
+            .copied()
+            .or_else(|| {
+                default_model
+                    .and_then(|model| model.tool_call_prices.get(tool_key))
+                    .copied()
+            })
+        {
             total_cost += price;
             line_items.push(BillingLineItem {
                 kind: format!("tool:{tool_key}"),
                 units: Some(1),
-                unit_price: *price,
-                amount: *price,
+                unit_price: price,
+                amount: price,
             });
         }
     }
@@ -453,6 +490,137 @@ mod tests {
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(1.5));
+    }
+
+    #[test]
+    fn exact_model_without_pricing_falls_back_to_default_price_each_call() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "price_each_call": 0.25
+              },
+              {
+                "model_id": "test-model"
+              }
+            ]
+            "#,
+        );
+        let usage = Usage::default();
+        let context = BillingContext {
+            model_id: "test-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.25));
+    }
+
+    #[test]
+    fn exact_model_without_tiers_falls_back_to_default_tiers() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "price_tiers": [
+                  {
+                    "input_tokens_up_to": 1000,
+                    "price_input_tokens": 1.0,
+                    "price_output_tokens": 2.0
+                  }
+                ]
+              },
+              {
+                "model_id": "test-model",
+                "price_each_call": 0.5
+              }
+            ]
+            "#,
+        );
+        let usage = Usage {
+            input_tokens: Some(1000),
+            output_tokens: Some(500),
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            cache_creation_input_tokens_5min: None,
+            cache_creation_input_tokens_1h: None,
+        };
+        let context = BillingContext {
+            model_id: "test-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.502));
+    }
+
+    #[test]
+    fn exact_model_without_priority_tiers_falls_back_to_default_priority_tiers() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "priority_price_each_call": 0.9,
+                "priority_price_tiers": [
+                  {
+                    "input_tokens_up_to": 1000,
+                    "price_input_tokens": 10.0
+                  }
+                ]
+              },
+              {
+                "model_id": "test-model",
+                "priority_price_each_call": 1.0
+              }
+            ]
+            "#,
+        );
+        let usage = Usage {
+            input_tokens: Some(1000),
+            output_tokens: None,
+            cache_read_input_tokens: None,
+            cache_creation_input_tokens: None,
+            cache_creation_input_tokens_5min: None,
+            cache_creation_input_tokens_1h: None,
+        };
+        let context = BillingContext {
+            model_id: "test-model".to_string(),
+            mode: BillingMode::Priority,
+            tool_keys: Vec::new(),
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(1.01));
+    }
+
+    #[test]
+    fn exact_model_missing_tool_price_uses_default_tool_price() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "default",
+                "tool_call_prices": {
+                  "web_search": 0.01
+                }
+              },
+              {
+                "model_id": "test-model",
+                "price_each_call": 0.5
+              }
+            ]
+            "#,
+        );
+        let usage = Usage::default();
+        let context = BillingContext {
+            model_id: "test-model".to_string(),
+            mode: BillingMode::Default,
+            tool_keys: vec!["web_search".to_string()],
+        };
+
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.51));
     }
 
     #[test]
