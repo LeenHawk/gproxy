@@ -117,14 +117,22 @@ pub fn build_billing_context(
     })
 }
 
+fn select_model_price<'a>(
+    model_prices: &'a [ModelPrice],
+    model_id: &str,
+) -> Option<&'a ModelPrice> {
+    model_prices
+        .iter()
+        .find(|model| model.model_id == model_id)
+        .or_else(|| model_prices.iter().find(|model| model.model_id == "default"))
+}
+
 pub fn estimate_billing(
     model_prices: &[ModelPrice],
     context: &BillingContext,
     usage: &Usage,
 ) -> Option<BillingResult> {
-    let model = model_prices
-        .iter()
-        .find(|model| model.model_id == context.model_id)?;
+    let model = select_model_price(model_prices, &context.model_id)?;
     let mut total_cost = 0.0;
     let mut line_items = Vec::new();
 
