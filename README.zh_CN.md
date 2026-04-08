@@ -8,6 +8,14 @@
 cargo build -p gproxy --release
 ```
 
+如果你修改了内嵌控制台前端，先构建前端再运行或打包二进制：
+
+```bash
+cd frontend/console
+pnpm install
+pnpm build
+```
+
 多实例构建，启用 Redis backend：
 
 ```bash
@@ -15,6 +23,26 @@ cargo build -p gproxy --release --features redis
 ```
 
 构建产物位于 `target/release/gproxy`。
+
+### 内嵌控制台
+
+当前二进制内嵌了一个挂载在 `/console` 下的浏览器控制台。
+
+- 控制台地址：`http://127.0.0.1:8787/console`
+- 浏览器登录接口：`POST /login`
+- 浏览器鉴权头：`Authorization: Bearer <session_token>`
+
+本地常见流程：
+
+```bash
+cd frontend/console
+pnpm install
+pnpm build
+
+cargo run -p gproxy
+```
+
+然后在浏览器里打开 `/console`，使用当前 v1 用户名和密码登录。
 
 ### 环境变量
 

@@ -9,7 +9,7 @@ The gproxy application layer can be understood through the following pipeline:
 | Domain layer | `crates/gproxy-core` | Provides in-memory domain services for identity, policy, quota, routing, files, configuration, and an optional Redis backend. |
 | Persistence layer | `crates/gproxy-storage` | Manages database connections, schema sync, query repositories, and write events through SeaORM. |
 | API layer | `crates/gproxy-api` | Organizes login, Admin, User, and Provider HTTP/WebSocket routes with Axum and handles bootstrap. |
-| Application entry | `apps/gproxy` | Parses CLI arguments and environment variables, connects to the database, creates `AppState`, and starts background workers plus the HTTP server. |
+| Application entry | `apps/gproxy` | Parses CLI arguments and environment variables, connects to the database, creates `AppState`, starts background workers, and serves both the API router and the embedded `/console` frontend. |
 
 `AppState` and `AppStateBuilder` in `crates/gproxy-server` are what actually wire these layers together at runtime. In `apps/gproxy/src/main.rs`, the process first creates `GlobalConfig`, `SeaOrmStorage`, the SDK engine, and the workers, then combines the `gproxy-core` services into shared state and finally exposes the API through `gproxy_api::api_router`.
 
@@ -58,8 +58,28 @@ The detailed sequence in `apps/gproxy/src/main.rs`:
 9. Execute bootstrap. If `global_settings` already exists in the database, call `reload_from_db` to restore the full in-memory state; otherwise, if the TOML file pointed to by `GPROXY_CONFIG` exists, initialize from TOML; failing that, create a minimal runtime configuration, a real admin user, and a bootstrap admin API key.
 10. Write back the explicitly provided host, port, proxy, spoof, dsn, and data_dir into the global configuration. Admin identity is no longer stored in `global_settings` but in `users.is_admin` and the corresponding user key; on first startup, if the bootstrap password or API key is missing, one is generated and printed once.
 11. Start the remaining workers: `QuotaReconciler`, `RateLimitGC`, `HealthBroadcaster`.
-12. Build `gproxy_api::api_router(state)`, bind to `host:port`, and start the Axum HTTP server.
+12. Build `gproxy_api::api_router(state)`, merge the embedded `/console` router from `apps/gproxy/src/web.rs`, bind to `host:port`, and start the Axum HTTP server.
 13. On `Ctrl+C` or `SIGTERM`, begin graceful shutdown: stop the HTTP server first, then notify workers to shut down and wait for them to drain.
+
+## Embedded Console Workflow
+
+The embedded console assets live in `apps/gproxy/web/console/` and are served by `apps/gproxy/src/web.rs`.
+
+When the frontend changes:
+
+```bash
+cd frontend/console
+pnpm install
+pnpm build
+```
+
+This builds the SPA and syncs the assets into the embed directory. After that, run `cargo run -p gproxy` or `cargo build -p gproxy`.
+
+At runtime:
+
+- open `/console`
+- log in through `/login`
+- use the returned session token through browser-managed requests to `/admin/*` and `/user/*`
 
 ## Runtime Collaboration
 

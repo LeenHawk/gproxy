@@ -9,7 +9,7 @@ gproxy 的 App 层可以按下面这条链路理解：
 | 领域层 | `crates/gproxy-core` | 提供内存态 Domain Service，包括身份、策略、配额、路由、文件、配置，以及可选的 Redis backend。 |
 | 持久化层 | `crates/gproxy-storage` | 基于 SeaORM 管理数据库连接、Schema 同步、查询仓储和写入事件。 |
 | API 层 | `crates/gproxy-api` | 用 Axum 组织登录、Admin、User、Provider HTTP / WebSocket 路由，并负责 bootstrap。 |
-| 应用入口 | `apps/gproxy` | 解析 CLI / 环境变量、连接数据库、创建 `AppState`、启动后台 worker 与 HTTP Server。 |
+| 应用入口 | `apps/gproxy` | 解析 CLI / 环境变量、连接数据库、创建 `AppState`、启动后台 worker，并同时服务 API 路由和内嵌的 `/console` 前端。 |
 
 运行时真正把这些层装配在一起的是 `crates/gproxy-server` 里的 `AppState` / `AppStateBuilder`。`apps/gproxy/src/main.rs` 先创建 `GlobalConfig`、`SeaOrmStorage`、SDK engine 和 worker，再把 `gproxy-core` 的服务组合进共享状态，最后交给 `gproxy-api::api_router` 暴露接口。
 
@@ -58,8 +58,28 @@ gproxy 的 App 层可以按下面这条链路理解：
 9. 执行 bootstrap。如果数据库已有 `global_settings`，调用 `reload_from_db` 从数据库恢复完整内存状态；否则如果 `GPROXY_CONFIG` 指向的 TOML 文件存在，则按 TOML 初始化；再否则创建最小运行时配置、一个真实的 admin 用户和一把 bootstrap admin API key。
 10. 把启动阶段显式传入的 host、port、proxy、spoof、dsn、data_dir 回写到全局配置。管理员身份不再存放在 `global_settings`，而是存放在 `users.is_admin` 和对应的 user key 中；首次启动缺少 bootstrap 密码或 API key 时，会生成并打印一次。
 11. 启动剩余 worker：`QuotaReconciler`、`RateLimitGC`、`HealthBroadcaster`。
-12. 构造 `gproxy_api::api_router(state)`，绑定 `host:port`，启动 Axum HTTP Server。
+12. 构造 `gproxy_api::api_router(state)`，再合并 `apps/gproxy/src/web.rs` 提供的 `/console` 内嵌前端路由，绑定 `host:port`，启动 Axum HTTP Server。
 13. 收到 `Ctrl+C` 或 `SIGTERM` 后进入优雅停机：先让 HTTP Server 停止服务，再通知 worker 关闭并等待排空。
+
+## 内嵌控制台工作流
+
+内嵌控制台资源位于 `apps/gproxy/web/console/`，由 `apps/gproxy/src/web.rs` 对外服务。
+
+当前端变更后：
+
+```bash
+cd frontend/console
+pnpm install
+pnpm build
+```
+
+这会构建 SPA 并把产物同步到 embed 目录。之后再执行 `cargo run -p gproxy` 或 `cargo build -p gproxy`。
+
+运行时：
+
+- 打开 `/console`
+- 通过 `/login` 登录
+- 浏览器后续访问 `/admin/*` 和 `/user/*` 时使用 session token
 
 ## 运行时协作关系
 

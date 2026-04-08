@@ -8,6 +8,14 @@ Single-instance release build:
 cargo build -p gproxy --release
 ```
 
+If you changed the embedded console frontend, build it before packaging or running the binary:
+
+```bash
+cd frontend/console
+pnpm install
+pnpm build
+```
+
 Multi-instance build with the Redis backend enabled:
 
 ```bash
@@ -15,6 +23,26 @@ cargo build -p gproxy --release --features redis
 ```
 
 The output binary is located at `target/release/gproxy`.
+
+### Embedded Console
+
+The current binary includes an embedded browser console mounted at `/console`.
+
+- Console URL: `http://127.0.0.1:8787/console`
+- Browser login: `POST /login`
+- Browser auth header: `Authorization: Bearer <session_token>`
+
+Typical local workflow:
+
+```bash
+cd frontend/console
+pnpm install
+pnpm build
+
+cargo run -p gproxy
+```
+
+Then open `/console` in a browser and log in with a current v1 username and password.
 
 ### Environment Variables
 
