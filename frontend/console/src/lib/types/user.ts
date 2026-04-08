@@ -1,6 +1,7 @@
 import type { UsageQuery, UsageQueryRow } from "./shared";
 
 export type UserKeyRow = {
+  id: number;
   api_key: string;
   label?: string | null;
   enabled: boolean;

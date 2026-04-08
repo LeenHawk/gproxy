@@ -176,6 +176,41 @@ pub struct DeleteUserKeyPayload {
     id: i64,
 }
 
+#[derive(serde::Deserialize)]
+pub struct UpdateUserKeyEnabledPayload {
+    pub id: i64,
+    pub enabled: bool,
+}
+
+pub async fn update_user_key_enabled(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateUserKeyEnabledPayload>,
+) -> Result<Json<AckResponse>, HttpError> {
+    authorize_admin(&headers, &state)?;
+    let key = state
+        .keys_snapshot()
+        .values()
+        .find(|key| key.id == payload.id)
+        .cloned()
+        .ok_or_else(|| HttpError::not_found("user key not found"))?;
+    state
+        .storage()
+        .upsert_user_key(gproxy_storage::UserKeyWrite {
+            id: key.id,
+            user_id: key.user_id,
+            api_key: key.api_key.clone(),
+            label: key.label.clone(),
+            enabled: payload.enabled,
+        })
+        .await?;
+    state.upsert_key_in_memory(gproxy_server::MemoryUserKey {
+        enabled: payload.enabled,
+        ..key
+    });
+    Ok(Json(AckResponse { ok: true, id: None }))
+}
+
 pub async fn delete_user_key(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -336,7 +371,9 @@ mod tests {
     use axum::{Json, extract::State};
     use http::HeaderMap;
 
-    use super::{batch_delete_users, batch_upsert_users, delete_user, upsert_user};
+    use super::{
+        batch_delete_users, batch_upsert_users, delete_user, update_user_key_enabled, upsert_user,
+    };
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
     use gproxy_storage::{SeaOrmStorage, repository::UserRepository};
 
@@ -519,5 +556,35 @@ mod tests {
             .expect("batch delete users");
 
         assert!(state.validate_session(&token).is_none());
+    }
+
+    #[tokio::test]
+    async fn update_user_key_enabled_updates_memory() {
+        let state = build_test_state().await;
+        state.upsert_key_in_memory(gproxy_server::MemoryUserKey {
+            id: 20,
+            user_id: 2,
+            api_key: "sk-user".to_string(),
+            label: Some("user".to_string()),
+            enabled: true,
+        });
+
+        let _ = update_user_key_enabled(
+            State(state.clone()),
+            admin_headers(),
+            Json(super::UpdateUserKeyEnabledPayload {
+                id: 20,
+                enabled: false,
+            }),
+        )
+        .await
+        .expect("update user key enabled");
+
+        let key = state
+            .keys_for_user(2)
+            .into_iter()
+            .find(|key| key.id == 20)
+            .expect("updated key");
+        assert!(!key.enabled);
     }
 }

@@ -97,7 +97,7 @@ export function renderActiveModule(
       case "my-quota":
         return <MyQuotaModule sessionToken={sessionToken} />;
       case "my-usage":
-        return <MyUsageModule sessionToken={sessionToken} />;
+        return <MyUsageModule sessionToken={sessionToken} notify={notify} />;
       default:
         return null;
     }
@@ -109,7 +109,7 @@ export function renderActiveModule(
     case "my-quota":
       return <MyQuotaModule sessionToken={sessionToken} />;
     case "my-usage":
-      return <MyUsageModule sessionToken={sessionToken} />;
+      return <MyUsageModule sessionToken={sessionToken} notify={notify} />;
     default:
       return null;
   }

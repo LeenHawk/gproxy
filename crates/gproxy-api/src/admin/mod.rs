@@ -12,6 +12,7 @@ pub mod health;
 pub mod models;
 pub mod permissions;
 pub mod providers;
+pub mod quotas;
 pub mod rate_limits;
 pub mod reload;
 pub mod requests;
@@ -93,7 +94,10 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/users/batch-delete", post(users::batch_delete_users))
         .route("/user-keys/query", post(users::query_user_keys))
         .route("/user-keys/generate", post(users::generate_user_key))
+        .route("/user-keys/update-enabled", post(users::update_user_key_enabled))
         .route("/user-keys/delete", post(users::delete_user_key))
+        .route("/user-quotas/query", post(quotas::query_user_quotas))
+        .route("/user-quotas/upsert", post(quotas::upsert_user_quota))
         .route(
             "/user-keys/batch-upsert",
             post(users::batch_upsert_user_keys),

@@ -291,6 +291,19 @@ export type UserRateLimitWrite = {
   total_tokens?: number | null;
 };
 
+export type MemoryUserQuotaRow = {
+  user_id: number;
+  quota: number;
+  cost_used: number;
+  remaining: number;
+};
+
+export type UserQuotaWrite = {
+  user_id: number;
+  quota: number;
+  cost_used: number;
+};
+
 export type UpstreamRequestQuery = {
   trace_id?: Scope<number>;
   provider_id?: Scope<number>;

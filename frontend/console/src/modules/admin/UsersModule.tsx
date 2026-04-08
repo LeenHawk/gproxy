@@ -4,10 +4,11 @@ import { useI18n } from "../../app/i18n";
 import { Card } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
-import type { GenerateUserKeyResponse, MemoryUserKeyRow, MemoryUserRow } from "../../lib/types/admin";
+import type { GenerateUserKeyResponse, MemoryUserKeyRow, MemoryUserQuotaRow, MemoryUserRow } from "../../lib/types/admin";
 import { UserKeysPane } from "./users/UserKeysPane";
 import { UserListPane } from "./users/UserListPane";
 import { buildUserWritePayload, type UserFormState } from "./users/types";
+import { buildUserQuotaFormState, buildUserQuotaWritePayload, type UserQuotaFormState } from "./users/quota";
 
 export function UsersModule({
   sessionToken,
@@ -21,6 +22,7 @@ export function UsersModule({
   const [rows, setRows] = useState<MemoryUserRow[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [keyRows, setKeyRows] = useState<MemoryUserKeyRow[]>([]);
+  const [selectedUserQuota, setSelectedUserQuota] = useState<MemoryUserQuotaRow | null>(null);
   const [showUserEditor, setShowUserEditor] = useState(false);
   const [form, setForm] = useState<UserFormState>({
     id: "",
@@ -29,6 +31,7 @@ export function UsersModule({
     enabled: true,
     is_admin: false,
   });
+  const [quotaForm, setQuotaForm] = useState<UserQuotaFormState>(buildUserQuotaFormState());
 
   const selectedUser = rows.find((row) => row.id === selectedUserId) ?? null;
 
@@ -56,12 +59,35 @@ export function UsersModule({
     setKeyRows([...data].sort((a, b) => a.id - b.id));
   };
 
+  const loadUserQuota = async (userId: number | null) => {
+    if (userId === null) {
+      setSelectedUserQuota(null);
+      setQuotaForm(buildUserQuotaFormState());
+      return;
+    }
+    const data = await apiJson<MemoryUserQuotaRow[]>("/admin/user-quotas/query", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ user_id: { Eq: userId }, limit: 1 }),
+    });
+    const row = data[0] ?? {
+      user_id: userId,
+      quota: 0,
+      cost_used: 0,
+      remaining: 0,
+    };
+    setSelectedUserQuota(row);
+    setQuotaForm(buildUserQuotaFormState(row));
+  };
+
   useEffect(() => {
     void loadUsers().catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
   }, []);
 
   useEffect(() => {
-    void loadUserKeys(selectedUserId).catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
+    void Promise.all([loadUserKeys(selectedUserId), loadUserQuota(selectedUserId)]).catch((error) =>
+      notify("error", error instanceof Error ? error.message : String(error)),
+    );
   }, [selectedUserId]);
 
   const saveUser = async () => {
@@ -163,6 +189,37 @@ export function UsersModule({
     }
   };
 
+  const toggleUserKeyEnabled = async (row: MemoryUserKeyRow) => {
+    try {
+      await apiJson("/admin/user-keys/update-enabled", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ id: row.id, enabled: !row.enabled }),
+      });
+      notify("success", t("users.saved"));
+      await loadUserKeys(selectedUserId);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const saveUserQuota = async () => {
+    if (!selectedUserId) {
+      return;
+    }
+    try {
+      await apiJson("/admin/user-quotas/upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(buildUserQuotaWritePayload(selectedUserId, quotaForm)),
+      });
+      notify("success", t("users.quotaSaved"));
+      await loadUserQuota(selectedUserId);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   return (
     <Card title={t("users.title")} subtitle={t("users.subtitle")}>
       <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
@@ -187,9 +244,15 @@ export function UsersModule({
         />
         <UserKeysPane
           selectedUser={selectedUser}
+          selectedUserQuota={selectedUserQuota}
+          quotaForm={quotaForm}
           keyRows={keyRows}
+          onChangeQuotaForm={(patch) => setQuotaForm((current) => ({ ...current, ...patch }))}
+          onSaveQuota={() => void saveUserQuota()}
+          onRefreshQuota={() => void loadUserQuota(selectedUserId)}
           onGenerateKey={() => void generateKey()}
           onRefreshKeys={() => void loadUserKeys(selectedUserId)}
+          onToggleKeyEnabled={(row) => void toggleUserKeyEnabled(row)}
           onDeleteKey={(id) => void deleteUserKey(id)}
         />
       </div>

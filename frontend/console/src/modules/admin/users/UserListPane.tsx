@@ -90,21 +90,21 @@ export function UserListPane({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="font-semibold text-text">{row.name}</div>
                 <Badge variant="neutral">#{row.id}</Badge>
-                <Badge variant={row.enabled ? "success" : "danger"}>
-                  {row.enabled ? t("common.enabled") : t("common.disabled")}
-                </Badge>
+                <button
+                  type="button"
+                  className="badge-button"
+                  onClick={() => onToggleUserEnabled(row)}
+                >
+                  <Badge variant={row.enabled ? "success" : "danger"}>
+                    {row.enabled ? t("common.enabled") : t("common.disabled")}
+                  </Badge>
+                </button>
                 <Badge variant={row.is_admin ? "accent" : "neutral"}>
                   {row.is_admin ? t("common.admin") : t("common.user")}
                 </Badge>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant={row.enabled ? "neutral" : "primary"}
-                onClick={() => onToggleUserEnabled(row)}
-              >
-                {row.enabled ? t("common.disabled") : t("common.enabled")}
-              </Button>
               <Button variant="neutral" onClick={() => onEditUser(row)}>
                 {t("common.edit")}
               </Button>

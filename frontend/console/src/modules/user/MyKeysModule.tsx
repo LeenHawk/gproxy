@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
 import { Badge, Button, Card } from "../../components/ui";
-import { apiJson } from "../../lib/api";
+import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type { GenerateKeyResponse, UserKeyRow } from "../../lib/types/user";
 
@@ -43,6 +43,32 @@ export function MyKeysModule({
     }
   };
 
+  const remove = async (id: number) => {
+    try {
+      await apiVoid("/user/keys/delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ id }),
+      });
+      await load();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const toggleEnabled = async (row: UserKeyRow) => {
+    try {
+      await apiVoid("/user/keys/update-enabled", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ id: row.id, enabled: !row.enabled }),
+      });
+      await load();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   return (
     <Card
       title={t("myKeys.title")}
@@ -52,12 +78,25 @@ export function MyKeysModule({
       <div className="record-list">
         {rows.map((row, index) => (
           <div key={`${row.api_key}-${index}`} className="record-item">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={row.enabled ? "success" : "danger"}>
-                {row.enabled ? t("common.enabled") : t("common.disabled")}
-              </Badge>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="badge-button"
+                    onClick={() => void toggleEnabled(row)}
+                  >
+                    <Badge variant={row.enabled ? "success" : "danger"}>
+                      {row.enabled ? t("common.enabled") : t("common.disabled")}
+                    </Badge>
+                  </button>
+                </div>
+                <div className="font-mono text-xs text-text">{row.api_key}</div>
+              </div>
+              <Button variant="danger" onClick={() => void remove(row.id)}>
+                {t("common.delete")}
+              </Button>
             </div>
-            <div className="font-mono text-xs text-text">{row.api_key}</div>
           </div>
         ))}
       </div>
