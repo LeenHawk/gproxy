@@ -1,11 +1,16 @@
-import { Card } from "../components/ui";
 import type { NavItem } from "../components/Nav";
+import { ConfigExportModule } from "../modules/admin/ConfigExportModule";
+import { DashboardModule } from "../modules/admin/DashboardModule";
 import { FilePermissionsModule } from "../modules/admin/FilePermissionsModule";
+import { GlobalSettingsModule } from "../modules/admin/GlobalSettingsModule";
 import { ModelAliasesModule } from "../modules/admin/ModelAliasesModule";
 import { ModelsModule } from "../modules/admin/ModelsModule";
 import { PermissionsModule } from "../modules/admin/PermissionsModule";
 import { ProvidersModule } from "../modules/admin/ProvidersModule";
 import { RateLimitsModule } from "../modules/admin/RateLimitsModule";
+import { RequestsModule } from "../modules/admin/RequestsModule";
+import { UpdateModule } from "../modules/admin/UpdateModule";
+import { UsageModule } from "../modules/admin/UsageModule";
 import { UsersModule } from "../modules/admin/UsersModule";
 import { MyKeysModule } from "../modules/user/MyKeysModule";
 import { MyQuotaModule } from "../modules/user/MyQuotaModule";
@@ -14,20 +19,6 @@ import { MyUsageModule } from "../modules/user/MyUsageModule";
 export type UserRole = "admin" | "user";
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
-
-function PlaceholderModule({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card title={title}>
-      <p className="text-sm text-muted">{description}</p>
-    </Card>
-  );
-}
 
 export function defaultModule(role: UserRole) {
   return role === "admin" ? "dashboard" : "my-quota";
@@ -44,6 +35,10 @@ export function buildAdminNavItems(t: TranslateFn): NavItem[] {
     { id: "user-file-permissions", label: t("app.nav.userFilePermissions") },
     { id: "user-rate-limits", label: t("app.nav.userRateLimits") },
     { id: "global-settings", label: t("app.nav.globalSettings") },
+    { id: "requests", label: t("app.nav.requests") },
+    { id: "usages", label: t("app.nav.usages") },
+    { id: "config-export", label: t("app.nav.configExport") },
+    { id: "update", label: t("app.nav.update") },
     { id: "my-keys", label: t("app.nav.myKeys") },
     { id: "my-quota", label: t("app.nav.myQuota") },
     { id: "my-usage", label: t("app.nav.myUsage") },
@@ -61,19 +56,14 @@ export function buildUserNavItems(t: TranslateFn): NavItem[] {
 export function renderActiveModule(
   role: UserRole,
   activeModule: string,
-  t: TranslateFn,
+  _t: TranslateFn,
   sessionToken: string,
   notify: (kind: "success" | "error" | "info", message: string) => void,
 ) {
   if (role === "admin") {
     switch (activeModule) {
       case "dashboard":
-        return (
-          <PlaceholderModule
-            title={t("placeholder.dashboard.title")}
-            description={t("placeholder.description")}
-          />
-        );
+        return <DashboardModule sessionToken={sessionToken} />;
       case "providers":
         return <ProvidersModule sessionToken={sessionToken} notify={notify} />;
       case "models":
@@ -89,12 +79,15 @@ export function renderActiveModule(
       case "user-rate-limits":
         return <RateLimitsModule sessionToken={sessionToken} notify={notify} />;
       case "global-settings":
-        return (
-          <PlaceholderModule
-            title={t("placeholder.globalSettings.title")}
-            description={t("placeholder.description")}
-          />
-        );
+        return <GlobalSettingsModule sessionToken={sessionToken} notify={notify} />;
+      case "requests":
+        return <RequestsModule sessionToken={sessionToken} notify={notify} />;
+      case "usages":
+        return <UsageModule sessionToken={sessionToken} notify={notify} />;
+      case "config-export":
+        return <ConfigExportModule sessionToken={sessionToken} notify={notify} />;
+      case "update":
+        return <UpdateModule sessionToken={sessionToken} notify={notify} />;
       case "my-keys":
         return <MyKeysModule sessionToken={sessionToken} notify={notify} />;
       case "my-quota":
