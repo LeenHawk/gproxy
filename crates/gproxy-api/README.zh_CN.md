@@ -420,7 +420,7 @@ type UpdateCredentialStatusPayload = {
 - `POST /admin/credential-statuses/query`：请求体 `CredentialHealthQuery`，返回 `CredentialHealthRow[]`
 - `POST /admin/credential-statuses/update`：请求体 `UpdateCredentialStatusPayload`，返回 `AckResponse`
 
-`/admin/credentials/query` 返回的是引擎内存里的脱敏凭证 JSON，不会原样回传 secret。
+`/admin/credentials/query` 返回引擎内存里的原始凭证 JSON。这是管理面接口，不会对渠道凭证做脱敏。
 
 #### Models 与 Aliases
 

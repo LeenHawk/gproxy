@@ -72,53 +72,12 @@ pub async fn query_credentials(
         .map(|c| CredentialRow {
             provider: c.provider,
             index: c.index,
-            credential: mask_credential_secrets(&c.credential),
+            // This is an admin/operator surface. Return the raw channel
+            // credential so the management UI can inspect and edit it.
+            credential: c.credential,
         })
         .collect();
     Ok(Json(rows))
-}
-
-/// Mask sensitive fields in credential JSON to prevent secret leakage.
-///
-/// Replaces values of known secret fields (api_key, secret_key, access_token,
-/// refresh_token, cookie, private_key) with masked versions showing only
-/// the first 4 and last 4 characters.
-fn mask_credential_secrets(value: &serde_json::Value) -> serde_json::Value {
-    const SECRET_FIELDS: &[&str] = &[
-        "api_key",
-        "secret_key",
-        "access_token",
-        "refresh_token",
-        "cookie",
-        "private_key",
-        "token",
-        "password",
-        "key",
-    ];
-
-    match value {
-        serde_json::Value::Object(map) => {
-            let mut masked = serde_json::Map::new();
-            for (k, v) in map {
-                if SECRET_FIELDS.iter().any(|&f| k.eq_ignore_ascii_case(f)) {
-                    if let Some(s) = v.as_str() {
-                        let masked_val = if s.len() > 8 {
-                            format!("{}***{}", &s[..4], &s[s.len() - 4..])
-                        } else {
-                            "***".to_string()
-                        };
-                        masked.insert(k.clone(), serde_json::Value::String(masked_val));
-                    } else {
-                        masked.insert(k.clone(), serde_json::Value::String("***".to_string()));
-                    }
-                } else {
-                    masked.insert(k.clone(), mask_credential_secrets(v));
-                }
-            }
-            serde_json::Value::Object(masked)
-        }
-        other => other.clone(),
-    }
 }
 
 #[derive(serde::Deserialize)]
@@ -327,4 +286,98 @@ pub async fn update_credential_status(
         _ => unreachable!(),
     }
     Ok(Json(AckResponse { ok: true, id: None }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::{Json, extract::State, http::HeaderMap};
+
+    use super::{CredentialQueryParams, query_credentials};
+    use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{Scope, SeaOrmStorage, repository::UserRepository};
+
+    async fn build_test_state() -> Arc<AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "admin".to_string(),
+                password: crate::login::hash_password("admin-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed admin");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-admin".to_string(),
+                label: Some("admin".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed admin key");
+        let provider_id = storage
+            .create_provider("demo", "openai", "{\"base_url\":\"https://api.openai.com\"}", "{}")
+            .await
+            .expect("seed provider");
+        storage
+            .create_credential(
+                provider_id,
+                None,
+                "openai",
+                "{\"api_key\":\"sk-secret-1234\",\"label\":\"primary\"}",
+                true,
+            )
+            .await
+            .expect("seed credential");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+        crate::bootstrap::reload_from_db(&state)
+            .await
+            .expect("reload state");
+        state
+    }
+
+    fn admin_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer sk-admin".parse().expect("header"));
+        headers
+    }
+
+    #[tokio::test]
+    async fn query_credentials_returns_unmasked_admin_credentials() {
+        let state = build_test_state().await;
+
+        let rows = query_credentials(
+            State(state),
+            admin_headers(),
+            Json(CredentialQueryParams {
+                provider_name: Scope::Eq("demo".to_string()),
+            }),
+        )
+        .await
+        .expect("query credentials")
+        .0;
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].credential["api_key"], "sk-secret-1234");
+    }
 }

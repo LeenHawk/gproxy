@@ -420,7 +420,7 @@ type UpdateCredentialStatusPayload = {
 - `POST /admin/credential-statuses/query`: body `CredentialHealthQuery`, returns `CredentialHealthRow[]`
 - `POST /admin/credential-statuses/update`: body `UpdateCredentialStatusPayload`, returns `AckResponse`
 
-`/admin/credentials/query` returns masked credential JSON from engine memory; secret values are not returned verbatim.
+`/admin/credentials/query` returns the raw credential JSON from engine memory. This is an admin management surface and does not mask channel secrets.
 
 #### Models and Aliases
 
