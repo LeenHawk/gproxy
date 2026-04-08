@@ -90,6 +90,8 @@ export function UserListPane({
               <div className="flex flex-wrap items-center gap-2">
                 <div className="font-semibold text-text">{row.name}</div>
                 <Badge variant="neutral">#{row.id}</Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className="badge-button"

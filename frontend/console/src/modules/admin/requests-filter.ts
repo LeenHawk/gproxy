@@ -103,6 +103,20 @@ export function buildDownstreamRequestQuery(form: {
   };
 }
 
+export function buildDownstreamDeleteAllQuery(form: {
+  user_id: string;
+  user_key_id: string;
+  request_path_contains: string;
+  limit: string;
+  include_body: boolean;
+}) {
+  return buildDownstreamRequestQuery({
+    ...form,
+    limit: "",
+    include_body: false,
+  });
+}
+
 export function buildUpstreamRequestQuery(form: {
   provider_id: string;
   credential_id: string;
@@ -120,6 +134,20 @@ export function buildUpstreamRequestQuery(form: {
     ...(form.limit.trim() ? { limit: Number(form.limit) } : {}),
     include_body: form.include_body,
   };
+}
+
+export function buildUpstreamDeleteAllQuery(form: {
+  provider_id: string;
+  credential_id: string;
+  request_url_contains: string;
+  limit: string;
+  include_body: boolean;
+}) {
+  return buildUpstreamRequestQuery({
+    ...form,
+    limit: "",
+    include_body: false,
+  });
 }
 
 export function buildAdminUsageQuery(form: {
@@ -140,4 +168,19 @@ export function buildAdminUsageQuery(form: {
     user_key_id: form.user_key_id ? { Eq: Number(form.user_key_id) } : scopeAll<number>(),
     ...(form.limit.trim() ? { limit: Number(form.limit) } : {}),
   };
+}
+
+export function buildAdminUsageDeleteAllQuery(form: {
+  provider_id: string;
+  credential_id: string;
+  channel: string;
+  model: string;
+  user_id: string;
+  user_key_id: string;
+  limit: string;
+}) {
+  return buildAdminUsageQuery({
+    ...form,
+    limit: "",
+  });
 }

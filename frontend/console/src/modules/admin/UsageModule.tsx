@@ -6,7 +6,7 @@ import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type { CredentialRow, MemoryModelRow, MemoryUserKeyRow, MemoryUserRow, ProviderRow } from "../../lib/types/admin";
 import type { UsageQueryRow } from "../../lib/types/shared";
-import { buildAdminUsageQuery } from "./requests-filter";
+import { buildAdminUsageDeleteAllQuery, buildAdminUsageQuery } from "./requests-filter";
 
 export function UsageModule({
   sessionToken,
@@ -30,6 +30,7 @@ export function UsageModule({
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
+  const [selectedTraceIds, setSelectedTraceIds] = useState<number[]>([]);
 
   useEffect(() => {
     void Promise.all([
@@ -148,21 +149,63 @@ export function UsageModule({
         ),
       });
       setRows(data);
+      setSelectedTraceIds([]);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
   };
 
-  const deleteFirst = async () => {
-    if (rows.length === 0) return;
+  const deleteSelected = async (traceIds: number[]) => {
+    if (traceIds.length === 0) return;
     try {
       await apiVoid("/admin/usages/batch-delete", {
         method: "POST",
         headers,
-        body: JSON.stringify(rows.slice(0, 5).map((row) => row.trace_id)),
+        body: JSON.stringify(traceIds),
       });
       notify("success", t("usages.deleted"));
+      setSelectedTraceIds([]);
       await query();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedTraceIds.includes(row.trace_id));
+
+  const toggleTraceId = (traceId: number, checked: boolean) => {
+    setSelectedTraceIds((current) =>
+      checked ? Array.from(new Set([...current, traceId])) : current.filter((id) => id !== traceId),
+    );
+  };
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    const visibleIds = rows.map((row) => row.trace_id);
+    setSelectedTraceIds((current) =>
+      checked ? Array.from(new Set([...current, ...visibleIds])) : current.filter((id) => !visibleIds.includes(id)),
+    );
+  };
+
+  const deleteAll = async () => {
+    try {
+      const traceIds = (
+        await apiJson<UsageQueryRow[]>("/admin/usages/query", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(
+            buildAdminUsageDeleteAllQuery({
+              provider_id: selectedProviderId,
+              credential_id: selectedCredentialId,
+              channel: selectedChannel,
+              model: selectedModel,
+              user_id: selectedUserId,
+              user_key_id: selectedUserKeyId,
+              limit,
+            }),
+          ),
+        })
+      ).map((row) => row.trace_id);
+      await deleteSelected(traceIds);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
@@ -203,16 +246,40 @@ export function UsageModule({
         </div>
         <div className="toolbar-actions">
           <Button onClick={() => void query()}>{t("common.query")}</Button>
-          <Button variant="danger" onClick={() => void deleteFirst()}>{t("common.deleteFirst5")}</Button>
+          <Button variant="danger" onClick={() => void deleteSelected(selectedTraceIds)} disabled={selectedTraceIds.length === 0}>
+            {t("common.deleteSelected")}
+          </Button>
+          <Button variant="danger" onClick={() => void deleteAll()} disabled={rows.length === 0}>
+            {t("common.deleteAll")}
+          </Button>
         </div>
       </div>
       <div className="record-list mt-4">
         {rows.length === 0 ? <p className="text-sm text-muted">{t("common.noData")}</p> : null}
+        {rows.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+            />
+            {t("common.selectVisible")}
+          </label>
+        ) : null}
         {rows.map((row) => (
           <div key={row.trace_id} className="record-item">
-            <div className="font-semibold text-text">{row.model ?? row.operation}</div>
-            <div className="mt-1 text-xs text-muted">
-              {t("usages.rowMeta", { trace: row.trace_id, protocol: row.protocol })}
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={selectedTraceIds.includes(row.trace_id)}
+                onChange={(event) => toggleTraceId(row.trace_id, event.target.checked)}
+              />
+              <div className="min-w-0">
+                <div className="font-semibold text-text">{row.model ?? row.operation}</div>
+                <div className="mt-1 text-xs text-muted">
+                  {t("usages.rowMeta", { trace: row.trace_id, protocol: row.protocol })}
+                </div>
+              </div>
             </div>
           </div>
         ))}

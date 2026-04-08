@@ -37,27 +37,6 @@ export function DashboardModule({ sessionToken }: { sessionToken: string }) {
           <div className="metric-meta">{health ? `epoch ${health.timestamp_epoch}` : t("common.loading")}</div>
         </div>
       </div>
-      <div className="panel-shell mt-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="metric-label">{t("dashboard.metric.timestamp")}</div>
-            <div className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-text">{lastUpdated}</div>
-            <p className="mt-2 text-sm text-muted">
-              {health ? `${t("dashboard.metric.status")}: ${health.status}` : t("common.loading")}
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[320px]">
-            <div>
-              <div className="metric-label">{t("dashboard.metric.providers")}</div>
-              <div className="mt-2 text-lg font-semibold text-text">{health?.provider_count ?? "—"}</div>
-            </div>
-            <div>
-              <div className="metric-label">{t("dashboard.metric.users")}</div>
-              <div className="mt-2 text-lg font-semibold text-text">{health?.user_count ?? "—"}</div>
-            </div>
-          </div>
-        </div>
-      </div>
     </Card>
   );
 }

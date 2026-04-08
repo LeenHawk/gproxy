@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Badge, Button, Card, Input, Label } from "../../components/ui";
+import { Badge, Button, Card } from "../../components/ui";
 import { apiJson } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import { formatTimestamp } from "../../lib/datetime";
@@ -19,7 +19,6 @@ export function MyUsageModule({
   const { t } = useI18n();
   const [rows, setRows] = useState<UsageQueryRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [limit, setLimit] = useState("50");
   const [loading, setLoading] = useState(false);
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
   const summary = useMemo(() => summarizeUsageRows(rows), [rows]);
@@ -31,7 +30,7 @@ export function MyUsageModule({
         apiJson<UsageQueryRow[]>("/user/usages/query", {
           method: "POST",
           headers,
-          body: JSON.stringify(buildMyUsageQuery(limit)),
+          body: JSON.stringify(buildMyUsageQuery("50")),
         }),
         apiJson<CountResponse>("/user/usages/count", {
           method: "POST",
@@ -55,12 +54,6 @@ export function MyUsageModule({
   return (
     <Card title={t("myUsage.title")} subtitle={t("myUsage.subtitle")}>
       <div className="toolbar-shell">
-        <div className="grid gap-4 lg:grid-cols-[220px_auto]">
-          <div>
-            <Label>{t("common.limit")}</Label>
-            <Input value={limit} onChange={setLimit} />
-          </div>
-        </div>
         <div className="toolbar-actions">
           <Button variant="neutral" onClick={() => void load()}>
             {loading ? t("common.loading") : t("common.refresh")}

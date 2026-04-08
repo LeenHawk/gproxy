@@ -13,8 +13,10 @@ import type {
   UpstreamRequestQueryRow,
 } from "../../lib/types/admin";
 import {
+  buildDownstreamDeleteAllQuery,
   KNOWN_DOWNSTREAM_REQUEST_PATHS,
   KNOWN_UPSTREAM_REQUEST_TARGETS,
+  buildUpstreamDeleteAllQuery,
   buildDownstreamRequestQuery,
   buildUpstreamRequestQuery,
 } from "./requests-filter";
@@ -42,6 +44,7 @@ export function RequestsModule({
   const [selectedUserKeyId, setSelectedUserKeyId] = useState("");
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [selectedCredentialId, setSelectedCredentialId] = useState("");
+  const [selectedTraceIds, setSelectedTraceIds] = useState<number[]>([]);
 
   useEffect(() => {
     void Promise.all([
@@ -155,6 +158,7 @@ export function RequestsModule({
         });
         setUpstreamRows(rows);
       }
+      setSelectedTraceIds([]);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
@@ -173,6 +177,7 @@ export function RequestsModule({
         body: JSON.stringify(traceIds),
       });
       notify("success", t("requests.deleted"));
+      setSelectedTraceIds([]);
       await query();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -180,6 +185,60 @@ export function RequestsModule({
   };
 
   const rows = tab === "downstream" ? downstreamRows : upstreamRows;
+  const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedTraceIds.includes(row.trace_id));
+
+  const toggleTraceId = (traceId: number, checked: boolean) => {
+    setSelectedTraceIds((current) =>
+      checked ? Array.from(new Set([...current, traceId])) : current.filter((id) => id !== traceId),
+    );
+  };
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    const visibleIds = rows.map((row) => row.trace_id);
+    setSelectedTraceIds((current) =>
+      checked ? Array.from(new Set([...current, ...visibleIds])) : current.filter((id) => !visibleIds.includes(id)),
+    );
+  };
+
+  const deleteAll = async () => {
+    try {
+      const traceIds =
+        tab === "downstream"
+          ? (
+              await apiJson<DownstreamRequestQueryRow[]>("/admin/requests/downstream/query", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(
+                  buildDownstreamDeleteAllQuery({
+                    user_id: selectedUserId,
+                    user_key_id: selectedUserKeyId,
+                    request_path_contains: pathFilter,
+                    limit,
+                    include_body: includeBody,
+                  }),
+                ),
+              })
+            ).map((row) => row.trace_id)
+          : (
+              await apiJson<UpstreamRequestQueryRow[]>("/admin/requests/upstream/query", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(
+                  buildUpstreamDeleteAllQuery({
+                    provider_id: selectedProviderId,
+                    credential_id: selectedCredentialId,
+                    request_url_contains: pathFilter,
+                    limit,
+                    include_body: includeBody,
+                  }),
+                ),
+              })
+            ).map((row) => row.trace_id);
+      await deleteSelected(traceIds);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
 
   return (
     <Card title={t("requests.title")}>
@@ -237,21 +296,43 @@ export function RequestsModule({
         </div>
         <div className="toolbar-actions">
           <Button onClick={() => void query()}>{t("common.query")}</Button>
-          <Button variant="danger" onClick={() => void deleteSelected(rows.slice(0, 5).map((row) => row.trace_id))}>
-            {t("common.deleteFirst5")}
+          <Button variant="danger" onClick={() => void deleteSelected(selectedTraceIds)} disabled={selectedTraceIds.length === 0}>
+            {t("common.deleteSelected")}
+          </Button>
+          <Button variant="danger" onClick={() => void deleteAll()} disabled={rows.length === 0}>
+            {t("common.deleteAll")}
           </Button>
         </div>
       </div>
       <div className="record-list mt-4">
         {rows.length === 0 ? <p className="text-sm text-muted">{t("common.noData")}</p> : null}
+        {rows.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+            />
+            {t("common.selectVisible")}
+          </label>
+        ) : null}
         {rows.map((row) => (
           <div key={row.trace_id} className="record-item">
-            <div className="font-semibold text-text">trace #{row.trace_id}</div>
-            <div className="mt-1 text-xs text-muted">
-              {t("requests.rowMeta", {
-                target: "request_path" in row ? row.request_path : row.request_url ?? "—",
-                status: row.response_status ?? "—",
-              })}
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={selectedTraceIds.includes(row.trace_id)}
+                onChange={(event) => toggleTraceId(row.trace_id, event.target.checked)}
+              />
+              <div className="min-w-0">
+                <div className="font-semibold text-text">trace #{row.trace_id}</div>
+                <div className="mt-1 text-xs text-muted">
+                  {t("requests.rowMeta", {
+                    target: "request_path" in row ? row.request_path : row.request_url ?? "—",
+                    status: row.response_status ?? "—",
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         ))}
