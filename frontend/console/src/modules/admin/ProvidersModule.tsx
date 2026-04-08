@@ -363,6 +363,8 @@ export function ProvidersModule({
                 add: t("providers.credentials.add"),
                 replace: t("providers.credentials.replace"),
                 none: t("providers.credentials.none"),
+                edit: t("providers.credentials.edit"),
+                delete: t("providers.credentials.delete"),
               }}
             />
           ) : null}
@@ -370,7 +372,22 @@ export function ProvidersModule({
             <StatusTab
               rows={statusRows}
               onUpdate={(row, status) => void updateStatus(row, status)}
-              labels={{ none: t("providers.status.none") }}
+              labels={{
+                title: t("providers.status.title"),
+                meta: (row) =>
+                  t("providers.status.meta", {
+                    status:
+                      row.status === "healthy"
+                        ? t("providers.status.healthy")
+                        : row.status === "dead"
+                          ? t("providers.status.dead")
+                          : row.status,
+                    available: String(row.available),
+                  }),
+                healthy: t("providers.status.healthy"),
+                dead: t("providers.status.dead"),
+                none: t("providers.status.none"),
+              }}
             />
           ) : null}
           {activeTab === "oauth" ? (
@@ -393,6 +410,7 @@ export function ProvidersModule({
           ) : null}
           {activeTab === "usage" ? (
             <UsageTab
+              title={t("providers.usage.title")}
               result={usageResult}
               onRefresh={() => void loadUsage()}
               label={t("providers.usage.fetch")}

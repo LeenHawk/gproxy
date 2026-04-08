@@ -227,6 +227,14 @@ input {
 
 .card-shell {
   padding: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .btn {
@@ -329,5 +337,20 @@ input {
 
   .sidebar-nav-open {
     display: flex;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-shell {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .card-shell {
+    padding: 1rem;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
   }
 }

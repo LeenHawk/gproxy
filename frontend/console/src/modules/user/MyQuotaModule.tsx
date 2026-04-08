@@ -22,19 +22,19 @@ export function MyQuotaModule({ sessionToken }: { sessionToken: string }) {
     <Card title={t("myQuota.title")} subtitle={t("myQuota.subtitle")}>
       <div className="grid gap-3 md:grid-cols-4">
         <div className="card-shell">
-          <div className="text-xs text-muted">user_id</div>
+          <div className="text-xs text-muted">{t("common.userId")}</div>
           <div className="mt-1 text-xl font-semibold">{quota?.user_id ?? "—"}</div>
         </div>
         <div className="card-shell">
-          <div className="text-xs text-muted">quota</div>
+          <div className="text-xs text-muted">{t("common.quota")}</div>
           <div className="mt-1 text-xl font-semibold">{quota?.quota ?? "—"}</div>
         </div>
         <div className="card-shell">
-          <div className="text-xs text-muted">cost_used</div>
+          <div className="text-xs text-muted">{t("common.costUsed")}</div>
           <div className="mt-1 text-xl font-semibold">{quota?.cost_used ?? "—"}</div>
         </div>
         <div className="card-shell">
-          <div className="text-xs text-muted">remaining</div>
+          <div className="text-xs text-muted">{t("common.remaining")}</div>
           <div className="mt-1 text-xl font-semibold">{quota?.remaining ?? "—"}</div>
         </div>
       </div>

@@ -62,7 +62,7 @@ export function ModelAliasesModule({
         headers,
         body: JSON.stringify(payload),
       });
-      notify("success", "Model alias saved");
+      notify("success", t("modelAliases.saved"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -76,7 +76,7 @@ export function ModelAliasesModule({
         headers,
         body: JSON.stringify({ alias }),
       });
-      notify("success", "Model alias deleted");
+      notify("success", t("modelAliases.deleted"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -111,11 +111,11 @@ export function ModelAliasesModule({
         <div className="card-shell space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
             <div>
-              <Label>ID</Label>
+              <Label>{t("common.id")}</Label>
               <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
             </div>
             <div>
-              <Label>Provider</Label>
+              <Label>{t("common.provider")}</Label>
               <Select
                 value={form.provider_id}
                 onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))}
@@ -128,12 +128,12 @@ export function ModelAliasesModule({
             <Input value={form.alias} onChange={(value) => setForm((current) => ({ ...current, alias: value }))} />
           </div>
           <div>
-            <Label>model_id</Label>
+            <Label>{t("common.modelId")}</Label>
             <Input value={form.model_id} onChange={(value) => setForm((current) => ({ ...current, model_id: value }))} />
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => void save()}>Save</Button>
-            {selectedAlias ? <Button variant="danger" onClick={() => void remove(selectedAlias)}>Delete</Button> : null}
+            <Button onClick={() => void save()}>{t("common.save")}</Button>
+            {selectedAlias ? <Button variant="danger" onClick={() => void remove(selectedAlias)}>{t("common.delete")}</Button> : null}
           </div>
         </div>
       </div>

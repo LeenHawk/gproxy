@@ -1,3 +1,4 @@
+import { useI18n } from "../../../app/i18n";
 import { Button } from "../../../components/ui";
 import type { MemoryUserKeyRow, MemoryUserRow } from "../../../lib/types/admin";
 
@@ -14,21 +15,27 @@ export function UserKeysPane({
   onRefreshKeys: () => void;
   onDeleteKey: (id: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="card-shell">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-sm font-semibold text-text">Selected User Keys</div>
+          <div className="text-sm font-semibold text-text">{t("users.selectedUserKeys")}</div>
           <div className="text-xs text-muted">
-            {selectedUser ? `${selectedUser.name} (#${selectedUser.id})` : "Select a user"}
+            {selectedUser
+              ? t("users.selectedUserMeta", {
+                  name: selectedUser.name,
+                  id: selectedUser.id,
+                })
+              : t("users.selectUser")}
           </div>
         </div>
         <div className="flex gap-2">
           <Button disabled={!selectedUser} onClick={onGenerateKey}>
-            Generate Key
+            {t("users.generateKey")}
           </Button>
           <Button variant="neutral" disabled={!selectedUser} onClick={onRefreshKeys}>
-            Refresh
+            {t("users.refreshKeys")}
           </Button>
         </div>
       </div>
@@ -40,16 +47,19 @@ export function UserKeysPane({
                 <div className="font-semibold">#{row.id}</div>
                 <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
                 <div className="text-xs text-muted">
-                  label={row.label ?? "—"} · enabled={String(row.enabled)}
+                  {t("myKeys.keyMeta", {
+                    label: row.label ?? "—",
+                    enabled: row.enabled ? t("common.enabled") : t("common.disabled"),
+                  })}
                 </div>
               </div>
               <Button variant="danger" onClick={() => onDeleteKey(row.id)}>
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>
         ))}
-        {selectedUser && keyRows.length === 0 ? <p className="text-sm text-muted">No keys</p> : null}
+        {selectedUser && keyRows.length === 0 ? <p className="text-sm text-muted">{t("users.noKeys")}</p> : null}
       </div>
     </div>
   );

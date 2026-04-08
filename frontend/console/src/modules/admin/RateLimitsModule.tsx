@@ -52,7 +52,7 @@ export function RateLimitsModule({
         total_tokens: form.total_tokens.trim() ? Number(form.total_tokens) : null,
       };
       await apiJson("/admin/user-rate-limits/upsert", { method: "POST", headers, body: JSON.stringify(payload) });
-      notify("success", "Rate limit saved");
+      notify("success", t("rateLimits.saved"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -69,7 +69,7 @@ export function RateLimitsModule({
           model_pattern: modelPattern,
         }),
       });
-      notify("success", "Rate limit deleted");
+      notify("success", t("rateLimits.deleted"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -106,15 +106,15 @@ export function RateLimitsModule({
         </div>
         <div className="card-shell space-y-3">
           <div>
-            <Label>ID</Label>
+            <Label>{t("common.id")}</Label>
             <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
           </div>
           <div>
-            <Label>User</Label>
+            <Label>{t("common.user")}</Label>
             <Select value={form.user_id} onChange={(value) => setForm((current) => ({ ...current, user_id: value }))} options={users.map((user) => ({ value: String(user.id), label: `${user.name} (#${user.id})` }))} />
           </div>
           <div>
-            <Label>model_pattern</Label>
+            <Label>{t("common.modelPattern")}</Label>
             <Input value={form.model_pattern} onChange={(value) => setForm((current) => ({ ...current, model_pattern: value }))} />
           </div>
           <div className="grid gap-3 lg:grid-cols-3">
@@ -132,10 +132,10 @@ export function RateLimitsModule({
             </div>
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => void save()}>Save</Button>
+            <Button onClick={() => void save()}>{t("common.save")}</Button>
             {selectedKey ? (
               <Button variant="danger" onClick={() => void remove(form.user_id, form.model_pattern)}>
-                Delete
+                {t("common.delete")}
               </Button>
             ) : null}
           </div>

@@ -48,13 +48,13 @@ export function UpdateModule({
     <Card title={t("update.title")}>
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
-          <Label>tag</Label>
+          <Label>{t("common.tag")}</Label>
           <Input value={tag} onChange={setTag} />
         </div>
       </div>
       <div className="mt-4 flex gap-2">
-        <Button variant="neutral" onClick={() => void checkUpdate()}>Check</Button>
-        <Button variant="danger" onClick={() => void performUpdate()}>Perform Update</Button>
+        <Button variant="neutral" onClick={() => void checkUpdate()}>{t("common.check")}</Button>
+        <Button variant="danger" onClick={() => void performUpdate()}>{t("common.performUpdate")}</Button>
       </div>
       {check ? <pre className="mt-4 overflow-auto text-xs text-muted">{JSON.stringify(check, null, 2)}</pre> : null}
       {result ? <pre className="mt-4 overflow-auto text-xs text-muted">{JSON.stringify(result, null, 2)}</pre> : null}

@@ -39,7 +39,7 @@ export function UsageModule({
         headers,
         body: JSON.stringify(rows.slice(0, 5).map((row) => row.trace_id)),
       });
-      notify("success", "Usage rows deleted");
+      notify("success", t("usages.deleted"));
       await query();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -50,19 +50,21 @@ export function UsageModule({
     <Card title={t("usages.title")}>
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
-          <Label>limit</Label>
+          <Label>{t("common.limit")}</Label>
           <Input value={limit} onChange={setLimit} />
         </div>
       </div>
       <div className="mt-4 flex gap-2">
-        <Button onClick={() => void query()}>Query</Button>
-        <Button variant="danger" onClick={() => void deleteFirst()}>Delete First 5</Button>
+        <Button onClick={() => void query()}>{t("common.query")}</Button>
+        <Button variant="danger" onClick={() => void deleteFirst()}>{t("common.deleteFirst5")}</Button>
       </div>
       <div className="mt-4 space-y-2">
         {rows.map((row) => (
           <div key={row.trace_id} className="card-shell">
             <div className="font-semibold">{row.model ?? row.operation}</div>
-            <div className="text-xs text-muted">trace #{row.trace_id} · protocol={row.protocol}</div>
+            <div className="text-xs text-muted">
+              {t("usages.rowMeta", { trace: row.trace_id, protocol: row.protocol })}
+            </div>
           </div>
         ))}
       </div>

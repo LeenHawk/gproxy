@@ -46,7 +46,7 @@ export function PermissionsModule({
         model_pattern: form.model_pattern.trim(),
       };
       await apiJson("/admin/user-permissions/upsert", { method: "POST", headers, body: JSON.stringify(payload) });
-      notify("success", "Permission saved");
+      notify("success", t("permissions.saved"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -56,7 +56,7 @@ export function PermissionsModule({
   const remove = async (id: number) => {
     try {
       await apiVoid("/admin/user-permissions/delete", { method: "POST", headers, body: JSON.stringify({ id }) });
-      notify("success", "Permission deleted");
+      notify("success", t("permissions.deleted"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -88,24 +88,24 @@ export function PermissionsModule({
         </div>
         <div className="card-shell space-y-3">
           <div>
-            <Label>ID</Label>
+            <Label>{t("common.id")}</Label>
             <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
           </div>
           <div>
-            <Label>User</Label>
+            <Label>{t("common.user")}</Label>
             <Select value={form.user_id} onChange={(value) => setForm((current) => ({ ...current, user_id: value }))} options={users.map((user) => ({ value: String(user.id), label: `${user.name} (#${user.id})` }))} />
           </div>
           <div>
-            <Label>Provider</Label>
-            <Select value={form.provider_id} onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))} options={[{ value: "", label: "All providers" }, ...providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} />
+            <Label>{t("common.provider")}</Label>
+            <Select value={form.provider_id} onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))} options={[{ value: "", label: t("common.allProviders") }, ...providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} />
           </div>
           <div>
-            <Label>model_pattern</Label>
+            <Label>{t("common.modelPattern")}</Label>
             <Input value={form.model_pattern} onChange={(value) => setForm((current) => ({ ...current, model_pattern: value }))} />
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => void save()}>Save</Button>
-            {selectedId ? <Button variant="danger" onClick={() => void remove(selectedId)}>Delete</Button> : null}
+            <Button onClick={() => void save()}>{t("common.save")}</Button>
+            {selectedId ? <Button variant="danger" onClick={() => void remove(selectedId)}>{t("common.delete")}</Button> : null}
           </div>
         </div>
       </div>

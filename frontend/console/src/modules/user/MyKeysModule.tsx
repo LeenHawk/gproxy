@@ -54,7 +54,10 @@ export function MyKeysModule({
           <div key={`${row.api_key}-${index}`} className="card-shell">
             <div className="font-mono text-xs">{row.api_key}</div>
             <div className="mt-2 text-xs text-muted">
-              label={row.label ?? "—"} · enabled={String(row.enabled)}
+              {t("myKeys.keyMeta", {
+                label: row.label ?? "—",
+                enabled: row.enabled ? t("common.enabled") : t("common.disabled"),
+              })}
             </div>
           </div>
         ))}

@@ -68,7 +68,7 @@ export function ModelsModule({
         headers,
         body: JSON.stringify(payload),
       });
-      notify("success", "Model saved");
+      notify("success", t("models.saved"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -82,7 +82,7 @@ export function ModelsModule({
         headers,
         body: JSON.stringify({ id }),
       });
-      notify("success", "Model deleted");
+      notify("success", t("models.deleted"));
       await load();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -118,11 +118,11 @@ export function ModelsModule({
         <div className="card-shell space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
             <div>
-              <Label>ID</Label>
+              <Label>{t("common.id")}</Label>
               <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
             </div>
             <div>
-              <Label>Provider</Label>
+              <Label>{t("common.provider")}</Label>
               <Select
                 value={form.provider_id}
                 onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))}
@@ -131,28 +131,28 @@ export function ModelsModule({
             </div>
           </div>
           <div>
-            <Label>model_id</Label>
+            <Label>{t("common.modelId")}</Label>
             <Input value={form.model_id} onChange={(value) => setForm((current) => ({ ...current, model_id: value }))} />
           </div>
           <div>
-            <Label>display_name</Label>
+            <Label>{t("common.displayName")}</Label>
             <Input value={form.display_name} onChange={(value) => setForm((current) => ({ ...current, display_name: value }))} />
           </div>
           <label className="flex items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={form.enabled} onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))} />
-            Enabled
+            {t("common.enabled")}
           </label>
           <div>
-            <Label>price_each_call</Label>
+            <Label>{t("common.priceEachCall")}</Label>
             <Input value={form.price_each_call} onChange={(value) => setForm((current) => ({ ...current, price_each_call: value }))} />
           </div>
           <div>
-            <Label>price_tiers_json</Label>
+            <Label>{t("common.priceTiersJson")}</Label>
             <TextArea value={form.price_tiers_json} onChange={(value) => setForm((current) => ({ ...current, price_tiers_json: value }))} rows={8} />
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => void save()}>Save</Button>
-            {selected ? <Button variant="danger" onClick={() => void remove(selected.id)}>Delete</Button> : null}
+            <Button onClick={() => void save()}>{t("common.save")}</Button>
+            {selected ? <Button variant="danger" onClick={() => void remove(selected.id)}>{t("common.delete")}</Button> : null}
           </div>
         </div>
       </div>

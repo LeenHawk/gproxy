@@ -1,17 +1,19 @@
 import { Button, Card } from "../../../components/ui";
 
 export function UsageTab({
+  title,
   result,
   onRefresh,
   label,
 }: {
+  title: string;
   result: string;
   onRefresh: () => void;
   label: string;
 }) {
   return (
     <Card
-      title="Provider Usage"
+      title={title}
       action={
         <Button variant="neutral" onClick={onRefresh}>
           {label}

@@ -19,19 +19,19 @@ export function DashboardModule({ sessionToken }: { sessionToken: string }) {
     <Card title={t("dashboard.title")}>
       <div className="grid gap-3 md:grid-cols-4">
         <div className="card-shell">
-          <div className="text-xs text-muted">status</div>
+          <div className="text-xs text-muted">{t("dashboard.metric.status")}</div>
           <div className="mt-1 text-xl font-semibold">{health?.status ?? "—"}</div>
         </div>
         <div className="card-shell">
-          <div className="text-xs text-muted">providers</div>
+          <div className="text-xs text-muted">{t("dashboard.metric.providers")}</div>
           <div className="mt-1 text-xl font-semibold">{health?.provider_count ?? "—"}</div>
         </div>
         <div className="card-shell">
-          <div className="text-xs text-muted">users</div>
+          <div className="text-xs text-muted">{t("dashboard.metric.users")}</div>
           <div className="mt-1 text-xl font-semibold">{health?.user_count ?? "—"}</div>
         </div>
         <div className="card-shell">
-          <div className="text-xs text-muted">timestamp</div>
+          <div className="text-xs text-muted">{t("dashboard.metric.timestamp")}</div>
           <div className="mt-1 text-xl font-semibold">{health?.timestamp_epoch ?? "—"}</div>
         </div>
       </div>

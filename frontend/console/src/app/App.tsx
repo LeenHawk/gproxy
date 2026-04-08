@@ -174,7 +174,7 @@ function AppFrame() {
               </span>
             </button>
             <Button variant="neutral" onClick={() => setThemeState(theme === "dark" ? "light" : "dark")}>
-              {theme === "dark" ? "Light" : "Dark"}
+              {theme === "dark" ? t("app.theme.light") : t("app.theme.dark")}
             </Button>
             <Button variant="neutral" onClick={onLogout}>
               {t("app.logout")}

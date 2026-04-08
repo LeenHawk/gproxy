@@ -78,33 +78,36 @@ export function RequestsModule({
   return (
     <Card title={t("requests.title")}>
       <div className="flex flex-wrap gap-2">
-        <Button variant={tab === "downstream" ? "primary" : "neutral"} onClick={() => setTab("downstream")}>Downstream</Button>
-        <Button variant={tab === "upstream" ? "primary" : "neutral"} onClick={() => setTab("upstream")}>Upstream</Button>
+        <Button variant={tab === "downstream" ? "primary" : "neutral"} onClick={() => setTab("downstream")}>{t("common.downstream")}</Button>
+        <Button variant={tab === "upstream" ? "primary" : "neutral"} onClick={() => setTab("upstream")}>{t("common.upstream")}</Button>
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div>
-          <Label>{tab === "downstream" ? "request_path_contains" : "path filter"}</Label>
+          <Label>{tab === "downstream" ? t("requests.requestPathContains") : t("requests.pathFilter")}</Label>
           <Input value={pathFilter} onChange={setPathFilter} />
         </div>
         <div>
-          <Label>limit</Label>
+          <Label>{t("common.limit")}</Label>
           <Input value={limit} onChange={setLimit} />
         </div>
         <label className="flex items-center gap-2 text-sm text-muted">
           <input type="checkbox" checked={includeBody} onChange={(event) => setIncludeBody(event.target.checked)} />
-          include_body
+          {t("requests.includeBody")}
         </label>
       </div>
       <div className="mt-4 flex gap-2">
-        <Button onClick={() => void query()}>Query</Button>
-        <Button variant="danger" onClick={() => void deleteSelected(rows.slice(0, 5).map((row) => row.trace_id))}>Delete First 5</Button>
+        <Button onClick={() => void query()}>{t("common.query")}</Button>
+        <Button variant="danger" onClick={() => void deleteSelected(rows.slice(0, 5).map((row) => row.trace_id))}>{t("common.deleteFirst5")}</Button>
       </div>
       <div className="mt-4 space-y-2">
         {rows.map((row) => (
           <div key={row.trace_id} className="card-shell">
             <div className="font-semibold">trace #{row.trace_id}</div>
             <div className="text-xs text-muted">
-              {"request_path" in row ? row.request_path : row.request_url} · status={row.response_status ?? "—"}
+              {t("requests.rowMeta", {
+                target: "request_path" in row ? row.request_path : row.request_url ?? "—",
+                status: row.response_status ?? "—",
+              })}
             </div>
           </div>
         ))}

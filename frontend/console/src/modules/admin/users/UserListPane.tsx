@@ -1,3 +1,4 @@
+import { useI18n } from "../../../app/i18n";
 import type { MemoryUserRow } from "../../../lib/types/admin";
 import { Button, Input, Label } from "../../../components/ui";
 import type { UserFormState } from "./types";
@@ -25,26 +26,27 @@ export function UserListPane({
   onEditUser: (row: MemoryUserRow) => void;
   onRemoveUser: (id: number) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-text">User List</div>
+        <div className="text-sm font-semibold text-text">{t("users.section")}</div>
         <Button variant={showUserEditor ? "neutral" : "primary"} onClick={onToggleEditor}>
-          {showUserEditor ? "Cancel" : "Add User"}
+          {showUserEditor ? t("common.cancel") : t("users.addUser")}
         </Button>
       </div>
       {showUserEditor ? (
         <div className="card-shell space-y-3">
           <div>
-            <Label>ID</Label>
+            <Label>{t("common.id")}</Label>
             <Input value={form.id} onChange={(value) => onChangeForm({ id: value })} />
           </div>
           <div>
-            <Label>Name</Label>
+            <Label>{t("common.name")}</Label>
             <Input value={form.name} onChange={(value) => onChangeForm({ name: value })} />
           </div>
           <div>
-            <Label>Password</Label>
+            <Label>{t("common.password")}</Label>
             <Input
               type="password"
               value={form.password}
@@ -57,7 +59,7 @@ export function UserListPane({
               checked={form.enabled}
               onChange={(event) => onChangeForm({ enabled: event.target.checked })}
             />
-            Enabled
+            {t("common.enabled")}
           </label>
           <label className="flex items-center gap-2 text-sm text-muted">
             <input
@@ -65,9 +67,9 @@ export function UserListPane({
               checked={form.is_admin}
               onChange={(event) => onChangeForm({ is_admin: event.target.checked })}
             />
-            Admin
+            {t("common.admin")}
           </label>
-          <Button onClick={onSubmit}>Save</Button>
+          <Button onClick={onSubmit}>{t("common.save")}</Button>
         </div>
       ) : null}
       {rows.map((row) => (
@@ -88,15 +90,19 @@ export function UserListPane({
             <div>
               <div className="font-semibold">{row.name}</div>
               <div className="text-xs text-muted">
-                #{row.id} · enabled={String(row.enabled)} · admin={String(row.is_admin)}
+                {t("users.rowMeta", {
+                  id: row.id,
+                  enabled: String(row.enabled),
+                  admin: String(row.is_admin),
+                })}
               </div>
             </div>
             <div className="flex gap-2">
               <Button variant="neutral" onClick={() => onEditUser(row)}>
-                Edit
+                {t("common.edit")}
               </Button>
               <Button variant="danger" onClick={() => onRemoveUser(row.id)}>
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           </div>

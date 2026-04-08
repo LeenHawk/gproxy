@@ -9,11 +9,15 @@ export function StatusTab({
   rows: CredentialHealthRow[];
   onUpdate: (row: CredentialHealthRow, status: "healthy" | "dead") => void;
   labels: {
+    title: string;
+    meta: (row: CredentialHealthRow) => string;
+    healthy: string;
+    dead: string;
     none: string;
   };
 }) {
   return (
-    <Card title="Credential Status">
+    <Card title={labels.title}>
       <div className="space-y-2">
         {rows.length === 0 ? <p className="text-sm text-muted">{labels.none}</p> : null}
         {rows.map((row) => (
@@ -23,16 +27,14 @@ export function StatusTab({
                 <div className="font-semibold">
                   {row.provider} #{row.index}
                 </div>
-                <div className="text-sm text-muted">
-                  status={row.status} · available={String(row.available)}
-                </div>
+                <div className="text-sm text-muted">{labels.meta(row)}</div>
               </div>
               <div className="flex gap-2">
                 <Button variant="neutral" onClick={() => onUpdate(row, "healthy")}>
-                  healthy
+                  {labels.healthy}
                 </Button>
                 <Button variant="danger" onClick={() => onUpdate(row, "dead")}>
-                  dead
+                  {labels.dead}
                 </Button>
               </div>
             </div>

@@ -25,6 +25,8 @@ export function CredentialsTab({
     add: string;
     replace: string;
     none: string;
+    edit: string;
+    delete: string;
   };
 }) {
   const fields = credentialFieldsForChannel(channel);
@@ -45,10 +47,10 @@ export function CredentialsTab({
                 </div>
                 <div className="flex gap-2">
                   <Button variant="neutral" onClick={() => onEdit(row)}>
-                    Edit
+                    {labels.edit}
                   </Button>
                   <Button variant="danger" onClick={() => onDelete(row)}>
-                    Delete
+                    {labels.delete}
                   </Button>
                 </div>
               </div>

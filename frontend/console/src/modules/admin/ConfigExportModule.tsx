@@ -29,8 +29,8 @@ export function ConfigExportModule({
   };
 
   return (
-    <Card title={t("configExport.title")} action={<Button onClick={() => void load()}>Export</Button>}>
-      <pre className="overflow-auto text-xs text-muted">{toml || "# export not loaded"}</pre>
+    <Card title={t("configExport.title")} action={<Button onClick={() => void load()}>{t("common.export")}</Button>}>
+      <pre className="overflow-auto text-xs text-muted">{toml || t("configExport.empty")}</pre>
     </Card>
   );
 }

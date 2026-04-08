@@ -32,18 +32,18 @@ export function GlobalSettingsModule({
         headers,
         body: JSON.stringify(form),
       });
-      notify("success", "Global settings saved");
+      notify("success", t("globalSettings.saved"));
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
   };
 
   if (!form) {
-    return <Card title={t("globalSettings.title")}><p className="text-sm text-muted">Loading…</p></Card>;
+    return <Card title={t("globalSettings.title")}><p className="text-sm text-muted">{t("common.loading")}</p></Card>;
   }
 
   return (
-    <Card title={t("globalSettings.title")} action={<Button onClick={() => void save()}>Save</Button>}>
+    <Card title={t("globalSettings.title")} action={<Button onClick={() => void save()}>{t("common.save")}</Button>}>
       <div className="grid gap-4 lg:grid-cols-2">
         {([
           "host",
