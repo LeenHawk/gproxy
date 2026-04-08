@@ -1,8 +1,317 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
 :root {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: light;
+  --bg-base: #f2f5f9;
+  --bg-surface: rgba(255, 255, 255, 0.9);
+  --bg-surface-strong: #ffffff;
+  --bg-soft: #f8fafc;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: rgba(148, 163, 184, 0.3);
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --danger: #b91c1c;
+  --success: #15803d;
+  --shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-base: #0b111c;
+  --bg-surface: rgba(19, 28, 44, 0.88);
+  --bg-surface-strong: rgba(19, 28, 44, 0.97);
+  --bg-soft: rgba(26, 36, 55, 0.93);
+  --text: #e2e8f0;
+  --muted: #a0aec0;
+  --border: rgba(95, 117, 151, 0.35);
+  --accent: #34d399;
+  --accent-strong: #10b981;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --shadow: 0 18px 36px rgba(2, 6, 23, 0.36);
+  --shadow-soft: 0 10px 22px rgba(2, 6, 23, 0.24);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 body {
   margin: 0;
-  padding: 2rem;
+  font-family: "Manrope", "SF Pro Display", "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 10% 2%, rgba(15, 118, 110, 0.08), transparent 36%),
+    radial-gradient(circle at 100% 12%, rgba(14, 165, 233, 0.07), transparent 38%),
+    var(--bg-base);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.text-text {
+  color: var(--text);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.loading-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-shell {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1700px;
+  padding: 0.85rem 1rem;
+}
+
+.topbar-panel,
+.sidebar-shell,
+.card-shell {
+  border-radius: 1.1rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-surface) 96%, transparent);
+  backdrop-filter: blur(7px);
+  box-shadow: var(--shadow-soft);
+}
+
+.topbar-title {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  color: var(--text);
+}
+
+.topbar-segmented {
+  display: inline-flex;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 0.72rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-surface-strong) 92%, transparent);
+}
+
+.topbar-segmented-item {
+  border: none;
+  border-right: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0.36rem 0.58rem;
+}
+
+.topbar-segmented-item:last-child {
+  border-right: none;
+}
+
+.topbar-segmented-item-active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-surface));
+  color: var(--text);
+}
+
+.topbar-locale-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.topbar-locale-toggle .topbar-segmented-item {
+  pointer-events: none;
+}
+
+.layout-shell {
+  margin: 0 auto;
+  display: flex;
+  width: 100%;
+  max-width: 1700px;
+  gap: 1rem;
+  padding: 0 1rem 1.1rem;
+}
+
+.sidebar-shell {
+  width: 100%;
+  max-width: 270px;
+  flex-shrink: 0;
+  align-self: flex-start;
+  padding: 0.8rem;
+}
+
+.sidebar-mobile-toggle {
+  display: none;
+  position: relative;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 0.58rem 0.7rem;
+}
+
+.sidebar-mobile-toggle-icon {
+  position: absolute;
+  left: 0.72rem;
+  display: inline-flex;
+  width: 0.95rem;
+  height: 0.8rem;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.sidebar-mobile-toggle-line {
+  display: block;
+  height: 2px;
+  width: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 78%, transparent);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-item {
+  border: none;
+  border-radius: 0.85rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.75rem 0.8rem;
+  text-align: left;
+}
+
+.nav-item-active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-surface));
+  color: var(--text);
+  font-weight: 700;
+}
+
+.content-shell {
+  min-width: 0;
+  flex: 1;
+}
+
+.card-shell {
+  padding: 1.25rem;
+}
+
+.btn {
+  border: none;
+  border-radius: 0.8rem;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.65rem 0.9rem;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-neutral {
+  background: color-mix(in srgb, var(--bg-soft) 88%, transparent);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--bg-surface-strong) 90%, transparent);
+  color: var(--text);
+  padding: 0.7rem 0.85rem;
+}
+
+.input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  outline-offset: 1px;
+}
+
+.toast {
+  min-width: 240px;
+  border-radius: 0.9rem;
+  box-shadow: var(--shadow);
+  padding: 0.8rem 0.95rem;
+}
+
+.toast-success {
+  background: color-mix(in srgb, var(--success) 15%, white);
+  color: var(--text);
+}
+
+.toast-error {
+  background: color-mix(in srgb, var(--danger) 16%, white);
+  color: var(--text);
+}
+
+.toast-info {
+  background: color-mix(in srgb, var(--accent) 16%, white);
+  color: var(--text);
+}
+
+@media (max-width: 960px) {
+  .layout-shell {
+    flex-direction: column;
+  }
+
+  .sidebar-shell {
+    max-width: none;
+  }
+
+  .sidebar-mobile-toggle {
+    display: inline-flex;
+  }
+
+  .sidebar-nav {
+    display: none;
+    margin-top: 0.75rem;
+  }
+
+  .sidebar-nav-open {
+    display: flex;
+  }
 }
