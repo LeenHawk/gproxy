@@ -193,28 +193,47 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
   vertexexpress: { fields: [{ key: "access_token", label: "access_token", type: "text" }] },
   geminicli: {
     fields: [
-      { key: "refresh_token", label: "refresh_token", type: "text" },
+      { key: "access_token", label: "access_token", type: "textarea" },
+      { key: "refresh_token", label: "refresh_token", type: "textarea" },
+      { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
+      { key: "project_id", label: "project_id", type: "text" },
       { key: "client_id", label: "client_id", type: "text", optional: true },
       { key: "client_secret", label: "client_secret", type: "text", optional: true },
+      { key: "user_email", label: "user_email", type: "text", optional: true },
     ],
   },
   antigravity: {
     fields: [
-      { key: "refresh_token", label: "refresh_token", type: "text" },
+      { key: "access_token", label: "access_token", type: "textarea" },
+      { key: "refresh_token", label: "refresh_token", type: "textarea" },
+      { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
+      { key: "project_id", label: "project_id", type: "text" },
       { key: "client_id", label: "client_id", type: "text", optional: true },
       { key: "client_secret", label: "client_secret", type: "text", optional: true },
+      { key: "user_email", label: "user_email", type: "text", optional: true },
     ],
   },
   claudecode: {
     fields: [
-      { key: "access_token", label: "access_token", type: "text" },
-      { key: "refresh_token", label: "refresh_token", type: "text", optional: true },
+      { key: "access_token", label: "access_token", type: "textarea" },
+      { key: "refresh_token", label: "refresh_token", type: "textarea", optional: true },
+      { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
+      { key: "device_id", label: "device_id", type: "text", optional: true },
+      { key: "account_uuid", label: "account_uuid", type: "text", optional: true },
+      { key: "subscription_type", label: "subscription_type", type: "text", optional: true },
+      { key: "rate_limit_tier", label: "rate_limit_tier", type: "text", optional: true },
+      { key: "cookie", label: "cookie", type: "textarea", optional: true },
+      { key: "user_email", label: "user_email", type: "text", optional: true },
     ],
   },
   codex: {
     fields: [
-      { key: "access_token", label: "access_token", type: "text" },
-      { key: "refresh_token", label: "refresh_token", type: "text", optional: true },
+      { key: "access_token", label: "access_token", type: "textarea" },
+      { key: "refresh_token", label: "refresh_token", type: "textarea", optional: true },
+      { key: "id_token", label: "id_token", type: "textarea", optional: true },
+      { key: "user_email", label: "user_email", type: "text", optional: true },
+      { key: "account_id", label: "account_id", type: "text", optional: true },
+      { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
     ],
   },
   nvidia: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
@@ -291,7 +310,8 @@ function buildObjectFromFields(
   const result: Record<string, unknown> = {};
   for (const field of fields) {
     const raw = values[field.key] ?? "";
-    if (field.optional && raw.trim() === "" && field.type === "textarea") {
+    const trimmed = raw.trim();
+    if (field.optional && trimmed === "") {
       continue;
     }
     if (field.type === "boolean") {
@@ -299,7 +319,7 @@ function buildObjectFromFields(
       continue;
     }
     if (field.type === "integer") {
-      result[field.key] = raw.trim() === "" ? 0 : Number.parseInt(raw, 10);
+      result[field.key] = trimmed === "" ? 0 : Number.parseInt(trimmed, 10);
       continue;
     }
     result[field.key] = raw;
