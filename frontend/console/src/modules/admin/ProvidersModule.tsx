@@ -28,11 +28,19 @@ import {
 import { buildOAuthCallbackQuery } from "./providers/oauth";
 import { ConfigTab } from "./providers/ConfigTab";
 import { CredentialsTab } from "./providers/CredentialsTab";
+import { ModelAliasesTab } from "./providers/ModelAliasesTab";
+import { ModelsTab } from "./providers/ModelsTab";
 import { OAuthTab } from "./providers/OAuthTab";
 import { ProviderList } from "./providers/ProviderList";
+import {
+  filterAliasesForProvider,
+  filterModelsForProvider,
+  nextResourceId,
+} from "./providers/resources";
 import { useProviderData } from "./providers/hooks/useProviderData";
 import type { CredentialFormState, ProviderWorkspaceTab } from "./providers";
 import { parseLiveUsageRows, supportsCredentialUsageChannel, type LiveUsageRow } from "./providers/usage";
+import type { MemoryModelAliasRow, MemoryModelRow, ModelAliasWrite, ModelWrite } from "../../lib/types/admin";
 
 export function ProvidersModule({
   sessionToken,
@@ -67,6 +75,23 @@ export function ProvidersModule({
   const [usageByCredential, setUsageByCredential] = useState<Record<number, string>>({});
   const [usageRowsByCredential, setUsageRowsByCredential] = useState<Record<number, LiveUsageRow[]>>({});
   const [usageLoadingByCredential, setUsageLoadingByCredential] = useState<Record<number, boolean>>({});
+  const [allModelRows, setAllModelRows] = useState<MemoryModelRow[]>([]);
+  const [allAliasRows, setAllAliasRows] = useState<MemoryModelAliasRow[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
+  const [selectedAliasId, setSelectedAliasId] = useState<number | null>(null);
+  const [modelForm, setModelForm] = useState({
+    id: "",
+    model_id: "",
+    display_name: "",
+    enabled: true,
+    price_each_call: "",
+    price_tiers_json: "[]",
+  });
+  const [aliasForm, setAliasForm] = useState({
+    id: "",
+    alias: "",
+    model_id: "",
+  });
 
   useEffect(() => {
     setCredentialForm({
@@ -82,7 +107,39 @@ export function ProvidersModule({
     setUsageByCredential({});
     setUsageRowsByCredential({});
     setUsageLoadingByCredential({});
+    setSelectedModelId(null);
+    setSelectedAliasId(null);
   }, [selectedProvider?.id, providerForm.channel]);
+
+  const providerModelRows = useMemo(
+    () => filterModelsForProvider(allModelRows, selectedProvider?.id ?? null),
+    [allModelRows, selectedProvider?.id],
+  );
+  const providerAliasRows = useMemo(
+    () => filterAliasesForProvider(allAliasRows, selectedProvider?.name ?? null),
+    [allAliasRows, selectedProvider?.name],
+  );
+
+  const beginCreateModel = () => {
+    setSelectedModelId(null);
+    setModelForm({
+      id: nextResourceId(allModelRows),
+      model_id: "",
+      display_name: "",
+      enabled: true,
+      price_each_call: "",
+      price_tiers_json: "[]",
+    });
+  };
+
+  const beginCreateAlias = () => {
+    setSelectedAliasId(null);
+    setAliasForm({
+      id: nextResourceId(allAliasRows),
+      alias: "",
+      model_id: "",
+    });
+  };
 
   const channelOptions = useMemo(
     () =>
@@ -158,6 +215,63 @@ export function ProvidersModule({
       active = false;
     };
   }, [headers, notify, providerForm.channel, providerForm.id, selectedProvider]);
+
+  useEffect(() => {
+    if (!selectedProvider) {
+      setAllModelRows([]);
+      setAllAliasRows([]);
+      beginCreateModel();
+      beginCreateAlias();
+      return;
+    }
+    let active = true;
+    void Promise.all([
+      apiJson<MemoryModelRow[]>("/admin/models/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+      apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+    ])
+      .then(([models, aliases]) => {
+        if (!active) {
+          return;
+        }
+        setAllModelRows(models);
+        setAllAliasRows(aliases);
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        notify("error", error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, [headers, notify, selectedProvider?.id]);
+
+  useEffect(() => {
+    if (!selectedProvider) {
+      return;
+    }
+    if (selectedModelId === null) {
+      beginCreateModel();
+    }
+  }, [allModelRows, selectedModelId, selectedProvider?.id]);
+
+  useEffect(() => {
+    if (!selectedProvider) {
+      return;
+    }
+    if (selectedAliasId === null) {
+      beginCreateAlias();
+    }
+  }, [allAliasRows, selectedAliasId, selectedProvider?.id]);
 
   const saveProvider = async () => {
     try {
@@ -256,6 +370,110 @@ export function ProvidersModule({
       if (selectedProvider) {
         await loadProviderScopedData(selectedProvider);
       }
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const saveModel = async () => {
+    if (!selectedProvider) {
+      notify("error", t("providers.error.needProvider"));
+      return;
+    }
+    try {
+      const payload: ModelWrite = {
+        id: parseRequiredI64(modelForm.id, "id"),
+        provider_id: selectedProvider.id,
+        model_id: modelForm.model_id.trim(),
+        display_name: modelForm.display_name.trim() || null,
+        enabled: modelForm.enabled,
+        price_each_call: modelForm.price_each_call.trim() ? Number(modelForm.price_each_call) : null,
+        price_tiers_json: modelForm.price_tiers_json,
+      };
+      await apiJson("/admin/models/upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      notify("success", t("models.saved"));
+      const rows = await apiJson<MemoryModelRow[]>("/admin/models/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      setAllModelRows(rows);
+      setSelectedModelId(payload.id);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const deleteModel = async (id: number) => {
+    try {
+      await apiVoid("/admin/models/delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ id }),
+      });
+      notify("success", t("models.deleted"));
+      const rows = await apiJson<MemoryModelRow[]>("/admin/models/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      setAllModelRows(rows);
+      beginCreateModel();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const saveAlias = async () => {
+    if (!selectedProvider) {
+      notify("error", t("providers.error.needProvider"));
+      return;
+    }
+    try {
+      const payload: ModelAliasWrite = {
+        id: parseRequiredI64(aliasForm.id, "id"),
+        alias: aliasForm.alias.trim(),
+        provider_id: selectedProvider.id,
+        model_id: aliasForm.model_id.trim(),
+        enabled: true,
+      };
+      await apiJson("/admin/model-aliases/upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+      notify("success", t("modelAliases.saved"));
+      const rows = await apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      setAllAliasRows(rows);
+      setSelectedAliasId(payload.id);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const deleteAlias = async (alias: string) => {
+    try {
+      await apiVoid("/admin/model-aliases/delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ alias }),
+      });
+      notify("success", t("modelAliases.deleted"));
+      const rows = await apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      setAllAliasRows(rows);
+      beginCreateAlias();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
@@ -366,14 +584,18 @@ export function ProvidersModule({
         />
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {(["config", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
+            {(["config", "models", "aliases", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
               (tab) => (
                 <Button
                   key={tab}
                   variant={activeTab === tab ? "primary" : "neutral"}
                   onClick={() => setActiveTab(tab)}
                 >
-                  {t(`providers.tab.${tab}`)}
+                  {tab === "models"
+                    ? t("models.title")
+                    : tab === "aliases"
+                      ? t("modelAliases.title")
+                      : t(`providers.tab.${tab}`)}
                 </Button>
               ),
             )}
@@ -453,6 +675,68 @@ export function ProvidersModule({
                 usageReset: t("providers.usage.reset"),
                 usageRaw: t("providers.usage.raw"),
                 usageEmpty: t("providers.usage.emptyState"),
+              }}
+            />
+          ) : null}
+          {activeTab === "models" ? (
+            <ModelsTab
+              rows={providerModelRows}
+              selectedId={selectedModelId}
+              form={modelForm}
+              onSelect={(row) => {
+                setSelectedModelId(row.id);
+                setModelForm({
+                  id: String(row.id),
+                  model_id: row.model_id,
+                  display_name: row.display_name ?? "",
+                  enabled: row.enabled,
+                  price_each_call: row.price_each_call?.toString() ?? "",
+                  price_tiers_json: JSON.stringify(row.price_tiers, null, 2),
+                });
+              }}
+              onCreate={beginCreateModel}
+              onChangeForm={(patch) => setModelForm((current) => ({ ...current, ...patch }))}
+              onSave={() => void saveModel()}
+              onDelete={(id) => void deleteModel(id)}
+              labels={{
+                title: t("models.title"),
+                empty: t("common.noData"),
+                create: t("common.create"),
+                save: t("common.save"),
+                delete: t("common.delete"),
+                modelId: t("common.modelId"),
+                displayName: t("common.displayName"),
+                enabled: t("common.enabled"),
+                priceEachCall: t("common.priceEachCall"),
+                priceTiersJson: t("common.priceTiersJson"),
+              }}
+            />
+          ) : null}
+          {activeTab === "aliases" ? (
+            <ModelAliasesTab
+              rows={providerAliasRows}
+              selectedId={selectedAliasId}
+              form={aliasForm}
+              onSelect={(row) => {
+                setSelectedAliasId(row.id);
+                setAliasForm({
+                  id: String(row.id),
+                  alias: row.alias,
+                  model_id: row.model_id,
+                });
+              }}
+              onCreate={beginCreateAlias}
+              onChangeForm={(patch) => setAliasForm((current) => ({ ...current, ...patch }))}
+              onSave={() => void saveAlias()}
+              onDelete={(alias) => void deleteAlias(alias)}
+              labels={{
+                title: t("modelAliases.title"),
+                empty: t("common.noData"),
+                create: t("common.create"),
+                save: t("common.save"),
+                delete: t("common.delete"),
+                alias: "alias",
+                modelId: t("common.modelId"),
               }}
             />
           ) : null}

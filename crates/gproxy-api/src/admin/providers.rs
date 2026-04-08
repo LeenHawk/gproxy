@@ -1,6 +1,7 @@
 use crate::auth::authorize_admin;
 use crate::bootstrap::{
     apply_persisted_credential_statuses, collect_valid_db_provider_credentials,
+    ensure_default_models_in_storage, model_rows_to_memory_models,
 };
 use crate::error::{AckResponse, HttpError};
 use axum::Json;
@@ -162,6 +163,13 @@ async fn sync_provider_runtime(
     apply_persisted_credential_statuses(state, &credential_positions)
         .await
         .map_err(|e| HttpError::internal(e.to_string()))?;
+    let model_rows = ensure_default_models_in_storage(
+        state,
+        &[(payload.id, payload.channel.clone())],
+    )
+    .await
+    .map_err(|e| HttpError::internal(e.to_string()))?;
+    state.replace_models(model_rows_to_memory_models(&model_rows));
 
     Ok(())
 }
@@ -561,5 +569,14 @@ mod tests {
             .expect("generate_content route");
 
         assert_eq!(*implementation, RouteImplementation::Unsupported);
+        let models = state
+            .storage()
+            .list_models(&gproxy_storage::ModelQuery {
+                provider_id: Scope::Eq(1),
+                ..Default::default()
+            })
+            .await
+            .expect("query models");
+        assert!(!models.is_empty(), "provider should seed default models");
     }
 }

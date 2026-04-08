@@ -1,6 +1,6 @@
 //! Bootstrap logic shared by the startup path and admin reload endpoint.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Error as IoError;
 
 use gproxy_sdk::provider::dispatch::DispatchTableDocument;
@@ -60,6 +60,82 @@ fn synthetic_provider_id(index: usize) -> i64 {
 
 fn synthetic_credential_id(provider_id: i64, index: usize) -> i64 {
     provider_id * 1000 + index as i64
+}
+
+pub(crate) fn model_rows_to_memory_models(models: &[gproxy_storage::ModelQueryRow]) -> Vec<MemoryModel> {
+    models
+        .iter()
+        .map(|model| {
+            let price_tiers: Vec<PriceTier> = model
+                .price_tiers_json
+                .as_deref()
+                .and_then(|json| serde_json::from_str(json).ok())
+                .unwrap_or_default();
+            MemoryModel {
+                id: model.id,
+                provider_id: model.provider_id,
+                model_id: model.model_id.clone(),
+                display_name: model.display_name.clone(),
+                enabled: model.enabled,
+                price_each_call: model.price_each_call,
+                price_tiers,
+            }
+        })
+        .collect()
+}
+
+pub(crate) async fn ensure_default_models_in_storage(
+    state: &AppState,
+    providers: &[(i64, String)],
+) -> Result<Vec<gproxy_storage::ModelQueryRow>, Box<dyn std::error::Error + Send + Sync>> {
+    let storage = state.storage();
+    let existing = storage
+        .list_models(&gproxy_storage::ModelQuery::default())
+        .await?;
+    let mut existing_keys: HashSet<(i64, String)> = existing
+        .iter()
+        .map(|row| (row.provider_id, row.model_id.clone()))
+        .collect();
+    let mut next_id = existing.iter().map(|row| row.id).max().unwrap_or(0) + 1;
+    let mut inserted = false;
+
+    for (provider_id, channel) in providers {
+        let Some(prices) = gproxy_sdk::provider::built_in_model_prices(channel) else {
+            continue;
+        };
+        for price in prices.into_iter().filter(|row| row.model_id != "default") {
+            let key = (*provider_id, price.model_id.clone());
+            if existing_keys.contains(&key) {
+                continue;
+            }
+            existing_keys.insert(key);
+            storage
+                .upsert_model(gproxy_storage::ModelWrite {
+                    id: next_id,
+                    provider_id: *provider_id,
+                    model_id: price.model_id,
+                    display_name: price.display_name,
+                    enabled: true,
+                    price_each_call: price.price_each_call,
+                    price_tiers_json: if price.price_tiers.is_empty() {
+                        None
+                    } else {
+                        Some(serde_json::to_string(&price.price_tiers)?)
+                    },
+                })
+                .await?;
+            next_id += 1;
+            inserted = true;
+        }
+    }
+
+    if inserted {
+        return Ok(storage
+            .list_models(&gproxy_storage::ModelQuery::default())
+            .await?);
+    }
+
+    Ok(existing)
 }
 
 pub fn config_has_enabled_admin_with_key(config: &GproxyToml) -> bool {
@@ -523,25 +599,7 @@ pub async fn reload_from_db(
         .collect();
 
     let model_count = models.len();
-    let memory_models: Vec<MemoryModel> = models
-        .iter()
-        .map(|model| {
-            let price_tiers: Vec<PriceTier> = model
-                .price_tiers_json
-                .as_deref()
-                .and_then(|json| serde_json::from_str(json).ok())
-                .unwrap_or_default();
-            MemoryModel {
-                id: model.id,
-                provider_id: model.provider_id,
-                model_id: model.model_id.clone(),
-                display_name: model.display_name.clone(),
-                enabled: model.enabled,
-                price_each_call: model.price_each_call,
-                price_tiers,
-            }
-        })
-        .collect();
+    let memory_models: Vec<MemoryModel> = model_rows_to_memory_models(&models);
 
     let alias_count = aliases.len();
     let provider_name_by_id: HashMap<i64, String> = providers
@@ -797,6 +855,18 @@ pub async fn seed_from_toml_with_bootstrap(
                 .await?;
         }
     }
+    let persisted_provider_rows = state
+        .storage()
+        .list_providers(&gproxy_storage::ProviderQuery::default())
+        .await?;
+    let persisted_models = ensure_default_models_in_storage(
+        state,
+        &persisted_provider_rows
+            .iter()
+            .map(|provider| (provider.id, provider.channel.clone()))
+            .collect::<Vec<_>>(),
+    )
+    .await?;
     state.replace_engine(builder.build());
     apply_persisted_credential_statuses(state, &provider_runtime.credential_positions).await?;
 
@@ -862,7 +932,7 @@ pub async fn seed_from_toml_with_bootstrap(
     };
 
     // 4. Models → memory + DB
-    let models: Vec<MemoryModel> = config
+    let explicit_models: Vec<MemoryModel> = config
         .models
         .iter()
         .enumerate()
@@ -873,7 +943,13 @@ pub async fn seed_from_toml_with_bootstrap(
                 .copied()
                 .unwrap_or(0);
             MemoryModel {
-                id: i as i64 + 1,
+                id: persisted_models
+                    .iter()
+                    .map(|row| row.id)
+                    .max()
+                    .unwrap_or(0)
+                    + i as i64
+                    + 1,
                 provider_id,
                 model_id: m.model_id.clone(),
                 display_name: m.display_name.clone(),
@@ -883,7 +959,7 @@ pub async fn seed_from_toml_with_bootstrap(
             }
         })
         .collect();
-    for m in &models {
+    for m in &explicit_models {
         state
             .storage()
             .upsert_model(gproxy_storage::ModelWrite {
@@ -901,7 +977,11 @@ pub async fn seed_from_toml_with_bootstrap(
             })
             .await?;
     }
-    state.replace_models(models);
+    let all_models = state
+        .storage()
+        .list_models(&gproxy_storage::ModelQuery::default())
+        .await?;
+    state.replace_models(model_rows_to_memory_models(&all_models));
 
     // 5. Model aliases → memory + DB
     let mut alias_map = HashMap::new();

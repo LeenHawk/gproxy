@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  filterAliasesForProvider,
+  filterModelsForProvider,
+  nextResourceId,
+  providerOptionLabel,
+} from "./resources";
+
+describe("provider resources helpers", () => {
+  it("computes the next resource id from existing rows", () => {
+    expect(nextResourceId([{ id: 2 }, { id: 9 }, { id: 4 }])).toBe("10");
+  });
+
+  it("filters models by provider id", () => {
+    expect(
+      filterModelsForProvider(
+        [
+          { id: 1, provider_id: 10, model_id: "a", enabled: true, price_tiers: [] },
+          { id: 2, provider_id: 20, model_id: "b", enabled: true, price_tiers: [] },
+        ] as never,
+        20,
+      ).map((row) => row.id),
+    ).toEqual([2]);
+  });
+
+  it("filters aliases by provider name", () => {
+    expect(
+      filterAliasesForProvider(
+        [
+          { id: 1, alias: "a", provider_name: "first", model_id: "m1" },
+          { id: 2, alias: "b", provider_name: "second", model_id: "m2" },
+        ],
+        "second",
+      ).map((row) => row.alias),
+    ).toEqual(["b"]);
+  });
+
+  it("formats provider option labels with id", () => {
+    expect(providerOptionLabel({ id: 7, name: "demo" } as never)).toBe("demo (#7)");
+  });
+});

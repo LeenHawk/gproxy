@@ -1,6 +1,6 @@
 import type { DispatchRuleDraft } from "./dispatch";
 
-export type ProviderWorkspaceTab = "config" | "credentials" | "oauth";
+export type ProviderWorkspaceTab = "config" | "credentials" | "models" | "aliases" | "oauth";
 
 export type ProviderFormState = {
   id: string;

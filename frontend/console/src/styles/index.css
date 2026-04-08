@@ -412,6 +412,13 @@ input {
   background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
 }
 
+.badge-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

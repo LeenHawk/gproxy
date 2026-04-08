@@ -96,9 +96,17 @@ export function CredentialsTab({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-semibold">#{row.index} · {summary.primary}</div>
-                        <Badge variant={healthVariant}>
-                          {status?.status === "dead" ? labels.statusDead : labels.statusHealthy}
-                        </Badge>
+                      </div>
+                      <div className="mt-2 flex flex-col items-start gap-2">
+                        <button
+                          type="button"
+                          className="badge-button"
+                          onClick={() => onUpdateStatus(row, nextStatus)}
+                        >
+                          <Badge variant={healthVariant}>
+                            {status?.status === "dead" ? labels.statusDead : labels.statusHealthy}
+                          </Badge>
+                        </button>
                         <Badge variant={availabilityVariant}>
                           {status?.available === false ? labels.statusUnavailable : labels.statusAvailable}
                         </Badge>
@@ -115,12 +123,6 @@ export function CredentialsTab({
                       ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant={status?.status === "dead" ? "danger" : "primary"}
-                        onClick={() => onUpdateStatus(row, nextStatus)}
-                      >
-                        {status?.status === "dead" ? labels.statusDead : labels.statusHealthy}
-                      </Button>
                       <Button variant="neutral" onClick={() => onEdit(row)}>
                         {labels.edit}
                       </Button>

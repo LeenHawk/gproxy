@@ -14,6 +14,7 @@ use crate::health::ModelCooldownHealth;
 use crate::request::PreparedRequest;
 use crate::response::UpstreamError;
 use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
+use crate::Channel;
 
 fn is_stream_aggregation_route(
     src_operation: OperationFamily,
@@ -129,6 +130,29 @@ pub struct ProviderConfig {
     pub credentials: Vec<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dispatch: Option<crate::dispatch::DispatchTableDocument>,
+}
+
+pub fn built_in_model_prices(channel: &str) -> Option<Vec<crate::billing::ModelPrice>> {
+    use crate::channels::*;
+
+    let prices = match channel {
+        "openai" => openai::OpenAiChannel.model_pricing(),
+        "anthropic" => anthropic::AnthropicChannel.model_pricing(),
+        "claudecode" => claudecode::ClaudeCodeChannel.model_pricing(),
+        "codex" => codex::CodexChannel.model_pricing(),
+        "vertex" => vertex::VertexChannel.model_pricing(),
+        "vertexexpress" => vertexexpress::VertexExpressChannel.model_pricing(),
+        "aistudio" => aistudio::AiStudioChannel.model_pricing(),
+        "geminicli" => geminicli::GeminiCliChannel.model_pricing(),
+        "antigravity" => antigravity::AntigravityChannel.model_pricing(),
+        "nvidia" => nvidia::NvidiaChannel.model_pricing(),
+        "deepseek" => deepseek::DeepSeekChannel.model_pricing(),
+        "groq" => groq::GroqChannel.model_pricing(),
+        "openrouter" => openrouter::OpenRouterChannel.model_pricing(),
+        "custom" => custom::CustomChannel.model_pricing(),
+        _ => return None,
+    };
+    Some(prices.to_vec())
 }
 
 /// Validate that a JSON credential matches the schema for a channel.

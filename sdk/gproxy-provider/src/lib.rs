@@ -47,7 +47,10 @@ pub use dispatch::{
     DispatchRuleDocument, DispatchTable, DispatchTableDocument, DispatchTableError,
     RouteImplementation, RouteKey,
 };
-pub use engine::{ExecuteBody, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig, Usage};
+pub use engine::{
+    ExecuteBody, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig, Usage,
+    built_in_model_prices,
+};
 pub use health::CredentialHealth;
 pub use provider::ProviderDefinition;
 pub use registry::{ChannelRegistration, ChannelRegistry};

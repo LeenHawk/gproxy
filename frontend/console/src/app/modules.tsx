@@ -33,8 +33,6 @@ export function buildAdminNavItems(t: TranslateFn): NavItem[] {
   return [
     { id: "dashboard", label: t("app.nav.dashboard"), group: overview },
     { id: "providers", label: t("app.nav.providers"), group: overview },
-    { id: "models", label: t("app.nav.models"), group: overview },
-    { id: "model-aliases", label: t("app.nav.modelAliases"), group: overview },
     { id: "users", label: t("app.nav.users"), group: access },
     { id: "user-permissions", label: t("app.nav.userPermissions"), group: access },
     { id: "user-file-permissions", label: t("app.nav.userFilePermissions"), group: access },
