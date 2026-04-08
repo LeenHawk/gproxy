@@ -7,9 +7,38 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 
 use gproxy_server::AppState;
+use gproxy_sdk::provider::store::CredentialSnapshot;
+use gproxy_storage::{ProviderQuery, Scope};
 
 use crate::auth::authorize_admin;
 use crate::error::HttpError;
+
+async fn persist_oauth_credential(
+    state: &AppState,
+    provider_name: &str,
+    credential: &CredentialSnapshot,
+) -> Result<i64, HttpError> {
+    let provider = state
+        .storage()
+        .list_providers(&ProviderQuery {
+            name: Scope::Eq(provider_name.to_string()),
+            ..Default::default()
+        })
+        .await
+        .map_err(|e| HttpError::internal(e.to_string()))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| HttpError::not_found(format!("provider '{provider_name}' not found")))?;
+
+    let credential_json = credential.credential.to_string();
+    let credential_id = state
+        .storage()
+        .create_credential(provider.id, None, &provider.channel, &credential_json, true)
+        .await
+        .map_err(|e| HttpError::internal(e.to_string()))?;
+    state.append_provider_credential_id_in_memory(provider_name, credential_id);
+    Ok(credential_id)
+}
 
 /// Start an OAuth flow for a provider.
 pub async fn oauth_start(
@@ -53,10 +82,21 @@ pub async fn oauth_callback(
     let result = state.engine().oauth_finish(&provider_name, params).await?;
 
     match result {
-        Some(finish) => json_response(&serde_json::json!({
-            "credential": finish.credential,
-            "details": finish.details,
-        })),
+        Some(finish) => {
+            if let Err(error) =
+                persist_oauth_credential(&state, &provider_name, &finish.credential).await
+            {
+                let _ = state
+                    .engine()
+                    .store()
+                    .remove_credential(&provider_name, finish.credential.index);
+                return Err(error);
+            }
+            json_response(&serde_json::json!({
+                "credential": finish.credential,
+                "details": finish.details,
+            }))
+        }
         None => Err(HttpError::not_found(format!(
             "provider '{provider_name}' OAuth callback failed"
         ))),
@@ -107,8 +147,13 @@ fn json_response(value: &serde_json::Value) -> Result<Response, HttpError> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
-    use super::parse_query_string;
+    use gproxy_sdk::provider::store::CredentialSnapshot;
+    use gproxy_server::{AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{CredentialQuery, SeaOrmStorage};
+
+    use super::{parse_query_string, persist_oauth_credential};
 
     #[test]
     fn parse_query_string_decodes_percent_encoded_values() {
@@ -125,6 +170,61 @@ mod tests {
                 ),
                 ("mode".to_string(), "authorization_code".to_string()),
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn persist_oauth_credential_writes_db_and_memory_index() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        let provider_id = storage
+            .create_provider(
+                "demo",
+                "codex",
+                "{\"base_url\":\"https://chatgpt.com/backend-api/codex\"}",
+                "{}",
+            )
+            .await
+            .expect("seed provider");
+
+        let state = AppStateBuilder::new()
+            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .storage(storage.clone())
+            .config(GlobalConfig {
+                dsn: "sqlite::memory:".to_string(),
+                ..GlobalConfig::default()
+            })
+            .build();
+
+        let credential = CredentialSnapshot {
+            provider: "demo".to_string(),
+            index: 0,
+            revision: 0,
+            credential: serde_json::json!({
+                "access_token": "token",
+                "account_id": "fdc791c5-acf2-4760-b8e7-4af508952763",
+                "expires_at_ms": 1776493967337u64,
+            }),
+        };
+
+        let credential_id = persist_oauth_credential(&state, "demo", &credential)
+            .await
+            .expect("persist oauth credential");
+
+        let saved = storage
+            .list_credentials(&CredentialQuery::default())
+            .await
+            .expect("query credentials");
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].id, credential_id);
+        assert_eq!(saved[0].provider_id, provider_id);
+        assert_eq!(
+            state.provider_credential_ids_for("demo"),
+            Some(vec![credential_id])
         );
     }
 }
