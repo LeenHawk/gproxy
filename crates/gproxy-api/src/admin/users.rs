@@ -303,6 +303,11 @@ fn normalize_password_for_update(
     previous: Option<&gproxy_server::MemoryUser>,
     password_or_hash: &str,
 ) -> String {
+    if let Some(previous) = previous {
+        if password_or_hash.trim().is_empty() {
+            return previous.password_hash.clone();
+        }
+    }
     if let Some(previous) = previous
         && (password_or_hash == previous.password_hash
             || verify_password(password_or_hash, &previous.password_hash))
@@ -437,6 +442,31 @@ mod tests {
         .await
         .expect("upsert user");
 
+        assert!(state.validate_session(&token).is_some());
+    }
+
+    #[tokio::test]
+    async fn upsert_user_keeps_password_when_password_is_blank() {
+        let state = build_test_state().await;
+        let token = state.create_session(2, 60);
+        let existing_password = state.find_user(2).expect("existing user").password_hash;
+
+        let _ = upsert_user(
+            State(state.clone()),
+            admin_headers(),
+            Json(gproxy_storage::UserWrite {
+                id: 2,
+                name: "alice-renamed".to_string(),
+                password: "".to_string(),
+                enabled: true,
+                is_admin: false,
+            }),
+        )
+        .await
+        .expect("upsert user");
+
+        let updated = state.find_user(2).expect("updated user");
+        assert_eq!(updated.password_hash, existing_password);
         assert!(state.validate_session(&token).is_some());
     }
 
