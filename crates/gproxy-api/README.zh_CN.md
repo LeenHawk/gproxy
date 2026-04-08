@@ -345,6 +345,7 @@ type ProviderQueryParams = {
 };
 
 type ProviderRow = {
+  id: number;
   name: string;
   channel: string;
   settings_json: Record<string, unknown>;

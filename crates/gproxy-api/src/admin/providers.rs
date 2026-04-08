@@ -186,6 +186,7 @@ fn ensure_provider_channel_immutable(
 
 #[derive(Serialize)]
 pub struct ProviderRow {
+    pub id: i64,
     pub name: String,
     pub channel: String,
     pub settings_json: serde_json::Value,
@@ -223,19 +224,23 @@ pub async fn query_providers(
             _ => true,
         })
         .map(|s| {
+            let provider_id = state.provider_id_for_name(&s.name).ok_or_else(|| {
+                HttpError::internal(format!("provider id missing for '{}'", s.name))
+            })?;
             let dispatch_json = store
                 .get_dispatch_table(&s.name)
                 .and_then(|dt| serde_json::to_value(&dt).ok())
                 .unwrap_or(serde_json::Value::Null);
-            ProviderRow {
+            Ok(ProviderRow {
+                id: provider_id,
                 name: s.name,
                 channel: s.channel,
                 settings_json: s.settings,
                 dispatch_json,
                 credential_count: s.credential_count,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, HttpError>>()?;
     Ok(Json(rows))
 }
 
@@ -319,9 +324,69 @@ pub async fn batch_delete_providers(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use axum::{Json, extract::State, http::HeaderMap};
     use time::OffsetDateTime;
 
-    use super::ensure_provider_channel_immutable;
+    use super::{ProviderQueryParams, ensure_provider_channel_immutable, query_providers};
+    use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
+    use gproxy_storage::{Scope, SeaOrmStorage, repository::UserRepository};
+
+    async fn build_test_state() -> Arc<AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "admin".to_string(),
+                password: crate::login::hash_password("admin-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed admin");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-admin".to_string(),
+                label: Some("admin".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed admin key");
+        let provider_id = storage
+            .create_provider("demo", "openai", "{\"base_url\":\"https://api.openai.com\"}", "{}")
+            .await
+            .expect("seed provider");
+        assert!(provider_id > 0);
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+        crate::bootstrap::reload_from_db(&state)
+            .await
+            .expect("reload state");
+        state
+    }
+
+    fn admin_headers() -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer sk-admin".parse().expect("header"));
+        headers
+    }
 
     #[test]
     fn provider_channel_is_immutable_once_created() {
@@ -366,5 +431,26 @@ mod tests {
         };
 
         assert!(ensure_provider_channel_immutable(Some(&existing), &payload).is_ok());
+    }
+
+    #[tokio::test]
+    async fn query_providers_includes_provider_id() {
+        let state = build_test_state().await;
+
+        let rows = query_providers(
+            State(state),
+            admin_headers(),
+            Json(ProviderQueryParams {
+                name: Scope::Eq("demo".to_string()),
+                channel: Scope::All,
+            }),
+        )
+        .await
+        .expect("query providers")
+        .0;
+
+        assert_eq!(rows.len(), 1);
+        let json = serde_json::to_value(&rows[0]).expect("serialize row");
+        assert!(json["id"].as_i64().is_some(), "provider row should include id");
     }
 }
