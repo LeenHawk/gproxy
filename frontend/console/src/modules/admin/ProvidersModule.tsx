@@ -26,6 +26,7 @@ import {
   createDispatchRuleDraft,
   dispatchDraftsFromDocument,
 } from "./providers/dispatch";
+import { buildOAuthCallbackQuery } from "./providers/oauth";
 import { ConfigTab } from "./providers/ConfigTab";
 import { CredentialsTab } from "./providers/CredentialsTab";
 import { OAuthTab } from "./providers/OAuthTab";
@@ -34,27 +35,6 @@ import { StatusTab } from "./providers/StatusTab";
 import { UsageTab } from "./providers/UsageTab";
 import { useProviderData } from "./providers/hooks/useProviderData";
 import type { CredentialFormState, ProviderWorkspaceTab } from "./providers";
-
-function queryEntries(text: string): Array<[string, string]> {
-  return text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [key, ...rest] = line.split("=");
-      return [key.trim(), rest.join("=").trim()] as [string, string];
-    })
-    .filter(([key, value]) => key && value);
-}
-
-function queryString(entries: Array<[string, string]>) {
-  const params = new URLSearchParams();
-  for (const [key, value] of entries) {
-    params.append(key, value);
-  }
-  const text = params.toString();
-  return text ? `?${text}` : "";
-}
 
 export function ProvidersModule({
   sessionToken,
@@ -83,10 +63,9 @@ export function ProvidersModule({
     values: emptyCredentialValuesForChannel(providerForm.channel),
     editingIndex: null,
   });
-  const [oauthStartQuery, setOauthStartQuery] = useState("");
-  const [oauthCallbackQuery, setOauthCallbackQuery] = useState("");
-  const [oauthStartResult, setOauthStartResult] = useState("");
-  const [oauthCallbackResult, setOauthCallbackResult] = useState("");
+  const [oauthFlow, setOauthFlow] = useState<OAuthStartResponse | null>(null);
+  const [oauthCallbackUrl, setOauthCallbackUrl] = useState("");
+  const [oauthCallbackResult, setOauthCallbackResult] = useState<OAuthCallbackResponse | null>(null);
   const [usageResult, setUsageResult] = useState("");
 
   useEffect(() => {
@@ -95,6 +74,12 @@ export function ProvidersModule({
       editingIndex: null,
     });
   }, [providerForm.channel, selectedProvider?.id]);
+
+  useEffect(() => {
+    setOauthFlow(null);
+    setOauthCallbackUrl("");
+    setOauthCallbackResult(null);
+  }, [selectedProvider?.id, providerForm.channel]);
 
   const channelOptions = useMemo(
     () =>
@@ -299,13 +284,13 @@ export function ProvidersModule({
       return;
     }
     try {
-      const query = queryString(queryEntries(oauthStartQuery));
       const result = await apiJson<OAuthStartResponse>(
-        `/${encodeURIComponent(selectedProvider.name)}/v1/oauth${query}`,
+        `/${encodeURIComponent(selectedProvider.name)}/v1/oauth`,
         { headers: authHeaders(sessionToken, false) },
       );
-      setOauthStartResult(JSON.stringify(result, null, 2));
+      setOauthFlow(result);
       notify("info", t("providers.oauth.started"));
+      window.open(result.authorize_url, "_blank", "noopener,noreferrer");
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
@@ -317,14 +302,15 @@ export function ProvidersModule({
       return;
     }
     try {
-      const query = queryString(queryEntries(oauthCallbackQuery));
+      const query = buildOAuthCallbackQuery(oauthCallbackUrl);
       const result = await apiJson<OAuthCallbackResponse>(
         `/${encodeURIComponent(selectedProvider.name)}/v1/oauth/callback${query}`,
         { headers: authHeaders(sessionToken, false) },
       );
-      setOauthCallbackResult(JSON.stringify(result, null, 2));
+      setOauthCallbackResult(result);
       notify("info", t("providers.oauth.finished"));
       await loadProviderScopedData(selectedProvider);
+      setActiveTab("credentials");
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
@@ -401,6 +387,9 @@ export function ProvidersModule({
                 dispatchDestinationProtocol: t("providers.dispatch.destinationProtocol"),
                 dispatchAddRule: t("providers.dispatch.addRule"),
                 dispatchRemoveRule: t("providers.dispatch.removeRule"),
+                dispatchExpand: t("providers.dispatch.expand"),
+                dispatchCollapse: t("providers.dispatch.collapse"),
+                dispatchCollapsedSummary: t("providers.dispatch.collapsedSummary"),
                 modePassthrough: t("providers.dispatch.mode.passthrough"),
                 modeTransformTo: t("providers.dispatch.mode.transformTo"),
                 modeLocal: t("providers.dispatch.mode.local"),
@@ -454,19 +443,27 @@ export function ProvidersModule({
           ) : null}
           {activeTab === "oauth" ? (
             <OAuthTab
-              startQuery={oauthStartQuery}
-              callbackQuery={oauthCallbackQuery}
-              startResult={oauthStartResult}
+              flow={oauthFlow}
+              callbackUrl={oauthCallbackUrl}
               callbackResult={oauthCallbackResult}
-              onChangeStartQuery={setOauthStartQuery}
-              onChangeCallbackQuery={setOauthCallbackQuery}
+              onChangeCallbackUrl={setOauthCallbackUrl}
               onStart={() => void loadOAuthStart()}
+              onOpenAuthorize={() => {
+                if (oauthFlow?.authorize_url) {
+                  window.open(oauthFlow.authorize_url, "_blank", "noopener,noreferrer");
+                }
+              }}
               onFinish={() => void loadOAuthFinish()}
               labels={{
                 start: t("providers.oauth.start"),
                 finish: t("providers.oauth.finish"),
-                startQuery: t("providers.oauth.startQuery"),
-                callbackQuery: t("providers.oauth.callbackQuery"),
+                startHint: t("providers.oauth.startHint"),
+                openAuthorize: t("providers.oauth.openAuthorize"),
+                redirectUri: t("providers.oauth.redirectUri"),
+                instructions: t("providers.oauth.instructions"),
+                callbackUrl: t("providers.oauth.callbackUrl"),
+                callbackHint: t("providers.oauth.callbackHint"),
+                persistedCredential: t("providers.oauth.persistedCredential"),
               }}
             />
           ) : null}

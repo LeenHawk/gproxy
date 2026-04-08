@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import { Button, Card, Input, Label, Select, TextArea } from "../../../components/ui";
 import {
   DISPATCH_IMPLEMENTATION_OPTIONS,
@@ -37,6 +39,9 @@ export function ConfigTab({
     dispatchDestinationProtocol: string;
     dispatchAddRule: string;
     dispatchRemoveRule: string;
+    dispatchExpand: string;
+    dispatchCollapse: string;
+    dispatchCollapsedSummary: string;
     modePassthrough: string;
     modeTransformTo: string;
     modeLocal: string;
@@ -47,6 +52,7 @@ export function ConfigTab({
   };
   canDelete: boolean;
 }) {
+  const [dispatchExpanded, setDispatchExpanded] = useState(false);
   const modeOptions = DISPATCH_IMPLEMENTATION_OPTIONS.map((option) => ({
     value: option.value,
     label:
@@ -58,6 +64,10 @@ export function ConfigTab({
             ? labels.modeLocal
             : labels.modeUnsupported,
   }));
+
+  useEffect(() => {
+    setDispatchExpanded(false);
+  }, [form.id, form.channel]);
 
   return (
     <Card title={labels.subtitle}>
@@ -122,104 +132,53 @@ export function ConfigTab({
             <div className="text-sm font-semibold text-text">{labels.dispatchRules}</div>
             <p className="mt-1 text-xs text-muted">{labels.dispatchHint}</p>
           </div>
-          <Button
-            variant="neutral"
-            onClick={() =>
-              onChange({ dispatchRules: [...form.dispatchRules, createDispatchRuleDraft()] })
-            }
-          >
-            {labels.dispatchAddRule}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="neutral" onClick={() => setDispatchExpanded((value) => !value)}>
+              {dispatchExpanded ? labels.dispatchCollapse : labels.dispatchExpand}
+            </Button>
+            {dispatchExpanded ? (
+              <Button
+                variant="neutral"
+                onClick={() =>
+                  onChange({ dispatchRules: [...form.dispatchRules, createDispatchRuleDraft()] })
+                }
+              >
+                {labels.dispatchAddRule}
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {form.dispatchRules.map((rule, index) => (
-            <div key={rule.id} className="panel-shell panel-shell-compact space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-text">
-                  {labels.dispatchRule} {index + 1}
+        {dispatchExpanded ? (
+          <div className="space-y-3">
+            {form.dispatchRules.map((rule, index) => (
+              <div key={rule.id} className="panel-shell panel-shell-compact space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-text">
+                    {labels.dispatchRule} {index + 1}
+                  </div>
+                  <Button
+                    variant="danger"
+                    disabled={form.dispatchRules.length === 1}
+                    onClick={() =>
+                      onChange({
+                        dispatchRules: form.dispatchRules.filter((item) => item.id !== rule.id),
+                      })
+                    }
+                  >
+                    {labels.dispatchRemoveRule}
+                  </Button>
                 </div>
-                <Button
-                  variant="danger"
-                  disabled={form.dispatchRules.length === 1}
-                  onClick={() =>
-                    onChange({
-                      dispatchRules: form.dispatchRules.filter((item) => item.id !== rule.id),
-                    })
-                  }
-                >
-                  {labels.dispatchRemoveRule}
-                </Button>
-              </div>
 
-              <div className="grid gap-4 lg:grid-cols-3">
-                <div>
-                  <Label>{labels.dispatchSourceOperation}</Label>
-                  <Select
-                    value={rule.srcOperation}
-                    onChange={(value) =>
-                      onChange({
-                        dispatchRules: form.dispatchRules.map((item) =>
-                          item.id === rule.id ? { ...item, srcOperation: value } : item,
-                        ),
-                      })
-                    }
-                    options={DISPATCH_OPERATION_OPTIONS}
-                  />
-                </div>
-                <div>
-                  <Label>{labels.dispatchSourceProtocol}</Label>
-                  <Select
-                    value={rule.srcProtocol}
-                    onChange={(value) =>
-                      onChange({
-                        dispatchRules: form.dispatchRules.map((item) =>
-                          item.id === rule.id ? { ...item, srcProtocol: value } : item,
-                        ),
-                      })
-                    }
-                    options={DISPATCH_PROTOCOL_OPTIONS}
-                  />
-                </div>
-                <div>
-                  <Label>{labels.dispatchMode}</Label>
-                  <Select
-                    value={rule.implementation}
-                    onChange={(value) =>
-                      onChange({
-                        dispatchRules: form.dispatchRules.map((item) =>
-                          item.id === rule.id
-                            ? {
-                                ...item,
-                                implementation: value as typeof item.implementation,
-                                destinationOperation:
-                                  value === "TransformTo"
-                                    ? item.destinationOperation || item.srcOperation
-                                    : "",
-                                destinationProtocol:
-                                  value === "TransformTo"
-                                    ? item.destinationProtocol || item.srcProtocol
-                                    : "",
-                              }
-                            : item,
-                        ),
-                      })
-                    }
-                    options={modeOptions}
-                  />
-                </div>
-              </div>
-
-              {rule.implementation === "TransformTo" ? (
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-3">
                   <div>
-                    <Label>{labels.dispatchDestinationOperation}</Label>
+                    <Label>{labels.dispatchSourceOperation}</Label>
                     <Select
-                      value={rule.destinationOperation}
+                      value={rule.srcOperation}
                       onChange={(value) =>
                         onChange({
                           dispatchRules: form.dispatchRules.map((item) =>
-                            item.id === rule.id ? { ...item, destinationOperation: value } : item,
+                            item.id === rule.id ? { ...item, srcOperation: value } : item,
                           ),
                         })
                       }
@@ -227,24 +186,88 @@ export function ConfigTab({
                     />
                   </div>
                   <div>
-                    <Label>{labels.dispatchDestinationProtocol}</Label>
+                    <Label>{labels.dispatchSourceProtocol}</Label>
                     <Select
-                      value={rule.destinationProtocol}
+                      value={rule.srcProtocol}
                       onChange={(value) =>
                         onChange({
                           dispatchRules: form.dispatchRules.map((item) =>
-                            item.id === rule.id ? { ...item, destinationProtocol: value } : item,
+                            item.id === rule.id ? { ...item, srcProtocol: value } : item,
                           ),
                         })
                       }
                       options={DISPATCH_PROTOCOL_OPTIONS}
                     />
                   </div>
+                  <div>
+                    <Label>{labels.dispatchMode}</Label>
+                    <Select
+                      value={rule.implementation}
+                      onChange={(value) =>
+                        onChange({
+                          dispatchRules: form.dispatchRules.map((item) =>
+                            item.id === rule.id
+                              ? {
+                                  ...item,
+                                  implementation: value as typeof item.implementation,
+                                  destinationOperation:
+                                    value === "TransformTo"
+                                      ? item.destinationOperation || item.srcOperation
+                                      : "",
+                                  destinationProtocol:
+                                    value === "TransformTo"
+                                      ? item.destinationProtocol || item.srcProtocol
+                                      : "",
+                                }
+                              : item,
+                          ),
+                        })
+                      }
+                      options={modeOptions}
+                    />
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
+
+                {rule.implementation === "TransformTo" ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <Label>{labels.dispatchDestinationOperation}</Label>
+                      <Select
+                        value={rule.destinationOperation}
+                        onChange={(value) =>
+                          onChange({
+                            dispatchRules: form.dispatchRules.map((item) =>
+                              item.id === rule.id ? { ...item, destinationOperation: value } : item,
+                            ),
+                          })
+                        }
+                        options={DISPATCH_OPERATION_OPTIONS}
+                      />
+                    </div>
+                    <div>
+                      <Label>{labels.dispatchDestinationProtocol}</Label>
+                      <Select
+                        value={rule.destinationProtocol}
+                        onChange={(value) =>
+                          onChange({
+                            dispatchRules: form.dispatchRules.map((item) =>
+                              item.id === rule.id ? { ...item, destinationProtocol: value } : item,
+                            ),
+                          })
+                        }
+                        options={DISPATCH_PROTOCOL_OPTIONS}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-muted">
+            {labels.dispatchCollapsedSummary.replace("{count}", String(form.dispatchRules.length))}
+          </div>
+        )}
       </div>
 
       <div className="mt-4 flex gap-2">
