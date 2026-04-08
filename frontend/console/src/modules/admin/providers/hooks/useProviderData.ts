@@ -11,6 +11,7 @@ import {
   defaultSettingsForChannel,
   settingsValuesFromJson,
 } from "../channel-forms";
+import { createDispatchRuleDraft, dispatchDraftsFromDocument } from "../dispatch";
 import type { ProviderFormState } from "../index";
 
 function formFromProvider(row: ProviderRow): ProviderFormState {
@@ -19,7 +20,7 @@ function formFromProvider(row: ProviderRow): ProviderFormState {
     name: row.name,
     channel: row.channel,
     settings: settingsValuesFromJson(row.channel, row.settings_json),
-    dispatchJson: JSON.stringify(row.dispatch_json ?? {}, null, 2),
+    dispatchRules: dispatchDraftsFromDocument(row.dispatch_json),
   };
 }
 
@@ -29,7 +30,7 @@ function emptyForm(nextId: number): ProviderFormState {
     name: "",
     channel: "openai",
     settings: defaultSettingsForChannel("openai"),
-    dispatchJson: "{}",
+    dispatchRules: [createDispatchRuleDraft()],
   };
 }
 

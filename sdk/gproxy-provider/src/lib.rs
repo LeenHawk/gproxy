@@ -43,7 +43,10 @@ pub use backend::types::{
 };
 pub use billing::{ModelPrice, ModelPriceTier};
 pub use channel::{Channel, ChannelCredential, ChannelSettings, OAuthFlow};
-pub use dispatch::DispatchTable;
+pub use dispatch::{
+    DispatchRuleDocument, DispatchTable, DispatchTableDocument, DispatchTableError,
+    RouteImplementation, RouteKey,
+};
 pub use engine::{ExecuteBody, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig, Usage};
 pub use health::CredentialHealth;
 pub use provider::ProviderDefinition;

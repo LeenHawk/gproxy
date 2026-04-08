@@ -2337,6 +2337,7 @@ mod tests {
                 credentials: vec![json!({
                     "api_key": "sk-upstream"
                 })],
+                dispatch: None,
             })
             .expect("custom provider config should be valid")
             .build();

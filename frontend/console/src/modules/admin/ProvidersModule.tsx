@@ -8,8 +8,10 @@ import { parseRequiredI64 } from "../../lib/form";
 import type {
   CredentialHealthRow,
   CredentialRow,
+  DispatchTableDocument,
   OAuthCallbackResponse,
   OAuthStartResponse,
+  ProviderDispatchTemplateParams,
   ProviderWrite,
 } from "../../lib/types/admin";
 import {
@@ -19,6 +21,11 @@ import {
   defaultSettingsForChannel,
   emptyCredentialValuesForChannel,
 } from "./providers/channel-forms";
+import {
+  buildDispatchDocument,
+  createDispatchRuleDraft,
+  dispatchDraftsFromDocument,
+} from "./providers/dispatch";
 import { ConfigTab } from "./providers/ConfigTab";
 import { CredentialsTab } from "./providers/CredentialsTab";
 import { OAuthTab } from "./providers/OAuthTab";
@@ -119,8 +126,50 @@ export function ProvidersModule({
         patch.channel && patch.channel !== current.channel
           ? defaultSettingsForChannel(nextChannel)
           : patch.settings ?? current.settings,
+      dispatchRules:
+        patch.channel && patch.channel !== current.channel
+          ? [createDispatchRuleDraft()]
+          : patch.dispatchRules ?? current.dispatchRules,
     }));
   };
+
+  const loadDefaultDispatch = async (channel: string) => {
+    const document = await apiJson<DispatchTableDocument>("/admin/providers/default-dispatch", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ channel } satisfies ProviderDispatchTemplateParams),
+    });
+    return dispatchDraftsFromDocument(document);
+  };
+
+  useEffect(() => {
+    if (selectedProvider) {
+      return;
+    }
+    let active = true;
+    const channel = providerForm.channel;
+    const formId = providerForm.id;
+    void loadDefaultDispatch(channel)
+      .then((dispatchRules) => {
+        if (!active) {
+          return;
+        }
+        setProviderForm((current) =>
+          current.id === formId && current.channel === channel
+            ? { ...current, dispatchRules }
+            : current,
+        );
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        notify("error", error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, [headers, notify, providerForm.channel, providerForm.id, selectedProvider]);
 
   const saveProvider = async () => {
     try {
@@ -131,7 +180,7 @@ export function ProvidersModule({
         settings_json: JSON.stringify(
           buildChannelSettingsJson(providerForm.channel, providerForm.settings),
         ),
-        dispatch_json: providerForm.dispatchJson.trim() || "{}",
+        dispatch_json: JSON.stringify(buildDispatchDocument(providerForm.dispatchRules)),
       };
       await apiJson("/admin/providers/upsert", {
         method: "POST",
@@ -342,7 +391,20 @@ export function ProvidersModule({
                 id: t("providers.form.id"),
                 name: t("providers.form.name"),
                 channel: t("providers.form.channel"),
-                dispatchJson: t("providers.form.dispatchJson"),
+                dispatchRules: t("providers.form.dispatchRules"),
+                dispatchHint: t("providers.form.dispatchHint"),
+                dispatchRule: t("providers.dispatch.rule"),
+                dispatchSourceOperation: t("providers.dispatch.sourceOperation"),
+                dispatchSourceProtocol: t("providers.dispatch.sourceProtocol"),
+                dispatchMode: t("providers.dispatch.mode"),
+                dispatchDestinationOperation: t("providers.dispatch.destinationOperation"),
+                dispatchDestinationProtocol: t("providers.dispatch.destinationProtocol"),
+                dispatchAddRule: t("providers.dispatch.addRule"),
+                dispatchRemoveRule: t("providers.dispatch.removeRule"),
+                modePassthrough: t("providers.dispatch.mode.passthrough"),
+                modeTransformTo: t("providers.dispatch.mode.transformTo"),
+                modeLocal: t("providers.dispatch.mode.local"),
+                modeUnsupported: t("providers.dispatch.mode.unsupported"),
                 save: t("providers.form.save"),
                 delete: t("providers.form.delete"),
                 newHint: t("providers.form.newHint"),

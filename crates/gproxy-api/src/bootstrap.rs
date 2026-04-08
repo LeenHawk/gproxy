@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::io::Error as IoError;
 
+use gproxy_sdk::provider::dispatch::DispatchTableDocument;
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
     AppState, FilePermissionEntry, GlobalConfig, MemoryClaudeFile, MemoryModel, MemoryUser,
@@ -279,6 +280,7 @@ fn build_seed_provider_runtime_state(providers: &[ProviderToml]) -> SeedProvider
                 .iter()
                 .map(|(_, credential)| credential.clone())
                 .collect(),
+            dispatch: None,
         });
         provider_channel_map.insert(provider.name.clone(), provider.channel.clone());
 
@@ -431,6 +433,7 @@ pub async fn reload_from_db(
             channel: provider.channel.clone(),
             settings_json: provider.settings_json.clone(),
             credentials: creds,
+            dispatch: DispatchTableDocument::from_json_value(provider.dispatch_json.clone())?,
         })?;
         provider_count += 1;
     }

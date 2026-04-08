@@ -261,12 +261,13 @@ impl<C: Channel> ProviderInstance<C> {
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
+        dispatch_override: Option<DispatchTable>,
     ) -> Self {
         let (credential_values, health_values): (Vec<_>, Vec<_>) = credentials.into_iter().unzip();
         Self {
             name,
             model_pricing: channel.model_pricing(),
-            dispatch_table: channel.dispatch_table(),
+            dispatch_table: dispatch_override.unwrap_or_else(|| channel.dispatch_table()),
             channel,
             settings: ArcSwap::from_pointee(settings),
             credentials: ArcSwap::from_pointee(credential_values),
@@ -790,11 +791,22 @@ impl ProviderStoreBuilder {
     }
 
     pub fn add_provider<C: Channel>(
+        self,
+        name: impl Into<String>,
+        channel: C,
+        settings: C::Settings,
+        credentials: Vec<(C::Credential, C::Health)>,
+    ) -> Self {
+        self.add_provider_with_dispatch(name, channel, settings, credentials, None)
+    }
+
+    pub fn add_provider_with_dispatch<C: Channel>(
         mut self,
         name: impl Into<String>,
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
+        dispatch_override: Option<DispatchTable>,
     ) -> Self {
         let name = name.into();
         let provider = Arc::new(ProviderInstance::new(
@@ -802,6 +814,7 @@ impl ProviderStoreBuilder {
             channel,
             settings,
             credentials,
+            dispatch_override,
         ));
         self.providers.insert(name, provider);
         self
@@ -837,12 +850,24 @@ impl ProviderStore {
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
     ) {
+        self.add_provider_with_dispatch(name, channel, settings, credentials, None);
+    }
+
+    pub fn add_provider_with_dispatch<C: Channel>(
+        &self,
+        name: impl Into<String>,
+        channel: C,
+        settings: C::Settings,
+        credentials: Vec<(C::Credential, C::Health)>,
+        dispatch_override: Option<DispatchTable>,
+    ) {
         let name = name.into();
         let provider = Arc::new(ProviderInstance::new(
             name.clone(),
             channel,
             settings,
             credentials,
+            dispatch_override,
         ));
         self.providers.insert(name.clone(), provider);
         self.emit_event(EngineEvent::ProviderAdded { name });
@@ -855,11 +880,28 @@ impl ProviderStore {
     ) -> Result<(), UpstreamError> {
         macro_rules! add {
             ($self:expr, $ch:expr, $cfg:expr) => {{
-                let settings = serde_json::from_value($cfg.settings_json).map_err(|e| {
-                    UpstreamError::Channel(format!("invalid settings for '{}': {e}", $cfg.name))
+                let crate::engine::ProviderConfig {
+                    name,
+                    settings_json,
+                    credentials,
+                    dispatch,
+                    ..
+                } = $cfg;
+                let dispatch = match dispatch {
+                    Some(document) => Some(
+                        crate::dispatch::DispatchTable::from_document(document).map_err(|e| {
+                            UpstreamError::Channel(format!(
+                                "invalid dispatch for '{}': {e}",
+                                name
+                            ))
+                        })?,
+                    ),
+                    None => None,
+                };
+                let settings = serde_json::from_value(settings_json).map_err(|e| {
+                    UpstreamError::Channel(format!("invalid settings for '{}': {e}", name))
                 })?;
-                let creds: Vec<_> = $cfg
-                    .credentials
+                let creds: Vec<_> = credentials
                     .into_iter()
                     .filter_map(|c| {
                         serde_json::from_value(c)
@@ -867,7 +909,7 @@ impl ProviderStore {
                             .map(|c| (c, crate::health::ModelCooldownHealth::default()))
                     })
                     .collect();
-                $self.add_provider(&$cfg.name, $ch, settings, creds);
+                $self.add_provider_with_dispatch(&name, $ch, settings, creds, dispatch);
                 Ok(())
             }};
         }

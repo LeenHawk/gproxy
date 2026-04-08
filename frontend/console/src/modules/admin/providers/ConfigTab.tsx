@@ -1,4 +1,10 @@
 import { Button, Card, Input, Label, Select, TextArea } from "../../../components/ui";
+import {
+  DISPATCH_IMPLEMENTATION_OPTIONS,
+  DISPATCH_OPERATION_OPTIONS,
+  DISPATCH_PROTOCOL_OPTIONS,
+  createDispatchRuleDraft,
+} from "./dispatch";
 import { settingsFieldsForChannel } from "./channel-forms";
 import type { ProviderFormState } from "./index";
 
@@ -21,13 +27,38 @@ export function ConfigTab({
     id: string;
     name: string;
     channel: string;
-    dispatchJson: string;
+    dispatchRules: string;
+    dispatchHint: string;
+    dispatchRule: string;
+    dispatchSourceOperation: string;
+    dispatchSourceProtocol: string;
+    dispatchMode: string;
+    dispatchDestinationOperation: string;
+    dispatchDestinationProtocol: string;
+    dispatchAddRule: string;
+    dispatchRemoveRule: string;
+    modePassthrough: string;
+    modeTransformTo: string;
+    modeLocal: string;
+    modeUnsupported: string;
     save: string;
     delete: string;
     newHint: string;
   };
   canDelete: boolean;
 }) {
+  const modeOptions = DISPATCH_IMPLEMENTATION_OPTIONS.map((option) => ({
+    value: option.value,
+    label:
+      option.value === "Passthrough"
+        ? labels.modePassthrough
+        : option.value === "TransformTo"
+          ? labels.modeTransformTo
+          : option.value === "Local"
+            ? labels.modeLocal
+            : labels.modeUnsupported,
+  }));
+
   return (
     <Card title={labels.subtitle}>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -84,14 +115,138 @@ export function ConfigTab({
           </div>
         ))}
       </div>
-      <div className="mt-4">
-        <Label>{labels.dispatchJson}</Label>
-        <TextArea
-          value={form.dispatchJson}
-          onChange={(value) => onChange({ dispatchJson: value })}
-          rows={8}
-        />
+
+      <div className="panel-shell mt-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-text">{labels.dispatchRules}</div>
+            <p className="mt-1 text-xs text-muted">{labels.dispatchHint}</p>
+          </div>
+          <Button
+            variant="neutral"
+            onClick={() =>
+              onChange({ dispatchRules: [...form.dispatchRules, createDispatchRuleDraft()] })
+            }
+          >
+            {labels.dispatchAddRule}
+          </Button>
+        </div>
+
+        <div className="space-y-3">
+          {form.dispatchRules.map((rule, index) => (
+            <div key={rule.id} className="panel-shell panel-shell-compact space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-text">
+                  {labels.dispatchRule} {index + 1}
+                </div>
+                <Button
+                  variant="danger"
+                  disabled={form.dispatchRules.length === 1}
+                  onClick={() =>
+                    onChange({
+                      dispatchRules: form.dispatchRules.filter((item) => item.id !== rule.id),
+                    })
+                  }
+                >
+                  {labels.dispatchRemoveRule}
+                </Button>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                <div>
+                  <Label>{labels.dispatchSourceOperation}</Label>
+                  <Select
+                    value={rule.srcOperation}
+                    onChange={(value) =>
+                      onChange({
+                        dispatchRules: form.dispatchRules.map((item) =>
+                          item.id === rule.id ? { ...item, srcOperation: value } : item,
+                        ),
+                      })
+                    }
+                    options={DISPATCH_OPERATION_OPTIONS}
+                  />
+                </div>
+                <div>
+                  <Label>{labels.dispatchSourceProtocol}</Label>
+                  <Select
+                    value={rule.srcProtocol}
+                    onChange={(value) =>
+                      onChange({
+                        dispatchRules: form.dispatchRules.map((item) =>
+                          item.id === rule.id ? { ...item, srcProtocol: value } : item,
+                        ),
+                      })
+                    }
+                    options={DISPATCH_PROTOCOL_OPTIONS}
+                  />
+                </div>
+                <div>
+                  <Label>{labels.dispatchMode}</Label>
+                  <Select
+                    value={rule.implementation}
+                    onChange={(value) =>
+                      onChange({
+                        dispatchRules: form.dispatchRules.map((item) =>
+                          item.id === rule.id
+                            ? {
+                                ...item,
+                                implementation: value as typeof item.implementation,
+                                destinationOperation:
+                                  value === "TransformTo"
+                                    ? item.destinationOperation || item.srcOperation
+                                    : "",
+                                destinationProtocol:
+                                  value === "TransformTo"
+                                    ? item.destinationProtocol || item.srcProtocol
+                                    : "",
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                    options={modeOptions}
+                  />
+                </div>
+              </div>
+
+              {rule.implementation === "TransformTo" ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div>
+                    <Label>{labels.dispatchDestinationOperation}</Label>
+                    <Select
+                      value={rule.destinationOperation}
+                      onChange={(value) =>
+                        onChange({
+                          dispatchRules: form.dispatchRules.map((item) =>
+                            item.id === rule.id ? { ...item, destinationOperation: value } : item,
+                          ),
+                        })
+                      }
+                      options={DISPATCH_OPERATION_OPTIONS}
+                    />
+                  </div>
+                  <div>
+                    <Label>{labels.dispatchDestinationProtocol}</Label>
+                    <Select
+                      value={rule.destinationProtocol}
+                      onChange={(value) =>
+                        onChange({
+                          dispatchRules: form.dispatchRules.map((item) =>
+                            item.id === rule.id ? { ...item, destinationProtocol: value } : item,
+                          ),
+                        })
+                      }
+                      options={DISPATCH_PROTOCOL_OPTIONS}
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
       </div>
+
       <div className="mt-4 flex gap-2">
         <Button onClick={onSave}>{labels.save}</Button>
         {canDelete ? (

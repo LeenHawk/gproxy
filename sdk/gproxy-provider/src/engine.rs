@@ -127,6 +127,8 @@ pub struct ProviderConfig {
     pub channel: String,
     pub settings_json: serde_json::Value,
     pub credentials: Vec<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dispatch: Option<crate::dispatch::DispatchTableDocument>,
 }
 
 /// Validate that a JSON credential matches the schema for a channel.
@@ -195,15 +197,26 @@ impl GproxyEngineBuilder {
     }
 
     pub fn add_provider<C: crate::Channel>(
-        mut self,
+        self,
         name: impl Into<String>,
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
     ) -> Self {
+        self.add_provider_with_dispatch(name, channel, settings, credentials, None)
+    }
+
+    pub fn add_provider_with_dispatch<C: crate::Channel>(
+        mut self,
+        name: impl Into<String>,
+        channel: C,
+        settings: C::Settings,
+        credentials: Vec<(C::Credential, C::Health)>,
+        dispatch_override: Option<crate::dispatch::DispatchTable>,
+    ) -> Self {
         self.store_builder = self
             .store_builder
-            .add_provider(name, channel, settings, credentials);
+            .add_provider_with_dispatch(name, channel, settings, credentials, dispatch_override);
         self
     }
 
@@ -282,11 +295,28 @@ impl GproxyEngineBuilder {
     pub fn add_provider_json(self, config: ProviderConfig) -> Result<Self, UpstreamError> {
         macro_rules! add {
             ($self:expr, $ch:expr, $cfg:expr) => {{
-                let settings = serde_json::from_value($cfg.settings_json).map_err(|e| {
-                    UpstreamError::Channel(format!("invalid settings for '{}': {e}", $cfg.name))
+                let crate::engine::ProviderConfig {
+                    name,
+                    settings_json,
+                    credentials,
+                    dispatch,
+                    ..
+                } = $cfg;
+                let dispatch = match dispatch {
+                    Some(document) => Some(
+                        crate::dispatch::DispatchTable::from_document(document).map_err(|e| {
+                            UpstreamError::Channel(format!(
+                                "invalid dispatch for '{}': {e}",
+                                name
+                            ))
+                        })?,
+                    ),
+                    None => None,
+                };
+                let settings = serde_json::from_value(settings_json).map_err(|e| {
+                    UpstreamError::Channel(format!("invalid settings for '{}': {e}", name))
                 })?;
-                let creds: Vec<_> = $cfg
-                    .credentials
+                let creds: Vec<_> = credentials
                     .into_iter()
                     .filter_map(|c| {
                         serde_json::from_value(c)
@@ -294,7 +324,7 @@ impl GproxyEngineBuilder {
                             .map(|c| (c, ModelCooldownHealth::default()))
                     })
                     .collect();
-                Ok($self.add_provider(&$cfg.name, $ch, settings, creds))
+                Ok($self.add_provider_with_dispatch(&name, $ch, settings, creds, dispatch))
             }};
         }
 

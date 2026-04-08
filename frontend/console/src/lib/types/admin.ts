@@ -42,12 +42,36 @@ export type ProviderQueryParams = {
   channel?: Scope<string>;
 };
 
+export type DispatchRoute = {
+  operation: string;
+  protocol: string;
+};
+
+export type DispatchImplementation =
+  | "Passthrough"
+  | "Local"
+  | "Unsupported"
+  | {
+      TransformTo: {
+        destination: DispatchRoute;
+      };
+    };
+
+export type DispatchRuleDocument = {
+  route: DispatchRoute;
+  implementation: DispatchImplementation;
+};
+
+export type DispatchTableDocument = {
+  rules: DispatchRuleDocument[];
+};
+
 export type ProviderRow = {
   id: number;
   name: string;
   channel: string;
   settings_json: Record<string, unknown>;
-  dispatch_json: Record<string, unknown> | null;
+  dispatch_json: DispatchTableDocument | null;
   credential_count: number;
 };
 
@@ -57,6 +81,10 @@ export type ProviderWrite = {
   channel: string;
   settings_json: string;
   dispatch_json: string;
+};
+
+export type ProviderDispatchTemplateParams = {
+  channel: string;
 };
 
 export type DeleteProviderPayload = {

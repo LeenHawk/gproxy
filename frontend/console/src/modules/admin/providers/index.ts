@@ -1,3 +1,5 @@
+import type { DispatchRuleDraft } from "./dispatch";
+
 export type ProviderWorkspaceTab = "config" | "credentials" | "status" | "oauth" | "usage";
 
 export type ProviderFormState = {
@@ -5,7 +7,7 @@ export type ProviderFormState = {
   name: string;
   channel: string;
   settings: Record<string, string>;
-  dispatchJson: string;
+  dispatchRules: DispatchRuleDraft[];
 };
 
 export type CredentialFormState = {

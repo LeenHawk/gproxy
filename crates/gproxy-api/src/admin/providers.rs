@@ -6,11 +6,14 @@ use crate::error::{AckResponse, HttpError};
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
+use gproxy_sdk::provider::dispatch::DispatchTableDocument;
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
+use gproxy_sdk::provider::registry::ChannelRegistry;
 use gproxy_server::AppState;
 use gproxy_storage::repository::ProviderRepository;
 use gproxy_storage::{CredentialQuery, ProviderQuery, ProviderQueryRow, Scope};
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -39,6 +42,26 @@ async fn load_providers_by_id(
         .await
         .map_err(|e| HttpError::internal(e.to_string()))?;
     Ok(rows.into_iter().map(|row| (row.id, row)).collect())
+}
+
+fn parse_dispatch_document_json(
+    dispatch_json: &str,
+) -> Result<Option<DispatchTableDocument>, HttpError> {
+    let trimmed = dispatch_json.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let value: Value = serde_json::from_str(trimmed)
+        .map_err(|e| HttpError::bad_request(format!("invalid provider dispatch_json: {e}")))?;
+    DispatchTableDocument::from_json_value(value)
+        .map_err(|e| HttpError::bad_request(format!("invalid provider dispatch_json: {e}")))
+}
+
+fn default_dispatch_document_for_channel(channel: &str) -> Result<DispatchTableDocument, HttpError> {
+    ChannelRegistry::collect()
+        .dispatch_table(channel)
+        .map(|table| table.to_document())
+        .ok_or_else(|| HttpError::bad_request(format!("unknown provider channel: {channel}")))
 }
 
 async fn sync_provider_runtime(
@@ -72,20 +95,7 @@ async fn sync_provider_runtime(
 
     state.upsert_provider_name_in_memory(payload.name.clone(), payload.id);
     state.upsert_provider_channel_in_memory(payload.name.clone(), payload.channel.clone());
-
-    let settings_json = serde_json::from_str(&payload.settings_json).unwrap_or_default();
-    let current = store
-        .get_provider(&payload.name)
-        .map_err(|e| HttpError::internal(e.to_string()))?;
-
-    if let Some(snapshot) = current
-        && snapshot.channel == payload.channel
-    {
-        store
-            .update_provider_settings(&payload.name, settings_json)
-            .map_err(|e| HttpError::internal(e.to_string()))?;
-        return Ok(());
-    }
+    let dispatch = parse_dispatch_document_json(&payload.dispatch_json)?;
 
     store.remove_provider(&payload.name);
 
@@ -137,6 +147,7 @@ async fn sync_provider_runtime(
                 .map(|(_, credential)| credential.clone())
                 .collect()
         }),
+        dispatch,
     };
     store
         .add_provider_json(provider_config)
@@ -158,12 +169,14 @@ async fn sync_provider_runtime(
 fn validate_provider_payload(payload: &gproxy_storage::ProviderWrite) -> Result<(), HttpError> {
     let settings_json = serde_json::from_str(&payload.settings_json)
         .map_err(|e| HttpError::bad_request(format!("invalid provider settings_json: {e}")))?;
+    let dispatch = parse_dispatch_document_json(&payload.dispatch_json)?;
     GproxyEngineBuilder::new()
         .add_provider_json(ProviderConfig {
             name: payload.name.clone(),
             channel: payload.channel.clone(),
             settings_json,
             credentials: Vec::new(),
+            dispatch,
         })
         .map(|_| ())
         .map_err(|e| HttpError::bad_request(e.to_string()))
@@ -202,6 +215,11 @@ pub struct ProviderQueryParams {
     pub channel: Scope<String>,
 }
 
+#[derive(serde::Deserialize)]
+pub struct ProviderDispatchTemplateParams {
+    pub channel: String,
+}
+
 /// Query providers from SDK engine memory.
 pub async fn query_providers(
     State(state): State<Arc<AppState>>,
@@ -229,8 +247,16 @@ pub async fn query_providers(
             })?;
             let dispatch_json = store
                 .get_dispatch_table(&s.name)
-                .and_then(|dt| serde_json::to_value(&dt).ok())
-                .unwrap_or(serde_json::Value::Null);
+                .map(|dispatch| {
+                    serde_json::to_value(dispatch.to_document()).map_err(|e| {
+                        HttpError::internal(format!(
+                            "serialize dispatch for provider '{}': {e}",
+                            s.name
+                        ))
+                    })
+                })
+                .transpose()?
+                .unwrap_or_else(|| serde_json::json!({ "rules": [] }));
             Ok(ProviderRow {
                 id: provider_id,
                 name: s.name,
@@ -242,6 +268,15 @@ pub async fn query_providers(
         })
         .collect::<Result<Vec<_>, HttpError>>()?;
     Ok(Json(rows))
+}
+
+pub async fn default_provider_dispatch(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<ProviderDispatchTemplateParams>,
+) -> Result<Json<DispatchTableDocument>, HttpError> {
+    authorize_admin(&headers, &state)?;
+    Ok(Json(default_dispatch_document_for_channel(payload.channel.trim())?))
 }
 
 /// Upsert provider — persists to DB.
@@ -327,9 +362,14 @@ mod tests {
     use std::sync::Arc;
 
     use axum::{Json, extract::State, http::HeaderMap};
+    use gproxy_sdk::provider::dispatch::{RouteImplementation, RouteKey};
+    use gproxy_sdk::protocol::kinds::{OperationFamily, ProtocolKind};
     use time::OffsetDateTime;
 
-    use super::{ProviderQueryParams, ensure_provider_channel_immutable, query_providers};
+    use super::{
+        ProviderDispatchTemplateParams, ProviderQueryParams, default_provider_dispatch,
+        ensure_provider_channel_immutable, query_providers, upsert_provider,
+    };
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
     use gproxy_storage::{Scope, SeaOrmStorage, repository::UserRepository};
 
@@ -452,5 +492,74 @@ mod tests {
         assert_eq!(rows.len(), 1);
         let json = serde_json::to_value(&rows[0]).expect("serialize row");
         assert!(json["id"].as_i64().is_some(), "provider row should include id");
+        assert!(
+            json["dispatch_json"]["rules"].as_array().is_some(),
+            "provider row should expose canonical dispatch rules"
+        );
+    }
+
+    #[tokio::test]
+    async fn default_provider_dispatch_returns_channel_template() {
+        let state = build_test_state().await;
+
+        let document = default_provider_dispatch(
+            State(state),
+            admin_headers(),
+            Json(ProviderDispatchTemplateParams {
+                channel: "openai".to_string(),
+            }),
+        )
+        .await
+        .expect("default dispatch")
+        .0;
+
+        assert!(
+            !document.rules.is_empty(),
+            "default dispatch should expose at least one route"
+        );
+    }
+
+    #[tokio::test]
+    async fn upsert_provider_updates_runtime_dispatch_immediately() {
+        let state = build_test_state().await;
+
+        let _ = upsert_provider(
+            State(state.clone()),
+            admin_headers(),
+            Json(gproxy_storage::ProviderWrite {
+                id: 1,
+                name: "demo".to_string(),
+                channel: "openai".to_string(),
+                settings_json: "{\"base_url\":\"https://api.openai.com\"}".to_string(),
+                dispatch_json: serde_json::json!({
+                    "rules": [
+                        {
+                            "route": {
+                                "operation": "generate_content",
+                                "protocol": "openai"
+                            },
+                            "implementation": "Unsupported"
+                        }
+                    ]
+                })
+                .to_string(),
+            }),
+        )
+        .await
+        .expect("upsert provider");
+
+        let dispatch = state
+            .engine()
+            .store()
+            .get_dispatch_table("demo")
+            .expect("runtime dispatch table");
+        let implementation = dispatch
+            .resolve(&RouteKey::new(
+                OperationFamily::GenerateContent,
+                ProtocolKind::OpenAi,
+            ))
+            .expect("generate_content route");
+
+        assert_eq!(*implementation, RouteImplementation::Unsupported);
     }
 }
