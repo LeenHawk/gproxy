@@ -11,6 +11,7 @@ use gproxy_server::{AppStateBuilder, GlobalConfig};
 use gproxy_storage::{SeaOrmStorage, StorageWriteEvent};
 
 mod workers;
+mod web;
 
 #[derive(Parser)]
 #[command(name = "gproxy", about = "High-performance LLM proxy server")]
@@ -318,7 +319,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("background workers started");
 
     // 14. Build router and start server
-    let app = gproxy_api::api_router(state);
+    let app = gproxy_api::api_router(state).merge(web::router());
     let bind_addr = format!("{}:{}", config.host, config.port);
     let listener = TcpListener::bind(&bind_addr).await?;
     tracing::info!(addr = %bind_addr, "gproxy listening");

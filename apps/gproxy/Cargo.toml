@@ -19,6 +19,7 @@ axum = { workspace = true }
 clap = { workspace = true }
 dashmap = { workspace = true }
 futures-util = { workspace = true }
+# Embedded console assets
 mime_guess = { workspace = true }
 rand = { workspace = true }
 rust-embed = { workspace = true }
