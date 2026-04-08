@@ -1,6 +1,10 @@
 import { Card } from "../components/ui";
 import type { NavItem } from "../components/Nav";
 import { ProvidersModule } from "../modules/admin/ProvidersModule";
+import { UsersModule } from "../modules/admin/UsersModule";
+import { MyKeysModule } from "../modules/user/MyKeysModule";
+import { MyQuotaModule } from "../modules/user/MyQuotaModule";
+import { MyUsageModule } from "../modules/user/MyUsageModule";
 
 export type UserRole = "admin" | "user";
 
@@ -28,6 +32,7 @@ export function buildAdminNavItems(t: TranslateFn): NavItem[] {
   return [
     { id: "dashboard", label: t("app.nav.dashboard") },
     { id: "providers", label: t("app.nav.providers") },
+    { id: "users", label: t("app.nav.users") },
     { id: "global-settings", label: t("app.nav.globalSettings") },
     { id: "my-keys", label: t("app.nav.myKeys") },
     { id: "my-quota", label: t("app.nav.myQuota") },
@@ -61,6 +66,8 @@ export function renderActiveModule(
         );
       case "providers":
         return <ProvidersModule sessionToken={sessionToken} notify={notify} />;
+      case "users":
+        return <UsersModule sessionToken={sessionToken} notify={notify} />;
       case "global-settings":
         return (
           <PlaceholderModule
@@ -69,26 +76,11 @@ export function renderActiveModule(
           />
         );
       case "my-keys":
-        return (
-          <PlaceholderModule
-            title={t("placeholder.myKeys.title")}
-            description={t("placeholder.description")}
-          />
-        );
+        return <MyKeysModule sessionToken={sessionToken} notify={notify} />;
       case "my-quota":
-        return (
-          <PlaceholderModule
-            title={t("placeholder.myQuota.title")}
-            description={t("placeholder.description")}
-          />
-        );
+        return <MyQuotaModule sessionToken={sessionToken} />;
       case "my-usage":
-        return (
-          <PlaceholderModule
-            title={t("placeholder.myUsage.title")}
-            description={t("placeholder.description")}
-          />
-        );
+        return <MyUsageModule sessionToken={sessionToken} />;
       default:
         return null;
     }
@@ -96,26 +88,11 @@ export function renderActiveModule(
 
   switch (activeModule) {
     case "my-keys":
-      return (
-        <PlaceholderModule
-          title={t("placeholder.myKeys.title")}
-          description={t("placeholder.description")}
-        />
-      );
+      return <MyKeysModule sessionToken={sessionToken} notify={notify} />;
     case "my-quota":
-      return (
-        <PlaceholderModule
-          title={t("placeholder.myQuota.title")}
-          description={t("placeholder.description")}
-        />
-      );
+      return <MyQuotaModule sessionToken={sessionToken} />;
     case "my-usage":
-      return (
-        <PlaceholderModule
-          title={t("placeholder.myUsage.title")}
-          description={t("placeholder.description")}
-        />
-      );
+      return <MyUsageModule sessionToken={sessionToken} />;
     default:
       return null;
   }
