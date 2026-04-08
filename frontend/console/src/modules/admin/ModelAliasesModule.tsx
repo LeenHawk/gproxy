@@ -26,6 +26,21 @@ export function ModelAliasesModule({
     model_id: "",
     enabled: true,
   });
+  const nextId = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
+    [rows],
+  );
+
+  const beginCreate = () => {
+    setSelectedAlias(null);
+    setForm({
+      id: String(nextId),
+      alias: "",
+      provider_id: providers[0] ? String(providers[0].id) : "",
+      model_id: "",
+      enabled: true,
+    });
+  };
 
   const load = async () => {
     const [providerRows, aliasRows] = await Promise.all([
@@ -47,6 +62,12 @@ export function ModelAliasesModule({
   useEffect(() => {
     void load().catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
   }, []);
+
+  useEffect(() => {
+    if (!selectedAlias && !form.id) {
+      beginCreate();
+    }
+  }, [form.id, nextId, providers, selectedAlias]);
 
   const save = async () => {
     try {
@@ -87,15 +108,15 @@ export function ModelAliasesModule({
     <Card title={t("modelAliases.title")}>
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-2">
-          {rows.map((row, index) => (
+          {rows.map((row) => (
             <div
-              key={row.alias}
+              key={row.id}
               className={`card-shell cursor-pointer ${row.alias === selectedAlias ? "nav-item-active" : ""}`}
               onClick={() => {
                 setSelectedAlias(row.alias);
                 const provider = providers.find((item) => item.name === row.provider_name);
                 setForm({
-                  id: String(index + 1),
+                  id: String(row.id),
                   alias: row.alias,
                   provider_id: provider ? String(provider.id) : "",
                   model_id: row.model_id,
@@ -109,19 +130,16 @@ export function ModelAliasesModule({
           ))}
         </div>
         <div className="card-shell space-y-3">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div>
-              <Label>{t("common.id")}</Label>
-              <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
-            </div>
-            <div>
-              <Label>{t("common.provider")}</Label>
-              <Select
-                value={form.provider_id}
-                onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))}
-                options={providers.map((provider) => ({ value: String(provider.id), label: provider.name }))}
-              />
-            </div>
+          <div className="flex justify-end">
+            <Button variant="neutral" onClick={beginCreate}>{t("common.create")}</Button>
+          </div>
+          <div>
+            <Label>{t("common.provider")}</Label>
+            <Select
+              value={form.provider_id}
+              onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))}
+              options={providers.map((provider) => ({ value: String(provider.id), label: provider.name }))}
+            />
           </div>
           <div>
             <Label>alias</Label>

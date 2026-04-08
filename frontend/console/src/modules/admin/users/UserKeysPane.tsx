@@ -46,7 +46,6 @@ export function UserKeysPane({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="font-semibold text-text">#{row.id}</div>
-                  {row.label ? <Badge variant="neutral">{row.label}</Badge> : null}
                   <Badge variant={row.enabled ? "success" : "danger"}>
                     {row.enabled ? t("common.enabled") : t("common.disabled")}
                   </Badge>

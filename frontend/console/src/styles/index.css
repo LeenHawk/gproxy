@@ -390,6 +390,28 @@ input {
   padding: 0.9rem 1rem;
 }
 
+.corner-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-surface-strong) 92%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.84rem;
+  line-height: 1;
+  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.corner-toggle:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

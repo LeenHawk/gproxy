@@ -388,7 +388,6 @@ export function ProvidersModule({
               canDelete={Boolean(selectedProvider)}
               labels={{
                 subtitle: t("providers.subtitle"),
-                id: t("providers.form.id"),
                 name: t("providers.form.name"),
                 channel: t("providers.form.channel"),
                 dispatchRules: t("providers.form.dispatchRules"),

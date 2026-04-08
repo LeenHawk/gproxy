@@ -163,6 +163,7 @@ pub async fn delete_model(
 /// Response row for model aliases from memory.
 #[derive(serde::Serialize)]
 pub struct MemoryModelAliasRow {
+    pub id: i64,
     pub alias: String,
     pub provider_name: String,
     pub model_id: String,
@@ -173,13 +174,22 @@ pub async fn query_model_aliases(
     headers: HeaderMap,
 ) -> Result<Json<Vec<MemoryModelAliasRow>>, HttpError> {
     authorize_admin(&headers, &state)?;
-    let aliases = state.model_aliases_snapshot();
+    let provider_names = resolve_provider_names(&state).await?;
+    let aliases = state
+        .storage()
+        .list_model_aliases(&gproxy_storage::ModelAliasQuery::default())
+        .await
+        .map_err(|e| HttpError::internal(e.to_string()))?;
     let rows: Vec<MemoryModelAliasRow> = aliases
         .iter()
-        .map(|(alias, target)| MemoryModelAliasRow {
-            alias: alias.clone(),
-            provider_name: target.provider_name.clone(),
-            model_id: target.model_id.clone(),
+        .map(|row| MemoryModelAliasRow {
+            id: row.id,
+            alias: row.alias.clone(),
+            provider_name: provider_names
+                .get(&row.provider_id)
+                .cloned()
+                .unwrap_or_else(|| row.provider_id.to_string()),
+            model_id: row.model_id.clone(),
         })
         .collect();
     Ok(Json(rows))

@@ -40,10 +40,6 @@ export function UserListPane({
       {showUserEditor ? (
         <div className="panel-shell panel-shell-compact space-y-4">
           <div>
-            <Label>{t("common.id")}</Label>
-            <Input value={form.id} onChange={(value) => onChangeForm({ id: value })} />
-          </div>
-          <div>
             <Label>{t("common.name")}</Label>
             <Input value={form.name} onChange={(value) => onChangeForm({ name: value })} />
           </div>

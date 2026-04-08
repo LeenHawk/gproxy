@@ -26,7 +26,6 @@ export function ConfigTab({
   channelOptions: Array<{ value: string; label: string }>;
   labels: {
     subtitle: string;
-    id: string;
     name: string;
     channel: string;
     dispatchRules: string;
@@ -71,15 +70,9 @@ export function ConfigTab({
 
   return (
     <Card title={labels.subtitle}>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div>
-          <Label>{labels.id}</Label>
-          <Input value={form.id} onChange={(value) => onChange({ id: value })} />
-        </div>
-        <div>
-          <Label>{labels.name}</Label>
-          <Input value={form.name} onChange={(value) => onChange({ name: value })} />
-        </div>
+      <div>
+        <Label>{labels.name}</Label>
+        <Input value={form.name} onChange={(value) => onChange({ name: value })} />
       </div>
       <div className="mt-4">
         <Label>{labels.channel}</Label>

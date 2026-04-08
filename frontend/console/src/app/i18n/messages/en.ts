@@ -43,6 +43,7 @@ export const enMessages: Record<string, string> = {
   "login.submitting": "Signing in...",
   "common.loading": "Loading...",
   "common.save": "Save",
+  "common.create": "Create",
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.cancel": "Cancel",

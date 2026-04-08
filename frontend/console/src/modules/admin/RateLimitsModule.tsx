@@ -27,6 +27,22 @@ export function RateLimitsModule({
     rpd: "",
     total_tokens: "",
   });
+  const nextId = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
+    [rows],
+  );
+
+  const beginCreate = () => {
+    setSelectedKey(null);
+    setForm({
+      id: String(nextId),
+      user_id: users[0] ? String(users[0].id) : "",
+      model_pattern: "",
+      rpm: "",
+      rpd: "",
+      total_tokens: "",
+    });
+  };
 
   const load = async () => {
     const [userRows, limitRows] = await Promise.all([
@@ -40,6 +56,12 @@ export function RateLimitsModule({
   useEffect(() => {
     void load().catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
   }, []);
+
+  useEffect(() => {
+    if (!selectedKey && !form.id) {
+      beginCreate();
+    }
+  }, [form.id, nextId, selectedKey, users]);
 
   const save = async () => {
     try {
@@ -89,7 +111,7 @@ export function RateLimitsModule({
                 onClick={() => {
                   setSelectedKey(key);
                   setForm({
-                    id: "1",
+                    id: String(row.id),
                     user_id: String(row.user_id),
                     model_pattern: row.model_pattern,
                     rpm: row.rpm?.toString() ?? "",
@@ -105,9 +127,8 @@ export function RateLimitsModule({
           })}
         </div>
         <div className="card-shell space-y-3">
-          <div>
-            <Label>{t("common.id")}</Label>
-            <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
+          <div className="flex justify-end">
+            <Button variant="neutral" onClick={beginCreate}>{t("common.create")}</Button>
           </div>
           <div>
             <Label>{t("common.user")}</Label>

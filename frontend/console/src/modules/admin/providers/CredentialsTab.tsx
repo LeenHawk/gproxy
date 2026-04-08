@@ -116,12 +116,6 @@ export function CredentialsTab({
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
-                        variant="neutral"
-                        onClick={() => setExpandedKey(expanded ? null : credentialKey)}
-                      >
-                        {expanded ? "▾" : "▸"}
-                      </Button>
-                      <Button
                         variant={status?.status === "dead" ? "danger" : "primary"}
                         onClick={() => onUpdateStatus(row, nextStatus)}
                       >
@@ -198,6 +192,16 @@ export function CredentialsTab({
                       ) : null}
                     </div>
                   ) : null}
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      className="corner-toggle"
+                      aria-label={expanded ? labels.collapseJson : labels.expandJson}
+                      onClick={() => setExpandedKey(expanded ? null : credentialKey)}
+                    >
+                      {expanded ? "▾" : "▸"}
+                    </button>
+                  </div>
                 </div>
               );
             })}

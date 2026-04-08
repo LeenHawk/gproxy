@@ -21,6 +21,20 @@ export function PermissionsModule({
   const [rows, setRows] = useState<MemoryPermissionRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [form, setForm] = useState({ id: "", user_id: "", provider_id: "", model_pattern: "" });
+  const nextId = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
+    [rows],
+  );
+
+  const beginCreate = () => {
+    setSelectedId(null);
+    setForm({
+      id: String(nextId),
+      user_id: users[0] ? String(users[0].id) : "",
+      provider_id: "",
+      model_pattern: "",
+    });
+  };
 
   const load = async () => {
     const [userRows, providerRows, permissionRows] = await Promise.all([
@@ -36,6 +50,12 @@ export function PermissionsModule({
   useEffect(() => {
     void load().catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
   }, []);
+
+  useEffect(() => {
+    if (!selectedId && !form.id) {
+      beginCreate();
+    }
+  }, [form.id, nextId, selectedId, users]);
 
   const save = async () => {
     try {
@@ -87,9 +107,8 @@ export function PermissionsModule({
           ))}
         </div>
         <div className="card-shell space-y-3">
-          <div>
-            <Label>{t("common.id")}</Label>
-            <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
+          <div className="flex justify-end">
+            <Button variant="neutral" onClick={beginCreate}>{t("common.create")}</Button>
           </div>
           <div>
             <Label>{t("common.user")}</Label>

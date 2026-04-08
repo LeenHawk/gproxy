@@ -30,6 +30,23 @@ export function ModelsModule({
   });
 
   const selected = rows.find((row) => row.id === selectedId) ?? null;
+  const nextId = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
+    [rows],
+  );
+
+  const beginCreate = () => {
+    setSelectedId(null);
+    setForm({
+      id: String(nextId),
+      provider_id: providers[0] ? String(providers[0].id) : "",
+      model_id: "",
+      display_name: "",
+      enabled: true,
+      price_each_call: "",
+      price_tiers_json: "[]",
+    });
+  };
 
   const load = async () => {
     const [providerRows, modelRows] = await Promise.all([
@@ -51,6 +68,12 @@ export function ModelsModule({
   useEffect(() => {
     void load().catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
   }, []);
+
+  useEffect(() => {
+    if (!selectedId && !form.id) {
+      beginCreate();
+    }
+  }, [form.id, selectedId, nextId, providers]);
 
   const save = async () => {
     try {
@@ -116,19 +139,16 @@ export function ModelsModule({
           ))}
         </div>
         <div className="card-shell space-y-3">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div>
-              <Label>{t("common.id")}</Label>
-              <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
-            </div>
-            <div>
-              <Label>{t("common.provider")}</Label>
-              <Select
-                value={form.provider_id}
-                onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))}
-                options={providers.map((provider) => ({ value: String(provider.id), label: `${provider.name} (#${provider.id})` }))}
-              />
-            </div>
+          <div className="flex justify-end">
+            <Button variant="neutral" onClick={beginCreate}>{t("common.create")}</Button>
+          </div>
+          <div>
+            <Label>{t("common.provider")}</Label>
+            <Select
+              value={form.provider_id}
+              onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))}
+              options={providers.map((provider) => ({ value: String(provider.id), label: `${provider.name} (#${provider.id})` }))}
+            />
           </div>
           <div>
             <Label>{t("common.modelId")}</Label>

@@ -30,6 +30,7 @@ async fn resolve_rate_limit_id(
 /// Response row for rate limits from memory (no timestamps or row id).
 #[derive(serde::Serialize)]
 pub struct MemoryRateLimitRow {
+    pub id: i64,
     pub user_id: i64,
     pub model_pattern: String,
     pub rpm: Option<i32>,
@@ -50,27 +51,25 @@ pub async fn query_rate_limits(
     Json(query): Json<RateLimitQueryParams>,
 ) -> Result<Json<Vec<MemoryRateLimitRow>>, HttpError> {
     authorize_admin(&headers, &state)?;
-    let limits = state.user_rate_limits_snapshot();
-    let mut rows: Vec<MemoryRateLimitRow> = Vec::new();
-    for (&user_id, rules) in limits.iter() {
-        match &query.user_id {
-            Some(Scope::Eq(v)) if *v != user_id => continue,
-            Some(Scope::In(vs)) if !vs.contains(&user_id) => continue,
-            _ => {}
-        }
-        for rule in rules {
-            rows.push(MemoryRateLimitRow {
-                user_id,
-                model_pattern: rule.model_pattern.clone(),
-                rpm: rule.rpm,
-                rpd: rule.rpd,
-                total_tokens: rule.total_tokens,
-            });
-        }
-    }
-    if let Some(limit) = query.limit {
-        rows.truncate(limit);
-    }
+    let rows = state
+        .storage()
+        .list_user_rate_limits(&gproxy_storage::UserRateLimitQuery {
+            user_id: query.user_id.unwrap_or(Scope::All),
+            limit: query.limit.map(|value| value as u64),
+            ..Default::default()
+        })
+        .await
+        .map_err(|e| HttpError::internal(e.to_string()))?
+        .into_iter()
+        .map(|row| MemoryRateLimitRow {
+            id: row.id,
+            user_id: row.user_id,
+            model_pattern: row.model_pattern,
+            rpm: row.rpm,
+            rpd: row.rpd,
+            total_tokens: row.total_tokens,
+        })
+        .collect();
     Ok(Json(rows))
 }
 

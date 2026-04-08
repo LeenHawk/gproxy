@@ -158,6 +158,7 @@ export type ModelWrite = {
 };
 
 export type MemoryModelAliasRow = {
+  id: number;
   alias: string;
   provider_name: string;
   model_id: string;
@@ -272,6 +273,7 @@ export type RateLimitQueryParams = {
 };
 
 export type MemoryRateLimitRow = {
+  id: number;
   user_id: number;
   model_pattern: string;
   rpm?: number | null;

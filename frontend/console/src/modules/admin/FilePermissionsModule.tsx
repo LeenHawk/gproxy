@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Button, Card, Input, Label, Select } from "../../components/ui";
+import { Button, Card, Label, Select } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import { parseRequiredI64 } from "../../lib/form";
@@ -21,6 +21,19 @@ export function FilePermissionsModule({
   const [rows, setRows] = useState<MemoryFilePermissionRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [form, setForm] = useState({ id: "", user_id: "", provider_id: "" });
+  const nextId = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
+    [rows],
+  );
+
+  const beginCreate = () => {
+    setSelectedId(null);
+    setForm({
+      id: String(nextId),
+      user_id: users[0] ? String(users[0].id) : "",
+      provider_id: providers[0] ? String(providers[0].id) : "",
+    });
+  };
 
   const load = async () => {
     const [userRows, providerRows, permissionRows] = await Promise.all([
@@ -36,6 +49,12 @@ export function FilePermissionsModule({
   useEffect(() => {
     void load().catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
   }, []);
+
+  useEffect(() => {
+    if (!selectedId && !form.id) {
+      beginCreate();
+    }
+  }, [form.id, nextId, providers, selectedId, users]);
 
   const save = async () => {
     try {
@@ -81,9 +100,8 @@ export function FilePermissionsModule({
           ))}
         </div>
         <div className="card-shell space-y-3">
-          <div>
-            <Label>{t("common.id")}</Label>
-            <Input value={form.id} onChange={(value) => setForm((current) => ({ ...current, id: value }))} />
+          <div className="flex justify-end">
+            <Button variant="neutral" onClick={beginCreate}>{t("common.create")}</Button>
           </div>
           <div>
             <Label>{t("common.user")}</Label>

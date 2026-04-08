@@ -43,6 +43,7 @@ export const zhMessages: Record<string, string> = {
   "login.submitting": "登录中...",
   "common.loading": "加载中...",
   "common.save": "保存",
+  "common.create": "新建",
   "common.delete": "删除",
   "common.edit": "编辑",
   "common.cancel": "取消",

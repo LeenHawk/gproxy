@@ -53,7 +53,6 @@ export function MyKeysModule({
         {rows.map((row, index) => (
           <div key={`${row.api_key}-${index}`} className="record-item">
             <div className="flex flex-wrap items-center gap-2">
-              {row.label ? <Badge variant="neutral">{row.label}</Badge> : null}
               <Badge variant={row.enabled ? "success" : "danger"}>
                 {row.enabled ? t("common.enabled") : t("common.disabled")}
               </Badge>
