@@ -16,12 +16,6 @@ pnpm install
 pnpm build
 ```
 
-Multi-instance build with the Redis backend enabled:
-
-```bash
-cargo build -p gproxy --release --features redis
-```
-
 The output binary is located at `target/release/gproxy`.
 
 ### Embedded Console
@@ -173,44 +167,6 @@ After establishing the connection, `SeaOrmStorage::connect()` will:
 1. Optionally load the database encryptor corresponding to `DATABASE_SECRET_KEY`.
 2. Apply per-database connection tuning parameters.
 3. Connect to the database and run `sync()` to synchronize the schema.
-
-### Multi-Instance Deployment
-
-#### Basic Approach
-
-The repository supports multi-instance deployment with a shared database and an optional shared Redis backend:
-
-1. Use the same database DSN across all instances.
-2. Build all instances with `--features redis`.
-3. Set the same `GPROXY_REDIS_URL` on all instances.
-
-#### Current Redis Backend Coverage
-
-Based on the actual injection logic in `apps/gproxy/src/main.rs`, the current binary enables at runtime:
-
-- `RedisQuota`
-- `RedisRateLimit`
-
-Although `RedisAffinity` is also implemented in `gproxy-core`, the current `apps/gproxy` binary does not inject it into `AppStateBuilder`, so it is not an enabled shared backend at this time.
-
-#### What Is Shared vs. Local
-
-Shared state:
-
-- Persisted data in the database: `global_settings`, providers, credentials, models, aliases, users, keys, permissions, file permissions, usages, request logs, credential statuses, user file records, etc.
-- Runtime data in Redis: user quota reservation / settle state, and rate-limit counting windows.
-
-Local state:
-
-- Each process's own `AppState` in-memory snapshot: Identity, Policy, Routing, File, Config, QuotaService.
-- SDK engine, upstream connection pool, worker buffers, shutdown signals, logging context.
-- Rate-limit counters when Redis is not enabled.
-
-Synchronization behavior inferred from source:
-
-- Caches for providers, models, aliases, users, keys, permissions, and file permissions are primarily refreshed on startup or via `POST /admin/reload`.
-- Quota additionally has a `QuotaReconciler` that runs every 30 seconds, reconciling database quotas back into local memory.
-- Therefore, in a multi-instance scenario, if you change admin configuration on one instance, other instances typically need to execute `/admin/reload` or restart to see the updated cache immediately; quota is one of the few exceptions with periodic self-healing synchronization.
 
 ### Graceful Shutdown
 

@@ -8,3 +8,5 @@ docs/
 node_modules/
 apps/gproxy/web/console/*
 !apps/gproxy/web/console/.gitkeep
+
+data

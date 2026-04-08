@@ -16,12 +16,6 @@ pnpm install
 pnpm build
 ```
 
-多实例构建，启用 Redis backend：
-
-```bash
-cargo build -p gproxy --release --features redis
-```
-
 构建产物位于 `target/release/gproxy`。
 
 ### 内嵌控制台
@@ -173,44 +167,6 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 1. 可选加载 `DATABASE_SECRET_KEY` 对应的数据库加密器。
 2. 按数据库类型应用连接优化参数。
 3. 连接数据库并执行 `sync()` 以同步 schema。
-
-### 多实例部署
-
-#### 基本方式
-
-当前仓库支持"共享数据库 + 可选共享 Redis backend"的多实例部署：
-
-1. 使用同一套数据库 DSN。
-2. 所有实例都编译 `--features redis`。
-3. 所有实例都设置同一个 `GPROXY_REDIS_URL`。
-
-#### Redis backend 当前覆盖范围
-
-按 `apps/gproxy/src/main.rs` 的实际注入逻辑，当前二进制会在运行时启用：
-
-- `RedisQuota`
-- `RedisRateLimit`
-
-`gproxy-core` 里虽然还实现了 `RedisAffinity`，但当前 `apps/gproxy` 没有把它注入 `AppStateBuilder`，所以本仓库现状下它还不是已启用的共享 backend。
-
-#### 什么是共享的，什么是本地的
-
-共享状态：
-
-- 数据库中的持久化数据：`global_settings`、providers、credentials、models、aliases、users、keys、permissions、file permissions、usages、request logs、credential statuses、用户文件记录等。
-- Redis 中的运行态数据：用户 quota reservation / settle 状态，以及 rate-limit 计数窗口。
-
-本地状态：
-
-- 每个进程自己的 `AppState` 内存快照：Identity、Policy、Routing、File、Config、QuotaService。
-- SDK engine、上游连接池、worker 缓冲区、shutdown 信号、日志上下文。
-- 未启用 Redis 时的 rate-limit counter。
-
-根据源码可推断出的同步行为：
-
-- providers、models、aliases、users、keys、permissions、file permissions 这些缓存，主要在启动或 `POST /admin/reload` 时刷新。
-- quota 额外有一个每 30 秒运行一次的 `QuotaReconciler`，会把数据库配额修正回本地内存。
-- 因此，多实例场景下如果你在某个实例上改了管理配置，其他实例通常还需要执行 `/admin/reload` 或重启，才能立刻看到新缓存；quota 是少数有周期性自愈同步的例外。
 
 ### Graceful Shutdown
 
