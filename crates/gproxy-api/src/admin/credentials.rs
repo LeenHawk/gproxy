@@ -46,6 +46,7 @@ pub struct CredentialQueryParams {
 
 #[derive(Serialize)]
 pub struct CredentialRow {
+    pub id: i64,
     pub provider: String,
     pub index: usize,
     pub credential: serde_json::Value,
@@ -69,14 +70,25 @@ pub async fn query_credentials(
         .map_err(|e| HttpError::internal(e.to_string()))?;
     let rows = creds
         .into_iter()
-        .map(|c| CredentialRow {
-            provider: c.provider,
-            index: c.index,
-            // This is an admin/operator surface. Return the raw channel
-            // credential so the management UI can inspect and edit it.
-            credential: c.credential,
+        .map(|c| {
+            let credential_id = state
+                .credential_id_for_index(&c.provider, c.index)
+                .ok_or_else(|| {
+                    HttpError::internal(format!(
+                        "credential id missing for provider '{}' index {}",
+                        c.provider, c.index
+                    ))
+                })?;
+            Ok(CredentialRow {
+                id: credential_id,
+                provider: c.provider,
+                index: c.index,
+                // This is an admin/operator surface. Return the raw channel
+                // credential so the management UI can inspect and edit it.
+                credential: c.credential,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, HttpError>>()?;
     Ok(Json(rows))
 }
 

@@ -412,6 +412,46 @@ input {
   background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
 }
 
+.search-select {
+  position: relative;
+}
+
+.search-select-list {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border: 1px solid color-mix(in srgb, var(--border) 95%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--bg-surface-strong) 96%, transparent);
+  box-shadow: var(--shadow);
+  max-height: 220px;
+  overflow: auto;
+  padding: 0.35rem;
+}
+
+.search-select-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 0.7rem;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+}
+
+.search-select-item:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-soft));
+}
+
+.search-select-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 0.55rem 0.7rem;
+}
+
 .badge-button {
   border: 0;
   background: transparent;

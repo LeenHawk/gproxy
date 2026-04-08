@@ -96,6 +96,7 @@ export type CredentialQueryParams = {
 };
 
 export type CredentialRow = {
+  id: number;
   provider: string;
   index: number;
   credential: Record<string, unknown>;

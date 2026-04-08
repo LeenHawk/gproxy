@@ -53,9 +53,8 @@ export function CredentialsTab({
     configured: string;
     statusNone: string;
     statusHealthy: string;
+    statusCooldown: string;
     statusDead: string;
-    statusAvailable: string;
-    statusUnavailable: string;
     expandJson: string;
     collapseJson: string;
     usageFetch: string;
@@ -83,9 +82,15 @@ export function CredentialsTab({
               const expanded = expandedKey === credentialKey;
               const summary = summarizeCredential(row.credential);
               const status = statusByIndex.get(row.index) ?? null;
-              const healthVariant = status?.status === "dead" ? "danger" : "success";
-              const availabilityVariant = status?.available === false ? "danger" : "accent";
-              const nextStatus = status?.status === "dead" ? "healthy" : "dead";
+              const statusValue = status?.status ?? "healthy";
+              const healthVariant =
+                statusValue === "unavailable"
+                  ? "danger"
+                  : statusValue === "cooldown"
+                    ? "accent"
+                    : "success";
+              const nextStatus =
+                statusValue === "unavailable" || statusValue === "cooldown" ? "healthy" : "dead";
               const usageExpanded = expandedUsageKey === credentialKey;
               const usageRows = usageRowsByCredential[row.index] ?? [];
               const usageRaw = usageByCredential[row.index] ?? "";
@@ -96,25 +101,24 @@ export function CredentialsTab({
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-semibold">#{row.index} · {summary.primary}</div>
-                      </div>
-                      <div className="mt-2 flex flex-col items-start gap-2">
                         <button
                           type="button"
                           className="badge-button"
                           onClick={() => onUpdateStatus(row, nextStatus)}
                         >
                           <Badge variant={healthVariant}>
-                            {status?.status === "dead" ? labels.statusDead : labels.statusHealthy}
+                            {statusValue === "unavailable"
+                              ? labels.statusDead
+                              : statusValue === "cooldown"
+                                ? labels.statusCooldown
+                                : labels.statusHealthy}
                           </Badge>
                         </button>
-                        <Badge variant={availabilityVariant}>
-                          {status?.available === false ? labels.statusUnavailable : labels.statusAvailable}
-                        </Badge>
                       </div>
                       {summary.secondary.length > 0 ? (
-                        <div className="mt-1 text-xs text-muted">{summary.secondary.join(" · ")}</div>
+                        <div className="mt-2 text-xs text-muted">{summary.secondary.join(" · ")}</div>
                       ) : (
-                        <div className="mt-1 text-xs text-muted">{labels.configured}</div>
+                        <div className="mt-2 text-xs text-muted">{labels.configured}</div>
                       )}
                       {expanded ? (
                         <pre className="mt-3 overflow-auto text-xs text-muted">

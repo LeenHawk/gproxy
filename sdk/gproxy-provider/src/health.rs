@@ -11,6 +11,15 @@ pub trait CredentialHealth: Send + Sync + Clone + Default + 'static {
     /// Pass `None` if the request doesn't specify a model.
     fn is_available(&self, model: Option<&str>) -> bool;
 
+    /// Human-readable health category for operator surfaces.
+    fn status(&self, model: Option<&str>) -> &'static str {
+        if self.is_available(model) {
+            "healthy"
+        } else {
+            "unavailable"
+        }
+    }
+
     /// Record a failed upstream response.
     fn record_error(&mut self, status: u16, model: Option<&str>, retry_after_ms: Option<u64>);
 
@@ -27,6 +36,14 @@ pub struct SimpleHealth {
 impl CredentialHealth for SimpleHealth {
     fn is_available(&self, _model: Option<&str>) -> bool {
         !self.dead
+    }
+
+    fn status(&self, _model: Option<&str>) -> &'static str {
+        if self.dead {
+            "unavailable"
+        } else {
+            "healthy"
+        }
     }
 
     fn record_error(&mut self, status: u16, _model: Option<&str>, _retry_after_ms: Option<u64>) {
@@ -75,6 +92,28 @@ impl CredentialHealth for ModelCooldownHealth {
         true
     }
 
+    fn status(&self, model: Option<&str>) -> &'static str {
+        if self.dead {
+            return "unavailable";
+        }
+        let now = Instant::now();
+        if self.global_cooldown.is_some_and(|until| now < until) {
+            return "cooldown";
+        }
+        if let Some(model) = model {
+            if self
+                .model_cooldowns
+                .get(model)
+                .is_some_and(|until| now < *until)
+            {
+                return "cooldown";
+            }
+        } else if self.model_cooldowns.values().any(|until| now < *until) {
+            return "cooldown";
+        }
+        "healthy"
+    }
+
     fn record_error(&mut self, status: u16, model: Option<&str>, retry_after_ms: Option<u64>) {
         if status == 401 || status == 403 {
             self.dead = true;
@@ -101,5 +140,28 @@ impl CredentialHealth for ModelCooldownHealth {
     fn record_success(&mut self, _model: Option<&str>) {
         self.dead = false;
         self.backoff_count = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, Instant};
+
+    use super::{CredentialHealth, ModelCooldownHealth};
+
+    #[test]
+    fn model_cooldown_health_status_reports_cooldown() {
+      let mut health = ModelCooldownHealth::default();
+      health.global_cooldown = Some(Instant::now() + Duration::from_secs(30));
+      assert_eq!(health.status(None), "cooldown");
+    }
+
+    #[test]
+    fn model_cooldown_health_status_reports_unavailable_when_dead() {
+      let health = ModelCooldownHealth {
+        dead: true,
+        ..Default::default()
+      };
+      assert_eq!(health.status(None), "unavailable");
     }
 }

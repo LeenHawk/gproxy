@@ -1,11 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Button, Card, Input, Label } from "../../components/ui";
+import { Button, Card, Input, Label, SearchableSelect, Select } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
-import type { DownstreamRequestQueryRow, UpstreamRequestQueryRow } from "../../lib/types/admin";
-import { buildDownstreamRequestQuery } from "./requests-filter";
+import type {
+  CredentialRow,
+  DownstreamRequestQueryRow,
+  MemoryUserKeyRow,
+  MemoryUserRow,
+  ProviderRow,
+  UpstreamRequestQueryRow,
+} from "../../lib/types/admin";
+import {
+  KNOWN_DOWNSTREAM_REQUEST_PATHS,
+  KNOWN_UPSTREAM_REQUEST_TARGETS,
+  buildDownstreamRequestQuery,
+  buildUpstreamRequestQuery,
+} from "./requests-filter";
 
 export function RequestsModule({
   sessionToken,
@@ -22,6 +34,93 @@ export function RequestsModule({
   const [includeBody, setIncludeBody] = useState(false);
   const [downstreamRows, setDownstreamRows] = useState<DownstreamRequestQueryRow[]>([]);
   const [upstreamRows, setUpstreamRows] = useState<UpstreamRequestQueryRow[]>([]);
+  const [users, setUsers] = useState<MemoryUserRow[]>([]);
+  const [userKeys, setUserKeys] = useState<MemoryUserKeyRow[]>([]);
+  const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [credentials, setCredentials] = useState<CredentialRow[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedUserKeyId, setSelectedUserKeyId] = useState("");
+  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [selectedCredentialId, setSelectedCredentialId] = useState("");
+
+  useEffect(() => {
+    void Promise.all([
+      apiJson<MemoryUserRow[]>("/admin/users/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+      apiJson<MemoryUserKeyRow[]>("/admin/user-keys/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+      apiJson<ProviderRow[]>("/admin/providers/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+      apiJson<CredentialRow[]>("/admin/credentials/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      }),
+    ])
+      .then(([userRows, userKeyRows, providerRows, credentialRows]) => {
+        setUsers(userRows);
+        setUserKeys(userKeyRows);
+        setProviders(providerRows);
+        setCredentials(credentialRows);
+      })
+      .catch((error) => notify("error", error instanceof Error ? error.message : String(error)));
+  }, [headers, notify]);
+
+  const downstreamPathOptions = useMemo(
+    () => KNOWN_DOWNSTREAM_REQUEST_PATHS.map((value) => ({ value, label: value })),
+    [],
+  );
+  const upstreamPathOptions = useMemo(
+    () => KNOWN_UPSTREAM_REQUEST_TARGETS.map((value) => ({ value, label: value })),
+    [],
+  );
+  const userOptions = useMemo(
+    () => [
+      { value: "", label: `${t("common.all")} ${t("common.user")}` },
+      ...users.map((user) => ({ value: String(user.id), label: `${user.name} (#${user.id})` })),
+    ],
+    [t, users],
+  );
+  const userKeyOptions = useMemo(
+    () => [
+      { value: "", label: `${t("common.all")} ${t("app.nav.myKeys")}` },
+      ...userKeys
+        .filter((row) => !selectedUserId || String(row.user_id) === selectedUserId)
+        .map((row) => ({ value: String(row.id), label: `#${row.id} · user #${row.user_id}` })),
+    ],
+    [selectedUserId, t, userKeys],
+  );
+  const providerOptions = useMemo(
+    () => [
+      { value: "", label: `${t("common.all")} ${t("common.provider")}` },
+      ...providers.map((provider) => ({ value: String(provider.id), label: `${provider.name} (#${provider.id})` })),
+    ],
+    [providers, t],
+  );
+  const credentialOptions = useMemo(
+    () => [
+      { value: "", label: `${t("common.all")} ${t("providers.tab.credentials")}` },
+      ...credentials
+        .filter((row) => {
+          if (!selectedProviderId) {
+            return true;
+          }
+          const provider = providers.find((item) => item.name === row.provider);
+          return provider ? String(provider.id) === selectedProviderId : false;
+        })
+        .map((row) => ({ value: String(row.id), label: `${row.provider} #${row.index}` })),
+    ],
+    [credentials, providers, selectedProviderId, t],
+  );
 
   const query = async () => {
     try {
@@ -31,6 +130,8 @@ export function RequestsModule({
           headers,
           body: JSON.stringify(
             buildDownstreamRequestQuery({
+              user_id: selectedUserId,
+              user_key_id: selectedUserKeyId,
               request_path_contains: pathFilter,
               limit,
               include_body: includeBody,
@@ -42,10 +143,15 @@ export function RequestsModule({
         const rows = await apiJson<UpstreamRequestQueryRow[]>("/admin/requests/upstream/query", {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            ...(limit.trim() ? { limit: Number(limit) } : {}),
-            include_body: includeBody,
-          }),
+          body: JSON.stringify(
+            buildUpstreamRequestQuery({
+              provider_id: selectedProviderId,
+              credential_id: selectedCredentialId,
+              request_url_contains: pathFilter,
+              limit,
+              include_body: includeBody,
+            }),
+          ),
         });
         setUpstreamRows(rows);
       }
@@ -87,9 +193,38 @@ export function RequestsModule({
           </Button>
         </div>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
-          <div>
-            <Label>{tab === "downstream" ? t("requests.requestPathContains") : t("requests.pathFilter")}</Label>
-            <Input value={pathFilter} onChange={setPathFilter} />
+          <div className="grid gap-4 md:grid-cols-2">
+            {tab === "downstream" ? (
+              <>
+                <div>
+                  <Label>{t("common.user")}</Label>
+                  <Select value={selectedUserId} onChange={setSelectedUserId} options={userOptions} />
+                </div>
+                <div>
+                  <Label>{t("app.nav.myKeys")}</Label>
+                  <Select value={selectedUserKeyId} onChange={setSelectedUserKeyId} options={userKeyOptions} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Label>{t("common.provider")}</Label>
+                  <Select value={selectedProviderId} onChange={setSelectedProviderId} options={providerOptions} />
+                </div>
+                <div>
+                  <Label>{t("providers.tab.credentials")}</Label>
+                  <Select value={selectedCredentialId} onChange={setSelectedCredentialId} options={credentialOptions} />
+                </div>
+              </>
+            )}
+            <div className="md:col-span-2">
+              <Label>{tab === "downstream" ? t("requests.requestPathContains") : t("requests.pathFilter")}</Label>
+              <SearchableSelect
+                value={pathFilter}
+                onChange={setPathFilter}
+                options={tab === "downstream" ? downstreamPathOptions : upstreamPathOptions}
+              />
+            </div>
           </div>
           <div>
             <Label>{t("common.limit")}</Label>

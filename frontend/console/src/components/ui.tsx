@@ -1,4 +1,12 @@
-import type { MouseEventHandler, ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEventHandler,
+  type MouseEventHandler,
+  type ReactNode,
+} from "react";
 
 export function Card({
   title,
@@ -133,5 +141,105 @@ export function Select({
         </option>
       ))}
     </select>
+  );
+}
+
+export function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  noResultLabel = "No matches",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  disabled?: boolean;
+  noResultLabel?: string;
+}) {
+  const blurTimer = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(
+    () => () => {
+      if (blurTimer.current !== null) {
+        window.clearTimeout(blurTimer.current);
+      }
+    },
+    [],
+  );
+
+  const filteredOptions = useMemo(() => {
+    const needle = value.trim().toLowerCase();
+    if (!needle) {
+      return options;
+    }
+    return options.filter(
+      (item) =>
+        item.label.toLowerCase().includes(needle) || item.value.toLowerCase().includes(needle),
+    );
+  }, [options, value]);
+
+  const handleBlur = () => {
+    blurTimer.current = window.setTimeout(() => {
+      setOpen(false);
+    }, 120);
+  };
+
+  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (event.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (event.key === "Enter") {
+      const first = filteredOptions[0];
+      if (first) {
+        event.preventDefault();
+        onChange(first.value);
+        setOpen(false);
+      }
+    }
+  };
+
+  return (
+    <div className="search-select">
+      <input
+        className="input"
+        value={value}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+      />
+      {open && !disabled ? (
+        <div className="search-select-list">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                className="search-select-item"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(item.value);
+                  setOpen(false);
+                }}
+              >
+                {item.label}
+              </button>
+            ))
+          ) : (
+            <div className="search-select-empty">{noResultLabel}</div>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }

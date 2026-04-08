@@ -726,13 +726,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             .enumerate()
             .map(|(index, h)| {
                 let available = h.is_available(None);
-                let status = if !available {
-                    // Check if dead by testing with is_available after a hypothetical cooldown
-                    // Simple heuristic: if not available, it's either dead or in cooldown
-                    "unavailable".to_string()
-                } else {
-                    "healthy".to_string()
-                };
+                let status = h.status(None).to_string();
                 CredentialHealthSnapshot {
                     provider: self.name.clone(),
                     index,
