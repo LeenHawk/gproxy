@@ -126,7 +126,9 @@ function AppFrame() {
     return role === "admin" ? buildAdminNavItems(t) : buildUserNavItems(t);
   }, [role, t]);
 
-  const content = role ? renderActiveModule(role, activeModule, t) : null;
+  const content = role && session
+    ? renderActiveModule(role, activeModule, t, session.sessionToken, notify)
+    : null;
 
   if (restoringSession) {
     return (

@@ -1,5 +1,6 @@
 import { Card } from "../components/ui";
 import type { NavItem } from "../components/Nav";
+import { ProvidersModule } from "../modules/admin/ProvidersModule";
 
 export type UserRole = "admin" | "user";
 
@@ -26,6 +27,7 @@ export function defaultModule(role: UserRole) {
 export function buildAdminNavItems(t: TranslateFn): NavItem[] {
   return [
     { id: "dashboard", label: t("app.nav.dashboard") },
+    { id: "providers", label: t("app.nav.providers") },
     { id: "global-settings", label: t("app.nav.globalSettings") },
     { id: "my-keys", label: t("app.nav.myKeys") },
     { id: "my-quota", label: t("app.nav.myQuota") },
@@ -41,7 +43,13 @@ export function buildUserNavItems(t: TranslateFn): NavItem[] {
   ];
 }
 
-export function renderActiveModule(role: UserRole, activeModule: string, t: TranslateFn) {
+export function renderActiveModule(
+  role: UserRole,
+  activeModule: string,
+  t: TranslateFn,
+  sessionToken: string,
+  notify: (kind: "success" | "error" | "info", message: string) => void,
+) {
   if (role === "admin") {
     switch (activeModule) {
       case "dashboard":
@@ -51,6 +59,8 @@ export function renderActiveModule(role: UserRole, activeModule: string, t: Tran
             description={t("placeholder.description")}
           />
         );
+      case "providers":
+        return <ProvidersModule sessionToken={sessionToken} notify={notify} />;
       case "global-settings":
         return (
           <PlaceholderModule

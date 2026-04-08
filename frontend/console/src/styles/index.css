@@ -266,7 +266,23 @@ input {
   padding: 0.7rem 0.85rem;
 }
 
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--bg-surface-strong) 90%, transparent);
+  color: var(--text);
+  padding: 0.7rem 0.85rem;
+}
+
 .input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  outline-offset: 1px;
+}
+
+.select:focus,
+.textarea:focus {
   outline: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
   outline-offset: 1px;
 }
