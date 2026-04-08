@@ -1,5 +1,5 @@
 import { useI18n } from "../../../app/i18n";
-import { Button } from "../../../components/ui";
+import { Badge, Button } from "../../../components/ui";
 import type { MemoryUserKeyRow, MemoryUserRow } from "../../../lib/types/admin";
 
 export function UserKeysPane({
@@ -44,14 +44,14 @@ export function UserKeysPane({
           <div key={row.id} className="record-item">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="font-semibold text-text">#{row.id}</div>
-                <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
-                <div className="text-xs text-muted">
-                  {t("myKeys.keyMeta", {
-                    label: row.label ?? "—",
-                    enabled: row.enabled ? t("common.enabled") : t("common.disabled"),
-                  })}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-semibold text-text">#{row.id}</div>
+                  {row.label ? <Badge variant="neutral">{row.label}</Badge> : null}
+                  <Badge variant={row.enabled ? "success" : "danger"}>
+                    {row.enabled ? t("common.enabled") : t("common.disabled")}
+                  </Badge>
                 </div>
+                <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
               </div>
               <Button variant="danger" onClick={() => onDeleteKey(row.id)}>
                 {t("common.delete")}

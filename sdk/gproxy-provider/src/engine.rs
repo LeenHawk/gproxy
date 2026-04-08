@@ -589,13 +589,14 @@ impl GproxyEngine {
     pub async fn query_quota(
         &self,
         provider_name: &str,
+        credential_index: Option<usize>,
     ) -> Result<Option<crate::response::UpstreamResponse>, UpstreamError> {
         let span = tracing::info_span!("engine.query_quota", provider = provider_name);
         async {
             let provider = self.store.get_runtime(provider_name).ok_or_else(|| {
                 UpstreamError::Channel(format!("unknown provider: {provider_name}"))
             })?;
-            let Some(http_request) = provider.prepare_quota_request()? else {
+            let Some(http_request) = provider.prepare_quota_request(credential_index)? else {
                 return Ok(None);
             };
             let response = crate::http_client::send_request(&self.client, http_request).await?;

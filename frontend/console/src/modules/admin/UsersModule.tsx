@@ -109,6 +109,29 @@ export function UsersModule({
     setSelectedUserId(row.id);
   };
 
+  const toggleUserEnabled = async (row: MemoryUserRow) => {
+    try {
+      await apiJson("/admin/users/upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          id: row.id,
+          name: row.name,
+          password: "",
+          enabled: !row.enabled,
+          is_admin: row.is_admin,
+        }),
+      });
+      notify("success", t("users.saved"));
+      await loadUsers();
+      if (selectedUserId === row.id) {
+        setForm((current) => ({ ...current, enabled: !row.enabled }));
+      }
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const generateKey = async () => {
     if (!selectedUserId) {
       return;
@@ -159,6 +182,7 @@ export function UsersModule({
           onSubmit={() => void saveUser()}
           onSelectUser={setSelectedUserId}
           onEditUser={editUser}
+          onToggleUserEnabled={(row) => void toggleUserEnabled(row)}
           onRemoveUser={(id) => void deleteUser(id)}
         />
         <UserKeysPane

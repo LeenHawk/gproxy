@@ -107,12 +107,16 @@ pub async fn oauth_callback(
 pub async fn upstream_usage(
     State(state): State<Arc<AppState>>,
     Path(provider_name): Path<String>,
-    RawQuery(_query): RawQuery,
+    RawQuery(query): RawQuery,
     headers: HeaderMap,
 ) -> Result<Response, HttpError> {
     authorize_admin(&headers, &state)?;
-
-    let result = state.engine().query_quota(&provider_name).await?;
+    let params = parse_query_string(query.as_deref());
+    let credential_index = resolve_quota_credential_index(&state, &provider_name, &params)?;
+    let result = state
+        .engine()
+        .query_quota(&provider_name, credential_index)
+        .await?;
 
     match result {
         Some(response) => Ok(Response::builder()
@@ -135,6 +139,64 @@ fn parse_query_string(query: Option<&str>) -> HashMap<String, String> {
         .collect()
 }
 
+fn parse_optional_i64(params: &HashMap<String, String>, key: &str) -> Result<Option<i64>, HttpError> {
+    let Some(value) = params.get(key) else {
+        return Ok(None);
+    };
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    trimmed
+        .parse::<i64>()
+        .map(Some)
+        .map_err(|_| HttpError::bad_request(format!("invalid {key}: expected integer")))
+}
+
+fn parse_optional_usize(
+    params: &HashMap<String, String>,
+    key: &str,
+) -> Result<Option<usize>, HttpError> {
+    let Some(value) = params.get(key) else {
+        return Ok(None);
+    };
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    trimmed
+        .parse::<usize>()
+        .map(Some)
+        .map_err(|_| HttpError::bad_request(format!("invalid {key}: expected integer")))
+}
+
+fn resolve_quota_credential_index(
+    state: &AppState,
+    provider_name: &str,
+    params: &HashMap<String, String>,
+) -> Result<Option<usize>, HttpError> {
+    if let Some(credential_id) = parse_optional_i64(params, "credential_id")? {
+        let Some((resolved_provider, index)) = state.credential_position_for_id(credential_id) else {
+            return Err(HttpError::not_found("credential_id not found"));
+        };
+        if resolved_provider != provider_name {
+            return Err(HttpError::bad_request(
+                "credential_id does not belong to the requested provider",
+            ));
+        }
+        return Ok(Some(index));
+    }
+
+    if let Some(index) = parse_optional_usize(params, "credential_index")? {
+        if state.credential_id_for_index(provider_name, index).is_none() {
+            return Err(HttpError::not_found("provider or credential index not found"));
+        }
+        return Ok(Some(index));
+    }
+
+    Ok(None)
+}
+
 fn json_response(value: &serde_json::Value) -> Result<Response, HttpError> {
     let body = serde_json::to_vec(value).unwrap_or_default();
     Ok(Response::builder()
@@ -153,7 +215,9 @@ mod tests {
     use gproxy_server::{AppStateBuilder, GlobalConfig};
     use gproxy_storage::{CredentialQuery, SeaOrmStorage};
 
-    use super::{parse_query_string, persist_oauth_credential};
+    use super::{
+        parse_query_string, persist_oauth_credential, resolve_quota_credential_index,
+    };
 
     #[test]
     fn parse_query_string_decodes_percent_encoded_values() {
@@ -226,5 +290,65 @@ mod tests {
             state.provider_credential_ids_for("demo"),
             Some(vec![credential_id])
         );
+    }
+
+    #[tokio::test]
+    async fn resolve_quota_credential_index_prefers_credential_id() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        let state = AppStateBuilder::new()
+            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .storage(storage)
+            .config(GlobalConfig {
+                dsn: "sqlite::memory:".to_string(),
+                ..GlobalConfig::default()
+            })
+            .build();
+        state.replace_provider_credentials(HashMap::from([(
+            "demo".to_string(),
+            vec![1000, 1001],
+        )]));
+
+        let index = resolve_quota_credential_index(
+            &state,
+            "demo",
+            &HashMap::from([("credential_id".to_string(), "1001".to_string())]),
+        )
+        .expect("resolve credential id");
+
+        assert_eq!(index, Some(1));
+    }
+
+    #[tokio::test]
+    async fn resolve_quota_credential_index_validates_provider_membership() {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        let state = AppStateBuilder::new()
+            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .storage(storage)
+            .config(GlobalConfig {
+                dsn: "sqlite::memory:".to_string(),
+                ..GlobalConfig::default()
+            })
+            .build();
+        state.replace_provider_credentials(HashMap::from([(
+            "other".to_string(),
+            vec![1000],
+        )]));
+
+        let error = resolve_quota_credential_index(
+            &state,
+            "demo",
+            &HashMap::from([("credential_id".to_string(), "1000".to_string())]),
+        )
+        .expect_err("provider mismatch");
+
+        assert_eq!(error.status, axum::http::StatusCode::BAD_REQUEST);
     }
 }

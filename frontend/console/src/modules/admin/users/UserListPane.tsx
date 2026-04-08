@@ -1,6 +1,6 @@
 import { useI18n } from "../../../app/i18n";
 import type { MemoryUserRow } from "../../../lib/types/admin";
-import { Button, Input, Label } from "../../../components/ui";
+import { Badge, Button, Input, Label } from "../../../components/ui";
 import type { UserFormState } from "./types";
 
 export function UserListPane({
@@ -13,6 +13,7 @@ export function UserListPane({
   onSubmit,
   onSelectUser,
   onEditUser,
+  onToggleUserEnabled,
   onRemoveUser,
 }: {
   rows: MemoryUserRow[];
@@ -24,6 +25,7 @@ export function UserListPane({
   onSubmit: () => void;
   onSelectUser: (id: number) => void;
   onEditUser: (row: MemoryUserRow) => void;
+  onToggleUserEnabled: (row: MemoryUserRow) => void;
   onRemoveUser: (id: number) => void;
 }) {
   const { t } = useI18n();
@@ -89,16 +91,24 @@ export function UserListPane({
         >
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="font-semibold text-text">{row.name}</div>
-              <div className="text-xs text-muted">
-                {t("users.rowMeta", {
-                  id: row.id,
-                  enabled: String(row.enabled),
-                  admin: String(row.is_admin),
-                })}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="font-semibold text-text">{row.name}</div>
+                <Badge variant="neutral">#{row.id}</Badge>
+                <Badge variant={row.enabled ? "success" : "danger"}>
+                  {row.enabled ? t("common.enabled") : t("common.disabled")}
+                </Badge>
+                <Badge variant={row.is_admin ? "accent" : "neutral"}>
+                  {row.is_admin ? t("common.admin") : t("common.user")}
+                </Badge>
               </div>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant={row.enabled ? "neutral" : "primary"}
+                onClick={() => onToggleUserEnabled(row)}
+              >
+                {row.enabled ? t("common.disabled") : t("common.enabled")}
+              </Button>
               <Button variant="neutral" onClick={() => onEditUser(row)}>
                 {t("common.edit")}
               </Button>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Card, Button } from "../../components/ui";
+import { Badge, Button, Card } from "../../components/ui";
 import { apiJson } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type { GenerateKeyResponse, UserKeyRow } from "../../lib/types/user";
@@ -52,13 +52,13 @@ export function MyKeysModule({
       <div className="record-list">
         {rows.map((row, index) => (
           <div key={`${row.api_key}-${index}`} className="record-item">
-            <div className="font-mono text-xs text-text">{row.api_key}</div>
-            <div className="mt-2 text-xs text-muted">
-              {t("myKeys.keyMeta", {
-                label: row.label ?? "—",
-                enabled: row.enabled ? t("common.enabled") : t("common.disabled"),
-              })}
+            <div className="flex flex-wrap items-center gap-2">
+              {row.label ? <Badge variant="neutral">{row.label}</Badge> : null}
+              <Badge variant={row.enabled ? "success" : "danger"}>
+                {row.enabled ? t("common.enabled") : t("common.disabled")}
+              </Badge>
             </div>
+            <div className="font-mono text-xs text-text">{row.api_key}</div>
           </div>
         ))}
       </div>

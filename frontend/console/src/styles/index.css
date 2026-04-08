@@ -390,6 +390,47 @@ input {
   padding: 0.9rem 1rem;
 }
 
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-soft) 84%, transparent);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 0.28rem 0.55rem;
+}
+
+.badge-neutral {
+  border-color: color-mix(in srgb, var(--border) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-soft) 84%, transparent);
+  color: var(--muted);
+}
+
+.badge-success {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  background: color-mix(in srgb, var(--success) 14%, var(--bg-surface));
+  color: color-mix(in srgb, var(--success) 88%, var(--text));
+}
+
+.badge-danger {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 14%, var(--bg-surface));
+  color: color-mix(in srgb, var(--danger) 88%, var(--text));
+}
+
+.badge-accent {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--bg-surface));
+  color: color-mix(in srgb, var(--accent-strong) 88%, var(--text));
+}
+
 pre {
   max-width: 100%;
   overflow: auto;

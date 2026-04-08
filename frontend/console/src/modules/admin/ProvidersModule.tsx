@@ -2,11 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
 import { Button } from "../../components/ui";
-import { apiJson, apiText, apiVoid } from "../../lib/api";
+import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import { parseRequiredI64 } from "../../lib/form";
 import type {
-  CredentialHealthRow,
   CredentialRow,
   DispatchTableDocument,
   OAuthCallbackResponse,
@@ -31,10 +30,9 @@ import { ConfigTab } from "./providers/ConfigTab";
 import { CredentialsTab } from "./providers/CredentialsTab";
 import { OAuthTab } from "./providers/OAuthTab";
 import { ProviderList } from "./providers/ProviderList";
-import { StatusTab } from "./providers/StatusTab";
-import { UsageTab } from "./providers/UsageTab";
 import { useProviderData } from "./providers/hooks/useProviderData";
 import type { CredentialFormState, ProviderWorkspaceTab } from "./providers";
+import { parseLiveUsageRows, supportsCredentialUsageChannel, type LiveUsageRow } from "./providers/usage";
 
 export function ProvidersModule({
   sessionToken,
@@ -66,7 +64,9 @@ export function ProvidersModule({
   const [oauthFlow, setOauthFlow] = useState<OAuthStartResponse | null>(null);
   const [oauthCallbackUrl, setOauthCallbackUrl] = useState("");
   const [oauthCallbackResult, setOauthCallbackResult] = useState<OAuthCallbackResponse | null>(null);
-  const [usageResult, setUsageResult] = useState("");
+  const [usageByCredential, setUsageByCredential] = useState<Record<number, string>>({});
+  const [usageRowsByCredential, setUsageRowsByCredential] = useState<Record<number, LiveUsageRow[]>>({});
+  const [usageLoadingByCredential, setUsageLoadingByCredential] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     setCredentialForm({
@@ -79,6 +79,9 @@ export function ProvidersModule({
     setOauthFlow(null);
     setOauthCallbackUrl("");
     setOauthCallbackResult(null);
+    setUsageByCredential({});
+    setUsageRowsByCredential({});
+    setUsageLoadingByCredential({});
   }, [selectedProvider?.id, providerForm.channel]);
 
   const channelOptions = useMemo(
@@ -258,7 +261,10 @@ export function ProvidersModule({
     }
   };
 
-  const updateStatus = async (row: CredentialHealthRow, status: "healthy" | "dead") => {
+  const updateStatus = async (
+    row: { provider: string; index: number },
+    status: "healthy" | "dead",
+  ) => {
     try {
       await apiJson("/admin/credential-statuses/update", {
         method: "POST",
@@ -316,20 +322,28 @@ export function ProvidersModule({
     }
   };
 
-  const loadUsage = async () => {
+  const loadUsage = async (row: CredentialRow) => {
     if (!selectedProvider) {
       notify("error", t("providers.error.needProvider"));
       return;
     }
     try {
-      const result = await apiText(
-        `/${encodeURIComponent(selectedProvider.name)}/v1/usage`,
+      setUsageLoadingByCredential((current) => ({ ...current, [row.index]: true }));
+      const payload = await apiJson<unknown>(
+        `/${encodeURIComponent(selectedProvider.name)}/v1/usage?credential_index=${encodeURIComponent(String(row.index))}`,
         { headers: authHeaders(sessionToken, false) },
       );
-      setUsageResult(result);
+      const raw = typeof payload === "string" ? payload : JSON.stringify(payload ?? {}, null, 2);
+      setUsageByCredential((current) => ({ ...current, [row.index]: raw }));
+      setUsageRowsByCredential((current) => ({
+        ...current,
+        [row.index]: parseLiveUsageRows(selectedProvider.channel, payload),
+      }));
       notify("info", t("providers.usage.loaded"));
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
+    } finally {
+      setUsageLoadingByCredential((current) => ({ ...current, [row.index]: false }));
     }
   };
 
@@ -352,7 +366,7 @@ export function ProvidersModule({
         />
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {(["config", "credentials", "status", "oauth", "usage"] as ProviderWorkspaceTab[]).map(
+            {(["config", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
               (tab) => (
                 <Button
                   key={tab}
@@ -409,6 +423,13 @@ export function ProvidersModule({
               onEdit={editCredential}
               onDelete={(row) => void deleteCredential(row)}
               onSave={() => void saveCredential()}
+              statuses={statusRows}
+              onUpdateStatus={(row, status) => void updateStatus(row, status)}
+              supportsUsage={supportsCredentialUsageChannel(selectedProvider?.channel ?? providerForm.channel)}
+              usageByCredential={usageByCredential}
+              usageRowsByCredential={usageRowsByCredential}
+              usageLoadingByCredential={usageLoadingByCredential}
+              onQueryUsage={(row) => void loadUsage(row)}
               labels={{
                 title: t("providers.tab.credentials"),
                 add: t("providers.credentials.add"),
@@ -418,29 +439,21 @@ export function ProvidersModule({
                 delete: t("providers.credentials.delete"),
                 showJson: t("providers.credentials.showJson"),
                 hideJson: t("providers.credentials.hideJson"),
+                expandJson: t("providers.credentials.showJson"),
+                collapseJson: t("providers.credentials.hideJson"),
                 configured: t("providers.credentials.configured"),
-              }}
-            />
-          ) : null}
-          {activeTab === "status" ? (
-            <StatusTab
-              rows={statusRows}
-              onUpdate={(row, status) => void updateStatus(row, status)}
-              labels={{
-                title: t("providers.status.title"),
-                meta: (row) =>
-                  t("providers.status.meta", {
-                    status:
-                      row.status === "healthy"
-                        ? t("providers.status.healthy")
-                        : row.status === "dead"
-                          ? t("providers.status.dead")
-                          : row.status,
-                    available: String(row.available),
-                  }),
-                healthy: t("providers.status.healthy"),
-                dead: t("providers.status.dead"),
-                none: t("providers.status.none"),
+                statusNone: t("providers.status.none"),
+                statusHealthy: t("providers.status.healthy"),
+                statusDead: t("providers.status.dead"),
+                statusAvailable: t("providers.status.available"),
+                statusUnavailable: t("providers.status.unavailable"),
+                usageFetch: t("providers.usage.fetch"),
+                usageTitle: t("providers.usage.title"),
+                usageLimit: t("providers.usage.limit"),
+                usagePercent: t("providers.usage.percent"),
+                usageReset: t("providers.usage.reset"),
+                usageRaw: t("providers.usage.raw"),
+                usageEmpty: t("providers.usage.emptyState"),
               }}
             />
           ) : null}
@@ -463,19 +476,10 @@ export function ProvidersModule({
                 startHint: t("providers.oauth.startHint"),
                 openAuthorize: t("providers.oauth.openAuthorize"),
                 redirectUri: t("providers.oauth.redirectUri"),
-                instructions: t("providers.oauth.instructions"),
                 callbackUrl: t("providers.oauth.callbackUrl"),
                 callbackHint: t("providers.oauth.callbackHint"),
                 persistedCredential: t("providers.oauth.persistedCredential"),
               }}
-            />
-          ) : null}
-          {activeTab === "usage" ? (
-            <UsageTab
-              title={t("providers.usage.title")}
-              result={usageResult}
-              onRefresh={() => void loadUsage()}
-              label={t("providers.usage.fetch")}
             />
           ) : null}
         </div>

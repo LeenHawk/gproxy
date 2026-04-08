@@ -219,7 +219,10 @@ pub(crate) trait ProviderRuntime: Send + Sync {
         updates: &[CredentialUpdate],
     ) -> Result<Vec<bool>, UpstreamError>;
 
-    fn prepare_quota_request(&self) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError>;
+    fn prepare_quota_request(
+        &self,
+        credential_index: Option<usize>,
+    ) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError>;
 
     fn health_snapshots(&self) -> Vec<CredentialHealthSnapshot>;
 
@@ -698,11 +701,20 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         Ok(applied)
     }
 
-    fn prepare_quota_request(&self) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError> {
+    fn prepare_quota_request(
+        &self,
+        credential_index: Option<usize>,
+    ) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError> {
         let settings = self.settings.load();
         let credentials = self.credentials.load();
-        let Some(credential) = credentials.first() else {
-            return Ok(None);
+        let credential = match credential_index {
+            Some(index) => credentials.get(index).ok_or_else(|| {
+                UpstreamError::Channel(format!("credential index not found: {index}"))
+            })?,
+            None => match credentials.first() {
+                Some(credential) => credential,
+                None => return Ok(None),
+            },
         };
         self.channel.prepare_quota_request(credential, &settings)
     }
@@ -1285,5 +1297,52 @@ impl ProviderMutator for ProviderStore {
 impl EngineEventSource for ProviderStore {
     fn subscribe(&self) -> broadcast::Receiver<EngineEvent> {
         ProviderStore::subscribe(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProviderStore;
+    use crate::channels::codex::{CodexChannel, CodexSettings};
+    use crate::health::ModelCooldownHealth;
+
+    #[test]
+    fn prepare_quota_request_uses_selected_credential_index() {
+        let store = ProviderStore::builder()
+            .add_provider(
+                "demo",
+                CodexChannel,
+                CodexSettings::default(),
+                vec![
+                    (
+                        crate::channels::codex::CodexCredential {
+                            access_token: "token-1".to_string(),
+                            ..Default::default()
+                        },
+                        ModelCooldownHealth::default(),
+                    ),
+                    (
+                        crate::channels::codex::CodexCredential {
+                            access_token: "token-2".to_string(),
+                            ..Default::default()
+                        },
+                        ModelCooldownHealth::default(),
+                    ),
+                ],
+            )
+            .build();
+
+        let runtime = store.get_runtime("demo").expect("runtime");
+        let request = runtime
+            .prepare_quota_request(Some(1))
+            .expect("quota request")
+            .expect("http request");
+
+        let auth = request
+            .headers()
+            .get("Authorization")
+            .and_then(|value| value.to_str().ok())
+            .expect("authorization header");
+        assert_eq!(auth, "Bearer token-2");
     }
 }

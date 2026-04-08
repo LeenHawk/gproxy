@@ -47,6 +47,16 @@ export function Button({
   );
 }
 
+export function Badge({
+  children,
+  variant = "neutral",
+}: {
+  children: ReactNode;
+  variant?: "neutral" | "success" | "danger" | "accent";
+}) {
+  return <span className={`badge badge-${variant}`}>{children}</span>;
+}
+
 export function Label({ children }: { children: ReactNode }) {
   return (
     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-muted">
