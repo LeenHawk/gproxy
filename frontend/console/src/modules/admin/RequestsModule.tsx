@@ -66,7 +66,7 @@ export function RequestsModule({
         headers,
         body: JSON.stringify(traceIds),
       });
-      notify("success", "Requests deleted");
+      notify("success", t("requests.deleted"));
       await query();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -77,33 +77,42 @@ export function RequestsModule({
 
   return (
     <Card title={t("requests.title")}>
-      <div className="flex flex-wrap gap-2">
-        <Button variant={tab === "downstream" ? "primary" : "neutral"} onClick={() => setTab("downstream")}>{t("common.downstream")}</Button>
-        <Button variant={tab === "upstream" ? "primary" : "neutral"} onClick={() => setTab("upstream")}>{t("common.upstream")}</Button>
-      </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <div>
-          <Label>{tab === "downstream" ? t("requests.requestPathContains") : t("requests.pathFilter")}</Label>
-          <Input value={pathFilter} onChange={setPathFilter} />
+      <div className="toolbar-shell">
+        <div className="flex flex-wrap gap-2">
+          <Button variant={tab === "downstream" ? "primary" : "neutral"} onClick={() => setTab("downstream")}>
+            {t("common.downstream")}
+          </Button>
+          <Button variant={tab === "upstream" ? "primary" : "neutral"} onClick={() => setTab("upstream")}>
+            {t("common.upstream")}
+          </Button>
         </div>
-        <div>
-          <Label>{t("common.limit")}</Label>
-          <Input value={limit} onChange={setLimit} />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
+          <div>
+            <Label>{tab === "downstream" ? t("requests.requestPathContains") : t("requests.pathFilter")}</Label>
+            <Input value={pathFilter} onChange={setPathFilter} />
+          </div>
+          <div>
+            <Label>{t("common.limit")}</Label>
+            <Input value={limit} onChange={setLimit} />
+          </div>
+          <label className="flex h-[42px] items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={includeBody} onChange={(event) => setIncludeBody(event.target.checked)} />
+            {t("requests.includeBody")}
+          </label>
         </div>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" checked={includeBody} onChange={(event) => setIncludeBody(event.target.checked)} />
-          {t("requests.includeBody")}
-        </label>
+        <div className="toolbar-actions">
+          <Button onClick={() => void query()}>{t("common.query")}</Button>
+          <Button variant="danger" onClick={() => void deleteSelected(rows.slice(0, 5).map((row) => row.trace_id))}>
+            {t("common.deleteFirst5")}
+          </Button>
+        </div>
       </div>
-      <div className="mt-4 flex gap-2">
-        <Button onClick={() => void query()}>{t("common.query")}</Button>
-        <Button variant="danger" onClick={() => void deleteSelected(rows.slice(0, 5).map((row) => row.trace_id))}>{t("common.deleteFirst5")}</Button>
-      </div>
-      <div className="mt-4 space-y-2">
+      <div className="record-list mt-4">
+        {rows.length === 0 ? <p className="text-sm text-muted">{t("common.noData")}</p> : null}
         {rows.map((row) => (
-          <div key={row.trace_id} className="card-shell">
-            <div className="font-semibold">trace #{row.trace_id}</div>
-            <div className="text-xs text-muted">
+          <div key={row.trace_id} className="record-item">
+            <div className="font-semibold text-text">trace #{row.trace_id}</div>
+            <div className="mt-1 text-xs text-muted">
               {t("requests.rowMeta", {
                 target: "request_path" in row ? row.request_path : row.request_url ?? "—",
                 status: row.response_status ?? "—",

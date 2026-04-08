@@ -21,10 +21,10 @@ export function MyUsageModule({ sessionToken }: { sessionToken: string }) {
 
   return (
     <Card title={t("myUsage.title")} subtitle={t("myUsage.subtitle")}>
-      <div className="space-y-2">
+      <div className="record-list">
         {rows.map((row) => (
-          <div key={row.trace_id} className="card-shell">
-            <div className="font-semibold">{row.model ?? row.operation}</div>
+          <div key={row.trace_id} className="record-item">
+            <div className="font-semibold text-text">{row.model ?? row.operation}</div>
             <div className="mt-1 text-xs text-muted">
               trace={row.trace_id} · protocol={row.protocol} · input={row.input_tokens ?? 0} · output={row.output_tokens ?? 0}
             </div>

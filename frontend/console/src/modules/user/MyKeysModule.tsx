@@ -49,10 +49,10 @@ export function MyKeysModule({
       subtitle={t("myKeys.subtitle")}
       action={<Button onClick={() => void generate()}>{t("myKeys.generate")}</Button>}
     >
-      <div className="space-y-2">
+      <div className="record-list">
         {rows.map((row, index) => (
-          <div key={`${row.api_key}-${index}`} className="card-shell">
-            <div className="font-mono text-xs">{row.api_key}</div>
+          <div key={`${row.api_key}-${index}`} className="record-item">
+            <div className="font-mono text-xs text-text">{row.api_key}</div>
             <div className="mt-2 text-xs text-muted">
               {t("myKeys.keyMeta", {
                 label: row.label ?? "—",

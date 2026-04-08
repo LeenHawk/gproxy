@@ -17,7 +17,7 @@ export function UserKeysPane({
 }) {
   const { t } = useI18n();
   return (
-    <div className="card-shell">
+    <div className="panel-shell">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-sm font-semibold text-text">{t("users.selectedUserKeys")}</div>
@@ -39,12 +39,12 @@ export function UserKeysPane({
           </Button>
         </div>
       </div>
-      <div className="mt-4 space-y-2">
+      <div className="record-list mt-4">
         {keyRows.map((row) => (
-          <div key={row.id} className="card-shell">
+          <div key={row.id} className="record-item">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="font-semibold">#{row.id}</div>
+                <div className="font-semibold text-text">#{row.id}</div>
                 <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
                 <div className="text-xs text-muted">
                   {t("myKeys.keyMeta", {

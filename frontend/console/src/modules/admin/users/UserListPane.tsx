@@ -28,7 +28,7 @@ export function UserListPane({
 }) {
   const { t } = useI18n();
   return (
-    <div className="space-y-3">
+    <div className="panel-shell space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-semibold text-text">{t("users.section")}</div>
         <Button variant={showUserEditor ? "neutral" : "primary"} onClick={onToggleEditor}>
@@ -36,7 +36,7 @@ export function UserListPane({
         </Button>
       </div>
       {showUserEditor ? (
-        <div className="card-shell space-y-3">
+        <div className="panel-shell panel-shell-compact space-y-4">
           <div>
             <Label>{t("common.id")}</Label>
             <Input value={form.id} onChange={(value) => onChangeForm({ id: value })} />
@@ -72,10 +72,11 @@ export function UserListPane({
           <Button onClick={onSubmit}>{t("common.save")}</Button>
         </div>
       ) : null}
+      {rows.length === 0 ? <p className="text-sm text-muted">{t("users.empty")}</p> : null}
       {rows.map((row) => (
         <div
           key={row.id}
-          className={`card-shell cursor-pointer ${row.id === selectedUserId ? "nav-item-active" : ""}`}
+          className={`record-item cursor-pointer ${row.id === selectedUserId ? "nav-item-active" : ""}`}
           onClick={() => onSelectUser(row.id)}
           role="button"
           tabIndex={0}
@@ -88,7 +89,7 @@ export function UserListPane({
         >
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="font-semibold">{row.name}</div>
+              <div className="font-semibold text-text">{row.name}</div>
               <div className="text-xs text-muted">
                 {t("users.rowMeta", {
                   id: row.id,

@@ -48,21 +48,24 @@ export function UsageModule({
 
   return (
     <Card title={t("usages.title")}>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div>
-          <Label>{t("common.limit")}</Label>
-          <Input value={limit} onChange={setLimit} />
+      <div className="toolbar-shell">
+        <div className="grid gap-4 lg:grid-cols-[220px_auto] lg:items-end">
+          <div>
+            <Label>{t("common.limit")}</Label>
+            <Input value={limit} onChange={setLimit} />
+          </div>
+        </div>
+        <div className="toolbar-actions">
+          <Button onClick={() => void query()}>{t("common.query")}</Button>
+          <Button variant="danger" onClick={() => void deleteFirst()}>{t("common.deleteFirst5")}</Button>
         </div>
       </div>
-      <div className="mt-4 flex gap-2">
-        <Button onClick={() => void query()}>{t("common.query")}</Button>
-        <Button variant="danger" onClick={() => void deleteFirst()}>{t("common.deleteFirst5")}</Button>
-      </div>
-      <div className="mt-4 space-y-2">
+      <div className="record-list mt-4">
+        {rows.length === 0 ? <p className="text-sm text-muted">{t("common.noData")}</p> : null}
         {rows.map((row) => (
-          <div key={row.trace_id} className="card-shell">
-            <div className="font-semibold">{row.model ?? row.operation}</div>
-            <div className="text-xs text-muted">
+          <div key={row.trace_id} className="record-item">
+            <div className="font-semibold text-text">{row.model ?? row.operation}</div>
+            <div className="mt-1 text-xs text-muted">
               {t("usages.rowMeta", { trace: row.trace_id, protocol: row.protocol })}
             </div>
           </div>

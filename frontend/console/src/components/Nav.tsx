@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 export interface NavItem {
   id: string;
   label: string;
+  group?: string;
 }
 
 export function Nav({
@@ -19,6 +20,22 @@ export function Nav({
     () => items.find((item) => item.id === active)?.label ?? active,
     [active, items],
   );
+  const groupedItems = useMemo(() => {
+    const order: string[] = [];
+    const groups = new Map<string, NavItem[]>();
+    for (const item of items) {
+      const key = item.group ?? "";
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        order.push(key);
+      }
+      groups.get(key)?.push(item);
+    }
+    return order.map((group) => ({
+      group,
+      items: groups.get(group) ?? [],
+    }));
+  }, [items]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -39,16 +56,23 @@ export function Nav({
         </span>
         <span className="sidebar-mobile-toggle-label">{activeLabel}</span>
       </button>
-      <nav className={`sidebar-nav space-y-1 ${mobileOpen ? "sidebar-nav-open" : ""}`}>
-        {items.map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item ${active === item.id ? "nav-item-active" : ""}`}
-            onClick={() => onChange(item.id)}
-            type="button"
-          >
-            {item.label}
-          </button>
+      <nav className={`sidebar-nav ${mobileOpen ? "sidebar-nav-open" : ""}`}>
+        {groupedItems.map(({ group, items: groupItems }) => (
+          <section key={group || "default"} className="nav-group">
+            {group ? <p className="nav-group-label">{group}</p> : null}
+            <div className="nav-group-items">
+              {groupItems.map((item) => (
+                <button
+                  key={item.id}
+                  className={`nav-item ${active === item.id ? "nav-item-active" : ""}`}
+                  onClick={() => onChange(item.id)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </section>
         ))}
       </nav>
     </aside>
