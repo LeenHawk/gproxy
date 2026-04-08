@@ -4,6 +4,7 @@ import { useI18n } from "../../app/i18n";
 import { Card } from "../../components/ui";
 import { apiJson } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
+import { APP_BUILD_INFO } from "../../lib/build-info";
 import type { HealthResponse } from "../../lib/types/admin";
 
 export function DashboardModule({ sessionToken }: { sessionToken: string }) {
@@ -35,6 +36,14 @@ export function DashboardModule({ sessionToken }: { sessionToken: string }) {
           <div className="metric-label">{t("dashboard.metric.timestamp")}</div>
           <div className="metric-value">{lastUpdated}</div>
           <div className="metric-meta">{health ? `epoch ${health.timestamp_epoch}` : t("common.loading")}</div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-label">{t("dashboard.metric.version")}</div>
+          <div className="metric-value">{APP_BUILD_INFO.version}</div>
+        </div>
+        <div className="metric-card">
+          <div className="metric-label">{t("dashboard.metric.commit")}</div>
+          <div className="metric-value font-mono text-[1.15rem]">{APP_BUILD_INFO.commit}</div>
         </div>
       </div>
     </Card>

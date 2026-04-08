@@ -9,7 +9,6 @@ import { PermissionsModule } from "../modules/admin/PermissionsModule";
 import { ProvidersModule } from "../modules/admin/ProvidersModule";
 import { RateLimitsModule } from "../modules/admin/RateLimitsModule";
 import { RequestsModule } from "../modules/admin/RequestsModule";
-import { UpdateModule } from "../modules/admin/UpdateModule";
 import { UsageModule } from "../modules/admin/UsageModule";
 import { UsersModule } from "../modules/admin/UsersModule";
 import { MyKeysModule } from "../modules/user/MyKeysModule";
@@ -41,7 +40,6 @@ export function buildAdminNavItems(t: TranslateFn): NavItem[] {
     { id: "requests", label: t("app.nav.requests"), group: operations },
     { id: "usages", label: t("app.nav.usages"), group: operations },
     { id: "config-export", label: t("app.nav.configExport"), group: operations },
-    { id: "update", label: t("app.nav.update"), group: operations },
     { id: "my-keys", label: t("app.nav.myKeys"), group: account },
     { id: "my-quota", label: t("app.nav.myQuota"), group: account },
     { id: "my-usage", label: t("app.nav.myUsage"), group: account },
@@ -90,8 +88,6 @@ export function renderActiveModule(
         return <UsageModule sessionToken={sessionToken} notify={notify} />;
       case "config-export":
         return <ConfigExportModule sessionToken={sessionToken} notify={notify} />;
-      case "update":
-        return <UpdateModule sessionToken={sessionToken} notify={notify} />;
       case "my-keys":
         return <MyKeysModule sessionToken={sessionToken} notify={notify} />;
       case "my-quota":

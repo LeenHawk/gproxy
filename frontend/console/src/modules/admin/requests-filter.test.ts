@@ -17,6 +17,7 @@ describe("buildDownstreamRequestQuery", () => {
         user_key_id: "11",
         request_path_contains: "/v1/responses",
         limit: "50",
+        offset: 100,
         include_body: true,
       }),
     ).toEqual({
@@ -24,6 +25,7 @@ describe("buildDownstreamRequestQuery", () => {
       user_id: { Eq: 7 },
       user_key_id: { Eq: 11 },
       request_path_contains: "/v1/responses",
+      offset: 100,
       limit: 50,
       include_body: true,
     });
@@ -38,6 +40,7 @@ describe("buildUpstreamRequestQuery", () => {
         credential_id: "8",
         request_url_contains: "chat/completions",
         limit: "20",
+        offset: 50,
         include_body: false,
       }),
     ).toEqual({
@@ -45,6 +48,7 @@ describe("buildUpstreamRequestQuery", () => {
       provider_id: { Eq: 3 },
       credential_id: { Eq: 8 },
       request_url_contains: "chat/completions",
+      offset: 50,
       limit: 20,
       include_body: false,
     });
@@ -59,6 +63,7 @@ describe("delete-all request queries", () => {
         user_key_id: "11",
         request_path_contains: "/v1/responses",
         limit: "50",
+        offset: 100,
         include_body: true,
       }),
     ).toEqual({
@@ -77,6 +82,7 @@ describe("delete-all request queries", () => {
         credential_id: "8",
         request_url_contains: "chat/completions",
         limit: "20",
+        offset: 50,
         include_body: true,
       }),
     ).toEqual({
@@ -100,6 +106,7 @@ describe("buildAdminUsageQuery", () => {
         user_id: "7",
         user_key_id: "11",
         limit: "50",
+        offset: 150,
       }),
     ).toEqual({
       provider_id: { Eq: 3 },
@@ -108,6 +115,7 @@ describe("buildAdminUsageQuery", () => {
       model: { Eq: "gemini-2.5-pro" },
       user_id: { Eq: 7 },
       user_key_id: { Eq: 11 },
+      offset: 150,
       limit: 50,
     });
   });
@@ -122,6 +130,7 @@ describe("buildAdminUsageQuery", () => {
         user_id: "7",
         user_key_id: "11",
         limit: "50",
+        offset: 150,
       }),
     ).toEqual({
       provider_id: { Eq: 3 },

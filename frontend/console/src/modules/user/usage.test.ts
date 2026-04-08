@@ -4,13 +4,14 @@ import { buildMyUsageQuery, summarizeUsageRows } from "./usage";
 
 describe("my usage helpers", () => {
   it("builds a fully scoped usage query so the backend can deserialize it", () => {
-    expect(buildMyUsageQuery("50")).toEqual({
+    expect(buildMyUsageQuery(100)).toEqual({
       provider_id: "All",
       credential_id: "All",
       channel: "All",
       model: "All",
       user_id: "All",
       user_key_id: "All",
+      offset: 100,
       limit: 50,
     });
   });

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Button, Card, Input, Label, SearchableSelect, Select } from "../../components/ui";
+import { Button, Card, Label, SearchableSelect, Select } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type { CredentialRow, MemoryModelRow, MemoryUserKeyRow, MemoryUserRow, ProviderRow } from "../../lib/types/admin";
-import type { UsageQueryRow } from "../../lib/types/shared";
+import type { CountResponse, UsageQueryRow } from "../../lib/types/shared";
 import { buildAdminUsageDeleteAllQuery, buildAdminUsageQuery } from "./requests-filter";
+
+const PAGE_SIZE = 50;
 
 export function UsageModule({
   sessionToken,
@@ -17,8 +19,9 @@ export function UsageModule({
 }) {
   const { t } = useI18n();
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
-  const [limit, setLimit] = useState("50");
   const [rows, setRows] = useState<UsageQueryRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [users, setUsers] = useState<MemoryUserRow[]>([]);
   const [userKeys, setUserKeys] = useState<MemoryUserKeyRow[]>([]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
@@ -118,7 +121,7 @@ export function UsageModule({
     [providers, t],
   );
   const modelOptions = useMemo(
-      () =>
+    () =>
       Array.from(
         new Set(
           models
@@ -132,23 +135,50 @@ export function UsageModule({
   );
 
   const query = async () => {
+    await loadPage(1);
+  };
+
+  const loadPage = async (nextPage: number) => {
     try {
-      const data = await apiJson<UsageQueryRow[]>("/admin/usages/query", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(
-          buildAdminUsageQuery({
-            provider_id: selectedProviderId,
-            credential_id: selectedCredentialId,
-            channel: selectedChannel,
-            model: selectedModel,
-            user_id: selectedUserId,
-            user_key_id: selectedUserKeyId,
-            limit,
-          }),
-        ),
-      });
+      const safePage = Math.max(1, nextPage);
+      const offset = (safePage - 1) * PAGE_SIZE;
+      const [data, count] = await Promise.all([
+        apiJson<UsageQueryRow[]>("/admin/usages/query", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(
+            buildAdminUsageQuery({
+              provider_id: selectedProviderId,
+              credential_id: selectedCredentialId,
+              channel: selectedChannel,
+              model: selectedModel,
+              user_id: selectedUserId,
+              user_key_id: selectedUserKeyId,
+              limit: String(PAGE_SIZE),
+              offset,
+            }),
+          ),
+        }),
+        apiJson<CountResponse>("/admin/usages/count", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(
+            buildAdminUsageDeleteAllQuery({
+              provider_id: selectedProviderId,
+              credential_id: selectedCredentialId,
+              channel: selectedChannel,
+              model: selectedModel,
+              user_id: selectedUserId,
+              user_key_id: selectedUserKeyId,
+              limit: "",
+              offset: 0,
+            }),
+          ),
+        }),
+      ]);
       setRows(data);
+      setTotalCount(count.count);
+      setPage(Math.min(safePage, Math.max(1, Math.ceil(count.count / PAGE_SIZE))));
       setSelectedTraceIds([]);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -171,6 +201,7 @@ export function UsageModule({
     }
   };
 
+  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedTraceIds.includes(row.trace_id));
 
   const toggleTraceId = (traceId: number, checked: boolean) => {
@@ -200,7 +231,8 @@ export function UsageModule({
               model: selectedModel,
               user_id: selectedUserId,
               user_key_id: selectedUserKeyId,
-              limit,
+              limit: "",
+              offset: 0,
             }),
           ),
         })
@@ -239,13 +271,15 @@ export function UsageModule({
             <Label>{t("common.modelId")}</Label>
             <SearchableSelect value={selectedModel} onChange={setSelectedModel} options={modelOptions} />
           </div>
-          <div>
-            <Label>{t("common.limit")}</Label>
-            <Input value={limit} onChange={setLimit} />
-          </div>
         </div>
         <div className="toolbar-actions">
           <Button onClick={() => void query()}>{t("common.query")}</Button>
+          <Button variant="neutral" onClick={() => void loadPage(page - 1)} disabled={page <= 1}>
+            {t("common.previousPage")}
+          </Button>
+          <Button variant="neutral" onClick={() => void loadPage(page + 1)} disabled={page >= pageCount}>
+            {t("common.nextPage")}
+          </Button>
           <Button variant="danger" onClick={() => void deleteSelected(selectedTraceIds)} disabled={selectedTraceIds.length === 0}>
             {t("common.deleteSelected")}
           </Button>
@@ -253,6 +287,7 @@ export function UsageModule({
             {t("common.deleteAll")}
           </Button>
         </div>
+        <div className="text-sm text-muted">{t("common.pageSummary", { page, pageCount, total: totalCount })}</div>
       </div>
       <div className="record-list mt-4">
         {rows.length === 0 ? <p className="text-sm text-muted">{t("common.noData")}</p> : null}

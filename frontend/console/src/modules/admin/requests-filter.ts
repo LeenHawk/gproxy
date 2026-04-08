@@ -89,6 +89,7 @@ export function buildDownstreamRequestQuery(form: {
   user_key_id: string;
   request_path_contains: string;
   limit: string;
+  offset?: number;
   include_body: boolean;
 }) {
   return {
@@ -98,6 +99,7 @@ export function buildDownstreamRequestQuery(form: {
     ...(form.request_path_contains.trim()
       ? { request_path_contains: form.request_path_contains.trim() }
       : {}),
+    ...(form.offset && form.offset > 0 ? { offset: form.offset } : {}),
     ...(form.limit.trim() ? { limit: Number(form.limit) } : {}),
     include_body: form.include_body,
   };
@@ -108,11 +110,13 @@ export function buildDownstreamDeleteAllQuery(form: {
   user_key_id: string;
   request_path_contains: string;
   limit: string;
+  offset?: number;
   include_body: boolean;
 }) {
   return buildDownstreamRequestQuery({
     ...form,
     limit: "",
+    offset: 0,
     include_body: false,
   });
 }
@@ -122,6 +126,7 @@ export function buildUpstreamRequestQuery(form: {
   credential_id: string;
   request_url_contains: string;
   limit: string;
+  offset?: number;
   include_body: boolean;
 }) {
   return {
@@ -131,6 +136,7 @@ export function buildUpstreamRequestQuery(form: {
     ...(form.request_url_contains.trim()
       ? { request_url_contains: form.request_url_contains.trim() }
       : {}),
+    ...(form.offset && form.offset > 0 ? { offset: form.offset } : {}),
     ...(form.limit.trim() ? { limit: Number(form.limit) } : {}),
     include_body: form.include_body,
   };
@@ -141,11 +147,13 @@ export function buildUpstreamDeleteAllQuery(form: {
   credential_id: string;
   request_url_contains: string;
   limit: string;
+  offset?: number;
   include_body: boolean;
 }) {
   return buildUpstreamRequestQuery({
     ...form,
     limit: "",
+    offset: 0,
     include_body: false,
   });
 }
@@ -158,6 +166,7 @@ export function buildAdminUsageQuery(form: {
   user_id: string;
   user_key_id: string;
   limit: string;
+  offset?: number;
 }) {
   return {
     provider_id: form.provider_id ? { Eq: Number(form.provider_id) } : scopeAll<number>(),
@@ -166,6 +175,7 @@ export function buildAdminUsageQuery(form: {
     model: form.model ? { Eq: form.model } : scopeAll<string>(),
     user_id: form.user_id ? { Eq: Number(form.user_id) } : scopeAll<number>(),
     user_key_id: form.user_key_id ? { Eq: Number(form.user_key_id) } : scopeAll<number>(),
+    ...(form.offset && form.offset > 0 ? { offset: form.offset } : {}),
     ...(form.limit.trim() ? { limit: Number(form.limit) } : {}),
   };
 }
@@ -178,9 +188,11 @@ export function buildAdminUsageDeleteAllQuery(form: {
   user_id: string;
   user_key_id: string;
   limit: string;
+  offset?: number;
 }) {
   return buildAdminUsageQuery({
     ...form,
     limit: "",
+    offset: 0,
   });
 }

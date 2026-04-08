@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Button, Card, Input, Label, SearchableSelect, Select } from "../../components/ui";
+import { Button, Card, Label, SearchableSelect, Select } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type {
@@ -12,14 +12,17 @@ import type {
   ProviderRow,
   UpstreamRequestQueryRow,
 } from "../../lib/types/admin";
+import type { CountResponse } from "../../lib/types/shared";
 import {
   buildDownstreamDeleteAllQuery,
+  buildDownstreamRequestQuery,
+  buildUpstreamDeleteAllQuery,
+  buildUpstreamRequestQuery,
   KNOWN_DOWNSTREAM_REQUEST_PATHS,
   KNOWN_UPSTREAM_REQUEST_TARGETS,
-  buildUpstreamDeleteAllQuery,
-  buildDownstreamRequestQuery,
-  buildUpstreamRequestQuery,
 } from "./requests-filter";
+
+const PAGE_SIZE = 50;
 
 export function RequestsModule({
   sessionToken,
@@ -32,10 +35,11 @@ export function RequestsModule({
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
   const [tab, setTab] = useState<"downstream" | "upstream">("downstream");
   const [pathFilter, setPathFilter] = useState("");
-  const [limit, setLimit] = useState("50");
   const [includeBody, setIncludeBody] = useState(false);
   const [downstreamRows, setDownstreamRows] = useState<DownstreamRequestQueryRow[]>([]);
   const [upstreamRows, setUpstreamRows] = useState<UpstreamRequestQueryRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [users, setUsers] = useState<MemoryUserRow[]>([]);
   const [userKeys, setUserKeys] = useState<MemoryUserKeyRow[]>([]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
@@ -126,37 +130,81 @@ export function RequestsModule({
   );
 
   const query = async () => {
+    await loadPage(1);
+  };
+
+  const loadPage = async (nextPage: number) => {
     try {
+      const safePage = Math.max(1, nextPage);
+      const offset = (safePage - 1) * PAGE_SIZE;
       if (tab === "downstream") {
-        const rows = await apiJson<DownstreamRequestQueryRow[]>("/admin/requests/downstream/query", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(
-            buildDownstreamRequestQuery({
-              user_id: selectedUserId,
-              user_key_id: selectedUserKeyId,
-              request_path_contains: pathFilter,
-              limit,
-              include_body: includeBody,
-            }),
-          ),
-        });
+        const [rows, count] = await Promise.all([
+          apiJson<DownstreamRequestQueryRow[]>("/admin/requests/downstream/query", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(
+              buildDownstreamRequestQuery({
+                user_id: selectedUserId,
+                user_key_id: selectedUserKeyId,
+                request_path_contains: pathFilter,
+                limit: String(PAGE_SIZE),
+                offset,
+                include_body: includeBody,
+              }),
+            ),
+          }),
+          apiJson<CountResponse>("/admin/requests/downstream/count", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(
+              buildDownstreamDeleteAllQuery({
+                user_id: selectedUserId,
+                user_key_id: selectedUserKeyId,
+                request_path_contains: pathFilter,
+                limit: "",
+                offset: 0,
+                include_body: includeBody,
+              }),
+            ),
+          }),
+        ]);
         setDownstreamRows(rows);
+        setTotalCount(count.count);
+        setPage(Math.min(safePage, Math.max(1, Math.ceil(count.count / PAGE_SIZE))));
       } else {
-        const rows = await apiJson<UpstreamRequestQueryRow[]>("/admin/requests/upstream/query", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(
-            buildUpstreamRequestQuery({
-              provider_id: selectedProviderId,
-              credential_id: selectedCredentialId,
-              request_url_contains: pathFilter,
-              limit,
-              include_body: includeBody,
-            }),
-          ),
-        });
+        const [rows, count] = await Promise.all([
+          apiJson<UpstreamRequestQueryRow[]>("/admin/requests/upstream/query", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(
+              buildUpstreamRequestQuery({
+                provider_id: selectedProviderId,
+                credential_id: selectedCredentialId,
+                request_url_contains: pathFilter,
+                limit: String(PAGE_SIZE),
+                offset,
+                include_body: includeBody,
+              }),
+            ),
+          }),
+          apiJson<CountResponse>("/admin/requests/upstream/count", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(
+              buildUpstreamDeleteAllQuery({
+                provider_id: selectedProviderId,
+                credential_id: selectedCredentialId,
+                request_url_contains: pathFilter,
+                limit: "",
+                offset: 0,
+                include_body: includeBody,
+              }),
+            ),
+          }),
+        ]);
         setUpstreamRows(rows);
+        setTotalCount(count.count);
+        setPage(Math.min(safePage, Math.max(1, Math.ceil(count.count / PAGE_SIZE))));
       }
       setSelectedTraceIds([]);
     } catch (error) {
@@ -185,6 +233,7 @@ export function RequestsModule({
   };
 
   const rows = tab === "downstream" ? downstreamRows : upstreamRows;
+  const pageCount = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const allVisibleSelected = rows.length > 0 && rows.every((row) => selectedTraceIds.includes(row.trace_id));
 
   const toggleTraceId = (traceId: number, checked: boolean) => {
@@ -213,7 +262,8 @@ export function RequestsModule({
                     user_id: selectedUserId,
                     user_key_id: selectedUserKeyId,
                     request_path_contains: pathFilter,
-                    limit,
+                    limit: "",
+                    offset: 0,
                     include_body: includeBody,
                   }),
                 ),
@@ -228,7 +278,8 @@ export function RequestsModule({
                     provider_id: selectedProviderId,
                     credential_id: selectedCredentialId,
                     request_url_contains: pathFilter,
-                    limit,
+                    limit: "",
+                    offset: 0,
                     include_body: includeBody,
                   }),
                 ),
@@ -251,7 +302,7 @@ export function RequestsModule({
             {t("common.upstream")}
           </Button>
         </div>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="grid gap-4 md:grid-cols-2">
             {tab === "downstream" ? (
               <>
@@ -285,10 +336,6 @@ export function RequestsModule({
               />
             </div>
           </div>
-          <div>
-            <Label>{t("common.limit")}</Label>
-            <Input value={limit} onChange={setLimit} />
-          </div>
           <label className="flex h-[42px] items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={includeBody} onChange={(event) => setIncludeBody(event.target.checked)} />
             {t("requests.includeBody")}
@@ -296,6 +343,12 @@ export function RequestsModule({
         </div>
         <div className="toolbar-actions">
           <Button onClick={() => void query()}>{t("common.query")}</Button>
+          <Button variant="neutral" onClick={() => void loadPage(page - 1)} disabled={page <= 1}>
+            {t("common.previousPage")}
+          </Button>
+          <Button variant="neutral" onClick={() => void loadPage(page + 1)} disabled={page >= pageCount}>
+            {t("common.nextPage")}
+          </Button>
           <Button variant="danger" onClick={() => void deleteSelected(selectedTraceIds)} disabled={selectedTraceIds.length === 0}>
             {t("common.deleteSelected")}
           </Button>
@@ -303,6 +356,7 @@ export function RequestsModule({
             {t("common.deleteAll")}
           </Button>
         </div>
+        <div className="text-sm text-muted">{t("common.pageSummary", { page, pageCount, total: totalCount })}</div>
       </div>
       <div className="record-list mt-4">
         {rows.length === 0 ? <p className="text-sm text-muted">{t("common.noData")}</p> : null}

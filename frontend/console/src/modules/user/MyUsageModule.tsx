@@ -7,7 +7,7 @@ import { authHeaders } from "../../lib/auth";
 import { formatTimestamp } from "../../lib/datetime";
 import type { CountResponse } from "../../lib/types/shared";
 import type { UsageQueryRow } from "../../lib/types/shared";
-import { buildMyUsageQuery, summarizeUsageRows } from "./usage";
+import { MY_USAGE_PAGE_SIZE, buildMyUsageQuery, summarizeUsageRows } from "./usage";
 
 export function MyUsageModule({
   sessionToken,
@@ -19,27 +19,36 @@ export function MyUsageModule({
   const { t } = useI18n();
   const [rows, setRows] = useState<UsageQueryRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
   const summary = useMemo(() => summarizeUsageRows(rows), [rows]);
+  const pageCount = Math.max(1, Math.ceil(totalCount / MY_USAGE_PAGE_SIZE));
 
-  const load = async () => {
+  const load = async (nextPage = 1) => {
     try {
       setLoading(true);
+      const safePage = Math.max(1, nextPage);
+      const offset = (safePage - 1) * MY_USAGE_PAGE_SIZE;
       const [usageRows, count] = await Promise.all([
         apiJson<UsageQueryRow[]>("/user/usages/query", {
           method: "POST",
           headers,
-          body: JSON.stringify(buildMyUsageQuery("50")),
+          body: JSON.stringify(buildMyUsageQuery(offset)),
         }),
         apiJson<CountResponse>("/user/usages/count", {
           method: "POST",
           headers,
-          body: JSON.stringify(buildMyUsageQuery("")),
+          body: JSON.stringify({
+            ...buildMyUsageQuery(),
+            limit: undefined,
+            offset: undefined,
+          }),
         }),
       ]);
       setRows(usageRows);
       setTotalCount(count.count);
+      setPage(Math.min(safePage, Math.max(1, Math.ceil(count.count / MY_USAGE_PAGE_SIZE))));
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     } finally {
@@ -55,10 +64,17 @@ export function MyUsageModule({
     <Card title={t("myUsage.title")} subtitle={t("myUsage.subtitle")}>
       <div className="toolbar-shell">
         <div className="toolbar-actions">
-          <Button variant="neutral" onClick={() => void load()}>
+          <Button variant="neutral" onClick={() => void load(page)}>
             {loading ? t("common.loading") : t("common.refresh")}
           </Button>
+          <Button variant="neutral" onClick={() => void load(page - 1)} disabled={loading || page <= 1}>
+            {t("common.previousPage")}
+          </Button>
+          <Button variant="neutral" onClick={() => void load(page + 1)} disabled={loading || page >= pageCount}>
+            {t("common.nextPage")}
+          </Button>
         </div>
+        <div className="text-sm text-muted">{t("common.pageSummary", { page, pageCount, total: totalCount })}</div>
       </div>
       <div className="metric-grid mt-4">
         <div className="metric-card">

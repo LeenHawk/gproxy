@@ -8,7 +8,9 @@ export type MyUsageSummary = {
   cachedTokens: number;
 };
 
-export function buildMyUsageQuery(limit: string): UsageQuery {
+export const MY_USAGE_PAGE_SIZE = 50;
+
+export function buildMyUsageQuery(offset = 0): UsageQuery {
   return {
     provider_id: scopeAll<number>(),
     credential_id: scopeAll<number>(),
@@ -16,7 +18,8 @@ export function buildMyUsageQuery(limit: string): UsageQuery {
     model: scopeAll<string>(),
     user_id: scopeAll<number>(),
     user_key_id: scopeAll<number>(),
-    ...(limit.trim() ? { limit: Number(limit) } : {}),
+    ...(offset > 0 ? { offset } : {}),
+    limit: MY_USAGE_PAGE_SIZE,
   };
 }
 
