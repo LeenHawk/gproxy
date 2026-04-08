@@ -136,7 +136,7 @@ fn build_claudecode_authorize_url(
     .collect::<Vec<_>>()
     .join("&");
     format!(
-        "{}/api/oauth/authorize?{query}",
+        "{}/oauth/authorize?{query}",
         claude_ai_base_url.trim_end_matches('/')
     )
 }

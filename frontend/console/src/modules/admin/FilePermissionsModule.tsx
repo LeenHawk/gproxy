@@ -51,10 +51,10 @@ export function FilePermissionsModule({
   }, []);
 
   useEffect(() => {
-    if (!selectedId && !form.id) {
+    if (!selectedId && !form.id && users.length > 0 && providers.length > 0) {
       beginCreate();
     }
-  }, [form.id, nextId, providers, selectedId, users]);
+  }, [form.id, providers, selectedId, users]);
 
   const save = async () => {
     try {

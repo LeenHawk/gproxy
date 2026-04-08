@@ -58,10 +58,10 @@ export function RateLimitsModule({
   }, []);
 
   useEffect(() => {
-    if (!selectedKey && !form.id) {
+    if (!selectedKey && !form.id && users.length > 0) {
       beginCreate();
     }
-  }, [form.id, nextId, selectedKey, users]);
+  }, [form.id, selectedKey, users]);
 
   const save = async () => {
     try {

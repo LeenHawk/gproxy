@@ -52,10 +52,10 @@ export function PermissionsModule({
   }, []);
 
   useEffect(() => {
-    if (!selectedId && !form.id) {
+    if (!selectedId && !form.id && users.length > 0) {
       beginCreate();
     }
-  }, [form.id, nextId, selectedId, users]);
+  }, [form.id, selectedId, users]);
 
   const save = async () => {
     try {

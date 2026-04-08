@@ -70,10 +70,10 @@ export function ModelsModule({
   }, []);
 
   useEffect(() => {
-    if (!selectedId && !form.id) {
+    if (!selectedId && !form.id && providers.length > 0) {
       beginCreate();
     }
-  }, [form.id, selectedId, nextId, providers]);
+  }, [form.id, providers, selectedId]);
 
   const save = async () => {
     try {

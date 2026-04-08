@@ -64,10 +64,10 @@ export function ModelAliasesModule({
   }, []);
 
   useEffect(() => {
-    if (!selectedAlias && !form.id) {
+    if (!selectedAlias && !form.id && providers.length > 0) {
       beginCreate();
     }
-  }, [form.id, nextId, providers, selectedAlias]);
+  }, [form.id, providers, selectedAlias]);
 
   const save = async () => {
     try {
