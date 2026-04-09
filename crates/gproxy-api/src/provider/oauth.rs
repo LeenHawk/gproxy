@@ -6,8 +6,8 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 
-use gproxy_server::AppState;
 use gproxy_sdk::provider::store::CredentialSnapshot;
+use gproxy_server::AppState;
 use gproxy_storage::{ProviderQuery, Scope};
 
 use crate::auth::authorize_admin;
@@ -139,7 +139,10 @@ fn parse_query_string(query: Option<&str>) -> HashMap<String, String> {
         .collect()
 }
 
-fn parse_optional_i64(params: &HashMap<String, String>, key: &str) -> Result<Option<i64>, HttpError> {
+fn parse_optional_i64(
+    params: &HashMap<String, String>,
+    key: &str,
+) -> Result<Option<i64>, HttpError> {
     let Some(value) = params.get(key) else {
         return Ok(None);
     };
@@ -176,7 +179,8 @@ fn resolve_quota_credential_index(
     params: &HashMap<String, String>,
 ) -> Result<Option<usize>, HttpError> {
     if let Some(credential_id) = parse_optional_i64(params, "credential_id")? {
-        let Some((resolved_provider, index)) = state.credential_position_for_id(credential_id) else {
+        let Some((resolved_provider, index)) = state.credential_position_for_id(credential_id)
+        else {
             return Err(HttpError::not_found("credential_id not found"));
         };
         if resolved_provider != provider_name {
@@ -188,8 +192,13 @@ fn resolve_quota_credential_index(
     }
 
     if let Some(index) = parse_optional_usize(params, "credential_index")? {
-        if state.credential_id_for_index(provider_name, index).is_none() {
-            return Err(HttpError::not_found("provider or credential index not found"));
+        if state
+            .credential_id_for_index(provider_name, index)
+            .is_none()
+        {
+            return Err(HttpError::not_found(
+                "provider or credential index not found",
+            ));
         }
         return Ok(Some(index));
     }
@@ -215,9 +224,7 @@ mod tests {
     use gproxy_server::{AppStateBuilder, GlobalConfig};
     use gproxy_storage::{CredentialQuery, SeaOrmStorage};
 
-    use super::{
-        parse_query_string, persist_oauth_credential, resolve_quota_credential_index,
-    };
+    use super::{parse_query_string, persist_oauth_credential, resolve_quota_credential_index};
 
     #[test]
     fn parse_query_string_decodes_percent_encoded_values() {
@@ -307,10 +314,7 @@ mod tests {
                 ..GlobalConfig::default()
             })
             .build();
-        state.replace_provider_credentials(HashMap::from([(
-            "demo".to_string(),
-            vec![1000, 1001],
-        )]));
+        state.replace_provider_credentials(HashMap::from([("demo".to_string(), vec![1000, 1001])]));
 
         let index = resolve_quota_credential_index(
             &state,
@@ -337,10 +341,7 @@ mod tests {
                 ..GlobalConfig::default()
             })
             .build();
-        state.replace_provider_credentials(HashMap::from([(
-            "other".to_string(),
-            vec![1000],
-        )]));
+        state.replace_provider_credentials(HashMap::from([("other".to_string(), vec![1000])]));
 
         let error = resolve_quota_credential_index(
             &state,

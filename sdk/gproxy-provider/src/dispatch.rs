@@ -50,9 +50,7 @@ pub struct DispatchRuleDocument {
 pub enum DispatchTableError {
     #[error("invalid dispatch json: {0}")]
     InvalidJson(#[from] serde_json::Error),
-    #[error(
-        "duplicate dispatch route: operation={operation}, protocol={protocol}"
-    )]
+    #[error("duplicate dispatch route: operation={operation}, protocol={protocol}")]
     DuplicateRoute {
         operation: OperationFamily,
         protocol: ProtocolKind,
@@ -163,7 +161,7 @@ impl RouteKey {
 #[cfg(test)]
 mod tests {
     use super::{
-        DispatchTable, DispatchTableDocument, DispatchRuleDocument, RouteImplementation, RouteKey,
+        DispatchRuleDocument, DispatchTable, DispatchTableDocument, RouteImplementation, RouteKey,
     };
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 

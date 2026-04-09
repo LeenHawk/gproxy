@@ -69,7 +69,11 @@ pub async fn generate_key(
         label: payload.label.clone(),
         enabled: true,
     });
-    Ok(Json(GenerateKeyResponse { ok: true, id, api_key }))
+    Ok(Json(GenerateKeyResponse {
+        ok: true,
+        id,
+        api_key,
+    }))
 }
 
 #[derive(serde::Deserialize)]
@@ -190,10 +194,13 @@ mod tests {
 
         let _ = update_key_enabled(
             axum::extract::State(state.clone()),
-            Extension(SessionUser { user_id: 2, is_admin: false }),
+            Extension(SessionUser {
+                user_id: 2,
+                is_admin: false,
+            }),
             Json(UpdateKeyEnabledPayload {
-              id: 20,
-              enabled: false,
+                id: 20,
+                enabled: false,
             }),
         )
         .await

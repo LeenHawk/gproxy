@@ -14,7 +14,9 @@ trait RequestDescriptor: Sized {
     fn into_body(self) -> Self::Body;
 }
 
-impl RequestDescriptor for gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest {
+impl RequestDescriptor
+    for gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest
+{
     type Body = gproxy_protocol::openai::create_chat_completions::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -29,7 +31,9 @@ impl RequestDescriptor for gproxy_protocol::openai::create_chat_completions::req
     }
 }
 
-impl RequestDescriptor for gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest {
+impl RequestDescriptor
+    for gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest
+{
     type Body = gproxy_protocol::openai::create_response::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -44,7 +48,9 @@ impl RequestDescriptor for gproxy_protocol::openai::create_response::request::Op
     }
 }
 
-impl RequestDescriptor for gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest {
+impl RequestDescriptor
+    for gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest
+{
     type Body = gproxy_protocol::claude::create_message::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -59,7 +65,9 @@ impl RequestDescriptor for gproxy_protocol::claude::create_message::request::Cla
     }
 }
 
-impl RequestDescriptor for gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest {
+impl RequestDescriptor
+    for gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest
+{
     type Body = gproxy_protocol::gemini::generate_content::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -920,7 +928,9 @@ where
         .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
 }
 
-fn transform_openai_response_body_to_chat_completions(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+fn transform_openai_response_body_to_chat_completions(
+    body: &[u8],
+) -> Result<Vec<u8>, UpstreamError> {
     use gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse;
     use gproxy_protocol::openai::create_response::response::{
         OpenAiCreateResponseResponse, ResponseBody,
@@ -2182,7 +2192,8 @@ mod tests {
         let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
         assert_eq!(json.get("model").and_then(Value::as_str), Some("gpt-5.4"));
         assert_eq!(
-            json.pointer("/choices/0/message/content").and_then(Value::as_str),
+            json.pointer("/choices/0/message/content")
+                .and_then(Value::as_str),
             Some("OK")
         );
     }

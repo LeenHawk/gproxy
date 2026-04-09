@@ -1,8 +1,8 @@
 use crate::auth::authorize_admin;
 use crate::error::{AckResponse, HttpError};
+use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use axum::Json;
 use gproxy_server::AppState;
 use gproxy_storage::Scope;
 use gproxy_storage::repository::QuotaRepository;

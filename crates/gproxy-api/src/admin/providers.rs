@@ -58,7 +58,9 @@ fn parse_dispatch_document_json(
         .map_err(|e| HttpError::bad_request(format!("invalid provider dispatch_json: {e}")))
 }
 
-fn default_dispatch_document_for_channel(channel: &str) -> Result<DispatchTableDocument, HttpError> {
+fn default_dispatch_document_for_channel(
+    channel: &str,
+) -> Result<DispatchTableDocument, HttpError> {
     ChannelRegistry::collect()
         .dispatch_table(channel)
         .map(|table| table.to_document())
@@ -163,12 +165,10 @@ async fn sync_provider_runtime(
     apply_persisted_credential_statuses(state, &credential_positions)
         .await
         .map_err(|e| HttpError::internal(e.to_string()))?;
-    let model_rows = ensure_default_models_in_storage(
-        state,
-        &[(payload.id, payload.channel.clone())],
-    )
-    .await
-    .map_err(|e| HttpError::internal(e.to_string()))?;
+    let model_rows =
+        ensure_default_models_in_storage(state, &[(payload.id, payload.channel.clone())])
+            .await
+            .map_err(|e| HttpError::internal(e.to_string()))?;
     state.replace_models(model_rows_to_memory_models(&model_rows));
 
     Ok(())
@@ -284,7 +284,9 @@ pub async fn default_provider_dispatch(
     Json(payload): Json<ProviderDispatchTemplateParams>,
 ) -> Result<Json<DispatchTableDocument>, HttpError> {
     authorize_admin(&headers, &state)?;
-    Ok(Json(default_dispatch_document_for_channel(payload.channel.trim())?))
+    Ok(Json(default_dispatch_document_for_channel(
+        payload.channel.trim(),
+    )?))
 }
 
 /// Upsert provider — persists to DB.
@@ -370,8 +372,8 @@ mod tests {
     use std::sync::Arc;
 
     use axum::{Json, extract::State, http::HeaderMap};
-    use gproxy_sdk::provider::dispatch::{RouteImplementation, RouteKey};
     use gproxy_sdk::protocol::kinds::{OperationFamily, ProtocolKind};
+    use gproxy_sdk::provider::dispatch::{RouteImplementation, RouteKey};
     use time::OffsetDateTime;
 
     use super::{
@@ -409,7 +411,12 @@ mod tests {
             .await
             .expect("seed admin key");
         let provider_id = storage
-            .create_provider("demo", "openai", "{\"base_url\":\"https://api.openai.com\"}", "{}")
+            .create_provider(
+                "demo",
+                "openai",
+                "{\"base_url\":\"https://api.openai.com\"}",
+                "{}",
+            )
             .await
             .expect("seed provider");
         assert!(provider_id > 0);
@@ -499,7 +506,10 @@ mod tests {
 
         assert_eq!(rows.len(), 1);
         let json = serde_json::to_value(&rows[0]).expect("serialize row");
-        assert!(json["id"].as_i64().is_some(), "provider row should include id");
+        assert!(
+            json["id"].as_i64().is_some(),
+            "provider row should include id"
+        );
         assert!(
             json["dispatch_json"]["rules"].as_array().is_some(),
             "provider row should expose canonical dispatch rules"

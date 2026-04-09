@@ -117,24 +117,26 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                                             if !part.text.is_empty() {
                                                 output_content
                                                     .push(ot::ResponseOutputContent::Text(
-                                                        ot::ResponseOutputText {
-                                                            annotations: Vec::new(),
-                                                            logprobs: None,
-                                                            text: part.text,
-                                                            type_: ot::ResponseOutputTextType::OutputText,
-                                                        },
-                                                    ));
+                                                    ot::ResponseOutputText {
+                                                        annotations: Vec::new(),
+                                                        logprobs: None,
+                                                        text: part.text,
+                                                        type_:
+                                                            ot::ResponseOutputTextType::OutputText,
+                                                    },
+                                                ));
                                             }
                                         }
                                         ct::ChatCompletionAssistantContentPart::Refusal(part) => {
                                             if !part.refusal.is_empty() {
                                                 output_content
                                                     .push(ot::ResponseOutputContent::Refusal(
-                                                        ot::ResponseOutputRefusal {
-                                                            refusal: part.refusal,
-                                                            type_: ot::ResponseOutputRefusalType::Refusal,
-                                                        },
-                                                    ));
+                                                    ot::ResponseOutputRefusal {
+                                                        refusal: part.refusal,
+                                                        type_:
+                                                            ot::ResponseOutputRefusalType::Refusal,
+                                                    },
+                                                ));
                                             }
                                         }
                                     }

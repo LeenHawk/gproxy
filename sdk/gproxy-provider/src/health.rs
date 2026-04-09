@@ -39,11 +39,7 @@ impl CredentialHealth for SimpleHealth {
     }
 
     fn status(&self, _model: Option<&str>) -> &'static str {
-        if self.dead {
-            "unavailable"
-        } else {
-            "healthy"
-        }
+        if self.dead { "unavailable" } else { "healthy" }
     }
 
     fn record_error(&mut self, status: u16, _model: Option<&str>, _retry_after_ms: Option<u64>) {
@@ -151,17 +147,17 @@ mod tests {
 
     #[test]
     fn model_cooldown_health_status_reports_cooldown() {
-      let mut health = ModelCooldownHealth::default();
-      health.global_cooldown = Some(Instant::now() + Duration::from_secs(30));
-      assert_eq!(health.status(None), "cooldown");
+        let mut health = ModelCooldownHealth::default();
+        health.global_cooldown = Some(Instant::now() + Duration::from_secs(30));
+        assert_eq!(health.status(None), "cooldown");
     }
 
     #[test]
     fn model_cooldown_health_status_reports_unavailable_when_dead() {
-      let health = ModelCooldownHealth {
-        dead: true,
-        ..Default::default()
-      };
-      assert_eq!(health.status(None), "unavailable");
+        let health = ModelCooldownHealth {
+            dead: true,
+            ..Default::default()
+        };
+        assert_eq!(health.status(None), "unavailable");
     }
 }

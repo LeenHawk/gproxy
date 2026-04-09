@@ -28,7 +28,11 @@ pub async fn console_path(Path(path): Path<String>) -> Response {
     if ConsoleAssets::get(trimmed).is_some() {
         return render(trimmed);
     }
-    if trimmed.rsplit('/').next().is_some_and(|segment| segment.contains('.')) {
+    if trimmed
+        .rsplit('/')
+        .next()
+        .is_some_and(|segment| segment.contains('.'))
+    {
         return (StatusCode::NOT_FOUND, "not found").into_response();
     }
     render("index.html")

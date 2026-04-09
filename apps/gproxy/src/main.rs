@@ -10,8 +10,8 @@ use gproxy_sdk::provider::engine::GproxyEngineBuilder;
 use gproxy_server::{AppStateBuilder, GlobalConfig};
 use gproxy_storage::{SeaOrmStorage, StorageWriteEvent};
 
-mod workers;
 mod web;
+mod workers;
 
 #[derive(Parser)]
 #[command(name = "gproxy", about = "High-performance LLM proxy server")]

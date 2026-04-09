@@ -338,7 +338,12 @@ mod tests {
             .await
             .expect("seed admin key");
         let provider_id = storage
-            .create_provider("demo", "openai", "{\"base_url\":\"https://api.openai.com\"}", "{}")
+            .create_provider(
+                "demo",
+                "openai",
+                "{\"base_url\":\"https://api.openai.com\"}",
+                "{}",
+            )
             .await
             .expect("seed provider");
         storage

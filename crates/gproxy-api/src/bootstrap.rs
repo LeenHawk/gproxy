@@ -62,7 +62,9 @@ fn synthetic_credential_id(provider_id: i64, index: usize) -> i64 {
     provider_id * 1000 + index as i64
 }
 
-pub(crate) fn model_rows_to_memory_models(models: &[gproxy_storage::ModelQueryRow]) -> Vec<MemoryModel> {
+pub(crate) fn model_rows_to_memory_models(
+    models: &[gproxy_storage::ModelQueryRow],
+) -> Vec<MemoryModel> {
     models
         .iter()
         .map(|model| {
@@ -943,13 +945,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 .copied()
                 .unwrap_or(0);
             MemoryModel {
-                id: persisted_models
-                    .iter()
-                    .map(|row| row.id)
-                    .max()
-                    .unwrap_or(0)
-                    + i as i64
-                    + 1,
+                id: persisted_models.iter().map(|row| row.id).max().unwrap_or(0) + i as i64 + 1,
                 provider_id,
                 model_id: m.model_id.clone(),
                 display_name: m.display_name.clone(),

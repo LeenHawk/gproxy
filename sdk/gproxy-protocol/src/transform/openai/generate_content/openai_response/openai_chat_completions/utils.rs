@@ -317,9 +317,5 @@ pub fn response_tools_to_chat_tools(
         }
     }
 
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    if out.is_empty() { None } else { Some(out) }
 }

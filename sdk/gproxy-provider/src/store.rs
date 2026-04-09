@@ -896,10 +896,7 @@ impl ProviderStore {
                 let dispatch = match dispatch {
                     Some(document) => Some(
                         crate::dispatch::DispatchTable::from_document(document).map_err(|e| {
-                            UpstreamError::Channel(format!(
-                                "invalid dispatch for '{}': {e}",
-                                name
-                            ))
+                            UpstreamError::Channel(format!("invalid dispatch for '{}': {e}", name))
                         })?,
                     ),
                     None => None,

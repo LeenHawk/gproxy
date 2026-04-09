@@ -10,11 +10,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::Instrument;
 
+use crate::Channel;
 use crate::health::ModelCooldownHealth;
 use crate::request::PreparedRequest;
 use crate::response::UpstreamError;
 use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
-use crate::Channel;
 
 fn is_stream_aggregation_route(
     src_operation: OperationFamily,
@@ -237,9 +237,13 @@ impl GproxyEngineBuilder {
         credentials: Vec<(C::Credential, C::Health)>,
         dispatch_override: Option<crate::dispatch::DispatchTable>,
     ) -> Self {
-        self.store_builder = self
-            .store_builder
-            .add_provider_with_dispatch(name, channel, settings, credentials, dispatch_override);
+        self.store_builder = self.store_builder.add_provider_with_dispatch(
+            name,
+            channel,
+            settings,
+            credentials,
+            dispatch_override,
+        );
         self
     }
 
@@ -328,10 +332,7 @@ impl GproxyEngineBuilder {
                 let dispatch = match dispatch {
                     Some(document) => Some(
                         crate::dispatch::DispatchTable::from_document(document).map_err(|e| {
-                            UpstreamError::Channel(format!(
-                                "invalid dispatch for '{}': {e}",
-                                name
-                            ))
+                            UpstreamError::Channel(format!("invalid dispatch for '{}': {e}", name))
                         })?,
                     ),
                     None => None,

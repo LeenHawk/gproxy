@@ -643,7 +643,10 @@ mod tests {
             Some(ct::ChatCompletionDeltaRole::Assistant)
         );
         assert_eq!(converted[0].choices[0].delta.content, None);
-        assert_eq!(converted[1].choices[0].delta.content.as_deref(), Some("hello"));
+        assert_eq!(
+            converted[1].choices[0].delta.content.as_deref(),
+            Some("hello")
+        );
         assert_eq!(
             converted[2].choices[0].finish_reason,
             Some(ct::ChatCompletionFinishReason::Stop)
@@ -738,7 +741,8 @@ mod tests {
             .expect("completed");
 
         let saw_logprobs = converted.iter().any(|chunk| {
-            chunk.choices
+            chunk
+                .choices
                 .first()
                 .and_then(|choice| choice.logprobs.as_ref())
                 .and_then(|logprobs| logprobs.content.as_ref())
