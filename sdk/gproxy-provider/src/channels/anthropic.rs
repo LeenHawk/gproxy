@@ -11,6 +11,7 @@ use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
 use crate::utils::claude_cache_control as cache_control;
+use crate::utils::claude_sampling;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// Anthropic Claude API channel.
@@ -248,12 +249,18 @@ impl Channel for AnthropicChannel {
             return Ok(request);
         }
 
-        if !settings.enable_magic_cache && settings.cache_breakpoints.is_empty() {
+        // Body may be empty or non-JSON for GET-shaped operations that still
+        // reach `finalize_request` (model_list, model_get). Skip normalization
+        // silently for those — there's nothing to strip or inject.
+        let Ok(mut body_json) = serde_json::from_slice::<Value>(&request.body) else {
             return Ok(request);
-        }
+        };
 
-        let mut body_json: Value = serde_json::from_slice(&request.body)
-            .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
+        // Strip client-supplied sampling params before anything else — some
+        // newer Anthropic models reject non-default temperature / top_p /
+        // top_k, and we want the default behavior for every client.
+        claude_sampling::strip_sampling_params(&mut body_json);
+
         if settings.enable_magic_cache {
             cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
         }

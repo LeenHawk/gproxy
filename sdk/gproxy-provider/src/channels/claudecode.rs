@@ -17,6 +17,7 @@ use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
 use crate::utils::claude_cache_control as cache_control;
+use crate::utils::claude_sampling;
 use crate::utils::oauth2_refresh;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use tracing::Instrument;
@@ -506,18 +507,6 @@ fn first_user_message_text(body: &Value) -> String {
     }
 }
 
-fn normalize_claudecode_sampling(body: &mut Value) {
-    let Some(map) = body.as_object_mut() else {
-        return;
-    };
-
-    let has_temperature = map.get("temperature").and_then(Value::as_f64).is_some();
-    let has_top_p = map.get("top_p").and_then(Value::as_f64).is_some();
-    if has_temperature && has_top_p {
-        map.remove("top_p");
-    }
-}
-
 fn normalize_claudecode_unsupported_fields(body: &mut Value) {
     let Some(map) = body.as_object_mut() else {
         return;
@@ -816,7 +805,7 @@ impl Channel for ClaudeCodeChannel {
         let mut body_json: Value = serde_json::from_slice(&request.body)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
 
-        normalize_claudecode_sampling(&mut body_json);
+        claude_sampling::strip_sampling_params(&mut body_json);
         normalize_claudecode_unsupported_fields(&mut body_json);
 
         if settings.enable_magic_cache {

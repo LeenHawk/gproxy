@@ -1,4 +1,5 @@
 pub mod claude_cache_control;
+pub mod claude_sampling;
 pub mod claudecode_cookie;
 pub mod code_assist_envelope;
 pub mod google_quota;
