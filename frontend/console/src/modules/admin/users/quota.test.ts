@@ -1,42 +1,38 @@
 import { describe, expect, it } from "vitest";
 
-import { buildUserQuotaFormState, buildUserQuotaWritePayload } from "./quota";
+import { buildQuotaIncrementPayload } from "./quota";
 
-describe("user quota helpers", () => {
-  it("builds form state from an existing quota row", () => {
+describe("buildQuotaIncrementPayload", () => {
+  it("adds a fixed increment on top of the current quota", () => {
     expect(
-      buildUserQuotaFormState({
-        quota: 25.5,
-        cost_used: 6.25,
-      }),
-    ).toEqual({
-      quota: "25.5",
-      cost_used: "6.25",
-    });
-  });
-
-  it("treats blank fields as zero when building an upsert payload", () => {
-    expect(
-      buildUserQuotaWritePayload(7, {
-        quota: "",
-        cost_used: "",
-      }),
+      buildQuotaIncrementPayload(
+        {
+          user_id: 7,
+          quota: 100,
+          cost_used: 6.5,
+        },
+        100,
+      ),
     ).toEqual({
       user_id: 7,
-      quota: 0,
-      cost_used: 0,
+      quota: 200,
+      cost_used: 6.5,
     });
   });
 
-  it("parses decimal quota fields for the save payload", () => {
+  it("supports arbitrary decimal increments", () => {
     expect(
-      buildUserQuotaWritePayload(9, {
-        quota: "12.75",
-        cost_used: "2.5",
-      }),
+      buildQuotaIncrementPayload(
+        {
+          user_id: 9,
+          quota: 12.75,
+          cost_used: 2.5,
+        },
+        "7.25",
+      ),
     ).toEqual({
       user_id: 9,
-      quota: 12.75,
+      quota: 20,
       cost_used: 2.5,
     });
   });

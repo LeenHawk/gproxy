@@ -8,7 +8,7 @@ import type { GenerateUserKeyResponse, MemoryUserKeyRow, MemoryUserQuotaRow, Mem
 import { UserKeysPane } from "./users/UserKeysPane";
 import { UserListPane } from "./users/UserListPane";
 import { buildUserWritePayload, type UserFormState } from "./users/types";
-import { buildUserQuotaFormState, buildUserQuotaWritePayload, type UserQuotaFormState } from "./users/quota";
+import { buildQuotaIncrementPayload } from "./users/quota";
 
 export function UsersModule({
   sessionToken,
@@ -31,7 +31,7 @@ export function UsersModule({
     enabled: true,
     is_admin: false,
   });
-  const [quotaForm, setQuotaForm] = useState<UserQuotaFormState>(buildUserQuotaFormState());
+  const [quotaIncrement, setQuotaIncrement] = useState("");
 
   const selectedUser = rows.find((row) => row.id === selectedUserId) ?? null;
 
@@ -62,7 +62,7 @@ export function UsersModule({
   const loadUserQuota = async (userId: number | null) => {
     if (userId === null) {
       setSelectedUserQuota(null);
-      setQuotaForm(buildUserQuotaFormState());
+      setQuotaIncrement("");
       return;
     }
     const data = await apiJson<MemoryUserQuotaRow[]>("/admin/user-quotas/query", {
@@ -77,7 +77,7 @@ export function UsersModule({
       remaining: 0,
     };
     setSelectedUserQuota(row);
-    setQuotaForm(buildUserQuotaFormState(row));
+    setQuotaIncrement("");
   };
 
   useEffect(() => {
@@ -203,18 +203,18 @@ export function UsersModule({
     }
   };
 
-  const saveUserQuota = async () => {
-    if (!selectedUserId) {
+  const addUserQuota = async (increment: string | number) => {
+    if (!selectedUserQuota) {
       return;
     }
     try {
       await apiJson("/admin/user-quotas/upsert", {
         method: "POST",
         headers,
-        body: JSON.stringify(buildUserQuotaWritePayload(selectedUserId, quotaForm)),
+        body: JSON.stringify(buildQuotaIncrementPayload(selectedUserQuota, increment)),
       });
       notify("success", t("users.quotaSaved"));
-      await loadUserQuota(selectedUserId);
+      await loadUserQuota(selectedUserQuota.user_id);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
@@ -245,11 +245,11 @@ export function UsersModule({
         <UserKeysPane
           selectedUser={selectedUser}
           selectedUserQuota={selectedUserQuota}
-          quotaForm={quotaForm}
+          quotaIncrement={quotaIncrement}
           keyRows={keyRows}
-          onChangeQuotaForm={(patch) => setQuotaForm((current) => ({ ...current, ...patch }))}
-          onSaveQuota={() => void saveUserQuota()}
-          onRefreshQuota={() => void loadUserQuota(selectedUserId)}
+          onChangeQuotaIncrement={setQuotaIncrement}
+          onAddQuickQuota={() => void addUserQuota(100)}
+          onAddCustomQuota={() => void addUserQuota(quotaIncrement)}
           onGenerateKey={() => void generateKey()}
           onRefreshKeys={() => void loadUserKeys(selectedUserId)}
           onToggleKeyEnabled={(row) => void toggleUserKeyEnabled(row)}

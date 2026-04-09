@@ -500,6 +500,76 @@ input {
   color: color-mix(in srgb, var(--accent-strong) 88%, var(--text));
 }
 
+.status-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--bg-surface-strong) 92%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
+}
+
+.status-toggle:hover {
+  transform: translateY(-1px);
+}
+
+.status-toggle-on {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+  background: color-mix(in srgb, var(--success) 9%, var(--bg-surface));
+}
+
+.status-toggle-off {
+  border-color: color-mix(in srgb, var(--danger) 26%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--bg-surface));
+}
+
+.status-toggle-dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.status-toggle-dot-on {
+  background: var(--success);
+  color: var(--success);
+}
+
+.status-toggle-dot-off {
+  background: var(--danger);
+  color: var(--danger);
+}
+
+.status-toggle-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.status-toggle-label {
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.status-toggle-value {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 pre {
   max-width: 100%;
   overflow: auto;

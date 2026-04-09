@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Button, Card, Label, SearchableSelect, Select } from "../../components/ui";
+import { Button, Card, Label, SearchableSelect, Select, StatusToggle } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type {
@@ -336,10 +336,13 @@ export function RequestsModule({
               />
             </div>
           </div>
-          <label className="flex h-[42px] items-center gap-2 text-sm text-muted">
-            <input type="checkbox" checked={includeBody} onChange={(event) => setIncludeBody(event.target.checked)} />
-            {t("requests.includeBody")}
-          </label>
+          <StatusToggle
+            label={t("requests.includeBody")}
+            checked={includeBody}
+            onToggle={() => setIncludeBody((current) => !current)}
+            checkedLabel={t("common.enabled")}
+            uncheckedLabel={t("common.disabled")}
+          />
         </div>
         <div className="toolbar-actions">
           <Button onClick={() => void query()}>{t("common.query")}</Button>

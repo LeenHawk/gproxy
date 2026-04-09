@@ -19,12 +19,11 @@ use crate::Channel;
 fn is_stream_aggregation_route(
     src_operation: OperationFamily,
     dst_operation: OperationFamily,
-    src_protocol: ProtocolKind,
-    dst_protocol: ProtocolKind,
+    _src_protocol: ProtocolKind,
+    _dst_protocol: ProtocolKind,
 ) -> bool {
     src_operation == OperationFamily::GenerateContent
         && dst_operation == OperationFamily::StreamGenerateContent
-        && src_protocol == dst_protocol
 }
 
 fn aggregate_stream_body(protocol: ProtocolKind, body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
@@ -1431,7 +1430,8 @@ pub use wreq::ws::message::Message as WsMessage;
 mod tests {
     use serde_json::json;
 
-    use super::validate_credential_json;
+    use super::{is_stream_aggregation_route, validate_credential_json};
+    use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
     #[test]
     fn validate_credential_json_accepts_valid_openai_credential() {
@@ -1444,5 +1444,25 @@ mod tests {
         let credential = json!({ "token": "sk-test" });
         let err = validate_credential_json("openai", &credential).unwrap_err();
         assert!(err.to_string().contains("invalid credential"));
+    }
+
+    #[test]
+    fn stream_aggregation_treats_chat_to_responses_as_compatible() {
+        assert!(is_stream_aggregation_route(
+            OperationFamily::GenerateContent,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            ProtocolKind::OpenAiResponse,
+        ));
+    }
+
+    #[test]
+    fn stream_aggregation_treats_responses_to_responses_as_compatible() {
+        assert!(is_stream_aggregation_route(
+            OperationFamily::GenerateContent,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            ProtocolKind::OpenAiResponse,
+        ));
     }
 }

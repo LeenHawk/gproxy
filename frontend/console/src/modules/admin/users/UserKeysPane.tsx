@@ -1,16 +1,15 @@
 import { useI18n } from "../../../app/i18n";
 import { Badge, Button, Input, Label } from "../../../components/ui";
 import type { MemoryUserKeyRow, MemoryUserQuotaRow, MemoryUserRow } from "../../../lib/types/admin";
-import type { UserQuotaFormState } from "./quota";
 
 export function UserKeysPane({
   selectedUser,
   selectedUserQuota,
-  quotaForm,
+  quotaIncrement,
   keyRows,
-  onChangeQuotaForm,
-  onSaveQuota,
-  onRefreshQuota,
+  onChangeQuotaIncrement,
+  onAddQuickQuota,
+  onAddCustomQuota,
   onGenerateKey,
   onRefreshKeys,
   onToggleKeyEnabled,
@@ -18,11 +17,11 @@ export function UserKeysPane({
 }: {
   selectedUser: MemoryUserRow | null;
   selectedUserQuota: MemoryUserQuotaRow | null;
-  quotaForm: UserQuotaFormState;
+  quotaIncrement: string;
   keyRows: MemoryUserKeyRow[];
-  onChangeQuotaForm: (patch: Partial<UserQuotaFormState>) => void;
-  onSaveQuota: () => void;
-  onRefreshQuota: () => void;
+  onChangeQuotaIncrement: (value: string) => void;
+  onAddQuickQuota: () => void;
+  onAddCustomQuota: () => void;
   onGenerateKey: () => void;
   onRefreshKeys: () => void;
   onToggleKeyEnabled: (row: MemoryUserKeyRow) => void;
@@ -76,24 +75,15 @@ export function UserKeysPane({
               <div className="metric-value">{quota.remaining}</div>
             </div>
           </div>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
             <div>
-              <Label>{t("common.quota")}</Label>
-              <Input value={quotaForm.quota} onChange={(value) => onChangeQuotaForm({ quota: value })} />
+              <Label>{t("users.customQuotaIncrement")}</Label>
+              <Input value={quotaIncrement} onChange={onChangeQuotaIncrement} />
             </div>
-            <div>
-              <Label>{t("common.costUsed")}</Label>
-              <Input
-                value={quotaForm.cost_used}
-                onChange={(value) => onChangeQuotaForm({ cost_used: value })}
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={onSaveQuota}>{t("common.save")}</Button>
-            <Button variant="neutral" onClick={onRefreshQuota}>
-              {t("common.refresh")}
+            <Button variant="neutral" onClick={onAddQuickQuota}>
+              +100
             </Button>
+            <Button onClick={onAddCustomQuota}>{t("users.addQuota")}</Button>
           </div>
         </div>
       ) : null}

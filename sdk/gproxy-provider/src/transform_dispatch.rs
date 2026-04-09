@@ -2,9 +2,92 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
+use http::StatusCode;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::response::UpstreamError;
+
+trait RequestDescriptor: Sized {
+    type Body: DeserializeOwned + Serialize;
+
+    fn from_body(body: Self::Body) -> Self;
+    fn into_body(self) -> Self::Body;
+}
+
+impl RequestDescriptor for gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest {
+    type Body = gproxy_protocol::openai::create_chat_completions::request::RequestBody;
+
+    fn from_body(body: Self::Body) -> Self {
+        Self {
+            body,
+            ..Self::default()
+        }
+    }
+
+    fn into_body(self) -> Self::Body {
+        self.body
+    }
+}
+
+impl RequestDescriptor for gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest {
+    type Body = gproxy_protocol::openai::create_response::request::RequestBody;
+
+    fn from_body(body: Self::Body) -> Self {
+        Self {
+            body,
+            ..Self::default()
+        }
+    }
+
+    fn into_body(self) -> Self::Body {
+        self.body
+    }
+}
+
+impl RequestDescriptor for gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest {
+    type Body = gproxy_protocol::claude::create_message::request::RequestBody;
+
+    fn from_body(body: Self::Body) -> Self {
+        Self {
+            body,
+            ..Self::default()
+        }
+    }
+
+    fn into_body(self) -> Self::Body {
+        self.body
+    }
+}
+
+impl RequestDescriptor for gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest {
+    type Body = gproxy_protocol::gemini::generate_content::request::RequestBody;
+
+    fn from_body(body: Self::Body) -> Self {
+        Self {
+            body,
+            ..Self::default()
+        }
+    }
+
+    fn into_body(self) -> Self::Body {
+        self.body
+    }
+}
+
+impl RequestDescriptor for gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest {
+    type Body = gproxy_protocol::gemini::stream_generate_content::request::RequestBody;
+
+    fn from_body(body: Self::Body) -> Self {
+        Self {
+            body,
+            ..Self::default()
+        }
+    }
+
+    fn into_body(self) -> Self::Body {
+        self.body
+    }
+}
 
 /// Transform a request body from one (operation, protocol) to another.
 ///
@@ -16,6 +99,10 @@ pub fn transform_request(
     dst_protocol: ProtocolKind,
     body: Vec<u8>,
 ) -> Result<Vec<u8>, UpstreamError> {
+    if src_operation == dst_operation && src_protocol == dst_protocol {
+        return Ok(body);
+    }
+
     tracing::debug!(
         src_operation = %src_operation,
         src_protocol = %src_protocol,
@@ -32,13 +119,13 @@ pub fn transform_request(
 
         // === Claude source → OpenAI targets ===
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             >(&body)
         }
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
             >(&body)
@@ -46,7 +133,7 @@ pub fn transform_request(
 
         // === Claude source → Gemini targets ===
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest,
             >(&body)
@@ -54,7 +141,7 @@ pub fn transform_request(
 
         // === OpenAI ChatCompletions source → Claude ===
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
@@ -62,15 +149,23 @@ pub fn transform_request(
 
         // === OpenAI ChatCompletions source → Gemini ===
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
                 gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest,
             >(&body)
         }
 
+        // === OpenAI ChatCompletions source → OpenAI Response ===
+        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
+            transform_request_descriptor::<
+                gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+                gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
+            >(&body)
+        }
+
         // === OpenAI Response source → Claude ===
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
@@ -78,7 +173,7 @@ pub fn transform_request(
 
         // === OpenAI Response source → Gemini ===
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
                 gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest,
             >(&body)
@@ -86,7 +181,7 @@ pub fn transform_request(
 
         // === Gemini source → Claude ===
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
@@ -94,7 +189,7 @@ pub fn transform_request(
 
         // === Gemini source → OpenAI ChatCompletions ===
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest,
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             >(&body)
@@ -102,7 +197,7 @@ pub fn transform_request(
 
         // === Gemini source → OpenAI Response ===
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::generate_content::request::GeminiGenerateContentRequest,
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
             >(&body)
@@ -114,25 +209,25 @@ pub fn transform_request(
 
         // --- Claude source ---
         (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
             >(&body)
@@ -140,37 +235,37 @@ pub fn transform_request(
 
         // --- Gemini source ---
         (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
             >(&body)
@@ -178,39 +273,45 @@ pub fn transform_request(
 
         // --- OpenAI ChatCompletions source ---
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            >(&body)
+        }
+        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
+            transform_request_descriptor_ref::<
+                gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+                gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
             >(&body)
         }
 
         // --- OpenAI Response source ---
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
                 gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             >(&body)
         }
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson) => {
-            transform_json_ref::<
+            transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
                 gproxy_protocol::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             >(&body)
@@ -522,6 +623,10 @@ pub fn transform_response(
                 gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
             >(&body)
         }
+        // OpenAI Response response → OpenAI ChatCompletions
+        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
+            transform_openai_response_body_to_chat_completions(&body)
+        }
 
         // Claude response → OpenAI Response
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
@@ -783,22 +888,72 @@ where
         .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
 }
 
-/// Generic JSON transform for reference-based TryFrom (used by stream request transforms).
-/// Deserializes as Src, converts via `TryFrom<&Src>` into Dst, then serializes.
-fn transform_json_ref<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
+fn transform_request_descriptor<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
 where
-    Src: serde::de::DeserializeOwned,
-    for<'a> Dst: TryFrom<&'a Src> + serde::Serialize,
+    Src: RequestDescriptor,
+    Dst: RequestDescriptor + TryFrom<Src>,
+    Dst::Error: std::fmt::Display,
+{
+    let src_body: Src::Body = serde_json::from_slice(body)
+        .map_err(|e| UpstreamError::Channel(format!("request deserialize: {}", e)))?;
+    let src = Src::from_body(src_body);
+    let dst =
+        Dst::try_from(src).map_err(|e| UpstreamError::Channel(format!("transform: {}", e)))?;
+
+    serde_json::to_vec(&dst.into_body())
+        .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
+}
+
+fn transform_request_descriptor_ref<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
+where
+    Src: RequestDescriptor,
+    for<'a> Dst: RequestDescriptor + TryFrom<&'a Src>,
     for<'a> <Dst as TryFrom<&'a Src>>::Error: std::fmt::Display,
 {
-    let src: Src = serde_json::from_slice(body)
+    let src_body: Src::Body = serde_json::from_slice(body)
         .map_err(|e| UpstreamError::Channel(format!("request deserialize: {}", e)))?;
-
+    let src = Src::from_body(src_body);
     let dst =
         Dst::try_from(&src).map_err(|e| UpstreamError::Channel(format!("transform: {}", e)))?;
 
-    serde_json::to_vec(&dst)
+    serde_json::to_vec(&dst.into_body())
         .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
+}
+
+fn transform_openai_response_body_to_chat_completions(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    use gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse;
+    use gproxy_protocol::openai::create_response::response::{
+        OpenAiCreateResponseResponse, ResponseBody,
+    };
+    use gproxy_protocol::openai::types::{OpenAiApiErrorResponse, OpenAiResponseHeaders};
+
+    let wrapped = if let Ok(success_body) = serde_json::from_slice::<ResponseBody>(body) {
+        OpenAiCreateResponseResponse::Success {
+            stats_code: StatusCode::OK,
+            headers: OpenAiResponseHeaders::default(),
+            body: success_body,
+        }
+    } else if let Ok(error_body) = serde_json::from_slice::<OpenAiApiErrorResponse>(body) {
+        OpenAiCreateResponseResponse::Error {
+            stats_code: StatusCode::BAD_REQUEST,
+            headers: OpenAiResponseHeaders::default(),
+            body: error_body,
+        }
+    } else {
+        return Err(UpstreamError::Channel(
+            "response deserialize: body is neither responses success nor error payload".to_string(),
+        ));
+    };
+
+    let converted = OpenAiChatCompletionsResponse::try_from(wrapped)
+        .map_err(|e| UpstreamError::Channel(format!("transform: {}", e)))?;
+
+    match converted {
+        OpenAiChatCompletionsResponse::Success { body, .. } => serde_json::to_vec(&body)
+            .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e))),
+        OpenAiChatCompletionsResponse::Error { body, .. } => serde_json::to_vec(&body)
+            .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e))),
+    }
 }
 
 pub type StreamChunkNormalizer = Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>;
@@ -1955,5 +2110,80 @@ pub fn stream_to_nonstream(
         _ => Err(UpstreamError::Channel(format!(
             "no stream_to_nonstream for protocol: {protocol}"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
+    use serde_json::{Value, json};
+
+    use super::{transform_openai_response_body_to_chat_completions, transform_request};
+
+    #[test]
+    fn transform_request_supports_openai_chat_to_openai_response() {
+        let body = br#"{
+          "model": "gpt-5.4",
+          "messages": [
+            { "role": "user", "content": "reply ok" }
+          ],
+          "stream": false
+        }"#
+        .to_vec();
+
+        let transformed = transform_request(
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            body,
+        )
+        .expect("chat -> response request transform should succeed");
+
+        let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
+        assert_eq!(json.get("model").and_then(Value::as_str), Some("gpt-5.4"));
+        assert!(json.get("input").is_some());
+    }
+
+    #[test]
+    fn transform_response_supports_openai_response_to_openai_chat() {
+        let body = serde_json::to_vec(&json!({
+          "id": "resp_123",
+          "created_at": 1,
+          "metadata": {},
+          "model": "gpt-5.4",
+          "object": "response",
+          "output": [
+            {
+              "id": "msg_0",
+              "content": [
+                {
+                  "annotations": [],
+                  "text": "OK",
+                  "type": "output_text"
+                }
+              ],
+              "role": "assistant",
+              "status": "completed",
+              "type": "message"
+            }
+          ],
+          "parallel_tool_calls": false,
+          "temperature": 1.0,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": 1.0
+        }))
+        .expect("serialize response body");
+
+        let transformed = transform_openai_response_body_to_chat_completions(&body)
+            .expect("response -> chat transform should succeed");
+
+        let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
+        assert_eq!(json.get("model").and_then(Value::as_str), Some("gpt-5.4"));
+        assert_eq!(
+            json.pointer("/choices/0/message/content").and_then(Value::as_str),
+            Some("OK")
+        );
     }
 }

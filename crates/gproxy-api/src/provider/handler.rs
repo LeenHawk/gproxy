@@ -158,7 +158,23 @@ pub async fn proxy(
         .await
     {
         Ok(result) => result,
-        Err(err) => return Err(err.into()),
+        Err(err) => {
+            record_execute_error_logs(
+                &state,
+                trace_id,
+                &effective_provider,
+                user_key.user_id,
+                user_key.id,
+                &req_method,
+                &req_path,
+                req_query.as_deref(),
+                &req_headers_json,
+                Some(&req_body),
+                500,
+            )
+            .await;
+            return Err(err.into());
+        }
     };
     let result_status = result.status;
     let result_credential_index = result.credential_index;
@@ -391,7 +407,23 @@ pub async fn proxy_unscoped(
         .await
     {
         Ok(result) => result,
-        Err(err) => return Err(err.into()),
+        Err(err) => {
+            record_execute_error_logs(
+                &state,
+                trace_id,
+                &target_provider,
+                user_key.user_id,
+                user_key.id,
+                &req_method,
+                &req_path,
+                req_query.as_deref(),
+                &req_headers_json,
+                Some(&req_body),
+                500,
+            )
+            .await;
+            return Err(err.into());
+        }
     };
 
     let usage_ctx = UsageRecordContext {
@@ -580,7 +612,7 @@ pub async fn proxy_unscoped_files(
         .and_then(FileOperationPlan::deleted_file)
         .cloned();
 
-    let result = state
+    let result = match state
         .engine()
         .execute(ExecuteRequest {
             provider: target_provider.clone(),
@@ -591,7 +623,27 @@ pub async fn proxy_unscoped_files(
             model: None,
             forced_credential_index,
         })
-        .await?;
+        .await
+    {
+        Ok(result) => result,
+        Err(err) => {
+            record_execute_error_logs(
+                &state,
+                trace_id,
+                &target_provider,
+                user_key.user_id,
+                user_key.id,
+                &req_method,
+                &req_path,
+                req_query.as_deref(),
+                &req_headers_json,
+                Some(&req_body),
+                500,
+            )
+            .await;
+            return Err(err.into());
+        }
+    };
     let result_status = result.status;
     let result_credential_index = result.credential_index;
     let upload_body = match &result.body {
@@ -2278,7 +2330,10 @@ mod tests {
     use gproxy_server::{
         AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey, PermissionEntry, RateLimitRule,
     };
-    use gproxy_storage::{SeaOrmStorage, UsageQuery, repository::UserRepository};
+    use gproxy_storage::{
+        DownstreamRequestQuery, SeaOrmStorage, UpstreamRequestQuery, UsageQuery,
+        repository::{ProviderRepository, UserRepository},
+    };
     use serde_json::json;
     use tokio::net::TcpListener;
 
@@ -2326,6 +2381,41 @@ mod tests {
                 .await
                 .expect("in-memory sqlite storage"),
         );
+        storage.sync().await.expect("sync schema");
+        storage
+            .upsert_provider(gproxy_storage::ProviderWrite {
+                id: 42,
+                name: "test".to_string(),
+                channel: "custom".to_string(),
+                settings_json: json!({
+                    "base_url": base_url,
+                    "auth_scheme": "bearer"
+                })
+                .to_string(),
+                dispatch_json: "".to_string(),
+            })
+            .await
+            .expect("seed provider");
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "alice".to_string(),
+                password: "hash".to_string(),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed user key");
         let engine = GproxyEngine::builder()
             .add_provider_json(ProviderConfig {
                 name: "test".to_string(),
@@ -2346,6 +2436,10 @@ mod tests {
             .storage(storage)
             .config(GlobalConfig {
                 dsn: "sqlite::memory:".to_string(),
+                enable_upstream_log: true,
+                enable_upstream_log_body: true,
+                enable_downstream_log: true,
+                enable_downstream_log_body: true,
                 ..GlobalConfig::default()
             })
             .users(vec![MemoryUser {
@@ -2549,6 +2643,71 @@ mod tests {
 
         assert_eq!(state.get_user_quota(1), (0.0, 0.25));
     }
+
+    #[tokio::test]
+    async fn proxy_unscoped_records_request_logs_when_upstream_execution_fails() {
+        let state = build_unscoped_proxy_state("http://127.0.0.1:1".to_string()).await;
+        let body = serde_json::to_vec(&json!({
+            "model": "test/demo",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello"
+                }
+            ]
+        }))
+        .expect("request body should serialize");
+
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/v1/chat/completions")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+        request
+            .extensions_mut()
+            .insert(BufferedBodyBytes(Bytes::from(body.clone())));
+        request.extensions_mut().insert(Classification::new(
+            gproxy_server::OperationFamily::GenerateContent,
+            gproxy_server::ProtocolKind::OpenAiChatCompletion,
+        ));
+        request
+            .extensions_mut()
+            .insert(ExtractedModel(Some("test/demo".to_string())));
+
+        let error = proxy_unscoped(
+            State(state.clone()),
+            Extension(AuthenticatedUser(MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })),
+            request,
+        )
+        .await
+        .expect_err("request should fail on upstream error");
+
+        assert_eq!(error.status, StatusCode::INTERNAL_SERVER_ERROR);
+
+        let downstream_logs = state
+            .storage()
+            .query_downstream_requests(&DownstreamRequestQuery::default())
+            .await
+            .expect("query downstream request logs");
+        assert_eq!(downstream_logs.len(), 1);
+        assert_eq!(downstream_logs[0].request_path, "/v1/chat/completions");
+        assert_eq!(downstream_logs[0].response_status, Some(500));
+
+        let upstream_logs = state
+            .storage()
+            .query_upstream_requests(&UpstreamRequestQuery::default())
+            .await
+            .expect("query upstream request logs");
+        assert_eq!(upstream_logs.len(), 1);
+        assert_eq!(upstream_logs[0].provider_id, Some(42));
+        assert_eq!(upstream_logs[0].response_status, Some(500));
+    }
 }
 
 fn build_file_request_body(
@@ -2682,6 +2841,63 @@ async fn record_upstream_log(
             },
         ))
         .await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn record_execute_error_logs(
+    state: &AppState,
+    trace_id: i64,
+    provider_name: &str,
+    user_id: i64,
+    user_key_id: i64,
+    method: &str,
+    path: &str,
+    query: Option<&str>,
+    req_headers_json: &str,
+    req_body: Option<&Vec<u8>>,
+    response_status: i32,
+) {
+    if state.config().enable_upstream_log {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let _ = state
+            .storage()
+            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
+                gproxy_storage::UpstreamRequestWrite {
+                    downstream_trace_id: Some(trace_id),
+                    at_unix_ms: now_ms,
+                    internal: false,
+                    provider_id: state.provider_id_for_name(provider_name),
+                    credential_id: None,
+                    request_method: method.to_string(),
+                    request_headers_json: "[]".to_string(),
+                    request_url: None,
+                    request_body: None,
+                    response_status: Some(response_status),
+                    response_headers_json: "[]".to_string(),
+                    response_body: None,
+                },
+            ))
+            .await;
+    }
+
+    record_downstream_log(
+        state,
+        trace_id,
+        user_id,
+        user_key_id,
+        method,
+        path,
+        query,
+        req_headers_json,
+        req_body,
+        Some(response_status),
+        "{}",
+        None,
+    )
+    .await;
 }
 
 /// Record downstream request/response log to DB.

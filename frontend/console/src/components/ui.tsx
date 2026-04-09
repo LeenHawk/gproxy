@@ -65,6 +65,35 @@ export function Badge({
   return <span className={`badge badge-${variant}`}>{children}</span>;
 }
 
+export function StatusToggle({
+  label,
+  checked,
+  onToggle,
+  checkedLabel,
+  uncheckedLabel,
+}: {
+  label: ReactNode;
+  checked: boolean;
+  onToggle: () => void;
+  checkedLabel: ReactNode;
+  uncheckedLabel: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`status-toggle ${checked ? "status-toggle-on" : "status-toggle-off"}`}
+      onClick={onToggle}
+      aria-pressed={checked}
+    >
+      <span className={`status-toggle-dot ${checked ? "status-toggle-dot-on" : "status-toggle-dot-off"}`} />
+      <span className="status-toggle-copy">
+        <span className="status-toggle-label">{label}</span>
+        <span className="status-toggle-value">{checked ? checkedLabel : uncheckedLabel}</span>
+      </span>
+    </button>
+  );
+}
+
 export function Label({ children }: { children: ReactNode }) {
   return (
     <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-muted">

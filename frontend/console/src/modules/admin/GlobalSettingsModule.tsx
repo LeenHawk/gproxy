@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
-import { Button, Card, Input, Label, Select } from "../../components/ui";
+import { Button, Card, Input, Label, Select, StatusToggle } from "../../components/ui";
 import { apiJson } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type { GlobalSettings, UpdatePerformResponse } from "../../lib/types/admin";
@@ -13,6 +13,20 @@ import {
   type UpdateChannel,
   type UpdateSourceMode,
 } from "./global-settings";
+
+const SPOOF_EMULATION_OPTIONS = [
+  { value: "chrome_136", label: "Chrome 136" },
+  { value: "chrome_135", label: "Chrome 135" },
+  { value: "chrome_134", label: "Chrome 134" },
+  { value: "chrome_133", label: "Chrome 133" },
+  { value: "chrome_132", label: "Chrome 132" },
+  { value: "chrome_131", label: "Chrome 131" },
+  { value: "chrome_127", label: "Chrome 127" },
+  { value: "safari_18", label: "Safari 18" },
+  { value: "safari_18.2", label: "Safari 18.2" },
+  { value: "safari_18.3", label: "Safari 18.3" },
+  { value: "safari_18.5", label: "Safari 18.5" },
+];
 
 export function GlobalSettingsModule({
   sessionToken,
@@ -96,7 +110,7 @@ export function GlobalSettingsModule({
             {refreshing ? t("common.loading") : t("common.refresh")}
           </Button>
           <Button variant="danger" onClick={() => void performUpdate()} disabled={updating}>
-            {updating ? t("common.loading") : t("common.performUpdate")}
+            {updating ? t("common.loading") : t("common.update")}
           </Button>
           <Button onClick={() => void save()}>{t("common.save")}</Button>
         </div>
@@ -128,11 +142,10 @@ export function GlobalSettingsModule({
         </div>
         <div>
           <Label>{t("globalSettings.field.spoofEmulation")}</Label>
-          <Input
+          <Select
             value={form.spoof_emulation}
-            onChange={(value) =>
-              setForm((current) => (current ? { ...current, spoof_emulation: value } : current))
-            }
+            onChange={(value) => setForm((current) => (current ? { ...current, spoof_emulation: value } : current))}
+            options={SPOOF_EMULATION_OPTIONS}
           />
         </div>
         <div>
@@ -181,64 +194,63 @@ export function GlobalSettingsModule({
       </div>
       <div className="panel-shell mt-4 space-y-3">
         <div className="text-sm font-semibold text-text">{t("globalSettings.section.logging")}</div>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input
-            type="checkbox"
+        <div className="grid gap-3 lg:grid-cols-2">
+          <StatusToggle
+            label={t("globalSettings.flag.enableUsage")}
             checked={form.enable_usage}
-            onChange={(event) =>
-              setForm((current) => (current ? { ...current, enable_usage: event.target.checked } : current))
+            onToggle={() =>
+              setForm((current) => (current ? { ...current, enable_usage: !current.enable_usage } : current))
             }
+            checkedLabel={t("common.enabled")}
+            uncheckedLabel={t("common.disabled")}
           />
-          {t("globalSettings.flag.enableUsage")}
-        </label>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input
-            type="checkbox"
+          <StatusToggle
+            label={t("globalSettings.flag.enableUpstreamLog")}
             checked={form.enable_upstream_log}
-            onChange={(event) =>
+            onToggle={() =>
               setForm((current) =>
-                current ? { ...current, enable_upstream_log: event.target.checked } : current,
+                current ? { ...current, enable_upstream_log: !current.enable_upstream_log } : current,
               )
             }
+            checkedLabel={t("common.enabled")}
+            uncheckedLabel={t("common.disabled")}
           />
-          {t("globalSettings.flag.enableUpstreamLog")}
-        </label>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input
-            type="checkbox"
+          <StatusToggle
+            label={t("globalSettings.flag.enableUpstreamLogBody")}
             checked={form.enable_upstream_log_body}
-            onChange={(event) =>
+            onToggle={() =>
               setForm((current) =>
-                current ? { ...current, enable_upstream_log_body: event.target.checked } : current,
+                current ? { ...current, enable_upstream_log_body: !current.enable_upstream_log_body } : current,
               )
             }
+            checkedLabel={t("common.enabled")}
+            uncheckedLabel={t("common.disabled")}
           />
-          {t("globalSettings.flag.enableUpstreamLogBody")}
-        </label>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input
-            type="checkbox"
+          <StatusToggle
+            label={t("globalSettings.flag.enableDownstreamLog")}
             checked={form.enable_downstream_log}
-            onChange={(event) =>
+            onToggle={() =>
               setForm((current) =>
-                current ? { ...current, enable_downstream_log: event.target.checked } : current,
+                current ? { ...current, enable_downstream_log: !current.enable_downstream_log } : current,
               )
             }
+            checkedLabel={t("common.enabled")}
+            uncheckedLabel={t("common.disabled")}
           />
-          {t("globalSettings.flag.enableDownstreamLog")}
-        </label>
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input
-            type="checkbox"
+          <StatusToggle
+            label={t("globalSettings.flag.enableDownstreamLogBody")}
             checked={form.enable_downstream_log_body}
-            onChange={(event) =>
+            onToggle={() =>
               setForm((current) =>
-                current ? { ...current, enable_downstream_log_body: event.target.checked } : current,
+                current
+                  ? { ...current, enable_downstream_log_body: !current.enable_downstream_log_body }
+                  : current,
               )
             }
+            checkedLabel={t("common.enabled")}
+            uncheckedLabel={t("common.disabled")}
           />
-          {t("globalSettings.flag.enableDownstreamLogBody")}
-        </label>
+        </div>
       </div>
     </Card>
   );

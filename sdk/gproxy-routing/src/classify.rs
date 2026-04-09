@@ -174,6 +174,9 @@ pub fn normalize_path(path: &str) -> String {
     if out.len() > 1 && out.ends_with('/') {
         out.pop();
     }
+    if let Some(scoped) = strip_scoped_provider_prefix(&out) {
+        out = scoped;
+    }
     for prefix in ["/v1", "/v1beta", "/v1beta1"] {
         if out == prefix {
             return "/".to_string();
@@ -184,6 +187,22 @@ pub fn normalize_path(path: &str) -> String {
         }
     }
     out
+}
+
+fn strip_scoped_provider_prefix(path: &str) -> Option<String> {
+    let trimmed = path.trim_matches('/');
+    let mut parts = trimmed.splitn(3, '/');
+    let _provider = parts.next()?;
+    let version = parts.next()?;
+    if !matches!(version, "v1" | "v1beta" | "v1beta1") {
+        return None;
+    }
+    let rest = parts.next().unwrap_or_default();
+    if rest.is_empty() {
+        Some(format!("/{version}"))
+    } else {
+        Some(format!("/{version}/{rest}"))
+    }
 }
 
 /// Extracts the model component from a URI path.
@@ -317,4 +336,40 @@ fn read_stream_flag(body: &[u8]) -> bool {
         .ok()
         .and_then(|value| value.stream)
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use http::{HeaderMap, Method};
+
+    use super::classify_route;
+    use crate::{OperationFamily, ProtocolKind};
+
+    #[test]
+    fn classify_route_accepts_scoped_openai_chat_path() {
+        let result = classify_route(
+            &Method::POST,
+            "/codex/v1/chat/completions",
+            &HeaderMap::new(),
+            Some(br#"{"stream":false}"#),
+        )
+        .expect("scoped route should classify");
+
+        assert_eq!(result.operation, OperationFamily::GenerateContent);
+        assert_eq!(result.protocol, ProtocolKind::OpenAiChatCompletion);
+    }
+
+    #[test]
+    fn classify_route_accepts_scoped_openai_responses_path() {
+        let result = classify_route(
+            &Method::POST,
+            "/codex/v1/responses",
+            &HeaderMap::new(),
+            Some(br#"{"stream":true}"#),
+        )
+        .expect("scoped route should classify");
+
+        assert_eq!(result.operation, OperationFamily::StreamGenerateContent);
+        assert_eq!(result.protocol, ProtocolKind::OpenAiResponse);
+    }
 }
