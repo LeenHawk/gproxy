@@ -240,12 +240,15 @@ impl Channel for AnthropicChannel {
         settings: &Self::Settings,
         mut request: PreparedRequest,
     ) -> Result<PreparedRequest, UpstreamError> {
-        // File operations: inject beta header, skip JSON body normalization.
+        // File operations: ensure the files-api beta is present in the
+        // `anthropic-beta` header without clobbering any value the
+        // client or an earlier layer already set, then skip JSON body
+        // normalization.
         if crate::engine::is_file_operation(request.route.operation) {
-            request.headers.insert(
-                "anthropic-beta",
-                http::HeaderValue::from_static("files-api-2025-04-14"),
-            );
+            crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
+                &mut request.headers,
+                &["files-api-2025-04-14"],
+            )?;
             return Ok(request);
         }
 

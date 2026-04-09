@@ -1,3 +1,4 @@
+pub mod anthropic_beta;
 pub mod claude_cache_control;
 pub mod claude_sampling;
 pub mod claudecode_cookie;

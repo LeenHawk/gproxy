@@ -777,8 +777,10 @@ impl Channel for ClaudeCodeChannel {
                 .header("Content-Type", "application/json");
         }
 
-        // Forward any additional headers from the prepared request
-        // (includes Content-Type for file uploads, anthropic-beta for files, etc.)
+        // Forward any additional headers from the prepared request —
+        // this carries the `anthropic-beta` header (merged by
+        // `finalize_request` to include the OAuth beta plus the files
+        // beta for file ops) and Content-Type for file uploads.
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
         }
@@ -793,12 +795,15 @@ impl Channel for ClaudeCodeChannel {
         settings: &Self::Settings,
         mut request: PreparedRequest,
     ) -> Result<PreparedRequest, UpstreamError> {
-        // File operations: inject beta header, skip JSON body normalization.
+        // File operations: ensure both the OAuth and files-api beta
+        // tokens are present in the `anthropic-beta` header (preserving
+        // any values already set by the client or an earlier layer),
+        // and skip JSON body normalization.
         if crate::engine::is_file_operation(request.route.operation) {
-            request.headers.insert(
-                "anthropic-beta",
-                http::HeaderValue::from_static("files-api-2025-04-14"),
-            );
+            crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
+                &mut request.headers,
+                &[CLAUDECODE_OAUTH_BETA, "files-api-2025-04-14"],
+            )?;
             return Ok(request);
         }
 
@@ -820,12 +825,20 @@ impl Channel for ClaudeCodeChannel {
 
         let attribution = build_attribution(&first_user_message_text(&body_json));
         inject_system_attribution(&mut body_json, &attribution);
-        let session_id = request_session_id(&request, &body_json);
-        let header_value = http::HeaderValue::from_str(&session_id)
-            .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
-        request
-            .headers
-            .insert("x-claude-code-session-id", header_value);
+        // OAuth-authenticated claudecode requests require
+        // `anthropic-beta: oauth-2025-04-20`; without it Anthropic
+        // returns `401 OAuth authentication is currently not supported`.
+        // Merge the token into any existing `anthropic-beta` value
+        // instead of overwriting so client-supplied betas survive.
+        crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
+            &mut request.headers,
+            &[CLAUDECODE_OAUTH_BETA],
+        )?;
+        // Session id is computed in `prepare_request` per credential
+        // attempt — it needs to land on the HTTP request alongside the
+        // per-attempt `x-client-request-id`, not in the generic
+        // `PreparedRequest.headers` map (which `prepare_request` also
+        // forwards verbatim, leading to a duplicated header on the wire).
         request.body = serde_json::to_vec(&body_json)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
         Ok(request)

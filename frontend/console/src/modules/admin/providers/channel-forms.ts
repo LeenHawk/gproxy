@@ -118,7 +118,7 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
   claudecode: {
     defaults: {
       base_url: "https://api.anthropic.com",
-      user_agent: "claude-code/2.1.76",
+      user_agent: "claude-code/2.1.89",
       claudecode_ai_base_url: "https://claude.ai",
       claudecode_platform_base_url: "https://platform.claude.com",
     },
