@@ -41,6 +41,25 @@ pub enum ResponseClassification {
     PermanentError,
 }
 
+/// Captured metadata from an upstream attempt that did NOT succeed.
+///
+/// Emitted by the retry loop when it gives up without a usable response
+/// (all credentials exhausted, all auth dead, transient errors etc.) so
+/// the caller can persist the real upstream URL, request headers/body,
+/// response status, response headers, and response body in the upstream
+/// request log instead of writing a near-empty placeholder row.
+#[derive(Debug, Default, Clone)]
+pub struct FailedUpstreamAttempt {
+    pub method: String,
+    pub url: String,
+    pub request_headers: Vec<(String, String)>,
+    pub request_body: Option<Vec<u8>>,
+    pub response_status: Option<u16>,
+    pub response_headers: Vec<(String, String)>,
+    pub response_body: Option<Vec<u8>>,
+    pub credential_index: Option<usize>,
+}
+
 /// Error from upstream channel execution.
 #[derive(Debug, thiserror::Error)]
 pub enum UpstreamError {

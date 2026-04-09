@@ -97,6 +97,29 @@ pub struct RetryResult<T> {
     pub attempt_meta: UpstreamAttemptMeta,
 }
 
+/// Failure from credential-rotating retry, carrying diagnostics for the
+/// last attempt so the caller can persist a useful upstream-request log
+/// row even when no credential succeeded.
+///
+/// Produced by the retry loop on `AuthDead`, exhausted `RateLimited`,
+/// `TransientError`, and `AllCredentialsExhausted` paths. Retains the
+/// real upstream URL, forwarded request headers/body, the upstream
+/// response status (typically the auth failure code), response headers,
+/// and response body from the final attempt.
+pub struct RetryFailure {
+    pub error: UpstreamError,
+    pub last_attempt: Option<crate::response::FailedUpstreamAttempt>,
+}
+
+impl RetryFailure {
+    pub fn bare(error: UpstreamError) -> Self {
+        Self {
+            error,
+            last_attempt: None,
+        }
+    }
+}
+
 /// Parameters for credential-rotating retry.
 pub struct RetryContext<'a, C: Channel> {
     pub channel: &'a C,
@@ -129,7 +152,7 @@ pub struct RetryContext<'a, C: Channel> {
 pub async fn retry_with_credentials<C, F, Fut>(
     ctx: RetryContext<'_, C>,
     send: F,
-) -> Result<RetryResult<UpstreamResponse>, UpstreamError>
+) -> Result<RetryResult<UpstreamResponse>, RetryFailure>
 where
     C: Channel,
     F: Fn(&wreq::Client, http::Request<Vec<u8>>) -> Fut,
@@ -149,7 +172,7 @@ where
 pub async fn retry_with_credentials_stream<C, F, Fut>(
     ctx: RetryContext<'_, C>,
     send: F,
-) -> Result<RetryResult<UpstreamStreamingResponse>, UpstreamError>
+) -> Result<RetryResult<UpstreamStreamingResponse>, RetryFailure>
 where
     C: Channel,
     F: Fn(&wreq::Client, http::Request<Vec<u8>>) -> Fut,
@@ -171,7 +194,7 @@ where
 async fn retry_common_inner<C, F, Fut, R>(
     ctx: RetryContext<'_, C>,
     send: F,
-) -> Result<RetryResult<R::Output>, UpstreamError>
+) -> Result<RetryResult<R::Output>, RetryFailure>
 where
     C: Channel,
     F: Fn(&wreq::Client, http::Request<Vec<u8>>) -> Fut,
@@ -203,7 +226,7 @@ where
         .collect();
 
     if eligible.is_empty() {
-        return Err(UpstreamError::NoEligibleCredentials);
+        return Err(RetryFailure::bare(UpstreamError::NoEligibleCredentials));
     }
 
     // If a specific credential is forced (file affinity), try it first
@@ -217,6 +240,12 @@ where
         build_remaining_candidates(&eligible, round_robin_cursor, affinity_hint.is_some())
     };
     let mut last_error = None;
+    // Diagnostics for the most recent attempt that produced a usable
+    // upstream response (or a locally-raised error) — returned in
+    // `RetryFailure.last_attempt` so the error-path logger can persist the
+    // real upstream URL / headers / body / response body instead of a
+    // placeholder row.
+    let mut last_failed_attempt: Option<crate::response::FailedUpstreamAttempt> = None;
 
     while !remaining.is_empty() {
         let (remaining_idx, matched_affinity_idx) =
@@ -240,6 +269,10 @@ where
                 Ok(req) => req,
                 Err(e) => {
                     tracing::warn!(credential = idx, error = %e, "failed to prepare request");
+                    last_failed_attempt = Some(crate::response::FailedUpstreamAttempt {
+                        credential_index: Some(idx),
+                        ..Default::default()
+                    });
                     last_error = Some(e);
                     break;
                 }
@@ -279,6 +312,14 @@ where
                 Ok(resp) => resp,
                 Err(e) => {
                     tracing::warn!(credential = idx, %method, %uri, error = %e, "upstream request failed");
+                    last_failed_attempt = Some(crate::response::FailedUpstreamAttempt {
+                        method: attempt_meta.method.clone(),
+                        url: attempt_meta.url.clone(),
+                        request_headers: attempt_meta.request_headers.clone(),
+                        request_body: attempt_meta.request_body.clone(),
+                        credential_index: Some(idx),
+                        ..Default::default()
+                    });
                     last_error = Some(e);
                     break;
                 }
@@ -317,6 +358,26 @@ where
             let classification =
                 channel.classify_response(response.status, &response.headers, &response.body);
 
+            // Snapshot the response side of the failed-attempt diagnostics.
+            // Cloned up front so each error branch can record it before any
+            // further mutation of `response`. Cheap on the failure path
+            // (a few hundred bytes typically); skipped entirely on Success
+            // because that branch returns before this value is consumed.
+            let make_failed_attempt = || crate::response::FailedUpstreamAttempt {
+                method: attempt_meta.method.clone(),
+                url: attempt_meta.url.clone(),
+                request_headers: attempt_meta.request_headers.clone(),
+                request_body: attempt_meta.request_body.clone(),
+                response_status: Some(response.status),
+                response_headers: response
+                    .headers
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                    .collect(),
+                response_body: Some(response.body.clone()),
+                credential_index: Some(idx),
+            };
+
             let (_, health) = &mut credentials[idx];
             match classification {
                 ResponseClassification::Success => {
@@ -335,6 +396,7 @@ where
                         model = model.unwrap_or(""),
                         "credential auth dead, attempting refresh"
                     );
+                    last_failed_attempt = Some(make_failed_attempt());
                     let (credential, health) = &mut credentials[idx];
                     let refreshed = channel
                         .refresh_credential(http_client, credential)
@@ -412,6 +474,28 @@ where
                                         status = retry_response.status,
                                         "credential still dead after refresh"
                                     );
+                                    // Overwrite with the post-refresh attempt
+                                    // so the log reflects the final state.
+                                    last_failed_attempt =
+                                        Some(crate::response::FailedUpstreamAttempt {
+                                            method: refresh_meta.method.clone(),
+                                            url: refresh_meta.url.clone(),
+                                            request_headers: refresh_meta.request_headers.clone(),
+                                            request_body: refresh_meta.request_body.clone(),
+                                            response_status: Some(retry_response.status),
+                                            response_headers: retry_response
+                                                .headers
+                                                .iter()
+                                                .map(|(k, v)| {
+                                                    (
+                                                        k.to_string(),
+                                                        v.to_str().unwrap_or("").to_string(),
+                                                    )
+                                                })
+                                                .collect(),
+                                            response_body: Some(retry_response.body.clone()),
+                                            credential_index: Some(idx),
+                                        });
                                 }
                             },
                             Err(e) => {
@@ -440,6 +524,7 @@ where
                             model = model.unwrap_or(""),
                             "rate limited with retry-after, switching credential"
                         );
+                        last_failed_attempt = Some(make_failed_attempt());
                         clear_affinity(affinity_pool, affinity_hint, matched_affinity_idx);
                         break;
                     }
@@ -454,6 +539,7 @@ where
                             model = model.unwrap_or(""),
                             "rate limited, retries exhausted"
                         );
+                        last_failed_attempt = Some(make_failed_attempt());
                         clear_affinity(affinity_pool, affinity_hint, matched_affinity_idx);
                         break;
                     }
@@ -474,6 +560,7 @@ where
                         model = model.unwrap_or(""),
                         "transient error"
                     );
+                    last_failed_attempt = Some(make_failed_attempt());
                     clear_affinity(affinity_pool, affinity_hint, matched_affinity_idx);
                     break;
                 }
@@ -488,7 +575,10 @@ where
         }
     }
 
-    Err(last_error.unwrap_or(UpstreamError::AllCredentialsExhausted))
+    Err(RetryFailure {
+        error: last_error.unwrap_or(UpstreamError::AllCredentialsExhausted),
+        last_attempt: last_failed_attempt,
+    })
 }
 
 // ---------------------------------------------------------------------------

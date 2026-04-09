@@ -141,6 +141,33 @@ pub(crate) struct ProviderExecuteStreamResult {
     pub attempt_meta: crate::retry::UpstreamAttemptMeta,
 }
 
+/// Execution outcome that bundles a success value or error with an
+/// optional `FailedUpstreamAttempt` snapshot. On the error path the
+/// snapshot carries the real upstream URL, request headers/body, and
+/// (if the upstream actually responded) the response status / headers /
+/// body so the logger can persist a full upstream-request row instead
+/// of a placeholder.
+pub(crate) struct ExecutionOutcome<T> {
+    pub inner: Result<T, UpstreamError>,
+    pub failed_attempt: Option<crate::response::FailedUpstreamAttempt>,
+}
+
+impl<T> ExecutionOutcome<T> {
+    fn ok(value: T) -> Self {
+        Self {
+            inner: Ok(value),
+            failed_attempt: None,
+        }
+    }
+
+    fn err(error: UpstreamError, failed_attempt: Option<crate::response::FailedUpstreamAttempt>) -> Self {
+        Self {
+            inner: Err(error),
+            failed_attempt,
+        }
+    }
+}
+
 pub(crate) trait ProviderRuntime: Send + Sync {
     fn dispatch_table(&self) -> &DispatchTable;
     fn build_billing_context(
@@ -180,7 +207,7 @@ pub(crate) trait ProviderRuntime: Send + Sync {
         forced_credential: Option<usize>,
         client: &'a wreq::Client,
         spoof_client: Option<&'a wreq::Client>,
-    ) -> BoxFuture<'a, Result<ProviderExecuteResult, UpstreamError>>;
+    ) -> BoxFuture<'a, ExecutionOutcome<ProviderExecuteResult>>;
 
     fn execute_stream<'a>(
         &'a self,
@@ -189,7 +216,7 @@ pub(crate) trait ProviderRuntime: Send + Sync {
         forced_credential: Option<usize>,
         client: &'a wreq::Client,
         spoof_client: Option<&'a wreq::Client>,
-    ) -> BoxFuture<'a, Result<ProviderExecuteStreamResult, UpstreamError>>;
+    ) -> BoxFuture<'a, ExecutionOutcome<ProviderExecuteStreamResult>>;
 
     fn snapshot(&self) -> Result<ProviderSnapshot, UpstreamError>;
 
@@ -465,7 +492,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         forced_credential: Option<usize>,
         client: &'a wreq::Client,
         spoof_client: Option<&'a wreq::Client>,
-    ) -> BoxFuture<'a, Result<ProviderExecuteResult, UpstreamError>> {
+    ) -> BoxFuture<'a, ExecutionOutcome<ProviderExecuteResult>> {
         Box::pin(async move {
             let (credentials_snapshot, revision, mut creds, max_retries) =
                 self.prepare_retry_state();
@@ -475,7 +502,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             } else {
                 None
             };
-            let result = retry_with_credentials(
+            let retry_result = retry_with_credentials(
                 RetryContext {
                     channel: &self.channel,
                     credentials: &mut creds,
@@ -496,14 +523,21 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             )
             .await;
 
-            let credential_updates =
-                self.finalize_credentials(&credentials_snapshot, revision, &creds)?;
-            result.map(|r| ProviderExecuteResult {
-                response: r.output,
-                credential_updates,
-                credential_index: r.credential_index,
-                attempt_meta: r.attempt_meta,
-            })
+            let credential_updates = match self
+                .finalize_credentials(&credentials_snapshot, revision, &creds)
+            {
+                Ok(updates) => updates,
+                Err(e) => return ExecutionOutcome::err(e, None),
+            };
+            match retry_result {
+                Ok(r) => ExecutionOutcome::ok(ProviderExecuteResult {
+                    response: r.output,
+                    credential_updates,
+                    credential_index: r.credential_index,
+                    attempt_meta: r.attempt_meta,
+                }),
+                Err(failure) => ExecutionOutcome::err(failure.error, failure.last_attempt),
+            }
         })
     }
 
@@ -514,7 +548,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         forced_credential: Option<usize>,
         client: &'a wreq::Client,
         spoof_client: Option<&'a wreq::Client>,
-    ) -> BoxFuture<'a, Result<ProviderExecuteStreamResult, UpstreamError>> {
+    ) -> BoxFuture<'a, ExecutionOutcome<ProviderExecuteStreamResult>> {
         Box::pin(async move {
             let (credentials_snapshot, revision, mut creds, max_retries) =
                 self.prepare_retry_state();
@@ -524,7 +558,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             } else {
                 None
             };
-            let result = retry_with_credentials_stream(
+            let retry_result = retry_with_credentials_stream(
                 RetryContext {
                     channel: &self.channel,
                     credentials: &mut creds,
@@ -545,14 +579,21 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             )
             .await;
 
-            let credential_updates =
-                self.finalize_credentials(&credentials_snapshot, revision, &creds)?;
-            result.map(|r| ProviderExecuteStreamResult {
-                response: r.output,
-                credential_updates,
-                credential_index: r.credential_index,
-                attempt_meta: r.attempt_meta,
-            })
+            let credential_updates = match self
+                .finalize_credentials(&credentials_snapshot, revision, &creds)
+            {
+                Ok(updates) => updates,
+                Err(e) => return ExecutionOutcome::err(e, None),
+            };
+            match retry_result {
+                Ok(r) => ExecutionOutcome::ok(ProviderExecuteStreamResult {
+                    response: r.output,
+                    credential_updates,
+                    credential_index: r.credential_index,
+                    attempt_meta: r.attempt_meta,
+                }),
+                Err(failure) => ExecutionOutcome::err(failure.error, failure.last_attempt),
+            }
         })
     }
 

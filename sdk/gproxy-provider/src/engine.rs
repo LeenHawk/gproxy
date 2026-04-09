@@ -79,6 +79,91 @@ pub struct ExecuteResult {
     pub credential_index: usize,
 }
 
+/// Engine execution error bundled with optional upstream-request log
+/// metadata captured from the last attempt. Lets the caller record a
+/// full upstream-request row on the error path — real URL, headers,
+/// request body, response status, response headers, response body —
+/// instead of the placeholder row the previous implementation wrote.
+#[derive(Debug)]
+pub struct ExecuteError {
+    pub error: UpstreamError,
+    pub meta: Option<UpstreamRequestMeta>,
+    pub credential_index: Option<usize>,
+}
+
+impl ExecuteError {
+    pub fn bare(error: UpstreamError) -> Self {
+        Self {
+            error,
+            meta: None,
+            credential_index: None,
+        }
+    }
+}
+
+impl From<UpstreamError> for ExecuteError {
+    fn from(error: UpstreamError) -> Self {
+        Self::bare(error)
+    }
+}
+
+impl std::fmt::Display for ExecuteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+impl std::error::Error for ExecuteError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
+}
+
+/// Turn a `FailedUpstreamAttempt` from the retry layer into an
+/// `ExecuteError` with an `UpstreamRequestMeta` suitable for the
+/// upstream-request log. Respects `enable_upstream_log_body` — the
+/// request/response bodies are dropped when body logging is off so the
+/// caller never writes them to the DB.
+fn build_execute_error(
+    error: UpstreamError,
+    failed_attempt: Option<crate::response::FailedUpstreamAttempt>,
+    model: Option<String>,
+    start: std::time::Instant,
+    enable_upstream_log: bool,
+    enable_upstream_log_body: bool,
+) -> ExecuteError {
+    let credential_index = failed_attempt.as_ref().and_then(|a| a.credential_index);
+    let meta = if enable_upstream_log {
+        failed_attempt.map(|a| UpstreamRequestMeta {
+            method: a.method,
+            url: a.url,
+            request_headers: a.request_headers,
+            request_body: if enable_upstream_log_body {
+                a.request_body
+            } else {
+                None
+            },
+            response_status: a.response_status,
+            response_headers: a.response_headers,
+            response_body: if enable_upstream_log_body {
+                a.response_body
+            } else {
+                None
+            },
+            model,
+            latency_ms: start.elapsed().as_millis() as u64,
+            credential_index,
+        })
+    } else {
+        None
+    };
+    ExecuteError {
+        error,
+        meta,
+        credential_index,
+    }
+}
+
 pub type ExecuteBodyStream = Pin<Box<dyn Stream<Item = Result<Bytes, UpstreamError>> + Send>>;
 
 pub enum ExecuteBody {
@@ -636,7 +721,7 @@ impl GproxyEngine {
     }
 
     /// Execute a request against a named provider.
-    pub async fn execute(&self, request: ExecuteRequest) -> Result<ExecuteResult, UpstreamError> {
+    pub async fn execute(&self, request: ExecuteRequest) -> Result<ExecuteResult, ExecuteError> {
         let span = tracing::info_span!(
             "engine.execute",
             provider = %request.provider,
@@ -651,10 +736,13 @@ impl GproxyEngine {
         }
     }
 
-    async fn execute_inner(&self, request: ExecuteRequest) -> Result<ExecuteResult, UpstreamError> {
+    async fn execute_inner(&self, request: ExecuteRequest) -> Result<ExecuteResult, ExecuteError> {
         let provider = self.store.get_runtime(&request.provider).ok_or_else(|| {
             tracing::warn!(provider = %request.provider, "unknown provider");
-            UpstreamError::Channel(format!("unknown provider: {}", request.provider))
+            ExecuteError::bare(UpstreamError::Channel(format!(
+                "unknown provider: {}",
+                request.provider
+            )))
         })?;
 
         let start = std::time::Instant::now();
@@ -700,10 +788,10 @@ impl GproxyEngine {
                 });
             }
             crate::dispatch::RouteImplementation::Unsupported => {
-                return Err(UpstreamError::Channel(format!(
+                return Err(ExecuteError::bare(UpstreamError::Channel(format!(
                     "unsupported: ({}, {})",
                     request.operation, request.protocol
-                )));
+                ))));
             }
         };
 
@@ -760,7 +848,7 @@ impl GproxyEngine {
 
         let forced_credential = request.forced_credential_index;
 
-        let provider_result = provider
+        let provider_outcome = provider
             .execute(
                 prepared.clone(),
                 affinity_hint,
@@ -768,7 +856,20 @@ impl GproxyEngine {
                 &self.client,
                 self.spoof_client.as_ref(),
             )
-            .await?;
+            .await;
+        let provider_result = match provider_outcome.inner {
+            Ok(r) => r,
+            Err(error) => {
+                return Err(build_execute_error(
+                    error,
+                    provider_outcome.failed_attempt,
+                    prepared.model.clone(),
+                    start,
+                    self.enable_upstream_log,
+                    self.enable_upstream_log_body,
+                ));
+            }
+        };
         let response = provider_result.response;
         let credential_updates = provider_result.credential_updates;
         let used_credential_index = provider_result.credential_index;
@@ -901,10 +1002,13 @@ impl GproxyEngine {
     async fn execute_stream_inner(
         &self,
         request: ExecuteRequest,
-    ) -> Result<ExecuteResult, UpstreamError> {
+    ) -> Result<ExecuteResult, ExecuteError> {
         let provider = self.store.get_runtime(&request.provider).ok_or_else(|| {
             tracing::warn!(provider = %request.provider, "unknown provider");
-            UpstreamError::Channel(format!("unknown provider: {}", request.provider))
+            ExecuteError::bare(UpstreamError::Channel(format!(
+                "unknown provider: {}",
+                request.provider
+            )))
         })?;
 
         let start = std::time::Instant::now();
@@ -949,10 +1053,10 @@ impl GproxyEngine {
                 });
             }
             crate::dispatch::RouteImplementation::Unsupported => {
-                return Err(UpstreamError::Channel(format!(
+                return Err(ExecuteError::bare(UpstreamError::Channel(format!(
                     "unsupported: ({}, {})",
                     request.operation, request.protocol
-                )));
+                ))));
             }
         };
 
@@ -1000,7 +1104,7 @@ impl GproxyEngine {
 
         let forced_credential = request.forced_credential_index;
 
-        let provider_result = provider
+        let provider_outcome = provider
             .execute_stream(
                 prepared.clone(),
                 affinity_hint,
@@ -1008,7 +1112,20 @@ impl GproxyEngine {
                 &self.client,
                 self.spoof_client.as_ref(),
             )
-            .await?;
+            .await;
+        let provider_result = match provider_outcome.inner {
+            Ok(r) => r,
+            Err(error) => {
+                return Err(build_execute_error(
+                    error,
+                    provider_outcome.failed_attempt,
+                    prepared.model.clone(),
+                    start,
+                    self.enable_upstream_log,
+                    self.enable_upstream_log_body,
+                ));
+            }
+        };
         let response = provider_result.response;
         let credential_updates = provider_result.credential_updates;
         let used_credential_index = provider_result.credential_index;
@@ -1064,7 +1181,16 @@ impl GproxyEngine {
 
             let mut upstream = response.body;
             let suffix_to_rewrite = suffix_str.clone();
-            let stream = try_stream! {
+            // Helper that pins the try_stream's Ok type so the macro can
+            // infer its error type from the `?` uses below. Without this,
+            // the outer fn's new `ExecuteError` return type confuses
+            // inference and the macro can't deduce `Result<Bytes, _>`.
+            fn typed_stream(
+                s: impl Stream<Item = Result<Bytes, UpstreamError>> + Send + 'static,
+            ) -> ExecuteBodyStream {
+                Box::pin(s)
+            }
+            let stream = typed_stream(try_stream! {
                 let mut transformer = transformer;
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
@@ -1084,21 +1210,26 @@ impl GproxyEngine {
                 if !tail.is_empty() {
                     yield Bytes::from(tail);
                 }
-            };
-            ExecuteBody::Stream(Box::pin(stream))
+            });
+            ExecuteBody::Stream(stream)
         } else if let Some(ref suffix) = suffix_str {
             // Passthrough with suffix rewriting
             let suffix = suffix.clone();
             let mut upstream = response.body;
-            let stream = try_stream! {
+            fn typed_stream(
+                s: impl Stream<Item = Result<Bytes, UpstreamError>> + Send + 'static,
+            ) -> ExecuteBodyStream {
+                Box::pin(s)
+            }
+            let stream = typed_stream(try_stream! {
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
                     let mut buf = chunk.to_vec();
                     crate::suffix::rewrite_model_suffix_in_body(&mut buf, &suffix);
                     yield Bytes::from(buf);
                 }
-            };
-            ExecuteBody::Stream(Box::pin(stream))
+            });
+            ExecuteBody::Stream(stream)
         } else {
             ExecuteBody::Stream(response.body)
         };

@@ -82,6 +82,17 @@ impl From<gproxy_sdk::provider::response::UpstreamError> for HttpError {
     }
 }
 
+impl From<gproxy_sdk::provider::engine::ExecuteError> for HttpError {
+    fn from(err: gproxy_sdk::provider::engine::ExecuteError) -> Self {
+        // `ExecuteError` wraps an `UpstreamError` with optional attempt
+        // diagnostics; the diagnostics are meant for the DB log, not the
+        // client response, so the HTTP conversion just forwards the
+        // inner error through the existing `From<UpstreamError>` path.
+        tracing::error!(error = %err.error, "upstream provider error");
+        Self::internal("upstream provider error")
+    }
+}
+
 /// Standard acknowledgment response for mutation operations.
 #[derive(Serialize)]
 pub struct AckResponse {
