@@ -482,6 +482,39 @@ impl GproxyEngine {
         &self.store
     }
 
+    /// Bootstrap a credential on upsert — runs any channel-specific IO
+    /// that should happen once, right before the credential lands in
+    /// the DB. Currently only `claudecode` has a non-trivial
+    /// implementation (exchanging a Claude.ai sessionKey cookie for
+    /// OAuth tokens so the first user request doesn't have to do the
+    /// full cookie→token dance via `refresh_credential`).
+    ///
+    /// Returns:
+    /// - `Ok(Some(updated_json))` — the caller should persist this
+    ///   value instead of the original.
+    /// - `Ok(None)` — nothing to bootstrap; store the original JSON.
+    /// - `Err(..)` — bootstrap attempted and failed. The admin handler
+    ///   surfaces this as a `400 Bad Request` so operators see the
+    ///   real cause (invalid cookie, Cloudflare block, etc.) at the
+    ///   moment of upsert rather than at the first chat request.
+    pub async fn bootstrap_credential_on_upsert(
+        &self,
+        channel: &str,
+        credential_json: &Value,
+    ) -> Result<Option<Value>, UpstreamError> {
+        match channel {
+            "claudecode" => {
+                crate::channels::claudecode::bootstrap_credential_from_cookie(
+                    &self.client,
+                    self.spoof_client.as_ref(),
+                    credential_json,
+                )
+                .await
+            }
+            _ => Ok(None),
+        }
+    }
+
     pub fn estimate_billing(
         &self,
         provider_name: &str,

@@ -515,6 +515,102 @@ fn normalize_claudecode_unsupported_fields(body: &mut Value) {
     map.remove("speed");
 }
 
+/// Copy the token fields returned by `exchange_tokens_with_cookie` onto
+/// an existing credential record, leaving untouched fields alone.
+///
+/// Shared by `refresh_credential` (the 401 retry path) and
+/// `bootstrap_credential_from_cookie` (the admin upsert path) so both
+/// stay in sync if new fields appear in `CookieTokenResponse`.
+fn apply_cookie_exchange_tokens(
+    credential: &mut ClaudeCodeCredential,
+    tokens: crate::utils::claudecode_cookie::CookieTokenResponse,
+) {
+    if let Some(at) = tokens.access_token {
+        credential.access_token = at;
+    }
+    if let Some(rt) = tokens.refresh_token {
+        credential.refresh_token = rt;
+    }
+    if let Some(exp) = tokens.expires_in {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        credential.expires_at_ms = now_ms.saturating_add(exp.saturating_mul(1000));
+    }
+    if let Some(st) = tokens.subscription_type {
+        credential.subscription_type = Some(st);
+    }
+    if let Some(rlt) = tokens.rate_limit_tier {
+        credential.rate_limit_tier = Some(rlt);
+    }
+}
+
+/// Bootstrap a claudecode credential on upsert by exchanging its
+/// `cookie` for OAuth tokens before it lands in the DB.
+///
+/// The admin API calls this when a user creates or updates a claudecode
+/// credential — if `cookie` is non-empty, we run the full claude.ai →
+/// org discovery → authorize → token exchange flow here so the stored
+/// credential already has a live `access_token` / `refresh_token` /
+/// `expires_at_ms`. This avoids the "first request fails with 401, then
+/// retries via refresh path" round-trip users would otherwise hit on
+/// their very first request after creating a cookie-only credential.
+///
+/// Returns:
+/// - `Ok(Some(updated_json))` when `cookie` was non-empty and the
+///   exchange succeeded; `updated_json` is the credential to persist.
+/// - `Ok(None)` when `cookie` is absent/empty — caller should store
+///   the original JSON unchanged.
+/// - `Err(...)` when the cookie was present but the exchange failed
+///   (invalid cookie, Cloudflare blocked, Anthropic rejected, …).
+///   The admin handler surfaces this as a `400 Bad Request` so the
+///   operator sees the real cause immediately rather than after the
+///   first chat request fails.
+///
+/// The exchange always runs when a cookie is present, even if
+/// `access_token` is already populated. The user explicitly asked for
+/// this — treating fresh upserts as authoritative keeps the stored
+/// tokens aligned with the latest cookie rather than the possibly-stale
+/// values the caller supplied.
+pub async fn bootstrap_credential_from_cookie(
+    http_client: &wreq::Client,
+    spoof_client: Option<&wreq::Client>,
+    credential_json: &Value,
+) -> Result<Option<Value>, UpstreamError> {
+    let mut credential: ClaudeCodeCredential =
+        serde_json::from_value(credential_json.clone()).map_err(|e| {
+            UpstreamError::Channel(format!("invalid claudecode credential: {e}"))
+        })?;
+
+    let cookie = match credential.cookie.as_ref() {
+        Some(c) if !c.is_empty() => c.clone(),
+        _ => return Ok(None),
+    };
+
+    // `exchange_tokens_with_cookie` talks to claude.ai, which is behind
+    // Cloudflare and will reject plain wreq clients; prefer the
+    // browser-impersonating spoof client when one is available and fall
+    // back to the regular HTTP client otherwise. The spoof fallback
+    // matches `ClaudeCodeChannel::needs_spoof_client`.
+    let client = spoof_client.unwrap_or(http_client);
+
+    tracing::info!("bootstrapping claudecode credential from cookie on upsert");
+    let tokens = crate::utils::claudecode_cookie::exchange_tokens_with_cookie(
+        client,
+        &default_claudecode_base_url(),
+        &default_claudecode_claude_ai_base_url(),
+        &cookie,
+    )
+    .await?;
+    apply_cookie_exchange_tokens(&mut credential, tokens);
+
+    let updated = serde_json::to_value(credential).map_err(|e| {
+        UpstreamError::Channel(format!("serialize bootstrapped credential: {e}"))
+    })?;
+    Ok(Some(updated))
+}
+
 /// Inject `metadata.user_id` into the body JSON.
 fn inject_metadata_user_id(body: &mut Value, user_id_value: &str) {
     let metadata = body
@@ -957,25 +1053,7 @@ impl Channel for ClaudeCodeChannel {
                 &cookie,
             )
             .await?;
-            if let Some(at) = tokens.access_token {
-                credential.access_token = at;
-            }
-            if let Some(rt) = tokens.refresh_token {
-                credential.refresh_token = rt;
-            }
-            if let Some(exp) = tokens.expires_in {
-                let now_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64;
-                credential.expires_at_ms = now_ms.saturating_add(exp.saturating_mul(1000));
-            }
-            if let Some(st) = tokens.subscription_type {
-                credential.subscription_type = Some(st);
-            }
-            if let Some(rlt) = tokens.rate_limit_tier {
-                credential.rate_limit_tier = Some(rlt);
-            }
+            apply_cookie_exchange_tokens(credential, tokens);
             tracing::info!("credential refreshed via cookie exchange");
             Ok(true)
         }

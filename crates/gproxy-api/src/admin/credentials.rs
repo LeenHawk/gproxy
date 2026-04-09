@@ -117,6 +117,29 @@ async fn create_credential_and_sync_runtime(
     provider: &ProviderQueryRow,
     credential: serde_json::Value,
 ) -> Result<i64, HttpError> {
+    // Give the channel a chance to run any upsert-time bootstrap IO
+    // (e.g. claudecode exchanges a `sessionKey` cookie for OAuth tokens
+    // here so the first user request doesn't have to pay the
+    // cookie→token round-trip). If the channel asks to replace the
+    // credential with an updated version, persist the updated one;
+    // otherwise keep the caller's original JSON. Bootstrap failures
+    // propagate as `400 Bad Request` so the operator sees the real
+    // cause immediately.
+    let credential = match state
+        .engine()
+        .bootstrap_credential_on_upsert(&provider.channel, &credential)
+        .await
+    {
+        Ok(Some(updated)) => updated,
+        Ok(None) => credential,
+        Err(err) => {
+            return Err(HttpError::bad_request(format!(
+                "credential bootstrap for provider '{}' failed: {err}",
+                provider.name
+            )));
+        }
+    };
+
     let credential_json = credential.to_string();
     let id = state
         .storage()
