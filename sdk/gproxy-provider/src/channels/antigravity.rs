@@ -883,7 +883,10 @@ fn antigravity_request_path(request: &PreparedRequest) -> Result<String, Upstrea
         OperationFamily::CountToken => Ok("/v1internal:countTokens".to_string()),
         OperationFamily::GenerateContent => Ok("/v1internal:generateContent".to_string()),
         OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => {
-            Ok("/v1internal:streamGenerateContent".to_string())
+            // Code Assist streaming endpoints won't stream server-sent
+            // events unless `alt=sse` is explicitly set; without it the
+            // upstream rejects with `400 INVALID_ARGUMENT`.
+            Ok("/v1internal:streamGenerateContent?alt=sse".to_string())
         }
         OperationFamily::Embedding => {
             let model = if model.starts_with("models/") {

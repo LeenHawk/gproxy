@@ -626,7 +626,9 @@ impl Channel for GeminiCliChannel {
                 "Authorization",
                 format!("Bearer {}", credential.access_token),
             )
+            .header("Accept", "application/json")
             .header("Content-Type", "application/json")
+            .header("Accept-Encoding", "gzip")
             .header("User-Agent", &user_agent)
             .header("x-goog-api-client", x_goog_api_client);
 
@@ -887,7 +889,11 @@ fn geminicli_request_path(request: &PreparedRequest) -> Result<String, UpstreamE
         OperationFamily::CountToken => Ok("/v1internal:countTokens".to_string()),
         OperationFamily::GenerateContent => Ok("/v1internal:generateContent".to_string()),
         OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => {
-            Ok("/v1internal:streamGenerateContent".to_string())
+            // Code Assist streaming endpoints won't stream server-sent
+            // events unless `alt=sse` is explicitly set; without the
+            // query param the upstream rejects with
+            // `400 INVALID_ARGUMENT: Request contains an invalid argument`.
+            Ok("/v1internal:streamGenerateContent?alt=sse".to_string())
         }
         OperationFamily::Embedding => {
             let model = if model.starts_with("models/") {
