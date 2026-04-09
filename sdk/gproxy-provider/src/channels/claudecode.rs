@@ -525,6 +525,8 @@ fn apply_cookie_exchange_tokens(
     credential: &mut ClaudeCodeCredential,
     tokens: crate::utils::claudecode_cookie::CookieTokenResponse,
 ) {
+    let subscription = tokens.subscription_type();
+    let rate_limit = tokens.rate_limit_tier();
     if let Some(at) = tokens.access_token {
         credential.access_token = at;
     }
@@ -538,10 +540,10 @@ fn apply_cookie_exchange_tokens(
             .as_millis() as u64;
         credential.expires_at_ms = now_ms.saturating_add(exp.saturating_mul(1000));
     }
-    if let Some(st) = tokens.subscription_type {
+    if let Some(st) = subscription {
         credential.subscription_type = Some(st);
     }
-    if let Some(rlt) = tokens.rate_limit_tier {
+    if let Some(rlt) = rate_limit {
         credential.rate_limit_tier = Some(rlt);
     }
 }

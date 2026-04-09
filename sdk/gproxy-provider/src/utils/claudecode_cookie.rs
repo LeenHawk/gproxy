@@ -2,18 +2,51 @@ use crate::response::UpstreamError;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-const CLIENT_ID: &str = "9d1f0fda-6a57-4151-b8cc-4d1249413ce3";
-const OAUTH_SCOPE: &str = "openid email profile offline_access org:read user:inference";
-const DEFAULT_REDIRECT_URI: &str = "claude-cli://oauth/callback";
+// OAuth client that matches what the real Claude Code CLI uses. Anthropic
+// validates the client_id + scope + redirect_uri combination at the
+// `/v1/oauth/<org_uuid>/authorize` step, so these three have to match the
+// values the main `claudecode` channel's OAuth flow uses — any drift here
+// results in `Invalid client id provided` or `Invalid scope` and the
+// cookie exchange fails.
+const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+const OAUTH_SCOPE: &str =
+    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
+const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
+const OAUTH_BETA: &str = "oauth-2025-04-20";
+const API_VERSION: &str = "2023-06-01";
+const USER_AGENT: &str = "claude-cli/2.1.89 (cli, external)";
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct CookieTokenResponse {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub expires_in: Option<u64>,
-    pub subscription_type: Option<String>,
-    pub rate_limit_tier: Option<String>,
+    // `/v1/oauth/token` returns an `organization` object instead of
+    // top-level `subscription_type` / `rate_limit_tier`, so extract
+    // these via a nested struct.
+    #[serde(default)]
+    pub organization: Option<CookieTokenOrganization>,
     pub error: Option<String>,
+}
+
+impl CookieTokenResponse {
+    pub fn subscription_type(&self) -> Option<String> {
+        self.organization.as_ref().and_then(|o| o.billing_type.clone())
+    }
+
+    pub fn rate_limit_tier(&self) -> Option<String> {
+        self.organization
+            .as_ref()
+            .and_then(|o| o.rate_limit_tier.clone())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct CookieTokenOrganization {
+    #[serde(default)]
+    pub billing_type: Option<String>,
+    #[serde(default)]
+    pub rate_limit_tier: Option<String>,
 }
 
 /// Exchange a Claude session cookie for OAuth tokens.
@@ -58,10 +91,17 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
+    let status = response.status().as_u16();
     let body = response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    if !(200..300).contains(&status) {
+        return Err(UpstreamError::Channel(format!(
+            "cookie auth: authorize endpoint status {status}: {}",
+            String::from_utf8_lossy(&body)
+        )));
+    }
     let auth_response: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| UpstreamError::Channel(format!("cookie auth response parse error: {e}")))?;
 
@@ -69,34 +109,57 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .get("redirect_uri")
         .and_then(|v| v.as_str())
         .ok_or_else(|| {
-            UpstreamError::Channel("cookie auth: missing redirect_uri in response".into())
+            UpstreamError::Channel(format!(
+                "cookie auth: missing redirect_uri in authorize response: {}",
+                String::from_utf8_lossy(&body)
+            ))
         })?;
     let code = extract_query_param(redirect_uri, "code").ok_or_else(|| {
         UpstreamError::Channel("cookie auth: missing code in redirect_uri".into())
     })?;
 
-    // Step 3: Exchange code for tokens
+    // Step 3: Exchange code for tokens.
+    //
+    // The token endpoint requires the same header set as the main
+    // claudecode OAuth flow — `anthropic-version`, `anthropic-beta:
+    // oauth-2025-04-20`, `accept`, `origin`, and a claude-cli `user-agent`.
+    // The `state` parameter also has to be in the body (not just the
+    // authorize step). Without these, Anthropic returns
+    // `invalid_request_error: Invalid request format`.
     let token_url = format!("{api_base}/v1/oauth/token");
     let token_body = format!(
-        "grant_type=authorization_code&client_id={}&code={}&redirect_uri={}&code_verifier={}",
+        "grant_type=authorization_code&client_id={}&code={}&redirect_uri={}&code_verifier={}&state={}",
         urlencoding(CLIENT_ID),
         urlencoding(&code),
         urlencoding(DEFAULT_REDIRECT_URI),
         urlencoding(&code_verifier),
+        urlencoding(&state),
     );
 
     let token_response = client
         .post(&token_url)
+        .header("anthropic-version", API_VERSION)
+        .header("anthropic-beta", OAUTH_BETA)
         .header("content-type", "application/x-www-form-urlencoded")
+        .header("accept", "application/json, text/plain, */*")
+        .header("origin", ai_base)
+        .header("user-agent", USER_AGENT)
         .body(token_body)
         .send()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
+    let token_status = token_response.status().as_u16();
     let token_bytes = token_response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    if !(200..300).contains(&token_status) {
+        return Err(UpstreamError::Channel(format!(
+            "cookie token endpoint status {token_status}: {}",
+            String::from_utf8_lossy(&token_bytes)
+        )));
+    }
     let tokens: CookieTokenResponse = serde_json::from_slice(&token_bytes)
         .map_err(|e| UpstreamError::Channel(format!("cookie token response parse error: {e}")))?;
 
@@ -122,12 +185,23 @@ async fn fetch_org_uuid(
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
+    let status = response.status().as_u16();
     let body = response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    let value: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| UpstreamError::Channel(format!("bootstrap parse error: {e}")))?;
+    if !(200..300).contains(&status) {
+        return Err(UpstreamError::Channel(format!(
+            "cookie auth: /api/bootstrap status {status}: {}",
+            String::from_utf8_lossy(&body[..body.len().min(400)])
+        )));
+    }
+    let value: serde_json::Value = serde_json::from_slice(&body).map_err(|e| {
+        UpstreamError::Channel(format!(
+            "bootstrap parse error: {e}: body preview: {}",
+            String::from_utf8_lossy(&body[..body.len().min(400)])
+        ))
+    })?;
 
     // Try bootstrap response first
     if let Some(org) = value
@@ -182,6 +256,15 @@ fn build_cookie_headers(
 ) -> Result<http::HeaderMap, UpstreamError> {
     let mut headers = http::HeaderMap::new();
     headers.insert(
+        "accept",
+        http::HeaderValue::from_static("application/json"),
+    );
+    headers.insert(
+        "accept-language",
+        http::HeaderValue::from_static("en-US,en;q=0.9"),
+    );
+    headers.insert("cache-control", http::HeaderValue::from_static("no-cache"));
+    headers.insert(
         "cookie",
         http::HeaderValue::from_str(&format!("sessionKey={cookie}"))
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?,
@@ -194,10 +277,9 @@ fn build_cookie_headers(
     );
     headers.insert(
         "referer",
-        http::HeaderValue::from_str(&format!("{origin}/"))
+        http::HeaderValue::from_str(&format!("{origin}/new"))
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?,
     );
-    headers.insert("cache-control", http::HeaderValue::from_static("no-cache"));
     Ok(headers)
 }
 
