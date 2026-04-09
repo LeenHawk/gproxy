@@ -2412,8 +2412,10 @@ pub fn stream_to_nonstream(
             let response = ClaudeCreateMessageResponse::try_from(events)
                 .map_err(|e| UpstreamError::Channel(format!("stream_to_nonstream: {e}")))?;
 
-            serde_json::to_vec(&response)
-                .map_err(|e| UpstreamError::Channel(format!("serialize: {e}")))
+            // Emit only the inner body — callers of `stream_to_nonstream`
+            // expect raw HTTP body shape, not the internal
+            // `{stats_code, headers, body}` wrapper envelope.
+            response.into_body_bytes()
         }
         ProtocolKind::OpenAiChatCompletion => {
             use gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse;
@@ -2428,8 +2430,7 @@ pub fn stream_to_nonstream(
             let response = OpenAiChatCompletionsResponse::try_from(chunks_parsed)
                 .map_err(|e| UpstreamError::Channel(format!("stream_to_nonstream: {e}")))?;
 
-            serde_json::to_vec(&response)
-                .map_err(|e| UpstreamError::Channel(format!("serialize: {e}")))
+            response.into_body_bytes()
         }
         ProtocolKind::OpenAiResponse => {
             use gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse;
@@ -2444,8 +2445,7 @@ pub fn stream_to_nonstream(
             let response = OpenAiCreateResponseResponse::try_from(events)
                 .map_err(|e| UpstreamError::Channel(format!("stream_to_nonstream: {e}")))?;
 
-            serde_json::to_vec(&response)
-                .map_err(|e| UpstreamError::Channel(format!("serialize: {e}")))
+            response.into_body_bytes()
         }
         ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
             use gproxy_protocol::gemini::generate_content::response::ResponseBody;
