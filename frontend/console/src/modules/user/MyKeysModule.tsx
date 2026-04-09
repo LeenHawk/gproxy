@@ -4,6 +4,7 @@ import { useI18n } from "../../app/i18n";
 import { Badge, Button, Card } from "../../components/ui";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
+import { copyText } from "../../lib/clipboard";
 import type { GenerateKeyResponse, UserKeyRow } from "../../lib/types/user";
 
 export function MyKeysModule({
@@ -69,6 +70,16 @@ export function MyKeysModule({
     }
   };
 
+  const copyKey = async (apiKey: string) => {
+    try {
+      await copyText(apiKey);
+      notify("success", t("common.apiKeyCopied"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      notify("error", `${t("common.copyFailed")}: ${message}`);
+    }
+  };
+
   return (
     <Card
       title={t("myKeys.title")}
@@ -93,9 +104,14 @@ export function MyKeysModule({
                 </div>
                 <div className="font-mono text-xs text-text">{row.api_key}</div>
               </div>
-              <Button variant="danger" onClick={() => void remove(row.id)}>
-                {t("common.delete")}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="neutral" onClick={() => void copyKey(row.api_key)}>
+                  {t("common.copy")}
+                </Button>
+                <Button variant="danger" onClick={() => void remove(row.id)}>
+                  {t("common.delete")}
+                </Button>
+              </div>
             </div>
           </div>
         ))}

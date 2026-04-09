@@ -1,5 +1,6 @@
 import { useI18n } from "../../../app/i18n";
 import { Badge, Button, Input, Label } from "../../../components/ui";
+import { copyText } from "../../../lib/clipboard";
 import type { MemoryUserKeyRow, MemoryUserQuotaRow, MemoryUserRow } from "../../../lib/types/admin";
 
 export function UserKeysPane({
@@ -14,6 +15,7 @@ export function UserKeysPane({
   onRefreshKeys,
   onToggleKeyEnabled,
   onDeleteKey,
+  notify,
 }: {
   selectedUser: MemoryUserRow | null;
   selectedUserQuota: MemoryUserQuotaRow | null;
@@ -26,6 +28,7 @@ export function UserKeysPane({
   onRefreshKeys: () => void;
   onToggleKeyEnabled: (row: MemoryUserKeyRow) => void;
   onDeleteKey: (id: number) => void;
+  notify: (kind: "success" | "error" | "info", message: string) => void;
 }) {
   const { t } = useI18n();
   const quota = selectedUserQuota ?? {
@@ -33,6 +36,16 @@ export function UserKeysPane({
     quota: 0,
     cost_used: 0,
     remaining: 0,
+  };
+
+  const copyKey = async (apiKey: string) => {
+    try {
+      await copyText(apiKey);
+      notify("success", t("common.apiKeyCopied"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      notify("error", `${t("common.copyFailed")}: ${message}`);
+    }
   };
 
   return (
@@ -106,9 +119,14 @@ export function UserKeysPane({
                 </div>
                 <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
               </div>
-              <Button variant="danger" onClick={() => onDeleteKey(row.id)}>
-                {t("common.delete")}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="neutral" onClick={() => void copyKey(row.api_key)}>
+                  {t("common.copy")}
+                </Button>
+                <Button variant="danger" onClick={() => onDeleteKey(row.id)}>
+                  {t("common.delete")}
+                </Button>
+              </div>
             </div>
           </div>
         ))}

@@ -254,6 +254,7 @@ export function UsersModule({
           onRefreshKeys={() => void loadUserKeys(selectedUserId)}
           onToggleKeyEnabled={(row) => void toggleUserKeyEnabled(row)}
           onDeleteKey={(id) => void deleteUserKey(id)}
+          notify={notify}
         />
       </div>
     </Card>
