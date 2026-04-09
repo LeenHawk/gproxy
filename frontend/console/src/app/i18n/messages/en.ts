@@ -169,6 +169,8 @@ export const enMessages: Record<string, string> = {
   "providers.oauth.persistedCredential": "Persisted Credential",
   "providers.usage.fetch": "Fetch Usage",
   "providers.usage.title": "Quota",
+  "providers.usage.show": "View Quota",
+  "providers.usage.hide": "Hide Quota",
   "providers.usage.empty": "{}",
   "providers.usage.limit": "Limit",
   "providers.usage.percent": "Usage",

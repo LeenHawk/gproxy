@@ -169,6 +169,8 @@ export const zhMessages: Record<string, string> = {
   "providers.oauth.persistedCredential": "已持久化凭证",
   "providers.usage.fetch": "查询用量",
   "providers.usage.title": "限额",
+  "providers.usage.show": "查看限额",
+  "providers.usage.hide": "收起限额",
   "providers.usage.empty": "{}",
   "providers.usage.limit": "限额",
   "providers.usage.percent": "占用",

@@ -669,11 +669,14 @@ export function ProvidersModule({
                 statusDead: t("providers.status.dead"),
                 usageFetch: t("providers.usage.fetch"),
                 usageTitle: t("providers.usage.title"),
+                usageShow: t("providers.usage.show"),
+                usageHide: t("providers.usage.hide"),
                 usageLimit: t("providers.usage.limit"),
                 usagePercent: t("providers.usage.percent"),
                 usageReset: t("providers.usage.reset"),
                 usageRaw: t("providers.usage.raw"),
                 usageEmpty: t("providers.usage.emptyState"),
+                loading: t("common.loading"),
               }}
             />
           ) : null}

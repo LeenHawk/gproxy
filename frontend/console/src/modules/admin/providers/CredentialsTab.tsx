@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Badge, Button, Card, Input, Label, TextArea } from "../../../components/ui";
 import type { CredentialHealthRow, CredentialRow } from "../../../lib/types/admin";
 import { credentialFieldsForChannel } from "./channel-forms";
+import { getCredentialUsageActionLabels } from "./credential-usage";
 import { summarizeCredential } from "./credentials-display";
 import type { CredentialFormState } from "./index";
 import { formatUsagePercent, type LiveUsageRow } from "./usage";
@@ -59,11 +60,14 @@ export function CredentialsTab({
     collapseJson: string;
     usageFetch: string;
     usageTitle: string;
+    usageShow: string;
+    usageHide: string;
     usageLimit: string;
     usagePercent: string;
     usageReset: string;
     usageRaw: string;
     usageEmpty: string;
+    loading: string;
   };
 }) {
   const fields = credentialFieldsForChannel(channel);
@@ -95,6 +99,16 @@ export function CredentialsTab({
               const usageRows = usageRowsByCredential[row.index] ?? [];
               const usageRaw = usageByCredential[row.index] ?? "";
               const usageLoading = Boolean(usageLoadingByCredential[row.index]);
+              const usageActionLabels = getCredentialUsageActionLabels({
+                expanded: usageExpanded,
+                loading: usageLoading,
+                labels: {
+                  show: labels.usageShow,
+                  hide: labels.usageHide,
+                  refresh: labels.usageFetch,
+                  loading: labels.loading,
+                },
+              });
               return (
                 <div key={credentialKey} className="card-shell">
                   <div className="flex items-start justify-between gap-3">
@@ -144,7 +158,7 @@ export function CredentialsTab({
                             }
                           }}
                         >
-                          {usageLoading ? labels.usageFetch : labels.usageTitle}
+                          {usageActionLabels.primary}
                         </Button>
                       ) : null}
                     </div>
@@ -156,7 +170,7 @@ export function CredentialsTab({
                           {labels.usageTitle}
                         </div>
                         <Button variant="neutral" onClick={() => onQueryUsage(row)}>
-                          {labels.usageFetch}
+                          {usageActionLabels.refresh}
                         </Button>
                       </div>
                       {usageRows.length > 0 ? (
