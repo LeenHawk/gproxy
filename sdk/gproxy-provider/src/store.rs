@@ -19,6 +19,7 @@ use crate::channel::{
     Channel, ChannelCredential, ChannelSettings, OAuthCredentialResult, OAuthFlow,
 };
 use crate::dispatch::DispatchTable;
+use crate::dispatch::RouteKey;
 use crate::health::CredentialHealth;
 use crate::request::PreparedRequest;
 use crate::response::{UpstreamError, UpstreamResponse, UpstreamStreamingResponse};
@@ -428,7 +429,14 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
 
         let dummy = PreparedRequest {
             method: http::Method::GET,
-            path: path.to_string(),
+            route: if path == "/v1/responses" {
+                RouteKey::new(
+                    OperationFamily::OpenAiResponseWebSocket,
+                    ProtocolKind::OpenAi,
+                )
+            } else {
+                RouteKey::new(OperationFamily::GeminiLive, ProtocolKind::Gemini)
+            },
             model: model.map(String::from),
             body: Vec::new(),
             headers: http::HeaderMap::new(),

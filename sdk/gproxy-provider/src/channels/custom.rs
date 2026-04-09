@@ -111,18 +111,19 @@ impl Channel for CustomChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
+        let path = custom_request_path(request)?;
         let url = match settings.auth_scheme.as_str() {
             "query-key" => {
-                let sep = if request.path.contains('?') { "&" } else { "?" };
+                let sep = if path.contains('?') { "&" } else { "?" };
                 format!(
                     "{}{}{}key={}",
                     settings.base_url(),
-                    request.path,
+                    path,
                     sep,
                     credential.api_key
                 )
             }
-            _ => format!("{}{}", settings.base_url(), request.path),
+            _ => format!("{}{}", settings.base_url(), path),
         };
 
         let mut builder = http::Request::builder()
@@ -183,6 +184,87 @@ impl Channel for CustomChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::Local
+    }
+}
+
+fn custom_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.protocol {
+        ProtocolKind::OpenAi
+        | ProtocolKind::OpenAiChatCompletion
+        | ProtocolKind::OpenAiResponse => match request.route.operation {
+            OperationFamily::ModelList => Ok("/v1/models".to_string()),
+            OperationFamily::ModelGet => Ok(format!(
+                "/v1/models/{}",
+                request.model.as_deref().unwrap_or_default()
+            )),
+            OperationFamily::CountToken => Ok("/v1/responses/input_tokens/count".to_string()),
+            OperationFamily::Compact => Ok("/v1/responses/compact".to_string()),
+            OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+                match request.route.protocol {
+                    ProtocolKind::OpenAiResponse => Ok("/v1/responses".to_string()),
+                    _ => Ok("/v1/chat/completions".to_string()),
+                }
+            }
+            OperationFamily::CreateImage | OperationFamily::StreamCreateImage => {
+                Ok("/v1/images/generations".to_string())
+            }
+            OperationFamily::CreateImageEdit | OperationFamily::StreamCreateImageEdit => {
+                Ok("/v1/images/edits".to_string())
+            }
+            OperationFamily::Embedding => Ok("/v1/embeddings".to_string()),
+            OperationFamily::OpenAiResponseWebSocket => Ok("/v1/responses".to_string()),
+            _ => Err(UpstreamError::Channel(format!(
+                "unsupported custom openai route: ({}, {})",
+                request.route.operation, request.route.protocol
+            ))),
+        },
+        ProtocolKind::Claude => match request.route.operation {
+            OperationFamily::ModelList => Ok("/v1/models".to_string()),
+            OperationFamily::ModelGet => Ok(format!(
+                "/v1/models/{}",
+                request.model.as_deref().unwrap_or_default()
+            )),
+            OperationFamily::CountToken => Ok("/v1/messages/count_tokens".to_string()),
+            OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+                Ok("/v1/messages".to_string())
+            }
+            _ => Err(UpstreamError::Channel(format!(
+                "unsupported custom claude route: ({}, {})",
+                request.route.operation, request.route.protocol
+            ))),
+        },
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => match request.route.operation {
+            OperationFamily::ModelList => Ok("/v1beta/models".to_string()),
+            OperationFamily::ModelGet => Ok(format!(
+                "/v1beta/models/{}",
+                request.model.as_deref().unwrap_or_default()
+            )),
+            OperationFamily::CountToken => Ok(format!(
+                "/v1beta/models/{}:countTokens",
+                request.model.as_deref().unwrap_or_default()
+            )),
+            OperationFamily::GenerateContent => Ok(format!(
+                "/v1beta/models/{}:generateContent",
+                request.model.as_deref().unwrap_or_default()
+            )),
+            OperationFamily::StreamGenerateContent => Ok(format!(
+                "/v1beta/models/{}:streamGenerateContent{}",
+                request.model.as_deref().unwrap_or_default(),
+                if request.route.protocol == ProtocolKind::Gemini {
+                    "?alt=sse"
+                } else {
+                    ""
+                }
+            )),
+            OperationFamily::Embedding => Ok(format!(
+                "/v1beta/models/{}:embedContent",
+                request.model.as_deref().unwrap_or_default()
+            )),
+            _ => Err(UpstreamError::Channel(format!(
+                "unsupported custom gemini route: ({}, {})",
+                request.route.operation, request.route.protocol
+            ))),
+        },
     }
 }
 

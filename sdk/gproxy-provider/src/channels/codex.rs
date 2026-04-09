@@ -366,7 +366,7 @@ fn request_session_id(request: &PreparedRequest) -> String {
         "{}\n{}\n{}",
         codex_instructions_fingerprint(&body),
         codex_first_input_fingerprint(&body),
-        request.path
+        format!("{}/{}", request.route.operation, request.route.protocol)
     );
     Uuid::new_v5(&CODEX_SESSION_NAMESPACE, session_seed.as_bytes()).to_string()
 }
@@ -538,7 +538,18 @@ impl Channel for CodexChannel {
                 OperationFamily::ModelGet,
                 ProtocolKind::OpenAi,
             ),
-            // === No count_tokens routes — uses CountStrategy::Local ===
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::OpenAi),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::Claude),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
+                RouteImplementation::Local,
+            ),
 
             // Generate content (internally force stream, then aggregate back)
             xform(
@@ -658,7 +669,7 @@ impl Channel for CodexChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!("{}{}", settings.base_url(), codex_request_path(request)?);
         let session_id = request_session_id(request);
         let mut builder = http::Request::builder()
             .method(request.method.clone())
@@ -700,19 +711,21 @@ impl Channel for CodexChannel {
         _settings: &Self::Settings,
         mut request: PreparedRequest,
     ) -> Result<PreparedRequest, UpstreamError> {
-        request.body = match request.path.as_str() {
-            "/generate_content" => normalize_codex_request_body(&request.body, false),
-            "/stream_generate_content" => normalize_codex_request_body(&request.body, true),
+        request.body = match request.route.operation {
+            OperationFamily::GenerateContent => normalize_codex_request_body(&request.body, false),
+            OperationFamily::StreamGenerateContent => {
+                normalize_codex_request_body(&request.body, true)
+            }
             _ => request.body,
         };
         Ok(request)
     }
 
     fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
-        match request.path.as_str() {
-            "/model_list" if is_codex_user_agent(request) => body,
-            "/model_list" => normalize_codex_model_list_response(body),
-            "/model_get" => normalize_codex_model_get_response(request, body),
+        match request.route.operation {
+            OperationFamily::ModelList if is_codex_user_agent(request) => body,
+            OperationFamily::ModelList => normalize_codex_model_list_response(body),
+            OperationFamily::ModelGet => normalize_codex_model_get_response(request, body),
             _ => body,
         }
     }
@@ -745,6 +758,16 @@ impl Channel for CodexChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::Local
+    }
+
+    fn handle_local(
+        &self,
+        operation: OperationFamily,
+        protocol: ProtocolKind,
+        body: &[u8],
+    ) -> Option<Result<Vec<u8>, UpstreamError>> {
+        (operation == OperationFamily::CountToken)
+            .then(|| crate::count_tokens::local_count_response_for_protocol(protocol, body))
     }
 
     fn ws_extra_headers(&self) -> http::HeaderMap {
@@ -1012,3 +1035,55 @@ fn codex_dispatch_table() -> DispatchTable {
 }
 
 inventory::submit! { ChannelRegistration::new(CodexChannel::ID, codex_dispatch_table) }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finalize_request_normalizes_v1_responses_as_streaming() {
+        let channel = CodexChannel;
+        let settings = CodexSettings::default();
+        let request = PreparedRequest {
+            method: http::Method::POST,
+            route: RouteKey::new(
+                OperationFamily::StreamGenerateContent,
+                ProtocolKind::OpenAiResponse,
+            ),
+            model: Some("gpt-5.4".to_string()),
+            body: serde_json::to_vec(&json!({
+                "model": "gpt-5.4",
+                "input": "hi",
+                "stream": false
+            }))
+            .expect("serialize request"),
+            headers: http::HeaderMap::new(),
+        };
+
+        let finalized = channel
+            .finalize_request(&settings, request)
+            .expect("finalize request");
+        let body_json: Value =
+            serde_json::from_slice(&finalized.body).expect("finalized request json");
+
+        assert_eq!(body_json.get("stream").and_then(Value::as_bool), Some(true));
+        assert_eq!(body_json.get("store").and_then(Value::as_bool), Some(false));
+    }
+}
+
+fn codex_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.operation {
+        OperationFamily::ModelList | OperationFamily::ModelGet => {
+            Ok(format!("/models?client_version={DEFAULT_CODEX_VERSION}"))
+        }
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+            Ok("/responses".to_string())
+        }
+        OperationFamily::Compact => Ok("/responses/compact".to_string()),
+        OperationFamily::OpenAiResponseWebSocket => Ok("/responses".to_string()),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported codex request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
+    }
+}

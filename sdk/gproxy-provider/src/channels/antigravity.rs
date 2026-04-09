@@ -368,7 +368,7 @@ fn generate_request_id(
         antigravity_instruction_fingerprint(&body),
         antigravity_first_message_fingerprint(&body),
         request.model.as_deref().unwrap_or_default(),
-        request.path,
+        format!("{}/{}", request.route.operation, request.route.protocol),
         request_type
     );
     format!(
@@ -527,7 +527,12 @@ impl Channel for AntigravityChannel {
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
-            pass(OperationFamily::GeminiLive, ProtocolKind::Gemini),
+            xform(
+                OperationFamily::GeminiLive,
+                ProtocolKind::Gemini,
+                OperationFamily::StreamGenerateContent,
+                ProtocolKind::Gemini,
+            ),
             xform(
                 OperationFamily::OpenAiResponseWebSocket,
                 ProtocolKind::OpenAi,
@@ -537,25 +542,25 @@ impl Channel for AntigravityChannel {
             xform(
                 OperationFamily::CreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImage,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImage,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::CreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImageEdit,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImageEdit,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             pass(OperationFamily::Embedding, ProtocolKind::Gemini),
@@ -595,7 +600,11 @@ impl Channel for AntigravityChannel {
             &credential.project_id,
         )?;
 
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!(
+            "{}{}",
+            settings.base_url(),
+            antigravity_request_path(request)?
+        );
 
         // Determine requestType based on model name
         let request_type = request
@@ -862,6 +871,32 @@ impl Channel for AntigravityChannel {
                 }),
             }))
         })
+    }
+}
+
+fn antigravity_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    let model = request.model.as_deref().unwrap_or_default();
+    match request.route.operation {
+        OperationFamily::ModelList | OperationFamily::ModelGet => {
+            Ok("/v1internal:fetchAvailableModels".to_string())
+        }
+        OperationFamily::CountToken => Ok("/v1internal:countTokens".to_string()),
+        OperationFamily::GenerateContent => Ok("/v1internal:generateContent".to_string()),
+        OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => {
+            Ok("/v1internal:streamGenerateContent".to_string())
+        }
+        OperationFamily::Embedding => {
+            let model = if model.starts_with("models/") {
+                model.to_string()
+            } else {
+                format!("models/{model}")
+            };
+            Ok(format!("/v1beta/{model}:embedContent"))
+        }
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported antigravity request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

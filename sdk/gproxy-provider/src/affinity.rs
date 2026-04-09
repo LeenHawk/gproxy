@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
-use gproxy_protocol::kinds::ProtocolKind;
+use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 
@@ -137,8 +137,8 @@ pub fn cache_affinity_hint_for_request(
     protocol: ProtocolKind,
     request: &PreparedRequest,
 ) -> Option<CacheAffinityHint> {
-    match request.path.as_str() {
-        "/generate_content" | "/stream_generate_content" => {}
+    match request.route.operation {
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {}
         _ => return None,
     }
 

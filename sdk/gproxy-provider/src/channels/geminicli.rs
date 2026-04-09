@@ -523,7 +523,12 @@ impl Channel for GeminiCliChannel {
                 ProtocolKind::Gemini,
             ),
             // Live API
-            pass(OperationFamily::GeminiLive, ProtocolKind::Gemini),
+            xform(
+                OperationFamily::GeminiLive,
+                ProtocolKind::Gemini,
+                OperationFamily::StreamGenerateContent,
+                ProtocolKind::Gemini,
+            ),
             // WebSocket -> stream
             xform(
                 OperationFamily::OpenAiResponseWebSocket,
@@ -535,25 +540,25 @@ impl Channel for GeminiCliChannel {
             xform(
                 OperationFamily::CreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImage,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImage,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::CreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImageEdit,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImageEdit,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             // Embeddings
@@ -607,7 +612,11 @@ impl Channel for GeminiCliChannel {
             }
         };
 
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!(
+            "{}{}",
+            settings.base_url(),
+            geminicli_request_path(request)?
+        );
         let x_goog_api_client = build_x_goog_api_client();
 
         let mut builder = http::Request::builder()
@@ -868,6 +877,30 @@ impl Channel for GeminiCliChannel {
                 }),
             }))
         })
+    }
+}
+
+fn geminicli_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    let model = request.model.as_deref().unwrap_or_default();
+    match request.route.operation {
+        OperationFamily::ModelList | OperationFamily::ModelGet => Ok(String::new()),
+        OperationFamily::CountToken => Ok("/v1internal:countTokens".to_string()),
+        OperationFamily::GenerateContent => Ok("/v1internal:generateContent".to_string()),
+        OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => {
+            Ok("/v1internal:streamGenerateContent".to_string())
+        }
+        OperationFamily::Embedding => {
+            let model = if model.starts_with("models/") {
+                model.to_string()
+            } else {
+                format!("models/{model}")
+            };
+            Ok(format!("/v1beta/{model}:embedContent"))
+        }
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported geminicli request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

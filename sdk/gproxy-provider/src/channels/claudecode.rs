@@ -411,7 +411,7 @@ fn request_session_id(request: &PreparedRequest, body: &Value) -> String {
         "{}\n{}\n{}",
         system_fingerprint_text(body),
         first_message_fingerprint_text(body),
-        request.path
+        format!("{}/{}", request.route.operation, request.route.protocol)
     );
     Uuid::new_v5(&CLAUDECODE_SESSION_NAMESPACE, session_seed.as_bytes()).to_string()
 }
@@ -733,7 +733,7 @@ impl Channel for ClaudeCodeChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let is_file_op = crate::engine::is_file_operation_path(&request.path);
+        let is_file_op = crate::engine::is_file_operation(request.route.operation);
 
         // For file operations, pass body through as-is (may be multipart or empty).
         // For normal operations, parse JSON to inject metadata.
@@ -765,7 +765,11 @@ impl Channel for ClaudeCodeChannel {
         let client_request_id = Uuid::now_v7().to_string();
 
         // -- 4. Assemble the HTTP request -------------------------------
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!(
+            "{}{}",
+            settings.base_url(),
+            claudecode_request_path(request)?
+        );
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
@@ -801,7 +805,7 @@ impl Channel for ClaudeCodeChannel {
         mut request: PreparedRequest,
     ) -> Result<PreparedRequest, UpstreamError> {
         // File operations: inject beta header, skip JSON body normalization.
-        if crate::engine::is_file_operation_path(&request.path) {
+        if crate::engine::is_file_operation(request.route.operation) {
             request.headers.insert(
                 "anthropic-beta",
                 http::HeaderValue::from_static("files-api-2025-04-14"),
@@ -1152,6 +1156,46 @@ impl Channel for ClaudeCodeChannel {
                 }),
             }))
         })
+    }
+}
+
+fn claudecode_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.operation {
+        OperationFamily::FileUpload => Ok("/v1/files".to_string()),
+        OperationFamily::FileList => Ok("/v1/files".to_string()),
+        OperationFamily::FileContent => Ok(format!(
+            "/v1/files/{}/content",
+            serde_json::from_slice::<Value>(&request.body)
+                .ok()
+                .and_then(|v| v
+                    .pointer("/path/file_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned))
+                .unwrap_or_default()
+        )),
+        OperationFamily::FileGet | OperationFamily::FileDelete => Ok(format!(
+            "/v1/files/{}",
+            serde_json::from_slice::<Value>(&request.body)
+                .ok()
+                .and_then(|v| v
+                    .pointer("/path/file_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned))
+                .unwrap_or_default()
+        )),
+        OperationFamily::ModelList => Ok("/v1/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!(
+            "/v1/models/{}",
+            request.model.as_deref().unwrap_or_default()
+        )),
+        OperationFamily::CountToken => Ok("/v1/messages/count_tokens".to_string()),
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+            Ok("/v1/messages".to_string())
+        }
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported claudecode request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

@@ -106,7 +106,18 @@ impl Channel for OpenRouterChannel {
                 OperationFamily::ModelGet,
                 ProtocolKind::OpenAi,
             ),
-            // No count_tokens routes - uses CountStrategy::Local
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::OpenAi),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::Claude),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
+                RouteImplementation::Local,
+            ),
 
             // === Generate content (non-stream) ===
             pass(
@@ -185,7 +196,11 @@ impl Channel for OpenRouterChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!(
+            "{}{}",
+            settings.base_url(),
+            openrouter_request_path(request)?
+        );
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
@@ -232,6 +247,45 @@ impl Channel for OpenRouterChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::Local
+    }
+
+    fn handle_local(
+        &self,
+        operation: OperationFamily,
+        protocol: ProtocolKind,
+        body: &[u8],
+    ) -> Option<Result<Vec<u8>, UpstreamError>> {
+        (operation == OperationFamily::CountToken)
+            .then(|| crate::count_tokens::local_count_response_for_protocol(protocol, body))
+    }
+}
+
+fn openrouter_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.operation {
+        OperationFamily::ModelList => Ok("/v1/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!(
+            "/v1/models/{}",
+            request.model.as_deref().unwrap_or_default()
+        )),
+        OperationFamily::CountToken => Ok("/v1/responses/input_tokens/count".to_string()),
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+            match request.route.protocol {
+                ProtocolKind::OpenAiResponse => Ok("/v1/responses".to_string()),
+                ProtocolKind::OpenAiChatCompletion | ProtocolKind::OpenAi => {
+                    Ok("/v1/chat/completions".to_string())
+                }
+                _ => Err(UpstreamError::Channel(format!(
+                    "unsupported openrouter request route: ({}, {})",
+                    request.route.operation, request.route.protocol
+                ))),
+            }
+        }
+        OperationFamily::Embedding => Ok("/v1/embeddings".to_string()),
+        OperationFamily::OpenAiResponseWebSocket => Ok("/v1/responses".to_string()),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported openrouter request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

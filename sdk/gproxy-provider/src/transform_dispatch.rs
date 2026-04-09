@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
-use http::StatusCode;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::response::UpstreamError;
@@ -633,7 +632,7 @@ pub fn transform_response(
         }
         // OpenAI Response response → OpenAI ChatCompletions
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_openai_response_body_to_chat_completions(&body)
+            transform_openai_response_wrapper_to_chat_completions(&body)
         }
 
         // Claude response → OpenAI Response
@@ -928,32 +927,17 @@ where
         .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
 }
 
-fn transform_openai_response_body_to_chat_completions(
+fn transform_openai_response_wrapper_to_chat_completions(
     body: &[u8],
 ) -> Result<Vec<u8>, UpstreamError> {
     use gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse;
-    use gproxy_protocol::openai::create_response::response::{
-        OpenAiCreateResponseResponse, ResponseBody,
-    };
-    use gproxy_protocol::openai::types::{OpenAiApiErrorResponse, OpenAiResponseHeaders};
+    use gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse;
 
-    let wrapped = if let Ok(success_body) = serde_json::from_slice::<ResponseBody>(body) {
-        OpenAiCreateResponseResponse::Success {
-            stats_code: StatusCode::OK,
-            headers: OpenAiResponseHeaders::default(),
-            body: success_body,
-        }
-    } else if let Ok(error_body) = serde_json::from_slice::<OpenAiApiErrorResponse>(body) {
-        OpenAiCreateResponseResponse::Error {
-            stats_code: StatusCode::BAD_REQUEST,
-            headers: OpenAiResponseHeaders::default(),
-            body: error_body,
-        }
-    } else {
-        return Err(UpstreamError::Channel(
-            "response deserialize: body is neither responses success nor error payload".to_string(),
-        ));
-    };
+    let wrapped: OpenAiCreateResponseResponse = serde_json::from_slice(body).map_err(|e| {
+        UpstreamError::Channel(format!(
+            "response deserialize: expected OpenAiCreateResponseResponse: {e}"
+        ))
+    })?;
 
     let converted = OpenAiChatCompletionsResponse::try_from(wrapped)
         .map_err(|e| UpstreamError::Channel(format!("transform: {}", e)))?;
@@ -2128,7 +2112,7 @@ mod tests {
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
     use serde_json::{Value, json};
 
-    use super::{transform_openai_response_body_to_chat_completions, transform_request};
+    use super::{transform_openai_response_wrapper_to_chat_completions, transform_request};
 
     #[test]
     fn transform_request_supports_openai_chat_to_openai_response() {
@@ -2156,7 +2140,7 @@ mod tests {
     }
 
     #[test]
-    fn transform_response_supports_openai_response_to_openai_chat() {
+    fn transform_response_rejects_bare_openai_response_body_for_openai_chat() {
         let body = serde_json::to_vec(&json!({
           "id": "resp_123",
           "created_at": 1,
@@ -2186,8 +2170,48 @@ mod tests {
         }))
         .expect("serialize response body");
 
-        let transformed = transform_openai_response_body_to_chat_completions(&body)
-            .expect("response -> chat transform should succeed");
+        let err = transform_openai_response_wrapper_to_chat_completions(&body)
+            .expect_err("bare responses body should be rejected");
+        assert!(err.to_string().contains("OpenAiCreateResponseResponse"));
+    }
+
+    #[test]
+    fn transform_response_supports_wrapped_openai_response_to_openai_chat() {
+        let body = serde_json::to_vec(&json!({
+          "stats_code": 200,
+          "headers": {},
+          "body": {
+            "id": "resp_123",
+            "created_at": 1,
+            "metadata": {},
+            "model": "gpt-5.4",
+            "object": "response",
+            "output": [
+              {
+                "id": "msg_0",
+                "content": [
+                  {
+                    "annotations": [],
+                    "text": "OK",
+                    "type": "output_text"
+                  }
+                ],
+                "role": "assistant",
+                "status": "completed",
+                "type": "message"
+              }
+            ],
+            "parallel_tool_calls": false,
+            "temperature": 1.0,
+            "tool_choice": "auto",
+            "tools": [],
+            "top_p": 1.0
+          }
+        }))
+        .expect("serialize wrapped response body");
+
+        let transformed = transform_openai_response_wrapper_to_chat_completions(&body)
+            .expect("wrapped response -> chat transform should succeed");
 
         let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
         assert_eq!(json.get("model").and_then(Value::as_str), Some("gpt-5.4"));

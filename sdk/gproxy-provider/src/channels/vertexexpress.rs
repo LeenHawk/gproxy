@@ -180,25 +180,25 @@ impl Channel for VertexExpressChannel {
             xform(
                 OperationFamily::CreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImage,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImage,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::CreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImageEdit,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImageEdit,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             // Embeddings
@@ -234,11 +234,12 @@ impl Channel for VertexExpressChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let separator = if request.path.contains('?') { "&" } else { "?" };
+        let path = vertexexpress_request_path(request)?;
+        let separator = if path.contains('?') { "&" } else { "?" };
         let url = format!(
             "{}{}{}key={}",
             settings.base_url(),
-            request.path,
+            path,
             separator,
             credential.api_key
         );
@@ -291,6 +292,40 @@ impl Channel for VertexExpressChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::UpstreamApi
+    }
+}
+
+fn vertexexpress_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    let model = request
+        .model
+        .as_deref()
+        .unwrap_or_default()
+        .trim_start_matches("models/")
+        .to_string();
+    match request.route.operation {
+        OperationFamily::ModelList => Ok("/v1beta1/publishers/google/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!("/v1beta1/publishers/google/models/{model}")),
+        OperationFamily::CountToken => Ok(format!(
+            "/v1beta1/publishers/google/models/{model}:countTokens"
+        )),
+        OperationFamily::GenerateContent => Ok(format!(
+            "/v1beta1/publishers/google/models/{model}:generateContent"
+        )),
+        OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => Ok(format!(
+            "/v1beta1/publishers/google/models/{model}:streamGenerateContent{}",
+            if request.route.protocol == ProtocolKind::Gemini {
+                "?alt=sse"
+            } else {
+                ""
+            }
+        )),
+        OperationFamily::Embedding => Ok(format!(
+            "/v1beta1/publishers/google/models/{model}:embedContent"
+        )),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported vertexexpress request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

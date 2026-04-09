@@ -88,12 +88,7 @@ impl Channel for AnthropicChannel {
         let routes = vec![
             // Model list/get
             pass(OperationFamily::ModelList, ProtocolKind::Claude),
-            xform(
-                OperationFamily::ModelList,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelList,
-                ProtocolKind::Claude,
-            ),
+            pass(OperationFamily::ModelList, ProtocolKind::OpenAi),
             xform(
                 OperationFamily::ModelList,
                 ProtocolKind::Gemini,
@@ -101,12 +96,7 @@ impl Channel for AnthropicChannel {
                 ProtocolKind::Claude,
             ),
             pass(OperationFamily::ModelGet, ProtocolKind::Claude),
-            xform(
-                OperationFamily::ModelGet,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelGet,
-                ProtocolKind::Claude,
-            ),
+            pass(OperationFamily::ModelGet, ProtocolKind::OpenAi),
             xform(
                 OperationFamily::ModelGet,
                 ProtocolKind::Gemini,
@@ -129,11 +119,9 @@ impl Channel for AnthropicChannel {
             ),
             // Generate content (non-stream)
             pass(OperationFamily::GenerateContent, ProtocolKind::Claude),
-            xform(
+            pass(
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
-                OperationFamily::GenerateContent,
-                ProtocolKind::Claude,
             ),
             xform(
                 OperationFamily::GenerateContent,
@@ -149,11 +137,9 @@ impl Channel for AnthropicChannel {
             ),
             // Generate content (stream)
             pass(OperationFamily::StreamGenerateContent, ProtocolKind::Claude),
-            xform(
+            pass(
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
-                OperationFamily::StreamGenerateContent,
-                ProtocolKind::Claude,
             ),
             xform(
                 OperationFamily::StreamGenerateContent,
@@ -218,7 +204,11 @@ impl Channel for AnthropicChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!(
+            "{}{}",
+            settings.base_url(),
+            anthropic_request_path(request)?
+        );
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
@@ -227,7 +217,7 @@ impl Channel for AnthropicChannel {
 
         // File operations: don't force Content-Type to application/json
         // (multipart upload carries its own Content-Type via request.headers).
-        if !crate::engine::is_file_operation_path(&request.path) {
+        if !crate::engine::is_file_operation(request.route.operation) {
             builder = builder.header("Content-Type", "application/json");
         }
 
@@ -250,7 +240,7 @@ impl Channel for AnthropicChannel {
         mut request: PreparedRequest,
     ) -> Result<PreparedRequest, UpstreamError> {
         // File operations: inject beta header, skip JSON body normalization.
-        if crate::engine::is_file_operation_path(&request.path) {
+        if crate::engine::is_file_operation(request.route.operation) {
             request.headers.insert(
                 "anthropic-beta",
                 http::HeaderValue::from_static("files-api-2025-04-14"),
@@ -309,6 +299,46 @@ impl Channel for AnthropicChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::UpstreamApi
+    }
+}
+
+fn anthropic_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.operation {
+        OperationFamily::FileUpload => Ok("/v1/files".to_string()),
+        OperationFamily::FileList => Ok("/v1/files".to_string()),
+        OperationFamily::FileContent => Ok(format!(
+            "/v1/files/{}/content",
+            serde_json::from_slice::<Value>(&request.body)
+                .ok()
+                .and_then(|v| v
+                    .pointer("/path/file_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned))
+                .unwrap_or_default()
+        )),
+        OperationFamily::FileGet | OperationFamily::FileDelete => Ok(format!(
+            "/v1/files/{}",
+            serde_json::from_slice::<Value>(&request.body)
+                .ok()
+                .and_then(|v| v
+                    .pointer("/path/file_id")
+                    .and_then(Value::as_str)
+                    .map(ToOwned::to_owned))
+                .unwrap_or_default()
+        )),
+        OperationFamily::ModelList => Ok("/v1/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!(
+            "/v1/models/{}",
+            request.model.as_deref().unwrap_or_default()
+        )),
+        OperationFamily::CountToken => Ok("/v1/messages/count_tokens".to_string()),
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+            Ok("/v1/messages".to_string())
+        }
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported anthropic request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

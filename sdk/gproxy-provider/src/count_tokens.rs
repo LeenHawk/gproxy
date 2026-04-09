@@ -1,4 +1,6 @@
 use crate::engine::Usage;
+use crate::response::UpstreamError;
+use gproxy_protocol::kinds::ProtocolKind;
 
 use std::sync::{Arc, OnceLock};
 use tiktoken_rs::{CoreBPE, get_bpe_from_model, o200k_base};
@@ -66,6 +68,158 @@ pub fn estimate_partial_usage(
         cache_creation_input_tokens_5min: None,
         cache_creation_input_tokens_1h: None,
     }
+}
+
+pub fn local_count_response_for_protocol(
+    protocol: ProtocolKind,
+    body: &[u8],
+) -> Result<Vec<u8>, UpstreamError> {
+    let request = openai_count_request_from_protocol(protocol, body)?;
+    let text = openai_count_request_text(&request.body);
+    let model = request.body.model.as_deref().unwrap_or_default();
+    let input_tokens = u64::try_from(count_tokens_local(model, &text).count).unwrap_or(0);
+
+    match protocol {
+        ProtocolKind::OpenAi => serde_json::to_vec(
+            &gproxy_protocol::openai::count_tokens::response::ResponseBody {
+                input_tokens,
+                object: gproxy_protocol::openai::count_tokens::response::OpenAiCountTokensObject::ResponseInputTokens,
+            },
+        )
+        .map_err(|e| UpstreamError::Channel(format!("serialize local openai count response: {e}"))),
+        ProtocolKind::Claude => serde_json::to_vec(
+            &gproxy_protocol::claude::count_tokens::types::BetaMessageTokensCount {
+                context_management: None,
+                input_tokens,
+            },
+        )
+        .map_err(|e| UpstreamError::Channel(format!("serialize local claude count response: {e}"))),
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => serde_json::to_vec(
+            &gproxy_protocol::gemini::count_tokens::response::ResponseBody {
+                total_tokens: input_tokens,
+                cached_content_token_count: None,
+                prompt_tokens_details: None,
+                cache_tokens_details: None,
+            },
+        )
+        .map_err(|e| UpstreamError::Channel(format!("serialize local gemini count response: {e}"))),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported local count protocol: {protocol}"
+        ))),
+    }
+}
+
+fn openai_count_request_from_protocol(
+    protocol: ProtocolKind,
+    body: &[u8],
+) -> Result<gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest, UpstreamError>
+{
+    match protocol {
+        ProtocolKind::OpenAi => {
+            let body = serde_json::from_slice::<
+                gproxy_protocol::openai::count_tokens::request::RequestBody,
+            >(body)
+            .map_err(|e| UpstreamError::Channel(format!("deserialize openai count body: {e}")))?;
+            Ok(gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest {
+                body,
+                ..Default::default()
+            })
+        }
+        ProtocolKind::Claude => {
+            let body = serde_json::from_slice::<
+                gproxy_protocol::claude::count_tokens::request::RequestBody,
+            >(body)
+            .map_err(|e| UpstreamError::Channel(format!("deserialize claude count body: {e}")))?;
+            let request = gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest {
+                body,
+                ..Default::default()
+            };
+            gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest::try_from(
+                request,
+            )
+            .map_err(|e| UpstreamError::Channel(format!("transform claude count request: {e}")))
+        }
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            let body = serde_json::from_slice::<
+                gproxy_protocol::gemini::count_tokens::request::RequestBody,
+            >(body)
+            .map_err(|e| UpstreamError::Channel(format!("deserialize gemini count body: {e}")))?;
+            let request = gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest {
+                body,
+                ..Default::default()
+            };
+            gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest::try_from(
+                request,
+            )
+            .map_err(|e| UpstreamError::Channel(format!("transform gemini count request: {e}")))
+        }
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported local count protocol: {protocol}"
+        ))),
+    }
+}
+
+fn openai_count_request_text(
+    body: &gproxy_protocol::openai::count_tokens::request::RequestBody,
+) -> String {
+    use gproxy_protocol::openai::count_tokens::types as ot;
+    use gproxy_protocol::transform::openai::count_tokens::utils::{
+        openai_function_call_output_content_to_text, openai_input_to_items,
+        openai_message_content_to_text, openai_reasoning_summary_to_text,
+    };
+
+    let mut chunks = Vec::new();
+
+    if let Some(instructions) = body.instructions.as_ref().filter(|text| !text.is_empty()) {
+        chunks.push(instructions.clone());
+    }
+
+    for item in openai_input_to_items(body.input.clone()) {
+        match item {
+            ot::ResponseInputItem::Message(message) => {
+                let text = openai_message_content_to_text(&message.content);
+                if !text.is_empty() {
+                    chunks.push(text);
+                }
+            }
+            ot::ResponseInputItem::OutputMessage(message) => {
+                let text = message
+                    .content
+                    .into_iter()
+                    .map(|part| match part {
+                        ot::ResponseOutputContent::Text(text) => text.text,
+                        ot::ResponseOutputContent::Refusal(refusal) => refusal.refusal,
+                    })
+                    .filter(|text| !text.is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !text.is_empty() {
+                    chunks.push(text);
+                }
+            }
+            ot::ResponseInputItem::FunctionToolCall(call) => {
+                chunks.push(format!("{} {}", call.name, call.arguments));
+            }
+            ot::ResponseInputItem::FunctionCallOutput(output) => {
+                let text = openai_function_call_output_content_to_text(&output.output);
+                if !text.is_empty() {
+                    chunks.push(text);
+                }
+            }
+            ot::ResponseInputItem::ReasoningItem(reasoning) => {
+                let text = openai_reasoning_summary_to_text(&reasoning.summary);
+                if !text.is_empty() {
+                    chunks.push(text);
+                }
+            }
+            ot::ResponseInputItem::CustomToolCall(call) => {
+                chunks.push(format!("{} {}", call.name, call.input));
+            }
+            other => chunks.push(format!("{other:?}")),
+        }
+    }
+
+    chunks.join("\n")
 }
 
 // === Tiktoken (GPT models) ===

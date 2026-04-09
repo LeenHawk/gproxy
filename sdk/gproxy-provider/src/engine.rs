@@ -11,6 +11,7 @@ use serde_json::Value;
 use tracing::Instrument;
 
 use crate::Channel;
+use crate::dispatch::RouteKey;
 use crate::health::ModelCooldownHealth;
 use crate::request::PreparedRequest;
 use crate::response::UpstreamError;
@@ -738,11 +739,9 @@ impl GproxyEngine {
         } else {
             (request.model.clone(), None)
         };
-        let path = build_operation_path(dst_op, dst_proto, model.as_deref(), &mut body)?;
-
         let mut prepared = PreparedRequest {
             method,
-            path,
+            route: RouteKey::new(dst_op, dst_proto),
             model,
             body,
             headers: request.headers,
@@ -939,11 +938,9 @@ impl GproxyEngine {
         } else {
             (request.model.clone(), None)
         };
-        let path = build_operation_path(dst_op, dst_proto, model.as_deref(), &mut body)?;
-
         let mut prepared = PreparedRequest {
             method,
-            path,
+            route: RouteKey::new(dst_op, dst_proto),
             model,
             body,
             headers: request.headers,
@@ -1126,237 +1123,6 @@ fn operation_http_method(operation: OperationFamily) -> http::Method {
         OperationFamily::FileDelete => http::Method::DELETE,
         _ => http::Method::POST,
     }
-}
-
-/// Build the full upstream path for an operation.
-///
-/// This maps the canonical `(operation, protocol)` pair to the real upstream
-/// HTTP endpoint. File and model list routes additionally consume encoded
-/// `path/query` data from the body prepared by the API layer.
-fn build_operation_path(
-    operation: OperationFamily,
-    protocol: ProtocolKind,
-    model: Option<&str>,
-    body: &mut Vec<u8>,
-) -> Result<String, UpstreamError> {
-    let path = match operation {
-        OperationFamily::FileUpload => "/v1/files".to_string(),
-        OperationFamily::FileList => {
-            let path = build_file_list_path(body);
-            *body = Vec::new();
-            path
-        }
-        OperationFamily::FileContent => {
-            let file_id = extract_path_param(body, "file_id");
-            *body = Vec::new();
-            format!("/v1/files/{}/content", file_id)
-        }
-        OperationFamily::FileGet => {
-            let file_id = extract_path_param(body, "file_id");
-            *body = Vec::new();
-            format!("/v1/files/{}", file_id)
-        }
-        OperationFamily::FileDelete => {
-            let file_id = extract_path_param(body, "file_id");
-            *body = Vec::new();
-            format!("/v1/files/{}", file_id)
-        }
-        OperationFamily::ModelList => build_model_list_path(protocol, body),
-        OperationFamily::ModelGet => build_model_get_path(protocol, model)?,
-        OperationFamily::CountToken => match protocol {
-            ProtocolKind::OpenAi => "/v1/responses/input_tokens/count".to_string(),
-            ProtocolKind::Claude => "/v1/messages/count_tokens".to_string(),
-            ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-                build_gemini_model_action_path(model, "countTokens", None)?
-            }
-            _ => return unsupported_path(operation, protocol),
-        },
-        OperationFamily::Compact => match protocol {
-            ProtocolKind::OpenAi => "/v1/responses/compact".to_string(),
-            _ => return unsupported_path(operation, protocol),
-        },
-        OperationFamily::GenerateContent => match protocol {
-            ProtocolKind::OpenAiResponse => "/v1/responses".to_string(),
-            ProtocolKind::OpenAiChatCompletion => "/v1/chat/completions".to_string(),
-            ProtocolKind::Claude => "/v1/messages".to_string(),
-            ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-                build_gemini_model_action_path(model, "generateContent", None)?
-            }
-            _ => return unsupported_path(operation, protocol),
-        },
-        OperationFamily::StreamGenerateContent => match protocol {
-            ProtocolKind::OpenAiResponse => "/v1/responses".to_string(),
-            ProtocolKind::OpenAiChatCompletion => "/v1/chat/completions".to_string(),
-            ProtocolKind::Claude => "/v1/messages".to_string(),
-            ProtocolKind::Gemini => {
-                build_gemini_model_action_path(model, "streamGenerateContent", Some("alt=sse"))?
-            }
-            ProtocolKind::GeminiNDJson => {
-                build_gemini_model_action_path(model, "streamGenerateContent", None)?
-            }
-            _ => return unsupported_path(operation, protocol),
-        },
-        OperationFamily::CreateImage | OperationFamily::StreamCreateImage => match protocol {
-            ProtocolKind::OpenAi => "/v1/images/generations".to_string(),
-            _ => return unsupported_path(operation, protocol),
-        },
-        OperationFamily::CreateImageEdit | OperationFamily::StreamCreateImageEdit => match protocol
-        {
-            ProtocolKind::OpenAi => "/v1/images/edits".to_string(),
-            _ => return unsupported_path(operation, protocol),
-        },
-        OperationFamily::OpenAiResponseWebSocket => "/v1/responses".to_string(),
-        OperationFamily::GeminiLive => {
-            build_gemini_model_action_path(model, "streamGenerateContent", Some("alt=sse"))?
-        }
-        OperationFamily::Embedding => match protocol {
-            ProtocolKind::OpenAi => "/v1/embeddings".to_string(),
-            ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-                build_gemini_model_action_path(model, "embedContent", None)?
-            }
-            _ => return unsupported_path(operation, protocol),
-        },
-    };
-
-    Ok(path)
-}
-
-fn unsupported_path(
-    operation: OperationFamily,
-    protocol: ProtocolKind,
-) -> Result<String, UpstreamError> {
-    Err(UpstreamError::Channel(format!(
-        "no upstream path mapping for ({operation}, {protocol})"
-    )))
-}
-
-fn build_model_list_path(protocol: ProtocolKind, body: &[u8]) -> String {
-    match protocol {
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            build_query_path("/v1beta/models", body, &["pageSize", "pageToken"])
-        }
-        ProtocolKind::Claude => {
-            build_query_path("/v1/models", body, &["after_id", "before_id", "limit"])
-        }
-        ProtocolKind::OpenAi => "/v1/models".to_string(),
-        _ => "/v1/models".to_string(),
-    }
-}
-
-fn build_model_get_path(
-    protocol: ProtocolKind,
-    model: Option<&str>,
-) -> Result<String, UpstreamError> {
-    let model = require_model_segment(model)?;
-    Ok(match protocol {
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            format!("/v1beta/{}", gemini_model_resource(model))
-        }
-        ProtocolKind::OpenAi | ProtocolKind::Claude => format!("/v1/models/{model}"),
-        _ => {
-            return Err(UpstreamError::Channel(format!(
-                "no model_get path mapping for protocol: {protocol}"
-            )));
-        }
-    })
-}
-
-fn build_gemini_model_action_path(
-    model: Option<&str>,
-    action: &str,
-    query: Option<&str>,
-) -> Result<String, UpstreamError> {
-    let resource = gemini_model_resource(require_model_segment(model)?);
-    let mut path = format!("/v1beta/{resource}:{action}");
-    if let Some(query) = query {
-        path.push('?');
-        path.push_str(query);
-    }
-    Ok(path)
-}
-
-fn require_model_segment(model: Option<&str>) -> Result<String, UpstreamError> {
-    let value = model
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| UpstreamError::Channel("missing model for upstream path".into()))?;
-    Ok(url::form_urlencoded::byte_serialize(value.as_bytes()).collect())
-}
-
-fn gemini_model_resource(model: String) -> String {
-    if model.starts_with("models%2F") || model.starts_with("models/") {
-        model
-    } else {
-        format!("models/{model}")
-    }
-}
-
-fn build_query_path(base: &str, body: &[u8], allowed_keys: &[&str]) -> String {
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else {
-        return base.to_string();
-    };
-    let Some(query) = value.get("query").and_then(|query| query.as_object()) else {
-        return base.to_string();
-    };
-
-    let mut params = Vec::new();
-    for key in allowed_keys {
-        let Some(value) = query.get(*key) else {
-            continue;
-        };
-        let encoded = match value {
-            serde_json::Value::String(text) => {
-                url::form_urlencoded::byte_serialize(text.as_bytes()).collect::<String>()
-            }
-            serde_json::Value::Number(number) => number.to_string(),
-            _ => continue,
-        };
-        params.push(format!("{key}={encoded}"));
-    }
-
-    if params.is_empty() {
-        base.to_string()
-    } else {
-        format!("{base}?{}", params.join("&"))
-    }
-}
-
-/// Extract a path parameter from a JSON body like `{"path":{"file_id":"..."}}`
-fn extract_path_param(body: &[u8], param: &str) -> String {
-    serde_json::from_slice::<serde_json::Value>(body)
-        .ok()
-        .and_then(|v| {
-            v.pointer(&format!("/path/{}", param))
-                .and_then(|v| v.as_str())
-                .map(String::from)
-        })
-        .unwrap_or_default()
-}
-
-/// Build `/v1/files?after_id=...&before_id=...&limit=...` from the body JSON.
-fn build_file_list_path(body: &[u8]) -> String {
-    let mut base = "/v1/files".to_string();
-    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
-        return base;
-    };
-    let query = v.get("query");
-    let mut params = Vec::new();
-    if let Some(q) = query {
-        if let Some(s) = q.get("after_id").and_then(|v| v.as_str()) {
-            params.push(format!("after_id={}", s));
-        }
-        if let Some(s) = q.get("before_id").and_then(|v| v.as_str()) {
-            params.push(format!("before_id={}", s));
-        }
-        if let Some(n) = q.get("limit").and_then(|v| v.as_u64()) {
-            params.push(format!("limit={}", n));
-        }
-    }
-    if !params.is_empty() {
-        base.push('?');
-        base.push_str(&params.join("&"));
-    }
-    base
 }
 
 /// Returns true when the operation is one of the Files API endpoints.

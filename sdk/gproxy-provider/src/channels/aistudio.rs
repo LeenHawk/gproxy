@@ -86,12 +86,7 @@ impl Channel for AiStudioChannel {
                 OperationFamily::ModelList,
                 ProtocolKind::Gemini,
             ),
-            xform(
-                OperationFamily::ModelList,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelList,
-                ProtocolKind::Gemini,
-            ),
+            pass(OperationFamily::ModelList, ProtocolKind::OpenAi),
             pass(OperationFamily::ModelGet, ProtocolKind::Gemini),
             xform(
                 OperationFamily::ModelGet,
@@ -99,12 +94,7 @@ impl Channel for AiStudioChannel {
                 OperationFamily::ModelGet,
                 ProtocolKind::Gemini,
             ),
-            xform(
-                OperationFamily::ModelGet,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelGet,
-                ProtocolKind::Gemini,
-            ),
+            pass(OperationFamily::ModelGet, ProtocolKind::OpenAi),
             // Count tokens
             pass(OperationFamily::CountToken, ProtocolKind::Gemini),
             xform(
@@ -127,11 +117,9 @@ impl Channel for AiStudioChannel {
                 OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
-            xform(
+            pass(
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
-                OperationFamily::GenerateContent,
-                ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::GenerateContent,
@@ -151,11 +139,9 @@ impl Channel for AiStudioChannel {
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
-            xform(
+            pass(
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
-                OperationFamily::StreamGenerateContent,
-                ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamGenerateContent,
@@ -168,32 +154,32 @@ impl Channel for AiStudioChannel {
             xform(
                 OperationFamily::OpenAiResponseWebSocket,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamGenerateContent,
+                OperationFamily::GeminiLive,
                 ProtocolKind::Gemini,
             ),
             // Images
             xform(
                 OperationFamily::CreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImage,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImage,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::CreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImageEdit,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImageEdit,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             // Embeddings
@@ -230,11 +216,12 @@ impl Channel for AiStudioChannel {
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         // Gemini API uses query parameter for auth
-        let separator = if request.path.contains('?') { "&" } else { "?" };
+        let path = aistudio_request_path(request)?;
+        let separator = if path.contains('?') { "&" } else { "?" };
         let url = format!(
             "{}{}{}key={}",
             settings.base_url(),
-            request.path,
+            path,
             separator,
             credential.api_key
         );
@@ -283,6 +270,34 @@ impl Channel for AiStudioChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::UpstreamApi
+    }
+}
+
+fn aistudio_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    let model = request.model.as_deref().unwrap_or_default();
+    let model = if model.starts_with("models/") {
+        model.to_string()
+    } else {
+        format!("models/{model}")
+    };
+    match request.route.operation {
+        OperationFamily::ModelList => Ok("/v1beta/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!("/v1beta/{model}")),
+        OperationFamily::CountToken => Ok(format!("/v1beta/{model}:countTokens")),
+        OperationFamily::GenerateContent => Ok(format!("/v1beta/{model}:generateContent")),
+        OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => Ok(format!(
+            "/v1beta/{model}:streamGenerateContent{}",
+            if request.route.protocol == ProtocolKind::Gemini {
+                "?alt=sse"
+            } else {
+                ""
+            }
+        )),
+        OperationFamily::Embedding => Ok(format!("/v1beta/{model}:embedContent")),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported aistudio request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

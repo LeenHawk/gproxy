@@ -239,12 +239,7 @@ impl Channel for VertexChannel {
                 OperationFamily::ModelList,
                 ProtocolKind::Gemini,
             ),
-            xform(
-                OperationFamily::ModelList,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelList,
-                ProtocolKind::Gemini,
-            ),
+            pass(OperationFamily::ModelList, ProtocolKind::OpenAi),
             pass(OperationFamily::ModelGet, ProtocolKind::Gemini),
             xform(
                 OperationFamily::ModelGet,
@@ -252,12 +247,7 @@ impl Channel for VertexChannel {
                 OperationFamily::ModelGet,
                 ProtocolKind::Gemini,
             ),
-            xform(
-                OperationFamily::ModelGet,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelGet,
-                ProtocolKind::Gemini,
-            ),
+            pass(OperationFamily::ModelGet, ProtocolKind::OpenAi),
             // Count tokens
             pass(OperationFamily::CountToken, ProtocolKind::Gemini),
             xform(
@@ -280,11 +270,9 @@ impl Channel for VertexChannel {
                 OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
-            xform(
+            pass(
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
-                OperationFamily::GenerateContent,
-                ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::GenerateContent,
@@ -304,11 +292,9 @@ impl Channel for VertexChannel {
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
-            xform(
+            pass(
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
-                OperationFamily::StreamGenerateContent,
-                ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamGenerateContent,
@@ -329,25 +315,25 @@ impl Channel for VertexChannel {
             xform(
                 OperationFamily::CreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImage,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImage,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImage,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::CreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::CreateImageEdit,
+                OperationFamily::GenerateContent,
                 ProtocolKind::Gemini,
             ),
             xform(
                 OperationFamily::StreamCreateImageEdit,
                 ProtocolKind::OpenAi,
-                OperationFamily::StreamCreateImageEdit,
+                OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
             // Embeddings
@@ -411,7 +397,11 @@ impl Channel for VertexChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!(
+            "{}{}",
+            settings.base_url(),
+            vertex_request_path(request, settings, credential)?
+        );
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
@@ -460,6 +450,49 @@ impl Channel for VertexChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::UpstreamApi
+    }
+}
+
+fn vertex_request_path(
+    request: &PreparedRequest,
+    settings: &VertexSettings,
+    credential: &VertexCredential,
+) -> Result<String, UpstreamError> {
+    let model = request
+        .model
+        .as_deref()
+        .unwrap_or_default()
+        .trim_start_matches("models/")
+        .to_string();
+    let project_prefix = format!(
+        "/v1beta1/projects/{}/locations/{}/",
+        credential.project_id.trim(),
+        settings.location.trim()
+    );
+    match request.route.operation {
+        OperationFamily::ModelList => Ok("/v1beta1/publishers/google/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!("/v1beta1/publishers/google/models/{model}")),
+        OperationFamily::CountToken => Ok(format!(
+            "{project_prefix}publishers/google/models/{model}:countTokens"
+        )),
+        OperationFamily::GenerateContent => Ok(format!(
+            "{project_prefix}publishers/google/models/{model}:generateContent"
+        )),
+        OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => Ok(format!(
+            "{project_prefix}publishers/google/models/{model}:streamGenerateContent{}",
+            if request.route.protocol == ProtocolKind::Gemini {
+                "?alt=sse"
+            } else {
+                ""
+            }
+        )),
+        OperationFamily::Embedding => Ok(format!(
+            "{project_prefix}publishers/google/models/{model}:predict"
+        )),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported vertex request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 

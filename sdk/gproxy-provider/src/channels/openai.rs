@@ -213,7 +213,7 @@ impl Channel for OpenAiChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), request.path);
+        let url = format!("{}{}", settings.base_url(), openai_request_path(request)?);
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
@@ -259,6 +259,42 @@ impl Channel for OpenAiChannel {
 
     fn count_strategy(&self) -> crate::count_tokens::CountStrategy {
         crate::count_tokens::CountStrategy::UpstreamApi
+    }
+}
+
+fn openai_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.operation {
+        OperationFamily::ModelList => Ok("/v1/models".to_string()),
+        OperationFamily::ModelGet => Ok(format!(
+            "/v1/models/{}",
+            request.model.as_deref().unwrap_or_default()
+        )),
+        OperationFamily::CountToken => Ok("/v1/responses/input_tokens/count".to_string()),
+        OperationFamily::Compact => Ok("/v1/responses/compact".to_string()),
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+            match request.route.protocol {
+                ProtocolKind::OpenAiResponse => Ok("/v1/responses".to_string()),
+                ProtocolKind::OpenAiChatCompletion | ProtocolKind::OpenAi => {
+                    Ok("/v1/chat/completions".to_string())
+                }
+                _ => Err(UpstreamError::Channel(format!(
+                    "unsupported openai request route: ({}, {})",
+                    request.route.operation, request.route.protocol
+                ))),
+            }
+        }
+        OperationFamily::CreateImage | OperationFamily::StreamCreateImage => {
+            Ok("/v1/images/generations".to_string())
+        }
+        OperationFamily::CreateImageEdit | OperationFamily::StreamCreateImageEdit => {
+            Ok("/v1/images/edits".to_string())
+        }
+        OperationFamily::Embedding => Ok("/v1/embeddings".to_string()),
+        OperationFamily::OpenAiResponseWebSocket => Ok("/v1/responses".to_string()),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported openai request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
     }
 }
 
