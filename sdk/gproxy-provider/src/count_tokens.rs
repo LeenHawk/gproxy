@@ -120,20 +120,23 @@ fn openai_count_request_from_protocol(
                 gproxy_protocol::openai::count_tokens::request::RequestBody,
             >(body)
             .map_err(|e| UpstreamError::Channel(format!("deserialize openai count body: {e}")))?;
-            Ok(gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest {
-                body,
-                ..Default::default()
-            })
+            Ok(
+                gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest {
+                    body,
+                    ..Default::default()
+                },
+            )
         }
         ProtocolKind::Claude => {
             let body = serde_json::from_slice::<
                 gproxy_protocol::claude::count_tokens::request::RequestBody,
             >(body)
             .map_err(|e| UpstreamError::Channel(format!("deserialize claude count body: {e}")))?;
-            let request = gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest {
-                body,
-                ..Default::default()
-            };
+            let request =
+                gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest {
+                    body,
+                    ..Default::default()
+                };
             gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest::try_from(
                 request,
             )
@@ -144,10 +147,11 @@ fn openai_count_request_from_protocol(
                 gproxy_protocol::gemini::count_tokens::request::RequestBody,
             >(body)
             .map_err(|e| UpstreamError::Channel(format!("deserialize gemini count body: {e}")))?;
-            let request = gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest {
-                body,
-                ..Default::default()
-            };
+            let request =
+                gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest {
+                    body,
+                    ..Default::default()
+                };
             gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest::try_from(
                 request,
             )

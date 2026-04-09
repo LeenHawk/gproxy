@@ -1,3 +1,4 @@
+use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use gproxy_provider::channel::Channel;
 use gproxy_provider::channels::{
     aistudio::AiStudioChannel, anthropic::AnthropicChannel, antigravity::AntigravityChannel,
@@ -6,7 +7,6 @@ use gproxy_provider::channels::{
     openrouter::OpenRouterChannel, vertex::VertexChannel, vertexexpress::VertexExpressChannel,
 };
 use gproxy_provider::dispatch::{RouteImplementation, RouteKey};
-use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 fn assert_passthrough(
     table: &gproxy_provider::DispatchTable,

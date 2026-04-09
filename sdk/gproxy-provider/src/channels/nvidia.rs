@@ -114,7 +114,6 @@ impl Channel for NvidiaChannel {
                 RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
                 RouteImplementation::Local,
             ),
-
             // === Generate content (non-stream) ===
             pass(
                 OperationFamily::GenerateContent,

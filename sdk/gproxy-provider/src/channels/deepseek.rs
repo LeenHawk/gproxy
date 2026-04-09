@@ -118,7 +118,6 @@ impl Channel for DeepSeekChannel {
                 RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
                 RouteImplementation::Local,
             ),
-
             // === Generate content (non-stream) ===
             pass(
                 OperationFamily::GenerateContent,

@@ -550,7 +550,6 @@ impl Channel for CodexChannel {
                 RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
                 RouteImplementation::Local,
             ),
-
             // Generate content (internally force stream, then aggregate back)
             xform(
                 OperationFamily::GenerateContent,

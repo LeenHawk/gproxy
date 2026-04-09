@@ -1,8 +1,8 @@
+use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use gproxy_provider::channel::Channel;
 use gproxy_provider::channels::{
     deepseek::DeepSeekChannel, groq::GroqChannel, openrouter::OpenRouterChannel,
 };
-use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use serde_json::Value;
 
 #[test]
@@ -21,8 +21,16 @@ fn deepseek_local_count_supports_openai_requests() {
         .expect("count succeeds");
 
     let json: Value = serde_json::from_slice(&bytes).expect("json");
-    assert_eq!(json.get("object").and_then(Value::as_str), Some("response.input_tokens"));
-    assert!(json.get("input_tokens").and_then(Value::as_u64).unwrap_or(0) > 0);
+    assert_eq!(
+        json.get("object").and_then(Value::as_str),
+        Some("response.input_tokens")
+    );
+    assert!(
+        json.get("input_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            > 0
+    );
 }
 
 #[test]
@@ -43,7 +51,12 @@ fn groq_local_count_supports_claude_requests() {
         .expect("count succeeds");
 
     let json: Value = serde_json::from_slice(&bytes).expect("json");
-    assert!(json.get("input_tokens").and_then(Value::as_u64).unwrap_or(0) > 0);
+    assert!(
+        json.get("input_tokens")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            > 0
+    );
 }
 
 #[test]

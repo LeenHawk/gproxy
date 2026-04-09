@@ -803,8 +803,18 @@ impl GproxyEngine {
             crate::suffix::rewrite_model_suffix_in_body(&mut normalized_nonstream_body, suffix);
         }
 
-        // 3. Transform response if needed (cross-protocol)
-        let response_body = if needs_transform {
+        // 3. Transform response if needed (cross-protocol).
+        //
+        // Only transform on 2xx success bodies. Upstream error bodies
+        // (e.g. codex returning `{"detail":{"code":"deactivated_workspace"}}`
+        // on HTTP 402) are in a provider-specific error schema that the
+        // destination-protocol wrapper enum can't parse. Attempting to
+        // transform them produces
+        // `"body does not match success or error variant of ..."` and
+        // loses the upstream error information. Instead, forward the raw
+        // error body through to the client — the upstream HTTP status
+        // propagates via `response.status` below.
+        let response_body = if needs_transform && (200..=299).contains(&response.status) {
             tracing::debug!("transforming response");
             crate::transform_dispatch::transform_response(
                 request.operation,

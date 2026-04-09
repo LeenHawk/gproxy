@@ -40,7 +40,7 @@ pub struct ClaudeApiResponse<T> {
 }
 
 /// Common response headers returned by Claude endpoints.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct ClaudeResponseHeaders {
     /// Additional response headers.
     #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]

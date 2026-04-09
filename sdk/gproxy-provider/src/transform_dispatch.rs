@@ -2,9 +2,228 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
+use http::StatusCode;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::response::UpstreamError;
+
+/// Codec trait for response wrapper enums in `gproxy_protocol`.
+///
+/// Every response enum has the shape
+/// `Success { stats_code, headers, body } | Error { stats_code, headers, body }`
+/// where the outer envelope metadata is internal bookkeeping and the actual
+/// HTTP body JSON is just the `body` field. `serde_json::from_slice::<Wrapper>`
+/// cannot parse a raw upstream response because raw JSON has no `stats_code` /
+/// `headers` top-level fields — it has the body fields directly.
+///
+/// This trait lets [`transform_json`] round-trip through a wrapper enum by
+/// deserializing only the inner body JSON and wrapping it in the `Success`
+/// variant (or falling back to `Error` if the body matches the error schema).
+///
+/// See the `impl_body_envelope!` macro below for implementations.
+trait BodyEnvelope: Sized {
+    /// Parse a raw HTTP response body into this wrapper's `Success` (or
+    /// `Error`) variant with placeholder `stats_code` / `headers`.
+    fn from_body_bytes(body: &[u8]) -> Result<Self, UpstreamError>;
+
+    /// Serialize just the inner `body` field of this wrapper to JSON bytes
+    /// for the client-facing HTTP response.
+    fn into_body_bytes(self) -> Result<Vec<u8>, UpstreamError>;
+}
+
+/// Generate a [`BodyEnvelope`] impl for a protocol response wrapper enum.
+///
+/// The macro covers the uniform `Success { stats_code, headers, body } |
+/// Error { stats_code, headers, body }` shape shared by every wrapper in
+/// `gproxy_protocol::{claude, gemini, openai}::*::response`. The two `body`
+/// field types differ per protocol, so the caller passes them in.
+macro_rules! impl_body_envelope {
+    (
+        $wrapper:ty,
+        success_body = $success_body:ty,
+        error_body = $error_body:ty,
+        headers = $headers:ty,
+    ) => {
+        impl BodyEnvelope for $wrapper {
+            fn from_body_bytes(bytes: &[u8]) -> Result<Self, UpstreamError> {
+                let success_err = match serde_json::from_slice::<$success_body>(bytes) {
+                    Ok(body) => {
+                        return Ok(Self::Success {
+                            stats_code: StatusCode::OK,
+                            headers: <$headers>::default(),
+                            body,
+                        });
+                    }
+                    Err(e) => e,
+                };
+                let error_err = match serde_json::from_slice::<$error_body>(bytes) {
+                    Ok(body) => {
+                        return Ok(Self::Error {
+                            stats_code: StatusCode::BAD_REQUEST,
+                            headers: <$headers>::default(),
+                            body,
+                        });
+                    }
+                    Err(e) => e,
+                };
+                let preview: String = String::from_utf8_lossy(
+                    &bytes[..std::cmp::min(bytes.len(), 600)],
+                )
+                .into_owned();
+                tracing::warn!(
+                    wrapper = stringify!($wrapper),
+                    success_error = %success_err,
+                    error_variant_error = %error_err,
+                    body_len = bytes.len(),
+                    body_preview = %preview,
+                    "response body did not match either variant of wrapper enum"
+                );
+                Err(UpstreamError::Channel(format!(
+                    "deserialize: body does not match success or error variant of {} \
+                     (success_err: {}; error_err: {})",
+                    stringify!($wrapper),
+                    success_err,
+                    error_err
+                )))
+            }
+
+            fn into_body_bytes(self) -> Result<Vec<u8>, UpstreamError> {
+                match self {
+                    Self::Success { body, .. } => serde_json::to_vec(&body)
+                        .map_err(|e| UpstreamError::Channel(format!("serialize: {e}"))),
+                    Self::Error { body, .. } => serde_json::to_vec(&body)
+                        .map_err(|e| UpstreamError::Channel(format!("serialize: {e}"))),
+                }
+            }
+        }
+    };
+}
+
+impl_body_envelope!(
+    gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
+    success_body = gproxy_protocol::gemini::generate_content::response::ResponseBody,
+    error_body = gproxy_protocol::gemini::types::GeminiApiErrorResponse,
+    headers = gproxy_protocol::gemini::types::GeminiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
+    success_body = gproxy_protocol::claude::create_message::response::ResponseBody,
+    error_body = gproxy_protocol::claude::types::BetaErrorResponse,
+    headers = gproxy_protocol::claude::types::ClaudeResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+    success_body = gproxy_protocol::openai::create_chat_completions::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
+    success_body = gproxy_protocol::openai::create_response::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::gemini::count_tokens::response::GeminiCountTokensResponse,
+    success_body = gproxy_protocol::gemini::count_tokens::response::ResponseBody,
+    error_body = gproxy_protocol::gemini::types::GeminiApiErrorResponse,
+    headers = gproxy_protocol::gemini::types::GeminiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::count_tokens::response::OpenAiCountTokensResponse,
+    success_body = gproxy_protocol::openai::count_tokens::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::claude::count_tokens::response::ClaudeCountTokensResponse,
+    success_body = gproxy_protocol::claude::count_tokens::response::ResponseBody,
+    error_body = gproxy_protocol::claude::types::BetaErrorResponse,
+    headers = gproxy_protocol::claude::types::ClaudeResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::gemini::model_get::response::GeminiModelGetResponse,
+    success_body = gproxy_protocol::gemini::model_get::response::ResponseBody,
+    error_body = gproxy_protocol::gemini::types::GeminiApiErrorResponse,
+    headers = gproxy_protocol::gemini::types::GeminiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::model_get::response::OpenAiModelGetResponse,
+    success_body = gproxy_protocol::openai::model_get::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::claude::model_get::response::ClaudeModelGetResponse,
+    success_body = gproxy_protocol::claude::model_get::response::ResponseBody,
+    error_body = gproxy_protocol::claude::types::BetaErrorResponse,
+    headers = gproxy_protocol::claude::types::ClaudeResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::gemini::model_list::response::GeminiModelListResponse,
+    success_body = gproxy_protocol::gemini::model_list::response::ResponseBody,
+    error_body = gproxy_protocol::gemini::types::GeminiApiErrorResponse,
+    headers = gproxy_protocol::gemini::types::GeminiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::model_list::response::OpenAiModelListResponse,
+    success_body = gproxy_protocol::openai::model_list::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::claude::model_list::response::ClaudeModelListResponse,
+    success_body = gproxy_protocol::claude::model_list::response::ResponseBody,
+    error_body = gproxy_protocol::claude::types::BetaErrorResponse,
+    headers = gproxy_protocol::claude::types::ClaudeResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::gemini::embeddings::response::GeminiEmbedContentResponse,
+    success_body = gproxy_protocol::gemini::embeddings::response::ResponseBody,
+    error_body = gproxy_protocol::gemini::types::GeminiApiErrorResponse,
+    headers = gproxy_protocol::gemini::types::GeminiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::embeddings::response::OpenAiEmbeddingsResponse,
+    success_body = gproxy_protocol::openai::embeddings::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::create_image::response::OpenAiCreateImageResponse,
+    success_body = gproxy_protocol::openai::create_image::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
+    success_body = gproxy_protocol::openai::create_image_edit::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
+
+impl_body_envelope!(
+    gproxy_protocol::openai::compact_response::response::OpenAiCompactResponse,
+    success_body = gproxy_protocol::openai::compact_response::response::ResponseBody,
+    error_body = gproxy_protocol::openai::types::OpenAiApiErrorResponse,
+    headers = gproxy_protocol::openai::types::OpenAiResponseHeaders,
+);
 
 trait RequestDescriptor: Sized {
     type Body: DeserializeOwned + Serialize;
@@ -95,6 +314,94 @@ impl RequestDescriptor for gproxy_protocol::gemini::stream_generate_content::req
         self.body
     }
 }
+
+/// Generate a [`RequestDescriptor`] impl that stores `body` and uses
+/// `Default::default()` for the rest of the envelope fields
+/// (`method`, `path`, `query`, `headers`).
+///
+/// The request wrapper structs in `gproxy_protocol::*::request` all carry a
+/// `{method, path, query, headers, body}` envelope — the rest of the gproxy
+/// pipeline only cares about `body`, and [`transform_request_descriptor`]
+/// reads the body JSON directly and reconstructs the wrapper around it.
+///
+/// Without this, attempting to `serde_json::from_slice::<Wrapper>` on a raw
+/// HTTP request body fails with `missing field 'method'` because real HTTP
+/// bodies only have the body fields at the top level, not the envelope.
+macro_rules! impl_request_descriptor_default_envelope {
+    ($wrapper:ty, body = $body:ty) => {
+        impl RequestDescriptor for $wrapper {
+            type Body = $body;
+
+            fn from_body(body: Self::Body) -> Self {
+                Self {
+                    body,
+                    ..Self::default()
+                }
+            }
+
+            fn into_body(self) -> Self::Body {
+                self.body
+            }
+        }
+    };
+}
+
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest,
+    body = gproxy_protocol::claude::count_tokens::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest,
+    body = gproxy_protocol::openai::count_tokens::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest,
+    body = gproxy_protocol::gemini::count_tokens::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::claude::model_get::request::ClaudeModelGetRequest,
+    body = gproxy_protocol::claude::model_get::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::model_get::request::OpenAiModelGetRequest,
+    body = gproxy_protocol::openai::model_get::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::gemini::model_get::request::GeminiModelGetRequest,
+    body = gproxy_protocol::gemini::model_get::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::claude::model_list::request::ClaudeModelListRequest,
+    body = gproxy_protocol::claude::model_list::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::model_list::request::OpenAiModelListRequest,
+    body = gproxy_protocol::openai::model_list::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::gemini::model_list::request::GeminiModelListRequest,
+    body = gproxy_protocol::gemini::model_list::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::embeddings::request::OpenAiEmbeddingsRequest,
+    body = gproxy_protocol::openai::embeddings::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::gemini::embeddings::request::GeminiEmbedContentRequest,
+    body = gproxy_protocol::gemini::embeddings::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::create_image::request::OpenAiCreateImageRequest,
+    body = gproxy_protocol::openai::create_image::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::create_image_edit::request::OpenAiCreateImageEditRequest,
+    body = gproxy_protocol::openai::create_image_edit::request::RequestBody
+);
+impl_request_descriptor_default_envelope!(
+    gproxy_protocol::openai::compact_response::request::OpenAiCompactRequest,
+    body = gproxy_protocol::openai::compact_response::request::RequestBody
+);
 
 /// Transform a request body from one (operation, protocol) to another.
 ///
@@ -330,13 +637,13 @@ pub fn transform_request(
 
         // --- Claude source ---
         (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest,
                 gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest,
             >(&body)
         }
         (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest,
                 gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest,
             >(&body)
@@ -344,13 +651,13 @@ pub fn transform_request(
 
         // --- OpenAI source ---
         (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest,
                 gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest,
             >(&body)
         }
         (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest,
                 gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest,
             >(&body)
@@ -358,13 +665,13 @@ pub fn transform_request(
 
         // --- Gemini source ---
         (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest,
                 gproxy_protocol::claude::count_tokens::request::ClaudeCountTokensRequest,
             >(&body)
         }
         (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::count_tokens::request::GeminiCountTokensRequest,
                 gproxy_protocol::openai::count_tokens::request::OpenAiCountTokensRequest,
             >(&body)
@@ -376,13 +683,13 @@ pub fn transform_request(
 
         // --- Claude source ---
         (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::model_get::request::ClaudeModelGetRequest,
                 gproxy_protocol::gemini::model_get::request::GeminiModelGetRequest,
             >(&body)
         }
         (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::model_get::request::ClaudeModelGetRequest,
                 gproxy_protocol::openai::model_get::request::OpenAiModelGetRequest,
             >(&body)
@@ -390,13 +697,13 @@ pub fn transform_request(
 
         // --- OpenAI source ---
         (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::model_get::request::OpenAiModelGetRequest,
                 gproxy_protocol::claude::model_get::request::ClaudeModelGetRequest,
             >(&body)
         }
         (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::model_get::request::OpenAiModelGetRequest,
                 gproxy_protocol::gemini::model_get::request::GeminiModelGetRequest,
             >(&body)
@@ -404,13 +711,13 @@ pub fn transform_request(
 
         // --- Gemini source ---
         (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::model_get::request::GeminiModelGetRequest,
                 gproxy_protocol::claude::model_get::request::ClaudeModelGetRequest,
             >(&body)
         }
         (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::model_get::request::GeminiModelGetRequest,
                 gproxy_protocol::openai::model_get::request::OpenAiModelGetRequest,
             >(&body)
@@ -422,13 +729,13 @@ pub fn transform_request(
 
         // --- Claude source ---
         (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::model_list::request::ClaudeModelListRequest,
                 gproxy_protocol::gemini::model_list::request::GeminiModelListRequest,
             >(&body)
         }
         (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::claude::model_list::request::ClaudeModelListRequest,
                 gproxy_protocol::openai::model_list::request::OpenAiModelListRequest,
             >(&body)
@@ -436,13 +743,13 @@ pub fn transform_request(
 
         // --- OpenAI source ---
         (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::model_list::request::OpenAiModelListRequest,
                 gproxy_protocol::claude::model_list::request::ClaudeModelListRequest,
             >(&body)
         }
         (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::model_list::request::OpenAiModelListRequest,
                 gproxy_protocol::gemini::model_list::request::GeminiModelListRequest,
             >(&body)
@@ -450,13 +757,13 @@ pub fn transform_request(
 
         // --- Gemini source ---
         (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::model_list::request::GeminiModelListRequest,
                 gproxy_protocol::claude::model_list::request::ClaudeModelListRequest,
             >(&body)
         }
         (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::model_list::request::GeminiModelListRequest,
                 gproxy_protocol::openai::model_list::request::OpenAiModelListRequest,
             >(&body)
@@ -467,13 +774,13 @@ pub fn transform_request(
         // =====================================================================
 
         (OperationFamily::Embedding, ProtocolKind::OpenAi, OperationFamily::Embedding, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::openai::embeddings::request::OpenAiEmbeddingsRequest,
                 gproxy_protocol::gemini::embeddings::request::GeminiEmbedContentRequest,
             >(&body)
         }
         (OperationFamily::Embedding, ProtocolKind::Gemini, OperationFamily::Embedding, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_request_descriptor::<
                 gproxy_protocol::gemini::embeddings::request::GeminiEmbedContentRequest,
                 gproxy_protocol::openai::embeddings::request::OpenAiEmbeddingsRequest,
             >(&body)
@@ -574,21 +881,21 @@ pub fn transform_response(
 
         // Gemini response → Claude
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
             >(&body)
         }
         // OpenAI ChatCompletions response → Claude
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
             >(&body)
         }
         // OpenAI Response response → Claude
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
             >(&body)
@@ -596,21 +903,21 @@ pub fn transform_response(
 
         // Claude response → Gemini
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
             >(&body)
         }
         // OpenAI ChatCompletions response → Gemini
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
             >(&body)
         }
         // OpenAI Response response → Gemini
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
             >(&body)
@@ -618,33 +925,36 @@ pub fn transform_response(
 
         // Claude response → OpenAI ChatCompletions
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
                 gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
             >(&body)
         }
         // Gemini response → OpenAI ChatCompletions
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
                 gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
             >(&body)
         }
         // OpenAI Response response → OpenAI ChatCompletions
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_openai_response_wrapper_to_chat_completions(&body)
+            transform_response_json::<
+                gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
+                gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+            >(&body)
         }
 
         // Claude response → OpenAI Response
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
             >(&body)
         }
         // Gemini response → OpenAI Response
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
             >(&body)
@@ -656,14 +966,14 @@ pub fn transform_response(
 
         // Gemini response → Claude
         (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::count_tokens::response::GeminiCountTokensResponse,
                 gproxy_protocol::claude::count_tokens::response::ClaudeCountTokensResponse,
             >(&body)
         }
         // OpenAI response → Claude
         (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::count_tokens::response::OpenAiCountTokensResponse,
                 gproxy_protocol::claude::count_tokens::response::ClaudeCountTokensResponse,
             >(&body)
@@ -671,14 +981,14 @@ pub fn transform_response(
 
         // Claude response → OpenAI
         (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::count_tokens::response::ClaudeCountTokensResponse,
                 gproxy_protocol::openai::count_tokens::response::OpenAiCountTokensResponse,
             >(&body)
         }
         // Gemini response → OpenAI
         (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::count_tokens::response::GeminiCountTokensResponse,
                 gproxy_protocol::openai::count_tokens::response::OpenAiCountTokensResponse,
             >(&body)
@@ -686,14 +996,14 @@ pub fn transform_response(
 
         // Claude response → Gemini
         (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::count_tokens::response::ClaudeCountTokensResponse,
                 gproxy_protocol::gemini::count_tokens::response::GeminiCountTokensResponse,
             >(&body)
         }
         // OpenAI response → Gemini
         (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::count_tokens::response::OpenAiCountTokensResponse,
                 gproxy_protocol::gemini::count_tokens::response::GeminiCountTokensResponse,
             >(&body)
@@ -705,14 +1015,14 @@ pub fn transform_response(
 
         // Gemini response → Claude
         (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::model_get::response::GeminiModelGetResponse,
                 gproxy_protocol::claude::model_get::response::ClaudeModelGetResponse,
             >(&body)
         }
         // OpenAI response → Claude
         (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::model_get::response::OpenAiModelGetResponse,
                 gproxy_protocol::claude::model_get::response::ClaudeModelGetResponse,
             >(&body)
@@ -720,14 +1030,14 @@ pub fn transform_response(
 
         // Claude response → OpenAI
         (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::model_get::response::ClaudeModelGetResponse,
                 gproxy_protocol::openai::model_get::response::OpenAiModelGetResponse,
             >(&body)
         }
         // Gemini response → OpenAI
         (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::model_get::response::GeminiModelGetResponse,
                 gproxy_protocol::openai::model_get::response::OpenAiModelGetResponse,
             >(&body)
@@ -735,14 +1045,14 @@ pub fn transform_response(
 
         // Claude response → Gemini
         (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::model_get::response::ClaudeModelGetResponse,
                 gproxy_protocol::gemini::model_get::response::GeminiModelGetResponse,
             >(&body)
         }
         // OpenAI response → Gemini
         (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::model_get::response::OpenAiModelGetResponse,
                 gproxy_protocol::gemini::model_get::response::GeminiModelGetResponse,
             >(&body)
@@ -754,14 +1064,14 @@ pub fn transform_response(
 
         // Gemini response → Claude
         (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::model_list::response::GeminiModelListResponse,
                 gproxy_protocol::claude::model_list::response::ClaudeModelListResponse,
             >(&body)
         }
         // OpenAI response → Claude
         (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::model_list::response::OpenAiModelListResponse,
                 gproxy_protocol::claude::model_list::response::ClaudeModelListResponse,
             >(&body)
@@ -769,14 +1079,14 @@ pub fn transform_response(
 
         // Claude response → OpenAI
         (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::model_list::response::ClaudeModelListResponse,
                 gproxy_protocol::openai::model_list::response::OpenAiModelListResponse,
             >(&body)
         }
         // Gemini response → OpenAI
         (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::model_list::response::GeminiModelListResponse,
                 gproxy_protocol::openai::model_list::response::OpenAiModelListResponse,
             >(&body)
@@ -784,14 +1094,14 @@ pub fn transform_response(
 
         // Claude response → Gemini
         (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::model_list::response::ClaudeModelListResponse,
                 gproxy_protocol::gemini::model_list::response::GeminiModelListResponse,
             >(&body)
         }
         // OpenAI response → Gemini
         (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::model_list::response::OpenAiModelListResponse,
                 gproxy_protocol::gemini::model_list::response::GeminiModelListResponse,
             >(&body)
@@ -802,13 +1112,13 @@ pub fn transform_response(
         // =====================================================================
 
         (OperationFamily::Embedding, ProtocolKind::Gemini, OperationFamily::Embedding, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::embeddings::response::GeminiEmbedContentResponse,
                 gproxy_protocol::openai::embeddings::response::OpenAiEmbeddingsResponse,
             >(&body)
         }
         (OperationFamily::Embedding, ProtocolKind::OpenAi, OperationFamily::Embedding, ProtocolKind::Gemini) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::embeddings::response::OpenAiEmbeddingsResponse,
                 gproxy_protocol::gemini::embeddings::response::GeminiEmbedContentResponse,
             >(&body)
@@ -820,7 +1130,7 @@ pub fn transform_response(
 
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImage, ProtocolKind::OpenAi)
         | (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImage, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
                 gproxy_protocol::openai::create_image::response::OpenAiCreateImageResponse,
             >(&body)
@@ -828,7 +1138,7 @@ pub fn transform_response(
 
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImage, ProtocolKind::OpenAi)
         | (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImage, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
                 gproxy_protocol::openai::create_image::response::OpenAiCreateImageResponse,
             >(&body)
@@ -840,7 +1150,7 @@ pub fn transform_response(
 
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi)
         | (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
                 gproxy_protocol::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
             >(&body)
@@ -848,7 +1158,7 @@ pub fn transform_response(
 
         (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi)
         | (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
                 gproxy_protocol::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
             >(&body)
@@ -859,13 +1169,13 @@ pub fn transform_response(
         // =====================================================================
 
         (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::Compact, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::claude::create_message::response::ClaudeCreateMessageResponse,
                 gproxy_protocol::openai::compact_response::response::OpenAiCompactResponse,
             >(&body)
         }
         (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::Compact, ProtocolKind::OpenAi) => {
-            transform_json::<
+            transform_response_json::<
                 gproxy_protocol::gemini::generate_content::response::GeminiGenerateContentResponse,
                 gproxy_protocol::openai::compact_response::response::OpenAiCompactResponse,
             >(&body)
@@ -878,7 +1188,12 @@ pub fn transform_response(
     }
 }
 
-/// Generic JSON transform: deserialize as Src, TryFrom into Dst, serialize back.
+/// Generic JSON transform for request body structs.
+///
+/// Requests go through this path because their body types are plain structs
+/// that deserialize directly from the raw HTTP body JSON — they don't have
+/// the internal `{stats_code, headers, body}` envelope that response wrapper
+/// enums use. The response-side equivalent is [`transform_response_json`].
 fn transform_json<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
 where
     Src: serde::de::DeserializeOwned,
@@ -886,13 +1201,34 @@ where
     Dst::Error: std::fmt::Display,
 {
     let src: Src = serde_json::from_slice(body)
-        .map_err(|e| UpstreamError::Channel(format!("request deserialize: {}", e)))?;
-
+        .map_err(|e| UpstreamError::Channel(format!("request deserialize: {e}")))?;
     let dst =
-        Dst::try_from(src).map_err(|e| UpstreamError::Channel(format!("transform: {}", e)))?;
-
+        Dst::try_from(src).map_err(|e| UpstreamError::Channel(format!("transform: {e}")))?;
     serde_json::to_vec(&dst)
-        .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
+        .map_err(|e| UpstreamError::Channel(format!("response serialize: {e}")))
+}
+
+/// Generic JSON transform for response wrapper enums.
+///
+/// Deserializes the raw upstream response body into `Src` via its
+/// [`BodyEnvelope::from_body_bytes`] impl (which wraps the raw body in the
+/// wrapper's `Success`/`Error` variant with placeholder metadata), converts
+/// into `Dst` via `TryFrom`, then serializes just the inner body of `Dst`
+/// back out for the client via [`BodyEnvelope::into_body_bytes`].
+///
+/// This is the central helper that makes `transform_response` route arms
+/// work with the `stats_code` / `headers` / `body` wrapper enum shape —
+/// without it, `from_slice::<Wrapper>` fails on real HTTP bodies because
+/// they don't have top-level `stats_code` / `headers` fields.
+fn transform_response_json<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
+where
+    Src: BodyEnvelope,
+    Dst: BodyEnvelope + TryFrom<Src>,
+    Dst::Error: std::fmt::Display,
+{
+    let src = Src::from_body_bytes(body)?;
+    let dst = Dst::try_from(src).map_err(|e| UpstreamError::Channel(format!("transform: {e}")))?;
+    dst.into_body_bytes()
 }
 
 fn transform_request_descriptor<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
@@ -925,29 +1261,6 @@ where
 
     serde_json::to_vec(&dst.into_body())
         .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e)))
-}
-
-fn transform_openai_response_wrapper_to_chat_completions(
-    body: &[u8],
-) -> Result<Vec<u8>, UpstreamError> {
-    use gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse;
-    use gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse;
-
-    let wrapped: OpenAiCreateResponseResponse = serde_json::from_slice(body).map_err(|e| {
-        UpstreamError::Channel(format!(
-            "response deserialize: expected OpenAiCreateResponseResponse: {e}"
-        ))
-    })?;
-
-    let converted = OpenAiChatCompletionsResponse::try_from(wrapped)
-        .map_err(|e| UpstreamError::Channel(format!("transform: {}", e)))?;
-
-    match converted {
-        OpenAiChatCompletionsResponse::Success { body, .. } => serde_json::to_vec(&body)
-            .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e))),
-        OpenAiChatCompletionsResponse::Error { body, .. } => serde_json::to_vec(&body)
-            .map_err(|e| UpstreamError::Channel(format!("response serialize: {}", e))),
-    }
 }
 
 pub type StreamChunkNormalizer = Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>;
@@ -1464,6 +1777,43 @@ impl
     }
 }
 
+/// Stream converter for `OpenAI Responses stream` → `OpenAI Chat Completions stream`.
+///
+/// Used by the codex channel which forwards chat-completions traffic as
+/// OpenAI Response streams upstream and must reverse the protocol on the
+/// way back to the client. The wrapped stream converter lives in
+/// `gproxy_protocol::transform::openai::stream_generate_content`.
+#[derive(Default)]
+struct OpenAiResponseToOpenAiChatCompletionsConverter(
+    gproxy_protocol::transform::openai::stream_generate_content::openai_chat_completions::openai_response::response::OpenAiResponseToOpenAiChatCompletionsStream,
+);
+
+impl
+    EventConverter<
+        gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+        gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+    > for OpenAiResponseToOpenAiChatCompletionsConverter
+{
+    fn on_input(
+        &mut self,
+        input: gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+        out: &mut Vec<gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk>,
+    ) -> Result<(), UpstreamError> {
+        self.0
+            .on_stream_event(input, out)
+            .map_err(|e| UpstreamError::Channel(format!("stream convert: {e}")))
+    }
+
+    fn finish(
+        &mut self,
+        out: &mut Vec<gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk>,
+    ) -> Result<(), UpstreamError> {
+        self.0
+            .finish(out)
+            .map_err(|e| UpstreamError::Channel(format!("stream finish: {e}")))
+    }
+}
+
 #[derive(Default)]
 struct ResponseStreamToImageStreamConverter(
     gproxy_protocol::transform::openai::create_image::openai_response::stream::ResponseStreamToImageStream,
@@ -1763,6 +2113,27 @@ pub fn create_stream_response_transformer(
             src_protocol,
             dst_protocol,
             GeminiToOpenAiChatConverter::default(),
+            normalizer,
+        ),
+
+        // OpenAI Responses stream → OpenAI Chat Completions stream.
+        //
+        // This arm exists for providers like codex which forward chat-completions
+        // traffic as OpenAI Responses upstream; the client expects chat chunks
+        // back so we reverse the protocol on the response path.
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => build_stream_transform::<
+            gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+            gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+            OpenAiResponseToOpenAiChatCompletionsConverter,
+        >(
+            src_protocol,
+            dst_protocol,
+            OpenAiResponseToOpenAiChatCompletionsConverter::default(),
             normalizer,
         ),
 
@@ -2112,7 +2483,7 @@ mod tests {
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
     use serde_json::{Value, json};
 
-    use super::{transform_openai_response_wrapper_to_chat_completions, transform_request};
+    use super::{transform_request, transform_response};
 
     #[test]
     fn transform_request_supports_openai_chat_to_openai_response() {
@@ -2139,8 +2510,61 @@ mod tests {
         assert!(json.get("input").is_some());
     }
 
+    /// Regression test for the request envelope bug: request wrapper structs
+    /// such as `ClaudeCountTokensRequest` have shape
+    /// `{method, path, query, headers, body}` for internal routing purposes.
+    /// A real HTTP request body only has the body fields at the top level, so
+    /// `serde_json::from_slice::<Wrapper>(body)` fails with "missing field
+    /// method". The fix: route all envelope-shaped request types through
+    /// `transform_request_descriptor`, which parses just the inner body JSON
+    /// and reconstructs the envelope with `Default::default()`. Covers
+    /// count_tokens (Claude→Gemini) as the user-visible case that failed with
+    /// `POST /aistudio/v1/messages/count-tokens`.
     #[test]
-    fn transform_response_rejects_bare_openai_response_body_for_openai_chat() {
+    fn transform_request_count_tokens_claude_to_gemini_accepts_bare_body() {
+        let body = br#"{
+          "model": "gemini-3-flash-preview",
+          "messages": [{"role": "user", "content": "hi"}]
+        }"#
+        .to_vec();
+
+        let transformed = transform_request(
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+            body,
+        )
+        .expect("count_tokens Claude -> Gemini request transform should succeed");
+
+        // Output should be the Gemini countTokens body (contents field).
+        let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
+        assert!(
+            json.get("contents").is_some()
+                || json.pointer("/generateContentRequest/contents").is_some(),
+            "expected gemini countTokens body shape, got: {json}"
+        );
+        // Must NOT leak the envelope fields back out.
+        assert!(
+            json.get("method").is_none(),
+            "transformed body leaked the request envelope method field"
+        );
+    }
+
+    /// Regression test for the non-stream response transform bug: upstream
+    /// HTTP bodies are raw JSON like `{"id": "...", "output": [...]}`, not
+    /// a `{stats_code, headers, body: {...}}` envelope. The wrapper enums in
+    /// `gproxy_protocol::*::response` have the envelope shape for internal
+    /// bookkeeping, so deserializing the raw body directly into the wrapper
+    /// fails. `transform_json` must call [`BodyEnvelope::from_body_bytes`] to
+    /// parse only the inner body and wrap it with placeholder metadata.
+    ///
+    /// Covers OpenAI Response → OpenAI ChatCompletions, the case the
+    /// previous `transform_openai_response_wrapper_to_chat_completions`
+    /// helper special-cased. With the `BodyEnvelope` trait the generic
+    /// `transform_json` handles it without a dedicated function.
+    #[test]
+    fn transform_response_accepts_bare_openai_response_body_for_openai_chat() {
         let body = serde_json::to_vec(&json!({
           "id": "resp_123",
           "created_at": 1,
@@ -2170,48 +2594,14 @@ mod tests {
         }))
         .expect("serialize response body");
 
-        let err = transform_openai_response_wrapper_to_chat_completions(&body)
-            .expect_err("bare responses body should be rejected");
-        assert!(err.to_string().contains("OpenAiCreateResponseResponse"));
-    }
-
-    #[test]
-    fn transform_response_supports_wrapped_openai_response_to_openai_chat() {
-        let body = serde_json::to_vec(&json!({
-          "stats_code": 200,
-          "headers": {},
-          "body": {
-            "id": "resp_123",
-            "created_at": 1,
-            "metadata": {},
-            "model": "gpt-5.4",
-            "object": "response",
-            "output": [
-              {
-                "id": "msg_0",
-                "content": [
-                  {
-                    "annotations": [],
-                    "text": "OK",
-                    "type": "output_text"
-                  }
-                ],
-                "role": "assistant",
-                "status": "completed",
-                "type": "message"
-              }
-            ],
-            "parallel_tool_calls": false,
-            "temperature": 1.0,
-            "tool_choice": "auto",
-            "tools": [],
-            "top_p": 1.0
-          }
-        }))
-        .expect("serialize wrapped response body");
-
-        let transformed = transform_openai_response_wrapper_to_chat_completions(&body)
-            .expect("wrapped response -> chat transform should succeed");
+        let transformed = transform_response(
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            body,
+        )
+        .expect("bare responses body should now be accepted");
 
         let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
         assert_eq!(json.get("model").and_then(Value::as_str), Some("gpt-5.4"));
@@ -2220,5 +2610,61 @@ mod tests {
                 .and_then(Value::as_str),
             Some("OK")
         );
+        // The serialized response must be the raw chat-completions body, not
+        // the internal `{stats_code, headers, body}` wrapper envelope.
+        assert!(
+            json.get("stats_code").is_none(),
+            "serialized response leaked the internal wrapper envelope"
+        );
+    }
+
+    /// Regression test for the gemini → claude non-stream response
+    /// transform. The bug surfaced when posting to
+    /// `/aistudio/v1/messages` (Claude format over an aistudio provider):
+    /// gproxy transformed the request to Gemini, sent it upstream, got a
+    /// raw `{"candidates":[...], "usageMetadata":{...}}` body back, then
+    /// tried to deserialize it as `GeminiGenerateContentResponse` (the
+    /// wrapper enum). That produced
+    /// `data did not match any variant of untagged enum GeminiGenerateContentResponse`
+    /// and the client saw a 500 "upstream provider error".
+    #[test]
+    fn transform_response_gemini_to_claude_accepts_bare_gemini_body() {
+        let body = serde_json::to_vec(&json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Hello"}],
+                    "role": "model"
+                },
+                "finishReason": "STOP",
+                "index": 0
+            }],
+            "usageMetadata": {
+                "promptTokenCount": 7,
+                "candidatesTokenCount": 1,
+                "totalTokenCount": 8
+            },
+            "modelVersion": "gemini-3-flash-preview",
+            "responseId": "test-response-id"
+        }))
+        .expect("serialize gemini body");
+
+        let transformed = transform_response(
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            body,
+        )
+        .expect("gemini -> claude transform must accept raw gemini body");
+
+        let json: Value = serde_json::from_slice(&transformed).expect("transformed json");
+        // Claude response shape: top-level `id`, `content`, `role`, `type`, etc.
+        assert_eq!(json.get("type").and_then(Value::as_str), Some("message"));
+        assert_eq!(json.get("role").and_then(Value::as_str), Some("assistant"));
+        assert!(
+            json.get("stats_code").is_none(),
+            "serialized response leaked the internal wrapper envelope"
+        );
+        assert!(json.get("content").is_some(), "missing content field");
     }
 }
