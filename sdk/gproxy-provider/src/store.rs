@@ -131,12 +131,14 @@ pub(crate) struct ProviderExecuteResult {
     pub response: UpstreamResponse,
     pub credential_updates: Vec<CredentialUpdate>,
     pub credential_index: usize,
+    pub attempt_meta: crate::retry::UpstreamAttemptMeta,
 }
 
 pub(crate) struct ProviderExecuteStreamResult {
     pub response: UpstreamStreamingResponse,
     pub credential_updates: Vec<CredentialUpdate>,
     pub credential_index: usize,
+    pub attempt_meta: crate::retry::UpstreamAttemptMeta,
 }
 
 pub(crate) trait ProviderRuntime: Send + Sync {
@@ -500,6 +502,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                 response: r.output,
                 credential_updates,
                 credential_index: r.credential_index,
+                attempt_meta: r.attempt_meta,
             })
         })
     }
@@ -548,6 +551,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                 response: r.output,
                 credential_updates,
                 credential_index: r.credential_index,
+                attempt_meta: r.attempt_meta,
             })
         })
     }

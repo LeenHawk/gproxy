@@ -2918,7 +2918,11 @@ async fn record_upstream_log(
                 response_status: meta.response_status.map(|s| s as i32),
                 response_headers_json: serde_json::to_string(&meta.response_headers)
                     .unwrap_or_else(|_| "[]".to_string()),
-                response_body: None,
+                response_body: if include_body {
+                    meta.response_body.clone()
+                } else {
+                    None
+                },
             },
         ))
         .await;

@@ -106,6 +106,10 @@ pub struct UpstreamRequestMeta {
     pub request_body: Option<Vec<u8>>,
     pub response_status: Option<u16>,
     pub response_headers: Vec<(String, String)>,
+    /// Raw upstream response body, captured before any cross-protocol
+    /// transform or stream aggregation. Populated only when the engine is
+    /// built with `enable_upstream_log_body = true`; otherwise `None`.
+    pub response_body: Option<Vec<u8>>,
     pub model: Option<String>,
     pub latency_ms: u64,
     pub credential_index: Option<usize>,
@@ -768,6 +772,19 @@ impl GproxyEngine {
         let response = provider_result.response;
         let credential_updates = provider_result.credential_updates;
         let used_credential_index = provider_result.credential_index;
+        let attempt_meta = provider_result.attempt_meta;
+
+        // Capture the raw upstream response body before any normalization
+        // or cross-protocol transform, so the upstream-request log shows
+        // what actually came over the wire. Only retained when body
+        // logging is enabled to avoid the per-request clone.
+        let raw_response_body_for_log = if self.enable_upstream_log
+            && self.enable_upstream_log_body
+        {
+            Some(response.body.clone())
+        } else {
+            None
+        };
 
         // 1. Normalize upstream response (channel-specific fixups)
         let normalized_body = provider.normalize_response(&prepared, response.body);
@@ -830,17 +847,23 @@ impl GproxyEngine {
         let latency_ms = start.elapsed().as_millis() as u64;
 
         let meta = if self.enable_upstream_log {
+            let request_body_for_log = if self.enable_upstream_log_body {
+                attempt_meta.request_body
+            } else {
+                None
+            };
             Some(UpstreamRequestMeta {
-                method: "POST".to_string(),
-                url: String::new(),
-                request_headers: Vec::new(),
-                request_body: None,
+                method: attempt_meta.method,
+                url: attempt_meta.url,
+                request_headers: attempt_meta.request_headers,
+                request_body: request_body_for_log,
                 response_status: Some(response.status),
                 response_headers: response
                     .headers
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                     .collect(),
+                response_body: raw_response_body_for_log,
                 model: request.model,
                 latency_ms,
                 credential_index: Some(used_credential_index),
@@ -977,19 +1000,29 @@ impl GproxyEngine {
         let response = provider_result.response;
         let credential_updates = provider_result.credential_updates;
         let used_credential_index = provider_result.credential_index;
+        let attempt_meta = provider_result.attempt_meta;
 
         let meta = if self.enable_upstream_log {
+            let request_body_for_log = if self.enable_upstream_log_body {
+                attempt_meta.request_body
+            } else {
+                None
+            };
             Some(UpstreamRequestMeta {
-                method: "POST".to_string(),
-                url: String::new(),
-                request_headers: Vec::new(),
-                request_body: None,
+                method: attempt_meta.method,
+                url: attempt_meta.url,
+                request_headers: attempt_meta.request_headers,
+                request_body: request_body_for_log,
                 response_status: Some(response.status),
                 response_headers: response
                     .headers
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                     .collect(),
+                // Stream bodies cannot be captured here without consuming
+                // the stream. Leaving as None — the stream contents are
+                // forwarded to the client and not retained.
+                response_body: None,
                 model: request.model.clone(),
                 latency_ms: start.elapsed().as_millis() as u64,
                 credential_index: Some(used_credential_index),

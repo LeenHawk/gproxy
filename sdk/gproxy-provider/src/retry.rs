@@ -78,10 +78,23 @@ impl RetryableResult for RetryableUpstreamResponse {
 // Public API
 // ---------------------------------------------------------------------------
 
+/// Captured wire-level metadata about the upstream request that actually
+/// went out for the credential that succeeded (or returned a permanent
+/// error). Used by the engine to populate `UpstreamRequestMeta` for the
+/// upstream-request log table without re-running `prepare_request`.
+#[derive(Debug, Clone, Default)]
+pub struct UpstreamAttemptMeta {
+    pub method: String,
+    pub url: String,
+    pub request_headers: Vec<(String, String)>,
+    pub request_body: Option<Vec<u8>>,
+}
+
 /// Result from credential-rotating retry, including which credential succeeded.
 pub struct RetryResult<T> {
     pub output: T,
     pub credential_index: usize,
+    pub attempt_meta: UpstreamAttemptMeta,
 }
 
 /// Parameters for credential-rotating retry.
@@ -232,9 +245,27 @@ where
                 }
             };
 
+            // Snapshot wire-level metadata for the upstream-request log.
+            // Done before `send` because `http_request` is consumed there.
+            let attempt_meta = UpstreamAttemptMeta {
+                method: http_request.method().as_str().to_string(),
+                url: http_request.uri().to_string(),
+                request_headers: http_request
+                    .headers()
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.as_str().to_string(),
+                            v.to_str().unwrap_or("").to_string(),
+                        )
+                    })
+                    .collect(),
+                request_body: Some(http_request.body().clone()),
+            };
+
             // Send request
-            let method = http_request.method().as_str().to_string();
-            let uri = http_request.uri().to_string();
+            let method = attempt_meta.method.clone();
+            let uri = attempt_meta.url.clone();
             tracing::info!(
                 credential = idx,
                 attempt = attempts,
@@ -270,6 +301,7 @@ where
                     return Ok(RetryResult {
                         output,
                         credential_index: idx,
+                        attempt_meta,
                     });
                 }
                 RetryAction::Classifiable(resp) => resp,
@@ -293,6 +325,7 @@ where
                     return Ok(RetryResult {
                         output: R::wrap_buffered(response),
                         credential_index: idx,
+                        attempt_meta,
                     });
                 }
                 ResponseClassification::AuthDead => {
@@ -320,6 +353,23 @@ where
                             }
                         };
 
+                        // Snapshot the refreshed-attempt wire metadata for logging.
+                        let refresh_meta = UpstreamAttemptMeta {
+                            method: retry_request.method().as_str().to_string(),
+                            url: retry_request.uri().to_string(),
+                            request_headers: retry_request
+                                .headers()
+                                .iter()
+                                .map(|(k, v)| {
+                                    (
+                                        k.as_str().to_string(),
+                                        v.to_str().unwrap_or("").to_string(),
+                                    )
+                                })
+                                .collect(),
+                            request_body: Some(retry_request.body().clone()),
+                        };
+
                         match send(active_client, retry_request).await {
                             Ok(raw_retry) => match raw_retry.into_retry_action() {
                                 RetryAction::ImmediateSuccess { output, .. } => {
@@ -333,6 +383,7 @@ where
                                     return Ok(RetryResult {
                                         output,
                                         credential_index: idx,
+                                        attempt_meta: refresh_meta,
                                     });
                                 }
                                 RetryAction::Classifiable(retry_response) => {
@@ -352,6 +403,7 @@ where
                                         return Ok(RetryResult {
                                             output: R::wrap_buffered(retry_response),
                                             credential_index: idx,
+                                            attempt_meta: refresh_meta,
                                         });
                                     }
                                     health.record_error(retry_response.status, model, None);
@@ -429,6 +481,7 @@ where
                     return Ok(RetryResult {
                         output: R::wrap_buffered(response),
                         credential_index: idx,
+                        attempt_meta,
                     });
                 }
             }
