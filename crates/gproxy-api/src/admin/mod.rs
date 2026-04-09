@@ -182,6 +182,10 @@ pub fn router() -> Router<Arc<AppState>> {
             post(requests::count_upstream_requests),
         )
         .route(
+            "/requests/upstream/clear",
+            post(requests::clear_upstream_request_payloads),
+        )
+        .route(
             "/requests/upstream/delete",
             post(requests::delete_upstream_requests),
         )
@@ -198,6 +202,10 @@ pub fn router() -> Router<Arc<AppState>> {
             post(requests::count_downstream_requests),
         )
         .route(
+            "/requests/downstream/clear",
+            post(requests::clear_downstream_request_payloads),
+        )
+        .route(
             "/requests/downstream/delete",
             post(requests::delete_downstream_requests),
         )
@@ -208,6 +216,7 @@ pub fn router() -> Router<Arc<AppState>> {
         // Usages
         .route("/usages/query", post(usages::query_usages))
         .route("/usages/count", post(usages::count_usages))
+        .route("/usages/summary", post(usages::summarize_usages))
         .route("/usages/batch-delete", post(usages::batch_delete_usages))
         // Config export
         .route("/config/export-toml", post(config_toml::export_toml))

@@ -16,4 +16,5 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/quota", get(quota::get_quota))
         .route("/usages/query", post(usages::query_usages))
         .route("/usages/count", post(usages::count_usages))
+        .route("/usages/summary", post(usages::summarize_usages))
 }

@@ -110,3 +110,71 @@ pub async fn batch_delete_downstream_requests(
         .map_err(|e| HttpError::internal(e.to_string()))?;
     Ok(Json(AckResponse { ok: true, id: None }))
 }
+
+/// Payload for the upstream/downstream `clear` and bulk-delete endpoints.
+///
+/// `all = true` clears every row matching the (currently empty) filter set
+/// regardless of `trace_ids`. `all = false` requires a non-empty
+/// `trace_ids` list and only touches those rows. Mirrors the shape used by
+/// the sample gproxy admin frontend so the request log UI can issue
+/// "clear selected" and "clear all" actions through one route.
+#[derive(serde::Deserialize, Default)]
+pub struct ClearRequestPayload {
+    #[serde(default)]
+    pub all: bool,
+    #[serde(default)]
+    pub trace_ids: Vec<i64>,
+}
+
+#[derive(serde::Serialize)]
+pub struct ClearRequestAck {
+    pub ok: bool,
+    pub cleared: u64,
+}
+
+fn normalize_trace_ids(raw: Vec<i64>) -> Vec<i64> {
+    let mut ids: Vec<i64> = raw.into_iter().filter(|id| *id > 0).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
+pub async fn clear_upstream_request_payloads(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<ClearRequestPayload>,
+) -> Result<Json<ClearRequestAck>, HttpError> {
+    authorize_admin(&headers, &state)?;
+    let ids = normalize_trace_ids(payload.trace_ids);
+    if !payload.all && ids.is_empty() {
+        return Err(HttpError::bad_request(
+            "trace_ids must be non-empty when all=false",
+        ));
+    }
+    let cleared = state
+        .storage()
+        .clear_upstream_request_payloads(if payload.all { None } else { Some(ids.as_slice()) })
+        .await
+        .map_err(|e| HttpError::internal(e.to_string()))?;
+    Ok(Json(ClearRequestAck { ok: true, cleared }))
+}
+
+pub async fn clear_downstream_request_payloads(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<ClearRequestPayload>,
+) -> Result<Json<ClearRequestAck>, HttpError> {
+    authorize_admin(&headers, &state)?;
+    let ids = normalize_trace_ids(payload.trace_ids);
+    if !payload.all && ids.is_empty() {
+        return Err(HttpError::bad_request(
+            "trace_ids must be non-empty when all=false",
+        ));
+    }
+    let cleared = state
+        .storage()
+        .clear_downstream_request_payloads(if payload.all { None } else { Some(ids.as_slice()) })
+        .await
+        .map_err(|e| HttpError::internal(e.to_string()))?;
+    Ok(Json(ClearRequestAck { ok: true, cleared }))
+}

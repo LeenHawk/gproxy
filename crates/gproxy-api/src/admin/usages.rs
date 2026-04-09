@@ -4,7 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_server::AppState;
-use gproxy_storage::{UsageQuery, UsageQueryCount, UsageQueryRow};
+use gproxy_storage::{UsageQuery, UsageQueryCount, UsageQueryRow, UsageSummary};
 use std::sync::Arc;
 
 pub async fn query_usages(
@@ -25,6 +25,19 @@ pub async fn count_usages(
     authorize_admin(&headers, &state)?;
     let count = state.storage().count_usages(&query).await?;
     Ok(Json(count))
+}
+
+/// Aggregate usage rows matching `query` into running totals across the
+/// full result set. Powers the admin dashboard's metric cards so the values
+/// reflect lifetime usage rather than the visible page slice.
+pub async fn summarize_usages(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(query): Json<UsageQuery>,
+) -> Result<Json<UsageSummary>, HttpError> {
+    authorize_admin(&headers, &state)?;
+    let summary = state.storage().summarize_usages(&query).await?;
+    Ok(Json(summary))
 }
 
 pub async fn batch_delete_usages(
