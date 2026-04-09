@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::{Request, State};
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 
@@ -49,6 +49,21 @@ pub fn extract_api_key(headers: &HeaderMap) -> Result<String, HttpError> {
     Err(HttpError::unauthorized("missing API key"))
 }
 
+/// Extract API key from the `?key=<value>` query parameter (Gemini native auth).
+///
+/// Only returns a non-empty key. Returns `None` if the URI has no `key` param
+/// or the value is empty — callers fall back to header-based extraction.
+pub fn extract_api_key_from_uri(uri: &Uri) -> Option<String> {
+    let query = uri.query()?;
+    let (_, value) = url::form_urlencoded::parse(query.as_bytes()).find(|(k, _)| k == "key")?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 /// Authenticate a user API key and return the key record.
 pub fn authenticate_user(
     headers: &HeaderMap,
@@ -60,13 +75,27 @@ pub fn authenticate_user(
         .ok_or_else(|| HttpError::unauthorized("invalid or disabled API key"))
 }
 
+/// Extract a bearer token from headers first, falling back to `?key=<value>`
+/// in the URI so Gemini-native clients (which put the key in the URL) work.
+fn extract_api_key_header_or_query(headers: &HeaderMap, uri: &Uri) -> Result<String, HttpError> {
+    match extract_api_key(headers) {
+        Ok(key) => Ok(key),
+        Err(header_err) => extract_api_key_from_uri(uri).ok_or(header_err),
+    }
+}
+
 /// Authenticate as admin using either an admin session token or an API key
 /// owned by an admin user.
 pub fn authorize_admin(headers: &HeaderMap, state: &AppState) -> Result<(), HttpError> {
     let token = extract_api_key(headers)?;
+    authorize_admin_token(&token, state)
+}
 
+/// Authenticate as admin using a pre-extracted bearer token. Used by the
+/// admin middleware so it can fall back to the `?key=` query parameter.
+pub fn authorize_admin_token(token: &str, state: &AppState) -> Result<(), HttpError> {
     if token.starts_with("sess-") {
-        let session_user = authenticate_session(&token, state)?;
+        let session_user = authenticate_session(token, state)?;
         if session_user.is_admin {
             return Ok(());
         }
@@ -74,7 +103,7 @@ pub fn authorize_admin(headers: &HeaderMap, state: &AppState) -> Result<(), Http
     }
 
     let user_key = state
-        .authenticate_api_key(&token)
+        .authenticate_api_key(token)
         .ok_or_else(|| HttpError::unauthorized("invalid or disabled API key"))?;
     let user = state
         .find_user(user_key.user_id)
@@ -91,12 +120,27 @@ pub async fn require_user_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
-    match authenticate_user(request.headers(), &state) {
+    let auth_result =
+        extract_api_key_header_or_query(request.headers(), request.uri()).and_then(|api_key| {
+            state
+                .authenticate_api_key(&api_key)
+                .ok_or_else(|| HttpError::unauthorized("invalid or disabled API key"))
+        });
+    match auth_result {
         Ok(user_key) => {
             request.extensions_mut().insert(AuthenticatedUser(user_key));
             next.run(request).await
         }
-        Err(err) => err.into_response(),
+        Err(err) => {
+            tracing::warn!(
+                method = %request.method(),
+                path = request.uri().path(),
+                status = err.status.as_u16(),
+                error = %err.message,
+                "provider request rejected by auth middleware"
+            );
+            err.into_response()
+        }
     }
 }
 
@@ -105,9 +149,20 @@ pub async fn require_admin_middleware(
     request: Request,
     next: Next,
 ) -> Response {
-    match authorize_admin(request.headers(), &state) {
+    let auth_result = extract_api_key_header_or_query(request.headers(), request.uri())
+        .and_then(|token| authorize_admin_token(&token, &state));
+    match auth_result {
         Ok(()) => next.run(request).await,
-        Err(err) => err.into_response(),
+        Err(err) => {
+            tracing::warn!(
+                method = %request.method(),
+                path = request.uri().path(),
+                status = err.status.as_u16(),
+                error = %err.message,
+                "admin request rejected by auth middleware"
+            );
+            err.into_response()
+        }
     }
 }
 
@@ -175,7 +230,9 @@ mod tests {
     use axum::routing::get;
     use tower::ServiceExt;
 
-    use super::{require_admin_middleware, require_user_session_middleware};
+    use super::{
+        require_admin_middleware, require_user_middleware, require_user_session_middleware,
+    };
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
     use gproxy_storage::{SeaOrmStorage, repository::UserRepository};
 
@@ -258,6 +315,51 @@ mod tests {
                 require_user_session_middleware,
             ))
             .with_state(state)
+    }
+
+    fn user_api_router(state: Arc<AppState>) -> Router {
+        Router::new()
+            .route(
+                "/aistudio/v1beta/models/x:generateContent",
+                get(|| async { StatusCode::NO_CONTENT }),
+            )
+            .layer(from_fn_with_state(state.clone(), require_user_middleware))
+            .with_state(state)
+    }
+
+    #[tokio::test]
+    async fn provider_route_accepts_and_rejects_query_api_key() {
+        let cases = [
+            (
+                "/aistudio/v1beta/models/x:generateContent?key=sk-user",
+                StatusCode::NO_CONTENT,
+            ),
+            (
+                "/aistudio/v1beta/models/x:generateContent",
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                "/aistudio/v1beta/models/x:generateContent?key=sk-bogus",
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                "/aistudio/v1beta/models/x:generateContent?key=",
+                StatusCode::UNAUTHORIZED,
+            ),
+        ];
+        for (uri, expected) in cases {
+            let state = build_test_state().await;
+            let response = user_api_router(state)
+                .oneshot(
+                    HttpRequest::builder()
+                        .uri(uri)
+                        .body(Body::empty())
+                        .expect("build request"),
+                )
+                .await
+                .expect("router response");
+            assert_eq!(response.status(), expected, "uri = {uri}");
+        }
     }
 
     #[tokio::test]

@@ -19,12 +19,21 @@ use crate::error::HttpError;
 use gproxy_storage::repository::FileRepository;
 
 /// Proxy handler for provider-scoped routes: `/{provider}/v1/...`
+///
+/// Uses `Path<HashMap<String, String>>` rather than `Path<String>` because this
+/// handler is wired to routes with both one path param (`/{provider}/v1/messages`)
+/// and two path params (`/{provider}/v1beta/models/{*target}`). `Path<String>`
+/// would panic at runtime with "Expected 1 but got 2" on the two-param routes.
 pub async fn proxy(
     State(state): State<Arc<AppState>>,
-    Path(provider_name): Path<String>,
+    Path(path_params): Path<HashMap<String, String>>,
     Extension(authenticated): Extension<AuthenticatedUser>,
     request: Request,
 ) -> Result<Response, HttpError> {
+    let provider_name = path_params
+        .get("provider")
+        .cloned()
+        .ok_or_else(|| HttpError::bad_request("route missing provider path param"))?;
     let start = std::time::Instant::now();
     let trace_id = generate_trace_id();
     let req_method = request.method().to_string();
@@ -2707,6 +2716,78 @@ mod tests {
         assert_eq!(upstream_logs.len(), 1);
         assert_eq!(upstream_logs[0].provider_id, Some(42));
         assert_eq!(upstream_logs[0].response_status, Some(500));
+    }
+
+    /// Regression test for two bugs that together caused `POST
+    /// /{provider}/v1beta/models/X:generateContent` to return an empty 405:
+    ///
+    /// 1. The Gemini Live WebSocket route `GET /{provider}/v1beta/models/{*target}`
+    ///    lived on a more-specific path than the HTTP catch-all
+    ///    `POST /{provider}/v1beta/{*target}`, so matchit picked the WS route for
+    ///    any POST under `/models/*` and replied 405 with an empty body. Fixed by
+    ///    adding an explicit `POST /{provider}/v1beta/models/{*target}` HTTP route
+    ///    that gets merged onto the same path as the WS GET.
+    ///
+    /// 2. `handler::proxy` used `Path<String>` which expects exactly one path
+    ///    param. On the new two-param route it panicked at runtime with "Expected
+    ///    1 but got 2". Fixed by switching to `Path<HashMap<String, String>>`.
+    ///
+    /// The assertion walks the state through the real `crate::provider::router`
+    /// and requires the request to reach the real proxy handler — verified by
+    /// checking that a downstream-request log row was written (the proxy handler
+    /// writes it; a 405 / Path-extractor 500 short-circuits before logging).
+    #[tokio::test]
+    async fn router_routes_post_to_v1beta_models_generate_content() {
+        use tower::ServiceExt;
+
+        let state = build_unscoped_proxy_state("http://127.0.0.1:1".to_string()).await;
+        let app = crate::provider::router(state.clone()).with_state(state.clone());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/test/v1beta/models/demo:generateContent?key=sk-test")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"contents":[{"parts":[{"text":"hi"}]}]}"#))
+                    .expect("build request"),
+            )
+            .await
+            .expect("router response");
+
+        // Must NOT be 405 (route-shadowing bug) and must NOT be an empty body
+        // from any of: Path-extractor runtime error, auth rejection without
+        // the query-key fallback, or middleware short-circuit.
+        assert_ne!(
+            response.status(),
+            StatusCode::METHOD_NOT_ALLOWED,
+            "POST to /{{provider}}/v1beta/models/X:generateContent must reach \
+             the HTTP proxy handler and not be shadowed by the Gemini Live \
+             WebSocket GET route"
+        );
+
+        // The real proof that the request reached the proxy handler: a
+        // downstream-request log row exists. The handler writes this row
+        // unconditionally when it runs, so its presence means auth passed
+        // (via the ?key= query fallback), classification succeeded, Path
+        // extraction succeeded, and the handler ran to completion. Upstream
+        // is unreachable (127.0.0.1:1) so response_status is 500 — we don't
+        // care about the upstream result, only that we got there.
+        let downstream_logs = state
+            .storage()
+            .query_downstream_requests(&DownstreamRequestQuery::default())
+            .await
+            .expect("query downstream request logs");
+        assert_eq!(
+            downstream_logs.len(),
+            1,
+            "proxy handler must run and persist a downstream request log"
+        );
+        assert_eq!(
+            downstream_logs[0].request_path,
+            "/test/v1beta/models/demo:generateContent"
+        );
+        assert_eq!(downstream_logs[0].request_method, "POST");
     }
 }
 

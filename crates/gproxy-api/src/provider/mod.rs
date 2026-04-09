@@ -53,6 +53,13 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/{provider}/v1/models", get(handler::proxy))
         .route("/{provider}/v1/models/{*model_id}", get(handler::proxy))
         .route("/{provider}/v1beta/models", get(handler::proxy))
+        // `/{provider}/v1beta/models/{*target}` must exist as an explicit POST route
+        // (not just under the catch-all below) because the WebSocket router registers
+        // the same path with GET. Without this, matchit picks the WS route for any
+        // `POST /.../v1beta/models/*:generateContent` and replies 405 Method Not
+        // Allowed with an empty body. Router::merge combines the GET (ws) + POST
+        // (http) method handlers when the path patterns match exactly.
+        .route("/{provider}/v1beta/models/{*target}", post(handler::proxy))
         .route("/{provider}/v1beta/{*target}", post(handler::proxy))
         // Unscoped routes (provider determined by model prefix or alias)
         .route("/v1/messages", post(handler::proxy_unscoped))
@@ -114,7 +121,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
             get(websocket::openai_responses_ws),
         )
         .route(
-            "/{provider}/v1beta/models/{*target_live}",
+            "/{provider}/v1beta/models/{*target}",
             get(websocket::gemini_live),
         )
         .route(
