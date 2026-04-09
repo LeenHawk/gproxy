@@ -366,6 +366,22 @@ export type DownstreamRequestQueryRow = {
   created_at: string;
 };
 
+/// Payload for `POST /admin/requests/{upstream,downstream}/clear`.
+/// `all: true` clears every row under the current filter set regardless of
+/// `trace_ids`. `all: false` requires a non-empty `trace_ids` list and only
+/// clears those rows. Clearing wipes `request_headers_json` /
+/// `request_body` / `response_headers_json` / `response_body` but keeps
+/// the log row itself (unlike `batch-delete` which removes the row).
+export type ClearRequestPayload = {
+  all: boolean;
+  trace_ids: number[];
+};
+
+export type RequestClearAck = {
+  ok: boolean;
+  cleared: number;
+};
+
 export type UpdateCheckResponse = {
   current_version: string;
   latest_version?: string | null;

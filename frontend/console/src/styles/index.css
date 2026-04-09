@@ -390,6 +390,28 @@ input {
   padding: 0.9rem 1rem;
 }
 
+.ui-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ui-table th {
+  background: color-mix(in srgb, var(--panel-muted) 50%, transparent);
+}
+
+.ui-table tbody tr:hover {
+  background: color-mix(in srgb, var(--panel-muted) 30%, transparent);
+}
+
+.payload-cell pre {
+  background: color-mix(in srgb, var(--panel-muted) 60%, transparent);
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  max-width: 60ch;
+}
+
 .corner-toggle {
   display: inline-flex;
   align-items: center;

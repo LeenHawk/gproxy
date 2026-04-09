@@ -272,3 +272,70 @@ export function SearchableSelect({
     </div>
   );
 }
+
+/// Lightweight grid `Table` that takes a list of column headers and a list of
+/// row dictionaries keyed by header. Skipped cells render as `—`. Used by
+/// the requests / usages / my-usage modules to display tabular data with
+/// uniform spacing.
+export function Table({
+  columns,
+  rows,
+}: {
+  columns: string[];
+  rows: Array<Record<string, ReactNode>>;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="ui-table w-full text-left text-sm">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th
+                key={column}
+                className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted"
+              >
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="px-3 py-4 text-center text-sm text-muted" colSpan={columns.length}>
+                —
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, index) => (
+              <tr key={index} className="border-b border-border/40 align-top">
+                {columns.map((column) => (
+                  <td key={column} className="px-3 py-2 text-text">
+                    {row[column] ?? "—"}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/// Compact metric card used in dashboards to display a labeled count or
+/// token total. Pair with a grid container for the layout.
+export function MetricCard({
+  label,
+  value,
+}: {
+  label: ReactNode;
+  value: ReactNode;
+}) {
+  return (
+    <div className="metric-card">
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
+    </div>
+  );
+}

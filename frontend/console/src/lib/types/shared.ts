@@ -69,3 +69,17 @@ export type UsageQueryRow = {
   cache_creation_input_tokens_5min?: number | null;
   cache_creation_input_tokens_1h?: number | null;
 };
+
+/// Aggregated totals returned by `POST /admin/usages/summary` and
+/// `POST /user/usages/summary`. `count` matches the row count under the
+/// same filters; token fields are SUM aggregates across the entire
+/// matched set (not just the current page).
+export type UsageSummary = {
+  count: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_creation_input_tokens_5min: number;
+  cache_creation_input_tokens_1h: number;
+};
