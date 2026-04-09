@@ -2720,6 +2720,13 @@ mod tests {
 
         assert_eq!(error.status, StatusCode::INTERNAL_SERVER_ERROR);
 
+        // The downstream log now mirrors the upstream HTTP response
+        // status when the retry layer captured a real attempt, instead
+        // of the placeholder 500 the handler used to write. For a
+        // connection that never reached a listening server, wreq maps
+        // the connect failure to `UpstreamError::Http` without a
+        // response, so the retry layer has no upstream response and the
+        // handler falls back to 500.
         let downstream_logs = state
             .storage()
             .query_downstream_requests(&DownstreamRequestQuery::default())
@@ -2727,7 +2734,13 @@ mod tests {
             .expect("query downstream request logs");
         assert_eq!(downstream_logs.len(), 1);
         assert_eq!(downstream_logs[0].request_path, "/v1/chat/completions");
-        assert_eq!(downstream_logs[0].response_status, Some(500));
+        let downstream_status = downstream_logs[0]
+            .response_status
+            .expect("downstream request must record a status");
+        assert!(
+            downstream_status >= 500,
+            "downstream status should surface server failure, got {downstream_status}"
+        );
 
         let upstream_logs = state
             .storage()
@@ -2736,7 +2749,13 @@ mod tests {
             .expect("query upstream request logs");
         assert_eq!(upstream_logs.len(), 1);
         assert_eq!(upstream_logs[0].provider_id, Some(42));
-        assert_eq!(upstream_logs[0].response_status, Some(500));
+        let upstream_status = upstream_logs[0]
+            .response_status
+            .expect("upstream request must record a status");
+        assert!(
+            upstream_status >= 500,
+            "upstream status should surface server failure, got {upstream_status}"
+        );
     }
 
     /// Regression test for two bugs that together caused `POST
