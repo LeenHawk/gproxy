@@ -24,7 +24,9 @@ pub enum CacheBreakpointPositionKind {
 pub enum CacheBreakpointTtl {
     #[default]
     Auto,
+    #[serde(alias = "5m")]
     Ttl5m,
+    #[serde(alias = "1h")]
     Ttl1h,
 }
 
