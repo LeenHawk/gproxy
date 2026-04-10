@@ -119,43 +119,45 @@ export function CredentialsTab({
               });
               return (
                 <div key={credentialKey} className="card-shell">
-                  <div className="flex items-center gap-2">
-                    <div className="font-semibold">#{row.index} · {summary.primary}</div>
-                    <button
-                      type="button"
-                      className="badge-button"
-                      onClick={() => onUpdateStatus(row, nextStatus)}
-                    >
-                      <Badge variant={healthVariant}>
-                        {statusValue === "unavailable"
-                          ? labels.statusDead
-                          : statusValue === "cooldown"
-                            ? labels.statusCooldown
-                            : labels.statusHealthy}
-                      </Badge>
-                    </button>
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <Button variant="neutral" onClick={() => onEdit(row)}>
-                      {labels.edit}
-                    </Button>
-                    <Button variant="danger" onClick={() => onDelete(row)}>
-                      {labels.delete}
-                    </Button>
-                    {supportsUsage ? (
-                      <Button
-                        variant="neutral"
-                        onClick={() => {
-                          const nextExpanded = !usageExpanded;
-                          setExpandedUsageKey(nextExpanded ? credentialKey : null);
-                          if (nextExpanded && !usageRaw) {
-                            onQueryUsage(row);
-                          }
-                        }}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold">#{row.index} · {summary.primary}</div>
+                      <button
+                        type="button"
+                        className="badge-button"
+                        onClick={() => onUpdateStatus(row, nextStatus)}
                       >
-                        {usageActionLabels.primary}
+                        <Badge variant={healthVariant}>
+                          {statusValue === "unavailable"
+                            ? labels.statusDead
+                            : statusValue === "cooldown"
+                              ? labels.statusCooldown
+                              : labels.statusHealthy}
+                        </Badge>
+                      </button>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant="neutral" onClick={() => onEdit(row)}>
+                        {labels.edit}
                       </Button>
-                    ) : null}
+                      <Button variant="danger" onClick={() => onDelete(row)}>
+                        {labels.delete}
+                      </Button>
+                      {supportsUsage ? (
+                        <Button
+                          variant="neutral"
+                          onClick={() => {
+                            const nextExpanded = !usageExpanded;
+                            setExpandedUsageKey(nextExpanded ? credentialKey : null);
+                            if (nextExpanded && !usageRaw) {
+                              onQueryUsage(row);
+                            }
+                          }}
+                        >
+                          {usageActionLabels.primary}
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                   {summary.secondary.length > 0 ? (
                     <div className="mt-2 text-xs text-muted">{summary.secondary.join(" · ")}</div>
