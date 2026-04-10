@@ -96,13 +96,12 @@ fn sanitize_gemini(map: &mut serde_json::Map<String, Value>, rules: &[(Regex, &s
         }
     }
     // generationConfig.contents (if present)
-    if let Some(gen_config) = map.get_mut("generationConfig") {
-        if let Some(Value::Array(contents)) = gen_config.get_mut("contents") {
+    if let Some(gen_config) = map.get_mut("generationConfig")
+        && let Some(Value::Array(contents)) = gen_config.get_mut("contents") {
             for content in contents {
                 sanitize_gemini_parts(rules, content);
             }
         }
-    }
 }
 
 // ---------------------------------------------------------------------------
