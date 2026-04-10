@@ -34,7 +34,7 @@ Notes:
 - If round-robin is disabled, affinity is forced off.
 - Legacy field `credential_pick_mode` is still parsed for compatibility.
 
-## Internal affinity pool design (v1)
+## Internal affinity pool design
 
 GPROXY keeps a process-local map:
 
@@ -43,7 +43,7 @@ GPROXY keeps a process-local map:
 - store: `DashMap<String, CacheAffinityRecord>`
 - each channel retains at most `credential_cache_affinity_max_keys` keys; before inserting a new key, expired keys are pruned first, then the earliest-expiring keys are evicted if the limit is still exceeded
 
-This is still the v1 pool format (no v2 namespace, no storage schema change).
+The pool is process-local and not persisted. It resets on restart.
 
 ## Hit judgment and retry behavior
 
@@ -177,7 +177,7 @@ Not included by default:
 
 ## Claude / ClaudeCode cache rewrite and magic triggers
 
-`enable_top_level_cache_control` is deprecated in current config docs. Use `cache_breakpoints` instead.
+`enable_top_level_cache_control` is deprecated. Use `cache_breakpoints` instead.
 
 Rewrite sources for `claude` / `claudecode`:
 
