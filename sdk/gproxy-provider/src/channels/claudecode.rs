@@ -309,8 +309,9 @@ impl ChannelSettings for ClaudeCodeSettings {
 // Credential
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ClaudeCodeCredential {
+    #[serde(default)]
     pub access_token: String,
     #[serde(default)]
     pub refresh_token: String,
@@ -328,22 +329,6 @@ pub struct ClaudeCodeCredential {
     pub cookie: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_email: Option<String>,
-}
-
-impl Default for ClaudeCodeCredential {
-    fn default() -> Self {
-        Self {
-            access_token: String::new(),
-            refresh_token: String::new(),
-            expires_at_ms: 0,
-            device_id: default_claudecode_device_id(),
-            account_uuid: None,
-            subscription_type: None,
-            rate_limit_tier: None,
-            cookie: None,
-            user_email: None,
-        }
-    }
 }
 
 impl ChannelCredential for ClaudeCodeCredential {
