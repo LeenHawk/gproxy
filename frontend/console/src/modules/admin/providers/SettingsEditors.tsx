@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { Button, Input, Select } from "../../../components/ui";
+import { Button, Input } from "../../../components/ui";
 import {
   ANTHROPIC_REFERENCE_BETA_HEADERS,
   CLAUDECODE_OAUTH_BETA,
@@ -161,38 +161,55 @@ export function CacheBreakpointsEditor({
             </div>
             {rule ? (
               <div className="space-y-2">
-                <Select
-                  value={rule.target}
-                  onChange={(v) =>
-                    updateSlot(idx, {
-                      target: v as CacheBreakpointRule["target"],
-                      ...(v === "top_level"
-                        ? { position: "nth" as const, index: 1, content_position: undefined, content_index: undefined }
-                        : {}),
-                      ...(v !== "messages"
-                        ? { content_position: undefined, content_index: undefined }
-                        : {}),
-                    })
-                  }
-                  options={[
-                    { value: "top_level", label: "top_level" },
-                    { value: "tools", label: "tools" },
-                    { value: "system", label: "system" },
-                    { value: "messages", label: "messages" },
-                  ]}
-                />
-                {rule.target !== "top_level" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select
-                      value={rule.position}
-                      onChange={(v) =>
-                        updateSlot(idx, { position: v as CacheBreakpointRule["position"] })
+                {/* Target: segmented buttons */}
+                <div className="flex flex-wrap gap-1">
+                  {(["top_level", "tools", "system", "messages"] as const).map((target) => (
+                    <button
+                      key={target}
+                      type="button"
+                      className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                        rule.target === target ? "btn-primary" : "btn-neutral"
+                      }`}
+                      onClick={() =>
+                        updateSlot(idx, {
+                          target,
+                          ...(target === "top_level"
+                            ? { position: "nth" as const, index: 1, content_position: undefined, content_index: undefined }
+                            : {}),
+                          ...(target !== "messages"
+                            ? { content_position: undefined, content_index: undefined }
+                            : {}),
+                        })
                       }
-                      options={[
-                        { value: "nth", label: "nth" },
-                        { value: "last_nth", label: "last_nth" },
-                      ]}
-                    />
+                    >
+                      {target}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Position + index (non-top_level) */}
+                {rule.target !== "top_level" ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                          rule.position === "nth" ? "btn-primary" : "btn-neutral"
+                        }`}
+                        onClick={() => updateSlot(idx, { position: "nth" })}
+                      >
+                        {t("providers.cacheBreakpoints.nth")}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                          rule.position === "last_nth" ? "btn-primary" : "btn-neutral"
+                        }`}
+                        onClick={() => updateSlot(idx, { position: "last_nth" })}
+                      >
+                        {t("providers.cacheBreakpoints.lastNth")}
+                      </button>
+                    </div>
                     <Input
                       value={String(rule.index)}
                       onChange={(v) =>
@@ -201,22 +218,45 @@ export function CacheBreakpointsEditor({
                     />
                   </div>
                 ) : null}
+
+                {/* Content block selector (messages only) */}
                 {rule.target === "messages" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select
-                      value={rule.content_position ?? ""}
-                      onChange={(v) =>
-                        updateSlot(idx, {
-                          content_position: v ? (v as CacheBreakpointRule["position"]) : undefined,
-                          content_index: v ? (rule.content_index ?? 1) : undefined,
-                        })
-                      }
-                      options={[
-                        { value: "", label: "— content —" },
-                        { value: "nth", label: "content nth" },
-                        { value: "last_nth", label: "content last_nth" },
-                      ]}
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                          rule.content_position === undefined ? "btn-primary" : "btn-neutral"
+                        }`}
+                        onClick={() =>
+                          updateSlot(idx, { content_position: undefined, content_index: undefined })
+                        }
+                      >
+                        {t("providers.cacheBreakpoints.flatContent")}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                          rule.content_position === "nth" ? "btn-primary" : "btn-neutral"
+                        }`}
+                        onClick={() =>
+                          updateSlot(idx, { content_position: "nth", content_index: rule.content_index ?? 1 })
+                        }
+                      >
+                        {t("providers.cacheBreakpoints.contentNth")}
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                          rule.content_position === "last_nth" ? "btn-primary" : "btn-neutral"
+                        }`}
+                        onClick={() =>
+                          updateSlot(idx, { content_position: "last_nth", content_index: rule.content_index ?? 1 })
+                        }
+                      >
+                        {t("providers.cacheBreakpoints.contentLastNth")}
+                      </button>
+                    </div>
                     {rule.content_position ? (
                       <Input
                         value={String(rule.content_index ?? 1)}
@@ -229,15 +269,22 @@ export function CacheBreakpointsEditor({
                     ) : null}
                   </div>
                 ) : null}
-                <Select
-                  value={rule.ttl}
-                  onChange={(v) => updateSlot(idx, { ttl: v as CacheBreakpointRule["ttl"] })}
-                  options={[
-                    { value: "auto", label: "auto (ephemeral)" },
-                    { value: "5m", label: "5 min" },
-                    { value: "1h", label: "1 hour" },
-                  ]}
-                />
+
+                {/* TTL: segmented buttons */}
+                <div className="flex gap-1">
+                  {(["auto", "5m", "1h"] as const).map((ttl) => (
+                    <button
+                      key={ttl}
+                      type="button"
+                      className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                        rule.ttl === ttl ? "btn-primary" : "btn-neutral"
+                      }`}
+                      onClick={() => updateSlot(idx, { ttl })}
+                    >
+                      {ttl === "auto" ? "auto" : ttl}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <button
