@@ -1,4 +1,4 @@
-type FieldType = "text" | "boolean" | "integer" | "textarea";
+type FieldType = "text" | "boolean" | "integer" | "textarea" | "json";
 
 export type ChannelField = {
   key: string;
@@ -33,6 +33,12 @@ export const ALL_CHANNEL_IDS = [
   "openrouter",
 ] as const;
 
+/// Common settings fields appended to every channel so sanitize_rules
+/// is always configurable regardless of channel type.
+const COMMON_SETTINGS_FIELDS: ChannelField[] = [
+  { key: "sanitize_rules", label: "sanitize_rules", type: "json", optional: true },
+];
+
 export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
   openai: {
     defaults: { base_url: "https://api.openai.com", user_agent: "" },
@@ -42,19 +48,13 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     ],
   },
   anthropic: {
-    defaults: {
-      base_url: "https://api.anthropic.com",
-      user_agent: "",
-      anthropic_append_beta_query: "false",
-      anthropic_prelude_text: "",
-      anthropic_extra_beta_headers: "",
-    },
+    defaults: { base_url: "https://api.anthropic.com", user_agent: "" },
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
-      { key: "anthropic_append_beta_query", label: "anthropic_append_beta_query", type: "boolean", optional: true },
-      { key: "anthropic_prelude_text", label: "anthropic_prelude_text", type: "textarea", optional: true },
-      { key: "anthropic_extra_beta_headers", label: "anthropic_extra_beta_headers", type: "textarea", optional: true },
+      { key: "enable_magic_cache", label: "enable_magic_cache", type: "boolean", optional: true },
+      { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
+      { key: "extra_beta_headers", label: "extra_beta_headers", type: "json", optional: true },
     ],
   },
   aistudio: {
@@ -119,14 +119,18 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     defaults: {
       base_url: "https://api.anthropic.com",
       user_agent: "claude-code/2.1.89",
-      claudecode_ai_base_url: "https://claude.ai",
-      claudecode_platform_base_url: "https://platform.claude.com",
+      claude_ai_base_url: "https://claude.ai",
+      platform_base_url: "https://platform.claude.com",
     },
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
-      { key: "claudecode_ai_base_url", label: "claudecode_ai_base_url", type: "text" },
-      { key: "claudecode_platform_base_url", label: "claudecode_platform_base_url", type: "text" },
+      { key: "claude_ai_base_url", label: "claude_ai_base_url", type: "text" },
+      { key: "platform_base_url", label: "platform_base_url", type: "text" },
+      { key: "enable_magic_cache", label: "enable_magic_cache", type: "boolean", optional: true },
+      { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
+      { key: "prelude_text", label: "prelude_text", type: "textarea", optional: true },
+      { key: "extra_beta_headers", label: "extra_beta_headers", type: "json", optional: true },
     ],
   },
   codex: {
@@ -170,11 +174,11 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     ],
   },
   custom: {
-    defaults: { base_url: "", user_agent: "", mask_table: "" },
+    defaults: { base_url: "", user_agent: "" },
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
-      { key: "mask_table", label: "mask_table", type: "textarea", optional: true },
+      { key: "mask_table", label: "mask_table", type: "json", optional: true },
     ],
   },
 };
@@ -244,7 +248,9 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
 };
 
 export function settingsFieldsForChannel(channel: string): ChannelField[] {
-  return SETTINGS_CHANNEL_CONFIG[channel]?.fields ?? SETTINGS_CHANNEL_CONFIG.custom.fields;
+  const channelFields =
+    SETTINGS_CHANNEL_CONFIG[channel]?.fields ?? SETTINGS_CHANNEL_CONFIG.custom.fields;
+  return [...channelFields, ...COMMON_SETTINGS_FIELDS];
 }
 
 export function credentialFieldsForChannel(channel: string): ChannelField[] {
@@ -269,7 +275,11 @@ export function settingsValuesFromJson(
     if (raw === undefined || raw === null) {
       continue;
     }
-    current[field.key] = typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (field.type === "json") {
+      current[field.key] = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
+    } else {
+      current[field.key] = typeof raw === "string" ? raw : JSON.stringify(raw);
+    }
   }
   return current;
 }
@@ -284,7 +294,11 @@ export function credentialValuesFromJson(
     if (raw === undefined || raw === null) {
       continue;
     }
-    current[field.key] = typeof raw === "string" ? raw : JSON.stringify(raw);
+    if (field.type === "json") {
+      current[field.key] = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
+    } else {
+      current[field.key] = typeof raw === "string" ? raw : JSON.stringify(raw);
+    }
   }
   return current;
 }
@@ -320,6 +334,17 @@ function buildObjectFromFields(
     }
     if (field.type === "integer") {
       result[field.key] = trimmed === "" ? 0 : Number.parseInt(trimmed, 10);
+      continue;
+    }
+    if (field.type === "json") {
+      if (trimmed === "") {
+        continue;
+      }
+      try {
+        result[field.key] = JSON.parse(trimmed);
+      } catch {
+        result[field.key] = trimmed;
+      }
       continue;
     }
     result[field.key] = raw;

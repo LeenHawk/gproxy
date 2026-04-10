@@ -88,13 +88,13 @@ export function ConfigTab({
         {settingsFieldsForChannel(form.channel).map((field) => (
           <div key={field.key}>
             <Label>{field.label}</Label>
-            {field.type === "textarea" ? (
+            {field.type === "textarea" || field.type === "json" ? (
               <TextArea
                 value={form.settings[field.key] ?? ""}
                 onChange={(value) =>
                   onChange({ settings: { ...form.settings, [field.key]: value } })
                 }
-                rows={4}
+                rows={field.type === "json" ? 6 : 4}
               />
             ) : field.type === "boolean" ? (
               <Select
