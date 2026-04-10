@@ -2820,20 +2820,8 @@ mod tests {
         // the connect failure to `UpstreamError::Http` without a
         // response, so the retry layer has no upstream response and the
         // handler falls back to 500.
-        let downstream_logs = state
-            .storage()
-            .query_downstream_requests(&DownstreamRequestQuery::default())
-            .await
-            .expect("query downstream request logs");
-        assert_eq!(downstream_logs.len(), 1);
-        assert_eq!(downstream_logs[0].request_path, "/v1/chat/completions");
-        let downstream_status = downstream_logs[0]
-            .response_status
-            .expect("downstream request must record a status");
-        assert!(
-            downstream_status >= 500,
-            "downstream status should surface server failure, got {downstream_status}"
-        );
+        // Downstream logs are now recorded by the downstream_log middleware
+        // (not the handler), so they won't appear in this handler-only test.
 
         let upstream_logs = state
             .storage()
@@ -2906,20 +2894,9 @@ mod tests {
         // extraction succeeded, and the handler ran to completion. Upstream
         // is unreachable (127.0.0.1:1) so response_status is 500 — we don't
         // care about the upstream result, only that we got there.
-        let downstream_logs = state
-            .storage()
-            .query_downstream_requests(&DownstreamRequestQuery::default())
-            .await
-            .expect("query downstream request logs");
-        assert_eq!(
-            downstream_logs.len(),
-            1,
-            "proxy handler must run and persist a downstream request log"
-        );
-        assert_eq!(
-            downstream_logs[0].request_path,
-            "/test/v1beta/models/demo:generateContent"
-        );
-        assert_eq!(downstream_logs[0].request_method, "POST");
+        // Downstream logs are now recorded by the downstream_log middleware
+        // (not the handler), so they won't appear in this handler-only test.
+        // The important thing is that the route resolved correctly and the
+        // handler ran (verified by the non-404 status above).
     }
 }
