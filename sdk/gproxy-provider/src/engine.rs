@@ -1448,6 +1448,45 @@ impl UpstreamWebSocket {
 /// Re-export wreq WS message type.
 pub use wreq::ws::message::Message as WsMessage;
 
+/// Inject or overwrite the `"stream"` flag in an already-serialized JSON
+/// request body so it matches the resolved operation family.
+///
+/// Protocol transforms (Response→Chat, Gemini→Chat, Gemini→Claude, etc.)
+/// produce bodies without a correct `stream` flag because they don't know
+/// whether the engine picked `GenerateContent` or `StreamGenerateContent`.
+/// This helper runs **after** transform but **before** suffix processing
+/// and `finalize_request`, covering every channel + transform combination
+/// without per-channel patches.
+///
+/// Only touches OpenAI-family and Claude protocols; Gemini uses URL-based
+/// stream selection and has no body-level flag.
+fn inject_stream_flag(dst_op: OperationFamily, dst_proto: ProtocolKind, body: Vec<u8>) -> Vec<u8> {
+    if !matches!(
+        dst_proto,
+        ProtocolKind::OpenAiChatCompletion
+            | ProtocolKind::OpenAiResponse
+            | ProtocolKind::OpenAi
+            | ProtocolKind::Claude
+    ) {
+        return body;
+    }
+    // Only generate-content operations carry a stream flag.
+    if !matches!(
+        dst_op,
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent
+    ) {
+        return body;
+    }
+    let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&body) else {
+        return body;
+    };
+    let Some(map) = value.as_object_mut() else {
+        return body;
+    };
+    let should_stream = dst_op == OperationFamily::StreamGenerateContent;
+    map.insert("stream".to_string(), serde_json::Value::Bool(should_stream));
+    serde_json::to_vec(&value).unwrap_or(body)
+}
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -1487,44 +1526,4 @@ mod tests {
             ProtocolKind::OpenAiResponse,
         ));
     }
-}
-
-/// Inject or overwrite the `"stream"` flag in an already-serialized JSON
-/// request body so it matches the resolved operation family.
-///
-/// Protocol transforms (Response→Chat, Gemini→Chat, Gemini→Claude, etc.)
-/// produce bodies without a correct `stream` flag because they don't know
-/// whether the engine picked `GenerateContent` or `StreamGenerateContent`.
-/// This helper runs **after** transform but **before** suffix processing
-/// and `finalize_request`, covering every channel + transform combination
-/// without per-channel patches.
-///
-/// Only touches OpenAI-family and Claude protocols; Gemini uses URL-based
-/// stream selection and has no body-level flag.
-fn inject_stream_flag(dst_op: OperationFamily, dst_proto: ProtocolKind, body: Vec<u8>) -> Vec<u8> {
-    if !matches!(
-        dst_proto,
-        ProtocolKind::OpenAiChatCompletion
-            | ProtocolKind::OpenAiResponse
-            | ProtocolKind::OpenAi
-            | ProtocolKind::Claude
-    ) {
-        return body;
-    }
-    // Only generate-content operations carry a stream flag.
-    if !matches!(
-        dst_op,
-        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent
-    ) {
-        return body;
-    }
-    let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(&body) else {
-        return body;
-    };
-    let Some(map) = value.as_object_mut() else {
-        return body;
-    };
-    let should_stream = dst_op == OperationFamily::StreamGenerateContent;
-    map.insert("stream".to_string(), serde_json::Value::Bool(should_stream));
-    serde_json::to_vec(&value).unwrap_or(body)
 }
