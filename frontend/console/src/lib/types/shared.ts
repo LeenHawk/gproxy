@@ -68,6 +68,10 @@ export type UsageQueryRow = {
   cache_creation_input_tokens?: number | null;
   cache_creation_input_tokens_5min?: number | null;
   cache_creation_input_tokens_1h?: number | null;
+  /// Per-request quota cost charged when this row was recorded. Same
+  /// unit as the user's `cost_used` quota balance. Zero on rows written
+  /// before the column existed.
+  cost: number;
 };
 
 /// Aggregated totals returned by `POST /admin/usages/summary` and
@@ -82,4 +86,5 @@ export type UsageSummary = {
   cache_creation_input_tokens: number;
   cache_creation_input_tokens_5min: number;
   cache_creation_input_tokens_1h: number;
+  total_cost: number;
 };

@@ -47,7 +47,24 @@ function emptySummary(): UsageSummary {
     cache_creation_input_tokens: 0,
     cache_creation_input_tokens_5min: 0,
     cache_creation_input_tokens_1h: 0,
+    total_cost: 0,
   };
+}
+
+/// Render a quota cost value as a compact decimal. Uses up to 4 fraction
+/// digits and trims trailing zeros so $0.0050 / $0 / $1.2345 all render
+/// without exponent notation. Empty string for null/undefined so the
+/// Table cell falls through to the "—" placeholder.
+function formatCost(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  return value
+    .toFixed(4)
+    .replace(/\.?0+$/, "");
 }
 
 function defaultPageSizeByViewport(): number {
@@ -451,6 +468,7 @@ export function UsageModule({
     t("table.cache_creation"),
     t("table.cache_creation_5m"),
     t("table.cache_creation_1h"),
+    t("table.cost"),
     t("table.at"),
   ];
 
@@ -544,6 +562,7 @@ export function UsageModule({
           label={t("metric.cache_creation_1h")}
           value={summary.cache_creation_input_tokens_1h}
         />
+        <MetricCard label={t("metric.cost")} value={formatCost(summary.total_cost)} />
       </div>
       <Card title={t("usages.rowsTitle")}>
         <Table
@@ -559,7 +578,8 @@ export function UsageModule({
             [tableColumns[7]]: row.cache_creation_input_tokens ?? "",
             [tableColumns[8]]: row.cache_creation_input_tokens_5min ?? "",
             [tableColumns[9]]: row.cache_creation_input_tokens_1h ?? "",
-            [tableColumns[10]]: formatAtForViewer(row.at),
+            [tableColumns[10]]: formatCost(row.cost),
+            [tableColumns[11]]: formatAtForViewer(row.at),
           }))}
         />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">

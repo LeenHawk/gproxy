@@ -736,6 +736,7 @@ impl SeaOrmStorage {
                     cache_creation_input_tokens: Set(u.cache_creation_input_tokens),
                     cache_creation_input_tokens_5min: Set(u.cache_creation_input_tokens_5min),
                     cache_creation_input_tokens_1h: Set(u.cache_creation_input_tokens_1h),
+                    cost: Set(u.cost),
                     created_at: Set(OffsetDateTime::now_utc()),
                     ..Default::default()
                 })

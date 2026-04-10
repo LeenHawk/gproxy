@@ -22,6 +22,12 @@ pub struct Model {
     pub cache_creation_input_tokens: Option<i64>,
     pub cache_creation_input_tokens_5min: Option<i64>,
     pub cache_creation_input_tokens_1h: Option<i64>,
+    /// Per-request quota cost in the same unit as `user_quotas.cost_used`.
+    /// Computed by `estimate_billing` at record time and persisted here so
+    /// the admin / user dashboards can show how much each call spent
+    /// without having to re-price historical rows.
+    #[sea_orm(default_value = "0")]
+    pub cost: f64,
     pub created_at: OffsetDateTime,
     #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "SetNull")]
     pub provider: HasOne<super::providers::Entity>,

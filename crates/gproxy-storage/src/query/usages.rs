@@ -20,7 +20,7 @@ pub struct UsageQuery {
     pub limit: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageQueryRow {
     pub trace_id: i64,
     pub downstream_trace_id: Option<i64>,
@@ -39,9 +39,13 @@ pub struct UsageQueryRow {
     pub cache_creation_input_tokens: Option<i64>,
     pub cache_creation_input_tokens_5min: Option<i64>,
     pub cache_creation_input_tokens_1h: Option<i64>,
+    /// Per-request quota cost charged when this row was recorded. Same
+    /// unit as `user_quotas.cost_used`. Zero on rows written before this
+    /// column was added.
+    pub cost: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct UsageSummary {
     pub count: u64,
     pub input_tokens: i64,
@@ -50,6 +54,9 @@ pub struct UsageSummary {
     pub cache_creation_input_tokens: i64,
     pub cache_creation_input_tokens_5min: i64,
     pub cache_creation_input_tokens_1h: i64,
+    /// Sum of `usages.cost` across the matched rows. Used by the metric
+    /// cards on the admin and per-user dashboards.
+    pub total_cost: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

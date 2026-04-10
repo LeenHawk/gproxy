@@ -52,7 +52,23 @@ function emptySummary(): UsageSummary {
     cache_creation_input_tokens: 0,
     cache_creation_input_tokens_5min: 0,
     cache_creation_input_tokens_1h: 0,
+    total_cost: 0,
   };
+}
+
+/// Render a quota cost value as a compact decimal. Mirrors the helper
+/// in `admin/UsageModule.tsx`; kept inline so this module stays
+/// dependency-free of the admin tree.
+function formatCost(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "";
+  }
+  if (value === 0) {
+    return "0";
+  }
+  return value
+    .toFixed(4)
+    .replace(/\.?0+$/, "");
 }
 
 function defaultPageSizeByViewport(): number {
@@ -424,6 +440,7 @@ export function MyUsageModule({
     t("table.cache_creation"),
     t("table.cache_creation_5m"),
     t("table.cache_creation_1h"),
+    t("table.cost"),
     t("table.at"),
   ];
 
@@ -508,6 +525,7 @@ export function MyUsageModule({
           label={t("metric.cache_creation_1h")}
           value={summary.cache_creation_input_tokens_1h}
         />
+        <MetricCard label={t("metric.cost")} value={formatCost(summary.total_cost)} />
       </div>
       <Card title={t("myUsage.rows")}>
         <Table
@@ -522,7 +540,8 @@ export function MyUsageModule({
             [tableColumns[6]]: row.cache_creation_input_tokens ?? "",
             [tableColumns[7]]: row.cache_creation_input_tokens_5min ?? "",
             [tableColumns[8]]: row.cache_creation_input_tokens_1h ?? "",
-            [tableColumns[9]]: formatAtForViewer(row.at),
+            [tableColumns[9]]: formatCost(row.cost),
+            [tableColumns[10]]: formatAtForViewer(row.at),
           }))}
         />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">

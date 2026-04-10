@@ -101,6 +101,7 @@ impl SeaOrmStorage {
                 cache_creation_input_tokens: r.cache_creation_input_tokens,
                 cache_creation_input_tokens_5min: r.cache_creation_input_tokens_5min,
                 cache_creation_input_tokens_1h: r.cache_creation_input_tokens_1h,
+                cost: r.cost,
             })
             .collect())
     }
@@ -130,6 +131,7 @@ impl SeaOrmStorage {
             cache_creation_input_tokens: Option<i64>,
             cache_creation_input_tokens_5min: Option<i64>,
             cache_creation_input_tokens_1h: Option<i64>,
+            total_cost: Option<f64>,
         }
 
         let needs_join = usage_query_needs_provider_join(query);
@@ -159,7 +161,8 @@ impl SeaOrmStorage {
             .column_as(
                 Expr::col(usages::Column::CacheCreationInputTokens1h).sum(),
                 "cache_creation_input_tokens_1h",
-            );
+            )
+            .column_as(Expr::col(usages::Column::Cost).sum(), "total_cost");
         select = apply_usage_filters(select, query, needs_join);
 
         let row = select
@@ -176,6 +179,7 @@ impl SeaOrmStorage {
             cache_creation_input_tokens: row.cache_creation_input_tokens.unwrap_or(0),
             cache_creation_input_tokens_5min: row.cache_creation_input_tokens_5min.unwrap_or(0),
             cache_creation_input_tokens_1h: row.cache_creation_input_tokens_1h.unwrap_or(0),
+            total_cost: row.total_cost.unwrap_or(0.0),
         })
     }
 }
