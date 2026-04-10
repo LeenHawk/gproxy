@@ -1,5 +1,23 @@
 # Release Notes
 
+## v1.0.2
+
+### English
+
+#### Added
+
+- **WebSocket per-model usage tracking** — when the client switches models mid-session (e.g. via `response.create`), usage is segmented per model and recorded separately instead of attributing all tokens to the last model.
+- **WebSocket upstream message logging** — WS session end now records an upstream request log containing all client→server and server→client messages as request/response body.
+
+---
+
+### 中文
+
+#### 新增
+
+- **WebSocket 按模型分段用量** — 客户端在 WS 会话中切换模型时，用量按模型分段记录，不再把所有 token 归到最后一个模型。
+- **WebSocket 上游消息日志** — WS session 结束时记录上游请求日志，包含所有客户端→服务器和服务器→客户端消息。
+
 ## v1.0.1
 
 ### English
