@@ -1,80 +1,97 @@
 ---
 title: Overview
-description: Core positioning, capability boundaries, and engineering advantages of GPROXY.
+description: What GPROXY is, what it supports, and how it deploys.
 ---
 
-## What is GPROXY
+## What GPROXY is
 
-`GPROXY` is a Rust-based multi-channel LLM proxy that exposes different upstreams (OpenAI, Anthropic, Google, and custom channels) through a unified API gateway.
+GPROXY is a Rust multi-channel LLM proxy. It sits between your applications and upstream LLM providers, exposing a unified API gateway that speaks OpenAI, Claude, and Gemini protocols. You configure providers and credentials once; GPROXY handles routing, protocol conversion, credential pooling, retry, failover, health tracking, and usage recording.
 
-## Core capabilities
+## Built-in channels
 
-- Multi-channel and multi-credential-pool management with health states, retries, and failover.
-- Compatible with OpenAI / Claude / Gemini-style request formats.
-- Supports operation families like `ModelList / ModelGet / Generate / Stream / CountToken / Embedding / Compact`.
-- Built-in Admin Web console for user and key management.
-- Request and usage records for auditing and operations analytics.
+GPROXY ships with 14 built-in channel implementations:
+
+| Channel | Upstream |
+|---|---|
+| `openai` | OpenAI API |
+| `anthropic` | Anthropic Claude API |
+| `aistudio` | Google AI Studio |
+| `vertexexpress` | Vertex AI Express |
+| `vertex` | Vertex AI (service account) |
+| `geminicli` | Gemini CLI / Code Assist |
+| `claudecode` | Claude Code (cookie-based) |
+| `codex` | OpenAI Codex CLI |
+| `antigravity` | Antigravity / Code Assist |
+| `nvidia` | NVIDIA NIM |
+| `deepseek` | DeepSeek |
+| `groq` | Groq |
+| `openrouter` | OpenRouter |
+| `custom` | Any OpenAI-compatible endpoint |
+
+The `custom` channel lets you point at any base URL with arbitrary credentials. Set `id`, `base_url`, `credentials`, and optionally override the dispatch table.
+
+## Protocol dispatch
+
+Every channel has a dispatch table that maps `(OperationFamily, ProtocolKind)` pairs to one of four strategies:
+
+- **Passthrough** -- forward the request as-is. Same protocol in, same protocol out. Minimal parsing overhead.
+- **TransformTo** -- convert the request to a different `(operation, protocol)` before sending upstream. For example, an OpenAI Chat Completions request hitting an Anthropic provider gets transformed to Claude Messages format.
+- **Local** -- handle the request without contacting upstream (e.g. model list from a static table).
+- **Unsupported** -- return 501.
+
+The six protocol kinds GPROXY understands:
+
+| Protocol | Wire format |
+|---|---|
+| `openai` | OpenAI Chat Completions (legacy-style) |
+| `openai_chat_completions` | OpenAI Chat Completions |
+| `openai_response` | OpenAI Responses API |
+| `claude` | Anthropic Messages |
+| `gemini` | Gemini GenerateContent |
+| `gemini_ndjson` | Gemini streaming (NDJSON) |
+
+Cross-protocol conversion happens automatically. You can send an OpenAI-format request to a Claude provider, or a Claude-format request to a Gemini provider. GPROXY transforms both the request and the response.
+
+## Operation families
+
+Routing dispatches by operation, not raw URL path. The operation families are:
+
+`ModelList`, `ModelGet`, `GenerateContent`, `StreamGenerateContent`, `CountToken`, `Compact`, `Embedding`, `CreateImage`, `StreamCreateImage`, `CreateImageEdit`, `StreamCreateImageEdit`, `OpenAiResponseWebSocket`, `GeminiLive`, `FileUpload`, `FileList`, `FileGet`, `FileContent`, `FileDelete`
 
 ## Multi-database support
 
-The storage layer is based on SeaORM, with these drivers enabled:
+The storage layer uses SeaORM with three database drivers compiled in:
 
-- `sqlx-sqlite`
-- `sqlx-mysql`
-- `sqlx-postgres`
+- **SQLite** -- default, zero-config. GPROXY creates the file on first run.
+- **MySQL** -- set `--dsn mysql://user:pass@host/db`
+- **PostgreSQL** -- set `--dsn postgres://user:pass@host/db`
 
-You can switch database backend via `global.dsn` without changing business logic code.
+Schema sync runs automatically at startup. Switching databases requires only changing the DSN.
 
-## Built-in channels and custom channels
+## Single-binary deployment
 
-Built-in native channels (12):
+The React admin console (built with Vite + Tailwind) is compiled into the binary via `rust-embed`. One process serves everything:
 
-- `openai`
-- `claude`
-- `aistudio`
-- `vertexexpress`
-- `vertex`
-- `geminicli`
-- `claudecode`
-- `codex`
-- `antigravity`
-- `nvidia`
-- `deepseek`
-- `groq`
+- Console UI at `/console/*`
+- API routes at `/v1/*`, `/admin/*`, `/user/*`
+- Provider-scoped routes at `/<provider>/v1/*`
 
-Beyond built-in channels, `ChannelId::Custom` lets you define arbitrary channels (`id` + `base_url` + `credentials` + optional `dispatch`).
+Root `/` redirects to `/console/login`.
 
-## Protocol conversion power
+No Nginx, no Node.js runtime, no separate frontend deploy. Ship one binary and optionally a `gproxy.toml`.
 
-`dispatch` is the core mechanism in GPROXY. Every channel can define conversion behavior from source protocol to target protocol.
+## Workspace layout
 
-- Rule types: `Passthrough / TransformTo / Local / Unsupported`
-- Cross-protocol conversion: OpenAI / OpenAI Chat Completion / Claude / Gemini / GeminiNDJson
-- Routes by operation family instead of simple URL matching
-
-This makes "upstream only supports protocol A natively, while you expose B/C externally" a configurable capability.
-
-## Single-binary deployment advantages
-
-Admin frontend assets are embedded into the backend binary via `rust-embed`:
-
-- No extra Node.js runtime required in production.
-- No extra Nginx/static hosting for admin UI.
-- Delivery can be reduced to one binary plus config.
-- Simpler deployment in edge or minimal environments.
-
-### Delivery shape
-
-- Backend entry: `apps/gproxy/src/main.rs`
-- Admin UI embedding: `apps/gproxy/src/web.rs` (`frontend/dist`)
-- One process can serve:
-  - Admin UI (`/`)
-  - Static assets (`/assets/*`)
-  - API routes (`/admin/*`, `/user/*`, `/v1*`)
-
-### Direct ops benefits
-
-- Fewer components: no separate frontend/backend deployment.
-- Better version consistency: frontend and backend ship together.
-- Faster rollback: rollback a single binary.
-- Lower environment requirements: friendlier to minimal hosts and private networks.
+```
+gproxy/
+  apps/gproxy/          -- binary entry point, Axum server, embedded console
+  sdk/gproxy-protocol/  -- OpenAI/Claude/Gemini types and cross-protocol transforms
+  sdk/gproxy-provider/  -- Channel trait, dispatch tables, credential retry, billing
+  sdk/gproxy-routing/   -- Route classification, model aliases, permissions, rate limits
+  sdk/gproxy-sdk/       -- top-level SDK re-exports
+  crates/gproxy-core/   -- domain services (config, identity, policy, quota, routing, file)
+  crates/gproxy-server/ -- AppState, middleware, session management
+  crates/gproxy-api/    -- HTTP handlers (admin, user, provider), bootstrap, login
+  crates/gproxy-storage/-- SeaORM entities, repositories, async write sink
+  frontend/console/     -- React admin console source (@gproxy/console)
+```

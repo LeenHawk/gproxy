@@ -1,79 +1,139 @@
 ---
 title: Quick Start
-description: Boot GPROXY from scratch and verify your first request.
+description: First run to first request in under 5 minutes.
 ---
 
-This page provides the minimum startup flow to get a working proxy instance quickly.
+## 1. Download the binary
 
-## 1. Prepare dependencies
+Grab the latest release for your platform from [GitHub Releases](https://github.com/LeenHawk/gproxy/releases).
 
-Download the binary for your platform from [release](https://github.com/LeenHawk/gproxy/releases).
-
-## 2. Prepare config file
-
-You can start from [the full example config](https://github.com/LeenHawk/gproxy/blob/main/gproxy.example.full.toml).
-
-Minimal working example:
-
-```toml
-[global]
-host = "127.0.0.1"
-port = 8787
-proxy = ""
-admin_key = "replace-with-strong-admin-key"
-mask_sensitive_info = true
-data_dir = "./data"
-dsn = "sqlite://./data/gproxy.db?mode=rwc"
-
-[[channels]]
-id = "openai"
-enabled = true
-
-[channels.settings]
-base_url = "https://api.openai.com"
-
-[[channels.credentials]]
-secret = "sk-replace-me"
-```
-
-## 3. Start service
-
-Run the downloaded binary directly:
+## 2. Run it
 
 ```bash
-# Linux / macOS
 ./gproxy
 ```
 
-```bash
-# Windows
-gproxy.exe
+On first run with no config file and no existing database, GPROXY will:
+
+1. Create `./data/gproxy.db` (SQLite).
+2. Generate a random admin password and API key.
+3. Print both to stdout.
+
+Watch the logs for lines like:
+
+```
+INFO generated bootstrap admin password (save this!) admin_user="admin" admin_password="..."
+INFO generated bootstrap admin API key (save this!) admin_user="admin" admin_api_key="..."
 ```
 
-After startup, logs should show:
+Save these. The password is for console login; the API key is for API access.
 
-- Listen address (default `http://127.0.0.1:8787`)
-- Current admin key (`password:`)
+## 3. Override defaults with CLI flags
 
-If `gproxy.toml` is missing, the service starts with in-memory defaults and auto-generates a 16-char admin key.
-
-## 4. Send a minimal verification request
+You can override any bootstrap value:
 
 ```bash
-curl -sS http://127.0.0.1:8787/v1/models \
-  -H "x-api-key: <your user key or admin key>"
+./gproxy \
+  --admin-user myuser \
+  --admin-password mysecretpassword \
+  --admin-api-key sk-my-admin-key \
+  --host 0.0.0.0 \
+  --port 9090 \
+  --dsn "postgres://user:pass@localhost/gproxy"
 ```
 
-or just provider-scoop like
+All flags also accept environment variables: `GPROXY_HOST`, `GPROXY_PORT`, `GPROXY_ADMIN_USER`, `GPROXY_ADMIN_PASSWORD`, `GPROXY_ADMIN_API_KEY`, `GPROXY_DSN`, `GPROXY_DATA_DIR`, `GPROXY_PROXY`, `GPROXY_CONFIG`, `GPROXY_SPOOF`.
+
+## 4. Verify the API
 
 ```bash
-curl -sS http://127.0.0.1:8787/claudecode/v1/models \
-  -H "x-api-key: <your user key or admin key>"
+curl http://127.0.0.1:8787/v1/models \
+  -H "Authorization: Bearer <admin-api-key>"
 ```
 
-If you get a model list JSON, routing, auth, and upstream connectivity are all working.
+If you get a JSON model list back, auth and routing are working.
 
-## 5. Open admin console
+## 5. Open the console
 
-- Console entry: `GET /`
-- Static assets path: `/assets/*`
+Point your browser at `http://127.0.0.1:8787/`. It redirects to `/console/login`. Log in with the admin username and password from step 2.
+
+From the console you can add providers, manage users and API keys, view usage, and configure model routing.
+
+## 6. Add your first provider
+
+### Option A: Console UI
+
+In the console, go to Providers and add a new provider. Pick a channel (e.g. `openai`), set the base URL, and add at least one credential with your API key.
+
+### Option B: TOML seed
+
+Create a `gproxy.toml` in the working directory:
+
+```toml
+[[providers]]
+name = "my-openai"
+channel = "openai"
+
+[providers.settings]
+base_url = "https://api.openai.com"
+
+[[providers.credentials]]
+secret = "sk-your-openai-key-here"
+```
+
+Then start (or restart) GPROXY:
+
+```bash
+./gproxy
+```
+
+On first run, GPROXY reads `gproxy.toml`, seeds everything into the database, and generates the admin credentials. On subsequent runs it loads from the database and ignores the TOML file (the data already exists).
+
+### Option C: Multi-provider TOML
+
+```toml
+[[providers]]
+name = "openai-main"
+channel = "openai"
+
+[providers.settings]
+base_url = "https://api.openai.com"
+
+[[providers.credentials]]
+secret = "sk-key-1"
+
+[[providers.credentials]]
+secret = "sk-key-2"
+
+[[providers]]
+name = "claude"
+channel = "anthropic"
+
+[providers.settings]
+base_url = "https://api.anthropic.com"
+
+[[providers.credentials]]
+secret = "sk-ant-your-key"
+```
+
+Multiple credentials per provider are load-balanced with health-aware selection. If one key hits a rate limit, GPROXY fails over to the next.
+
+## 7. Send a request
+
+Unscoped (GPROXY routes based on model name):
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "hello"}]}'
+```
+
+Provider-scoped (explicit provider target):
+
+```bash
+curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "hello"}]}'
+```
