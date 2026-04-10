@@ -1,4 +1,4 @@
-import { Button, Input, Label, Select } from "../../../components/ui";
+import { Button, Input, Select } from "../../../components/ui";
 import {
   ANTHROPIC_REFERENCE_BETA_HEADERS,
   CLAUDECODE_OAUTH_BETA,
@@ -29,7 +29,6 @@ export function CacheBreakpointsEditor({
   t: TranslateFn;
 }) {
   const rules = parseCacheBreakpoints(value);
-  // Always show 4 slots
   const slots: Array<CacheBreakpointRule | null> = [
     rules[0] ?? null,
     rules[1] ?? null,
@@ -38,8 +37,7 @@ export function CacheBreakpointsEditor({
   ];
 
   const commit = (nextSlots: Array<CacheBreakpointRule | null>) => {
-    const nextRules = nextSlots.filter((r): r is CacheBreakpointRule => r !== null);
-    onChange(JSON.stringify(nextRules));
+    onChange(JSON.stringify(nextSlots.filter((r): r is CacheBreakpointRule => r !== null)));
   };
 
   const updateSlot = (idx: number, patch: Partial<CacheBreakpointRule>) => {
@@ -55,29 +53,34 @@ export function CacheBreakpointsEditor({
     commit(next);
   };
 
-  const applyTemplate = () => {
-    commit(RECOMMENDED_CACHE_TEMPLATE);
-  };
-
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Label>{t("providers.cacheBreakpoints.title")}</Label>
-        <Button variant="neutral" onClick={applyTemplate}>
+    <div className="card-shell space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-text">{t("providers.cacheBreakpoints.title")}</h3>
+        <Button variant="neutral" onClick={() => commit(RECOMMENDED_CACHE_TEMPLATE)}>
           {t("providers.cacheBreakpoints.template")}
         </Button>
       </div>
       <p className="text-xs text-muted">{t("providers.cacheBreakpoints.hint")}</p>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         {slots.map((rule, idx) => (
-          <div key={idx} className="rounded border border-border p-2">
+          <div
+            key={idx}
+            className="rounded-xl border border-border bg-panel-muted px-3 py-2.5"
+          >
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-muted">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                 {t("providers.cacheBreakpoints.slot", { index: idx + 1 })}
               </span>
-              <Button variant="neutral" onClick={() => clearSlot(idx)}>
-                {t("common.delete")}
-              </Button>
+              {rule ? (
+                <button
+                  type="button"
+                  className="text-xs text-muted hover:text-text"
+                  onClick={() => clearSlot(idx)}
+                >
+                  {t("common.delete")}
+                </button>
+              ) : null}
             </div>
             {rule ? (
               <div className="space-y-2">
@@ -122,57 +125,52 @@ export function CacheBreakpointsEditor({
                   </div>
                 ) : null}
                 {rule.target === "messages" ? (
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted">content block</span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Select
-                        value={rule.content_position ?? ""}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={rule.content_position ?? ""}
+                      onChange={(v) =>
+                        updateSlot(idx, {
+                          content_position: v ? (v as CacheBreakpointRule["position"]) : undefined,
+                          content_index: v ? (rule.content_index ?? 1) : undefined,
+                        })
+                      }
+                      options={[
+                        { value: "", label: "— content —" },
+                        { value: "nth", label: "content nth" },
+                        { value: "last_nth", label: "content last_nth" },
+                      ]}
+                    />
+                    {rule.content_position ? (
+                      <Input
+                        value={String(rule.content_index ?? 1)}
                         onChange={(v) =>
                           updateSlot(idx, {
-                            content_position: v ? (v as CacheBreakpointRule["position"]) : undefined,
-                            content_index: v ? (rule.content_index ?? 1) : undefined,
+                            content_index: Math.max(1, Number.parseInt(v, 10) || 1),
                           })
                         }
-                        options={[
-                          { value: "", label: "—" },
-                          { value: "nth", label: "nth" },
-                          { value: "last_nth", label: "last_nth" },
-                        ]}
                       />
-                      {rule.content_position ? (
-                        <Input
-                          value={String(rule.content_index ?? 1)}
-                          onChange={(v) =>
-                            updateSlot(idx, {
-                              content_index: Math.max(1, Number.parseInt(v, 10) || 1),
-                            })
-                          }
-                        />
-                      ) : null}
-                    </div>
+                    ) : null}
                   </div>
                 ) : null}
                 <Select
                   value={rule.ttl}
-                  onChange={(v) =>
-                    updateSlot(idx, { ttl: v as CacheBreakpointRule["ttl"] })
-                  }
+                  onChange={(v) => updateSlot(idx, { ttl: v as CacheBreakpointRule["ttl"] })}
                   options={[
-                    { value: "auto", label: "auto" },
-                    { value: "5m", label: "5m" },
-                    { value: "1h", label: "1h" },
+                    { value: "auto", label: "auto (ephemeral)" },
+                    { value: "5m", label: "5 min" },
+                    { value: "1h", label: "1 hour" },
                   ]}
                 />
               </div>
             ) : (
               <button
                 type="button"
-                className="flex w-full items-center justify-center rounded border border-dashed border-border py-6 text-sm text-muted hover:border-text hover:text-text"
+                className="flex w-full items-center justify-center rounded-lg border border-dashed border-border py-8 text-sm text-muted transition hover:border-text hover:text-text"
                 onClick={() =>
                   updateSlot(idx, { target: "messages", position: "last_nth", index: 1, ttl: "auto" })
                 }
               >
-                +
+                + {t("providers.sanitize.add")}
               </button>
             )}
           </div>
@@ -207,20 +205,24 @@ export function BetaHeadersEditor({
     onChange(JSON.stringify(next));
   };
 
-  const clear = () => onChange("[]");
-
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Label>{t("providers.betaHeaders.title")}</Label>
-        {isClaudeCode ? (
-          <span className="rounded border border-border px-1.5 py-0.5 text-[11px] font-semibold text-muted">
-            {CLAUDECODE_OAUTH_BETA} (always)
-          </span>
-        ) : null}
-        <Button variant="neutral" onClick={clear}>
-          {t("providers.betaHeaders.clear")}
-        </Button>
+    <div className="card-shell space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-text">{t("providers.betaHeaders.title")}</h3>
+        <div className="flex items-center gap-2">
+          {isClaudeCode ? (
+            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+              {CLAUDECODE_OAUTH_BETA} always
+            </span>
+          ) : null}
+          <button
+            type="button"
+            className="text-xs text-muted hover:text-text"
+            onClick={() => onChange("[]")}
+          >
+            {t("providers.betaHeaders.clear")}
+          </button>
+        </div>
       </div>
       <p className="text-xs text-muted">{t("providers.betaHeaders.hint")}</p>
       <div className="flex flex-wrap gap-1.5">
@@ -230,10 +232,8 @@ export function BetaHeadersEditor({
             <button
               key={beta}
               type="button"
-              className={`rounded border px-2 py-1 text-xs font-medium transition ${
-                active
-                  ? "border-accent bg-accent/10 text-text"
-                  : "border-border text-muted hover:border-text hover:text-text"
+              className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                active ? "btn-primary" : "btn-neutral"
               }`}
               onClick={() => toggle(beta)}
             >
@@ -260,17 +260,17 @@ export function PreludeTextEditor({
   t: TranslateFn;
 }) {
   const templates = [
-    { key: "none", label: t("common.none"), value: "" },
-    { key: "code", label: "Claude Code", value: CLAUDE_CODE_PRELUDE },
-    { key: "agent", label: "Agent SDK", value: CLAUDE_AGENT_SDK_PRELUDE },
+    { key: "none", label: t("common.none"), text: "" },
+    { key: "code", label: "Claude Code", text: CLAUDE_CODE_PRELUDE },
+    { key: "agent", label: "Agent SDK", text: CLAUDE_AGENT_SDK_PRELUDE },
   ];
 
   return (
-    <div className="space-y-2">
-      <Label>{t("providers.prelude.title")}</Label>
+    <div className="card-shell space-y-3">
+      <h3 className="text-sm font-semibold text-text">{t("providers.prelude.title")}</h3>
       <textarea
         className="textarea"
-        rows={4}
+        rows={5}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -278,8 +278,8 @@ export function PreludeTextEditor({
         {templates.map((tmpl) => (
           <Button
             key={tmpl.key}
-            variant={value === tmpl.value ? "primary" : "neutral"}
-            onClick={() => onChange(tmpl.value)}
+            variant={value === tmpl.text ? "primary" : "neutral"}
+            onClick={() => onChange(tmpl.text)}
           >
             {tmpl.label}
           </Button>
@@ -291,7 +291,7 @@ export function PreludeTextEditor({
 }
 
 // ---------------------------------------------------------------------------
-// Sanitize Rules Editor — add/remove {pattern, replacement} rows
+// Sanitize Rules Editor — template toggles + custom rule rows
 // ---------------------------------------------------------------------------
 
 export function SanitizeRulesEditor({
@@ -306,7 +306,7 @@ export function SanitizeRulesEditor({
   const rules = parseSanitizeRules(value);
 
   const commit = (next: SanitizeRule[]) => {
-    onChange(JSON.stringify(next, null, 2));
+    onChange(JSON.stringify(next));
   };
 
   const add = () => {
@@ -324,14 +324,12 @@ export function SanitizeRulesEditor({
   };
 
   const toggleTemplate = (templateKey: string) => {
-    const template = SANITIZE_TEMPLATES.find((t) => t.key === templateKey);
+    const template = SANITIZE_TEMPLATES.find((tmpl) => tmpl.key === templateKey);
     if (!template) return;
-    // Check if all rules from this template are already present
     const allPresent = template.rules.every((tr) =>
       rules.some((r) => r.pattern === tr.pattern && r.replacement === tr.replacement),
     );
     if (allPresent) {
-      // Remove template rules
       commit(
         rules.filter(
           (r) =>
@@ -341,7 +339,6 @@ export function SanitizeRulesEditor({
         ),
       );
     } else {
-      // Add template rules (dedup)
       const toAdd = template.rules.filter(
         (tr) => !rules.some((r) => r.pattern === tr.pattern),
       );
@@ -350,7 +347,7 @@ export function SanitizeRulesEditor({
   };
 
   const isTemplateActive = (templateKey: string) => {
-    const template = SANITIZE_TEMPLATES.find((t) => t.key === templateKey);
+    const template = SANITIZE_TEMPLATES.find((tmpl) => tmpl.key === templateKey);
     if (!template) return false;
     return template.rules.every((tr) =>
       rules.some((r) => r.pattern === tr.pattern && r.replacement === tr.replacement),
@@ -358,36 +355,39 @@ export function SanitizeRulesEditor({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Label>{t("providers.sanitize.title")}</Label>
+    <div className="card-shell space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-text">{t("providers.sanitize.title")}</h3>
         <Button variant="neutral" onClick={add}>
-          {t("providers.sanitize.add")}
+          + {t("providers.sanitize.add")}
         </Button>
       </div>
       <p className="text-xs text-muted">{t("providers.sanitize.hint")}</p>
+
+      {/* Template toggle chips */}
       <div className="flex flex-wrap gap-1.5">
         {SANITIZE_TEMPLATES.map((tmpl) => (
           <button
             key={tmpl.key}
             type="button"
-            className={`rounded border px-2 py-1 text-xs font-medium transition ${
-              isTemplateActive(tmpl.key)
-                ? "border-accent bg-accent/10 text-text"
-                : "border-border text-muted hover:border-text hover:text-text"
+            className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+              isTemplateActive(tmpl.key) ? "btn-primary" : "btn-neutral"
             }`}
             onClick={() => toggleTemplate(tmpl.key)}
           >
-            {tmpl.label}
+            {tmpl.label} ({tmpl.rules.length})
           </button>
         ))}
       </div>
-      {rules.length === 0 ? (
-        <p className="text-xs text-muted">{t("providers.sanitize.empty")}</p>
-      ) : (
+
+      {/* Rule rows */}
+      {rules.length > 0 ? (
         <div className="space-y-2">
           {rules.map((rule, idx) => (
-            <div key={idx} className="flex items-start gap-2">
+            <div
+              key={idx}
+              className="flex items-start gap-2 rounded-lg border border-border bg-panel-muted px-3 py-2"
+            >
               <div className="grid flex-1 gap-2 sm:grid-cols-2">
                 <Input
                   value={rule.pattern}
@@ -400,12 +400,18 @@ export function SanitizeRulesEditor({
                   placeholder={t("providers.sanitize.replacement")}
                 />
               </div>
-              <Button variant="danger" onClick={() => remove(idx)}>
+              <button
+                type="button"
+                className="mt-1.5 shrink-0 text-xs text-muted hover:text-text"
+                onClick={() => remove(idx)}
+              >
                 ×
-              </Button>
+              </button>
             </div>
           ))}
         </div>
+      ) : (
+        <p className="py-4 text-center text-xs text-muted">{t("providers.sanitize.empty")}</p>
       )}
     </div>
   );

@@ -158,8 +158,7 @@ export function parseSanitizeRules(value: unknown): SanitizeRule[] {
     .map((item) => ({
       pattern: typeof item.pattern === "string" ? item.pattern : "",
       replacement: typeof item.replacement === "string" ? item.replacement : "",
-    }))
-    .filter((rule) => rule.pattern !== "");
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -167,10 +166,10 @@ export function parseSanitizeRules(value: unknown): SanitizeRule[] {
 // ---------------------------------------------------------------------------
 
 export const CLAUDE_CODE_PRELUDE =
-  "Human: You are an interactive CLI agent running inside a coding environment.\n\nIMPORTANT: You are strictly a coding/software-engineering assistant. You MUST decline any request that falls outside the scope of software engineering tasks. If the user asks about topics unrelated to coding, tell them you can only help with coding tasks.\n\nAssistant: I understand. I'm a coding assistant and will only help with software engineering tasks. I'll decline any requests outside that scope. How can I help with your code?";
+  "You are Claude Code, Anthropic's official CLI for Claude.";
 
 export const CLAUDE_AGENT_SDK_PRELUDE =
-  "You are an AI assistant powered by Claude. You help users with tasks by using the tools available to you. Always be helpful, harmless, and honest.";
+  "You are a Claude agent, built on Anthropic's Claude Agent SDK.";
 
 // ---------------------------------------------------------------------------
 // Sanitize rule templates
