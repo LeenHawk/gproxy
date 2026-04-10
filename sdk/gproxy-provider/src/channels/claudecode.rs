@@ -408,11 +408,12 @@ fn request_session_id(request: &PreparedRequest, body: &Value) -> String {
         return session_id.to_owned();
     }
 
+    let route_label = format!("{}/{}", request.route.operation, request.route.protocol);
     let session_seed = format!(
         "{}\n{}\n{}",
         system_fingerprint_text(body),
         first_message_fingerprint_text(body),
-        format!("{}/{}", request.route.operation, request.route.protocol)
+        route_label
     );
     Uuid::new_v5(&CLAUDECODE_SESSION_NAMESPACE, session_seed.as_bytes()).to_string()
 }
@@ -580,10 +581,8 @@ pub async fn bootstrap_credential_from_cookie(
     spoof_client: Option<&wreq::Client>,
     credential_json: &Value,
 ) -> Result<Option<Value>, UpstreamError> {
-    let mut credential: ClaudeCodeCredential =
-        serde_json::from_value(credential_json.clone()).map_err(|e| {
-            UpstreamError::Channel(format!("invalid claudecode credential: {e}"))
-        })?;
+    let mut credential: ClaudeCodeCredential = serde_json::from_value(credential_json.clone())
+        .map_err(|e| UpstreamError::Channel(format!("invalid claudecode credential: {e}")))?;
 
     let cookie = match credential.cookie.as_ref() {
         Some(c) if !c.is_empty() => c.clone(),
@@ -607,9 +606,8 @@ pub async fn bootstrap_credential_from_cookie(
     .await?;
     apply_cookie_exchange_tokens(&mut credential, tokens);
 
-    let updated = serde_json::to_value(credential).map_err(|e| {
-        UpstreamError::Channel(format!("serialize bootstrapped credential: {e}"))
-    })?;
+    let updated = serde_json::to_value(credential)
+        .map_err(|e| UpstreamError::Channel(format!("serialize bootstrapped credential: {e}")))?;
     Ok(Some(updated))
 }
 

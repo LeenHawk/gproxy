@@ -912,8 +912,7 @@ impl GproxyEngine {
         // or cross-protocol transform, so the upstream-request log shows
         // what actually came over the wire. Only retained when body
         // logging is enabled to avoid the per-request clone.
-        let raw_response_body_for_log = if self.enable_upstream_log
-            && self.enable_upstream_log_body
+        let raw_response_body_for_log = if self.enable_upstream_log && self.enable_upstream_log_body
         {
             Some(response.body.clone())
         } else {
@@ -975,8 +974,7 @@ impl GproxyEngine {
         // skip it.
         let needs_response_transform = needs_transform
             && (200..=299).contains(&response.status)
-            && !(request.protocol == dst_proto
-                && response_transform_dst_op == request.operation);
+            && !(request.protocol == dst_proto && response_transform_dst_op == request.operation);
         let response_body = if needs_response_transform {
             tracing::debug!("transforming response");
             crate::transform_dispatch::transform_response(

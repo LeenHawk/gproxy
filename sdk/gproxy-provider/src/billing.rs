@@ -147,10 +147,7 @@ fn select_price_each_call(
         .or_else(|| default_model.and_then(|model| price_each_call_for_mode(model, mode)))
 }
 
-fn price_tiers_for_mode<'a>(
-    model: &'a ModelPrice,
-    mode: BillingMode,
-) -> Option<&'a [ModelPriceTier]> {
+fn price_tiers_for_mode(model: &ModelPrice, mode: BillingMode) -> Option<&[ModelPriceTier]> {
     let tiers = match mode {
         BillingMode::Flex if !model.flex_price_tiers.is_empty() => {
             model.flex_price_tiers.as_slice()

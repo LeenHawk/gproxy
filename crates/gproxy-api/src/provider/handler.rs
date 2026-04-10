@@ -2343,6 +2343,309 @@ fn build_model_request_body(
     serde_json::to_vec(&serde_json::Value::Object(root)).ok()
 }
 
+fn build_file_request_body(
+    operation: OperationFamily,
+    request_path: &str,
+    request_query: Option<&str>,
+) -> Option<Vec<u8>> {
+    let normalized = normalize_routed_api_path(request_path);
+    let mut root = serde_json::Map::new();
+
+    match operation {
+        OperationFamily::FileList => {
+            let mut query = serde_json::Map::new();
+            if let Some(raw_query) = request_query {
+                for (key, value) in url::form_urlencoded::parse(raw_query.as_bytes()) {
+                    match key.as_ref() {
+                        "after_id" | "before_id" => {
+                            query.insert(
+                                key.into_owned(),
+                                serde_json::Value::String(value.into_owned()),
+                            );
+                        }
+                        "limit" => {
+                            if let Ok(limit) = value.parse::<u64>() {
+                                query.insert(
+                                    "limit".to_string(),
+                                    serde_json::Value::Number(limit.into()),
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            if !query.is_empty() {
+                root.insert("query".to_string(), serde_json::Value::Object(query));
+            }
+        }
+        OperationFamily::FileGet | OperationFamily::FileContent | OperationFamily::FileDelete => {
+            let file_id = extract_file_id_from_request_path(&normalized)?;
+            root.insert(
+                "path".to_string(),
+                serde_json::json!({ "file_id": file_id }),
+            );
+        }
+        _ => return None,
+    }
+
+    serde_json::to_vec(&serde_json::Value::Object(root)).ok()
+}
+
+fn normalize_routed_api_path(path: &str) -> String {
+    let segments: Vec<&str> = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let start = if matches!(segments.first(), Some(&"v1" | &"v1beta" | &"v1beta1")) {
+        1
+    } else if matches!(segments.get(1), Some(&"v1" | &"v1beta" | &"v1beta1")) {
+        2
+    } else {
+        0
+    };
+
+    if start >= segments.len() {
+        "/".to_string()
+    } else {
+        format!("/{}", segments[start..].join("/"))
+    }
+}
+
+fn extract_file_id_from_request_path(path: &str) -> Option<&str> {
+    let tail = path.strip_prefix("/files/")?;
+    if let Some(file_id) = tail.strip_suffix("/content")
+        && !file_id.is_empty()
+        && !file_id.contains('/')
+    {
+        return Some(file_id);
+    }
+    if !tail.is_empty() && !tail.contains('/') {
+        return Some(tail);
+    }
+    None
+}
+
+/// Record upstream request/response log to DB.
+async fn record_upstream_log(
+    state: &AppState,
+    trace_id: i64,
+    provider_name: &str,
+    meta: Option<&UpstreamRequestMeta>,
+) {
+    let config = state.config();
+    if !config.enable_upstream_log {
+        return;
+    }
+    let Some(meta) = meta else {
+        return;
+    };
+    let include_body = config.enable_upstream_log_body;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    let provider_id = state.provider_id_for_name(provider_name);
+    let credential_id = meta
+        .credential_index
+        .and_then(|index| state.credential_id_for_index(provider_name, index));
+    let _ = state
+        .storage()
+        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
+            gproxy_storage::UpstreamRequestWrite {
+                downstream_trace_id: Some(trace_id),
+                at_unix_ms: now_ms,
+                internal: false,
+                provider_id,
+                credential_id,
+                request_method: meta.method.clone(),
+                request_headers_json: serde_json::to_string(&meta.request_headers)
+                    .unwrap_or_else(|_| "[]".to_string()),
+                request_url: Some(meta.url.clone()),
+                request_body: if include_body {
+                    meta.request_body.clone()
+                } else {
+                    None
+                },
+                response_status: meta.response_status.map(|s| s as i32),
+                response_headers_json: serde_json::to_string(&meta.response_headers)
+                    .unwrap_or_else(|_| "[]".to_string()),
+                response_body: if include_body {
+                    meta.response_body.clone()
+                } else {
+                    None
+                },
+            },
+        ))
+        .await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn record_execute_error_logs(
+    state: &AppState,
+    trace_id: i64,
+    provider_name: &str,
+    user_id: i64,
+    user_key_id: i64,
+    method: &str,
+    path: &str,
+    query: Option<&str>,
+    req_headers_json: &str,
+    req_body: Option<&Vec<u8>>,
+    response_status: i32,
+    upstream_meta: Option<&UpstreamRequestMeta>,
+) {
+    if state.config().enable_upstream_log {
+        let include_body = state.config().enable_upstream_log_body;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let provider_id = state.provider_id_for_name(provider_name);
+        let credential_id = upstream_meta
+            .and_then(|m| m.credential_index)
+            .and_then(|idx| state.credential_id_for_index(provider_name, idx));
+
+        // Prefer the real upstream metadata captured by the retry layer
+        // (carries the actual URL, headers, request body, and upstream
+        // response body). Fall back to the placeholder values the
+        // handler already had when no attempt ever reached upstream
+        // (unknown provider, dispatch miss, etc.).
+        let (
+            upstream_method,
+            upstream_url,
+            upstream_req_headers_json,
+            upstream_req_body,
+            upstream_resp_status,
+            upstream_resp_headers_json,
+            upstream_resp_body,
+        ) = match upstream_meta {
+            Some(meta) => (
+                meta.method.clone(),
+                Some(meta.url.clone()),
+                serde_json::to_string(&meta.request_headers).unwrap_or_else(|_| "[]".to_string()),
+                if include_body {
+                    meta.request_body.clone()
+                } else {
+                    None
+                },
+                meta.response_status.map(|s| s as i32),
+                serde_json::to_string(&meta.response_headers).unwrap_or_else(|_| "[]".to_string()),
+                if include_body {
+                    meta.response_body.clone()
+                } else {
+                    None
+                },
+            ),
+            None => (
+                method.to_string(),
+                None,
+                "[]".to_string(),
+                None,
+                Some(response_status),
+                "[]".to_string(),
+                None,
+            ),
+        };
+
+        let _ = state
+            .storage()
+            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
+                gproxy_storage::UpstreamRequestWrite {
+                    downstream_trace_id: Some(trace_id),
+                    at_unix_ms: now_ms,
+                    internal: false,
+                    provider_id,
+                    credential_id,
+                    request_method: upstream_method,
+                    request_headers_json: upstream_req_headers_json,
+                    request_url: upstream_url,
+                    request_body: upstream_req_body,
+                    response_status: upstream_resp_status,
+                    response_headers_json: upstream_resp_headers_json,
+                    response_body: upstream_resp_body,
+                },
+            ))
+            .await;
+    }
+
+    // Downstream log status should reflect what the upstream actually
+    // returned when we have a real attempt, instead of always 500.
+    let downstream_status = upstream_meta
+        .and_then(|m| m.response_status.map(|s| s as i32))
+        .unwrap_or(response_status);
+
+    record_downstream_log(
+        state,
+        trace_id,
+        user_id,
+        user_key_id,
+        method,
+        path,
+        query,
+        req_headers_json,
+        req_body,
+        Some(downstream_status),
+        "{}",
+        None,
+    )
+    .await;
+}
+
+/// Record downstream request/response log to DB.
+#[allow(clippy::too_many_arguments)]
+async fn record_downstream_log(
+    state: &AppState,
+    trace_id: i64,
+    user_id: i64,
+    user_key_id: i64,
+    method: &str,
+    path: &str,
+    query: Option<&str>,
+    req_headers_json: &str,
+    req_body: Option<&Vec<u8>>,
+    resp_status: Option<i32>,
+    resp_headers_json: &str,
+    resp_body: Option<&Vec<u8>>,
+) {
+    let config = state.config();
+    if !config.enable_downstream_log {
+        return;
+    }
+    let include_body = config.enable_downstream_log_body;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    let _ = state
+        .storage()
+        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertDownstreamRequest(
+            gproxy_storage::DownstreamRequestWrite {
+                trace_id,
+                at_unix_ms: now_ms,
+                internal: false,
+                user_id: Some(user_id),
+                user_key_id: Some(user_key_id),
+                request_method: method.to_string(),
+                request_headers_json: req_headers_json.to_string(),
+                request_path: path.to_string(),
+                request_query: query.map(String::from),
+                request_body: if include_body {
+                    req_body.cloned()
+                } else {
+                    None
+                },
+                response_status: resp_status,
+                response_headers_json: resp_headers_json.to_string(),
+                response_body: if include_body {
+                    resp_body.cloned()
+                } else {
+                    None
+                },
+            },
+        ))
+        .await;
+}
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -2829,311 +3132,4 @@ mod tests {
         );
         assert_eq!(downstream_logs[0].request_method, "POST");
     }
-}
-
-fn build_file_request_body(
-    operation: OperationFamily,
-    request_path: &str,
-    request_query: Option<&str>,
-) -> Option<Vec<u8>> {
-    let normalized = normalize_routed_api_path(request_path);
-    let mut root = serde_json::Map::new();
-
-    match operation {
-        OperationFamily::FileList => {
-            let mut query = serde_json::Map::new();
-            if let Some(raw_query) = request_query {
-                for (key, value) in url::form_urlencoded::parse(raw_query.as_bytes()) {
-                    match key.as_ref() {
-                        "after_id" | "before_id" => {
-                            query.insert(
-                                key.into_owned(),
-                                serde_json::Value::String(value.into_owned()),
-                            );
-                        }
-                        "limit" => {
-                            if let Ok(limit) = value.parse::<u64>() {
-                                query.insert(
-                                    "limit".to_string(),
-                                    serde_json::Value::Number(limit.into()),
-                                );
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            if !query.is_empty() {
-                root.insert("query".to_string(), serde_json::Value::Object(query));
-            }
-        }
-        OperationFamily::FileGet | OperationFamily::FileContent | OperationFamily::FileDelete => {
-            let file_id = extract_file_id_from_request_path(&normalized)?;
-            root.insert(
-                "path".to_string(),
-                serde_json::json!({ "file_id": file_id }),
-            );
-        }
-        _ => return None,
-    }
-
-    serde_json::to_vec(&serde_json::Value::Object(root)).ok()
-}
-
-fn normalize_routed_api_path(path: &str) -> String {
-    let segments: Vec<&str> = path
-        .split('/')
-        .filter(|segment| !segment.is_empty())
-        .collect();
-    let start = if matches!(segments.first(), Some(&"v1" | &"v1beta" | &"v1beta1")) {
-        1
-    } else if matches!(segments.get(1), Some(&"v1" | &"v1beta" | &"v1beta1")) {
-        2
-    } else {
-        0
-    };
-
-    if start >= segments.len() {
-        "/".to_string()
-    } else {
-        format!("/{}", segments[start..].join("/"))
-    }
-}
-
-fn extract_file_id_from_request_path(path: &str) -> Option<&str> {
-    let tail = path.strip_prefix("/files/")?;
-    if let Some(file_id) = tail.strip_suffix("/content")
-        && !file_id.is_empty()
-        && !file_id.contains('/')
-    {
-        return Some(file_id);
-    }
-    if !tail.is_empty() && !tail.contains('/') {
-        return Some(tail);
-    }
-    None
-}
-
-/// Record upstream request/response log to DB.
-async fn record_upstream_log(
-    state: &AppState,
-    trace_id: i64,
-    provider_name: &str,
-    meta: Option<&UpstreamRequestMeta>,
-) {
-    let config = state.config();
-    if !config.enable_upstream_log {
-        return;
-    }
-    let Some(meta) = meta else {
-        return;
-    };
-    let include_body = config.enable_upstream_log_body;
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64;
-    let provider_id = state.provider_id_for_name(provider_name);
-    let credential_id = meta
-        .credential_index
-        .and_then(|index| state.credential_id_for_index(provider_name, index));
-    let _ = state
-        .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
-            gproxy_storage::UpstreamRequestWrite {
-                downstream_trace_id: Some(trace_id),
-                at_unix_ms: now_ms,
-                internal: false,
-                provider_id,
-                credential_id,
-                request_method: meta.method.clone(),
-                request_headers_json: serde_json::to_string(&meta.request_headers)
-                    .unwrap_or_else(|_| "[]".to_string()),
-                request_url: Some(meta.url.clone()),
-                request_body: if include_body {
-                    meta.request_body.clone()
-                } else {
-                    None
-                },
-                response_status: meta.response_status.map(|s| s as i32),
-                response_headers_json: serde_json::to_string(&meta.response_headers)
-                    .unwrap_or_else(|_| "[]".to_string()),
-                response_body: if include_body {
-                    meta.response_body.clone()
-                } else {
-                    None
-                },
-            },
-        ))
-        .await;
-}
-
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
-async fn record_execute_error_logs(
-    state: &AppState,
-    trace_id: i64,
-    provider_name: &str,
-    user_id: i64,
-    user_key_id: i64,
-    method: &str,
-    path: &str,
-    query: Option<&str>,
-    req_headers_json: &str,
-    req_body: Option<&Vec<u8>>,
-    response_status: i32,
-    upstream_meta: Option<&UpstreamRequestMeta>,
-) {
-    if state.config().enable_upstream_log {
-        let include_body = state.config().enable_upstream_log_body;
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as i64;
-        let provider_id = state.provider_id_for_name(provider_name);
-        let credential_id = upstream_meta
-            .and_then(|m| m.credential_index)
-            .and_then(|idx| state.credential_id_for_index(provider_name, idx));
-
-        // Prefer the real upstream metadata captured by the retry layer
-        // (carries the actual URL, headers, request body, and upstream
-        // response body). Fall back to the placeholder values the
-        // handler already had when no attempt ever reached upstream
-        // (unknown provider, dispatch miss, etc.).
-        let (
-            upstream_method,
-            upstream_url,
-            upstream_req_headers_json,
-            upstream_req_body,
-            upstream_resp_status,
-            upstream_resp_headers_json,
-            upstream_resp_body,
-        ) = match upstream_meta {
-            Some(meta) => (
-                meta.method.clone(),
-                Some(meta.url.clone()),
-                serde_json::to_string(&meta.request_headers)
-                    .unwrap_or_else(|_| "[]".to_string()),
-                if include_body {
-                    meta.request_body.clone()
-                } else {
-                    None
-                },
-                meta.response_status.map(|s| s as i32),
-                serde_json::to_string(&meta.response_headers)
-                    .unwrap_or_else(|_| "[]".to_string()),
-                if include_body {
-                    meta.response_body.clone()
-                } else {
-                    None
-                },
-            ),
-            None => (
-                method.to_string(),
-                None,
-                "[]".to_string(),
-                None,
-                Some(response_status),
-                "[]".to_string(),
-                None,
-            ),
-        };
-
-        let _ = state
-            .storage()
-            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
-                gproxy_storage::UpstreamRequestWrite {
-                    downstream_trace_id: Some(trace_id),
-                    at_unix_ms: now_ms,
-                    internal: false,
-                    provider_id,
-                    credential_id,
-                    request_method: upstream_method,
-                    request_headers_json: upstream_req_headers_json,
-                    request_url: upstream_url,
-                    request_body: upstream_req_body,
-                    response_status: upstream_resp_status,
-                    response_headers_json: upstream_resp_headers_json,
-                    response_body: upstream_resp_body,
-                },
-            ))
-            .await;
-    }
-
-    // Downstream log status should reflect what the upstream actually
-    // returned when we have a real attempt, instead of always 500.
-    let downstream_status = upstream_meta
-        .and_then(|m| m.response_status.map(|s| s as i32))
-        .unwrap_or(response_status);
-
-    record_downstream_log(
-        state,
-        trace_id,
-        user_id,
-        user_key_id,
-        method,
-        path,
-        query,
-        req_headers_json,
-        req_body,
-        Some(downstream_status),
-        "{}",
-        None,
-    )
-    .await;
-}
-
-/// Record downstream request/response log to DB.
-#[allow(clippy::too_many_arguments)]
-async fn record_downstream_log(
-    state: &AppState,
-    trace_id: i64,
-    user_id: i64,
-    user_key_id: i64,
-    method: &str,
-    path: &str,
-    query: Option<&str>,
-    req_headers_json: &str,
-    req_body: Option<&Vec<u8>>,
-    resp_status: Option<i32>,
-    resp_headers_json: &str,
-    resp_body: Option<&Vec<u8>>,
-) {
-    let config = state.config();
-    if !config.enable_downstream_log {
-        return;
-    }
-    let include_body = config.enable_downstream_log_body;
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64;
-    let _ = state
-        .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertDownstreamRequest(
-            gproxy_storage::DownstreamRequestWrite {
-                trace_id,
-                at_unix_ms: now_ms,
-                internal: false,
-                user_id: Some(user_id),
-                user_key_id: Some(user_key_id),
-                request_method: method.to_string(),
-                request_headers_json: req_headers_json.to_string(),
-                request_path: path.to_string(),
-                request_query: query.map(String::from),
-                request_body: if include_body {
-                    req_body.cloned()
-                } else {
-                    None
-                },
-                response_status: resp_status,
-                response_headers_json: resp_headers_json.to_string(),
-                response_body: if include_body {
-                    resp_body.cloned()
-                } else {
-                    None
-                },
-            },
-        ))
-        .await;
 }

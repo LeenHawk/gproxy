@@ -363,12 +363,13 @@ fn generate_request_id(
     }
 
     let body = serde_json::from_slice::<Value>(wrapped_body).unwrap_or(Value::Null);
+    let route_label = format!("{}/{}", request.route.operation, request.route.protocol);
     let seed = format!(
         "{}\n{}\n{}\n{}\n{}",
         antigravity_instruction_fingerprint(&body),
         antigravity_first_message_fingerprint(&body),
         request.model.as_deref().unwrap_or_default(),
-        format!("{}/{}", request.route.operation, request.route.protocol),
+        route_label,
         request_type
     );
     format!(

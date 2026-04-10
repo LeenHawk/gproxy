@@ -338,10 +338,10 @@ fn normalize_password_for_update(
     previous: Option<&gproxy_server::MemoryUser>,
     password_or_hash: &str,
 ) -> String {
-    if let Some(previous) = previous {
-        if password_or_hash.trim().is_empty() {
-            return previous.password_hash.clone();
-        }
+    if let Some(previous) = previous
+        && password_or_hash.trim().is_empty()
+    {
+        return previous.password_hash.clone();
     }
     if let Some(previous) = previous
         && (password_or_hash == previous.password_hash

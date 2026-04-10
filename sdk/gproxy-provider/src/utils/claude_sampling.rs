@@ -44,7 +44,10 @@ mod tests {
         assert!(!map.contains_key("top_p"));
         assert!(!map.contains_key("top_k"));
         // Non-sampling fields are untouched.
-        assert_eq!(map.get("model").and_then(Value::as_str), Some("claude-sonnet-4-5"));
+        assert_eq!(
+            map.get("model").and_then(Value::as_str),
+            Some("claude-sonnet-4-5")
+        );
         assert_eq!(map.get("max_tokens").and_then(Value::as_u64), Some(1024));
         assert!(map.get("messages").is_some());
     }

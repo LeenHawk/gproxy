@@ -362,11 +362,12 @@ fn request_session_id(request: &PreparedRequest) -> String {
     }
 
     let body = serde_json::from_slice::<Value>(&request.body).unwrap_or(Value::Null);
+    let route_label = format!("{}/{}", request.route.operation, request.route.protocol);
     let session_seed = format!(
         "{}\n{}\n{}",
         codex_instructions_fingerprint(&body),
         codex_first_input_fingerprint(&body),
-        format!("{}/{}", request.route.operation, request.route.protocol)
+        route_label
     );
     Uuid::new_v5(&CODEX_SESSION_NAMESPACE, session_seed.as_bytes()).to_string()
 }
@@ -1033,6 +1034,23 @@ fn codex_dispatch_table() -> DispatchTable {
     CodexChannel.dispatch_table()
 }
 
+fn codex_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
+    match request.route.operation {
+        OperationFamily::ModelList | OperationFamily::ModelGet => {
+            Ok(format!("/models?client_version={DEFAULT_CODEX_VERSION}"))
+        }
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
+            Ok("/responses".to_string())
+        }
+        OperationFamily::Compact => Ok("/responses/compact".to_string()),
+        OperationFamily::OpenAiResponseWebSocket => Ok("/responses".to_string()),
+        _ => Err(UpstreamError::Channel(format!(
+            "unsupported codex request route: ({}, {})",
+            request.route.operation, request.route.protocol
+        ))),
+    }
+}
+
 inventory::submit! { ChannelRegistration::new(CodexChannel::ID, codex_dispatch_table) }
 
 #[cfg(test)]
@@ -1067,22 +1085,5 @@ mod tests {
 
         assert_eq!(body_json.get("stream").and_then(Value::as_bool), Some(true));
         assert_eq!(body_json.get("store").and_then(Value::as_bool), Some(false));
-    }
-}
-
-fn codex_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
-    match request.route.operation {
-        OperationFamily::ModelList | OperationFamily::ModelGet => {
-            Ok(format!("/models?client_version={DEFAULT_CODEX_VERSION}"))
-        }
-        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
-            Ok("/responses".to_string())
-        }
-        OperationFamily::Compact => Ok("/responses/compact".to_string()),
-        OperationFamily::OpenAiResponseWebSocket => Ok("/responses".to_string()),
-        _ => Err(UpstreamError::Channel(format!(
-            "unsupported codex request route: ({}, {})",
-            request.route.operation, request.route.protocol
-        ))),
     }
 }

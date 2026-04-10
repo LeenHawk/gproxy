@@ -1,5 +1,5 @@
-use sea_orm::*;
 use sea_orm::sea_query::Expr;
+use sea_orm::*;
 
 use super::helpers::{apply_desc_cursor, unix_ms_to_offset_datetime};
 use crate::query::*;
@@ -28,10 +28,8 @@ where
     if let Scope::Eq(ref v) = query.credential_id {
         select = select.filter(usages::Column::CredentialId.eq(*v));
     }
-    if requires_provider_join {
-        if let Scope::Eq(ref v) = query.channel {
-            select = select.filter(providers::Column::Channel.eq(v.clone()));
-        }
+    if requires_provider_join && let Scope::Eq(ref v) = query.channel {
+        select = select.filter(providers::Column::Channel.eq(v.clone()));
     }
     if let Scope::Eq(ref v) = query.model {
         select = select.filter(usages::Column::Model.eq(v.clone()));

@@ -31,7 +31,9 @@ pub(crate) struct CookieTokenResponse {
 
 impl CookieTokenResponse {
     pub fn subscription_type(&self) -> Option<String> {
-        self.organization.as_ref().and_then(|o| o.billing_type.clone())
+        self.organization
+            .as_ref()
+            .and_then(|o| o.billing_type.clone())
     }
 
     pub fn rate_limit_tier(&self) -> Option<String> {
@@ -255,10 +257,7 @@ fn build_cookie_headers(
     claude_ai_base_url: &str,
 ) -> Result<http::HeaderMap, UpstreamError> {
     let mut headers = http::HeaderMap::new();
-    headers.insert(
-        "accept",
-        http::HeaderValue::from_static("application/json"),
-    );
+    headers.insert("accept", http::HeaderValue::from_static("application/json"));
     headers.insert(
         "accept-language",
         http::HeaderValue::from_static("en-US,en;q=0.9"),

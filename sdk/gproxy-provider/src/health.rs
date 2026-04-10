@@ -147,8 +147,10 @@ mod tests {
 
     #[test]
     fn model_cooldown_health_status_reports_cooldown() {
-        let mut health = ModelCooldownHealth::default();
-        health.global_cooldown = Some(Instant::now() + Duration::from_secs(30));
+        let health = ModelCooldownHealth {
+            global_cooldown: Some(Instant::now() + Duration::from_secs(30)),
+            ..Default::default()
+        };
         assert_eq!(health.status(None), "cooldown");
     }
 

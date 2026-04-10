@@ -286,12 +286,7 @@ where
                 request_headers: http_request
                     .headers()
                     .iter()
-                    .map(|(k, v)| {
-                        (
-                            k.as_str().to_string(),
-                            v.to_str().unwrap_or("").to_string(),
-                        )
-                    })
+                    .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
                     .collect(),
                 request_body: Some(http_request.body().clone()),
             };
@@ -423,10 +418,7 @@ where
                                 .headers()
                                 .iter()
                                 .map(|(k, v)| {
-                                    (
-                                        k.as_str().to_string(),
-                                        v.to_str().unwrap_or("").to_string(),
-                                    )
+                                    (k.as_str().to_string(), v.to_str().unwrap_or("").to_string())
                                 })
                                 .collect(),
                             request_body: Some(retry_request.body().clone()),

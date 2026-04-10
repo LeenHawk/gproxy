@@ -44,8 +44,8 @@ pub fn ensure_anthropic_beta_tokens(
         return Ok(());
     }
     let combined = present.join(",");
-    let value = HeaderValue::from_str(&combined)
-        .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
+    let value =
+        HeaderValue::from_str(&combined).map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
     headers.insert("anthropic-beta", value);
     Ok(())
 }
@@ -76,11 +76,8 @@ mod tests {
             "anthropic-beta",
             HeaderValue::from_static("prompt-caching-2024-07-31,custom-flag"),
         );
-        ensure_anthropic_beta_tokens(
-            &mut headers,
-            &["oauth-2025-04-20", "files-api-2025-04-14"],
-        )
-        .unwrap();
+        ensure_anthropic_beta_tokens(&mut headers, &["oauth-2025-04-20", "files-api-2025-04-14"])
+            .unwrap();
         assert_eq!(
             header_value(&headers),
             "prompt-caching-2024-07-31,custom-flag,oauth-2025-04-20,files-api-2025-04-14"
@@ -94,11 +91,8 @@ mod tests {
             "anthropic-beta",
             HeaderValue::from_static("oauth-2025-04-20,files-api-2025-04-14"),
         );
-        ensure_anthropic_beta_tokens(
-            &mut headers,
-            &["oauth-2025-04-20", "files-api-2025-04-14"],
-        )
-        .unwrap();
+        ensure_anthropic_beta_tokens(&mut headers, &["oauth-2025-04-20", "files-api-2025-04-14"])
+            .unwrap();
         assert_eq!(
             header_value(&headers),
             "oauth-2025-04-20,files-api-2025-04-14"

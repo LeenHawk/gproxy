@@ -153,7 +153,11 @@ pub async fn clear_upstream_request_payloads(
     }
     let cleared = state
         .storage()
-        .clear_upstream_request_payloads(if payload.all { None } else { Some(ids.as_slice()) })
+        .clear_upstream_request_payloads(if payload.all {
+            None
+        } else {
+            Some(ids.as_slice())
+        })
         .await
         .map_err(|e| HttpError::internal(e.to_string()))?;
     Ok(Json(ClearRequestAck { ok: true, cleared }))
@@ -173,7 +177,11 @@ pub async fn clear_downstream_request_payloads(
     }
     let cleared = state
         .storage()
-        .clear_downstream_request_payloads(if payload.all { None } else { Some(ids.as_slice()) })
+        .clear_downstream_request_payloads(if payload.all {
+            None
+        } else {
+            Some(ids.as_slice())
+        })
         .await
         .map_err(|e| HttpError::internal(e.to_string()))?;
     Ok(Json(ClearRequestAck { ok: true, cleared }))

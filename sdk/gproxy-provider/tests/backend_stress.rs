@@ -95,7 +95,7 @@ async fn concurrent_quota_holds_do_not_over_commit() {
     // On single-threaded runtime: tasks run serially, settle frees reservation
     // before next task runs, so up to 19 tasks succeed (1000 - 19*50 = 50 < 100).
     assert!(
-        succeeded >= 1 && succeeded <= 20,
+        (1..=20).contains(&succeeded),
         "unexpected: {succeeded} holds succeeded"
     );
 }

@@ -1202,10 +1202,8 @@ where
 {
     let src: Src = serde_json::from_slice(body)
         .map_err(|e| UpstreamError::Channel(format!("request deserialize: {e}")))?;
-    let dst =
-        Dst::try_from(src).map_err(|e| UpstreamError::Channel(format!("transform: {e}")))?;
-    serde_json::to_vec(&dst)
-        .map_err(|e| UpstreamError::Channel(format!("response serialize: {e}")))
+    let dst = Dst::try_from(src).map_err(|e| UpstreamError::Channel(format!("transform: {e}")))?;
+    serde_json::to_vec(&dst).map_err(|e| UpstreamError::Channel(format!("response serialize: {e}")))
 }
 
 /// Generic JSON transform for response wrapper enums.
@@ -1797,7 +1795,9 @@ impl
     fn on_input(
         &mut self,
         input: gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
-        out: &mut Vec<gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk>,
+        out: &mut Vec<
+            gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+        >,
     ) -> Result<(), UpstreamError> {
         self.0
             .on_stream_event(input, out)
@@ -1806,7 +1806,9 @@ impl
 
     fn finish(
         &mut self,
-        out: &mut Vec<gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk>,
+        out: &mut Vec<
+            gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+        >,
     ) -> Result<(), UpstreamError> {
         self.0
             .finish(out)

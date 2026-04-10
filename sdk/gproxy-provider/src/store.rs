@@ -160,7 +160,10 @@ impl<T> ExecutionOutcome<T> {
         }
     }
 
-    fn err(error: UpstreamError, failed_attempt: Option<crate::response::FailedUpstreamAttempt>) -> Self {
+    fn err(
+        error: UpstreamError,
+        failed_attempt: Option<crate::response::FailedUpstreamAttempt>,
+    ) -> Self {
         Self {
             inner: Err(error),
             failed_attempt,
@@ -523,12 +526,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             )
             .await;
 
-            let credential_updates = match self
-                .finalize_credentials(&credentials_snapshot, revision, &creds)
-            {
-                Ok(updates) => updates,
-                Err(e) => return ExecutionOutcome::err(e, None),
-            };
+            let credential_updates =
+                match self.finalize_credentials(&credentials_snapshot, revision, &creds) {
+                    Ok(updates) => updates,
+                    Err(e) => return ExecutionOutcome::err(e, None),
+                };
             match retry_result {
                 Ok(r) => ExecutionOutcome::ok(ProviderExecuteResult {
                     response: r.output,
@@ -579,12 +581,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             )
             .await;
 
-            let credential_updates = match self
-                .finalize_credentials(&credentials_snapshot, revision, &creds)
-            {
-                Ok(updates) => updates,
-                Err(e) => return ExecutionOutcome::err(e, None),
-            };
+            let credential_updates =
+                match self.finalize_credentials(&credentials_snapshot, revision, &creds) {
+                    Ok(updates) => updates,
+                    Err(e) => return ExecutionOutcome::err(e, None),
+                };
             match retry_result {
                 Ok(r) => ExecutionOutcome::ok(ProviderExecuteStreamResult {
                     response: r.output,
