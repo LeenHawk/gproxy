@@ -120,35 +120,23 @@ export function CredentialsTab({
               return (
                 <div key={credentialKey} className="card-shell">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="font-semibold">#{row.index} · {summary.primary}</div>
-                        <button
-                          type="button"
-                          className="badge-button"
-                          onClick={() => onUpdateStatus(row, nextStatus)}
-                        >
-                          <Badge variant={healthVariant}>
-                            {statusValue === "unavailable"
-                              ? labels.statusDead
-                              : statusValue === "cooldown"
-                                ? labels.statusCooldown
-                                : labels.statusHealthy}
-                          </Badge>
-                        </button>
-                      </div>
-                      {summary.secondary.length > 0 ? (
-                        <div className="mt-2 text-xs text-muted">{summary.secondary.join(" · ")}</div>
-                      ) : (
-                        <div className="mt-2 text-xs text-muted">{labels.configured}</div>
-                      )}
-                      {expanded ? (
-                        <pre className="mt-3 overflow-auto text-xs text-muted">
-                          {JSON.stringify(row.credential, null, 2)}
-                        </pre>
-                      ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-semibold">#{row.index} · {summary.primary}</div>
+                      <button
+                        type="button"
+                        className="badge-button"
+                        onClick={() => onUpdateStatus(row, nextStatus)}
+                      >
+                        <Badge variant={healthVariant}>
+                          {statusValue === "unavailable"
+                            ? labels.statusDead
+                            : statusValue === "cooldown"
+                              ? labels.statusCooldown
+                              : labels.statusHealthy}
+                        </Badge>
+                      </button>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-2">
                       <Button variant="neutral" onClick={() => onEdit(row)}>
                         {labels.edit}
                       </Button>
@@ -171,6 +159,16 @@ export function CredentialsTab({
                       ) : null}
                     </div>
                   </div>
+                  {summary.secondary.length > 0 ? (
+                    <div className="mt-2 text-xs text-muted">{summary.secondary.join(" · ")}</div>
+                  ) : (
+                    <div className="mt-2 text-xs text-muted">{labels.configured}</div>
+                  )}
+                  {expanded ? (
+                    <pre className="mt-3 overflow-auto text-xs text-muted">
+                      {JSON.stringify(row.credential, null, 2)}
+                    </pre>
+                  ) : null}
                   {supportsUsage && usageExpanded ? (
                     <div className="mt-4 space-y-3 rounded-lg border border-border px-3 py-3">
                       <div className="flex items-center justify-between gap-2">
