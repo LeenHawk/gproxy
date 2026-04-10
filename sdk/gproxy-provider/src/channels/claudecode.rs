@@ -272,6 +272,17 @@ pub struct ClaudeCodeSettings {
     pub enable_magic_cache: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cache_breakpoints: Vec<cache_control::CacheBreakpointRule>,
+    /// Optional system-prompt prelude injected as the first `system` block
+    /// on every content-generation request. Useful for injecting
+    /// organization-wide instructions or behavioral constraints.
+    /// Skipped when the request already contains a matching prelude.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prelude_text: Option<String>,
+    /// Additional `anthropic-beta` header values merged into every
+    /// request. The OAuth beta token is always included regardless of
+    /// this list. Values are deduplicated case-insensitively.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_beta_headers: Vec<String>,
 }
 
 impl Default for ClaudeCodeSettings {
@@ -284,6 +295,8 @@ impl Default for ClaudeCodeSettings {
             max_retries_on_429: None,
             enable_magic_cache: false,
             cache_breakpoints: Vec::new(),
+            prelude_text: None,
+            extra_beta_headers: Vec::new(),
         }
     }
 }
@@ -611,6 +624,119 @@ pub async fn bootstrap_credential_from_cookie(
     Ok(Some(updated))
 }
 
+/// Prepend a prelude text block as the first element of the `system` array.
+///
+/// Skipped when the request body already contains a system block whose text
+/// starts with the prelude (prevents double-injection on retries or when the
+/// client already included it).
+///
+/// Handling mirrors `inject_system_attribution`: absent → create, string →
+/// convert to array, array → insert(0).
+fn apply_claudecode_prelude(body: &mut Value, prelude_text: &str) {
+    let Some(map) = body.as_object_mut() else {
+        return;
+    };
+
+    // Skip if any existing system block already starts with the prelude.
+    if let Some(system) = map.get("system") {
+        let starts_with_prelude = |v: &Value| -> bool {
+            v.get("text")
+                .and_then(Value::as_str)
+                .is_some_and(|t| t.starts_with(prelude_text))
+        };
+        match system {
+            Value::String(s) if s.starts_with(prelude_text) => return,
+            Value::Array(blocks) if blocks.iter().any(starts_with_prelude) => return,
+            _ => {}
+        }
+    }
+
+    let prelude_block = serde_json::json!({ "type": "text", "text": prelude_text });
+
+    match map.remove("system") {
+        Some(Value::String(text)) => {
+            let text_block = serde_json::json!({ "type": "text", "text": text });
+            map.insert(
+                "system".to_string(),
+                Value::Array(vec![prelude_block, text_block]),
+            );
+        }
+        Some(Value::Array(mut blocks)) => {
+            blocks.insert(0, prelude_block);
+            map.insert("system".to_string(), Value::Array(blocks));
+        }
+        Some(other) => {
+            // Unexpected shape — keep as-is, don't inject.
+            map.insert("system".to_string(), other);
+        }
+        None => {
+            map.insert(
+                "system".to_string(),
+                Value::Array(vec![prelude_block]),
+            );
+        }
+    }
+}
+
+/// Merge extra beta header values into the `anthropic-beta` header on the
+/// request. Deduplicates case-insensitively. The OAuth beta token is always
+/// guaranteed present regardless of what `extra` contains.
+fn merge_extra_beta_headers(
+    headers: &mut http::HeaderMap,
+    extra: &[String],
+) -> Result<(), UpstreamError> {
+    if extra.is_empty() {
+        return Ok(());
+    }
+
+    // Collect any existing beta values already on the request.
+    let mut merged: Vec<String> = Vec::new();
+
+    // Preferred values from settings go first.
+    for raw in extra {
+        let value = raw.trim();
+        if value.is_empty() {
+            continue;
+        }
+        if !merged
+            .iter()
+            .any(|existing| existing.eq_ignore_ascii_case(value))
+        {
+            merged.push(value.to_string());
+        }
+    }
+
+    // Then existing header values.
+    if let Some(existing) = headers.get("anthropic-beta").and_then(|v| v.to_str().ok()) {
+        for raw in existing.split(',') {
+            let value = raw.trim();
+            if value.is_empty() {
+                continue;
+            }
+            if !merged
+                .iter()
+                .any(|existing| existing.eq_ignore_ascii_case(value))
+            {
+                merged.push(value.to_string());
+            }
+        }
+    }
+
+    if merged.is_empty() {
+        return Ok(());
+    }
+
+    let joined = merged.join(", ");
+    headers.remove("anthropic-beta");
+    headers.insert(
+        "anthropic-beta",
+        http::HeaderValue::from_str(&joined)
+            .map_err(|e| UpstreamError::RequestBuild(format!("invalid beta header: {e}")))?,
+    );
+
+    Ok(())
+}
+
 /// Inject `metadata.user_id` into the body JSON.
 fn inject_metadata_user_id(body: &mut Value, user_id_value: &str) {
     let metadata = body
@@ -909,6 +1035,13 @@ impl Channel for ClaudeCodeChannel {
         claude_sampling::strip_sampling_params(&mut body_json);
         normalize_claudecode_unsupported_fields(&mut body_json);
 
+        // Prelude injection: prepend organization-wide instructions as
+        // the first system block. Runs before cache control so the
+        // prelude can participate in cache breakpoint budget.
+        if let Some(prelude) = settings.prelude_text.as_deref().filter(|s| !s.is_empty()) {
+            apply_claudecode_prelude(&mut body_json, prelude);
+        }
+
         if settings.enable_magic_cache {
             cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
         }
@@ -930,6 +1063,9 @@ impl Channel for ClaudeCodeChannel {
             &mut request.headers,
             &[CLAUDECODE_OAUTH_BETA],
         )?;
+        // Merge any extra beta values from settings (e.g. feature flags
+        // the operator wants on every request to this provider).
+        merge_extra_beta_headers(&mut request.headers, &settings.extra_beta_headers)?;
         // Session id is computed in `prepare_request` per credential
         // attempt — it needs to land on the HTTP request alongside the
         // per-attempt `x-client-request-id`, not in the generic
