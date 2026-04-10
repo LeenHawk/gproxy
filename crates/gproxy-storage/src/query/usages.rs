@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 use super::Scope;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct UsageQuery {
     pub provider_id: Scope<i64>,
     pub credential_id: Scope<i64>,

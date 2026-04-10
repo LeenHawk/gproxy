@@ -80,6 +80,8 @@ function toPositiveOrNull(value: number | null): number | null {
 
 function buildUsageBasePayload(snapshot: UsageQuerySnapshot) {
   return {
+    provider_id: scopeAll<number>(),
+    credential_id: scopeAll<number>(),
     channel: snapshot.channel ? scopeEq(snapshot.channel) : scopeAll<string>(),
     model: snapshot.model ? scopeEq(snapshot.model) : scopeAll<string>(),
     // user_id is forcibly overridden on the backend to the session user —
@@ -210,6 +212,8 @@ export function MyUsageModule({
             method: "POST",
             headers,
             body: JSON.stringify({
+              provider_id: scopeAll<number>(),
+              credential_id: scopeAll<number>(),
               channel: scopeAll<string>(),
               model: scopeAll<string>(),
               user_id: scopeAll<number>(),
