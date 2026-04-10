@@ -10,6 +10,19 @@ export class ApiError extends Error {
   }
 }
 
+/** Only clear the session on 401 for our own admin/login endpoints,
+ *  not for provider proxy paths that may forward upstream 401s. */
+function isSessionRoute(path: string): boolean {
+  return path.startsWith("/admin") || path.startsWith("/login");
+}
+
+function handleUnauthorized(path: string): void {
+  if (isSessionRoute(path)) {
+    clearSession();
+    window.location.reload();
+  }
+}
+
 export async function parseApiError(response: Response): Promise<ApiError> {
   const text = await response.text();
   const payload = parseMaybeJson(text);
@@ -29,8 +42,7 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     if (response.status === 401) {
-      clearSession();
-      window.location.reload();
+      handleUnauthorized(path);
     }
     throw await parseApiError(response);
   }
@@ -42,8 +54,7 @@ export async function apiText(path: string, init?: RequestInit): Promise<string>
   const response = await fetch(path, init);
   if (!response.ok) {
     if (response.status === 401) {
-      clearSession();
-      window.location.reload();
+      handleUnauthorized(path);
     }
     throw await parseApiError(response);
   }
@@ -54,8 +65,7 @@ export async function apiVoid(path: string, init?: RequestInit): Promise<void> {
   const response = await fetch(path, init);
   if (!response.ok) {
     if (response.status === 401) {
-      clearSession();
-      window.location.reload();
+      handleUnauthorized(path);
     }
     throw await parseApiError(response);
   }
