@@ -4,6 +4,7 @@ import { LoginView } from "../components/LoginView";
 import { Nav } from "../components/Nav";
 import { Toast, type ToastState } from "../components/Toast";
 import { Button } from "../components/ui";
+import { APP_BUILD_INFO } from "../lib/build-info";
 import { I18nProvider, useI18n } from "./i18n";
 import {
   buildAdminNavItems,
@@ -153,6 +154,12 @@ function AppFrame() {
         <div className="topbar-panel mx-auto flex w-full max-w-[1700px] flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
           <div className="flex min-w-0 flex-wrap items-center gap-2 md:gap-3">
             <h1 className="topbar-title">{t("app.title")}</h1>
+            <code className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted">
+              v{APP_BUILD_INFO.version}
+            </code>
+            <code className="rounded border border-border px-1.5 py-0.5 font-mono text-[11px] text-muted">
+              {APP_BUILD_INFO.commit.slice(0, 8)}
+            </code>
           </div>
           <div className="flex w-full items-center justify-between gap-2 md:w-auto md:justify-end md:gap-3">
             <button

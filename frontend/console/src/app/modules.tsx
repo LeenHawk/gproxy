@@ -1,6 +1,5 @@
 import type { NavItem } from "../components/Nav";
 import { ConfigExportModule } from "../modules/admin/ConfigExportModule";
-import { DashboardModule } from "../modules/admin/DashboardModule";
 import { FilePermissionsModule } from "../modules/admin/FilePermissionsModule";
 import { GlobalSettingsModule } from "../modules/admin/GlobalSettingsModule";
 import { ModelAliasesModule } from "../modules/admin/ModelAliasesModule";
@@ -20,7 +19,7 @@ export type UserRole = "admin" | "user";
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 export function defaultModule(role: UserRole) {
-  return role === "admin" ? "dashboard" : "my-quota";
+  return role === "admin" ? "providers" : "my-quota";
 }
 
 export function buildAdminNavItems(t: TranslateFn): NavItem[] {
@@ -30,7 +29,6 @@ export function buildAdminNavItems(t: TranslateFn): NavItem[] {
   const account = t("app.nav.group.account");
 
   return [
-    { id: "dashboard", label: t("app.nav.dashboard"), group: overview },
     { id: "providers", label: t("app.nav.providers"), group: overview },
     { id: "users", label: t("app.nav.users"), group: access },
     { id: "user-permissions", label: t("app.nav.userPermissions"), group: access },
@@ -64,8 +62,6 @@ export function renderActiveModule(
 ) {
   if (role === "admin") {
     switch (activeModule) {
-      case "dashboard":
-        return <DashboardModule sessionToken={sessionToken} />;
       case "providers":
         return <ProvidersModule sessionToken={sessionToken} notify={notify} />;
       case "models":

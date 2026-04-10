@@ -1,12 +1,5 @@
 import type { PriceTier, Scope, UsageQuery, UsageQueryRow } from "./shared";
 
-export type HealthResponse = {
-  status: "ok";
-  provider_count: number;
-  user_count: number;
-  timestamp_epoch: number;
-};
-
 export type ReloadResponse = {
   ok: true;
   providers: number;
