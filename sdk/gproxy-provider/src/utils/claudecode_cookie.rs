@@ -99,7 +99,16 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "POST", &auth_url, Some(auth_req_body), status, &resp_headers, &body, auth_start);
+    track_exchange(
+        tracked,
+        "POST",
+        &auth_url,
+        Some(auth_req_body),
+        status,
+        &resp_headers,
+        &body,
+        auth_start,
+    );
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
             "cookie auth: authorize endpoint status {status}: {}",
@@ -160,7 +169,16 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "POST", &token_url, Some(token_body.into_bytes()), token_status, &token_resp_headers, &token_bytes, token_start);
+    track_exchange(
+        tracked,
+        "POST",
+        &token_url,
+        Some(token_body.into_bytes()),
+        token_status,
+        &token_resp_headers,
+        &token_bytes,
+        token_start,
+    );
     if !(200..300).contains(&token_status) {
         return Err(UpstreamError::Channel(format!(
             "cookie token endpoint status {token_status}: {}",
@@ -175,9 +193,11 @@ pub(crate) async fn exchange_tokens_with_cookie(
     // return `"organization": {}` which deserializes as Some with all
     // inner fields None, so we fill per-field rather than checking
     // is_none() on the outer Option.
-    let org_data = tokens.organization.get_or_insert_with(|| CookieTokenOrganization {
-        rate_limit_tier: None,
-    });
+    let org_data = tokens
+        .organization
+        .get_or_insert_with(|| CookieTokenOrganization {
+            rate_limit_tier: None,
+        });
     if org_data.rate_limit_tier.is_none() {
         org_data.rate_limit_tier = org.rate_limit_tier;
     }
@@ -221,7 +241,16 @@ async fn fetch_org_info(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "GET", &bootstrap_url, None, status, &resp_headers, &body, bootstrap_start);
+    track_exchange(
+        tracked,
+        "GET",
+        &bootstrap_url,
+        None,
+        status,
+        &resp_headers,
+        &body,
+        bootstrap_start,
+    );
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
             "cookie auth: /api/bootstrap status {status}: {}",
@@ -276,7 +305,16 @@ async fn fetch_org_info(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "GET", &orgs_url, None, orgs_status, &orgs_resp_headers, &body, orgs_start);
+    track_exchange(
+        tracked,
+        "GET",
+        &orgs_url,
+        None,
+        orgs_status,
+        &orgs_resp_headers,
+        &body,
+        orgs_start,
+    );
     let orgs: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| UpstreamError::Channel(format!("organizations parse error: {e}")))?;
 

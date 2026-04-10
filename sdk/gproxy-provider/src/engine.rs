@@ -501,7 +501,8 @@ impl GproxyEngine {
         &self,
         channel: &str,
         credential_json: &Value,
-    ) -> Result<(Option<Value>, Vec<UpstreamRequestMeta>), UpstreamError> {
+    ) -> Result<(Option<Value>, Vec<UpstreamRequestMeta>), (UpstreamError, Vec<UpstreamRequestMeta>)>
+    {
         match channel {
             "claudecode" => {
                 crate::channels::claudecode::bootstrap_credential_from_cookie(

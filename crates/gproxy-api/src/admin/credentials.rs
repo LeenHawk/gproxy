@@ -132,7 +132,16 @@ async fn create_credential_and_sync_runtime(
     {
         Ok((Some(updated), tracked)) => (updated, tracked),
         Ok((None, _)) => (credential, Vec::new()),
-        Err(err) => {
+        Err((err, tracked)) => {
+            // Log tracked upstream requests even on failure
+            for meta in &tracked {
+                crate::provider::oauth::record_internal_upstream_log(
+                    state,
+                    &provider.name,
+                    Some(meta),
+                )
+                .await;
+            }
             return Err(HttpError::bad_request(format!(
                 "credential bootstrap for provider '{}' failed: {err}",
                 provider.name

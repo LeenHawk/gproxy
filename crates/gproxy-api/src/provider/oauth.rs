@@ -115,13 +115,21 @@ pub async fn upstream_usage(
     authorize_admin(&headers, &state)?;
     let params = parse_query_string(query.as_deref());
     let credential_index = resolve_quota_credential_index(&state, &provider_name, &params)?;
-    let (result, credential_updates, meta) = state
+    let result = state
         .engine()
         .query_quota(&provider_name, credential_index)
-        .await?;
+        .await;
 
-    persist_credential_updates(&state, &credential_updates).await;
-    record_internal_upstream_log(&state, &provider_name, meta.as_ref()).await;
+    // Always log upstream request and persist credential updates, even on error
+    match &result {
+        Ok((_, credential_updates, meta)) => {
+            persist_credential_updates(&state, credential_updates).await;
+            record_internal_upstream_log(&state, &provider_name, meta.as_ref()).await;
+        }
+        Err(_) => {}
+    }
+
+    let (result, _, _) = result?;
 
     match result {
         Some(response) => Ok(Response::builder()
