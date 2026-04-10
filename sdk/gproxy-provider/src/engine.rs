@@ -1465,11 +1465,7 @@ mod tests {
 ///
 /// Only touches OpenAI-family and Claude protocols; Gemini uses URL-based
 /// stream selection and has no body-level flag.
-fn inject_stream_flag(
-    dst_op: OperationFamily,
-    dst_proto: ProtocolKind,
-    body: Vec<u8>,
-) -> Vec<u8> {
+fn inject_stream_flag(dst_op: OperationFamily, dst_proto: ProtocolKind, body: Vec<u8>) -> Vec<u8> {
     if !matches!(
         dst_proto,
         ProtocolKind::OpenAiChatCompletion
@@ -1493,9 +1489,6 @@ fn inject_stream_flag(
         return body;
     };
     let should_stream = dst_op == OperationFamily::StreamGenerateContent;
-    map.insert(
-        "stream".to_string(),
-        serde_json::Value::Bool(should_stream),
-    );
+    map.insert("stream".to_string(), serde_json::Value::Bool(should_stream));
     serde_json::to_vec(&value).unwrap_or(body)
 }
