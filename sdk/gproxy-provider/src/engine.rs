@@ -884,16 +884,17 @@ impl GproxyEngine {
         // protocol walker based on the destination protocol.
         let rules = provider.sanitize_rules();
         if !rules.is_empty()
-            && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body) {
-                crate::utils::sanitize::apply_sanitize_rules(
-                    &mut body_json,
-                    prepared.route.protocol,
-                    &rules,
-                );
-                if let Ok(patched) = serde_json::to_vec(&body_json) {
-                    prepared.body = patched;
-                }
+            && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body)
+        {
+            crate::utils::sanitize::apply_sanitize_rules(
+                &mut body_json,
+                prepared.route.protocol,
+                &rules,
+            );
+            if let Ok(patched) = serde_json::to_vec(&body_json) {
+                prepared.body = patched;
             }
+        }
 
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
 
@@ -1156,16 +1157,17 @@ impl GproxyEngine {
         // protocol walker based on the destination protocol.
         let rules = provider.sanitize_rules();
         if !rules.is_empty()
-            && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body) {
-                crate::utils::sanitize::apply_sanitize_rules(
-                    &mut body_json,
-                    prepared.route.protocol,
-                    &rules,
-                );
-                if let Ok(patched) = serde_json::to_vec(&body_json) {
-                    prepared.body = patched;
-                }
+            && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body)
+        {
+            crate::utils::sanitize::apply_sanitize_rules(
+                &mut body_json,
+                prepared.route.protocol,
+                &rules,
+            );
+            if let Ok(patched) = serde_json::to_vec(&body_json) {
+                prepared.body = patched;
             }
+        }
 
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
 
