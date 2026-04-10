@@ -718,6 +718,46 @@ async fn run_ws_bridge_with_protocol(
             ))
             .await;
     }
+
+    // Record upstream WS session log with accumulated messages
+    if config.enable_upstream_log {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let provider_id = ctx.state.provider_id_for_name(&ctx.provider_name);
+        let credential_id = ctx
+            .credential_index
+            .and_then(|i| ctx.state.credential_id_for_index(&ctx.provider_name, i));
+        let (req_body, resp_body) = if config.enable_upstream_log_body {
+            (
+                serde_json::to_vec(&ds_messages).ok(),
+                serde_json::to_vec(&us_messages).ok(),
+            )
+        } else {
+            (None, None)
+        };
+        let _ = ctx
+            .state
+            .storage()
+            .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
+                gproxy_storage::UpstreamRequestWrite {
+                    downstream_trace_id: Some(ctx.trace_id),
+                    at_unix_ms: now_ms,
+                    internal: false,
+                    provider_id,
+                    credential_id,
+                    request_method: "WEBSOCKET".to_string(),
+                    request_headers_json: "[]".to_string(),
+                    request_url: None,
+                    request_body: req_body,
+                    response_status: Some(101),
+                    response_headers_json: "[]".to_string(),
+                    response_body: resp_body,
+                },
+            ))
+            .await;
+    }
 }
 
 // ---------------------------------------------------------------------------
