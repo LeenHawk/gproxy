@@ -25,16 +25,19 @@ jobs:
 
       - name: Determine channel and tag
         id: meta
+        env:
+          WF_EVENT: ${{ github.event.workflow_run.event }}
+          WF_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -euo pipefail
 
-          event="${{ github.event.workflow_run.event }}"
+          event="$WF_EVENT"
           echo "trigger_event=$event" >> "$GITHUB_OUTPUT"
 
           if [ "$event" = "release" ]; then
             channel="stable"
             # Extract tag from the head branch (refs/tags/vX.Y.Z)
-            tag="${{ github.event.workflow_run.head_branch }}"
+            tag="$WF_HEAD_BRANCH"
             version="${tag#v}"
           else
             channel="staging"
