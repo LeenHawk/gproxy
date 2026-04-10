@@ -137,9 +137,8 @@ pub async fn check_update(
     authorize_admin(&headers, &state)?;
 
     let base_url = resolve_download_base(&state);
-    let manifest_url = format!("{}/latest.json", base_url.trim_end_matches('/'));
 
-    let (latest_version, tag) = match fetch_manifest(&manifest_url).await {
+    let (latest_version, tag) = match fetch_latest_manifest(&state).await {
         Ok(m) => {
             let tag = m.tag.unwrap_or_else(|| format!("v{}", m.version));
             (Some(m.version), Some(tag))
@@ -189,8 +188,7 @@ pub async fn perform_update(
     let tag = if let Some(t) = params.tag {
         t
     } else {
-        let manifest_url = format!("{}/latest.json", base_url.trim_end_matches('/'));
-        let manifest = fetch_manifest(&manifest_url)
+        let manifest = fetch_latest_manifest(&state)
             .await
             .map_err(|e| HttpError::internal(format!("failed to check for updates: {e}")))?;
         if !is_newer_version(CURRENT_VERSION, &manifest.version) {
@@ -280,6 +278,50 @@ pub async fn perform_update(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+async fn fetch_latest_manifest(state: &AppState) -> Result<VersionManifest, String> {
+    let source = state.config().update_source.trim().to_string();
+    if matches!(source.as_str(), "" | "default" | "github") {
+        fetch_github_manifest().await
+    } else {
+        let base_url = resolve_download_base(state);
+        let url = format!("{}/latest.json", base_url.trim_end_matches('/'));
+        fetch_manifest(&url).await
+    }
+}
+
+async fn fetch_github_manifest() -> Result<VersionManifest, String> {
+    let api_url = "https://api.github.com/repos/LeenHawk/gproxy/releases/latest";
+    let resp = wreq::Client::new()
+        .get(api_url)
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "gproxy-updater")
+        .send()
+        .await
+        .map_err(|e| format!("GitHub API request failed: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+
+    #[derive(Deserialize)]
+    struct GithubRelease {
+        tag_name: String,
+    }
+
+    let release: GithubRelease = resp
+        .json()
+        .await
+        .map_err(|e| format!("JSON parse failed: {e}"))?;
+    let version = release
+        .tag_name
+        .strip_prefix('v')
+        .unwrap_or(&release.tag_name)
+        .to_string();
+    Ok(VersionManifest {
+        version,
+        tag: Some(release.tag_name),
+    })
+}
 
 async fn fetch_manifest(url: &str) -> Result<VersionManifest, String> {
     let resp = wreq::get(url)
