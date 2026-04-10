@@ -185,7 +185,7 @@ fn next_user_permission_id(state: &AppState) -> i64 {
 /// (`provider_id = None`, `model_pattern = "*"`). No-op if such an entry
 /// already exists. Persisted to both DB and in-memory snapshot so the
 /// admin can call models the moment bootstrap finishes.
-async fn ensure_user_wildcard_permission(
+pub(crate) async fn ensure_user_wildcard_permission(
     state: &AppState,
     user_id: i64,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

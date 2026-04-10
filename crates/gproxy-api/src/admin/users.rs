@@ -79,6 +79,9 @@ pub async fn upsert_user(
         is_admin: payload.is_admin,
         password_hash: payload.password.clone(),
     });
+    if payload.is_admin {
+        let _ = crate::bootstrap::ensure_user_wildcard_permission(&state, payload.id).await;
+    }
     if revoke_sessions {
         state.revoke_sessions_for_user(payload.id);
     }
@@ -240,6 +243,9 @@ pub async fn batch_upsert_users(
             is_admin: item.is_admin,
             password_hash: item.password.clone(),
         });
+        if item.is_admin {
+            let _ = crate::bootstrap::ensure_user_wildcard_permission(&state, item.id).await;
+        }
         if revoke_sessions {
             state.revoke_sessions_for_user(item.id);
         }
