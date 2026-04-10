@@ -119,7 +119,7 @@ export function CredentialsTab({
               });
               return (
                 <div key={credentialKey} className="card-shell">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <div className="font-semibold">#{row.index} · {summary.primary}</div>
                     <button
                       type="button"
@@ -134,28 +134,28 @@ export function CredentialsTab({
                             : labels.statusHealthy}
                       </Badge>
                     </button>
-                    <div className="ml-auto flex flex-wrap gap-2">
-                      <Button variant="neutral" onClick={() => onEdit(row)}>
-                        {labels.edit}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <Button variant="neutral" onClick={() => onEdit(row)}>
+                      {labels.edit}
+                    </Button>
+                    <Button variant="danger" onClick={() => onDelete(row)}>
+                      {labels.delete}
+                    </Button>
+                    {supportsUsage ? (
+                      <Button
+                        variant="neutral"
+                        onClick={() => {
+                          const nextExpanded = !usageExpanded;
+                          setExpandedUsageKey(nextExpanded ? credentialKey : null);
+                          if (nextExpanded && !usageRaw) {
+                            onQueryUsage(row);
+                          }
+                        }}
+                      >
+                        {usageActionLabels.primary}
                       </Button>
-                      <Button variant="danger" onClick={() => onDelete(row)}>
-                        {labels.delete}
-                      </Button>
-                      {supportsUsage ? (
-                        <Button
-                          variant="neutral"
-                          onClick={() => {
-                            const nextExpanded = !usageExpanded;
-                            setExpandedUsageKey(nextExpanded ? credentialKey : null);
-                            if (nextExpanded && !usageRaw) {
-                              onQueryUsage(row);
-                            }
-                          }}
-                        >
-                          {usageActionLabels.primary}
-                        </Button>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </div>
                   {summary.secondary.length > 0 ? (
                     <div className="mt-2 text-xs text-muted">{summary.secondary.join(" · ")}</div>
