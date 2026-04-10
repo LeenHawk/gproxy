@@ -31,6 +31,12 @@ pub struct AnthropicSettings {
     /// Cache breakpoint rules
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cache_breakpoints: Vec<cache_control::CacheBreakpointRule>,
+    /// Additional `anthropic-beta` header values merged into every
+    /// request. Deduplicated case-insensitively against client-supplied
+    /// values. Useful for enabling feature betas across all requests
+    /// without requiring clients to set the header themselves.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_beta_headers: Vec<String>,
 }
 
 fn default_anthropic_base_url() -> String {
@@ -272,6 +278,18 @@ impl Channel for AnthropicChannel {
                 &mut body_json,
                 &settings.cache_breakpoints,
             );
+        }
+        // Merge any operator-configured beta values into the header.
+        if !settings.extra_beta_headers.is_empty() {
+            let refs: Vec<&str> = settings
+                .extra_beta_headers
+                .iter()
+                .map(String::as_str)
+                .collect();
+            crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
+                &mut request.headers,
+                &refs,
+            )?;
         }
         request.body = serde_json::to_vec(&body_json)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;

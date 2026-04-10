@@ -678,65 +678,6 @@ fn apply_claudecode_prelude(body: &mut Value, prelude_text: &str) {
     }
 }
 
-/// Merge extra beta header values into the `anthropic-beta` header on the
-/// request. Deduplicates case-insensitively. The OAuth beta token is always
-/// guaranteed present regardless of what `extra` contains.
-fn merge_extra_beta_headers(
-    headers: &mut http::HeaderMap,
-    extra: &[String],
-) -> Result<(), UpstreamError> {
-    if extra.is_empty() {
-        return Ok(());
-    }
-
-    // Collect any existing beta values already on the request.
-    let mut merged: Vec<String> = Vec::new();
-
-    // Preferred values from settings go first.
-    for raw in extra {
-        let value = raw.trim();
-        if value.is_empty() {
-            continue;
-        }
-        if !merged
-            .iter()
-            .any(|existing| existing.eq_ignore_ascii_case(value))
-        {
-            merged.push(value.to_string());
-        }
-    }
-
-    // Then existing header values.
-    if let Some(existing) = headers.get("anthropic-beta").and_then(|v| v.to_str().ok()) {
-        for raw in existing.split(',') {
-            let value = raw.trim();
-            if value.is_empty() {
-                continue;
-            }
-            if !merged
-                .iter()
-                .any(|existing| existing.eq_ignore_ascii_case(value))
-            {
-                merged.push(value.to_string());
-            }
-        }
-    }
-
-    if merged.is_empty() {
-        return Ok(());
-    }
-
-    let joined = merged.join(", ");
-    headers.remove("anthropic-beta");
-    headers.insert(
-        "anthropic-beta",
-        http::HeaderValue::from_str(&joined)
-            .map_err(|e| UpstreamError::RequestBuild(format!("invalid beta header: {e}")))?,
-    );
-
-    Ok(())
-}
-
 /// Inject `metadata.user_id` into the body JSON.
 fn inject_metadata_user_id(body: &mut Value, user_id_value: &str) {
     let metadata = body
@@ -1065,7 +1006,17 @@ impl Channel for ClaudeCodeChannel {
         )?;
         // Merge any extra beta values from settings (e.g. feature flags
         // the operator wants on every request to this provider).
-        merge_extra_beta_headers(&mut request.headers, &settings.extra_beta_headers)?;
+        if !settings.extra_beta_headers.is_empty() {
+            let refs: Vec<&str> = settings
+                .extra_beta_headers
+                .iter()
+                .map(String::as_str)
+                .collect();
+            crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
+                &mut request.headers,
+                &refs,
+            )?;
+        }
         // Session id is computed in `prepare_request` per credential
         // attempt — it needs to land on the HTTP request alongside the
         // per-attempt `x-client-request-id`, not in the generic
