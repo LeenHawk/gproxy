@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useI18n } from "../../../app/i18n";
 import { Button, Card, Input, Label, Select, TextArea } from "../../../components/ui";
 import {
   DISPATCH_IMPLEMENTATION_OPTIONS,
@@ -9,6 +10,24 @@ import {
 } from "./dispatch";
 import { settingsFieldsForChannel } from "./channel-forms";
 import type { ProviderFormState } from "./index";
+import {
+  BetaHeadersEditor,
+  CacheBreakpointsEditor,
+  PreludeTextEditor,
+  SanitizeRulesEditor,
+} from "./SettingsEditors";
+
+/// Fields rendered by dedicated editors instead of generic input/textarea.
+const EDITOR_FIELDS = new Set([
+  "cache_breakpoints",
+  "extra_beta_headers",
+  "prelude_text",
+  "sanitize_rules",
+]);
+
+/// Channels that show the Anthropic-specific editors (cache breakpoints,
+/// beta headers). claudecode additionally gets the prelude editor.
+const ANTHROPIC_CHANNELS = new Set(["anthropic", "claudecode"]);
 
 export function ConfigTab({
   form,
@@ -51,6 +70,7 @@ export function ConfigTab({
   };
   canDelete: boolean;
 }) {
+  const { t } = useI18n();
   const [dispatchExpanded, setDispatchExpanded] = useState(false);
   const modeOptions = DISPATCH_IMPLEMENTATION_OPTIONS.map((option) => ({
     value: option.value,
@@ -68,6 +88,18 @@ export function ConfigTab({
     setDispatchExpanded(false);
   }, [form.id, form.channel]);
 
+  const updateSetting = (key: string, value: string) => {
+    onChange({ settings: { ...form.settings, [key]: value } });
+  };
+
+  const isAnthropic = ANTHROPIC_CHANNELS.has(form.channel);
+  const isClaudeCode = form.channel === "claudecode";
+
+  // Filter out fields handled by dedicated editors
+  const genericFields = settingsFieldsForChannel(form.channel).filter(
+    (field) => !EDITOR_FIELDS.has(field.key),
+  );
+
   return (
     <Card title={labels.subtitle}>
       <div>
@@ -84,24 +116,22 @@ export function ConfigTab({
         />
         {!canDelete ? <p className="mt-2 text-xs text-muted">{labels.newHint}</p> : null}
       </div>
+
+      {/* Generic fields (base_url, user_agent, oauth URLs, etc.) */}
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {settingsFieldsForChannel(form.channel).map((field) => (
+        {genericFields.map((field) => (
           <div key={field.key}>
             <Label>{field.label}</Label>
             {field.type === "textarea" || field.type === "json" ? (
               <TextArea
                 value={form.settings[field.key] ?? ""}
-                onChange={(value) =>
-                  onChange({ settings: { ...form.settings, [field.key]: value } })
-                }
+                onChange={(value) => updateSetting(field.key, value)}
                 rows={field.type === "json" ? 6 : 4}
               />
             ) : field.type === "boolean" ? (
               <Select
                 value={form.settings[field.key] ?? "false"}
-                onChange={(value) =>
-                  onChange({ settings: { ...form.settings, [field.key]: value } })
-                }
+                onChange={(value) => updateSetting(field.key, value)}
                 options={[
                   { value: "false", label: "false" },
                   { value: "true", label: "true" },
@@ -110,15 +140,57 @@ export function ConfigTab({
             ) : (
               <Input
                 value={form.settings[field.key] ?? ""}
-                onChange={(value) =>
-                  onChange({ settings: { ...form.settings, [field.key]: value } })
-                }
+                onChange={(value) => updateSetting(field.key, value)}
               />
             )}
           </div>
         ))}
       </div>
 
+      {/* Anthropic-specific: cache breakpoints */}
+      {isAnthropic ? (
+        <div className="mt-6">
+          <CacheBreakpointsEditor
+            value={form.settings.cache_breakpoints ?? "[]"}
+            onChange={(v) => updateSetting("cache_breakpoints", v)}
+            t={t}
+          />
+        </div>
+      ) : null}
+
+      {/* Anthropic-specific: beta headers */}
+      {isAnthropic ? (
+        <div className="mt-6">
+          <BetaHeadersEditor
+            value={form.settings.extra_beta_headers ?? "[]"}
+            onChange={(v) => updateSetting("extra_beta_headers", v)}
+            isClaudeCode={isClaudeCode}
+            t={t}
+          />
+        </div>
+      ) : null}
+
+      {/* ClaudeCode-specific: prelude text */}
+      {isClaudeCode ? (
+        <div className="mt-6">
+          <PreludeTextEditor
+            value={form.settings.prelude_text ?? ""}
+            onChange={(v) => updateSetting("prelude_text", v)}
+            t={t}
+          />
+        </div>
+      ) : null}
+
+      {/* All channels: sanitize rules */}
+      <div className="mt-6">
+        <SanitizeRulesEditor
+          value={form.settings.sanitize_rules ?? "[]"}
+          onChange={(v) => updateSetting("sanitize_rules", v)}
+          t={t}
+        />
+      </div>
+
+      {/* Dispatch rules */}
       <div className="panel-shell mt-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
