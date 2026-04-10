@@ -140,7 +140,7 @@ export const zhMessages: Record<string, string> = {
   "providers.dispatch.mode.unsupported": "不支持",
   "providers.credentials.add": "新增凭证",
   "providers.credentials.replace": "替换凭证",
-  "providers.credentials.importJsonPlaceholder": "在此粘贴凭证 JSON…",
+  "providers.credentials.importJsonPlaceholder": "粘贴凭证 JSON 或直接粘贴 key / cookie…",
   "providers.credentials.none": "暂无凭证",
   "providers.credentials.edit": "编辑",
   "providers.credentials.delete": "删除",

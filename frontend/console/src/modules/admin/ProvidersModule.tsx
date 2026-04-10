@@ -332,7 +332,18 @@ export function ProvidersModule({
     try {
       let credential: Record<string, unknown>;
       if (credentialForm.editingIndex === null && credentialForm.rawJson.trim()) {
-        credential = JSON.parse(credentialForm.rawJson.trim());
+        const raw = credentialForm.rawJson.trim();
+        if (raw.startsWith("{")) {
+          credential = JSON.parse(raw);
+        } else {
+          // Plain string — wrap as cookie for claudecode/codex, api_key for others
+          const channel = selectedProvider.channel;
+          if (channel === "claudecode" || channel === "codex") {
+            credential = { cookie: raw };
+          } else {
+            credential = { api_key: raw };
+          }
+        }
       } else {
         credential = buildCredentialJson(selectedProvider.channel, credentialForm.values);
       }

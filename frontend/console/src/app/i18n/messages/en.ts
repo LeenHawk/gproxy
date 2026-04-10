@@ -140,7 +140,7 @@ export const enMessages: Record<string, string> = {
   "providers.dispatch.mode.unsupported": "Unsupported",
   "providers.credentials.add": "Add Credential",
   "providers.credentials.replace": "Replace Credential",
-  "providers.credentials.importJsonPlaceholder": "Paste credential JSON here…",
+  "providers.credentials.importJsonPlaceholder": "Paste credential JSON or raw key / cookie…",
   "providers.credentials.none": "No credentials",
   "providers.credentials.edit": "Edit",
   "providers.credentials.delete": "Delete",

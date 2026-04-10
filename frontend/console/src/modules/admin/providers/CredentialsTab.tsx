@@ -81,7 +81,12 @@ export function CredentialsTab({
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <Card title={labels.title}>
+        <Card
+          title={labels.title}
+          action={form.editingIndex !== null ? (
+            <Button variant="neutral" onClick={onNew}>{labels.add}</Button>
+          ) : undefined}
+        >
           <div className="space-y-2">
             {credentials.length === 0 ? <p className="text-sm text-muted">{labels.none}</p> : null}
             {credentials.map((row) => {
@@ -274,16 +279,9 @@ export function CredentialsTab({
                 ))}
               </>
             )}
-            <div className="flex gap-2">
-              <Button onClick={onSave}>
-                {form.editingIndex === null ? labels.add : labels.replace}
-              </Button>
-              {form.editingIndex !== null ? (
-                <Button variant="neutral" onClick={onNew}>
-                  {labels.add}
-                </Button>
-              ) : null}
-            </div>
+            <Button onClick={onSave}>
+              {form.editingIndex === null ? labels.add : labels.replace}
+            </Button>
           </div>
         </Card>
       </div>
