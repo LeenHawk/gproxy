@@ -79,17 +79,19 @@ pub async fn downstream_log_middleware(
     if is_ws {
         record(
             &state,
-            trace_id,
-            user_id,
-            user_key_id,
-            method,
-            path,
-            query,
-            req_headers,
-            req_body_for_log,
-            status,
-            resp_headers,
-            None,
+            DownstreamRecord {
+                trace_id,
+                user_id,
+                user_key_id,
+                method,
+                path,
+                query,
+                req_headers,
+                req_body: req_body_for_log,
+                status,
+                resp_headers,
+                resp_body: None,
+            },
         )
         .await;
         return response;
@@ -117,8 +119,11 @@ pub async fn downstream_log_middleware(
             }
             let body_for_log = if accumulated.is_empty() { None } else { Some(accumulated) };
             record(
-                &state2, trace_id, user_id, user_key_id, method, path, query,
-                req_headers, req_body_for_log, status, resp_headers, body_for_log,
+                &state2,
+                DownstreamRecord {
+                    trace_id, user_id, user_key_id, method, path, query,
+                    req_headers, req_body: req_body_for_log, status, resp_headers, resp_body: body_for_log,
+                },
             )
             .await;
         };
@@ -139,17 +144,19 @@ pub async fn downstream_log_middleware(
 
     record(
         &state,
-        trace_id,
-        user_id,
-        user_key_id,
-        method,
-        path,
-        query,
-        req_headers,
-        req_body_for_log,
-        status,
-        resp_headers,
-        resp_body_for_log,
+        DownstreamRecord {
+            trace_id,
+            user_id,
+            user_key_id,
+            method,
+            path,
+            query,
+            req_headers,
+            req_body: req_body_for_log,
+            status,
+            resp_headers,
+            resp_body: resp_body_for_log,
+        },
     )
     .await;
 
@@ -177,9 +184,7 @@ fn resolve_user(state: &AppState, headers: &http::HeaderMap) -> (Option<i64>, Op
     (None, None)
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn record(
-    state: &AppState,
+struct DownstreamRecord {
     trace_id: i64,
     user_id: Option<i64>,
     user_key_id: Option<i64>,
@@ -191,7 +196,9 @@ async fn record(
     status: i32,
     resp_headers: String,
     resp_body: Option<Vec<u8>>,
-) {
+}
+
+async fn record(state: &AppState, r: DownstreamRecord) {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -200,19 +207,19 @@ async fn record(
         .storage()
         .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertDownstreamRequest(
             gproxy_storage::DownstreamRequestWrite {
-                trace_id,
+                trace_id: r.trace_id,
                 at_unix_ms: now_ms,
                 internal: false,
-                user_id,
-                user_key_id,
-                request_method: method,
-                request_headers_json: req_headers,
-                request_path: path,
-                request_query: query,
-                request_body: req_body,
-                response_status: Some(status),
-                response_headers_json: resp_headers,
-                response_body: resp_body,
+                user_id: r.user_id,
+                user_key_id: r.user_key_id,
+                request_method: r.method,
+                request_headers_json: r.req_headers,
+                request_path: r.path,
+                request_query: r.query,
+                request_body: r.req_body,
+                response_status: Some(r.status),
+                response_headers_json: r.resp_headers,
+                response_body: r.resp_body,
             },
         ))
         .await;

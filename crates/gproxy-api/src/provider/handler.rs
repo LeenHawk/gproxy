@@ -618,9 +618,7 @@ pub async fn proxy_unscoped_files(
     }
 
     let response_body = match result.body {
-        ExecuteBody::Full(ref resp_body) => {
-            Body::from(resp_body.clone())
-        }
+        ExecuteBody::Full(ref resp_body) => Body::from(resp_body.clone()),
         ExecuteBody::Stream(stream) => Body::from_stream(stream),
     };
 

@@ -193,11 +193,9 @@ pub(crate) async fn exchange_tokens_with_cookie(
     // return `"organization": {}` which deserializes as Some with all
     // inner fields None, so we fill per-field rather than checking
     // is_none() on the outer Option.
-    let org_data = tokens
-        .organization
-        .get_or_insert(CookieTokenOrganization {
-            rate_limit_tier: None,
-        });
+    let org_data = tokens.organization.get_or_insert(CookieTokenOrganization {
+        rate_limit_tier: None,
+    });
     if org_data.rate_limit_tier.is_none() {
         org_data.rate_limit_tier = org.rate_limit_tier;
     }
@@ -276,16 +274,17 @@ async fn fetch_org_info(
         .and_then(|a| a.get("memberships"))
         .and_then(|m| m.as_array())
         .and_then(|arr| arr.iter().find_map(|m| m.get("organization")))
-        && let Some(uuid) = org_obj.get("uuid").and_then(|u| u.as_str()) {
-            return Ok(OrgInfo {
-                uuid: uuid.to_string(),
-                rate_limit_tier: org_obj
-                    .get("rate_limit_tier")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                user_email,
-            });
-        }
+        && let Some(uuid) = org_obj.get("uuid").and_then(|u| u.as_str())
+    {
+        return Ok(OrgInfo {
+            uuid: uuid.to_string(),
+            rate_limit_tier: org_obj
+                .get("rate_limit_tier")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            user_email,
+        });
+    }
 
     // Fallback: try /api/organizations
     let orgs_url = format!("{claude_ai_base_url}/api/organizations");
