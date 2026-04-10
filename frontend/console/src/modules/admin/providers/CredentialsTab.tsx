@@ -197,9 +197,7 @@ export function CredentialsTab({
                                 <span>
                                   {item.resetAt === null
                                     ? "—"
-                                    : typeof item.resetAt === "number"
-                                      ? new Date(item.resetAt).toLocaleString()
-                                      : item.resetAt}
+                                    : new Date(item.resetAt).toLocaleString()}
                                 </span>
                               </div>
                             ))}
