@@ -7,6 +7,7 @@ on:
 
 permissions:
   actions: read
+  contents: read
 
 env:
   R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
@@ -18,16 +19,13 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
       - name: Determine channel and tag
         id: meta
         env:
           WF_EVENT: ${{ github.event.workflow_run.event }}
           WF_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WF_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -42,8 +40,10 @@ jobs:
           else
             channel="staging"
             tag="staging"
-            # Read version from workspace Cargo.toml
-            version="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+            # Read version from workspace Cargo.toml via API to avoid
+            # checking out untrusted code in the workflow_run context.
+            version="$(gh api "repos/${GITHUB_REPOSITORY}/contents/Cargo.toml?ref=${WF_HEAD_SHA}" \
+              --jq '.content' | base64 -d | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/')"
           fi
 
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
