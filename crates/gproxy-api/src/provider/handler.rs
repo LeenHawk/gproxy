@@ -238,8 +238,11 @@ pub async fn proxy(
             .await;
     }
 
-    // Record upstream log
-    record_upstream_log(&state, trace_id, &effective_provider, result.meta.as_ref()).await;
+    // Record upstream log (deferred for streaming — handled in stream_with_usage_tracking)
+    let is_stream = matches!(result.body, ExecuteBody::Stream(_));
+    if !is_stream {
+        record_upstream_log(&state, trace_id, &effective_provider, result.meta.as_ref()).await;
+    }
 
     let resp_status = result.status;
     let resp_headers_json = headers_to_json(&result.headers);
@@ -297,6 +300,8 @@ pub async fn proxy(
                 req_body: req_body.clone(),
                 resp_status: resp_status as i32,
                 resp_headers_json: resp_headers_json.clone(),
+                upstream_meta: result.meta.clone(),
+                upstream_provider: effective_provider.clone(),
             };
             Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), Some(dl_ctx), stream))
         }
@@ -478,8 +483,11 @@ pub async fn proxy_unscoped(
             .await;
     }
 
-    // Record upstream log
-    record_upstream_log(&state, trace_id, &target_provider, result.meta.as_ref()).await;
+    // Record upstream log (deferred for streaming — handled in stream_with_usage_tracking)
+    let is_stream = matches!(result.body, ExecuteBody::Stream(_));
+    if !is_stream {
+        record_upstream_log(&state, trace_id, &target_provider, result.meta.as_ref()).await;
+    }
 
     let resp_status = result.status;
     let resp_headers_json = headers_to_json(&result.headers);
@@ -534,6 +542,8 @@ pub async fn proxy_unscoped(
                 req_body: req_body.clone(),
                 resp_status: resp_status as i32,
                 resp_headers_json: resp_headers_json.clone(),
+                upstream_meta: result.meta.clone(),
+                upstream_provider: target_provider.clone(),
             };
             Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), Some(dl_ctx), stream))
         }
@@ -725,8 +735,11 @@ pub async fn proxy_unscoped_files(
             .await;
     }
 
-    // Record upstream log
-    record_upstream_log(&state, trace_id, &target_provider, result.meta.as_ref()).await;
+    // Record upstream log (deferred for streaming — handled in stream_with_usage_tracking)
+    let is_stream = matches!(result.body, ExecuteBody::Stream(_));
+    if !is_stream {
+        record_upstream_log(&state, trace_id, &target_provider, result.meta.as_ref()).await;
+    }
 
     let resp_status = result.status;
     let resp_headers_json = headers_to_json(&result.headers);
@@ -1612,6 +1625,10 @@ struct StreamDownstreamLogContext {
     req_body: Vec<u8>,
     resp_status: i32,
     resp_headers_json: String,
+    /// Upstream request metadata — filled with response_body=None before
+    /// streaming; gets the accumulated body at stream end.
+    upstream_meta: Option<UpstreamRequestMeta>,
+    upstream_provider: String,
 }
 
 /// Shared context for usage recording, avoids passing 8+ args.
@@ -1738,8 +1755,10 @@ fn stream_with_usage_tracking(
     try_stream! {
         let mut decoder = UsageChunkDecoder::new(ctx.protocol);
         let mut accumulated_body: Vec<u8> = Vec::new();
+        let config = ctx.state.config();
         let capture_body = downstream_log.is_some()
-            && ctx.state.config().enable_downstream_log_body;
+            && (config.enable_downstream_log_body || config.enable_upstream_log_body);
+        drop(config);
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
@@ -1760,8 +1779,14 @@ fn stream_with_usage_tracking(
             record_stream_usage(&ctx, usage).await;
         }
 
-        // Record downstream log with accumulated response body.
+        // Record deferred downstream + upstream logs with accumulated body.
         if let Some(dl) = downstream_log {
+            let config = ctx.state.config();
+            let ds_body = if config.enable_downstream_log_body && !accumulated_body.is_empty() {
+                Some(&accumulated_body)
+            } else {
+                None
+            };
             record_downstream_log(
                 &ctx.state,
                 dl.trace_id,
@@ -1774,9 +1799,18 @@ fn stream_with_usage_tracking(
                 Some(&dl.req_body),
                 Some(dl.resp_status),
                 &dl.resp_headers_json,
-                if accumulated_body.is_empty() { None } else { Some(&accumulated_body) },
+                ds_body,
             )
             .await;
+
+            // Record upstream log with the accumulated streaming response body.
+            if let Some(mut meta) = dl.upstream_meta {
+                if config.enable_upstream_log_body && !accumulated_body.is_empty() {
+                    meta.response_body = Some(accumulated_body);
+                }
+                record_upstream_log(&ctx.state, dl.trace_id, &dl.upstream_provider, Some(&meta))
+                    .await;
+            }
         }
     }
 }
