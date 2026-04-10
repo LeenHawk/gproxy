@@ -68,6 +68,7 @@ export function ProvidersModule({
   const [credentialForm, setCredentialForm] = useState<CredentialFormState>({
     values: emptyCredentialValuesForChannel(providerForm.channel),
     editingIndex: null,
+    rawJson: "",
   });
   const [oauthFlow, setOauthFlow] = useState<OAuthStartResponse | null>(null);
   const [oauthCallbackUrl, setOauthCallbackUrl] = useState("");
@@ -97,6 +98,7 @@ export function ProvidersModule({
     setCredentialForm({
       values: emptyCredentialValuesForChannel(providerForm.channel),
       editingIndex: null,
+      rawJson: "",
     });
   }, [providerForm.channel, selectedProvider?.id]);
 
@@ -318,6 +320,7 @@ export function ProvidersModule({
     setCredentialForm({
       editingIndex: row.index,
       values: credentialValuesFromJson(selectedProvider?.channel ?? "custom", row.credential),
+      rawJson: "",
     });
   };
 
@@ -327,6 +330,12 @@ export function ProvidersModule({
       return;
     }
     try {
+      let credential: Record<string, unknown>;
+      if (credentialForm.editingIndex === null && credentialForm.rawJson.trim()) {
+        credential = JSON.parse(credentialForm.rawJson.trim());
+      } else {
+        credential = buildCredentialJson(selectedProvider.channel, credentialForm.values);
+      }
       if (credentialForm.editingIndex !== null) {
         await apiVoid("/admin/credentials/delete", {
           method: "POST",
@@ -342,7 +351,7 @@ export function ProvidersModule({
         headers,
         body: JSON.stringify({
           provider_name: selectedProvider.name,
-          credential: buildCredentialJson(selectedProvider.channel, credentialForm.values),
+          credential,
         }),
       });
       notify("success", t("providers.credentials.saved"));
@@ -350,6 +359,7 @@ export function ProvidersModule({
       setCredentialForm({
         editingIndex: null,
         values: emptyCredentialValuesForChannel(selectedProvider.channel),
+        rawJson: "",
       });
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -655,6 +665,9 @@ export function ProvidersModule({
                 title: t("providers.tab.credentials"),
                 add: t("providers.credentials.add"),
                 replace: t("providers.credentials.replace"),
+                importJson: t("providers.credentials.importJson"),
+                editFields: t("providers.credentials.editFields"),
+                importJsonPlaceholder: t("providers.credentials.importJsonPlaceholder"),
                 none: t("providers.credentials.none"),
                 edit: t("providers.credentials.edit"),
                 delete: t("providers.credentials.delete"),

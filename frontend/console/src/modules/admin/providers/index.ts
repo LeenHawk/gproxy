@@ -13,4 +13,5 @@ export type ProviderFormState = {
 export type CredentialFormState = {
   values: Record<string, string>;
   editingIndex: number | null;
+  rawJson: string;
 };

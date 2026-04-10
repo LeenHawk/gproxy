@@ -184,9 +184,9 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
 };
 
 export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> = {
-  openai: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
-  anthropic: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
-  aistudio: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
+  openai: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  anthropic: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  aistudio: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   vertex: {
     fields: [
       { key: "client_email", label: "client_email", type: "text" },
@@ -194,7 +194,7 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
       { key: "project_id", label: "project_id", type: "text" },
     ],
   },
-  vertexexpress: { fields: [{ key: "access_token", label: "access_token", type: "text" }] },
+  vertexexpress: { fields: [{ key: "access_token", label: "access_token", type: "textarea" }] },
   geminicli: {
     fields: [
       { key: "access_token", label: "access_token", type: "textarea" },
@@ -240,11 +240,11 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
       { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
     ],
   },
-  nvidia: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
-  deepseek: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
-  groq: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
-  openrouter: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
-  custom: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
+  nvidia: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  deepseek: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  groq: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  openrouter: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  custom: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
 };
 
 export function settingsFieldsForChannel(channel: string): ChannelField[] {
