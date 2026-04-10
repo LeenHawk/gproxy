@@ -2529,7 +2529,9 @@ async fn record_execute_error_logs(
                 } else {
                     None
                 },
-                meta.response_status.map(|s| s as i32),
+                meta.response_status
+                    .map(|s| s as i32)
+                    .or(Some(response_status)),
                 serde_json::to_string(&meta.response_headers).unwrap_or_else(|_| "[]".to_string()),
                 if include_body {
                     meta.response_body.clone()
