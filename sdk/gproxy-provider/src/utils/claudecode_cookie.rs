@@ -82,22 +82,24 @@ pub(crate) async fn exchange_tokens_with_cookie(
         "code_challenge_method": "S256",
     });
 
+    let auth_req_body = serde_json::to_vec(&payload).unwrap_or_default();
     let auth_start = std::time::Instant::now();
     let response = client
         .post(&auth_url)
         .headers(build_cookie_headers(cookie, ai_base)?)
         .header("content-type", "application/json")
-        .body(serde_json::to_vec(&payload).unwrap_or_default())
+        .body(auth_req_body.clone())
         .send()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
     let status = response.status().as_u16();
+    let resp_headers = response.headers().clone();
     let body = response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "POST", &auth_url, status, auth_start);
+    track_exchange(tracked, "POST", &auth_url, Some(auth_req_body), status, &resp_headers, &body, auth_start);
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
             "cookie auth: authorize endpoint status {status}: {}",
@@ -147,17 +149,18 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .header("accept", "application/json, text/plain, */*")
         .header("origin", ai_base)
         .header("user-agent", USER_AGENT)
-        .body(token_body)
+        .body(token_body.clone())
         .send()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
     let token_status = token_response.status().as_u16();
+    let token_resp_headers = token_response.headers().clone();
     let token_bytes = token_response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "POST", &token_url, token_status, token_start);
+    track_exchange(tracked, "POST", &token_url, Some(token_body.into_bytes()), token_status, &token_resp_headers, &token_bytes, token_start);
     if !(200..300).contains(&token_status) {
         return Err(UpstreamError::Channel(format!(
             "cookie token endpoint status {token_status}: {}",
@@ -213,11 +216,12 @@ async fn fetch_org_info(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
     let status = response.status().as_u16();
+    let resp_headers = response.headers().clone();
     let body = response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "GET", &bootstrap_url, status, bootstrap_start);
+    track_exchange(tracked, "GET", &bootstrap_url, None, status, &resp_headers, &body, bootstrap_start);
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
             "cookie auth: /api/bootstrap status {status}: {}",
@@ -267,11 +271,12 @@ async fn fetch_org_info(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
     let orgs_status = response.status().as_u16();
+    let orgs_resp_headers = response.headers().clone();
     let body = response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
-    track_exchange(tracked, "GET", &orgs_url, orgs_status, orgs_start);
+    track_exchange(tracked, "GET", &orgs_url, None, orgs_status, &orgs_resp_headers, &body, orgs_start);
     let orgs: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| UpstreamError::Channel(format!("organizations parse error: {e}")))?;
 
@@ -359,17 +364,23 @@ fn track_exchange(
     tracked: &mut Vec<UpstreamRequestMeta>,
     method: &str,
     url: &str,
+    request_body: Option<Vec<u8>>,
     status: u16,
+    response_headers: &http::HeaderMap,
+    response_body: &[u8],
     start: std::time::Instant,
 ) {
     tracked.push(UpstreamRequestMeta {
         method: method.to_string(),
         url: url.to_string(),
         request_headers: Vec::new(),
-        request_body: None,
+        request_body,
         response_status: Some(status),
-        response_headers: Vec::new(),
-        response_body: None,
+        response_headers: response_headers
+            .iter()
+            .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
+            .collect(),
+        response_body: Some(response_body.to_vec()),
         model: None,
         latency_ms: start.elapsed().as_millis() as u64,
         credential_index: None,

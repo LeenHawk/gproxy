@@ -344,7 +344,7 @@ export function useRequestsModuleState({
           setLoadingRows(false);
         }
       });
-  }, [activeQuery, headers, notify, page, pageSize, pageCursors]);
+  }, [activeQuery, headers, notify, page, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
   const canGoNext = page < totalPages && pageCursors[page] !== undefined;
