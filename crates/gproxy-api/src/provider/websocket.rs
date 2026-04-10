@@ -562,10 +562,8 @@ async fn run_ws_bridge_with_protocol(
                                 Ok(frame) => {
                                     // On model change, snapshot usage for the old model.
                                     let new_model = session.active_model();
-                                    if old_model != new_model {
-                                        if let Some(usage) = bridge.take_accumulated_usage() {
-                                            usage_segments.push((old_model, usage));
-                                        }
+                                    if old_model != new_model && let Some(usage) = bridge.take_accumulated_usage() {
+                                        usage_segments.push((old_model, usage));
                                     }
                                     outbound_text = frame.outbound_text;
                                 }
