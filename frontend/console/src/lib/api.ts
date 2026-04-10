@@ -30,6 +30,7 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     if (response.status === 401) {
       clearSession();
+      window.location.reload();
     }
     throw await parseApiError(response);
   }
@@ -42,6 +43,7 @@ export async function apiText(path: string, init?: RequestInit): Promise<string>
   if (!response.ok) {
     if (response.status === 401) {
       clearSession();
+      window.location.reload();
     }
     throw await parseApiError(response);
   }
@@ -53,6 +55,7 @@ export async function apiVoid(path: string, init?: RequestInit): Promise<void> {
   if (!response.ok) {
     if (response.status === 401) {
       clearSession();
+      window.location.reload();
     }
     throw await parseApiError(response);
   }
