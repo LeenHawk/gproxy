@@ -501,7 +501,7 @@ impl GproxyEngine {
         &self,
         channel: &str,
         credential_json: &Value,
-    ) -> Result<Option<Value>, UpstreamError> {
+    ) -> Result<(Option<Value>, Vec<UpstreamRequestMeta>), UpstreamError> {
         match channel {
             "claudecode" => {
                 crate::channels::claudecode::bootstrap_credential_from_cookie(
@@ -511,7 +511,7 @@ impl GproxyEngine {
                 )
                 .await
             }
-            _ => Ok(None),
+            _ => Ok((None, Vec::new())),
         }
     }
 
@@ -736,7 +736,8 @@ impl GproxyEngine {
     ///
     /// If the initial request returns 401/403, attempts to refresh the
     /// credential and retries once. Returns the response together with
-    /// any credential updates that should be persisted to the database.
+    /// any credential updates that should be persisted to the database,
+    /// plus request metadata for upstream logging.
     pub async fn query_quota(
         &self,
         provider_name: &str,
@@ -745,6 +746,7 @@ impl GproxyEngine {
         (
             Option<crate::response::UpstreamResponse>,
             Vec<CredentialUpdate>,
+            Option<UpstreamRequestMeta>,
         ),
         UpstreamError,
     > {
@@ -754,8 +756,12 @@ impl GproxyEngine {
                 UpstreamError::Channel(format!("unknown provider: {provider_name}"))
             })?;
             let Some(http_request) = provider.prepare_quota_request(credential_index)? else {
-                return Ok((None, Vec::new()));
+                return Ok((None, Vec::new(), None));
             };
+
+            let start = std::time::Instant::now();
+            let mut meta = snapshot_request_meta(&http_request, credential_index);
+
             let response = crate::http_client::send_request(&self.client, http_request).await?;
 
             if matches!(response.status, 401 | 403) {
@@ -771,15 +777,21 @@ impl GproxyEngine {
                     let updates = vec![update];
                     let Some(retry_request) = provider.prepare_quota_request(credential_index)?
                     else {
-                        return Ok((None, updates));
+                        return Ok((None, updates, None));
                     };
+
+                    let retry_start = std::time::Instant::now();
+                    meta = snapshot_request_meta(&retry_request, credential_index);
+
                     let retry_response =
                         crate::http_client::send_request(&self.client, retry_request).await?;
-                    return Ok((Some(retry_response), updates));
+                    fill_response_meta(&mut meta, &retry_response, retry_start);
+                    return Ok((Some(retry_response), updates, Some(meta)));
                 }
             }
 
-            Ok((Some(response), Vec::new()))
+            fill_response_meta(&mut meta, &response, start);
+            Ok((Some(response), Vec::new(), Some(meta)))
         }
         .instrument(span)
         .await
@@ -1349,6 +1361,43 @@ impl GproxyEngine {
             credential_index: used_credential_index,
         })
     }
+}
+
+fn snapshot_request_meta(
+    req: &http::Request<Vec<u8>>,
+    credential_index: Option<usize>,
+) -> UpstreamRequestMeta {
+    UpstreamRequestMeta {
+        method: req.method().as_str().to_string(),
+        url: req.uri().to_string(),
+        request_headers: req
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
+            .collect(),
+        request_body: Some(req.body().clone()),
+        response_status: None,
+        response_headers: Vec::new(),
+        response_body: None,
+        model: None,
+        latency_ms: 0,
+        credential_index,
+    }
+}
+
+fn fill_response_meta(
+    meta: &mut UpstreamRequestMeta,
+    response: &crate::response::UpstreamResponse,
+    start: std::time::Instant,
+) {
+    meta.response_status = Some(response.status);
+    meta.response_headers = response
+        .headers
+        .iter()
+        .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
+    meta.response_body = Some(response.body.clone());
+    meta.latency_ms = start.elapsed().as_millis() as u64;
 }
 
 fn parse_emulation(name: &str) -> wreq_util::Emulation {

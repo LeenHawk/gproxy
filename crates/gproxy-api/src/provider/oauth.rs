@@ -6,6 +6,7 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 
+use gproxy_sdk::provider::engine::UpstreamRequestMeta;
 use gproxy_sdk::provider::store::{CredentialSnapshot, CredentialUpdate};
 use gproxy_server::AppState;
 use gproxy_storage::repository::CredentialRepository;
@@ -114,12 +115,13 @@ pub async fn upstream_usage(
     authorize_admin(&headers, &state)?;
     let params = parse_query_string(query.as_deref());
     let credential_index = resolve_quota_credential_index(&state, &provider_name, &params)?;
-    let (result, credential_updates) = state
+    let (result, credential_updates, meta) = state
         .engine()
         .query_quota(&provider_name, credential_index)
         .await?;
 
     persist_credential_updates(&state, &credential_updates).await;
+    record_internal_upstream_log(&state, &provider_name, meta.as_ref()).await;
 
     match result {
         Some(response) => Ok(Response::builder()
@@ -261,6 +263,59 @@ pub(crate) async fn persist_credential_updates(state: &AppState, updates: &[Cred
             );
         }
     }
+}
+
+/// Record an internal upstream request (quota, OAuth, cookie exchange).
+pub(crate) async fn record_internal_upstream_log(
+    state: &AppState,
+    provider_name: &str,
+    meta: Option<&UpstreamRequestMeta>,
+) {
+    let config = state.config();
+    if !config.enable_upstream_log {
+        return;
+    }
+    let Some(meta) = meta else {
+        return;
+    };
+    let include_body = config.enable_upstream_log_body;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    let provider_id = state.provider_id_for_name(provider_name);
+    let credential_id = meta
+        .credential_index
+        .and_then(|index| state.credential_id_for_index(provider_name, index));
+    let _ = state
+        .storage()
+        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertUpstreamRequest(
+            gproxy_storage::UpstreamRequestWrite {
+                downstream_trace_id: None,
+                at_unix_ms: now_ms,
+                internal: true,
+                provider_id,
+                credential_id,
+                request_method: meta.method.clone(),
+                request_headers_json: serde_json::to_string(&meta.request_headers)
+                    .unwrap_or_else(|_| "[]".to_string()),
+                request_url: Some(meta.url.clone()),
+                request_body: if include_body {
+                    meta.request_body.clone()
+                } else {
+                    None
+                },
+                response_status: meta.response_status.map(|s| s as i32),
+                response_headers_json: serde_json::to_string(&meta.response_headers)
+                    .unwrap_or_else(|_| "[]".to_string()),
+                response_body: if include_body {
+                    meta.response_body.clone()
+                } else {
+                    None
+                },
+            },
+        ))
+        .await;
 }
 
 #[cfg(test)]

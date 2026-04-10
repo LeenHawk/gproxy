@@ -576,13 +576,13 @@ pub async fn bootstrap_credential_from_cookie(
     http_client: &wreq::Client,
     spoof_client: Option<&wreq::Client>,
     credential_json: &Value,
-) -> Result<Option<Value>, UpstreamError> {
+) -> Result<(Option<Value>, Vec<crate::engine::UpstreamRequestMeta>), UpstreamError> {
     let mut credential: ClaudeCodeCredential = serde_json::from_value(credential_json.clone())
         .map_err(|e| UpstreamError::Channel(format!("invalid claudecode credential: {e}")))?;
 
     let cookie = match credential.cookie.as_ref() {
         Some(c) if !c.is_empty() => c.clone(),
-        _ => return Ok(None),
+        _ => return Ok((None, Vec::new())),
     };
 
     // `exchange_tokens_with_cookie` talks to claude.ai, which is behind
@@ -593,18 +593,20 @@ pub async fn bootstrap_credential_from_cookie(
     let client = spoof_client.unwrap_or(http_client);
 
     tracing::info!("bootstrapping claudecode credential from cookie on upsert");
+    let mut tracked = Vec::new();
     let tokens = crate::utils::claudecode_cookie::exchange_tokens_with_cookie(
         client,
         &default_claudecode_base_url(),
         &default_claudecode_claude_ai_base_url(),
         &cookie,
+        &mut tracked,
     )
     .await?;
     apply_cookie_exchange_tokens(&mut credential, tokens);
 
     let updated = serde_json::to_value(credential)
         .map_err(|e| UpstreamError::Channel(format!("serialize bootstrapped credential: {e}")))?;
-    Ok(Some(updated))
+    Ok((Some(updated), tracked))
 }
 
 /// Prepend a prelude text block as the first element of the `system` array.
@@ -1118,6 +1120,7 @@ impl Channel for ClaudeCodeChannel {
                 &default_claudecode_base_url(),
                 &default_claudecode_claude_ai_base_url(),
                 &cookie,
+                &mut Vec::new(),
             )
             .await?;
             apply_cookie_exchange_tokens(credential, tokens);

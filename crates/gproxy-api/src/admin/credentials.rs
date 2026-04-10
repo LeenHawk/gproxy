@@ -125,13 +125,13 @@ async fn create_credential_and_sync_runtime(
     // otherwise keep the caller's original JSON. Bootstrap failures
     // propagate as `400 Bad Request` so the operator sees the real
     // cause immediately.
-    let credential = match state
+    let (credential, tracked_requests) = match state
         .engine()
         .bootstrap_credential_on_upsert(&provider.channel, &credential)
         .await
     {
-        Ok(Some(updated)) => updated,
-        Ok(None) => credential,
+        Ok((Some(updated), tracked)) => (updated, tracked),
+        Ok((None, _)) => (credential, Vec::new()),
         Err(err) => {
             return Err(HttpError::bad_request(format!(
                 "credential bootstrap for provider '{}' failed: {err}",
@@ -139,6 +139,12 @@ async fn create_credential_and_sync_runtime(
             )));
         }
     };
+
+    // Log tracked upstream HTTP requests from the bootstrap flow
+    for meta in &tracked_requests {
+        crate::provider::oauth::record_internal_upstream_log(state, &provider.name, Some(meta))
+            .await;
+    }
 
     let credential_json = credential.to_string();
     let id = state

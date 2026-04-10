@@ -1,3 +1,4 @@
+use crate::engine::UpstreamRequestMeta;
 use crate::response::UpstreamError;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -58,17 +59,19 @@ pub(crate) struct CookieTokenOrganization {
 ///
 /// Flow: cookie → org discovery → authorization code → token exchange.
 /// Requires a spoof client (browser TLS fingerprint) to be accepted.
+/// Tracked HTTP metadata is pushed to `tracked` for upstream logging.
 pub(crate) async fn exchange_tokens_with_cookie(
     client: &wreq::Client,
     api_base_url: &str,
     claude_ai_base_url: &str,
     cookie: &str,
+    tracked: &mut Vec<UpstreamRequestMeta>,
 ) -> Result<CookieTokenResponse, UpstreamError> {
     let api_base = api_base_url.trim_end_matches('/');
     let ai_base = claude_ai_base_url.trim_end_matches('/');
 
     // Step 1: Get organization info (UUID + billing/rate-limit metadata)
-    let org = fetch_org_info(client, cookie, ai_base).await?;
+    let org = fetch_org_info(client, cookie, ai_base, tracked).await?;
 
     // Step 2: Get authorization code with PKCE
     let code_verifier = generate_code_verifier();
@@ -87,6 +90,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
         "code_challenge_method": "S256",
     });
 
+    let auth_start = std::time::Instant::now();
     let response = client
         .post(&auth_url)
         .headers(build_cookie_headers(cookie, ai_base)?)
@@ -101,6 +105,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    track_exchange(tracked, "POST", &auth_url, status, auth_start);
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
             "cookie auth: authorize endpoint status {status}: {}",
@@ -141,6 +146,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
         urlencoding(&state),
     );
 
+    let token_start = std::time::Instant::now();
     let token_response = client
         .post(&token_url)
         .header("anthropic-version", API_VERSION)
@@ -159,6 +165,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    track_exchange(tracked, "POST", &token_url, token_status, token_start);
     if !(200..300).contains(&token_status) {
         return Err(UpstreamError::Channel(format!(
             "cookie token endpoint status {token_status}: {}",
@@ -202,8 +209,10 @@ async fn fetch_org_info(
     client: &wreq::Client,
     cookie: &str,
     claude_ai_base_url: &str,
+    tracked: &mut Vec<UpstreamRequestMeta>,
 ) -> Result<OrgInfo, UpstreamError> {
     let bootstrap_url = format!("{claude_ai_base_url}/api/bootstrap");
+    let bootstrap_start = std::time::Instant::now();
     let response = client
         .get(&bootstrap_url)
         .headers(build_cookie_headers(cookie, claude_ai_base_url)?)
@@ -216,6 +225,7 @@ async fn fetch_org_info(
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    track_exchange(tracked, "GET", &bootstrap_url, status, bootstrap_start);
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
             "cookie auth: /api/bootstrap status {status}: {}",
@@ -260,6 +270,7 @@ async fn fetch_org_info(
 
     // Fallback: try /api/organizations
     let orgs_url = format!("{claude_ai_base_url}/api/organizations");
+    let orgs_start = std::time::Instant::now();
     let response = client
         .get(&orgs_url)
         .headers(build_cookie_headers(cookie, claude_ai_base_url)?)
@@ -267,10 +278,12 @@ async fn fetch_org_info(
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
 
+    let orgs_status = response.status().as_u16();
     let body = response
         .bytes()
         .await
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    track_exchange(tracked, "GET", &orgs_url, orgs_status, orgs_start);
     let orgs: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| UpstreamError::Channel(format!("organizations parse error: {e}")))?;
 
@@ -356,4 +369,25 @@ fn extract_query_param(url: &str, key: &str) -> Option<String> {
         let (k, v) = pair.split_once('=')?;
         (k == key).then(|| v.to_string())
     })
+}
+
+fn track_exchange(
+    tracked: &mut Vec<UpstreamRequestMeta>,
+    method: &str,
+    url: &str,
+    status: u16,
+    start: std::time::Instant,
+) {
+    tracked.push(UpstreamRequestMeta {
+        method: method.to_string(),
+        url: url.to_string(),
+        request_headers: Vec::new(),
+        request_body: None,
+        response_status: Some(status),
+        response_headers: Vec::new(),
+        response_body: None,
+        model: None,
+        latency_ms: start.elapsed().as_millis() as u64,
+        credential_index: None,
+    });
 }
