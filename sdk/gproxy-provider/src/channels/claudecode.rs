@@ -662,10 +662,7 @@ fn apply_claudecode_prelude(body: &mut Value, prelude_text: &str) {
             map.insert("system".to_string(), other);
         }
         None => {
-            map.insert(
-                "system".to_string(),
-                Value::Array(vec![prelude_block]),
-            );
+            map.insert("system".to_string(), Value::Array(vec![prelude_block]));
         }
     }
 }

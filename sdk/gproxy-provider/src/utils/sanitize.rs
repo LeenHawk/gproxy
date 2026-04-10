@@ -269,8 +269,14 @@ mod tests {
             ]
         });
         apply_sanitize_rules(&mut body, ProtocolKind::OpenAiChatCompletion, &rules);
-        assert_eq!(body["messages"][0]["content"].as_str().unwrap(), "You are Assistant.");
-        assert_eq!(body["messages"][1]["content"].as_str().unwrap(), "Assistant, help.");
+        assert_eq!(
+            body["messages"][0]["content"].as_str().unwrap(),
+            "You are Assistant."
+        );
+        assert_eq!(
+            body["messages"][1]["content"].as_str().unwrap(),
+            "Assistant, help."
+        );
     }
 
     #[test]
@@ -300,7 +306,9 @@ mod tests {
         });
         apply_sanitize_rules(&mut body, ProtocolKind::Gemini, &rules);
         assert_eq!(
-            body["systemInstruction"]["parts"][0]["text"].as_str().unwrap(),
+            body["systemInstruction"]["parts"][0]["text"]
+                .as_str()
+                .unwrap(),
             "You are Assistant."
         );
         assert_eq!(
