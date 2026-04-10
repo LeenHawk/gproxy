@@ -1,0 +1,16 @@
+ARG RUNTIME_BASE=gcr.io/distroless/static
+FROM ${RUNTIME_BASE}
+
+WORKDIR /app
+
+COPY dist/gproxy /usr/local/bin/gproxy
+COPY dist/data /app/data
+
+ENV GPROXY_HOST=0.0.0.0
+ENV GPROXY_PORT=8787
+ENV GPROXY_DATA_DIR=/app/data
+ENV GPROXY_DSN=sqlite:///app/data/gproxy.db?mode=rwc
+
+EXPOSE 8787
+
+ENTRYPOINT ["/usr/local/bin/gproxy"]

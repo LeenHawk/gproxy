@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - dev
+  push:
+    branches:
+      - main
+      - master
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  rust-quality:
+    name: Rust Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+
+      # The Rust binary embeds the built console via rust-embed pointed at
+      # `apps/gproxy/web/console`. CI doesn't actually build the console
+      # for cargo lints, so drop a tiny placeholder so rust-embed has
+      # something to walk and the workspace compiles.
+      - name: Prepare console embed placeholder
+        run: |
+          mkdir -p apps/gproxy/web/console
+          echo "<!doctype html><title>ci</title>" > apps/gproxy/web/console/index.html
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings -A clippy::too_many_arguments
+
+      - name: cargo test
+        run: cargo test --workspace --all-targets --no-fail-fast
+
+  frontend-quality:
+    name: Frontend Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        run: pnpm --filter @gproxy/console typecheck
+
+      - name: test
+        run: pnpm --filter @gproxy/console test

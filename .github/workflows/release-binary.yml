@@ -1,265 +1,599 @@
-name: Release Binary
+name: build-binaries
 
 on:
+  push:
+    branches:
+      - main
+      - master
+      - dev
   release:
-    types: [published]
+    types:
+      - published
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag (e.g. v1.0.0)"
-        required: true
+
+permissions:
+  contents: write
+  packages: write
 
 env:
-  CARGO_TERM_COLOR: always
+  GPROXY_UPDATE_CHANNEL: ${{ github.event_name == 'push' && 'staging' || 'stable' }}
 
 jobs:
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Build console
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @gproxy/console build
+
+      # The console build emits to `frontend/console/dist` AND copies to
+      # `apps/gproxy/web/console` via the `sync-to-embed.mjs` postbuild
+      # step. The Rust binary embeds from the `web/console` path, so the
+      # downstream `build` job downloads this artifact straight into that
+      # location to short-circuit having to install pnpm everywhere.
+      - name: Upload console embed
+        uses: actions/upload-artifact@v7
+        with:
+          name: console-embed
+          path: apps/gproxy/web/console
+          retention-days: 1
+
   build:
+    name: Build (${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.libc || 'std' }})
+    needs: build-frontend
+    runs-on: ${{ matrix.runner }}
+    env:
+      # Build-time env read by `option_env!("GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64")`
+      # in crates/gproxy-api/src/admin/update.rs. Used to verify the
+      # signed checksum manifests downloaded by the in-app updater.
+      GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            platform: linux
+          - platform: linux
+            runner: ubuntu-latest
             arch: x86_64
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            platform: linux
+            libc: gnu
+            run_check: true
+          - platform: linux
+            runner: ubuntu-24.04-arm
             arch: aarch64
-            cross: true
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            platform: linux
-            arch: x86_64-musl
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            platform: linux
-            arch: aarch64-musl
-            cross: true
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            platform: macos
+            libc: gnu
+            run_check: true
+          - platform: linux
+            runner: ubuntu-latest
             arch: x86_64
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            platform: macos
-            arch: aarch64
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            platform: windows
-            arch: x86_64
-          - target: aarch64-pc-windows-msvc
-            os: windows-latest
-            platform: windows
-            arch: aarch64
-          - target: aarch64-linux-android
-            os: ubuntu-latest
-            platform: android
-            arch: aarch64
+            libc: musl
             cross: true
-          - target: x86_64-linux-android
-            os: ubuntu-latest
-            platform: android
-            arch: x86_64
+            run_check: true
+          - platform: linux
+            runner: ubuntu-latest
+            arch: aarch64
+            libc: musl
             cross: true
-
-    runs-on: ${{ matrix.os }}
-    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+            run_check: false
+          - platform: android
+            runner: ubuntu-latest
+            arch: x86_64
+            android_abi: x86_64
+            run_check: false
+          - platform: android
+            runner: ubuntu-latest
+            arch: aarch64
+            android_abi: arm64-v8a
+            run_check: false
+          - platform: windows
+            runner: windows-latest
+            arch: x86_64
+            run_check: true
+          - platform: windows
+            runner: windows-latest
+            arch: aarch64
+            run_check: false
+          - platform: macos
+            runner: macos-latest
+            arch: x86_64
+            run_check: true
+          - platform: macos
+            runner: macos-latest
+            arch: aarch64
+            run_check: true
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Download console embed
+        uses: actions/download-artifact@v8
         with:
-          targets: ${{ matrix.target }}
+          name: console-embed
+          path: apps/gproxy/web/console
 
-      - name: Install cross (Linux cross-compilation)
-        if: matrix.cross
-        run: cargo install cross --locked
+      - name: Validate update signing build settings
+        run: |
+          set -euo pipefail
+          test -n "${GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64}" || {
+            echo "missing repo secret: GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64" >&2
+            exit 1
+          }
 
-      - name: Install musl tools
-        if: contains(matrix.arch, 'musl') && !matrix.cross
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Build
-        env:
-          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
+      - name: Cache Rust builds
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.libc || 'std' }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.libc || 'std' }}-
+
+      - name: Derive target metadata
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            linux)
+              target="${{ matrix.arch }}-unknown-linux-${{ matrix.libc }}"
+              artifact="gproxy-linux-${{ matrix.arch }}"
+              if [ "${{ matrix.libc }}" = "musl" ]; then
+                artifact="${artifact}-musl"
+              fi
+              artifact="${artifact}.zip"
+              ext=""
+              ;;
+            android)
+              target="${{ matrix.arch }}-linux-android"
+              artifact="gproxy-android-${{ matrix.arch }}.zip"
+              ext=""
+              ;;
+            windows)
+              target="${{ matrix.arch }}-pc-windows-msvc"
+              artifact="gproxy-windows-${{ matrix.arch }}.zip"
+              ext=".exe"
+              ;;
+            macos)
+              target="${{ matrix.arch }}-apple-darwin"
+              artifact="gproxy-macos-${{ matrix.arch }}.zip"
+              ext=""
+              ;;
+            *)
+              echo "unknown platform: ${{ matrix.platform }}" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "TARGET=$target" >> "$GITHUB_ENV"
+          echo "ARTIFACT=$artifact" >> "$GITHUB_ENV"
+          echo "BIN_EXT=$ext" >> "$GITHUB_ENV"
+
+      - name: Install target
+        run: rustup target add "$TARGET"
+
+      - name: Install Android NDK
+        if: ${{ matrix.platform == 'android' }}
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android toolchain
+        if: ${{ matrix.platform == 'android' }}
+        run: |
+          sdkmanager "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          cargo install cargo-ndk --locked
+
+      - name: Install cross
+        if: ${{ matrix.cross }}
+        run: |
+          cargo install cross --locked
+          echo "CROSS_TARGET=$TARGET" >> "$GITHUB_ENV"
+          echo "CROSS_NO_DEFAULT_TOOLCHAIN=1" >> "$GITHUB_ENV"
+
+      - name: Build (unix)
+        if: ${{ runner.os != 'Windows' }}
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }} -p gproxy
+            cross build --release --target "$TARGET" -p gproxy
+          elif [ "${{ matrix.platform }}" = "android" ]; then
+            cargo ndk -t ${{ matrix.android_abi }} build --release -p gproxy
           else
-            cargo build --release --target ${{ matrix.target }} -p gproxy
+            cargo build --release --target "$TARGET" -p gproxy
           fi
-        shell: bash
 
-      - name: Verify binary runs
-        if: ${{ !matrix.cross && matrix.platform != 'windows' }}
-        run: target/${{ matrix.target }}/release/gproxy --help
+      - name: Build (windows)
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --target "$env:TARGET" -p gproxy
 
-      - name: Verify binary runs (Windows)
-        if: ${{ matrix.platform == 'windows' && matrix.arch == 'x86_64' }}
+      - name: Run --help check before UPX (unix)
+        if: ${{ runner.os != 'Windows' && matrix.run_check }}
+        run: |
+          cd target/$TARGET/release
+          ./gproxy --help
+
+      - name: Run --help check before UPX (windows)
+        if: ${{ runner.os == 'Windows' && matrix.run_check }}
         shell: pwsh
         run: |
-          & "target/${{ matrix.target }}/release/gproxy.exe" --help
+          $bin = Join-Path -Path "target" -ChildPath "$env:TARGET/release/gproxy$env:BIN_EXT"
+          & $bin --help
 
-      - name: Install UPX (Linux)
+      - name: Install UPX (linux)
         if: ${{ runner.os == 'Linux' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends upx-ucl zip
 
-      - name: Install UPX (Windows)
+      - name: Install UPX (windows)
         if: ${{ runner.os == 'Windows' && matrix.arch != 'aarch64' }}
         shell: pwsh
         run: choco install upx -y
 
-      - name: Compress with UPX (Linux/Android)
-        if: ${{ runner.os == 'Linux' }}
-        run: upx --best --lzma target/${{ matrix.target }}/release/gproxy
+      - name: Compress binary (non-macos)
+        if: ${{ runner.os != 'macOS' && !(matrix.platform == 'windows' && matrix.arch == 'aarch64') }}
+        run: upx --best --lzma target/$TARGET/release/gproxy$BIN_EXT
 
-      - name: Compress with UPX (Windows x86_64)
-        if: ${{ runner.os == 'Windows' && matrix.arch == 'x86_64' }}
+      - name: Run --help check after UPX (unix)
+        if: ${{ runner.os != 'Windows' && runner.os != 'macOS' && matrix.run_check }}
+        run: |
+          cd target/$TARGET/release
+          ./gproxy --help
+
+      - name: Run --help check after UPX (windows)
+        if: ${{ runner.os == 'Windows' && matrix.run_check && matrix.arch != 'aarch64' }}
         shell: pwsh
-        run: upx --best --lzma target/${{ matrix.target }}/release/gproxy.exe
+        run: |
+          $bin = Join-Path -Path "target" -ChildPath "$env:TARGET/release/gproxy$env:BIN_EXT"
+          & $bin --help
 
-      - name: Codesign (macOS)
+      - name: Codesign (macos)
         if: ${{ runner.os == 'macOS' }}
-        run: codesign --force --sign - target/${{ matrix.target }}/release/gproxy
+        run: codesign --force --sign - target/$TARGET/release/gproxy$BIN_EXT
 
-      - name: Package (Unix)
-        if: matrix.platform != 'windows'
+      - name: Prepare Linux Docker binary
+        if: ${{ matrix.platform == 'linux' && (matrix.libc == 'gnu' || matrix.libc == 'musl') }}
         run: |
-          ASSET_NAME="gproxy-${{ matrix.platform }}-${{ matrix.arch }}"
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/gproxy dist/
-          cd dist && zip ../${ASSET_NAME}.zip gproxy
-          cd .. && sha256sum ${ASSET_NAME}.zip | awk '{print $1}' > ${ASSET_NAME}.zip.sha256
-        shell: bash
+          mkdir -p docker-binary
+          cp target/$TARGET/release/gproxy docker-binary/gproxy
 
-      - name: Package (Windows)
-        if: matrix.platform == 'windows'
-        run: |
-          $ASSET_NAME = "gproxy-${{ matrix.platform }}-${{ matrix.arch }}"
-          New-Item -ItemType Directory -Force -Path dist
-          Copy-Item "target/${{ matrix.target }}/release/gproxy.exe" -Destination "dist/"
-          Compress-Archive -Path "dist/gproxy.exe" -DestinationPath "${ASSET_NAME}.zip"
-          $hash = (Get-FileHash "${ASSET_NAME}.zip" -Algorithm SHA256).Hash.ToLower()
-          Set-Content -Path "${ASSET_NAME}.zip.sha256" -Value $hash
-        shell: pwsh
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Linux Docker binary
+        if: ${{ matrix.platform == 'linux' && (matrix.libc == 'gnu' || matrix.libc == 'musl') }}
+        uses: actions/upload-artifact@v7
         with:
-          name: gproxy-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            gproxy-*.zip
-            gproxy-*.zip.sha256
+          name: docker-bin-${{ env.TARGET }}
+          path: docker-binary/gproxy
+          retention-days: 1
 
-  sign:
+      # Repo has no LICENSE file yet, so the package only ships the
+      # binary + README. Add LICENSE here once we pick one.
+      - name: Package (unix)
+        if: ${{ runner.os != 'Windows' }}
+        run: |
+          mkdir -p dist
+          cp target/$TARGET/release/gproxy$BIN_EXT dist/gproxy$BIN_EXT
+          cp README.md dist/
+          (cd dist && zip -9 ../$ARTIFACT gproxy$BIN_EXT README.md)
+          shasum -a 256 "$ARTIFACT" > "$ARTIFACT.sha256"
+
+      - name: Package (windows)
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $bin = Join-Path -Path "target" -ChildPath "$env:TARGET/release/gproxy$env:BIN_EXT"
+          $outBin = Join-Path -Path "dist" -ChildPath "gproxy$env:BIN_EXT"
+          Copy-Item -Path $bin -Destination $outBin
+          Copy-Item -Path README.md -Destination dist\
+          Compress-Archive -Path $outBin,dist\README.md -DestinationPath $env:ARTIFACT -Force
+          $hash = (Get-FileHash $env:ARTIFACT -Algorithm SHA256).Hash.ToLower()
+          "${hash}  $env:ARTIFACT" | Out-File -Encoding ASCII "$env:ARTIFACT.sha256"
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-asset-${{ env.TARGET }}
+          path: |
+            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT }}.sha256
+          retention-days: 1
+
+      - name: Upload release assets
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.zip
+            *.zip.sha256
+          overwrite_files: true
+
+  sign-release-assets:
+    name: Sign release checksums
+    if: ${{ github.event_name == 'release' || github.event_name == 'push' }}
     needs: build
     runs-on: ubuntu-latest
-    name: Sign release assets
-
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v8
         with:
-          path: artifacts
+          pattern: release-asset-*
+          path: dist
           merge-multiple: true
 
-      - name: Validate signing secrets
+      - name: Validate signing settings
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
         run: |
-          if [ -z "${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}" ]; then
-            echo "::error::UPDATE_SIGNING_PRIVATE_KEY_B64 secret is not set"
+          set -euo pipefail
+          test -n "${UPDATE_SIGNING_PRIVATE_KEY_B64}" || {
+            echo "missing repo secret: UPDATE_SIGNING_PRIVATE_KEY_B64" >&2
             exit 1
-          fi
-          if [ -z "${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}" ]; then
-            echo "::error::GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 secret is not set"
+          }
+          test -n "${GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64}" || {
+            echo "missing repo secret: GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64" >&2
             exit 1
-          fi
+          }
 
       - name: Sign checksum files
         env:
-          PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
+          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
         run: |
-          # Decode private key
-          echo "$PRIVATE_KEY_B64" | base64 -d > private.pem
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p .signing
+          printf '%s' "${UPDATE_SIGNING_PRIVATE_KEY_B64}" | base64 --decode > .signing/update-signing-private.pem
+          chmod 600 .signing/update-signing-private.pem
 
-          # Sign each .sha256 file
-          for sha_file in artifacts/*.sha256; do
-            echo "Signing $sha_file"
-            openssl pkeyutl -sign -rawin \
-              -inkey private.pem \
-              -in "$sha_file" \
-              -out "${sha_file}.sig.bin"
-            base64 -w0 "${sha_file}.sig.bin" > "${sha_file}.sig"
-            rm "${sha_file}.sig.bin"
-            echo "  -> ${sha_file}.sig"
-          done
-
-          rm private.pem
-
-      - name: Upload signed artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-release
-          path: |
-            artifacts/*.zip
-            artifacts/*.sha256
-            artifacts/*.sha256.sig
-
-  publish:
-    needs: sign
-    runs-on: ubuntu-latest
-    name: Publish release assets
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download signed artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: signed-release
-          path: release
-
-      - name: Determine tag
-        id: tag
-        run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          # Sanity check: derive the public Ed25519 key from the private
+          # PEM and confirm it matches the configured public-key secret.
+          # Catches mismatched key pairs before we ship signed checksums
+          # the in-app updater can't verify.
+          derived_public_key_b64="$(openssl pkey -in .signing/update-signing-private.pem -pubout -outform DER | tail -c 32 | base64 -w0)"
+          if [ "${derived_public_key_b64}" != "${GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64}" ]; then
+            echo "update signing public key mismatch between private and configured public key" >&2
+            exit 1
           fi
 
-      - name: Generate latest.json manifest
+          files=(dist/*.zip.sha256)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no checksum files found for signing" >&2
+            exit 1
+          fi
+
+          for checksum in "${files[@]}"; do
+            sig_bin="${checksum}.sig.bin"
+            sig_txt="${checksum}.sig"
+            openssl pkeyutl -sign -rawin \
+              -inkey .signing/update-signing-private.pem \
+              -in "$checksum" \
+              -out "$sig_bin"
+            base64 -w0 "$sig_bin" > "$sig_txt"
+            printf '\n' >> "$sig_txt"
+            rm -f "$sig_bin"
+          done
+
+          rm -f .signing/update-signing-private.pem
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-release-assets
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+            dist/*.zip.sha256.sig
+          retention-days: 1
+
+  publish-release-assets:
+    name: Publish release assets
+    if: ${{ github.event_name == 'release' || github.event_name == 'push' }}
+    needs: sign-release-assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: signed-release-assets
+          path: dist
+
+      - name: Upload checksum signatures to release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip.sha256.sig
+          fail_on_unmatched_files: true
+          overwrite_files: true
+
+      - name: Move staging tag to current commit
+        if: ${{ github.event_name == 'push' }}
         run: |
-          TAG="${{ steps.tag.outputs.tag }}"
-          VERSION="${TAG#v}"
-          cat > release/latest.json <<MANIFEST
-          {
-            "version": "${VERSION}",
-            "tag": "${TAG}"
-          }
-          MANIFEST
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa staging -m "staging build ${GITHUB_SHA}" "${GITHUB_SHA}"
+          git push origin refs/tags/staging --force
 
-      - name: Upload to GitHub Release
-        if: github.event_name == 'release'
+      - name: Publish staging release
+        if: ${{ github.event_name == 'push' }}
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: staging
+          name: staging
+          body: |
+            Automated staging build from `${{ github.sha }}`.
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
           files: |
-            release/*.zip
-            release/*.sha256
-            release/*.sha256.sig
-            release/latest.json
+            dist/*.zip
+            dist/*.zip.sha256
+            dist/*.zip.sha256.sig
+          fail_on_unmatched_files: true
+          overwrite_files: true
 
-      - name: Upload manifest for manual dispatch
-        if: github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
+  docker-build:
+    name: Build Docker (${{ matrix.variant }}-${{ matrix.arch }})
+    if: ${{ github.event_name == 'release' || github.event_name == 'push' }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: gnu
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: gnu
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: musl
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            suffix: "-musl"
+            runtime_base: gcr.io/distroless/static-debian13
+          - variant: musl
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            suffix: "-musl"
+            runtime_base: gcr.io/distroless/static-debian13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v8
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          files: |
-            release/*.zip
-            release/*.sha256
-            release/*.sha256.sig
-            release/latest.json
+          name: docker-bin-${{ matrix.target }}
+          path: dist
+
+      - name: Prepare runtime files
+        run: |
+          chmod +x dist/gproxy
+          mkdir -p dist/data
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gproxy
+          tags: |
+            type=ref,event=tag,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=staging,enable=${{ github.event_name == 'push' }}
+            type=sha,prefix=staging-,enable=${{ github.event_name == 'push' }}
+          flavor: |
+            suffix=-${{ matrix.arch }}${{ matrix.suffix }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.action
+          platforms: linux/${{ matrix.arch }}
+          push: true
+          build-args: |
+            RUNTIME_BASE=${{ matrix.runtime_base }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=gproxy-docker-${{ matrix.variant }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=gproxy-docker-${{ matrix.variant }}-${{ matrix.arch }}
+
+  docker-manifest:
+    name: Create Docker manifest
+    if: ${{ github.event_name == 'release' || github.event_name == 'push' }}
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gproxy
+          tags: |
+            type=ref,event=tag,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=staging,enable=${{ github.event_name == 'push' }}
+            type=sha,prefix=staging-,enable=${{ github.event_name == 'push' }}
+
+      - name: Create glibc manifest list
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              docker buildx imagetools create -t "$tag" \
+                "${tag}-amd64" \
+                "${tag}-arm64"
+            fi
+          done <<< "${{ steps.meta.outputs.tags }}"
+
+      - name: Create musl manifest list
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              docker buildx imagetools create -t "${tag}-musl" \
+                "${tag}-amd64-musl" \
+                "${tag}-arm64-musl"
+            fi
+          done <<< "${{ steps.meta.outputs.tags }}"
