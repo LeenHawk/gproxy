@@ -168,7 +168,7 @@ jobs:
           set -euo pipefail
 
           echo "=== Bucket contents ==="
-          rclone lsf "r2:$BUCKET" --recursive --s3-no-check-bucket | head -50
+          rclone lsf "r2:$BUCKET" --recursive --s3-no-check-bucket | head -50 || true
 
           if [ "$CHANNEL" = "stable" ]; then
             echo "=== latest.json ==="
