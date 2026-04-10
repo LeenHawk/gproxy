@@ -303,7 +303,11 @@ pub async fn proxy(
                 upstream_meta: result.meta.clone(),
                 upstream_provider: effective_provider.clone(),
             };
-            Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), Some(dl_ctx), stream))
+            Body::from_stream(stream_with_usage_tracking(
+                usage_ctx.clone(),
+                Some(dl_ctx),
+                stream,
+            ))
         }
         ExecuteBody::Stream(stream) => Body::from_stream(stream),
     };
@@ -545,7 +549,11 @@ pub async fn proxy_unscoped(
                 upstream_meta: result.meta.clone(),
                 upstream_provider: target_provider.clone(),
             };
-            Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), Some(dl_ctx), stream))
+            Body::from_stream(stream_with_usage_tracking(
+                usage_ctx.clone(),
+                Some(dl_ctx),
+                stream,
+            ))
         }
         ExecuteBody::Stream(stream) => Body::from_stream(stream),
     };
