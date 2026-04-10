@@ -532,6 +532,10 @@ async fn run_ws_bridge_with_protocol(
     let mut openai_session = matches!(ctx.operation, OperationFamily::OpenAiResponseWebSocket)
         .then(|| OpenAiWsModelSession::new(ctx.model.clone()));
 
+    // Per-model usage segments: when the model changes, we snapshot the
+    // accumulated usage for the old model and start fresh for the new one.
+    let mut usage_segments: Vec<(Option<String>, gproxy_sdk::provider::engine::Usage)> = Vec::new();
+
     // Collect WS messages for logging (only if downstream log + body enabled)
     let collect_body = {
         let cfg = ctx.state.config();
@@ -547,6 +551,7 @@ async fn run_ws_bridge_with_protocol(
                     Some(Ok(Message::Text(t))) => {
                         let mut outbound_text = t.to_string();
                         if let Some(session) = openai_session.as_mut() {
+                            let old_model = session.active_model();
                             match authorize_openai_ws_client_frame(
                                 &ctx.state,
                                 ctx.user_id,
@@ -554,7 +559,16 @@ async fn run_ws_bridge_with_protocol(
                                 session,
                                 &outbound_text,
                             ) {
-                                Ok(frame) => outbound_text = frame.outbound_text,
+                                Ok(frame) => {
+                                    // On model change, snapshot usage for the old model.
+                                    let new_model = session.active_model();
+                                    if old_model != new_model {
+                                        if let Some(usage) = bridge.take_accumulated_usage() {
+                                            usage_segments.push((old_model, usage));
+                                        }
+                                    }
+                                    outbound_text = frame.outbound_text;
+                                }
                                 Err(err) => {
                                     send_ws_error(downstream, &err.message).await;
                                     break;
@@ -640,12 +654,17 @@ async fn run_ws_bridge_with_protocol(
         }
     }
 
-    // Record accumulated usage from the WS session
+    // Push the final model segment (remaining accumulated usage).
     if let Some(usage) = bridge.final_usage() {
         let model = openai_session
             .as_ref()
             .and_then(|session| session.active_model())
             .or_else(|| ctx.model.clone());
+        usage_segments.push((model, usage));
+    }
+
+    // Record one usage entry per model used in this session.
+    for (model, usage) in &usage_segments {
         let usage_ctx = super::handler::UsageRecordContext {
             state: ctx.state.clone(),
             user_id: ctx.user_id,
@@ -653,13 +672,13 @@ async fn run_ws_bridge_with_protocol(
             provider_name: ctx.provider_name.clone(),
             credential_index: ctx.credential_index,
             precomputed_cost: None,
-            model,
+            model: model.clone(),
             billing_context: None,
             operation: ctx.operation,
             protocol: ctx.protocol,
             downstream_trace_id: Some(ctx.trace_id),
         };
-        super::handler::record_usage(&usage_ctx, &usage).await;
+        super::handler::record_usage(&usage_ctx, usage).await;
     }
 
     // Record downstream log for WS session (request = client messages, response = server messages)

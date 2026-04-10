@@ -26,6 +26,10 @@ pub(crate) trait WsProtocolBridge: Send {
 
     /// Accumulated usage over the entire connection lifetime.
     fn final_usage(&self) -> Option<Usage>;
+
+    /// Take and reset accumulated usage. Used on model change to snapshot
+    /// the current response's usage before starting a new model segment.
+    fn take_accumulated_usage(&mut self) -> Option<Usage>;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,6 +72,15 @@ impl WsProtocolBridge for PassthroughBridge {
     fn final_usage(&self) -> Option<Usage> {
         if self.has_usage {
             Some(self.accumulated_usage.clone())
+        } else {
+            None
+        }
+    }
+
+    fn take_accumulated_usage(&mut self) -> Option<Usage> {
+        if self.has_usage {
+            self.has_usage = false;
+            Some(std::mem::take(&mut self.accumulated_usage))
         } else {
             None
         }
@@ -280,6 +293,15 @@ impl WsProtocolBridge for OpenAiToGeminiBridge {
             None
         }
     }
+
+    fn take_accumulated_usage(&mut self) -> Option<Usage> {
+        if self.has_usage {
+            self.has_usage = false;
+            Some(std::mem::take(&mut self.accumulated_usage))
+        } else {
+            None
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -408,6 +430,15 @@ impl WsProtocolBridge for GeminiToOpenAiBridge {
     fn final_usage(&self) -> Option<Usage> {
         if self.has_usage {
             Some(self.accumulated_usage.clone())
+        } else {
+            None
+        }
+    }
+
+    fn take_accumulated_usage(&mut self) -> Option<Usage> {
+        if self.has_usage {
+            self.has_usage = false;
+            Some(std::mem::take(&mut self.accumulated_usage))
         } else {
             None
         }
