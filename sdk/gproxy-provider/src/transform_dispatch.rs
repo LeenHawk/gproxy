@@ -477,6 +477,18 @@ pub fn transform_request(
             >(&body)
         }
 
+        // === OpenAI Response source → OpenAI ChatCompletions ===
+        //
+        // Used by channels like deepseek that only expose the chat
+        // completions surface but advertise the OpenAI Response protocol
+        // to clients, so the dispatch table transforms on the way in.
+        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
+            transform_request_descriptor::<
+                gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
+                gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            >(&body)
+        }
+
         // === OpenAI Response source → Claude ===
         (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
             transform_request_descriptor::<
@@ -608,6 +620,15 @@ pub fn transform_request(
             transform_request_descriptor_ref::<
                 gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
                 gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
+            >(&body)
+        }
+        // Stream mirror of the non-stream arm above: deepseek and friends
+        // advertise OpenAI Response streaming to clients but only speak
+        // chat-completions upstream.
+        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
+            transform_request_descriptor_ref::<
+                gproxy_protocol::openai::create_response::request::OpenAiCreateResponseRequest,
+                gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             >(&body)
         }
 
@@ -942,6 +963,17 @@ pub fn transform_response(
             transform_response_json::<
                 gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
                 gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+            >(&body)
+        }
+        // OpenAI ChatCompletions response → OpenAI Response
+        //
+        // Mirror of the arm above, used when the client is speaking
+        // OpenAI Response but the upstream only returns chat completions
+        // (deepseek, groq, nvidia, etc.).
+        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
+            transform_response_json::<
+                gproxy_protocol::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+                gproxy_protocol::openai::create_response::response::OpenAiCreateResponseResponse,
             >(&body)
         }
 
@@ -1816,6 +1848,42 @@ impl
     }
 }
 
+/// Stream converter for `OpenAI Chat Completions stream` → `OpenAI Responses stream`.
+///
+/// The reverse of `OpenAiResponseToOpenAiChatCompletionsConverter`,
+/// used when clients speak OpenAI Response but the upstream channel
+/// only exposes chat completions (deepseek, groq, nvidia, etc.).
+#[derive(Default)]
+struct OpenAiChatCompletionsToOpenAiResponseConverter(
+    gproxy_protocol::transform::openai::stream_generate_content::openai_response::openai_chat_completions::response::OpenAiChatCompletionsToOpenAiResponseStream,
+);
+
+impl
+    EventConverter<
+        gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+        gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+    > for OpenAiChatCompletionsToOpenAiResponseConverter
+{
+    fn on_input(
+        &mut self,
+        input: gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+        out: &mut Vec<gproxy_protocol::openai::create_response::stream::ResponseStreamEvent>,
+    ) -> Result<(), UpstreamError> {
+        self.0
+            .on_stream_event(input, out)
+            .map_err(|e| UpstreamError::Channel(format!("stream convert: {e}")))
+    }
+
+    fn finish(
+        &mut self,
+        out: &mut Vec<gproxy_protocol::openai::create_response::stream::ResponseStreamEvent>,
+    ) -> Result<(), UpstreamError> {
+        self.0
+            .finish(out)
+            .map_err(|e| UpstreamError::Channel(format!("stream finish: {e}")))
+    }
+}
+
 #[derive(Default)]
 struct ResponseStreamToImageStreamConverter(
     gproxy_protocol::transform::openai::create_image::openai_response::stream::ResponseStreamToImageStream,
@@ -2136,6 +2204,29 @@ pub fn create_stream_response_transformer(
             src_protocol,
             dst_protocol,
             OpenAiResponseToOpenAiChatCompletionsConverter::default(),
+            normalizer,
+        ),
+
+        // OpenAI Chat Completions stream → OpenAI Responses stream.
+        //
+        // Mirror of the arm above, used by channels that only expose the
+        // chat completions surface but advertise the Response protocol to
+        // clients — deepseek, groq, nvidia, etc. Client speaks OpenAI
+        // Response, upstream returns chat chunks, and this converter
+        // folds them back into Response stream events.
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => build_stream_transform::<
+            gproxy_protocol::openai::create_chat_completions::stream::ChatCompletionChunk,
+            gproxy_protocol::openai::create_response::stream::ResponseStreamEvent,
+            OpenAiChatCompletionsToOpenAiResponseConverter,
+        >(
+            src_protocol,
+            dst_protocol,
+            OpenAiChatCompletionsToOpenAiResponseConverter::default(),
             normalizer,
         ),
 
