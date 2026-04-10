@@ -35,12 +35,15 @@ pub async fn proxy(
         .cloned()
         .ok_or_else(|| HttpError::bad_request("route missing provider path param"))?;
     let start = std::time::Instant::now();
-    let trace_id = generate_trace_id();
+    let trace_id = request
+        .extensions()
+        .get::<crate::downstream_log::TraceId>()
+        .map(|t| t.0)
+        .unwrap_or_else(generate_trace_id);
     let req_method = request.method().to_string();
     let req_path = request.uri().path().to_string();
     let req_query = request.uri().query().map(String::from);
     let headers = request.headers().clone();
-    let req_headers_json = headers_to_json(&headers);
     let user_key = authenticated.0;
 
     // Extract classification from middleware extensions
@@ -129,16 +132,10 @@ pub async fn proxy(
     if let Some(FileOperationPlan::ShortCircuitJson(resp_body)) = &file_plan {
         return Ok(respond_with_local_json(
             LocalJsonResponseContext {
-                state: &state,
                 start,
                 trace_id,
-                user_id: user_key.user_id,
-                user_key_id: user_key.id,
                 req_method: &req_method,
                 req_path: &req_path,
-                req_query: req_query.as_deref(),
-                req_headers_json: &req_headers_json,
-                req_body: Some(&req_body),
             },
             resp_body.clone(),
         )
@@ -178,13 +175,7 @@ pub async fn proxy(
                 &state,
                 trace_id,
                 &effective_provider,
-                user_key.user_id,
-                user_key.id,
                 &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
                 upstream_status,
                 err.meta.as_ref(),
             )
@@ -244,68 +235,17 @@ pub async fn proxy(
         record_upstream_log(&state, trace_id, &effective_provider, result.meta.as_ref()).await;
     }
 
-    let resp_status = result.status;
-    let resp_headers_json = headers_to_json(&result.headers);
-
     let response_body = match result.body {
-        ExecuteBody::Full(ref resp_body) => {
-            // Record downstream log (full response available)
-            let latency_ms = start.elapsed().as_millis() as u64;
-            tracing::info!(
-                trace_id,
-                method = %req_method,
-                path = %req_path,
-                status = resp_status,
-                latency_ms,
-                "downstream"
-            );
-            record_downstream_log(
-                &state,
-                trace_id,
-                user_key.user_id,
-                user_key.id,
-                &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
-                Some(resp_status as i32),
-                &resp_headers_json,
-                Some(resp_body),
-            )
-            .await;
-            Body::from(resp_body.clone())
-        }
+        ExecuteBody::Full(ref resp_body) => Body::from(resp_body.clone()),
         ExecuteBody::Stream(stream) if classification.operation.is_stream() => {
-            // For streaming: defer downstream log to end of stream so the
-            // accumulated response body can be captured.
-            let latency_ms = start.elapsed().as_millis() as u64;
-            tracing::info!(
+            let ul_ctx = StreamUpstreamLogContext {
                 trace_id,
-                method = %req_method,
-                path = %req_path,
-                status = resp_status,
-                latency_ms,
-                stream = true,
-                "downstream"
-            );
-            let dl_ctx = StreamDownstreamLogContext {
-                trace_id,
-                user_id: user_key.user_id,
-                user_key_id: user_key.id,
-                method: req_method.clone(),
-                path: req_path.clone(),
-                query: req_query.clone(),
-                req_headers_json: req_headers_json.clone(),
-                req_body: req_body.clone(),
-                resp_status: resp_status as i32,
-                resp_headers_json: resp_headers_json.clone(),
-                upstream_meta: result.meta.clone(),
-                upstream_provider: effective_provider.clone(),
+                provider_name: effective_provider.clone(),
+                meta: result.meta.clone(),
             };
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
-                Some(dl_ctx),
+                Some(ul_ctx),
                 stream,
             ))
         }
@@ -328,12 +268,15 @@ pub async fn proxy_unscoped(
     request: Request,
 ) -> Result<Response, HttpError> {
     let start = std::time::Instant::now();
-    let trace_id = generate_trace_id();
+    let trace_id = request
+        .extensions()
+        .get::<crate::downstream_log::TraceId>()
+        .map(|t| t.0)
+        .unwrap_or_else(generate_trace_id);
     let req_method = request.method().to_string();
     let req_path = request.uri().path().to_string();
     let req_query = request.uri().query().map(String::from);
     let headers = request.headers().clone();
-    let req_headers_json = headers_to_json(&headers);
     let user_key = authenticated.0;
 
     let classification = request
@@ -343,24 +286,12 @@ pub async fn proxy_unscoped(
         .ok_or_else(|| HttpError::bad_request("request not classified"))?;
 
     if classification.operation == OperationFamily::ModelList {
-        let req_body = build_execute_body(
-            classification.operation,
-            &req_path,
-            req_query.as_deref(),
-            buffered_request_body(&request)?,
-        );
         return Ok(respond_with_local_json(
             LocalJsonResponseContext {
-                state: &state,
                 start,
                 trace_id,
-                user_id: user_key.user_id,
-                user_key_id: user_key.id,
                 req_method: &req_method,
                 req_path: &req_path,
-                req_query: req_query.as_deref(),
-                req_headers_json: &req_headers_json,
-                req_body: Some(&req_body),
             },
             build_unscoped_model_list_body(
                 &state,
@@ -447,13 +378,7 @@ pub async fn proxy_unscoped(
                 &state,
                 trace_id,
                 &target_provider,
-                user_key.user_id,
-                user_key.id,
                 &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
                 upstream_status,
                 err.meta.as_ref(),
             )
@@ -493,65 +418,17 @@ pub async fn proxy_unscoped(
         record_upstream_log(&state, trace_id, &target_provider, result.meta.as_ref()).await;
     }
 
-    let resp_status = result.status;
-    let resp_headers_json = headers_to_json(&result.headers);
-
     let response_body = match result.body {
-        ExecuteBody::Full(ref resp_body) => {
-            let latency_ms = start.elapsed().as_millis() as u64;
-            tracing::info!(
-                trace_id,
-                method = %req_method,
-                path = %req_path,
-                status = resp_status,
-                latency_ms,
-                "downstream"
-            );
-            record_downstream_log(
-                &state,
-                trace_id,
-                user_key.user_id,
-                user_key.id,
-                &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
-                Some(resp_status as i32),
-                &resp_headers_json,
-                Some(resp_body),
-            )
-            .await;
-            Body::from(resp_body.clone())
-        }
+        ExecuteBody::Full(ref resp_body) => Body::from(resp_body.clone()),
         ExecuteBody::Stream(stream) if classification.operation.is_stream() => {
-            let latency_ms = start.elapsed().as_millis() as u64;
-            tracing::info!(
+            let ul_ctx = StreamUpstreamLogContext {
                 trace_id,
-                method = %req_method,
-                path = %req_path,
-                status = resp_status,
-                latency_ms,
-                stream = true,
-                "downstream"
-            );
-            let dl_ctx = StreamDownstreamLogContext {
-                trace_id,
-                user_id: user_key.user_id,
-                user_key_id: user_key.id,
-                method: req_method.clone(),
-                path: req_path.clone(),
-                query: req_query.clone(),
-                req_headers_json: req_headers_json.clone(),
-                req_body: req_body.clone(),
-                resp_status: resp_status as i32,
-                resp_headers_json: resp_headers_json.clone(),
-                upstream_meta: result.meta.clone(),
-                upstream_provider: target_provider.clone(),
+                provider_name: target_provider.clone(),
+                meta: result.meta.clone(),
             };
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
-                Some(dl_ctx),
+                Some(ul_ctx),
                 stream,
             ))
         }
@@ -576,12 +453,15 @@ pub async fn proxy_unscoped_files(
     request: Request,
 ) -> Result<Response, HttpError> {
     let start = std::time::Instant::now();
-    let trace_id = generate_trace_id();
+    let trace_id = request
+        .extensions()
+        .get::<crate::downstream_log::TraceId>()
+        .map(|t| t.0)
+        .unwrap_or_else(generate_trace_id);
     let req_method = request.method().to_string();
     let req_path = request.uri().path().to_string();
     let req_query = request.uri().query().map(String::from);
     let headers = request.headers().clone();
-    let req_headers_json = headers_to_json(&headers);
     let user_key = authenticated.0;
 
     // Resolve provider from X-Provider header
@@ -636,16 +516,10 @@ pub async fn proxy_unscoped_files(
     if let Some(FileOperationPlan::ShortCircuitJson(resp_body)) = &file_plan {
         return Ok(respond_with_local_json(
             LocalJsonResponseContext {
-                state: &state,
                 start,
                 trace_id,
-                user_id: user_key.user_id,
-                user_key_id: user_key.id,
                 req_method: &req_method,
                 req_path: &req_path,
-                req_query: req_query.as_deref(),
-                req_headers_json: &req_headers_json,
-                req_body: Some(&req_body),
             },
             resp_body.clone(),
         )
@@ -685,13 +559,7 @@ pub async fn proxy_unscoped_files(
                 &state,
                 trace_id,
                 &target_provider,
-                user_key.user_id,
-                user_key.id,
                 &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
                 upstream_status,
                 err.meta.as_ref(),
             )
@@ -749,35 +617,8 @@ pub async fn proxy_unscoped_files(
         record_upstream_log(&state, trace_id, &target_provider, result.meta.as_ref()).await;
     }
 
-    let resp_status = result.status;
-    let resp_headers_json = headers_to_json(&result.headers);
-
     let response_body = match result.body {
         ExecuteBody::Full(ref resp_body) => {
-            let latency_ms = start.elapsed().as_millis() as u64;
-            tracing::info!(
-                trace_id,
-                method = %req_method,
-                path = %req_path,
-                status = resp_status,
-                latency_ms,
-                "downstream"
-            );
-            record_downstream_log(
-                &state,
-                trace_id,
-                user_key.user_id,
-                user_key.id,
-                &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
-                Some(resp_status as i32),
-                &resp_headers_json,
-                Some(resp_body),
-            )
-            .await;
             Body::from(resp_body.clone())
         }
         ExecuteBody::Stream(stream) => Body::from_stream(stream),
@@ -824,16 +665,10 @@ impl FileOperationPlan {
 }
 
 struct LocalJsonResponseContext<'a> {
-    state: &'a AppState,
     start: std::time::Instant,
     trace_id: i64,
-    user_id: i64,
-    user_key_id: i64,
     req_method: &'a str,
     req_path: &'a str,
-    req_query: Option<&'a str>,
-    req_headers_json: &'a str,
-    req_body: Option<&'a Vec<u8>>,
 }
 
 struct ClaudeFileSideEffectsContext<'a> {
@@ -1489,22 +1324,6 @@ async fn respond_with_local_json(
         local = true,
         "downstream"
     );
-    let resp_headers_json = headers_to_json(response.headers());
-    record_downstream_log(
-        ctx.state,
-        ctx.trace_id,
-        ctx.user_id,
-        ctx.user_key_id,
-        ctx.req_method,
-        ctx.req_path,
-        ctx.req_query,
-        ctx.req_headers_json,
-        ctx.req_body,
-        Some(200),
-        &resp_headers_json,
-        Some(&resp_body),
-    )
-    .await;
     response
 }
 
@@ -1620,23 +1439,13 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
     }
 }
 
-/// Context for recording a downstream request log at the end of a stream.
+/// Context for recording an upstream request log at the end of a stream,
+/// so the accumulated response body can be captured.
 #[derive(Clone)]
-struct StreamDownstreamLogContext {
+struct StreamUpstreamLogContext {
     trace_id: i64,
-    user_id: i64,
-    user_key_id: i64,
-    method: String,
-    path: String,
-    query: Option<String>,
-    req_headers_json: String,
-    req_body: Vec<u8>,
-    resp_status: i32,
-    resp_headers_json: String,
-    /// Upstream request metadata — filled with response_body=None before
-    /// streaming; gets the accumulated body at stream end.
-    upstream_meta: Option<UpstreamRequestMeta>,
-    upstream_provider: String,
+    provider_name: String,
+    meta: Option<UpstreamRequestMeta>,
 }
 
 /// Shared context for usage recording, avoids passing 8+ args.
@@ -1753,7 +1562,7 @@ async fn persist_usage_write_now(
 
 fn stream_with_usage_tracking(
     ctx: UsageRecordContext,
-    downstream_log: Option<StreamDownstreamLogContext>,
+    upstream_log: Option<StreamUpstreamLogContext>,
     mut stream: gproxy_sdk::provider::engine::ExecuteBodyStream,
 ) -> impl futures_util::Stream<
     Item = Result<bytes::Bytes, gproxy_sdk::provider::response::UpstreamError>,
@@ -1764,8 +1573,7 @@ fn stream_with_usage_tracking(
         let mut decoder = UsageChunkDecoder::new(ctx.protocol);
         let mut accumulated_body: Vec<u8> = Vec::new();
         let config = ctx.state.config();
-        let capture_body = downstream_log.is_some()
-            && (config.enable_downstream_log_body || config.enable_upstream_log_body);
+        let capture_body = upstream_log.is_some() && config.enable_upstream_log_body;
         drop(config);
 
         while let Some(chunk) = stream.next().await {
@@ -1787,39 +1595,16 @@ fn stream_with_usage_tracking(
             record_stream_usage(&ctx, usage).await;
         }
 
-        // Record deferred downstream + upstream logs with accumulated body.
-        if let Some(dl) = downstream_log {
-            let config = ctx.state.config();
-            let ds_body = if config.enable_downstream_log_body && !accumulated_body.is_empty() {
-                Some(&accumulated_body)
-            } else {
-                None
-            };
-            record_downstream_log(
-                &ctx.state,
-                dl.trace_id,
-                dl.user_id,
-                dl.user_key_id,
-                &dl.method,
-                &dl.path,
-                dl.query.as_deref(),
-                &dl.req_headers_json,
-                Some(&dl.req_body),
-                Some(dl.resp_status),
-                &dl.resp_headers_json,
-                ds_body,
-            )
-            .await;
-
-            // Record upstream log with the accumulated streaming response body.
-            if let Some(mut meta) = dl.upstream_meta {
+        // Record deferred upstream log with accumulated body.
+        if let Some(ul) = upstream_log
+            && let Some(mut meta) = ul.meta {
+                let config = ctx.state.config();
                 if config.enable_upstream_log_body && !accumulated_body.is_empty() {
                     meta.response_body = Some(accumulated_body);
                 }
-                record_upstream_log(&ctx.state, dl.trace_id, &dl.upstream_provider, Some(&meta))
+                record_upstream_log(&ctx.state, ul.trace_id, &ul.provider_name, Some(&meta))
                     .await;
             }
-        }
     }
 }
 
@@ -2264,14 +2049,6 @@ pub(crate) fn generate_trace_id() -> i64 {
         .as_nanos() as i64
 }
 
-fn headers_to_json(headers: &http::HeaderMap) -> String {
-    let map: Vec<(&str, &str)> = headers
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.to_str().unwrap_or("")))
-        .collect();
-    serde_json::to_string(&map).unwrap_or_else(|_| "[]".to_string())
-}
-
 fn buffered_request_body(request: &Request) -> Result<Vec<u8>, HttpError> {
     request
         .extensions()
@@ -2581,13 +2358,7 @@ async fn record_execute_error_logs(
     state: &AppState,
     trace_id: i64,
     provider_name: &str,
-    user_id: i64,
-    user_key_id: i64,
     method: &str,
-    path: &str,
-    query: Option<&str>,
-    req_headers_json: &str,
-    req_body: Option<&Vec<u8>>,
     response_status: i32,
     upstream_meta: Option<&UpstreamRequestMeta>,
 ) {
@@ -2666,84 +2437,8 @@ async fn record_execute_error_logs(
             ))
             .await;
     }
-
-    // Downstream log status should reflect what the upstream actually
-    // returned when we have a real attempt, instead of always 500.
-    let downstream_status = upstream_meta
-        .and_then(|m| m.response_status.map(|s| s as i32))
-        .unwrap_or(response_status);
-
-    record_downstream_log(
-        state,
-        trace_id,
-        user_id,
-        user_key_id,
-        method,
-        path,
-        query,
-        req_headers_json,
-        req_body,
-        Some(downstream_status),
-        "{}",
-        None,
-    )
-    .await;
 }
 
-/// Record downstream request/response log to DB.
-#[allow(clippy::too_many_arguments)]
-async fn record_downstream_log(
-    state: &AppState,
-    trace_id: i64,
-    user_id: i64,
-    user_key_id: i64,
-    method: &str,
-    path: &str,
-    query: Option<&str>,
-    req_headers_json: &str,
-    req_body: Option<&Vec<u8>>,
-    resp_status: Option<i32>,
-    resp_headers_json: &str,
-    resp_body: Option<&Vec<u8>>,
-) {
-    let config = state.config();
-    if !config.enable_downstream_log {
-        return;
-    }
-    let include_body = config.enable_downstream_log_body;
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64;
-    let _ = state
-        .storage()
-        .apply_write_event(gproxy_storage::StorageWriteEvent::UpsertDownstreamRequest(
-            gproxy_storage::DownstreamRequestWrite {
-                trace_id,
-                at_unix_ms: now_ms,
-                internal: false,
-                user_id: Some(user_id),
-                user_key_id: Some(user_key_id),
-                request_method: method.to_string(),
-                request_headers_json: req_headers_json.to_string(),
-                request_path: path.to_string(),
-                request_query: query.map(String::from),
-                request_body: if include_body {
-                    req_body.cloned()
-                } else {
-                    None
-                },
-                response_status: resp_status,
-                response_headers_json: resp_headers_json.to_string(),
-                response_body: if include_body {
-                    resp_body.cloned()
-                } else {
-                    None
-                },
-            },
-        ))
-        .await;
-}
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;

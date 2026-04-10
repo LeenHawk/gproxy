@@ -121,12 +121,9 @@ pub async fn upstream_usage(
         .await;
 
     // Always log upstream request and persist credential updates, even on error
-    match &result {
-        Ok((_, credential_updates, meta)) => {
-            persist_credential_updates(&state, credential_updates).await;
-            record_internal_upstream_log(&state, &provider_name, meta.as_ref()).await;
-        }
-        Err(_) => {}
+    if let Ok((_, credential_updates, meta)) = &result {
+        persist_credential_updates(&state, credential_updates).await;
+        record_internal_upstream_log(&state, &provider_name, meta.as_ref()).await;
     }
 
     let (result, _, _) = result?;

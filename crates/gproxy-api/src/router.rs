@@ -9,6 +9,7 @@ use gproxy_server::AppState;
 
 use crate::auth::{require_admin_middleware, require_user_session_middleware};
 use crate::cors::CorsLayer;
+use crate::downstream_log::downstream_log_middleware;
 
 const MAX_REQUEST_BODY_BYTES: usize = 50 * 1024 * 1024;
 
@@ -21,10 +22,6 @@ pub fn api_router(state: Arc<AppState>) -> Router {
         require_user_session_middleware,
     ));
     let app_router = Router::new()
-        // Intentional design: `/login` stays outside the
-        // provider data-plane middleware chain. Brute-force protection is
-        // expected to be handled by WAF / reverse proxy / edge policy, not by
-        // coupling password login to inference-specific rate-limit logic here.
         .route("/login", post(crate::login::login))
         .nest("/admin", admin_router)
         .nest("/user", user_router)
@@ -33,10 +30,7 @@ pub fn api_router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(app_router)
         .merge(crate::provider::router(state.clone()))
-        // Intentional design: keep the application CORS policy permissive so
-        // deployments can front it with their own browser boundary. If a
-        // deployment needs origin allowlisting, do it at the edge or replace
-        // this with `CorsLayer::with_origins(...)`.
+        .layer(from_fn_with_state(state.clone(), downstream_log_middleware))
         .layer(CorsLayer::permissive())
         .with_state(state)
 }
