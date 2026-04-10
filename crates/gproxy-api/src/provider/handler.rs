@@ -274,7 +274,8 @@ pub async fn proxy(
             Body::from(resp_body.clone())
         }
         ExecuteBody::Stream(stream) if classification.operation.is_stream() => {
-            // For streaming: log downstream immediately (response body not captured)
+            // For streaming: defer downstream log to end of stream so the
+            // accumulated response body can be captured.
             let latency_ms = start.elapsed().as_millis() as u64;
             tracing::info!(
                 trace_id,
@@ -285,22 +286,19 @@ pub async fn proxy(
                 stream = true,
                 "downstream"
             );
-            record_downstream_log(
-                &state,
+            let dl_ctx = StreamDownstreamLogContext {
                 trace_id,
-                user_key.user_id,
-                user_key.id,
-                &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
-                Some(resp_status as i32),
-                &resp_headers_json,
-                None,
-            )
-            .await;
-            Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), stream))
+                user_id: user_key.user_id,
+                user_key_id: user_key.id,
+                method: req_method.clone(),
+                path: req_path.clone(),
+                query: req_query.clone(),
+                req_headers_json: req_headers_json.clone(),
+                req_body: req_body.clone(),
+                resp_status: resp_status as i32,
+                resp_headers_json: resp_headers_json.clone(),
+            };
+            Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), Some(dl_ctx), stream))
         }
         ExecuteBody::Stream(stream) => Body::from_stream(stream),
     };
@@ -525,22 +523,19 @@ pub async fn proxy_unscoped(
                 stream = true,
                 "downstream"
             );
-            record_downstream_log(
-                &state,
+            let dl_ctx = StreamDownstreamLogContext {
                 trace_id,
-                user_key.user_id,
-                user_key.id,
-                &req_method,
-                &req_path,
-                req_query.as_deref(),
-                &req_headers_json,
-                Some(&req_body),
-                Some(resp_status as i32),
-                &resp_headers_json,
-                None,
-            )
-            .await;
-            Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), stream))
+                user_id: user_key.user_id,
+                user_key_id: user_key.id,
+                method: req_method.clone(),
+                path: req_path.clone(),
+                query: req_query.clone(),
+                req_headers_json: req_headers_json.clone(),
+                req_body: req_body.clone(),
+                resp_status: resp_status as i32,
+                resp_headers_json: resp_headers_json.clone(),
+            };
+            Body::from_stream(stream_with_usage_tracking(usage_ctx.clone(), Some(dl_ctx), stream))
         }
         ExecuteBody::Stream(stream) => Body::from_stream(stream),
     };
@@ -1604,6 +1599,21 @@ async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>)
     }
 }
 
+/// Context for recording a downstream request log at the end of a stream.
+#[derive(Clone)]
+struct StreamDownstreamLogContext {
+    trace_id: i64,
+    user_id: i64,
+    user_key_id: i64,
+    method: String,
+    path: String,
+    query: Option<String>,
+    req_headers_json: String,
+    req_body: Vec<u8>,
+    resp_status: i32,
+    resp_headers_json: String,
+}
+
 /// Shared context for usage recording, avoids passing 8+ args.
 #[derive(Clone)]
 pub(crate) struct UsageRecordContext {
@@ -1718,6 +1728,7 @@ async fn persist_usage_write_now(
 
 fn stream_with_usage_tracking(
     ctx: UsageRecordContext,
+    downstream_log: Option<StreamDownstreamLogContext>,
     mut stream: gproxy_sdk::provider::engine::ExecuteBodyStream,
 ) -> impl futures_util::Stream<
     Item = Result<bytes::Bytes, gproxy_sdk::provider::response::UpstreamError>,
@@ -1726,11 +1737,17 @@ fn stream_with_usage_tracking(
 
     try_stream! {
         let mut decoder = UsageChunkDecoder::new(ctx.protocol);
+        let mut accumulated_body: Vec<u8> = Vec::new();
+        let capture_body = downstream_log.is_some()
+            && ctx.state.config().enable_downstream_log_body;
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
             for json_chunk in decoder.push_chunk(&chunk) {
                 recorder.observe_json_chunk(&json_chunk);
+            }
+            if capture_body {
+                accumulated_body.extend_from_slice(&chunk);
             }
             yield chunk;
         }
@@ -1741,6 +1758,25 @@ fn stream_with_usage_tracking(
 
         if let Some(usage) = recorder.finish_completed() {
             record_stream_usage(&ctx, usage).await;
+        }
+
+        // Record downstream log with accumulated response body.
+        if let Some(dl) = downstream_log {
+            record_downstream_log(
+                &ctx.state,
+                dl.trace_id,
+                dl.user_id,
+                dl.user_key_id,
+                &dl.method,
+                &dl.path,
+                dl.query.as_deref(),
+                &dl.req_headers_json,
+                Some(&dl.req_body),
+                Some(dl.resp_status),
+                &dl.resp_headers_json,
+                if accumulated_body.is_empty() { None } else { Some(&accumulated_body) },
+            )
+            .await;
         }
     }
 }
