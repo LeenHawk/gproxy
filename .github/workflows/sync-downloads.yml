@@ -123,15 +123,8 @@ jobs:
             target="staging-latest.json"
           fi
 
-          cat > "/tmp/$target" <<EOF
-          {
-            "version": "$VERSION",
-            "tag": "$TAG"
-          }
-          EOF
-
-          # Pretty-print to remove leading whitespace from heredoc
-          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); json.dump(d,open(sys.argv[1],'w'),indent=2)" "/tmp/$target"
+          jq -n --arg v "$VERSION" --arg t "$TAG" \
+            '{version: $v, tag: $t}' > "/tmp/$target"
 
           rclone copyto "/tmp/$target" "r2:$BUCKET/$target" \
             --s3-no-check-bucket \
@@ -157,35 +150,15 @@ jobs:
           # Build manifest.json
           generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          python3 - "$generated_at" /tmp/all_zips.txt /tmp/manifest.json <<'PYEOF'
-          import json, sys
-
-          generated_at = sys.argv[1]
-          zips_file = sys.argv[2]
-          output_file = sys.argv[3]
-
-          assets = []
-          with open(zips_file) as f:
-              for line in f:
-                  path = line.strip()
-                  if not path:
-                      continue
-                  assets.append({"path": path})
-
-          manifest = {
-              "generated_at": generated_at,
-              "assets": assets
-          }
-
-          with open(output_file, "w") as f:
-              json.dump(manifest, f, indent=2)
-          PYEOF
+          jq -Rn --arg ts "$generated_at" \
+            '{generated_at: $ts, assets: [inputs | select(length > 0) | {path: .}]}' \
+            /tmp/all_zips.txt > /tmp/manifest.json
 
           rclone copyto /tmp/manifest.json "r2:$BUCKET/manifest.json" \
             --s3-no-check-bucket \
             --header-upload "Cache-Control: no-cache, no-store, must-revalidate"
 
-          echo "Uploaded manifest.json with $(python3 -c "import json; print(len(json.load(open('/tmp/manifest.json'))['assets']))" ) assets"
+          echo "Uploaded manifest.json with $(jq '.assets | length' /tmp/manifest.json) assets"
 
       - name: Verify uploads
         env:
