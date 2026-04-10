@@ -64,7 +64,7 @@ jobs:
       # Build-time env read by `option_env!("GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64")`
       # in crates/gproxy-api/src/admin/update.rs. Used to verify the
       # signed checksum manifests downloaded by the in-app updater.
-      GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
+      GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
     defaults:
       run:
         shell: bash
@@ -347,7 +347,7 @@ jobs:
       - name: Validate signing settings
         env:
           UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
-          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
+          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
         run: |
           set -euo pipefail
           test -n "${UPDATE_SIGNING_PRIVATE_KEY_B64}" || {
@@ -362,7 +362,7 @@ jobs:
       - name: Sign checksum files
         env:
           UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
-          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64 }}
+          GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
         run: |
           set -euo pipefail
           shopt -s nullglob
