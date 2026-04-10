@@ -259,6 +259,16 @@ pub(crate) trait ProviderRuntime: Send + Sync {
         credential_index: Option<usize>,
     ) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError>;
 
+    /// Refresh a credential's auth token (e.g. via OAuth refresh_token) and
+    /// update the in-memory store. Returns the credential update for DB
+    /// persistence, or `None` if the refresh failed or the credential has
+    /// no refresh mechanism.
+    fn refresh_credential_at<'a>(
+        &'a self,
+        credential_index: Option<usize>,
+        client: &'a wreq::Client,
+    ) -> BoxFuture<'a, Result<Option<CredentialUpdate>, UpstreamError>>;
+
     fn health_snapshots(&self) -> Vec<CredentialHealthSnapshot>;
 
     /// Manually mark a credential as dead (admin override).
@@ -402,6 +412,13 @@ impl<C: Channel> ProviderInstance<C> {
                 });
             }
         }
+
+        // Apply refreshed credentials to in-memory ArcSwap so subsequent
+        // requests use the new tokens instead of re-refreshing every time.
+        if !credential_updates.is_empty() {
+            let _ = self.apply_credential_updates(&credential_updates);
+        }
+
         Ok(credential_updates)
     }
 }
@@ -777,6 +794,49 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             },
         };
         self.channel.prepare_quota_request(credential, &settings)
+    }
+
+    fn refresh_credential_at<'a>(
+        &'a self,
+        credential_index: Option<usize>,
+        client: &'a wreq::Client,
+    ) -> BoxFuture<'a, Result<Option<CredentialUpdate>, UpstreamError>> {
+        Box::pin(async move {
+            let credentials = self.credentials.load_full();
+            let revision = self
+                .credential_revision
+                .load(std::sync::atomic::Ordering::SeqCst);
+            let index = credential_index.unwrap_or(0);
+            let Some(original) = credentials.get(index) else {
+                return Ok(None);
+            };
+
+            let mut credential = original.clone();
+            let refreshed = self
+                .channel
+                .refresh_credential(client, &mut credential)
+                .await
+                .unwrap_or(false);
+
+            if !refreshed {
+                return Ok(None);
+            }
+
+            let credential_json = serde_json::to_value(&credential)
+                .map_err(|e| UpstreamError::Channel(format!("serialize credential: {e}")))?;
+
+            let update = CredentialUpdate {
+                provider: self.name.clone(),
+                index,
+                revision,
+                credential: credential_json,
+            };
+
+            // Apply to in-memory ArcSwap
+            let _ = self.apply_credential_update(&update);
+
+            Ok(Some(update))
+        })
     }
 
     fn health_snapshots(&self) -> Vec<CredentialHealthSnapshot> {

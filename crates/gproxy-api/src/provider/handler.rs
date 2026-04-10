@@ -232,6 +232,12 @@ pub async fn proxy(
         record_usage(&usage_ctx, usage).await;
     }
 
+    // Persist any credential updates (e.g. refreshed OAuth tokens) to DB
+    if !result.credential_updates.is_empty() {
+        crate::provider::oauth::persist_credential_updates(&state, &result.credential_updates)
+            .await;
+    }
+
     // Record upstream log
     record_upstream_log(&state, trace_id, &effective_provider, result.meta.as_ref()).await;
 
@@ -466,6 +472,12 @@ pub async fn proxy_unscoped(
     // Record usage via storage write channel
     if let Some(ref usage) = result.usage {
         record_usage(&usage_ctx, usage).await;
+    }
+
+    // Persist any credential updates (e.g. refreshed OAuth tokens) to DB
+    if !result.credential_updates.is_empty() {
+        crate::provider::oauth::persist_credential_updates(&state, &result.credential_updates)
+            .await;
     }
 
     // Record upstream log
@@ -710,6 +722,12 @@ pub async fn proxy_unscoped_files(
             downstream_trace_id: Some(trace_id),
         };
         record_usage(&usage_ctx, usage).await;
+    }
+
+    // Persist any credential updates (e.g. refreshed OAuth tokens) to DB
+    if !result.credential_updates.is_empty() {
+        crate::provider::oauth::persist_credential_updates(&state, &result.credential_updates)
+            .await;
     }
 
     // Record upstream log

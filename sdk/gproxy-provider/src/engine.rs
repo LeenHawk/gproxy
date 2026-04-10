@@ -733,21 +733,53 @@ impl GproxyEngine {
     }
 
     /// Query upstream quota/usage for a provider credential.
+    ///
+    /// If the initial request returns 401/403, attempts to refresh the
+    /// credential and retries once. Returns the response together with
+    /// any credential updates that should be persisted to the database.
     pub async fn query_quota(
         &self,
         provider_name: &str,
         credential_index: Option<usize>,
-    ) -> Result<Option<crate::response::UpstreamResponse>, UpstreamError> {
+    ) -> Result<
+        (
+            Option<crate::response::UpstreamResponse>,
+            Vec<CredentialUpdate>,
+        ),
+        UpstreamError,
+    > {
         let span = tracing::info_span!("engine.query_quota", provider = provider_name);
         async {
             let provider = self.store.get_runtime(provider_name).ok_or_else(|| {
                 UpstreamError::Channel(format!("unknown provider: {provider_name}"))
             })?;
             let Some(http_request) = provider.prepare_quota_request(credential_index)? else {
-                return Ok(None);
+                return Ok((None, Vec::new()));
             };
             let response = crate::http_client::send_request(&self.client, http_request).await?;
-            Ok(Some(response))
+
+            if matches!(response.status, 401 | 403) {
+                tracing::warn!(
+                    provider = provider_name,
+                    status = response.status,
+                    "quota request auth failed, attempting credential refresh"
+                );
+                if let Some(update) = provider
+                    .refresh_credential_at(credential_index, &self.client)
+                    .await?
+                {
+                    let updates = vec![update];
+                    let Some(retry_request) = provider.prepare_quota_request(credential_index)?
+                    else {
+                        return Ok((None, updates));
+                    };
+                    let retry_response =
+                        crate::http_client::send_request(&self.client, retry_request).await?;
+                    return Ok((Some(retry_response), updates));
+                }
+            }
+
+            Ok((Some(response), Vec::new()))
         }
         .instrument(span)
         .await

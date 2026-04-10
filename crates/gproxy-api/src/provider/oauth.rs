@@ -6,9 +6,10 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 
-use gproxy_sdk::provider::store::CredentialSnapshot;
+use gproxy_sdk::provider::store::{CredentialSnapshot, CredentialUpdate};
 use gproxy_server::AppState;
-use gproxy_storage::{ProviderQuery, Scope};
+use gproxy_storage::repository::CredentialRepository;
+use gproxy_storage::{CredentialWrite, ProviderQuery, Scope};
 
 use crate::auth::authorize_admin;
 use crate::error::HttpError;
@@ -113,10 +114,12 @@ pub async fn upstream_usage(
     authorize_admin(&headers, &state)?;
     let params = parse_query_string(query.as_deref());
     let credential_index = resolve_quota_credential_index(&state, &provider_name, &params)?;
-    let result = state
+    let (result, credential_updates) = state
         .engine()
         .query_quota(&provider_name, credential_index)
         .await?;
+
+    persist_credential_updates(&state, &credential_updates).await;
 
     match result {
         Some(response) => Ok(Response::builder()
@@ -213,6 +216,51 @@ fn json_response(value: &serde_json::Value) -> Result<Response, HttpError> {
         .header("content-type", "application/json")
         .body(Body::from(body))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()))
+}
+
+/// Persist refreshed credentials to the database.
+///
+/// Called after the engine refreshes OAuth tokens so the new tokens survive
+/// a restart. Errors are logged but do not fail the request.
+pub(crate) async fn persist_credential_updates(state: &AppState, updates: &[CredentialUpdate]) {
+    for update in updates {
+        let Some(credential_id) = state.credential_id_for_index(&update.provider, update.index)
+        else {
+            continue;
+        };
+        let Some(provider_id) = state.provider_id_for_name(&update.provider) else {
+            continue;
+        };
+        let kind = state
+            .provider_channel_for_name(&update.provider)
+            .unwrap_or_default();
+
+        if let Err(e) = state
+            .storage()
+            .upsert_credential(CredentialWrite {
+                id: credential_id,
+                provider_id,
+                name: None,
+                kind,
+                secret_json: update.credential.to_string(),
+                enabled: true,
+            })
+            .await
+        {
+            tracing::warn!(
+                provider = %update.provider,
+                credential_index = update.index,
+                error = %e,
+                "failed to persist refreshed credential to DB"
+            );
+        } else {
+            tracing::info!(
+                provider = %update.provider,
+                credential_index = update.index,
+                "persisted refreshed credential to DB"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
