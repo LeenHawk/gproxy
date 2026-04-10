@@ -205,7 +205,7 @@ export const zhMessages: Record<string, string> = {
   "providers.betaHeaders.title": "额外 Beta Header",
   "providers.betaHeaders.clear": "全部清除",
   "providers.betaHeaders.hint": "点击切换 anthropic-beta 头中合并的 beta 值。",
-  "providers.prelude.title": "系统序言",
+  "providers.prelude.title": "系统提示词前缀",
   "providers.prelude.hint": "在每次内容生成请求中作为首个 system block 注入。已存在时跳过。",
   "providers.sanitize.title": "请求清洗规则",
   "providers.sanitize.add": "添加规则",
