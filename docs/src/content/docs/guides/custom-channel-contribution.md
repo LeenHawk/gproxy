@@ -1,67 +1,103 @@
 ---
 title: Custom Channels
-description: Use your own upstream channels with GPROXY and understand the capability boundaries.
+description: Connect upstream providers compatible with OpenAI, Claude, or Gemini wire formats. No code changes required.
 ---
 
-This page explains how to connect your own upstream channel with no code changes.
+Custom channels let you proxy traffic to any upstream that speaks a standard LLM wire protocol. No code changes, no rebuilds -- just config.
 
-## Use your own channel (no code changes)
+## Supported upstream formats
 
-### Recommended scope
+Custom mode works with upstreams compatible with:
 
-This mode is designed for upstreams that are already compatible with **standard** protocol shapes:
+- **OpenAI** -- `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/embeddings`, `/v1/images/generations`
+- **Claude** -- `/v1/messages`, `/v1/messages/count_tokens`, `/v1/models`
+- **Gemini** -- `/v1beta/models/{model}:generateContent`, `/v1beta/models/{model}:streamGenerateContent`, `/v1beta/models/{model}:countTokens`, `/v1beta/models/{model}:embedContent`
 
-- OpenAI-compatible endpoints
-- Claude-compatible endpoints
-- Gemini-compatible endpoints
+If your upstream uses non-standard signing, custom auth handshakes, or heavily modified request/response schemas, custom mode is not enough. You need a native channel implementation.
 
-In practice, the custom adapter maps requests to standard paths like `/v1/...` and `/v1beta/...` with fixed auth header conventions (`Bearer`, `x-api-key`, `x-goog-api-key`).
-
-If your upstream has non-standard signing, non-standard auth handshake, or heavily customized request/response schemas, this mode is usually not enough.
-
-### Minimal config example
+## Minimal config
 
 ```toml
-[[channels]]
-id = "mycustom"
-enabled = true
-
-[channels.settings]
-base_url = "https://api.example.com"
-
-[[channels.credentials]]
-id = "mycustom-main"
-label = "primary"
-secret = "custom-provider-api-key"
+[[providers]]
+name = "my-upstream"
+channel = "custom"
+settings = { base_url = "https://api.example.com" }
+credentials = [{ api_key = "sk-replace-me" }]
 ```
 
-### Optional `mask_table` (request body field stripping)
+## Settings
 
-You can remove some request fields before sending upstream:
+| Field | Default | Description |
+|-------|---------|-------------|
+| `base_url` | (required) | Upstream base URL |
+| `user_agent` | (none) | Custom `User-Agent` header |
+| `max_retries_on_429` | `3` | Retry count on 429 rate limit responses |
+| `auth_scheme` | `bearer` | Authentication method: `bearer`, `x-api-key`, or `query-key` |
+
+Auth schemes:
+
+- `bearer` -- sends `Authorization: Bearer <api_key>` header
+- `x-api-key` -- sends `x-api-key: <api_key>` header
+- `query-key` -- appends `?key=<api_key>` to the URL
+
+## Request field stripping with `mask_table`
+
+Strip fields from the request body before forwarding upstream. Useful when your upstream rejects unknown fields.
 
 ```toml
-[channels.settings.mask_table]
+[[providers]]
+name = "my-upstream"
+channel = "custom"
+
+[providers.settings]
+base_url = "https://api.example.com"
+
+[providers.settings.mask_table]
 rules = [
   { method = "POST", path = "/v1/chat/completions", remove_fields = ["metadata"] },
-  { method = "POST", path = "/v1/responses", remove_fields = ["metadata"] },
+  { method = "POST", path = "/v1/responses", remove_fields = ["metadata", "previous_response_id"] },
 ]
 ```
 
 What `mask_table` can do:
 
-- Match by HTTP method + path (supports prefix `*` match).
-- Remove JSON fields by path from request body.
+- Match requests by HTTP method and path.
+- Remove top-level JSON fields from the request body.
 
 What `mask_table` cannot do:
 
-- Cannot rewrite response body.
-- Cannot inject custom signing logic.
-- Cannot implement arbitrary protocol conversion logic.
+- Rewrite response bodies.
+- Inject custom signing or auth logic.
+- Implement arbitrary protocol transformations.
 
-### Capability boundary in custom mode
+## Custom dispatch rules
 
-Custom mode can choose route behavior using `dispatch` (`Passthrough` / `TransformTo` / `Local` / `Unsupported`), but only within GPROXY's **existing** operation and protocol model.
+By default, the custom channel registers universal passthrough for all operation/protocol combinations. You can override this with explicit dispatch rules to restrict or reroute specific operations.
 
-So this mode is good for plugging in standard-compatible upstreams quickly, but not for introducing a brand-new wire protocol or bespoke conversion pipeline.
+```toml
+[providers.dispatch]
+rules = [
+  { route = { operation = "ModelList", protocol = "OpenAi" }, implementation = "Passthrough" },
+  { route = { operation = "ModelGet", protocol = "OpenAi" }, implementation = "Passthrough" },
+  { route = { operation = "GenerateContent", protocol = "OpenAiChatCompletion" }, implementation = "Passthrough" },
+  { route = { operation = "StreamGenerateContent", protocol = "OpenAiChatCompletion" }, implementation = "Passthrough" },
+  { route = { operation = "CountToken", protocol = "OpenAi" }, implementation = "Local" },
+]
+```
 
-If you need to add a new native channel implementation, see the contribution section in [Development and Testing](/reference/development/).
+Dispatch implementations:
+
+| Implementation | Behavior |
+|----------------|----------|
+| `Passthrough` | Forward request as-is to upstream (same protocol) |
+| `TransformTo` | Transform to a different operation/protocol pair before sending |
+| `Local` | Handle locally without contacting upstream |
+| `Unsupported` | Return 501 |
+
+## Capability boundary
+
+Custom channels can choose dispatch routes but only within GPROXY's existing operation and protocol model. You can select which operations are passthrough, transformed, local, or unsupported. You cannot introduce a new wire protocol or implement bespoke conversion logic.
+
+Available operations: `ModelList`, `ModelGet`, `CountToken`, `GenerateContent`, `StreamGenerateContent`, `Embedding`, `CreateImage`, `StreamCreateImage`, `CreateImageEdit`, `StreamCreateImageEdit`, `Compact`, `OpenAiResponseWebSocket`, `GeminiLive`.
+
+Available protocols: `OpenAi`, `OpenAiResponse`, `OpenAiChatCompletion`, `Claude`, `Gemini`, `GeminiNDJson`.

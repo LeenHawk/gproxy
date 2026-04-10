@@ -1,38 +1,103 @@
 ---
-title: Admin and User
-description: Responsibilities, API scopes, and diagrams for Admin and User roles.
+title: Authentication and Authorization
+description: Login flow, session tokens, API key extraction, admin vs user boundaries.
 ---
 
-GPROXY separates management into two roles: `admin` (platform operations) and `user` (business caller).
+## Auth model overview
 
-## Admin (platform operator)
+GPROXY has two credential types and two role levels:
 
-Admin is responsible for platform-level configuration and governance:
+- **Session tokens** -- for console/management access. Obtained via `/login`.
+- **API keys** -- for proxy traffic. Managed per user via admin or user self-service API.
 
-- Global settings read/write and import/export
-- Provider, Credential, and CredentialStatus management
-- User and user-key management
-- Request audit and usage query
-- System self-update
+Role levels:
 
-Diagram:
+- **Admin** -- user with `is_admin = true`. Can access `/admin/*` routes.
+- **User** -- any user. Can access `/user/*` routes with a session token. Can call provider proxy routes with an API key.
 
-![Admin architecture diagram](/admin.jpg)
+## Login
 
-## User (business caller)
+```
+POST /login
+Content-Type: application/json
 
-User only manages self-owned resources:
+{
+  "username": "alice",
+  "password": "secret"
+}
+```
 
-- Query/create/delete own API keys
-- Query own usage details and summaries
-- Call provider proxy APIs with own keys
+Response:
 
-Diagram:
+```json
+{
+  "user_id": 1,
+  "session_token": "sess-abc123...",
+  "is_admin": false,
+  "expires_in_secs": 86400
+}
+```
 
-![User architecture diagram](/user.jpg)
+### Session tokens
 
-## Boundary recommendations
+- Prefixed with `sess-`.
+- 24-hour TTL.
+- Memory-only -- not persisted to the database. A server restart invalidates all sessions.
+- Used for `/admin/*` and `/user/*` management routes.
 
-- Use admin key only for operations and configuration changes, not business traffic.
-- Issue dedicated user keys per team/service for auditability and isolation.
-- In production, enable `mask_sensitive_info = true` to avoid storing sensitive payloads.
+Session tokens are intentionally separated from API keys so that a leaked inference key cannot be used to manage the account (create keys, view usage, etc.).
+
+## API key extraction
+
+For provider proxy routes, GPROXY extracts the API key from the request in this order:
+
+1. `Authorization: Bearer <key>` header
+2. `x-api-key: <key>` header
+3. `x-goog-api-key: <key>` header
+4. `?key=<key>` query parameter
+
+The first non-empty value wins. If none are found, the request is rejected with 401.
+
+## Route authorization
+
+### `/admin/*` routes
+
+Require one of:
+
+- A session token (`sess-*`) belonging to an admin user.
+- An API key owned by an admin user.
+
+Non-admin tokens or keys get 403 Forbidden.
+
+### `/user/*` routes
+
+Require a session token (`sess-*`). API keys are not accepted for user management routes.
+
+This is a deliberate security boundary: a leaked inference API key cannot be used to list other keys, create new keys, or query usage on the `/user/*` self-service routes.
+
+### Provider proxy routes
+
+Require a valid, enabled API key. Session tokens are not accepted. The key identifies the user for permission checks, rate limiting, and quota enforcement.
+
+## Admin vs user boundary
+
+| Capability | Admin (via session or admin key) | User (via session) | User (via API key) |
+|------------|----------------------------------|--------------------|--------------------|
+| Global settings | read/write | -- | -- |
+| Provider management | create/update/delete | -- | -- |
+| Credential management | create/update/delete | -- | -- |
+| User management | create/update/delete all | -- | -- |
+| Own API key management | -- | create/delete own | -- |
+| Own usage query | -- | read own | -- |
+| Provider proxy calls | -- | -- | yes |
+| Model list/get | -- | -- | yes |
+| Usage tracking | view all users | view own | tracked per request |
+| Config export/import | yes | -- | -- |
+| System update | yes | -- | -- |
+
+### Recommendations
+
+- Use admin keys for configuration and operations only, not for inference traffic.
+- Issue dedicated user API keys per team, service, or environment for auditability.
+- Enable logging flags (`enable_upstream_log`, `enable_downstream_log`) in global settings for audit trails.
+- In production, keep `enable_upstream_log_body` and `enable_downstream_log_body` disabled unless actively debugging -- they log full request/response payloads.

@@ -1,95 +1,91 @@
 ---
 title: Deployment
-description: Deploy GPROXY locally (binary, Docker) and in cloud (ClawCloud Run).
+description: Run GPROXY as a binary, Docker container, or with external databases.
 ---
 
-## Local deployment
+## Binary
 
-### Binary
-
-1. Download the release binary from [GitHub Releases](https://github.com/LeenHawk/gproxy/releases).
-2. Prepare config file:
+Download the release binary for your platform from [GitHub Releases](https://github.com/LeenHawk/gproxy/releases).
 
 ```bash
-cp gproxy.example.toml gproxy.toml
-```
-
-3. Start service:
-
-```bash
+chmod +x gproxy
 ./gproxy
 ```
 
-After startup, open:
+That's it. GPROXY starts with sensible defaults:
 
-- Admin UI: `http://127.0.0.1:8787/`
+- Listens on `127.0.0.1:8787`
+- Creates a SQLite database at `./data/gproxy.db`
+- Auto-generates an admin user, password, and API key (logged at startup -- save them)
+- Serves the admin console at `http://127.0.0.1:8787/`
 
-### Docker
+To provide your own admin credentials:
 
-Pull prebuilt image (recommended):
+```bash
+./gproxy \
+  --admin-user admin \
+  --admin-password 'your-password' \
+  --admin-api-key 'your-api-key'
+```
+
+## Docker
 
 ```bash
 docker pull ghcr.io/leenhawk/gproxy:latest
-```
 
-Run container:
-
-```bash
 docker run --rm -p 8787:8787 \
   -e GPROXY_HOST=0.0.0.0 \
   -e GPROXY_PORT=8787 \
-  -e GPROXY_ADMIN_KEY=your-admin-key \
-  -e DATABASE_SECRET_KEY='replace-with-long-random-string' \
-  -e GPROXY_DSN='sqlite:///app/data/gproxy.db?mode=rwc' \
+  -e GPROXY_ADMIN_USER=admin \
+  -e GPROXY_ADMIN_PASSWORD='your-password' \
+  -e DATABASE_SECRET_KEY='your-encryption-key' \
   -v $(pwd)/data:/app/data \
   ghcr.io/leenhawk/gproxy:latest
 ```
 
-> Inject `DATABASE_SECRET_KEY` via Docker secrets, platform secrets, or env vars. Especially on free-tier or shared managed databases, configure it before first bootstrap so sensitive fields are not stored in plaintext.
+### Image variants
 
-## Cloud deployment
+| Tag | Base | Use case |
+|-----|------|----------|
+| `latest` | glibc | Standard deployments |
+| `latest-musl` | musl (static) | Alpine, scratch, or minimal containers |
 
-### ClawCloud Run
+Both variants are available for `amd64` and `arm64`.
 
-Current cloud template support is ClawCloud Run.
+### Persistent storage
 
-- Template file: [`claw.yaml`](https://github.com/LeenHawk/gproxy/blob/main/claw.yaml)
-- Prebuilt image: `ghcr.io/leenhawk/gproxy:latest`
-- Use the template in ClawCloud Run App Store -> My Apps -> Debugging
+Mount `/app/data` as a volume. This is where the default SQLite database and any file-based data live.
 
-Recommended inputs:
+```bash
+-v $(pwd)/data:/app/data
+```
 
-- `admin_key` (default: generated random value)
-- `rust_log` (`info`)
-- `volume_size` (`1`)
-- Configure `DATABASE_SECRET_KEY` through platform secrets
-- Persist volume at `/app/data`
+To use an external database instead of SQLite, set `GPROXY_DSN` and skip the volume mount (unless other file-based features need it):
 
-Built-in environment defaults:
+```bash
+docker run --rm -p 8787:8787 \
+  -e GPROXY_HOST=0.0.0.0 \
+  -e GPROXY_ADMIN_USER=admin \
+  -e GPROXY_ADMIN_PASSWORD='your-password' \
+  -e GPROXY_DSN='mysql://user:password@db-host:3306/gproxy' \
+  -e DATABASE_SECRET_KEY='your-encryption-key' \
+  ghcr.io/leenhawk/gproxy:latest
+```
 
-- `GPROXY_HOST=0.0.0.0`
-- `GPROXY_PORT=8787`
-- `GPROXY_DSN=sqlite:///app/data/gproxy.db?mode=rwc`
+### Database encryption in Docker
 
-Optional inputs:
+Inject `DATABASE_SECRET_KEY` via environment variable, Docker secrets, or your platform's secrets management. Set it before first startup so all sensitive fields are encrypted from the start. See [Configuration Reference](/guides/configuration/#database-encryption) for details.
 
-- `proxy_url` (upstream egress proxy)
+## External databases
 
-### Release downloads and self-update (Cloudflare Pages)
+GPROXY supports SQLite, MySQL, and PostgreSQL. Set `GPROXY_DSN` with the appropriate connection string:
 
-- The release workflow also deploys a dedicated Cloudflare Pages downloads site for binaries and update manifests.
-- Default public base URL: `https://download-gproxy.leenhawk.com`
-- Generated manifests:
-  - `/manifest.json` — full file index for the docs downloads page
-  - `/releases/manifest.json` — stable self-update channel
-  - `/staging/manifest.json` — staging self-update channel
-- The admin UI `Cloudflare` update source reads from this site.
-- Required repository secrets for the downloads deployment:
-  - `CLOUDFLARE_API_TOKEN`
-  - `CLOUDFLARE_ACCOUNT_ID`
-  - `CLOUDFLARE_DOWNLOADS_PROJECT_NAME`
-- Optional repository secrets:
-  - `DOWNLOAD_PUBLIC_BASE_URL`
-  - `UPDATE_SIGNING_KEY_ID`
-  - `UPDATE_SIGNING_PRIVATE_KEY_B64`
-  - `UPDATE_SIGNING_PUBLIC_KEY_B64`
+```bash
+# MySQL
+GPROXY_DSN='mysql://user:password@127.0.0.1:3306/gproxy'
+
+# PostgreSQL
+GPROXY_DSN='postgres://user:password@127.0.0.1:5432/gproxy'
+```
+
+Schema is auto-synced on startup. No manual migration required.
