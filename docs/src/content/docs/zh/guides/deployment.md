@@ -1,95 +1,91 @@
 ---
 title: 部署
-description: GPROXY 部署说明：本地（二进制、Docker）与云端（ClawCloud Run）。
+description: 以二进制、Docker 容器或外部数据库方式运行 GPROXY。
 ---
 
-## 本地部署
+## 二进制部署
 
-### 二进制
-
-1. 从 [GitHub Releases](https://github.com/LeenHawk/gproxy/releases) 下载对应平台二进制。
-2. 准备配置文件：
+从 [GitHub Releases](https://github.com/LeenHawk/gproxy/releases) 下载对应平台的可执行文件。
 
 ```bash
-cp gproxy.example.toml gproxy.toml
-```
-
-3. 启动服务：
-
-```bash
+chmod +x gproxy
 ./gproxy
 ```
 
-启动后可访问：
+启动即用，GPROXY 自带合理的默认配置：
 
-- 管理端：`http://127.0.0.1:8787/`
+- 监听 `127.0.0.1:8787`
+- 在 `./data/gproxy.db` 创建 SQLite 数据库
+- 自动生成管理员账号、密码和 API key（首次启动时打印到日志，请妥善保存）
+- 管理控制台地址 `http://127.0.0.1:8787/`
 
-### Docker
+如需自定义管理员凭证：
 
-拉取预构建镜像（推荐）：
+```bash
+./gproxy \
+  --admin-user admin \
+  --admin-password 'your-password' \
+  --admin-api-key 'your-api-key'
+```
+
+## Docker
 
 ```bash
 docker pull ghcr.io/leenhawk/gproxy:latest
-```
 
-运行容器：
-
-```bash
 docker run --rm -p 8787:8787 \
   -e GPROXY_HOST=0.0.0.0 \
   -e GPROXY_PORT=8787 \
-  -e GPROXY_ADMIN_KEY=your-admin-key \
-  -e DATABASE_SECRET_KEY='replace-with-long-random-string' \
-  -e GPROXY_DSN='sqlite:///app/data/gproxy.db?mode=rwc' \
+  -e GPROXY_ADMIN_USER=admin \
+  -e GPROXY_ADMIN_PASSWORD='your-password' \
+  -e DATABASE_SECRET_KEY='your-encryption-key' \
   -v $(pwd)/data:/app/data \
   ghcr.io/leenhawk/gproxy:latest
 ```
 
-> 建议通过 Docker Secret、平台 Secret 或环境变量注入 `DATABASE_SECRET_KEY`。尤其是使用免费额度或共享型托管数据库时，尽量在首次初始化前就配置好，避免敏感字段明文落库。
+### 镜像变体
 
-## 云端部署
+| Tag | 基础环境 | 适用场景 |
+|-----|----------|----------|
+| `latest` | glibc | 标准部署 |
+| `latest-musl` | musl（静态链接） | Alpine、scratch 或极简容器 |
 
-### ClawCloud Run
+两种变体均提供 `amd64` 和 `arm64` 架构。
 
-当前云端模板提供 ClawCloud Run。
+### 持久化存储
 
-- 模板文件：[`claw.yaml`](https://github.com/LeenHawk/gproxy/blob/main/claw.yaml)
-- 预构建镜像：`ghcr.io/leenhawk/gproxy:latest`
-- 可在 ClawCloud Run 的 App Store -> My Apps -> Debugging 中使用该模板
+将 `/app/data` 挂载为卷。默认 SQLite 数据库和文件数据都存储在此目录下。
 
-推荐输入项：
+```bash
+-v $(pwd)/data:/app/data
+```
 
-- `admin_key`（默认自动生成随机值）
-- `rust_log`（默认 `info`）
-- `volume_size`（默认 `1`）
-- 通过平台 Secret 配置 `DATABASE_SECRET_KEY`
-- 将 `/app/data` 挂载为持久化卷
+如果使用外部数据库代替 SQLite，设置 `GPROXY_DSN` 即可跳过卷挂载（除非还需要其他基于文件的功能）：
 
-内置环境变量默认值：
+```bash
+docker run --rm -p 8787:8787 \
+  -e GPROXY_HOST=0.0.0.0 \
+  -e GPROXY_ADMIN_USER=admin \
+  -e GPROXY_ADMIN_PASSWORD='your-password' \
+  -e GPROXY_DSN='mysql://user:password@db-host:3306/gproxy' \
+  -e DATABASE_SECRET_KEY='your-encryption-key' \
+  ghcr.io/leenhawk/gproxy:latest
+```
 
-- `GPROXY_HOST=0.0.0.0`
-- `GPROXY_PORT=8787`
-- `GPROXY_DSN=sqlite:///app/data/gproxy.db?mode=rwc`
+### Docker 环境下的数据库加密
 
-可选输入项：
+通过环境变量、Docker Secrets 或平台密钥管理服务注入 `DATABASE_SECRET_KEY`。建议在首次启动前就完成设置，确保所有敏感字段从一开始就被加密存储。详情参见[配置参考](/zh/guides/configuration/#database-encryption)。
 
-- `proxy_url`（上游代理）
+## 外部数据库
 
-### Release 下载与自更新（Cloudflare Pages）
+GPROXY 支持 SQLite、MySQL 和 PostgreSQL。通过 `GPROXY_DSN` 设置相应的连接字符串：
 
-- 发布工作流还会部署一个独立的 Cloudflare Pages 下载站，用于托管二进制和更新清单。
-- 默认公开地址：`https://download-gproxy.leenhawk.com`
-- 会生成以下清单：
-  - `/manifest.json` —— 文档下载页使用的全量文件索引
-  - `/releases/manifest.json` —— 正式版自更新通道
-  - `/staging/manifest.json` —— 预览版自更新通道
-- 管理后台中的 `Cloudflare 源` 会从该站点读取更新。
-- 下载站部署所需仓库 secrets：
-  - `CLOUDFLARE_API_TOKEN`
-  - `CLOUDFLARE_ACCOUNT_ID`
-  - `CLOUDFLARE_DOWNLOADS_PROJECT_NAME`
-- 可选仓库 secrets：
-  - `DOWNLOAD_PUBLIC_BASE_URL`
-  - `UPDATE_SIGNING_KEY_ID`
-  - `UPDATE_SIGNING_PRIVATE_KEY_B64`
-  - `UPDATE_SIGNING_PUBLIC_KEY_B64`
+```bash
+# MySQL
+GPROXY_DSN='mysql://user:password@127.0.0.1:3306/gproxy'
+
+# PostgreSQL
+GPROXY_DSN='postgres://user:password@127.0.0.1:5432/gproxy'
+```
+
+启动时自动同步数据库表结构，无需手动执行迁移。

@@ -1,67 +1,103 @@
 ---
-title: 自定义渠道
-description: 如何用 GPROXY 接入你自己的上游渠道，并理解这种模式的能力边界。
+title: 自定义 Channel
+description: 接入兼容 OpenAI、Claude 或 Gemini 协议的上游服务，无需修改代码。
 ---
 
-本页说明如何在不改代码的情况下接入你自己的上游渠道。
+自定义 Channel 可以将流量代理到任何使用标准 LLM 协议的上游服务。无需改代码，无需重新编译——只要配置即可。
 
-## 使用你自己的渠道（不改代码）
+## 支持的上游协议格式
 
-### 适用范围
+Custom 模式适用于兼容以下协议的上游：
 
-这种方式适用于上游本身已经兼容**标准协议形态**：
+- **OpenAI** -- `/v1/chat/completions`、`/v1/responses`、`/v1/models`、`/v1/embeddings`、`/v1/images/generations`
+- **Claude** -- `/v1/messages`、`/v1/messages/count_tokens`、`/v1/models`
+- **Gemini** -- `/v1beta/models/{model}:generateContent`、`/v1beta/models/{model}:streamGenerateContent`、`/v1beta/models/{model}:countTokens`、`/v1beta/models/{model}:embedContent`
 
-- OpenAI 协议
-- Claude 协议
-- Gemini 协议
+如果上游使用非标准签名、自定义鉴权握手或深度修改过的请求/响应结构，custom 模式无法满足需求，需要实现原生 Channel。
 
-GPROXY 的 custom 适配器会按固定约定拼接标准路径（例如 `/v1/...`、`/v1beta/...`）和鉴权头（`Bearer`、`x-api-key`、`x-goog-api-key`）。
-
-如果你的上游需要非常规签名、非标准鉴权握手、或者请求/响应结构改造很重，这种方式通常不够。
-
-### 最小配置示例
+## 最小配置
 
 ```toml
-[[channels]]
-id = "mycustom"
-enabled = true
-
-[channels.settings]
-base_url = "https://api.example.com"
-
-[[channels.credentials]]
-id = "mycustom-main"
-label = "primary"
-secret = "custom-provider-api-key"
+[[providers]]
+name = "my-upstream"
+channel = "custom"
+settings = { base_url = "https://api.example.com" }
+credentials = [{ api_key = "sk-replace-me" }]
 ```
 
-### 可选 `mask_table`（请求体字段遮盖）
+## 配置项
 
-你可以在转发前删除请求体中的字段：
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `base_url` | （必填） | 上游 base URL |
+| `user_agent` | （无） | 自定义 `User-Agent` 请求头 |
+| `max_retries_on_429` | `3` | 收到 429 限流响应时的重试次数 |
+| `auth_scheme` | `bearer` | 鉴权方式：`bearer`、`x-api-key` 或 `query-key` |
+
+鉴权方式说明：
+
+- `bearer` -- 发送 `Authorization: Bearer <api_key>` 请求头
+- `x-api-key` -- 发送 `x-api-key: <api_key>` 请求头
+- `query-key` -- 在 URL 后追加 `?key=<api_key>`
+
+## 用 `mask_table` 剥离请求字段
+
+转发到上游前，从请求体中删除指定字段。当上游拒绝未知字段时非常有用。
 
 ```toml
-[channels.settings.mask_table]
+[[providers]]
+name = "my-upstream"
+channel = "custom"
+
+[providers.settings]
+base_url = "https://api.example.com"
+
+[providers.settings.mask_table]
 rules = [
   { method = "POST", path = "/v1/chat/completions", remove_fields = ["metadata"] },
-  { method = "POST", path = "/v1/responses", remove_fields = ["metadata"] },
+  { method = "POST", path = "/v1/responses", remove_fields = ["metadata", "previous_response_id"] },
 ]
 ```
 
-`mask_table` 能做什么：
+`mask_table` 能做的事：
 
-- 按方法和路径匹配（支持带 `*` 的前缀匹配）。
-- 按 JSON 路径删除请求字段。
+- 按 HTTP 方法和路径匹配请求。
+- 删除请求体中的顶层 JSON 字段。
 
-`mask_table` 不能做什么：
+`mask_table` 不能做的事：
 
-- 不能改响应体。
-- 不能注入自定义签名逻辑。
-- 不能定义任意新的协议转换实现。
+- 改写响应体。
+- 注入自定义签名或鉴权逻辑。
+- 实现任意协议转换。
 
-### 这一模式的边界
+## 自定义 dispatch 规则
 
-custom 模式可以通过 `dispatch` 选择路由行为（`Passthrough` / `TransformTo` / `Local` / `Unsupported`），但仅限于 GPROXY **现有**的操作族和协议模型。
+默认情况下，custom channel 会为所有 operation/protocol 组合注册通用透传。你可以通过显式 dispatch 规则来限制或重定向特定操作。
 
-所以它非常适合快速接入标准兼容上游，但不适合引入全新线协议或高度定制转换链路。
+```toml
+[providers.dispatch]
+rules = [
+  { route = { operation = "ModelList", protocol = "OpenAi" }, implementation = "Passthrough" },
+  { route = { operation = "ModelGet", protocol = "OpenAi" }, implementation = "Passthrough" },
+  { route = { operation = "GenerateContent", protocol = "OpenAiChatCompletion" }, implementation = "Passthrough" },
+  { route = { operation = "StreamGenerateContent", protocol = "OpenAiChatCompletion" }, implementation = "Passthrough" },
+  { route = { operation = "CountToken", protocol = "OpenAi" }, implementation = "Local" },
+]
+```
 
-如果你需要新增原生渠道实现，请看[开发与测试](/zh/reference/development/)中的“新增原生渠道贡献指南”。
+Dispatch 实现方式：
+
+| Implementation | 行为 |
+|----------------|------|
+| `Passthrough` | 按原协议直接转发到上游 |
+| `TransformTo` | 转换为另一种 operation/protocol 组合后再发送 |
+| `Local` | 本地处理，不请求上游 |
+| `Unsupported` | 返回 501 |
+
+## 能力边界
+
+Custom channel 可以选择 dispatch 路由，但仅限于 GPROXY 已有的 operation 和 protocol 模型。你可以选择哪些操作走 passthrough、transform、local 或 unsupported，但无法引入新的协议或实现自定义转换逻辑。
+
+可用 operation：`ModelList`、`ModelGet`、`CountToken`、`GenerateContent`、`StreamGenerateContent`、`Embedding`、`CreateImage`、`StreamCreateImage`、`CreateImageEdit`、`StreamCreateImageEdit`、`Compact`、`OpenAiResponseWebSocket`、`GeminiLive`。
+
+可用 protocol：`OpenAi`、`OpenAiResponse`、`OpenAiChatCompletion`、`Claude`、`Gemini`、`GeminiNDJson`。
