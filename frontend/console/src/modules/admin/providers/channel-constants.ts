@@ -12,8 +12,6 @@ export type CacheBreakpointRule = {
   target: CacheBreakpointTarget;
   position: CacheBreakpointPosition;
   index: number;
-  content_position?: CacheBreakpointPosition;
-  content_index?: number;
   ttl: CacheBreakpointTtl;
 };
 
@@ -35,10 +33,6 @@ export function parseCacheBreakpoints(value: unknown): CacheBreakpointRule[] {
       target: normalizeTarget(item.target),
       position: normalizePosition(item.position),
       index: normalizeIndex(item.index),
-      content_position:
-        item.content_position !== undefined ? normalizePosition(item.content_position) : undefined,
-      content_index:
-        item.content_index !== undefined ? normalizeIndex(item.content_index) : undefined,
       ttl: normalizeTtl(item.ttl),
     }))
     .slice(0, 4);

@@ -47,10 +47,6 @@ pub struct CacheBreakpointRule {
     pub position: CacheBreakpointPositionKind,
     #[serde(default = "default_cache_breakpoint_index")]
     pub index: usize,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_position: Option<CacheBreakpointPositionKind>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_index: Option<usize>,
     #[serde(default)]
     pub ttl: CacheBreakpointTtl,
 }
@@ -60,24 +56,7 @@ impl CacheBreakpointRule {
         if self.index == 0 {
             self.index = 1;
         }
-        if let Some(content_index) = self.content_index.as_mut() {
-            if *content_index == 0 {
-                *content_index = 1;
-            }
-        } else if self.content_position.is_some() {
-            self.content_index = Some(1);
-        }
         self
-    }
-
-    fn content_selector(&self) -> Option<(CacheBreakpointPositionKind, usize)> {
-        if self.content_position.is_none() && self.content_index.is_none() {
-            return None;
-        }
-        Some((
-            self.content_position.unwrap_or_default(),
-            self.content_index.unwrap_or(1).max(1),
-        ))
     }
 }
 
@@ -275,12 +254,6 @@ fn parse_cache_breakpoint_rule(item: &Value) -> Option<CacheBreakpointRule> {
         .map(|value| value as usize)
         .unwrap_or(1);
 
-    let content_position = parse_optional_cache_breakpoint_position(obj, "content_position");
-    let content_index = obj
-        .get("content_index")
-        .and_then(Value::as_u64)
-        .map(|value| value as usize);
-
     let ttl = match obj
         .get("ttl")
         .and_then(Value::as_str)
@@ -299,8 +272,6 @@ fn parse_cache_breakpoint_rule(item: &Value) -> Option<CacheBreakpointRule> {
             target,
             position,
             index,
-            content_position,
-            content_index,
             ttl,
         }
         .normalized(),
@@ -318,16 +289,6 @@ fn parse_cache_breakpoint_position(value: Option<&Value>) -> CacheBreakpointPosi
         "last" | "last_nth" | "from_end" => CacheBreakpointPositionKind::LastNth,
         _ => CacheBreakpointPositionKind::Nth,
     }
-}
-
-fn parse_optional_cache_breakpoint_position(
-    obj: &serde_json::Map<String, Value>,
-    key: &str,
-) -> Option<CacheBreakpointPositionKind> {
-    if !obj.contains_key(key) {
-        return None;
-    }
-    Some(parse_cache_breakpoint_position(obj.get(key)))
 }
 
 pub fn cache_breakpoint_rules_to_settings_value(rules: &[CacheBreakpointRule]) -> Option<Value> {
@@ -461,20 +422,7 @@ fn resolve_message_target_location(
     messages: &[Value],
     rule: &CacheBreakpointRule,
 ) -> Option<(usize, usize)> {
-    let Some((content_position, content_index)) = rule.content_selector() else {
-        return resolve_message_block_location(messages, rule.position, rule.index);
-    };
-
-    let message_idx = resolve_message_index(messages, rule.position, rule.index)?;
-    let content_idx = messages
-        .get(message_idx)
-        .and_then(Value::as_object)
-        .and_then(|message_map| message_map.get("content"))
-        .and_then(|content| {
-            resolve_message_content_index(content, content_position, content_index)
-        })?;
-
-    Some((message_idx, content_idx))
+    resolve_message_block_location(messages, rule.position, rule.index)
 }
 
 fn resolve_message_block_location(
@@ -507,40 +455,6 @@ fn resolve_message_block_location(
 
     let idx = resolve_rule_index(locations.len(), position, index)?;
     locations.get(idx).copied()
-}
-
-fn resolve_message_index(
-    messages: &[Value],
-    position: CacheBreakpointPositionKind,
-    index: usize,
-) -> Option<usize> {
-    let selectable_messages: Vec<usize> = messages
-        .iter()
-        .enumerate()
-        .filter_map(|(message_index, message)| {
-            let content = message.as_object()?.get("content")?;
-            (message_content_block_count(content) > 0).then_some(message_index)
-        })
-        .collect();
-
-    let idx = resolve_rule_index(selectable_messages.len(), position, index)?;
-    selectable_messages.get(idx).copied()
-}
-
-fn resolve_message_content_index(
-    content: &Value,
-    position: CacheBreakpointPositionKind,
-    index: usize,
-) -> Option<usize> {
-    resolve_rule_index(message_content_block_count(content), position, index)
-}
-
-fn message_content_block_count(content: &Value) -> usize {
-    match content {
-        Value::Array(blocks) => blocks.iter().filter(|block| block.is_object()).count(),
-        Value::Object(_) => 1,
-        _ => 0,
-    }
 }
 
 fn apply_cache_control_to_message_block(

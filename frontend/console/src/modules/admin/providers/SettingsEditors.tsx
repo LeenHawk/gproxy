@@ -194,84 +194,23 @@ export function CacheBreakpointsEditor({
 
                 {/* Position + index (non-top_level) */}
                 {rule.target !== "top_level" ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
-                          rule.position === "nth" ? "btn-primary" : "btn-neutral"
-                        }`}
-                        onClick={() => updateSlot(idx, { position: "nth" })}
-                      >
-                        {t("providers.cacheBreakpoints.nth")}
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
-                          rule.position === "last_nth" ? "btn-primary" : "btn-neutral"
-                        }`}
-                        onClick={() => updateSlot(idx, { position: "last_nth" })}
-                      >
-                        {t("providers.cacheBreakpoints.lastNth")}
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                        rule.position === "nth" ? "btn-primary" : "btn-neutral"
+                      }`}
+                      onClick={() => updateSlot(idx, { position: rule.position === "nth" ? "last_nth" : "nth" })}
+                    >
+                      {rule.position === "last_nth" ? t("providers.cacheBreakpoints.lastNth") : t("providers.cacheBreakpoints.nth")}
+                    </button>
                     <Input
                       value={String(rule.index)}
                       onChange={(v) =>
                         updateSlot(idx, { index: Math.max(1, Number.parseInt(v, 10) || 1) })
                       }
                     />
-                  </div>
-                ) : null}
-
-                {/* Content block selector (messages only) */}
-                {rule.target === "messages" ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
-                          rule.content_position === undefined ? "btn-primary" : "btn-neutral"
-                        }`}
-                        onClick={() =>
-                          updateSlot(idx, { content_position: undefined, content_index: undefined })
-                        }
-                      >
-                        {t("providers.cacheBreakpoints.flatContent")}
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
-                          rule.content_position === "nth" ? "btn-primary" : "btn-neutral"
-                        }`}
-                        onClick={() =>
-                          updateSlot(idx, { content_position: "nth", content_index: rule.content_index ?? 1 })
-                        }
-                      >
-                        {t("providers.cacheBreakpoints.contentNth")}
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
-                          rule.content_position === "last_nth" ? "btn-primary" : "btn-neutral"
-                        }`}
-                        onClick={() =>
-                          updateSlot(idx, { content_position: "last_nth", content_index: rule.content_index ?? 1 })
-                        }
-                      >
-                        {t("providers.cacheBreakpoints.contentLastNth")}
-                      </button>
-                    </div>
-                    {rule.content_position ? (
-                      <Input
-                        value={String(rule.content_index ?? 1)}
-                        onChange={(v) =>
-                          updateSlot(idx, {
-                            content_index: Math.max(1, Number.parseInt(v, 10) || 1),
-                          })
-                        }
-                      />
-                    ) : null}
+                    <span className="text-[11px] text-muted">{t("providers.cacheBreakpoints.nthSuffix")}</span>
                   </div>
                 ) : null}
 
