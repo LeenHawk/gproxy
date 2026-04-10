@@ -95,12 +95,12 @@ export function CacheBreakpointsEditor({
     commit(next);
   };
 
-  // Example cards for drag-and-drop or click-to-fill
+  // Example cards
   const exampleCards: Array<{ label: string; rule: CacheBreakpointRule }> = [
-    { label: "top_level / auto", rule: { target: "top_level", position: "nth", index: 1, ttl: "auto" } },
-    { label: "system / last / auto", rule: { target: "system", position: "last_nth", index: 1, ttl: "auto" } },
-    { label: "messages / last 11 / auto", rule: { target: "messages", position: "last_nth", index: 11, ttl: "auto" } },
-    { label: "messages / last 1 / 5m", rule: { target: "messages", position: "last_nth", index: 1, ttl: "5m" } },
+    { label: t("providers.cacheBreakpoints.example.topLevel"), rule: { target: "top_level", position: "nth", index: 1, ttl: "auto" } },
+    { label: t("providers.cacheBreakpoints.example.systemLast"), rule: { target: "system", position: "last_nth", index: 1, ttl: "auto" } },
+    { label: t("providers.cacheBreakpoints.example.messagesLast11"), rule: { target: "messages", position: "last_nth", index: 11, ttl: "auto" } },
+    { label: t("providers.cacheBreakpoints.example.messagesLast1"), rule: { target: "messages", position: "last_nth", index: 1, ttl: "5m" } },
   ];
 
   const fillFirstEmptySlot = (rule: CacheBreakpointRule) => {
@@ -163,26 +163,31 @@ export function CacheBreakpointsEditor({
               <div className="space-y-2">
                 {/* Target: segmented buttons */}
                 <div className="flex flex-wrap gap-1">
-                  {(["top_level", "tools", "system", "messages"] as const).map((target) => (
+                  {([
+                    { value: "top_level" as const, label: t("providers.cacheBreakpoints.target.topLevel") },
+                    { value: "tools" as const, label: t("providers.cacheBreakpoints.target.tools") },
+                    { value: "system" as const, label: t("providers.cacheBreakpoints.target.system") },
+                    { value: "messages" as const, label: t("providers.cacheBreakpoints.target.messages") },
+                  ]).map((item) => (
                     <button
-                      key={target}
+                      key={item.value}
                       type="button"
                       className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                        rule.target === target ? "btn-primary" : "btn-neutral"
+                        rule.target === item.value ? "btn-primary" : "btn-neutral"
                       }`}
                       onClick={() =>
                         updateSlot(idx, {
-                          target,
-                          ...(target === "top_level"
+                          target: item.value,
+                          ...(item.value === "top_level"
                             ? { position: "nth" as const, index: 1, content_position: undefined, content_index: undefined }
                             : {}),
-                          ...(target !== "messages"
+                          ...(item.value !== "messages"
                             ? { content_position: undefined, content_index: undefined }
                             : {}),
                         })
                       }
                     >
-                      {target}
+                      {item.label}
                     </button>
                   ))}
                 </div>
