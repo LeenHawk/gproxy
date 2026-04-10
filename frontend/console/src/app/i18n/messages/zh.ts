@@ -3,6 +3,7 @@ export const zhMessages: Record<string, string> = {
   "app.restoring": "正在恢复会话...",
   "app.loginAs": "已登录为 {role}",
   "app.loggedOut": "已退出登录",
+  "app.updateAvailable": "新版本 {version} 可用",
   "app.logout": "退出",
   "app.error.usernameEmpty": "用户名不能为空",
   "app.error.passwordEmpty": "密码不能为空",

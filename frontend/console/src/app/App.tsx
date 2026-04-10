@@ -5,6 +5,9 @@ import { Nav } from "../components/Nav";
 import { Toast, type ToastState } from "../components/Toast";
 import { Button } from "../components/ui";
 import { APP_BUILD_INFO } from "../lib/build-info";
+import { apiJson } from "../lib/api";
+import { authHeaders } from "../lib/auth";
+import type { UpdateCheckResponse } from "../lib/types/admin";
 import { I18nProvider, useI18n } from "./i18n";
 import {
   buildAdminNavItems,
@@ -67,6 +70,23 @@ function AppFrame() {
       toastTimerRef.current = null;
     }, 2600);
   }, []);
+
+  const updateCheckedRef = useRef(false);
+
+  useEffect(() => {
+    if (!session || role !== "admin" || updateCheckedRef.current) return;
+    updateCheckedRef.current = true;
+    apiJson<UpdateCheckResponse>("/admin/update/check", {
+      method: "POST",
+      headers: authHeaders(session.sessionToken),
+    })
+      .then((res) => {
+        if (res.update_available && res.latest_version) {
+          notify("info", t("app.updateAvailable", { version: res.latest_version }));
+        }
+      })
+      .catch(() => {});
+  }, [session, role, notify, t]);
 
   const onLogin = useCallback(
     async (name: string, password: string) => {

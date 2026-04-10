@@ -3,6 +3,7 @@ export const enMessages: Record<string, string> = {
   "app.restoring": "Restoring session...",
   "app.loginAs": "Logged in as {role}",
   "app.loggedOut": "Logged out",
+  "app.updateAvailable": "New version {version} available",
   "app.logout": "Sign out",
   "app.error.usernameEmpty": "Username is required",
   "app.error.passwordEmpty": "Password is required",
