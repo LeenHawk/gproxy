@@ -1,80 +1,97 @@
 ---
-title: 概述
-description: GPROXY 的核心定位、能力边界与工程优势。
+title: 概览
+description: GPROXY 是什么、支持哪些功能、如何部署。
 ---
 
 ## GPROXY 是什么
 
-`GPROXY` 是一个基于 Rust 的多通道 LLM 代理，目标是把不同上游（OpenAI、Anthropic、Google、以及自定义通道）统一暴露成一致的 API 网关。
+GPROXY 是一个 Rust 编写的多通道 LLM 代理。它位于你的应用和上游 LLM 提供商之间，对外暴露统一的 API 网关，同时支持 OpenAI、Claude 和 Gemini 协议。你只需配置一次提供商和凭据，GPROXY 负责处理路由、协议转换、凭据池化、重试、故障转移、健康追踪和用量记录。
 
-## 核心能力
+## 内置 Channel
 
-- 多通道与多凭证池管理，支持凭证健康状态与重试回退。
-- 同时兼容 OpenAI / Claude / Gemini 风格请求。
-- 支持 `ModelList / ModelGet / Generate / Stream / CountToken / Embedding / Compact` 等操作族。
-- 内置 Admin Web 控制台，支持用户与密钥管理。
-- 记录请求与 usage，便于审计与运营分析。
+GPROXY 内置 14 种 Channel 实现：
+
+| Channel | 上游服务 |
+|---|---|
+| `openai` | OpenAI API |
+| `anthropic` | Anthropic Claude API |
+| `aistudio` | Google AI Studio |
+| `vertexexpress` | Vertex AI Express |
+| `vertex` | Vertex AI（服务账号） |
+| `geminicli` | Gemini CLI / Code Assist |
+| `claudecode` | Claude Code（基于 Cookie） |
+| `codex` | OpenAI Codex CLI |
+| `antigravity` | Antigravity / Code Assist |
+| `nvidia` | NVIDIA NIM |
+| `deepseek` | DeepSeek |
+| `groq` | Groq |
+| `openrouter` | OpenRouter |
+| `custom` | 任意 OpenAI 兼容端点 |
+
+`custom` Channel 可以指向任意 base URL 并使用任意凭据。设置 `id`、`base_url`、`credentials`，可选覆盖 dispatch 表。
+
+## 协议 Dispatch
+
+每个 Channel 都有一张 dispatch 表，将 `(OperationFamily, ProtocolKind)` 对映射到四种策略之一：
+
+- **Passthrough** -- 原样转发请求。输入输出使用相同协议，解析开销最小。
+- **TransformTo** -- 发送前将请求转换为另一种 `(operation, protocol)`。例如，OpenAI Chat Completions 请求打到 Anthropic 提供商时会被转换为 Claude Messages 格式。
+- **Local** -- 不访问上游，直接在本地处理（如从静态表返回模型列表）。
+- **Unsupported** -- 返回 501。
+
+GPROXY 支持六种协议：
+
+| 协议 | 传输格式 |
+|---|---|
+| `openai` | OpenAI Chat Completions（旧版格式） |
+| `openai_chat_completions` | OpenAI Chat Completions |
+| `openai_response` | OpenAI Responses API |
+| `claude` | Anthropic Messages |
+| `gemini` | Gemini GenerateContent |
+| `gemini_ndjson` | Gemini 流式（NDJSON） |
+
+跨协议转换自动完成。你可以向 Claude 提供商发送 OpenAI 格式的请求，也可以向 Gemini 提供商发送 Claude 格式的请求。GPROXY 会同时转换请求和响应。
+
+## Operation 类型
+
+路由按 Operation 分发，而非原始 URL 路径。Operation 类型包括：
+
+`ModelList`, `ModelGet`, `GenerateContent`, `StreamGenerateContent`, `CountToken`, `Compact`, `Embedding`, `CreateImage`, `StreamCreateImage`, `CreateImageEdit`, `StreamCreateImageEdit`, `OpenAiResponseWebSocket`, `GeminiLive`, `FileUpload`, `FileList`, `FileGet`, `FileContent`, `FileDelete`
 
 ## 多数据库支持
 
-存储层基于 SeaORM，当前编译特性已启用：
+存储层使用 SeaORM，编译了三个数据库驱动：
 
-- `sqlx-sqlite`
-- `sqlx-mysql`
-- `sqlx-postgres`
+- **SQLite** -- 默认，零配置。首次运行时 GPROXY 自动创建数据库文件。
+- **MySQL** -- 设置 `--dsn mysql://user:pass@host/db`
+- **PostgreSQL** -- 设置 `--dsn postgres://user:pass@host/db`
 
-也就是说你可以通过 `global.dsn` 直接切换后端数据库，而不需要改业务代码。
+Schema 在启动时自动同步。切换数据库只需修改 DSN。
 
-## 原生渠道与自定义渠道
+## 单二进制部署
 
-内置原生渠道（12 个）：
+React 管理控制台（Vite + Tailwind 构建）通过 `rust-embed` 编译进二进制文件。一个进程提供所有服务：
 
-- `openai`
-- `claude`
-- `aistudio`
-- `vertexexpress`
-- `vertex`
-- `geminicli`
-- `claudecode`
-- `codex`
-- `antigravity`
-- `nvidia`
-- `deepseek`
-- `groq`
+- 控制台 UI 位于 `/console/*`
+- API 路由位于 `/v1/*`、`/admin/*`、`/user/*`
+- 提供商路由位于 `/<provider>/v1/*`
 
-除内置渠道外，`ChannelId::Custom` 允许你声明任意自定义渠道（自定义 `id` + `base_url` + `credentials` + 可选 `dispatch`）。
+根路径 `/` 重定向到 `/console/login`。
 
-## 协议转换能力
+无需 Nginx，无需 Node.js 运行时，无需单独部署前端。只需发布一个二进制文件，可选附带 `gproxy.toml`。
 
-`dispatch` 是 GPROXY 的核心：每个渠道可定义“来源协议 -> 目标协议”的转换规则。
+## 项目结构
 
-- 规则类型支持：`Passthrough / TransformTo / Local / Unsupported`
-- 支持跨协议互转：OpenAI / OpenAI Chat Completion / Claude / Gemini / GeminiNDJson
-- 支持按操作族路由，而不是仅按 URL 路由
-
-这使得“上游只原生支持 A 协议，但你对外暴露 B/C 协议”成为可配置能力，而不是写死逻辑。
-
-## 单二进制部署优势
-
-管理端前端资源通过 `rust-embed` 编译进后端二进制：
-
-- 不需要额外 Node.js 运行时
-- 不需要额外 Nginx 静态站点服务
-- 发布物可收敛为单二进制 + 配置文件
-- 在边缘机器或最小化环境里部署更简单
-
-### 交付形态
-
-- 后端入口：`apps/gproxy/src/main.rs`
-- 管理端资源嵌入：`apps/gproxy/src/web.rs`（`frontend/dist`）
-- 生产部署可直接由单进程提供：
-  - 管理后台（`/`）
-  - 静态资源（`/assets/*`）
-  - API 路由（`/admin/*`、`/user/*`、`/v1*`）
-
-### 对运维的直接收益
-
-- 组件更少：前后端不需要分别部署。
-- 版本更稳：前端与后端天然同版本发布。
-- 回滚更快：回滚单个二进制即可。
-- 环境要求更低：对最小化主机或内网环境更友好。
+```
+gproxy/
+  apps/gproxy/          -- 二进制入口，Axum 服务器，嵌入式控制台
+  sdk/gproxy-protocol/  -- OpenAI/Claude/Gemini 类型定义及跨协议转换
+  sdk/gproxy-provider/  -- Channel trait，dispatch 表，凭据重试，计费
+  sdk/gproxy-routing/   -- 路由分类，模型别名，权限，速率限制
+  sdk/gproxy-sdk/       -- 顶层 SDK 重导出
+  crates/gproxy-core/   -- 领域服务（配置、身份、策略、配额、路由、文件）
+  crates/gproxy-server/ -- AppState、中间件、会话管理
+  crates/gproxy-api/    -- HTTP 处理器（admin、user、provider），引导，登录
+  crates/gproxy-storage/-- SeaORM 实体，仓储实现，异步写入 sink
+  frontend/console/     -- React 管理控制台源码（@gproxy/console）
+```

@@ -1,282 +1,324 @@
 ---
-title: 配置说明
-description: 多数据库、原生渠道、自定义渠道与 dispatch 转换配置。
+title: 配置参考
+description: CLI 参数、环境变量、TOML 配置、数据库加密与多数据库支持的完整参考。
 ---
-
-## 配置入口
-
-推荐从以下文件开始：
-
-- `gproxy.example.toml`：最小可运行示例
-- `gproxy.example.full.toml`：全量字段示例
 
 ## 配置优先级
 
-运行时优先级：
+GPROXY 按以下顺序从三个来源解析配置：
 
-`CLI 参数 / 环境变量 > gproxy.toml > 默认值`
+1. **CLI 参数 / 环境变量** -- 始终优先。
+2. **TOML 配置文件**（`gproxy.toml`）-- 仅在首次引导时应用。
+3. **数据库** -- 通过 Admin API 或控制台的所有运行时变更都持久化在这里。
 
-说明：
+数据库初始化后，后续启动会忽略 TOML 文件。所有运行时配置变更通过 Admin API 或控制台进行，并持久化到数据库。
 
-- 数据库已初始化后，默认优先数据库状态（除非通过下方启动开关强制按配置文件覆盖）。
+启动参数 `--bootstrap-force-config` / `GPROXY_BOOTSTRAP_FORCE_CONFIG` 可以覆盖此行为：
 
-常用覆盖项：
+- `false`（默认）：如果数据库已有数据，优先使用数据库状态，跳过 TOML 导入。
+- `true`：启动时强制应用 TOML 中的 Channel、设置、凭据和全局值。用于有意从文件覆盖现有数据库状态的场景。
 
-- `--config` / `GPROXY_CONFIG_PATH`
-- `--host` / `GPROXY_HOST`
-- `--port` / `GPROXY_PORT`
-- `--proxy` / `GPROXY_PROXY`
-- `--admin-key` / `GPROXY_ADMIN_KEY`
-- `--bootstrap-force-config` / `GPROXY_BOOTSTRAP_FORCE_CONFIG`
-- `--mask-sensitive-info` / `GPROXY_MASK_SENSITIVE_INFO`
-- `--data-dir` / `GPROXY_DATA_DIR`
-- `--dsn` / `GPROXY_DSN`
-- `--database-secret-key` / `DATABASE_SECRET_KEY`
+## CLI 参数和环境变量
 
-## 启动数据来源模式
+| 参数 | 环境变量 | 默认值 | 说明 |
+|----------|---------|---------|-------------|
+| `--host` | `GPROXY_HOST` | `127.0.0.1` | 监听地址 |
+| `--port` | `GPROXY_PORT` | `8787` | 监听端口 |
+| `--admin-user` | `GPROXY_ADMIN_USER` | `admin` | 引导管理员用户名 |
+| `--admin-password` | `GPROXY_ADMIN_PASSWORD` | （自动生成） | 引导管理员密码 |
+| `--admin-api-key` | `GPROXY_ADMIN_API_KEY` | （自动生成） | 引导管理员 API key |
+| `--dsn` | `GPROXY_DSN` | （无；默认 SQLite） | 数据库连接字符串 |
+| `--config` | `GPROXY_CONFIG` | `gproxy.toml` | TOML 配置文件路径 |
+| `--data-dir` | `GPROXY_DATA_DIR` | `./data` | 数据目录 |
+| `--proxy` | `GPROXY_PROXY` | （无） | 上游 HTTP 代理 |
+| `--spoof-emulation` | `GPROXY_SPOOF` | `chrome_136` | TLS 指纹模拟 |
+| `--database-secret-key` | `DATABASE_SECRET_KEY` | （无） | XChaCha20Poly1305 加密密钥，用于数据库静态加密 |
 
-启动期开关（仅 CLI/ENV，非 `gproxy.toml` 字段）：
+未指定 `--admin-password` 或 `--admin-api-key` 时，GPROXY 自动生成随机值并在启动时输出日志。务必保存——不会再次显示。
 
-- `--bootstrap-force-config` / `GPROXY_BOOTSTRAP_FORCE_CONFIG`
+如果管理员用户名、密码或 API key 通过 CLI/环境变量显式提供（即使数据库已有数据），引导管理员会在每次启动时进行协调。
 
-行为：
+## TOML 配置参考
 
-- 默认（`false` 或未设置）：
-  - 若数据库未初始化，按 `gproxy.toml` 引导；
-  - 若数据库已初始化，优先数据库状态，并跳过配置文件中的渠道/provider 导入；
-  - 启动时提供的 `admin_key` 覆盖仍生效。
-- `true`：
-  - 启动时强制应用配置文件中的 channels/settings/credentials/global；
-  - 适用于明确要用配置文件覆盖现有数据库引导状态的场景。
+TOML 配置文件在首次启动时将数据写入数据库。字段直接映射到数据库表。初始写入后，通过 Admin API 或控制台管理一切。
 
-## 多数据库支持（重点）
+### `[global]`
 
-`gproxy-storage` 已启用 `sqlite + mysql + postgres` 驱动。你只要改 `global.dsn` 即可切换。
-
-示例：
-
-```toml
-# SQLite（默认）
-dsn = "sqlite://./data/gproxy.db?mode=rwc"
-```
-
-```toml
-# MySQL
-dsn = "mysql://user:password@127.0.0.1:3306/gproxy"
-```
-
-```toml
-# PostgreSQL
-dsn = "postgres://user:password@127.0.0.1:5432/gproxy"
-```
-
-## 数据库静态加密
-
-可通过 CLI 或环境变量设置数据库静态加密密钥：
-
-```bash
-./gproxy --database-secret-key 'replace-with-long-random-string'
-```
-
-```bash
-export DATABASE_SECRET_KEY='replace-with-long-random-string'
-./gproxy
-```
-
-行为说明：
-
-- 未设置 `DATABASE_SECRET_KEY`：敏感字段按明文读写数据库；
-- 已设置 `DATABASE_SECRET_KEY`：会对 `credential.secret_json`、用户 API Key、用户密码、`admin_key` 与 `hf_token` 做透明静态加密。
-
-使用建议：
-
-- 尽量在首次初始化数据库前就设置该密钥，并在连接同一数据库的所有实例上保持一致；
-- 使用免费额度或共享型托管数据库时，强烈建议设置该密钥，避免敏感字段明文落库；
-- 建议通过平台 Secret / 环境变量注入，不要把密钥写进仓库或公开配置；
-- 如果数据库里已经写入密文，不要直接更换该值；如需轮换，请先做数据迁移或重加密。
-
-## `global`
-
-| 字段 | 说明 |
-|---|---|
-| `host` | 监听地址，默认 `127.0.0.1` |
-| `port` | 监听端口，默认 `8787` |
-| `proxy` | 上游代理；空字符串表示禁用 |
-| `hf_token` | 可选，HuggingFace token |
-| `hf_url` | HuggingFace 基址，默认 `https://huggingface.co` |
-| `admin_key` | 管理员 key；为空时首次可自动生成 |
-| `mask_sensitive_info` | 是否在日志/事件中脱敏敏感字段 |
-| `data_dir` | 数据目录，默认 `./data` |
-| `dsn` | 数据库 DSN（sqlite/mysql/postgres） |
-
-## `runtime`
+全局服务器设置。
 
 | 字段 | 默认值 | 说明 |
-|---|---:|---|
-| `storage_write_queue_capacity` | `4096` | 存储写入队列容量 |
-| `storage_write_max_batch_size` | `1024` | 单批次最大写入事件数 |
-| `storage_write_aggregate_window_ms` | `25` | 聚合窗口（毫秒） |
-
-## `channels`（原生与自定义）
-
-每个通道使用 `[[channels]]` 声明，常见字段：
-
-- `id`：通道 ID（内置如 `openai`，或自定义如 `mycustom`）
-- `enabled`：是否启用
-- `settings`：通道配置（通常至少包含 `base_url`）
-- `dispatch`：可选协议分发规则
-- `credentials`：凭证列表（支持多凭证）
-
-示例：
+|-------|---------|-------------|
+| `host` | `127.0.0.1` | 监听地址 |
+| `port` | `8787` | 监听端口 |
+| `proxy` | （无） | 上游 HTTP 代理。空字符串表示禁用 |
+| `spoof_emulation` | `chrome_136` | TLS 指纹模拟目标 |
+| `update_source` | `github` | 自更新来源（`github` 或 `cloudflare`） |
+| `enable_usage` | `true` | 是否记录 token 用量和费用 |
+| `enable_upstream_log` | `false` | 是否记录上游请求/响应元数据 |
+| `enable_upstream_log_body` | `false` | 是否记录上游请求/响应体 |
+| `enable_downstream_log` | `false` | 是否记录下游（客户端）请求/响应元数据 |
+| `enable_downstream_log_body` | `false` | 是否记录下游请求/响应体 |
+| `dsn` | （从 data_dir 推导） | 数据库连接字符串 |
+| `data_dir` | `./data` | SQLite 及其他文件的数据目录 |
 
 ```toml
-[[channels]]
-id = "openai"
-enabled = true
+[global]
+host = "0.0.0.0"
+port = 8787
+proxy = ""
+spoof_emulation = "chrome_136"
+update_source = "github"
+enable_usage = true
+enable_upstream_log = false
+enable_upstream_log_body = false
+enable_downstream_log = false
+enable_downstream_log_body = false
+dsn = "sqlite://./data/gproxy.db?mode=rwc"
+data_dir = "./data"
+```
 
-[channels.settings]
+### `[[providers]]`
+
+每个 `[[providers]]` 块定义一个上游提供商实例。
+
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `name` | 是 | -- | 唯一提供商名称（如 `openai-prod`） |
+| `channel` | 是 | -- | Channel 类型。内置：`openai`、`anthropic`、`aistudio`、`vertexexpress`、`vertex`、`geminicli`、`claudecode`、`codex`、`antigravity`、`nvidia`、`deepseek`、`groq`、`custom` |
+| `settings` | 否 | `{}` | JSON 对象。大多数 Channel 至少需要 `base_url` |
+| `credentials` | 否 | `[]` | 凭据 JSON 对象数组 |
+
+```toml
+[[providers]]
+name = "openai-prod"
+channel = "openai"
+
+[providers.settings]
 base_url = "https://api.openai.com"
 
-[[channels.credentials]]
-id = "openai-main"
-label = "primary"
-secret = "sk-replace-me"
+[[providers.credentials]]
+api_key = "sk-replace-me"
 ```
 
-## 内置渠道能力矩阵（重点）
+对于使用 OAuth 凭据的 Channel（如 `claudecode`、`geminicli`、`codex`、`antigravity`），凭据使用结构化的内置字段而非普通 API key。详见完整示例配置。
 
-| 渠道 | `id` | OAuth | `/v1/usage` | `secret` 凭证 |
-|---|---|---|---|---|
-| OpenAI | `openai` | 否 | 否 | 是 |
-| Anthropic | `anthropic` | 否 | 否 | 是 |
-| AiStudio | `aistudio` | 否 | 否 | 是 |
-| VertexExpress | `vertexexpress` | 否 | 否 | 是 |
-| Vertex | `vertex` | 否 | 否 | 否（service account） |
-| GeminiCli | `geminicli` | 是 | 是 | 否（OAuth builtin） |
-| ClaudeCode | `claudecode` | 是 | 是 | 否（OAuth/Cookie builtin） |
-| Codex | `codex` | 是 | 是 | 否（OAuth builtin） |
-| Antigravity | `antigravity` | 是 | 是 | 否（OAuth builtin） |
-| Nvidia | `nvidia` | 否 | 否 | 是 |
-| Deepseek | `deepseek` | 否 | 否 | 是 |
-| Groq | `groq` | 否 | 否 | 是 |
+### `[[models]]`
 
-## Claude / ClaudeCode 缓存改写（`cache_breakpoints`）
+覆盖或添加模型定价和显示元数据。
 
-`anthropic` 与 `claudecode` 通过 `channels.settings.cache_breakpoints` 控制 cache-control 改写。
-
-规则模型：
-
-- 配置键：`channels.settings.cache_breakpoints`
-- 值类型：数组，最多 `4` 条规则
-- `target` 支持：
-  - `top_level`（别名：`global`）
-  - `tools`
-  - `system`
-  - `messages`
-- 对非 `top_level` 目标：
-  - `position`：`nth` 或 `last_nth`
-  - `index`：从 1 开始
-  - 对 `messages`，索引基于扁平化后的 `messages[*].content` block；`content: "..."` 会先规范化为一个 text block
-  - 对 `messages`，如果配置了 `content_position` / `content_index`，则 `position` / `index` 先选 message，再由 `content_*` 在该 message 内选 block
-- `top_level` 目标会忽略 `position` / `index`
-- `ttl`：`auto` | `5m` | `1h`
-  - `auto` 会注入 `{"type":"ephemeral"}`（不带 `ttl`）
-
-改写行为：
-
-- 请求里已有的 `cache_control` 会被保留，并计入 4 条上限
-- gproxy 只会填充剩余槽位，不会覆盖已有 top-level/block `cache_control`
-- magic trigger 触发的注入也共用这 4 条预算
-- 仅对 `anthropic` / `claudecode` 的消息生成请求生效
-- 管理端会先按 `top_level -> tools -> system -> messages` 排序，再由服务端截断前 4 条
-
-`ttl` 省略（`auto`）时的默认 TTL 说明：
-
-- `anthropic`：上游默认按 `5m`
-- `claudecode`：上游默认按 `5m`
-- 若要行为可预测，建议显式写 `ttl = "5m"` 或 `ttl = "1h"`
-
-示例：
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `provider_name` | 是 | -- | 必须匹配某个提供商的 `name` |
+| `model_id` | 是 | -- | 模型标识符（如 `gpt-4o`） |
+| `display_name` | 否 | （无） | 人类可读的显示名称 |
+| `enabled` | 否 | `true` | 是否启用该模型 |
+| `price_each_call` | 否 | （无） | 每次请求的固定费用 |
+| `price_tiers` | 否 | `[]` | 按输入 token 数分层定价 |
 
 ```toml
-[[channels]]
-id = "anthropic"
+[[models]]
+provider_name = "openai-prod"
+model_id = "gpt-4o"
+display_name = "GPT-4o"
 enabled = true
-
-[channels.settings]
-base_url = "https://api.anthropic.com"
-cache_breakpoints = [
-  { target = "top_level", ttl = "auto" },
-  { target = "system", position = "last_nth", index = 1, ttl = "auto" },
-  { target = "messages", position = "last_nth", index = 11, ttl = "auto" },
-  { target = "messages", position = "last_nth", index = 1, content_position = "last_nth", content_index = 1, ttl = "5m" }
-]
-
-[[channels]]
-id = "claudecode"
-enabled = true
-
-[channels.settings]
-base_url = "https://api.anthropic.com"
-cache_breakpoints = [
-  { target = "top_level", ttl = "auto" },
-  { target = "messages", position = "last_nth", index = 1, content_position = "last_nth", content_index = 1, ttl = "1h" }
+price_each_call = 0.0
+price_tiers = [
+  { input_tokens_up_to = 128000, price_input_tokens = 2.5, price_output_tokens = 10.0 }
 ]
 ```
 
-## 自定义渠道配置示例（重点）
+内置 Channel 自带默认模型定价表。显式的 `[[models]]` 条目会覆盖默认值。
+
+### `[[model_aliases]]`
+
+将别名模型名称映射到实际的提供商 + 模型。
+
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `alias` | 是 | -- | 客户端使用的别名 |
+| `provider_name` | 是 | -- | 目标提供商名称 |
+| `model_id` | 是 | -- | 目标模型 ID |
+| `enabled` | 否 | `true` | 是否启用该别名 |
 
 ```toml
-[[channels]]
-id = "mycustom"
+[[model_aliases]]
+alias = "gpt-4"
+provider_name = "openai-prod"
+model_id = "gpt-4o"
 enabled = true
-
-[channels.settings]
-base_url = "https://api.example.com"
-
-[[channels.credentials]]
-secret = "custom-provider-api-key"
 ```
 
-说明：
+### `[[users]]`
 
-- 自定义渠道默认走 `ProviderDispatchTable::default_for_custom()`
-- 你也可以在配置里显式提供 `dispatch`，做精细化协议路由
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `name` | 是 | -- | 用户名 |
+| `password` | 否 | `""` | 明文密码或 Argon2 PHC 格式哈希 |
+| `enabled` | 否 | `true` | 是否允许该用户认证 |
+| `is_admin` | 否 | `false` | 管理员角色标记 |
 
-## `channels.credentials`
+每个用户可以包含嵌套的 API key：
 
-可用字段：
+#### `[[users.keys]]`
 
-- `id` / `label`：可读标识
-- `secret`：API Key 通道
-- `builtin`：OAuth / ServiceAccount 结构化凭证
-- `state`：健康状态种子
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `api_key` | 是 | -- | API key 字符串 |
+| `label` | 否 | （无） | 人类可读的标签 |
+| `enabled` | 否 | `true` | 是否启用该 Key |
 
-健康状态类型：
+```toml
+[[users]]
+name = "alice"
+password = "plaintext-or-argon2-hash"
+enabled = true
+is_admin = false
 
-- `healthy`：可用
-- `partial`：模型级冷却（部分可用）
-- `dead`：不可用
+[[users.keys]]
+api_key = "sk-alice-key-1"
+label = "dev"
+enabled = true
+```
 
-## 凭证选择模式
+密码可以是明文（导入时自动哈希）或 Argon2id PHC 格式的哈希字符串（原样存储）。
 
-在 `channels.settings` 里，可通过以下两个字段控制多凭证路由：
+### `[[permissions]]`
 
-- `credential_round_robin_enabled`
-- `credential_cache_affinity_enabled`
-- `credential_cache_affinity_max_keys`
+通过模式匹配授予用户模型访问权限。
 
-完整行为矩阵、内部亲和池设计、命中判定机制，以及 OpenAI/Claude/Gemini 上游缓存命中建议，见：
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `user_name` | 是 | -- | 必须匹配某个用户的 `name` |
+| `provider_name` | 否 | （无） | 限定到特定提供商。`None` 表示所有提供商 |
+| `model_pattern` | 是 | -- | Glob 模式。`*` 匹配所有模型 |
 
-- [凭证选择与缓存亲和池](/zh/guides/credential-selection-cache-affinity/)
+```toml
+[[permissions]]
+user_name = "alice"
+model_pattern = "*"
 
-## dispatch 与转换能力
+[[permissions]]
+user_name = "bob"
+provider_name = "openai-prod"
+model_pattern = "gpt-*"
+```
 
-`dispatch` 决定“请求进入后如何被实现”：
+没有任何权限的用户无法调用任何模型。
 
-- `Passthrough`：原样转发给上游
-- `TransformTo`：转换为目标协议再转发
-- `Local`：本地实现（例如某些计数能力）
-- `Unsupported`：显式不支持
+### `[[file_permissions]]`
 
-这也是 GPROXY 同时支持多协议入口、多上游原生差异的核心机制。
+授予用户针对特定提供商的文件上传权限。
+
+| 字段 | 必填 | 说明 |
+|-------|----------|-------------|
+| `user_name` | 是 | 必须匹配某个用户的 `name` |
+| `provider_name` | 是 | 必须匹配某个提供商的 `name` |
+
+```toml
+[[file_permissions]]
+user_name = "alice"
+provider_name = "anthropic-prod"
+```
+
+### `[[rate_limits]]`
+
+按用户和模型模式的速率限制。
+
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `user_name` | 是 | -- | 必须匹配某个用户的 `name` |
+| `model_pattern` | 是 | -- | 受影响模型的 Glob 模式 |
+| `rpm` | 否 | （无） | 每分钟请求数 |
+| `rpd` | 否 | （无） | 每天请求数 |
+| `total_tokens` | 否 | （无） | 总 token 预算（终身） |
+
+```toml
+[[rate_limits]]
+user_name = "alice"
+model_pattern = "*"
+rpm = 60
+rpd = 1000
+```
+
+省略某个字段表示该维度无限制。
+
+### `[[quotas]]`
+
+按用户的费用配额。
+
+| 字段 | 必填 | 默认值 | 说明 |
+|-------|----------|---------|-------------|
+| `user_name` | 是 | -- | 必须匹配某个用户的 `name` |
+| `quota` | 是 | -- | 最大允许费用（USD） |
+| `cost_used` | 否 | `0.0` | 当前已消耗费用 |
+
+```toml
+[[quotas]]
+user_name = "alice"
+quota = 50.0
+cost_used = 0.0
+```
+
+当 `cost_used >= quota` 时，请求会被拒绝。
+
+## 数据库加密
+
+设置 `--database-secret-key` 或 `DATABASE_SECRET_KEY` 以启用数据库敏感字段的静态加密。
+
+### 加密范围
+
+- 凭据密钥（API key、OAuth token、服务账号密钥）
+- 用户 API key
+- 用户密码哈希
+- 管理员 API key
+
+### 算法
+
+使用 XChaCha20Poly1305 配合 Argon2id 派生的 256 位密钥。你提供的密钥不会直接使用——而是通过 Argon2id（19 MiB 内存、2 次迭代、1 通道）加固定域分隔符 salt 派生实际加密密钥。
+
+加密字符串以 `enc:v2:` 前缀存储。加密 JSON 值存储为包含 `$gproxy_enc`、`nonce` 和 `ciphertext` 字段的对象。未加密的值在读取时透明传递。
+
+### 使用规则
+
+- 在**首次引导前**设置密钥。写入数据库的所有敏感值都会被加密。
+- 共享同一数据库的所有实例**必须使用相同的密钥**。
+- 通过环境变量或平台密钥管理注入。不要将密钥提交到源代码或配置文件中。
+- 数据写入后不要更改密钥。更改密钥需要迁移/重新加密方案。
+- 未设置密钥时，敏感字段以明文存储。
+
+```bash
+# 通过环境变量设置
+export DATABASE_SECRET_KEY='your-long-random-secret-string'
+./gproxy
+
+# 或通过 CLI 参数
+./gproxy --database-secret-key 'your-long-random-secret-string'
+```
+
+## 多数据库支持
+
+GPROXY 支持 SQLite、MySQL 和 PostgreSQL。数据库后端由 DSN 格式决定。
+
+### SQLite（默认）
+
+未指定 DSN 时，GPROXY 在 `{data_dir}/gproxy.db` 创建 SQLite 数据库。
+
+```
+sqlite://./data/gproxy.db?mode=rwc
+```
+
+### MySQL
+
+```
+mysql://user:password@127.0.0.1:3306/gproxy
+```
+
+### PostgreSQL
+
+```
+postgres://user:password@127.0.0.1:5432/gproxy
+```
+
+通过 `--dsn`、`GPROXY_DSN` 或 TOML 配置的 `[global] dsn` 设置 DSN。
+
+数据库 Schema 在启动时自动同步，无需手动迁移。

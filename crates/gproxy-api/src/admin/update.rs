@@ -30,7 +30,7 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Built-in update sources.
 const GITHUB_DOWNLOAD_BASE: &str = "https://github.com/LeenHawk/gproxy/releases/download";
-const WEB_DOWNLOAD_BASE: &str = "https://dl.gproxy.leenhawk.com";
+const WEB_DOWNLOAD_BASE: &str = "https://download-gproxy.leenhawk.com";
 
 /// Ed25519 public key for verifying update signatures (base64-encoded).
 ///
