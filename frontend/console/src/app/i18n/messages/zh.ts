@@ -187,6 +187,8 @@ export const zhMessages: Record<string, string> = {
   "providers.cacheBreakpoints.template": "推荐模板",
   "providers.cacheBreakpoints.hint": "最多 4 条断点规则。target + position + TTL 决定缓存边界插入位置。",
   "providers.cacheBreakpoints.slot": "槽位 {index}",
+  "providers.cacheBreakpoints.summary": "已配置 {count} / 4 条断点。",
+  "providers.cacheBreakpoints.examples": "点击填充第一个空槽位：",
   "providers.betaHeaders.title": "额外 Beta Header",
   "providers.betaHeaders.clear": "全部清除",
   "providers.betaHeaders.hint": "点击切换 anthropic-beta 头中合并的 beta 值。",

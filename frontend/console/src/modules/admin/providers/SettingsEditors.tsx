@@ -95,13 +95,28 @@ export function CacheBreakpointsEditor({
     commit(next);
   };
 
+  // Example cards for drag-and-drop or click-to-fill
+  const exampleCards: Array<{ label: string; rule: CacheBreakpointRule }> = [
+    { label: "top_level / auto", rule: { target: "top_level", position: "nth", index: 1, ttl: "auto" } },
+    { label: "system / last / auto", rule: { target: "system", position: "last_nth", index: 1, ttl: "auto" } },
+    { label: "messages / last 11 / auto", rule: { target: "messages", position: "last_nth", index: 11, ttl: "auto" } },
+    { label: "messages / last 1 / 5m", rule: { target: "messages", position: "last_nth", index: 1, ttl: "5m" } },
+  ];
+
+  const fillFirstEmptySlot = (rule: CacheBreakpointRule) => {
+    const emptyIdx = slots.findIndex((s) => s === null);
+    if (emptyIdx >= 0) {
+      updateSlot(emptyIdx, rule);
+    }
+  };
+
   return (
     <CollapsibleSection
       title={t("providers.cacheBreakpoints.title")}
-      summary={`${rules.length} / 4 ${t("providers.cacheBreakpoints.title").toLowerCase()}`}
+      summary={t("providers.cacheBreakpoints.summary", { count: rules.length })}
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
-      expandLabel={t("providers.dispatch.expand")}
+      expandLabel={t("common.show")}
       collapseLabel={t("providers.dispatch.collapse")}
       actions={
         <Button variant="neutral" onClick={() => commit(RECOMMENDED_CACHE_TEMPLATE)}>
@@ -110,6 +125,23 @@ export function CacheBreakpointsEditor({
       }
     >
       <p className="text-xs text-muted">{t("providers.cacheBreakpoints.hint")}</p>
+
+      {/* Example cards — click to fill first empty slot */}
+      <div className="mb-3">
+        <div className="mb-1.5 text-xs text-muted">{t("providers.cacheBreakpoints.examples")}</div>
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          {exampleCards.map((card, i) => (
+            <button
+              key={i}
+              type="button"
+              className="rounded-lg border border-dashed border-border px-2 py-2.5 text-center text-xs font-medium text-muted transition hover:border-text hover:text-text"
+              onClick={() => fillFirstEmptySlot(card.rule)}
+            >
+              {card.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {slots.map((rule, idx) => (
           <div key={idx} className="rounded-xl border border-border bg-panel-muted px-3 py-2.5">
@@ -261,12 +293,12 @@ export function BetaHeadersEditor({
       }
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
-      expandLabel={t("providers.dispatch.expand")}
+      expandLabel={t("common.show")}
       collapseLabel={t("providers.dispatch.collapse")}
       actions={
         <>
           {isClaudeCode ? (
-            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
+            <span className="badge badge-accent text-[10px]">
               {CLAUDECODE_OAUTH_BETA} always
             </span>
           ) : null}
@@ -332,7 +364,7 @@ export function PreludeTextEditor({
       summary={activeLabel}
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
-      expandLabel={t("providers.dispatch.expand")}
+      expandLabel={t("common.show")}
       collapseLabel={t("providers.dispatch.collapse")}
     >
       <textarea
@@ -436,7 +468,7 @@ export function SanitizeRulesEditor({
       summary={filledCount === 0 ? t("providers.sanitize.empty") : `${filledCount} rule${filledCount > 1 ? "s" : ""}`}
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
-      expandLabel={t("providers.dispatch.expand")}
+      expandLabel={t("common.show")}
       collapseLabel={t("providers.dispatch.collapse")}
       actions={
         <Button variant="neutral" onClick={add}>

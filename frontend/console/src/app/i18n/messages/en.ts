@@ -187,6 +187,8 @@ export const enMessages: Record<string, string> = {
   "providers.cacheBreakpoints.template": "Recommended Template",
   "providers.cacheBreakpoints.hint": "Up to 4 breakpoint rules. Target + position + TTL determine where cache boundaries are inserted.",
   "providers.cacheBreakpoints.slot": "Slot {index}",
+  "providers.cacheBreakpoints.summary": "{count} / 4 breakpoints configured.",
+  "providers.cacheBreakpoints.examples": "Click to fill the first empty slot:",
   "providers.betaHeaders.title": "Extra Beta Headers",
   "providers.betaHeaders.clear": "Clear All",
   "providers.betaHeaders.hint": "Toggle anthropic-beta header values merged into every request. Click to enable/disable.",
