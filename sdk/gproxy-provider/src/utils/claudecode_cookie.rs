@@ -64,19 +64,19 @@ pub(crate) async fn exchange_tokens_with_cookie(
     let api_base = api_base_url.trim_end_matches('/');
     let ai_base = claude_ai_base_url.trim_end_matches('/');
 
-    // Step 1: Get organization UUID
-    let org_uuid = fetch_org_uuid(client, cookie, ai_base).await?;
+    // Step 1: Get organization info (UUID + billing/rate-limit metadata)
+    let org = fetch_org_info(client, cookie, ai_base).await?;
 
     // Step 2: Get authorization code with PKCE
     let code_verifier = generate_code_verifier();
     let code_challenge = generate_code_challenge(&code_verifier);
     let state = crate::utils::oauth::generate_state();
 
-    let auth_url = format!("{api_base}/v1/oauth/{org_uuid}/authorize");
+    let auth_url = format!("{api_base}/v1/oauth/{}/authorize", org.uuid);
     let payload = serde_json::json!({
         "response_type": "code",
         "client_id": CLIENT_ID,
-        "organization_uuid": org_uuid,
+        "organization_uuid": org.uuid,
         "redirect_uri": DEFAULT_REDIRECT_URI,
         "scope": OAUTH_SCOPE,
         "state": state,
@@ -162,8 +162,19 @@ pub(crate) async fn exchange_tokens_with_cookie(
             String::from_utf8_lossy(&token_bytes)
         )));
     }
-    let tokens: CookieTokenResponse = serde_json::from_slice(&token_bytes)
+    let mut tokens: CookieTokenResponse = serde_json::from_slice(&token_bytes)
         .map_err(|e| UpstreamError::Channel(format!("cookie token response parse error: {e}")))?;
+
+    // Backfill organization metadata from bootstrap when the token
+    // endpoint didn't return it.
+    if tokens.organization.is_none()
+        && (org.billing_type.is_some() || org.rate_limit_tier.is_some())
+    {
+        tokens.organization = Some(CookieTokenOrganization {
+            billing_type: org.billing_type,
+            rate_limit_tier: org.rate_limit_tier,
+        });
+    }
 
     if let Some(error) = &tokens.error {
         return Err(UpstreamError::Channel(format!(
@@ -174,11 +185,17 @@ pub(crate) async fn exchange_tokens_with_cookie(
     Ok(tokens)
 }
 
-async fn fetch_org_uuid(
+struct OrgInfo {
+    uuid: String,
+    billing_type: Option<String>,
+    rate_limit_tier: Option<String>,
+}
+
+async fn fetch_org_info(
     client: &wreq::Client,
     cookie: &str,
     claude_ai_base_url: &str,
-) -> Result<String, UpstreamError> {
+) -> Result<OrgInfo, UpstreamError> {
     let bootstrap_url = format!("{claude_ai_base_url}/api/bootstrap");
     let response = client
         .get(&bootstrap_url)
@@ -206,20 +223,23 @@ async fn fetch_org_uuid(
     })?;
 
     // Try bootstrap response first
-    if let Some(org) = value
+    if let Some(org_obj) = value
         .get("account")
         .and_then(|a| a.get("memberships"))
         .and_then(|m| m.as_array())
         .and_then(|arr| {
             arr.iter().find_map(|m| {
                 m.get("organization")
-                    .and_then(|o| o.get("uuid"))
-                    .and_then(|u| u.as_str())
-                    .map(String::from)
             })
         })
     {
-        return Ok(org);
+        if let Some(uuid) = org_obj.get("uuid").and_then(|u| u.as_str()) {
+            return Ok(OrgInfo {
+                uuid: uuid.to_string(),
+                billing_type: org_obj.get("billing_type").and_then(|v| v.as_str()).map(String::from),
+                rate_limit_tier: org_obj.get("rate_limit_tier").and_then(|v| v.as_str()).map(String::from),
+            });
+        }
     }
 
     // Fallback: try /api/organizations
@@ -243,7 +263,12 @@ async fn fetch_org_uuid(
             arr.iter().find_map(|o| {
                 let caps = o.get("capabilities")?.as_array()?;
                 if caps.iter().any(|c| c.as_str() == Some("chat")) {
-                    o.get("uuid").and_then(|u| u.as_str()).map(String::from)
+                    let uuid = o.get("uuid").and_then(|u| u.as_str())?.to_string();
+                    Some(OrgInfo {
+                        uuid,
+                        billing_type: o.get("billing_type").and_then(|v| v.as_str()).map(String::from),
+                        rate_limit_tier: o.get("rate_limit_tier").and_then(|v| v.as_str()).map(String::from),
+                    })
                 } else {
                     None
                 }
