@@ -54,3 +54,4 @@ url = { workspace = true }
 uuid = { workspace = true }
 wreq = { workspace = true }
 wreq-util = { workspace = true }
+regex = { workspace = true }

@@ -877,7 +877,25 @@ impl GproxyEngine {
                 apply_fn(&mut prepared);
             }
         }
-        let prepared = provider.finalize_request(prepared)?;
+        let mut prepared = provider.finalize_request(prepared)?;
+
+        // Sanitize request body text after finalize_request so channel-
+        // specific normalization has already run. Dispatches to the correct
+        // protocol walker based on the destination protocol.
+        let rules = provider.sanitize_rules();
+        if !rules.is_empty() {
+            if let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body) {
+                crate::utils::sanitize::apply_sanitize_rules(
+                    &mut body_json,
+                    prepared.route.protocol,
+                    &rules,
+                );
+                if let Ok(patched) = serde_json::to_vec(&body_json) {
+                    prepared.body = patched;
+                }
+            }
+        }
+
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
 
         let forced_credential = request.forced_credential_index;
@@ -1132,7 +1150,25 @@ impl GproxyEngine {
                 apply_fn(&mut prepared);
             }
         }
-        let prepared = provider.finalize_request(prepared)?;
+        let mut prepared = provider.finalize_request(prepared)?;
+
+        // Sanitize request body text after finalize_request so channel-
+        // specific normalization has already run. Dispatches to the correct
+        // protocol walker based on the destination protocol.
+        let rules = provider.sanitize_rules();
+        if !rules.is_empty() {
+            if let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body) {
+                crate::utils::sanitize::apply_sanitize_rules(
+                    &mut body_json,
+                    prepared.route.protocol,
+                    &rules,
+                );
+                if let Ok(patched) = serde_json::to_vec(&body_json) {
+                    prepared.body = patched;
+                }
+            }
+        }
+
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
 
         let forced_credential = request.forced_credential_index;

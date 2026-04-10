@@ -252,7 +252,7 @@ fn default_claudecode_device_id() -> String {
 // Settings
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ClaudeCodeSettings {
     #[serde(default = "default_claudecode_base_url")]
     pub base_url: String,
@@ -283,22 +283,11 @@ pub struct ClaudeCodeSettings {
     /// this list. Values are deduplicated case-insensitively.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_beta_headers: Vec<String>,
-}
-
-impl Default for ClaudeCodeSettings {
-    fn default() -> Self {
-        Self {
-            base_url: default_claudecode_base_url(),
-            platform_base_url: default_claudecode_platform_base_url(),
-            claude_ai_base_url: default_claudecode_claude_ai_base_url(),
-            user_agent: None,
-            max_retries_on_429: None,
-            enable_magic_cache: false,
-            cache_breakpoints: Vec::new(),
-            prelude_text: None,
-            extra_beta_headers: Vec::new(),
-        }
-    }
+    /// Regex-based text sanitization rules applied to `system` and
+    /// `messages[*].content` before forwarding upstream. See
+    /// `utils::sanitize::SanitizeRule` for format.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
 }
 
 impl ChannelSettings for ClaudeCodeSettings {
@@ -310,6 +299,9 @@ impl ChannelSettings for ClaudeCodeSettings {
     }
     fn max_retries_on_429(&self) -> u32 {
         self.max_retries_on_429.unwrap_or(3)
+    }
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &self.sanitize_rules
     }
 }
 

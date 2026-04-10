@@ -23,6 +23,8 @@ pub struct CustomSettings {
     /// Authentication scheme: "bearer" (default), "x-api-key", "query-key".
     #[serde(default = "default_auth_scheme")]
     pub auth_scheme: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
 }
 
 fn default_auth_scheme() -> String {
@@ -38,6 +40,9 @@ impl ChannelSettings for CustomSettings {
     }
     fn max_retries_on_429(&self) -> u32 {
         self.max_retries_on_429.unwrap_or(3)
+    }
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &self.sanitize_rules
     }
 }
 

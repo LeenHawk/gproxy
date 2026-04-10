@@ -185,7 +185,7 @@ fn parse_codex_id_token_claims(id_token: &str) -> CodexIdTokenClaims {
     claims
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CodexSettings {
     #[serde(default = "default_codex_base_url")]
     pub base_url: String,
@@ -195,16 +195,8 @@ pub struct CodexSettings {
     pub user_agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_retries_on_429: Option<u32>,
-}
-
-impl Default for CodexSettings {
-    fn default() -> Self {
-        Self {
-            base_url: default_codex_base_url(),
-            user_agent: None,
-            max_retries_on_429: None,
-        }
-    }
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
 }
 
 fn default_codex_base_url() -> String {
@@ -451,6 +443,9 @@ impl ChannelSettings for CodexSettings {
     }
     fn max_retries_on_429(&self) -> u32 {
         self.max_retries_on_429.unwrap_or(3)
+    }
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &self.sanitize_rules
     }
 }
 

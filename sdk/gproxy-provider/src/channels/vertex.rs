@@ -40,6 +40,8 @@ pub struct VertexSettings {
     pub max_retries_on_429: Option<u32>,
     #[serde(default = "default_vertex_location")]
     pub location: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
 }
 
 fn default_vertex_base_url() -> String {
@@ -59,6 +61,9 @@ impl ChannelSettings for VertexSettings {
     }
     fn max_retries_on_429(&self) -> u32 {
         self.max_retries_on_429.unwrap_or(3)
+    }
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &self.sanitize_rules
     }
 }
 

@@ -304,6 +304,8 @@ pub struct GeminiCliSettings {
 
     #[serde(default = "default_geminicli_api_version")]
     pub api_version: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
 }
 
 fn default_geminicli_base_url() -> String {
@@ -359,6 +361,9 @@ impl ChannelSettings for GeminiCliSettings {
     }
     fn max_retries_on_429(&self) -> u32 {
         self.max_retries_on_429.unwrap_or(3)
+    }
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &self.sanitize_rules
     }
 }
 

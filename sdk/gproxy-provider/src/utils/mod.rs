@@ -6,4 +6,5 @@ pub mod code_assist_envelope;
 pub mod google_quota;
 pub mod oauth;
 pub mod oauth2_refresh;
+pub mod sanitize;
 pub mod vertex_normalize;

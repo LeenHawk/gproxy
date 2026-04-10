@@ -194,6 +194,8 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8>;
 
+    fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule>;
+
     fn model_suffix_groups(&self) -> &'static [crate::suffix::SuffixGroup];
 
     /// Build WS-ready (url, headers) pairs for each credential.
@@ -440,6 +442,10 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
 
     fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
         self.channel.normalize_response(request, body)
+    }
+
+    fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule> {
+        self.settings.load().sanitize_rules().to_vec()
     }
 
     fn model_suffix_groups(&self) -> &'static [crate::suffix::SuffixGroup] {

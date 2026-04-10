@@ -183,6 +183,13 @@ pub trait ChannelSettings:
     fn enable_cache_affinity(&self) -> bool {
         false
     }
+    /// Regex-based sanitization rules applied to request body text
+    /// before forwarding upstream. The engine calls this after
+    /// `finalize_request` and dispatches to the correct protocol
+    /// walker based on the destination protocol.
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &[]
+    }
 }
 
 /// Channel credential (API key, OAuth token, etc.).

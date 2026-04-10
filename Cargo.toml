@@ -65,7 +65,7 @@ sha2 = "0.11"
 subtle = "2"
 sqlx = { version = "0.8", default-features = false, features = ["sqlite", "mysql", "postgres"] }
 thiserror = "2"
-tiktoken-rs = "0.9"
+tiktoken-rs = "0.11"
 time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
 tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "net"] }

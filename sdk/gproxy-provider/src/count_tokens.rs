@@ -3,7 +3,7 @@ use crate::response::UpstreamError;
 use gproxy_protocol::kinds::ProtocolKind;
 
 use std::sync::{Arc, OnceLock};
-use tiktoken_rs::{CoreBPE, get_bpe_from_model, o200k_base};
+use tiktoken_rs::{CoreBPE, bpe_for_model, o200k_base};
 use tokenizers::Tokenizer;
 
 /// Token counting strategy, tried in order.
@@ -245,8 +245,8 @@ fn count_tiktoken(model: &str, text: &str) -> Result<i64, String> {
 }
 
 fn build_bpe(model: &str) -> Result<CoreBPE, String> {
-    if let Ok(bpe) = get_bpe_from_model(model) {
-        return Ok(bpe);
+    if let Ok(bpe) = bpe_for_model(model) {
+        return Ok(bpe.clone());
     }
     o200k_base().map_err(|e| e.to_string())
 }

@@ -37,6 +37,13 @@ pub struct AnthropicSettings {
     /// without requiring clients to set the header themselves.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_beta_headers: Vec<String>,
+    /// Regex-based text sanitization rules applied to `system` and
+    /// `messages[*].content` fields before forwarding upstream. Each
+    /// rule has a `pattern` (regex with `\b` word boundaries recommended)
+    /// and a `replacement` string. Rules are applied in order — put
+    /// longer phrases first, shorter single-word patterns last.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
 }
 
 fn default_anthropic_base_url() -> String {
@@ -59,6 +66,9 @@ impl ChannelSettings for AnthropicSettings {
     }
     fn max_retries_on_429(&self) -> u32 {
         self.max_retries_on_429.unwrap_or(3)
+    }
+    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
+        &self.sanitize_rules
     }
 }
 
