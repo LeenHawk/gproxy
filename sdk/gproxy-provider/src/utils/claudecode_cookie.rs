@@ -175,15 +175,20 @@ pub(crate) async fn exchange_tokens_with_cookie(
     let mut tokens: CookieTokenResponse = serde_json::from_slice(&token_bytes)
         .map_err(|e| UpstreamError::Channel(format!("cookie token response parse error: {e}")))?;
 
-    // Backfill organization metadata from bootstrap when the token
-    // endpoint didn't return it.
-    if tokens.organization.is_none()
-        && (org.billing_type.is_some() || org.rate_limit_tier.is_some())
-    {
-        tokens.organization = Some(CookieTokenOrganization {
-            billing_type: org.billing_type,
-            rate_limit_tier: org.rate_limit_tier,
-        });
+    // Backfill individual organization metadata fields from bootstrap
+    // when the token endpoint didn't return them. The token endpoint may
+    // return `"organization": {}` which deserializes as Some with all
+    // inner fields None, so we fill per-field rather than checking
+    // is_none() on the outer Option.
+    let org_data = tokens.organization.get_or_insert_with(|| CookieTokenOrganization {
+        billing_type: None,
+        rate_limit_tier: None,
+    });
+    if org_data.billing_type.is_none() {
+        org_data.billing_type = org.billing_type;
+    }
+    if org_data.rate_limit_tier.is_none() {
+        org_data.rate_limit_tier = org.rate_limit_tier;
     }
 
     if let Some(error) = &tokens.error {
