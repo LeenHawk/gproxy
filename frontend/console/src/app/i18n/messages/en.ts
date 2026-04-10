@@ -221,7 +221,6 @@ export const enMessages: Record<string, string> = {
   "filePermissions.title": "User File Permissions",
   "rateLimits.title": "User Rate Limits",
   "dashboard.title": "Dashboard",
-  "dashboard.metric.status": "Status",
   "dashboard.metric.providers": "Providers",
   "dashboard.metric.users": "Users",
   "dashboard.metric.version": "Version",

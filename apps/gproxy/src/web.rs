@@ -1,7 +1,7 @@
 use axum::Router;
 use axum::extract::Path;
 use axum::http::{HeaderValue, StatusCode, header};
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use rust_embed::RustEmbed;
 
@@ -11,6 +11,10 @@ pub struct ConsoleAssets;
 
 pub fn router() -> Router {
     Router::new()
+        // Root path: bounce visitors straight into the SPA's login view.
+        // The SPA is a single-page app served entirely under /console, so a
+        // 308 here makes the bare hostname Just Work in a browser.
+        .route("/", get(|| async { Redirect::permanent("/console/login") }))
         .route("/console", get(console_index))
         .route("/console/", get(console_index))
         .route("/console/{*path}", get(console_path))

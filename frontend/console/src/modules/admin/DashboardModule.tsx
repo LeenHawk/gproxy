@@ -39,10 +39,6 @@ export function DashboardModule({ sessionToken }: { sessionToken: string }) {
     <Card title={t("dashboard.title")} action={buildInfoAction}>
       <div className="metric-grid">
         <div className="metric-card">
-          <div className="metric-label">{t("dashboard.metric.status")}</div>
-          <div className="metric-value">{health?.status ?? "—"}</div>
-        </div>
-        <div className="metric-card">
           <div className="metric-label">{t("dashboard.metric.providers")}</div>
           <div className="metric-value">{health?.provider_count ?? "—"}</div>
         </div>

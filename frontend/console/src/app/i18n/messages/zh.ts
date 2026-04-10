@@ -221,7 +221,6 @@ export const zhMessages: Record<string, string> = {
   "filePermissions.title": "用户文件权限",
   "rateLimits.title": "用户限流",
   "dashboard.title": "仪表盘",
-  "dashboard.metric.status": "状态",
   "dashboard.metric.providers": "渠道",
   "dashboard.metric.users": "用户",
   "dashboard.metric.version": "版本",
