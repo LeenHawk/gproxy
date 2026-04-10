@@ -652,6 +652,7 @@ export function ProvidersModule({
               form={credentialForm}
               onChangeForm={setCredentialForm}
               onEdit={editCredential}
+              onNew={() => setCredentialForm({ values: emptyCredentialValuesForChannel(selectedProvider?.channel ?? providerForm.channel), editingIndex: null, rawJson: "" })}
               onDelete={(row) => void deleteCredential(row)}
               onSave={() => void saveCredential()}
               statuses={statusRows}
@@ -665,8 +666,6 @@ export function ProvidersModule({
                 title: t("providers.tab.credentials"),
                 add: t("providers.credentials.add"),
                 replace: t("providers.credentials.replace"),
-                importJson: t("providers.credentials.importJson"),
-                editFields: t("providers.credentials.editFields"),
                 importJsonPlaceholder: t("providers.credentials.importJsonPlaceholder"),
                 none: t("providers.credentials.none"),
                 edit: t("providers.credentials.edit"),

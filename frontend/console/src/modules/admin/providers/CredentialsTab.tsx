@@ -15,6 +15,7 @@ export function CredentialsTab({
   form,
   onChangeForm,
   onEdit,
+  onNew,
   onDelete,
   onSave,
   onUpdateStatus,
@@ -31,6 +32,7 @@ export function CredentialsTab({
   form: CredentialFormState;
   onChangeForm: (patch: CredentialFormState) => void;
   onEdit: (row: CredentialRow) => void;
+  onNew: () => void;
   onDelete: (row: CredentialRow) => void;
   onSave: () => void;
   onUpdateStatus: (
@@ -46,8 +48,6 @@ export function CredentialsTab({
     title: string;
     add: string;
     replace: string;
-    importJson: string;
-    editFields: string;
     importJsonPlaceholder: string;
     none: string;
     edit: string;
@@ -233,87 +233,57 @@ export function CredentialsTab({
         <Card title={form.editingIndex === null ? labels.add : labels.replace}>
           <div className="space-y-4">
             {form.editingIndex === null ? (
-              <>
-                <div>
-                  <Label>{labels.importJson}</Label>
-                  <TextArea
-                    value={form.rawJson}
-                    onChange={(value) =>
-                      onChangeForm({ ...form, rawJson: value })
-                    }
-                    rows={8}
-                    placeholder={labels.importJsonPlaceholder}
-                  />
-                </div>
-                {form.rawJson.trim() ? null : (
-                  <>
-                    <div className="relative my-2 flex items-center">
-                      <div className="flex-1 border-t border-border" />
-                      <span className="px-3 text-xs text-muted">{labels.editFields}</span>
-                      <div className="flex-1 border-t border-border" />
-                    </div>
-                    {fields.map((field) => (
-                      <div key={field.key}>
-                        <Label>{field.label}</Label>
-                        {field.type === "textarea" ? (
-                          <TextArea
-                            value={form.values[field.key] ?? ""}
-                            onChange={(value) =>
-                              onChangeForm({
-                                ...form,
-                                values: { ...form.values, [field.key]: value },
-                              })
-                            }
-                            rows={4}
-                          />
-                        ) : (
-                          <Input
-                            value={form.values[field.key] ?? ""}
-                            onChange={(value) =>
-                              onChangeForm({
-                                ...form,
-                                values: { ...form.values, [field.key]: value },
-                              })
-                            }
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </>
+              <div>
+                <TextArea
+                  value={form.rawJson}
+                  onChange={(value) =>
+                    onChangeForm({ ...form, rawJson: value })
+                  }
+                  rows={8}
+                  placeholder={labels.importJsonPlaceholder}
+                />
+              </div>
             ) : (
-              fields.map((field) => (
-                <div key={field.key}>
-                  <Label>{field.label}</Label>
-                  {field.type === "textarea" ? (
-                    <TextArea
-                      value={form.values[field.key] ?? ""}
-                      onChange={(value) =>
-                        onChangeForm({
-                          ...form,
-                          values: { ...form.values, [field.key]: value },
-                        })
-                      }
-                      rows={4}
-                    />
-                  ) : (
-                    <Input
-                      value={form.values[field.key] ?? ""}
-                      onChange={(value) =>
-                        onChangeForm({
-                          ...form,
-                          values: { ...form.values, [field.key]: value },
-                        })
-                      }
-                    />
-                  )}
-                </div>
-              ))
+              <>
+                {fields.map((field) => (
+                  <div key={field.key}>
+                    <Label>{field.label}</Label>
+                    {field.type === "textarea" ? (
+                      <TextArea
+                        value={form.values[field.key] ?? ""}
+                        onChange={(value) =>
+                          onChangeForm({
+                            ...form,
+                            values: { ...form.values, [field.key]: value },
+                          })
+                        }
+                        rows={4}
+                      />
+                    ) : (
+                      <Input
+                        value={form.values[field.key] ?? ""}
+                        onChange={(value) =>
+                          onChangeForm({
+                            ...form,
+                            values: { ...form.values, [field.key]: value },
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+              </>
             )}
-            <Button onClick={onSave}>
-              {form.editingIndex === null ? labels.add : labels.replace}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={onSave}>
+                {form.editingIndex === null ? labels.add : labels.replace}
+              </Button>
+              {form.editingIndex !== null ? (
+                <Button variant="neutral" onClick={onNew}>
+                  {labels.add}
+                </Button>
+              ) : null}
+            </div>
           </div>
         </Card>
       </div>
