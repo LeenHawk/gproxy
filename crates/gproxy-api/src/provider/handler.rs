@@ -2353,7 +2353,6 @@ async fn record_upstream_log(
         .await;
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn record_execute_error_logs(
     state: &AppState,
     trace_id: i64,
