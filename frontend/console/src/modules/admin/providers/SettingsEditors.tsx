@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Button, Input, Select } from "../../../components/ui";
 import {
   ANTHROPIC_REFERENCE_BETA_HEADERS,
@@ -15,8 +17,47 @@ import {
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
+/// Collapsible section header — matches the dispatch table pattern.
+function CollapsibleSection({
+  title,
+  summary,
+  expanded,
+  onToggle,
+  expandLabel,
+  collapseLabel,
+  actions,
+  children,
+}: {
+  title: string;
+  summary: string;
+  expanded: boolean;
+  onToggle: () => void;
+  expandLabel: string;
+  collapseLabel: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="panel-shell space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-text">{title}</div>
+          {!expanded ? <p className="mt-1 text-sm text-muted">{summary}</p> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="neutral" onClick={onToggle}>
+            {expanded ? collapseLabel : expandLabel}
+          </Button>
+          {expanded ? actions : null}
+        </div>
+      </div>
+      {expanded ? children : null}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Cache Breakpoints Editor — 4 fixed slots with selects
+// Cache Breakpoints Editor
 // ---------------------------------------------------------------------------
 
 export function CacheBreakpointsEditor({
@@ -28,6 +69,7 @@ export function CacheBreakpointsEditor({
   onChange: (value: string) => void;
   t: TranslateFn;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const rules = parseCacheBreakpoints(value);
   const slots: Array<CacheBreakpointRule | null> = [
     rules[0] ?? null,
@@ -54,20 +96,23 @@ export function CacheBreakpointsEditor({
   };
 
   return (
-    <div className="card-shell space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">{t("providers.cacheBreakpoints.title")}</h3>
+    <CollapsibleSection
+      title={t("providers.cacheBreakpoints.title")}
+      summary={`${rules.length} / 4 ${t("providers.cacheBreakpoints.title").toLowerCase()}`}
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      expandLabel={t("providers.dispatch.expand")}
+      collapseLabel={t("providers.dispatch.collapse")}
+      actions={
         <Button variant="neutral" onClick={() => commit(RECOMMENDED_CACHE_TEMPLATE)}>
           {t("providers.cacheBreakpoints.template")}
         </Button>
-      </div>
+      }
+    >
       <p className="text-xs text-muted">{t("providers.cacheBreakpoints.hint")}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         {slots.map((rule, idx) => (
-          <div
-            key={idx}
-            className="rounded-xl border border-border bg-panel-muted px-3 py-2.5"
-          >
+          <div key={idx} className="rounded-xl border border-border bg-panel-muted px-3 py-2.5">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                 {t("providers.cacheBreakpoints.slot", { index: idx + 1 })}
@@ -170,18 +215,18 @@ export function CacheBreakpointsEditor({
                   updateSlot(idx, { target: "messages", position: "last_nth", index: 1, ttl: "auto" })
                 }
               >
-                + {t("providers.sanitize.add")}
+                +
               </button>
             )}
           </div>
         ))}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Beta Headers Editor — toggle button chips
+// Beta Headers Editor
 // ---------------------------------------------------------------------------
 
 export function BetaHeadersEditor({
@@ -195,6 +240,7 @@ export function BetaHeadersEditor({
   isClaudeCode?: boolean;
   t: TranslateFn;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const selected = parseBetaHeaders(value);
 
   const toggle = (beta: string) => {
@@ -206,10 +252,19 @@ export function BetaHeadersEditor({
   };
 
   return (
-    <div className="card-shell space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">{t("providers.betaHeaders.title")}</h3>
-        <div className="flex items-center gap-2">
+    <CollapsibleSection
+      title={t("providers.betaHeaders.title")}
+      summary={
+        selected.length === 0
+          ? t("common.none")
+          : `${selected.length} beta${selected.length > 1 ? "s" : ""}`
+      }
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      expandLabel={t("providers.dispatch.expand")}
+      collapseLabel={t("providers.dispatch.collapse")}
+      actions={
+        <>
           {isClaudeCode ? (
             <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted">
               {CLAUDECODE_OAUTH_BETA} always
@@ -222,8 +277,9 @@ export function BetaHeadersEditor({
           >
             {t("providers.betaHeaders.clear")}
           </button>
-        </div>
-      </div>
+        </>
+      }
+    >
       <p className="text-xs text-muted">{t("providers.betaHeaders.hint")}</p>
       <div className="flex flex-wrap gap-1.5">
         {ANTHROPIC_REFERENCE_BETA_HEADERS.map((beta) => {
@@ -242,12 +298,12 @@ export function BetaHeadersEditor({
           );
         })}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Prelude Text Editor — textarea + template buttons
+// Prelude Text Editor
 // ---------------------------------------------------------------------------
 
 export function PreludeTextEditor({
@@ -259,15 +315,26 @@ export function PreludeTextEditor({
   onChange: (value: string) => void;
   t: TranslateFn;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const templates = [
     { key: "none", label: t("common.none"), text: "" },
     { key: "code", label: "Claude Code", text: CLAUDE_CODE_PRELUDE },
     { key: "agent", label: "Agent SDK", text: CLAUDE_AGENT_SDK_PRELUDE },
   ];
 
+  const activeLabel = value
+    ? templates.find((tmpl) => tmpl.text === value)?.label ?? `${value.length} chars`
+    : t("common.none");
+
   return (
-    <div className="card-shell space-y-3">
-      <h3 className="text-sm font-semibold text-text">{t("providers.prelude.title")}</h3>
+    <CollapsibleSection
+      title={t("providers.prelude.title")}
+      summary={activeLabel}
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      expandLabel={t("providers.dispatch.expand")}
+      collapseLabel={t("providers.dispatch.collapse")}
+    >
       <textarea
         className="textarea"
         rows={5}
@@ -286,12 +353,12 @@ export function PreludeTextEditor({
         ))}
       </div>
       <p className="text-xs text-muted">{t("providers.prelude.hint")}</p>
-    </div>
+    </CollapsibleSection>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Sanitize Rules Editor — template toggles + custom rule rows
+// Sanitize Rules Editor
 // ---------------------------------------------------------------------------
 
 export function SanitizeRulesEditor({
@@ -303,6 +370,7 @@ export function SanitizeRulesEditor({
   onChange: (value: string) => void;
   t: TranslateFn;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const rules = parseSanitizeRules(value);
 
   const commit = (next: SanitizeRule[]) => {
@@ -311,6 +379,9 @@ export function SanitizeRulesEditor({
 
   const add = () => {
     commit([...rules, { pattern: "", replacement: "" }]);
+    if (!expanded) {
+      setExpanded(true);
+    }
   };
 
   const remove = (idx: number) => {
@@ -344,6 +415,9 @@ export function SanitizeRulesEditor({
       );
       commit([...rules, ...toAdd]);
     }
+    if (!expanded) {
+      setExpanded(true);
+    }
   };
 
   const isTemplateActive = (templateKey: string) => {
@@ -354,14 +428,22 @@ export function SanitizeRulesEditor({
     );
   };
 
+  const filledCount = rules.filter((r) => r.pattern.trim() !== "").length;
+
   return (
-    <div className="card-shell space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-text">{t("providers.sanitize.title")}</h3>
+    <CollapsibleSection
+      title={t("providers.sanitize.title")}
+      summary={filledCount === 0 ? t("providers.sanitize.empty") : `${filledCount} rule${filledCount > 1 ? "s" : ""}`}
+      expanded={expanded}
+      onToggle={() => setExpanded((v) => !v)}
+      expandLabel={t("providers.dispatch.expand")}
+      collapseLabel={t("providers.dispatch.collapse")}
+      actions={
         <Button variant="neutral" onClick={add}>
           + {t("providers.sanitize.add")}
         </Button>
-      </div>
+      }
+    >
       <p className="text-xs text-muted">{t("providers.sanitize.hint")}</p>
 
       {/* Template toggle chips */}
@@ -375,7 +457,7 @@ export function SanitizeRulesEditor({
             }`}
             onClick={() => toggleTemplate(tmpl.key)}
           >
-            {tmpl.label} ({tmpl.rules.length})
+            {tmpl.label}
           </button>
         ))}
       </div>
@@ -413,6 +495,6 @@ export function SanitizeRulesEditor({
       ) : (
         <p className="py-4 text-center text-xs text-muted">{t("providers.sanitize.empty")}</p>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
