@@ -537,6 +537,12 @@ fn apply_cookie_exchange_tokens(
     if let Some(rlt) = rate_limit {
         credential.rate_limit_tier = Some(rlt);
     }
+    if let Some(uuid) = tokens.account_uuid {
+        credential.account_uuid = Some(uuid);
+    }
+    if let Some(email) = tokens.user_email {
+        credential.user_email = Some(email);
+    }
 }
 
 /// Bootstrap a claudecode credential on upsert by exchanging its

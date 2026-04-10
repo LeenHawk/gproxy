@@ -21,12 +21,15 @@ pub(crate) struct CookieTokenResponse {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub expires_in: Option<u64>,
-    // `/v1/oauth/token` returns an `organization` object instead of
-    // top-level `subscription_type` / `rate_limit_tier`, so extract
-    // these via a nested struct.
     #[serde(default)]
     pub organization: Option<CookieTokenOrganization>,
     pub error: Option<String>,
+    /// Populated by `exchange_tokens_with_cookie` from the bootstrap
+    /// org-discovery step (not part of the token endpoint response).
+    #[serde(skip)]
+    pub account_uuid: Option<String>,
+    #[serde(skip)]
+    pub user_email: Option<String>,
 }
 
 impl CookieTokenResponse {
@@ -182,6 +185,9 @@ pub(crate) async fn exchange_tokens_with_cookie(
         )));
     }
 
+    tokens.account_uuid = Some(org.uuid);
+    tokens.user_email = org.user_email;
+
     Ok(tokens)
 }
 
@@ -189,6 +195,7 @@ struct OrgInfo {
     uuid: String,
     billing_type: Option<String>,
     rate_limit_tier: Option<String>,
+    user_email: Option<String>,
 }
 
 async fn fetch_org_info(
@@ -223,6 +230,12 @@ async fn fetch_org_info(
     })?;
 
     // Try bootstrap response first
+    let user_email = value
+        .get("account")
+        .and_then(|a| a.get("email_address"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
     if let Some(org_obj) = value
         .get("account")
         .and_then(|a| a.get("memberships"))
@@ -238,6 +251,7 @@ async fn fetch_org_info(
                 uuid: uuid.to_string(),
                 billing_type: org_obj.get("billing_type").and_then(|v| v.as_str()).map(String::from),
                 rate_limit_tier: org_obj.get("rate_limit_tier").and_then(|v| v.as_str()).map(String::from),
+                user_email,
             });
         }
     }
@@ -268,6 +282,7 @@ async fn fetch_org_info(
                         uuid,
                         billing_type: o.get("billing_type").and_then(|v| v.as_str()).map(String::from),
                         rate_limit_tier: o.get("rate_limit_tier").and_then(|v| v.as_str()).map(String::from),
+                        user_email: user_email.clone(),
                     })
                 } else {
                     None
