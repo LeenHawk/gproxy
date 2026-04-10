@@ -167,6 +167,62 @@ fn next_user_key_id(state: &AppState) -> i64 {
         + 1
 }
 
+/// Pick the next free user-model-permission id by scanning the in-memory
+/// snapshot. Used to allocate an id for the wildcard permission seeded
+/// alongside the bootstrap admin so that admin can actually call models
+/// out of the box (the policy service has no implicit admin bypass).
+fn next_user_permission_id(state: &AppState) -> i64 {
+    state
+        .user_permissions_snapshot()
+        .values()
+        .flat_map(|entries| entries.iter().map(|entry| entry.id))
+        .max()
+        .unwrap_or(0)
+        + 1
+}
+
+/// Ensure the given user has at least one wildcard model permission
+/// (`provider_id = None`, `model_pattern = "*"`). No-op if such an entry
+/// already exists. Persisted to both DB and in-memory snapshot so the
+/// admin can call models the moment bootstrap finishes.
+async fn ensure_user_wildcard_permission(
+    state: &AppState,
+    user_id: i64,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let already_has_wildcard = state
+        .user_permissions_snapshot()
+        .get(&user_id)
+        .map(|entries| {
+            entries
+                .iter()
+                .any(|entry| entry.provider_id.is_none() && entry.model_pattern == "*")
+        })
+        .unwrap_or(false);
+    if already_has_wildcard {
+        return Ok(());
+    }
+
+    let permission_id = next_user_permission_id(state);
+    state
+        .storage()
+        .upsert_user_permission(gproxy_storage::UserModelPermissionWrite {
+            id: permission_id,
+            user_id,
+            provider_id: None,
+            model_pattern: "*".to_string(),
+        })
+        .await?;
+    state.upsert_permission_in_memory(
+        user_id,
+        PermissionEntry {
+            id: permission_id,
+            provider_id: None,
+            model_pattern: "*".to_string(),
+        },
+    );
+    Ok(())
+}
+
 pub async fn reconcile_bootstrap_admin(
     state: &AppState,
     admin: &BootstrapAdmin,
@@ -276,6 +332,12 @@ pub async fn reconcile_bootstrap_admin(
         label,
         enabled: true,
     });
+
+    // Make sure the bootstrap admin has at least one wildcard model
+    // permission so they can actually call providers out of the box.
+    // The policy service has no implicit admin bypass — without an
+    // explicit `*` row, `check_model_permission` would deny everything.
+    ensure_user_wildcard_permission(state, user_id).await?;
 
     Ok(outcome)
 }
@@ -1049,6 +1111,20 @@ pub async fn seed_from_toml_with_bootstrap(
     }
     state.replace_user_permissions(perm_map);
 
+    // The TOML permission replace above wipes the in-memory snapshot,
+    // including the wildcard entry seeded by `reconcile_bootstrap_admin`.
+    // Re-seed it so a TOML bootstrap that doesn't list any permissions
+    // still leaves the admin able to call models.
+    if let Some(bootstrap_admin) = bootstrap_admin
+        && let Some(admin_user) = state
+            .users_snapshot()
+            .iter()
+            .find(|user| user.name == bootstrap_admin.username)
+            .cloned()
+    {
+        ensure_user_wildcard_permission(state, admin_user.id).await?;
+    }
+
     let mut file_permission_writes: HashMap<(i64, i64), FilePermissionEntry> = HashMap::new();
     for (i, permission) in config.file_permissions.iter().enumerate() {
         let Some(&user_id) = user_id_map.get(&permission.user_name) else {
@@ -1447,6 +1523,22 @@ enabled = true
             .expect("query user keys");
         assert_eq!(keys.len(), 1);
         assert_eq!(keys[0].api_key, "sk-bootstrap-admin");
+
+        // The bootstrap admin must come with a wildcard model permission
+        // — without it `check_model_permission` would reject every call
+        // until the operator manually adds a row.
+        let admin_perms = state
+            .user_permissions_snapshot()
+            .get(&admin.id)
+            .cloned()
+            .expect("bootstrap admin should have permissions seeded");
+        assert!(
+            admin_perms
+                .iter()
+                .any(|entry| entry.provider_id.is_none() && entry.model_pattern == "*"),
+            "bootstrap admin missing wildcard permission: {:?}",
+            admin_perms
+        );
     }
 
     #[test]
