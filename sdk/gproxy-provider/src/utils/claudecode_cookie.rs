@@ -240,17 +240,19 @@ async fn fetch_org_info(
         .get("account")
         .and_then(|a| a.get("memberships"))
         .and_then(|m| m.as_array())
-        .and_then(|arr| {
-            arr.iter().find_map(|m| {
-                m.get("organization")
-            })
-        })
+        .and_then(|arr| arr.iter().find_map(|m| m.get("organization")))
     {
         if let Some(uuid) = org_obj.get("uuid").and_then(|u| u.as_str()) {
             return Ok(OrgInfo {
                 uuid: uuid.to_string(),
-                billing_type: org_obj.get("billing_type").and_then(|v| v.as_str()).map(String::from),
-                rate_limit_tier: org_obj.get("rate_limit_tier").and_then(|v| v.as_str()).map(String::from),
+                billing_type: org_obj
+                    .get("billing_type")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                rate_limit_tier: org_obj
+                    .get("rate_limit_tier")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
                 user_email,
             });
         }
@@ -280,8 +282,14 @@ async fn fetch_org_info(
                     let uuid = o.get("uuid").and_then(|u| u.as_str())?.to_string();
                     Some(OrgInfo {
                         uuid,
-                        billing_type: o.get("billing_type").and_then(|v| v.as_str()).map(String::from),
-                        rate_limit_tier: o.get("rate_limit_tier").and_then(|v| v.as_str()).map(String::from),
+                        billing_type: o
+                            .get("billing_type")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        rate_limit_tier: o
+                            .get("rate_limit_tier")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
                         user_email: user_email.clone(),
                     })
                 } else {
