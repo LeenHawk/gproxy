@@ -23,13 +23,15 @@ export function defaultModule(role: UserRole) {
 }
 
 export function buildAdminNavItems(t: TranslateFn): NavItem[] {
-  const overview = t("app.nav.group.overview");
   const access = t("app.nav.group.access");
   const operations = t("app.nav.group.operations");
   const account = t("app.nav.group.account");
 
   return [
-    { id: "providers", label: t("app.nav.providers"), group: overview },
+    // Providers is the admin landing page and sits on its own above the
+    // grouped sections — no Overview header since it would only wrap a
+    // single entry with the same label.
+    { id: "providers", label: t("app.nav.providers") },
     { id: "users", label: t("app.nav.users"), group: access },
     { id: "user-permissions", label: t("app.nav.userPermissions"), group: access },
     { id: "user-file-permissions", label: t("app.nav.userFilePermissions"), group: access },

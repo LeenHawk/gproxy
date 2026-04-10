@@ -16,7 +16,6 @@ export const zhMessages: Record<string, string> = {
   "app.nav.providers": "渠道",
   "app.nav.models": "模型",
   "app.nav.modelAliases": "模型别名",
-  "app.nav.group.overview": "概览",
   "app.nav.group.access": "访问控制",
   "app.nav.group.operations": "运维",
   "app.nav.group.account": "个人",

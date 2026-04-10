@@ -16,7 +16,6 @@ export const enMessages: Record<string, string> = {
   "app.nav.providers": "Providers",
   "app.nav.models": "Models",
   "app.nav.modelAliases": "Model Aliases",
-  "app.nav.group.overview": "Overview",
   "app.nav.group.access": "Access",
   "app.nav.group.operations": "Operations",
   "app.nav.group.account": "Account",
