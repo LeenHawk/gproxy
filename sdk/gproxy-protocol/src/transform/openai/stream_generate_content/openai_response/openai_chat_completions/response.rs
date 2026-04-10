@@ -987,15 +987,6 @@ impl OpenAiChatCompletionsToOpenAiResponseStream {
             self.on_choice(out, choice);
         }
 
-        let sequence_number = next_sequence_number(&mut self.next_sequence_number);
-        push_stream_event(
-            out,
-            ResponseStreamEvent::InProgress {
-                response: self.current_response(Some(rt::ResponseStatus::InProgress)),
-                sequence_number,
-            },
-        );
-
         Ok(())
     }
 
