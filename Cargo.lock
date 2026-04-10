@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1852,7 +1852,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-provider"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1894,7 +1894,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bytes",
  "chrono",
@@ -1920,7 +1920,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-routing"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "gproxy-protocol",
  "http",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "gproxy-protocol",
  "gproxy-provider",
@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1977,7 +1977,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -3659,9 +3659,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.10"
+version = "0.103.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df33b2b81ac578cabaf06b89b0631153a3f416b0a886e8a7a1707fb51abbd1ef"
+checksum = "20a6af516fea4b20eccceaf166e8aa666ac996208e8a644ce3ef5aa783bc7cd4"
 dependencies = [
  "aws-lc-rs",
  "ring",

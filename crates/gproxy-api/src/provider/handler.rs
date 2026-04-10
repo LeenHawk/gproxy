@@ -2454,7 +2454,7 @@ mod tests {
         AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey, PermissionEntry, RateLimitRule,
     };
     use gproxy_storage::{
-        DownstreamRequestQuery, SeaOrmStorage, UpstreamRequestQuery, UsageQuery,
+        SeaOrmStorage, UpstreamRequestQuery, UsageQuery,
         repository::{ProviderRepository, UserRepository},
     };
     use serde_json::json;

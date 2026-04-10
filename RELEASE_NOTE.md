@@ -1,5 +1,109 @@
 # Release Notes
 
+## v1.0.1
+
+### English
+
+#### Added
+
+- **Upstream request logging** — quota queries and cookie exchange HTTP steps
+  are now recorded in the `upstream_requests` table, giving full visibility
+  into every outbound call the proxy makes.
+- **Streaming body capture** — both downstream and upstream logs now defer
+  recording until the stream ends, so `response_body` is populated for
+  streaming requests. Controlled by `enable_downstream_log_body` /
+  `enable_upstream_log_body` config.
+- **Auto-check for updates** — the console fires a background version check
+  after admin login and shows a toast when a new release is available.
+- **Wildcard model permission for admins** — creating or promoting a user to
+  admin now automatically seeds a `*` model permission so the admin can call
+  all providers immediately.
+- **Credential import via raw JSON** — the console credential form now offers
+  a single JSON textarea for direct paste import; plain cookie or API-key
+  strings are auto-wrapped into the correct JSON shape.
+
+#### Fixed
+
+- **Credential token refresh persisted** — refreshed `access_token` values
+  (from `refresh_token` on 401/403) are now written back to the database and
+  updated in memory, so they survive restarts.
+- **Cookie-only credentials** — credentials with only a `cookie` field (no
+  `access_token`) can now be deserialized; bootstrap populates the token.
+- **Claude Code org info backfill** — `billing_type`, `rate_limit_tier`,
+  `account_uuid`, and `user_email` are now extracted from the bootstrap
+  /organizations response when the token endpoint omits them.
+- **Version check endpoint** — the updater now uses the GitHub Releases API
+  instead of a nonexistent `latest.json` manifest URL.
+- **Console session stability** — 401 responses from upstream provider routes
+  no longer incorrectly clear the admin session; only `/admin/*` and `/login`
+  401s trigger logout.
+- **Request log loading loop** — removed `pageCursors` from the row-loading
+  effect dependency array to break an infinite re-render cascade.
+- **Cache breakpoint TTL aliases** — `"5m"` and `"1h"` are now accepted as
+  serde aliases alongside `"ttl5m"` / `"ttl1h"`.
+- **Credential quota reset time** — displayed in local timezone via
+  `toLocaleString()` instead of raw ISO strings.
+- **Credential card layout** — title, badge, and action buttons now wrap
+  cleanly; expanded details flow below on their own line.
+- **Android CI** — updated `setup-android` action to v4.
+
+#### Changed
+
+- **`subscription_type` removed** — `subscription_type` / `billing_type` /
+  `organization_type` fields are dropped from credential, cookie exchange,
+  OAuth profile, and frontend forms. Only `rate_limit_tier` is retained.
+- **Cache breakpoint simplification** — `content_position` / `content_index`
+  removed from breakpoint rules; breakpoints now always use flat block
+  positioning across all messages.
+- **i18n** — shortened Chinese cache breakpoint position labels
+  (正数 / 倒数).
+
+### 中文
+
+#### 新增
+
+- **上游请求日志** — 配额查询和 cookie 交换的每一步 HTTP 请求现在都会记录到
+  `upstream_requests` 表，完整追踪代理发出的所有出站调用。
+- **流式响应 body 采集** — 下游和上游日志均推迟到流结束后再写入，流式请求的
+  `response_body` 不再为空。由 `enable_downstream_log_body` /
+  `enable_upstream_log_body` 配置控制。
+- **自动检查更新** — 管理员登录后控制台会在后台检查新版本，有新版时弹出提示。
+- **管理员自动授权通配符模型权限** — 新建或提升为 admin 的用户会自动获得 `*`
+  模型权限，无需手动配置即可调用所有 provider。
+- **凭证 JSON 粘贴导入** — 控制台凭证表单新增单个 JSON 文本框，支持直接粘贴
+  完整 JSON；也可粘贴纯 cookie 或 API key 字符串，自动包装为正确格式。
+
+#### 修复
+
+- **凭证 token 刷新落库** — 通过 refresh_token 刷新的 access_token 现在会
+  同时更新内存和写入数据库，重启后不丢失。
+- **纯 cookie 凭证** — 仅含 `cookie` 字段（无 `access_token`）的凭证现在可以
+  正常反序列化，bootstrap 流程会自动补全 token。
+- **Claude Code 组织信息回填** — 当 token 端点未返回组织信息时，
+  `billing_type`、`rate_limit_tier`、`account_uuid`、`user_email` 会从
+  bootstrap /organizations 响应中提取并回填。
+- **版本检查端点** — 更新检查改用 GitHub Releases API，不再请求不存在的
+  `latest.json`。
+- **控制台会话稳定性** — 上游 provider 路由返回的 401 不再误触发管理员登出，
+  仅 `/admin/*` 和 `/login` 路径的 401 才清除会话。
+- **请求日志加载死循环** — 从行加载 effect 的依赖数组中移除 `pageCursors`，
+  打破无限重渲染循环。
+- **缓存断点 TTL 别名** — `"5m"` 和 `"1h"` 现在可以作为 serde 别名使用，
+  与 `"ttl5m"` / `"ttl1h"` 等效。
+- **凭证配额重置时间** — 使用 `toLocaleString()` 显示本地时区，不再显示原始
+  ISO 字符串。
+- **凭证卡片布局** — 标题、标记和操作按钮正确换行；展开详情独占整行显示。
+- **Android CI** — `setup-android` action 升级到 v4。
+
+#### 变更
+
+- **移除 `subscription_type`** — 从凭证、cookie 交换、OAuth profile 和前端
+  表单中删除 `subscription_type` / `billing_type` / `organization_type`
+  字段，仅保留 `rate_limit_tier`。
+- **缓存断点简化** — 移除 breakpoint 规则中的 `content_position` /
+  `content_index`，断点统一使用跨所有消息的扁平 block 定位。
+- **国际化** — 缩短中文缓存断点位置标签（正数 / 倒数）。
+
 ## v1.0.0
 
 > **Breaking release.** gproxy v1.0.0 is a full ground-up rewrite of the v0.3.x
