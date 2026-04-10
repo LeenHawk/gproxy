@@ -224,7 +224,6 @@ export const zhMessages: Record<string, string> = {
   "dashboard.metric.status": "状态",
   "dashboard.metric.providers": "渠道",
   "dashboard.metric.users": "用户",
-  "dashboard.metric.timestamp": "时间戳",
   "dashboard.metric.version": "版本",
   "dashboard.metric.commit": "Hash",
   "globalSettings.title": "全局设置",

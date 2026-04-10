@@ -11,14 +11,32 @@ export function DashboardModule({ sessionToken }: { sessionToken: string }) {
   const { t } = useI18n();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const headers = useMemo(() => authHeaders(sessionToken, false), [sessionToken]);
-  const lastUpdated = health ? new Date(health.timestamp_epoch * 1000).toLocaleString() : "—";
 
   useEffect(() => {
     void apiJson<HealthResponse>("/admin/health", { method: "GET", headers }).then(setHealth);
   }, [headers]);
 
+  /// Version + short commit rendered as bordered pills next to the card
+  /// title, matching the build-info strip in the sample gproxy About card.
+  const buildInfoAction = (
+    <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
+      <span>
+        {t("dashboard.metric.version")}:{" "}
+        <code className="rounded border border-border px-1.5 py-0.5 font-mono text-[12px] text-text">
+          {APP_BUILD_INFO.version}
+        </code>
+      </span>
+      <span>
+        {t("dashboard.metric.commit")}:{" "}
+        <code className="rounded border border-border px-1.5 py-0.5 font-mono text-[12px] text-text">
+          {APP_BUILD_INFO.commit}
+        </code>
+      </span>
+    </div>
+  );
+
   return (
-    <Card title={t("dashboard.title")}>
+    <Card title={t("dashboard.title")} action={buildInfoAction}>
       <div className="metric-grid">
         <div className="metric-card">
           <div className="metric-label">{t("dashboard.metric.status")}</div>
@@ -31,19 +49,6 @@ export function DashboardModule({ sessionToken }: { sessionToken: string }) {
         <div className="metric-card">
           <div className="metric-label">{t("dashboard.metric.users")}</div>
           <div className="metric-value">{health?.user_count ?? "—"}</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-label">{t("dashboard.metric.timestamp")}</div>
-          <div className="metric-value">{lastUpdated}</div>
-          <div className="metric-meta">{health ? `epoch ${health.timestamp_epoch}` : t("common.loading")}</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-label">{t("dashboard.metric.version")}</div>
-          <div className="metric-value">{APP_BUILD_INFO.version}</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-label">{t("dashboard.metric.commit")}</div>
-          <div className="metric-value font-mono text-[1.15rem]">{APP_BUILD_INFO.commit}</div>
         </div>
       </div>
     </Card>

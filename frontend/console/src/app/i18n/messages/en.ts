@@ -224,7 +224,6 @@ export const enMessages: Record<string, string> = {
   "dashboard.metric.status": "Status",
   "dashboard.metric.providers": "Providers",
   "dashboard.metric.users": "Users",
-  "dashboard.metric.timestamp": "Timestamp",
   "dashboard.metric.version": "Version",
   "dashboard.metric.commit": "Hash",
   "globalSettings.title": "Global Settings",
