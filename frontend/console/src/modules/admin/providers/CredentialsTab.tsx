@@ -119,24 +119,22 @@ export function CredentialsTab({
               });
               return (
                 <div key={credentialKey} className="card-shell">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="font-semibold">#{row.index} · {summary.primary}</div>
-                      <button
-                        type="button"
-                        className="badge-button"
-                        onClick={() => onUpdateStatus(row, nextStatus)}
-                      >
-                        <Badge variant={healthVariant}>
-                          {statusValue === "unavailable"
-                            ? labels.statusDead
-                            : statusValue === "cooldown"
-                              ? labels.statusCooldown
-                              : labels.statusHealthy}
-                        </Badge>
-                      </button>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="font-semibold">#{row.index} · {summary.primary}</div>
+                    <button
+                      type="button"
+                      className="badge-button"
+                      onClick={() => onUpdateStatus(row, nextStatus)}
+                    >
+                      <Badge variant={healthVariant}>
+                        {statusValue === "unavailable"
+                          ? labels.statusDead
+                          : statusValue === "cooldown"
+                            ? labels.statusCooldown
+                            : labels.statusHealthy}
+                      </Badge>
+                    </button>
+                    <div className="ml-auto flex flex-wrap gap-2">
                       <Button variant="neutral" onClick={() => onEdit(row)}>
                         {labels.edit}
                       </Button>
