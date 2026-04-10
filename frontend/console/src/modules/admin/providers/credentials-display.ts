@@ -22,7 +22,6 @@ export function summarizeCredential(credential: Record<string, unknown>): {
   const accountUuid = asText(credential.account_uuid);
   if (accountUuid) {
     const secondary = [
-      asText(credential.subscription_type),
       asText(credential.rate_limit_tier),
       asText(credential.user_email),
     ].filter(Boolean);

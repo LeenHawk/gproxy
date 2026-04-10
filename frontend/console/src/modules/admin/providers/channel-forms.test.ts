@@ -33,7 +33,6 @@ describe("buildChannelSettingsJson", () => {
       "expires_at_ms",
       "device_id",
       "account_uuid",
-      "subscription_type",
       "rate_limit_tier",
       "cookie",
       "user_email",

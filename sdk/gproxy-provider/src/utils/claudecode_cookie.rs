@@ -34,12 +34,6 @@ pub(crate) struct CookieTokenResponse {
 }
 
 impl CookieTokenResponse {
-    pub fn subscription_type(&self) -> Option<String> {
-        self.organization
-            .as_ref()
-            .and_then(|o| o.billing_type.clone())
-    }
-
     pub fn rate_limit_tier(&self) -> Option<String> {
         self.organization
             .as_ref()
@@ -49,8 +43,6 @@ impl CookieTokenResponse {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct CookieTokenOrganization {
-    #[serde(default)]
-    pub billing_type: Option<String>,
     #[serde(default)]
     pub rate_limit_tier: Option<String>,
 }
@@ -181,12 +173,8 @@ pub(crate) async fn exchange_tokens_with_cookie(
     // inner fields None, so we fill per-field rather than checking
     // is_none() on the outer Option.
     let org_data = tokens.organization.get_or_insert_with(|| CookieTokenOrganization {
-        billing_type: None,
         rate_limit_tier: None,
     });
-    if org_data.billing_type.is_none() {
-        org_data.billing_type = org.billing_type;
-    }
     if org_data.rate_limit_tier.is_none() {
         org_data.rate_limit_tier = org.rate_limit_tier;
     }
@@ -205,7 +193,6 @@ pub(crate) async fn exchange_tokens_with_cookie(
 
 struct OrgInfo {
     uuid: String,
-    billing_type: Option<String>,
     rate_limit_tier: Option<String>,
     user_email: Option<String>,
 }
@@ -260,10 +247,6 @@ async fn fetch_org_info(
         if let Some(uuid) = org_obj.get("uuid").and_then(|u| u.as_str()) {
             return Ok(OrgInfo {
                 uuid: uuid.to_string(),
-                billing_type: org_obj
-                    .get("billing_type")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
                 rate_limit_tier: org_obj
                     .get("rate_limit_tier")
                     .and_then(|v| v.as_str())
@@ -300,10 +283,6 @@ async fn fetch_org_info(
                     let uuid = o.get("uuid").and_then(|u| u.as_str())?.to_string();
                     Some(OrgInfo {
                         uuid,
-                        billing_type: o
-                            .get("billing_type")
-                            .and_then(|v| v.as_str())
-                            .map(String::from),
                         rate_limit_tier: o
                             .get("rate_limit_tier")
                             .and_then(|v| v.as_str())

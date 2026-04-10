@@ -224,7 +224,6 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
       { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
       { key: "device_id", label: "device_id", type: "text", optional: true },
       { key: "account_uuid", label: "account_uuid", type: "text", optional: true },
-      { key: "subscription_type", label: "subscription_type", type: "text", optional: true },
       { key: "rate_limit_tier", label: "rate_limit_tier", type: "text", optional: true },
       { key: "cookie", label: "cookie", type: "textarea", optional: true },
       { key: "user_email", label: "user_email", type: "text", optional: true },

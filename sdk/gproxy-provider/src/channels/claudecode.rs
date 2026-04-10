@@ -67,8 +67,6 @@ struct ClaudeCodeTokenResponse {
     refresh_token: Option<String>,
     expires_in: Option<u64>,
     #[serde(default)]
-    subscription_type: Option<String>,
-    #[serde(default)]
     rate_limit_tier: Option<String>,
 }
 
@@ -76,15 +74,10 @@ struct ClaudeCodeTokenResponse {
 struct ClaudeCodeOAuthProfileAccount {
     uuid: Option<String>,
     email: Option<String>,
-    #[serde(default)]
-    has_claude_max: bool,
-    #[serde(default)]
-    has_claude_pro: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]
 struct ClaudeCodeOAuthProfileOrg {
-    organization_type: Option<String>,
     rate_limit_tier: Option<String>,
 }
 
@@ -322,8 +315,6 @@ pub struct ClaudeCodeCredential {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_uuid: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subscription_type: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rate_limit_tier: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cookie: Option<String>,
@@ -516,7 +507,6 @@ fn apply_cookie_exchange_tokens(
     credential: &mut ClaudeCodeCredential,
     tokens: crate::utils::claudecode_cookie::CookieTokenResponse,
 ) {
-    let subscription = tokens.subscription_type();
     let rate_limit = tokens.rate_limit_tier();
     if let Some(at) = tokens.access_token {
         credential.access_token = at;
@@ -530,9 +520,6 @@ fn apply_cookie_exchange_tokens(
             .unwrap_or_default()
             .as_millis() as u64;
         credential.expires_at_ms = now_ms.saturating_add(exp.saturating_mul(1000));
-    }
-    if let Some(st) = subscription {
-        credential.subscription_type = Some(st);
     }
     if let Some(rlt) = rate_limit {
         credential.rate_limit_tier = Some(rlt);
@@ -1259,19 +1246,6 @@ impl Channel for ClaudeCodeChannel {
                 fetch_claudecode_oauth_profile(client, &oauth_state.api_base_url, &access_token)
                     .await
                     .ok();
-            let subscription_type = token.subscription_type.or_else(|| {
-                profile.as_ref().and_then(|profile| {
-                    profile.organization.organization_type.clone().or_else(|| {
-                        if profile.account.has_claude_max {
-                            Some("claude_max".to_string())
-                        } else if profile.account.has_claude_pro {
-                            Some("claude_pro".to_string())
-                        } else {
-                            None
-                        }
-                    })
-                })
-            });
             let rate_limit_tier = token.rate_limit_tier.or_else(|| {
                 profile
                     .as_ref()
@@ -1293,7 +1267,6 @@ impl Channel for ClaudeCodeChannel {
                     expires_at_ms,
                     device_id: default_claudecode_device_id(),
                     account_uuid: account_uuid.clone(),
-                    subscription_type,
                     rate_limit_tier,
                     cookie: None,
                     user_email: user_email.clone(),
