@@ -447,6 +447,16 @@ impl AppState {
         self.engine.store(engine);
     }
 
+    /// Rebuild the engine's HTTP clients with the current global config's
+    /// proxy and spoof emulation settings. Call after proxy/spoof changes.
+    pub fn reconfigure_engine_clients(&self) {
+        let config = self.config();
+        let old = self.engine.load_full();
+        let new_engine =
+            old.with_new_clients(config.proxy.as_deref(), Some(&config.spoof_emulation));
+        self.engine.store(Arc::new(new_engine));
+    }
+
     pub fn replace_storage(&self, storage: SeaOrmStorage) {
         self.storage.store(Arc::new(storage));
     }

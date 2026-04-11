@@ -478,6 +478,53 @@ impl GproxyEngine {
         GproxyEngineBuilder::new()
     }
 
+    /// Rebuild the HTTP clients with a new proxy and/or spoof emulation,
+    /// returning a new engine that shares the same provider store.
+    pub fn with_new_clients(&self, proxy: Option<&str>, emulation: Option<&str>) -> GproxyEngine {
+        let mut client_builder = wreq::Client::builder();
+        if let Some(proxy_url) = proxy
+            && let Ok(p) = wreq::Proxy::all(proxy_url)
+        {
+            client_builder = client_builder.proxy(p);
+        }
+        let client = client_builder.build().unwrap_or_default();
+
+        let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
+        let mut spoof_builder = wreq::Client::builder().emulation(emu);
+        if let Some(proxy_url) = proxy
+            && let Ok(p) = wreq::Proxy::all(proxy_url)
+        {
+            spoof_builder = spoof_builder.proxy(p);
+        }
+        let spoof_client = Some(spoof_builder.build().unwrap_or_default());
+
+        GproxyEngine {
+            store: Arc::clone(&self.store),
+            client,
+            spoof_client,
+            enable_usage: self.enable_usage,
+            enable_upstream_log: self.enable_upstream_log,
+            enable_upstream_log_body: self.enable_upstream_log_body,
+        }
+    }
+
+    /// Create a new engine with updated operational settings and rebuilt
+    /// HTTP clients. Used by the admin settings handler.
+    pub fn with_settings(
+        &self,
+        proxy: Option<&str>,
+        emulation: Option<&str>,
+        enable_usage: bool,
+        enable_upstream_log: bool,
+        enable_upstream_log_body: bool,
+    ) -> GproxyEngine {
+        let mut engine = self.with_new_clients(proxy, emulation);
+        engine.enable_usage = enable_usage;
+        engine.enable_upstream_log = enable_upstream_log;
+        engine.enable_upstream_log_body = enable_upstream_log_body;
+        engine
+    }
+
     pub fn store(&self) -> &Arc<ProviderStore> {
         &self.store
     }
@@ -523,40 +570,6 @@ impl GproxyEngine {
         usage: &Usage,
     ) -> Option<crate::billing::BillingResult> {
         self.store.estimate_billing(provider_name, context, usage)
-    }
-
-    /// Create a new engine with different HTTP clients but the same provider store.
-    ///
-    /// Use this when proxy or spoof settings change without needing to
-    /// rebuild providers/credentials.
-    pub fn with_new_clients(&self, proxy: Option<&str>, emulation: Option<&str>) -> GproxyEngine {
-        let builder = GproxyEngineBuilder::new()
-            .provider_store(self.store.clone())
-            .configure_clients(proxy, emulation)
-            .enable_usage(self.enable_usage)
-            .enable_upstream_log(self.enable_upstream_log)
-            .enable_upstream_log_body(self.enable_upstream_log_body);
-        builder.build()
-    }
-
-    /// Rebuild engine with new settings but same provider store.
-    ///
-    /// Use when global config changes (proxy, spoof, usage/log flags).
-    pub fn with_settings(
-        &self,
-        proxy: Option<&str>,
-        emulation: Option<&str>,
-        enable_usage: bool,
-        enable_upstream_log: bool,
-        enable_upstream_log_body: bool,
-    ) -> GproxyEngine {
-        let builder = GproxyEngineBuilder::new()
-            .provider_store(self.store.clone())
-            .configure_clients(proxy, emulation)
-            .enable_usage(enable_usage)
-            .enable_upstream_log(enable_upstream_log)
-            .enable_upstream_log_body(enable_upstream_log_body);
-        builder.build()
     }
 
     /// Connect to an upstream WebSocket endpoint for a provider.

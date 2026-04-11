@@ -252,6 +252,10 @@ async fn main() -> anyhow::Result<()> {
     let mut config = state.config().as_ref().clone();
     let mut persist_global_settings = false;
 
+    // After DB bootstrap, reconfigure engine clients with the loaded
+    // proxy/spoof settings (the initial engine was built before DB load).
+    state.reconfigure_engine_clients();
+
     if is_explicit(&matches, "host") {
         config.host = cli.host.clone();
         persist_global_settings = true;
