@@ -226,20 +226,39 @@ pub async fn proxy(
     .await;
 
     // Build usage context (shared by record_usage and stream_with_usage_tracking)
-    let billing_context = state
-        .engine()
-        .build_billing_context(
-            &effective_provider,
-            effective_model.as_deref(),
-            &req_body,
-        );
-    let precomputed_cost = result.usage.as_ref().and_then(|usage| {
-        let ctx = billing_context.as_ref()?;
-        state
-            .engine()
-            .estimate_billing(&effective_provider, ctx, usage)
-            .map(|b| b.total_cost)
-    });
+    // When an alias is in use, try pricing by alias name first, then fall back
+    // to the real model name so admins can set custom per-alias pricing.
+    let (billing_context, precomputed_cost) = {
+        let alias_ctx = alias_model_name.as_ref().map(|alias| {
+            state
+                .engine()
+                .build_billing_context(&effective_provider, Some(alias.as_str()), &req_body)
+        });
+        let alias_cost = result.usage.as_ref().and_then(|usage| {
+            let ctx = alias_ctx.as_ref()?.as_ref()?;
+            state
+                .engine()
+                .estimate_billing(&effective_provider, ctx, usage)
+                .map(|b| b.total_cost)
+        });
+        if alias_cost.is_some() {
+            (alias_ctx.flatten(), alias_cost)
+        } else {
+            let real_ctx = state.engine().build_billing_context(
+                &effective_provider,
+                effective_model.as_deref(),
+                &req_body,
+            );
+            let real_cost = result.usage.as_ref().and_then(|usage| {
+                let ctx = real_ctx.as_ref()?;
+                state
+                    .engine()
+                    .estimate_billing(&effective_provider, ctx, usage)
+                    .map(|b| b.total_cost)
+            });
+            (real_ctx, real_cost)
+        }
+    };
     let usage_ctx = UsageRecordContext {
         state: state.clone(),
         user_id: user_key.user_id,
@@ -453,20 +472,39 @@ pub async fn proxy_unscoped(
         }
     };
 
-    let billing_context = state
-        .engine()
-        .build_billing_context(
-            &target_provider,
-            Some(&target_model),
-            &req_body,
-        );
-    let precomputed_cost = result.usage.as_ref().and_then(|usage| {
-        let ctx = billing_context.as_ref()?;
-        state
-            .engine()
-            .estimate_billing(&target_provider, ctx, usage)
-            .map(|b| b.total_cost)
-    });
+    // When an alias is in use, try pricing by alias name first, then fall back
+    // to the real model name so admins can set custom per-alias pricing.
+    let (billing_context, precomputed_cost) = {
+        let alias_ctx = alias_model_override.as_ref().map(|alias| {
+            state
+                .engine()
+                .build_billing_context(&target_provider, Some(alias.as_str()), &req_body)
+        });
+        let alias_cost = result.usage.as_ref().and_then(|usage| {
+            let ctx = alias_ctx.as_ref()?.as_ref()?;
+            state
+                .engine()
+                .estimate_billing(&target_provider, ctx, usage)
+                .map(|b| b.total_cost)
+        });
+        if alias_cost.is_some() {
+            (alias_ctx.flatten(), alias_cost)
+        } else {
+            let real_ctx = state.engine().build_billing_context(
+                &target_provider,
+                Some(&target_model),
+                &req_body,
+            );
+            let real_cost = result.usage.as_ref().and_then(|usage| {
+                let ctx = real_ctx.as_ref()?;
+                state
+                    .engine()
+                    .estimate_billing(&target_provider, ctx, usage)
+                    .map(|b| b.total_cost)
+            });
+            (real_ctx, real_cost)
+        }
+    };
     let usage_ctx = UsageRecordContext {
         state: state.clone(),
         user_id: user_key.user_id,
