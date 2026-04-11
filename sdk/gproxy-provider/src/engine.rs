@@ -588,11 +588,7 @@ impl GproxyEngine {
                 .await
             }
             "vertex" => {
-                crate::channels::vertex::bootstrap_vertex_token(
-                    &self.client,
-                    credential_json,
-                )
-                .await
+                crate::channels::vertex::bootstrap_vertex_token(&self.client, credential_json).await
             }
             _ => Ok((None, Vec::new())),
         }

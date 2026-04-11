@@ -228,13 +228,15 @@ pub async fn bootstrap_vertex_token(
     (Option<Value>, Vec<crate::engine::UpstreamRequestMeta>),
     (UpstreamError, Vec<crate::engine::UpstreamRequestMeta>),
 > {
-    let cred: VertexCredential = serde_json::from_value(credential_json.clone())
-        .map_err(|e| (UpstreamError::Channel(format!("parse vertex credential: {e}")), Vec::new()))?;
+    let cred: VertexCredential = serde_json::from_value(credential_json.clone()).map_err(|e| {
+        (
+            UpstreamError::Channel(format!("parse vertex credential: {e}")),
+            Vec::new(),
+        )
+    })?;
 
     // Nothing to do if access_token is already populated or no SA material
-    if !cred.access_token.is_empty()
-        || cred.client_email.is_empty()
-        || cred.private_key.is_empty()
+    if !cred.access_token.is_empty() || cred.client_email.is_empty() || cred.private_key.is_empty()
     {
         return Ok((None, Vec::new()));
     }

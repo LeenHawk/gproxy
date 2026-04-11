@@ -195,10 +195,9 @@ pub fn expand_model_list_with_suffixes(
             if matches!(
                 response_proto,
                 ProtocolKind::Gemini | ProtocolKind::GeminiNDJson
-            ) {
-                if let Some(base) = model.get("baseModelId").and_then(|b| b.as_str()) {
-                    copy["baseModelId"] = serde_json::Value::String(format!("{base}{suffix}"));
-                }
+            ) && let Some(base) = model.get("baseModelId").and_then(|b| b.as_str())
+            {
+                copy["baseModelId"] = serde_json::Value::String(format!("{base}{suffix}"));
             }
             arr.push(copy);
         }
