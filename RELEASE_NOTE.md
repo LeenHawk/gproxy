@@ -1,5 +1,51 @@
 # Release Notes
 
+## v1.0.3
+
+### English
+
+#### Added
+
+- **Suffix system for model-list / model-get** — suffix modifiers (e.g. `-thinking-high`, `-fast`) are now expanded in model list responses and rewritten in model get responses, so clients can discover available suffix variants.
+- **Suffix per-channel toggle** — new `enable_suffix` setting lets operators enable/disable suffix processing per channel.
+- **VertexExpress local model catalogue** — model list/get requests are served from a static model catalogue embedded at compile time, since Vertex AI Express does not expose a standard model-listing endpoint.
+- **Vertex SA token bootstrap on credential upsert** — when a Vertex credential with `client_email` and `private_key` is added via the admin API, the access token is automatically obtained so the first request has valid auth.
+
+#### Fixed
+
+- **GeminiCLI / Antigravity model list** — both channels now correctly route model list/get through their respective quota/model endpoints (`retrieveUserQuota` for GeminiCLI, `fetchAvailableModels` for Antigravity) and normalize responses to standard Gemini format.
+- **Vertex model list normalization** — Vertex AI returns `publisherModels` with full resource paths; responses are now converted to standard Gemini `models` format.
+- **Vertex / VertexExpress header filtering** — `anthropic-version` and `anthropic-beta` headers are dropped before forwarding to Google endpoints.
+- **Vertex GeminiCLI-style User-Agent** — Vertex requests now send proper `User-Agent` and `x-goog-api-client` headers matching Gemini CLI traffic.
+- **Engine HTTP client proxy** — database proxy settings now take effect after bootstrap; previously the engine client was built before DB config was loaded.
+- **Engine HTTP/1.1 for standard client** — the non-spoof wreq client uses `http1_only()` for reliable proxy traversal.
+- **HTTP client request dispatch** — switched from `wreq::Request::from() + execute()` to `client.request().send()` to ensure proxy/TLS settings propagate correctly.
+- **Frontend: VertexExpress credential** — field changed from `access_token` to `api_key`.
+- **Frontend: Vertex credential** — added missing optional fields (`private_key_id`, `client_id`, `token_uri`).
+
+---
+
+### 中文
+
+#### 新增
+
+- **Suffix 系统支持 model-list / model-get** — suffix 修饰符（如 `-thinking-high`、`-fast`）现在会在模型列表响应中展开、在模型详情响应中回写，客户端可以发现可用的 suffix 变体。
+- **Suffix 按渠道开关** — 新增 `enable_suffix` 配置项，可按渠道启用/禁用 suffix 处理。
+- **VertexExpress 本地模型目录** — model list/get 请求从编译时嵌入的静态模型目录返回，因为 Vertex AI Express 没有标准的模型列表端点。
+- **Vertex SA 凭证 upsert 自动换 token** — 通过 admin API 添加包含 `client_email` 和 `private_key` 的 Vertex 凭证时，自动获取 access token，首次请求不会因空 token 失败。
+
+#### 修复
+
+- **GeminiCLI / Antigravity 模型列表** — 两个渠道现在正确通过各自的配额/模型端点（GeminiCLI 用 `retrieveUserQuota`，Antigravity 用 `fetchAvailableModels`）路由 model list/get 请求，并将响应整形为标准 Gemini 格式。
+- **Vertex 模型列表整形** — Vertex AI 返回的 `publisherModels`（含完整资源路径）现在被转换为标准 Gemini `models` 格式。
+- **Vertex / VertexExpress 头过滤** — 转发到 Google 端点前丢弃 `anthropic-version` 和 `anthropic-beta` 头。
+- **Vertex GeminiCLI 风格 User-Agent** — Vertex 请求现在发送匹配 Gemini CLI 流量的 `User-Agent` 和 `x-goog-api-client` 头。
+- **Engine HTTP 客户端代理** — 数据库代理设置现在在自举后生效；之前 engine 客户端在 DB 配置加载前就已构建。
+- **Engine 标准客户端 HTTP/1.1** — 非伪装 wreq 客户端使用 `http1_only()` 确保代理穿透可靠。
+- **HTTP 客户端请求调度** — 从 `wreq::Request::from() + execute()` 改为 `client.request().send()`，确保代理/TLS 设置正确传递。
+- **前端：VertexExpress 凭证** — 字段从 `access_token` 改为 `api_key`。
+- **前端：Vertex 凭证** — 添加缺失的可选字段（`private_key_id`、`client_id`、`token_uri`）。
+
 ## v1.0.2
 
 ### English
