@@ -255,6 +255,9 @@ impl Channel for VertexExpressChannel {
         }
 
         for (key, value) in request.headers.iter() {
+            if key == "anthropic-version" || key == "anthropic-beta" {
+                continue;
+            }
             builder = builder.header(key, value);
         }
 

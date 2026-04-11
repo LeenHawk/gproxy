@@ -467,6 +467,10 @@ impl Channel for VertexChannel {
         }
 
         for (key, value) in request.headers.iter() {
+            // Drop Claude-specific headers that leak through cross-protocol transforms
+            if key == "anthropic-version" || key == "anthropic-beta" {
+                continue;
+            }
             builder = builder.header(key, value);
         }
 
