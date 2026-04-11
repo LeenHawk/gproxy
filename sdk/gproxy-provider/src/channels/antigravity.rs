@@ -273,6 +273,8 @@ pub struct AntigravitySettings {
     pub api_version: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rewrite_rules: Vec<crate::utils::rewrite::RewriteRule>,
     #[serde(default)]
     pub enable_suffix: bool,
 }
@@ -311,6 +313,9 @@ impl ChannelSettings for AntigravitySettings {
     }
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &self.sanitize_rules
+    }
+    fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
+        &self.rewrite_rules
     }
     fn enable_suffix(&self) -> bool {
         self.enable_suffix
