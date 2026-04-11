@@ -111,6 +111,7 @@ export const zhMessages: Record<string, string> = {
   "providers.empty": "暂无 provider",
   "providers.tab.config": "配置",
   "providers.tab.credentials": "凭证",
+  "providers.tab.rewrite": "改写规则",
   "providers.tab.status": "状态",
   "providers.tab.oauth": "OAuth",
   "providers.tab.usage": "用量",

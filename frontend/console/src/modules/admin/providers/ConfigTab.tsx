@@ -17,7 +17,6 @@ import {
   BetaHeadersEditor,
   CacheBreakpointsEditor,
   PreludeTextEditor,
-  RewriteRulesEditor,
   SanitizeRulesEditor,
 } from "./SettingsEditors";
 
@@ -197,15 +196,6 @@ export function ConfigTab({
         <SanitizeRulesEditor
           value={form.settings.sanitize_rules ?? "[]"}
           onChange={(v) => updateSetting("sanitize_rules", v)}
-          t={t}
-        />
-      </div>
-
-      {/* All channels: JSON path rewrite rules */}
-      <div className="mt-6">
-        <RewriteRulesEditor
-          value={form.settings.rewrite_rules ?? "[]"}
-          onChange={(v) => updateSetting("rewrite_rules", v)}
           t={t}
         />
       </div>

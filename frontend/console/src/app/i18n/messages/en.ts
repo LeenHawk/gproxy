@@ -111,6 +111,7 @@ export const enMessages: Record<string, string> = {
   "providers.empty": "No providers yet",
   "providers.tab.config": "Config",
   "providers.tab.credentials": "Credentials",
+  "providers.tab.rewrite": "Rewrite Rules",
   "providers.tab.status": "Status",
   "providers.tab.oauth": "OAuth",
   "providers.tab.usage": "Usage",

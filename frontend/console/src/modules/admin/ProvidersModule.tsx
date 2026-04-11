@@ -31,6 +31,7 @@ import { CredentialsTab } from "./providers/CredentialsTab";
 import { ModelAliasesTab } from "./providers/ModelAliasesTab";
 import { ModelsTab } from "./providers/ModelsTab";
 import { OAuthTab } from "./providers/OAuthTab";
+import { RewriteRulesTab } from "./providers/RewriteRulesTab";
 import { ProviderList } from "./providers/ProviderList";
 import {
   filterAliasesForProvider,
@@ -605,7 +606,7 @@ export function ProvidersModule({
         />
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {(["config", "models", "aliases", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
+            {(["config", "models", "aliases", "rewrite", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
               (tab) => (
                 <Button
                   key={tab}
@@ -763,6 +764,13 @@ export function ProvidersModule({
                 alias: t("modelAliases.alias"),
                 modelId: t("common.modelId"),
               }}
+            />
+          ) : null}
+          {activeTab === "rewrite" ? (
+            <RewriteRulesTab
+              form={providerForm}
+              onChange={updateProviderForm}
+              onSave={() => void saveProvider()}
             />
           ) : null}
           {activeTab === "oauth" ? (
