@@ -60,10 +60,10 @@ pub fn apply_rewrite_rules(
 
     for rule in rules {
         // Check filter before doing any path work.
-        if let Some(filter) = &rule.filter {
-            if !matches_filter(filter, model, operation, protocol) {
-                continue;
-            }
+        if let Some(filter) = &rule.filter
+            && !matches_filter(filter, model, operation, protocol)
+        {
+            continue;
         }
 
         let segments: Vec<&str> = rule.path.split('.').collect();
@@ -125,10 +125,10 @@ fn remove_path(body: &mut Value, segments: &[&str]) {
     }
 
     let key = segments[0];
-    if let Some(map) = body.as_object_mut() {
-        if let Some(next) = map.get_mut(key) {
-            remove_path(next, &segments[1..]);
-        }
+    if let Some(map) = body.as_object_mut()
+        && let Some(next) = map.get_mut(key)
+    {
+        remove_path(next, &segments[1..]);
     }
 }
 
@@ -146,16 +146,16 @@ fn matches_filter(
         }
     }
 
-    if let Some(ops) = &filter.operations {
-        if !ops.contains(&operation) {
-            return false;
-        }
+    if let Some(ops) = &filter.operations
+        && !ops.contains(&operation)
+    {
+        return false;
     }
 
-    if let Some(protos) = &filter.protocols {
-        if !protos.contains(&protocol) {
-            return false;
-        }
+    if let Some(protos) = &filter.protocols
+        && !protos.contains(&protocol)
+    {
+        return false;
     }
 
     true
