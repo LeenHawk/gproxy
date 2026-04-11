@@ -189,9 +189,12 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
   aistudio: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   vertex: {
     fields: [
+      { key: "project_id", label: "project_id", type: "text" },
       { key: "client_email", label: "client_email", type: "text" },
       { key: "private_key", label: "private_key", type: "textarea" },
-      { key: "project_id", label: "project_id", type: "text" },
+      { key: "private_key_id", label: "private_key_id", type: "text", optional: true },
+      { key: "client_id", label: "client_id", type: "text", optional: true },
+      { key: "token_uri", label: "token_uri", type: "text", optional: true },
     ],
   },
   vertexexpress: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
