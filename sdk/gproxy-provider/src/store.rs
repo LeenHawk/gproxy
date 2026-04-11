@@ -196,6 +196,8 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule>;
 
+    fn rewrite_rules(&self) -> Vec<crate::utils::rewrite::RewriteRule>;
+
     fn enable_suffix(&self) -> bool;
 
     /// Build WS-ready (url, headers) pairs for each credential.
@@ -463,6 +465,10 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
 
     fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule> {
         self.settings.load().sanitize_rules().to_vec()
+    }
+
+    fn rewrite_rules(&self) -> Vec<crate::utils::rewrite::RewriteRule> {
+        self.settings.load().rewrite_rules().to_vec()
     }
 
     fn enable_suffix(&self) -> bool {
