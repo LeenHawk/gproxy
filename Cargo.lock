@@ -5557,6 +5557,7 @@ dependencies = [
  "httparse",
  "ipnet",
  "libc",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "schnellru",

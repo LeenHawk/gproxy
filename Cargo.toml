@@ -77,7 +77,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 url = "2"
 uuid = { version = "1", features = ["serde", "v4", "v5", "v7"] }
-wreq = { version = "6.0.0-rc.28", features = ["json", "cookies", "socks", "stream", "deflate", "gzip", "zstd", "brotli", "ws"] }
+wreq = { version = "6.0.0-rc.28", features = ["json", "cookies", "socks", "stream", "deflate", "gzip", "zstd", "brotli", "ws", "multipart"] }
 wreq-util = "3.0.0-rc.10"
 zip = "8"
 
