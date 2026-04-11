@@ -83,33 +83,6 @@ impl Channel for VertexExpressChannel {
         };
 
         let routes = vec![
-            // Model list/get — served locally from a static model catalogue;
-            // Vertex AI Express does not expose a standard model-listing endpoint.
-            // Transform routes remain so Claude/OpenAI clients get protocol conversion.
-            xform(
-                OperationFamily::ModelList,
-                ProtocolKind::Claude,
-                OperationFamily::ModelList,
-                ProtocolKind::Gemini,
-            ),
-            xform(
-                OperationFamily::ModelList,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelList,
-                ProtocolKind::Gemini,
-            ),
-            xform(
-                OperationFamily::ModelGet,
-                ProtocolKind::Claude,
-                OperationFamily::ModelGet,
-                ProtocolKind::Gemini,
-            ),
-            xform(
-                OperationFamily::ModelGet,
-                ProtocolKind::OpenAi,
-                OperationFamily::ModelGet,
-                ProtocolKind::Gemini,
-            ),
             // Count tokens
             pass(OperationFamily::CountToken, ProtocolKind::Gemini),
             xform(
@@ -226,16 +199,20 @@ impl Channel for VertexExpressChannel {
         for (key, implementation) in routes {
             t.set(key, implementation);
         }
-        // Override native Gemini model list/get to Local — these are served
-        // from a static model catalogue embedded at compile time.
-        t.set(
-            RouteKey::new(OperationFamily::ModelList, ProtocolKind::Gemini),
-            RouteImplementation::Local,
-        );
-        t.set(
-            RouteKey::new(OperationFamily::ModelGet, ProtocolKind::Gemini),
-            RouteImplementation::Local,
-        );
+        // Model list/get — served locally from a static model catalogue;
+        // Vertex AI Express does not expose a standard model-listing endpoint.
+        // All protocols are set to Local; handle_local converts the Gemini
+        // catalogue to the target protocol via transform_response.
+        for proto in [ProtocolKind::Gemini, ProtocolKind::Claude, ProtocolKind::OpenAi] {
+            t.set(
+                RouteKey::new(OperationFamily::ModelList, proto),
+                RouteImplementation::Local,
+            );
+            t.set(
+                RouteKey::new(OperationFamily::ModelGet, proto),
+                RouteImplementation::Local,
+            );
+        }
         t
     }
 
@@ -304,12 +281,20 @@ impl Channel for VertexExpressChannel {
     fn handle_local(
         &self,
         operation: OperationFamily,
-        _protocol: ProtocolKind,
+        protocol: ProtocolKind,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         match operation {
-            OperationFamily::ModelList => Some(vertexexpress_local_model_list(body)),
-            OperationFamily::ModelGet => Some(vertexexpress_local_model_get(body)),
+            OperationFamily::ModelList => {
+                Some(vertexexpress_local_model_list(body).and_then(|gemini_body| {
+                    vertexexpress_local_transform(operation, protocol, gemini_body)
+                }))
+            }
+            OperationFamily::ModelGet => {
+                Some(vertexexpress_local_model_get(body).and_then(|gemini_body| {
+                    vertexexpress_local_transform(operation, protocol, gemini_body)
+                }))
+            }
             _ => None,
         }
     }
@@ -367,6 +352,25 @@ fn vertexexpress_dispatch_table() -> DispatchTable {
 
 static VERTEXEXPRESS_MODELS_JSON: &str =
     include_str!("vertexexpress_models.gemini.json");
+
+/// If the client protocol is not Gemini, transform the Gemini-format body
+/// to the target protocol using the standard response transform pipeline.
+fn vertexexpress_local_transform(
+    operation: OperationFamily,
+    protocol: ProtocolKind,
+    gemini_body: Vec<u8>,
+) -> Result<Vec<u8>, UpstreamError> {
+    if protocol == ProtocolKind::Gemini {
+        return Ok(gemini_body);
+    }
+    crate::transform_dispatch::transform_response(
+        operation,
+        protocol,
+        operation,
+        ProtocolKind::Gemini,
+        gemini_body,
+    )
+}
 
 fn vertexexpress_local_model_list(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
     let models_doc: serde_json::Value = serde_json::from_str(VERTEXEXPRESS_MODELS_JSON)
