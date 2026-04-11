@@ -249,7 +249,7 @@ export function ConfigTab({
           </div>
 
         {dispatchExpanded ? (
-          <div className="space-y-3">
+          <div className="max-h-128 space-y-3 overflow-y-auto pr-1">
             {form.dispatchRules.map((rule, index) => (
               <div key={rule.id} className="panel-shell panel-shell-compact space-y-4">
                 <div className="flex items-center justify-between gap-3">
