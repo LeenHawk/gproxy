@@ -1,5 +1,79 @@
 # Release Notes
 
+## v1.0.4
+
+### English
+
+#### Added
+
+- **Channel-level rewrite rules** — new `rewrite_rules` field on all 14
+  channel Settings structs allows per-channel request body rewriting before
+  the request is finalized. Rules support JSON path targeting with glob
+  matching. A dedicated `RewriteRulesEditor` component with full i18n is
+  available in the console.
+- **Dispatch template presets for custom channel** — the console now offers
+  built-in dispatch template presets when configuring custom channels,
+  and dispatch templates are shown for all channel types (not just custom).
+
+#### Fixed
+
+- **Request log query button stuck on loading** — the query button no longer
+  gets permanently stuck in loading state.
+- **HTTP client protocol negotiation** — removed `http1_only` restriction and
+  enabled proper HTTP/1.1 support for client builders, improving compatibility
+  with upstream providers behind HTTP/1.1-only proxies.
+- **Sampling parameter stripping** — model-aware stripping for
+  anthropic/claudecode channels ensures unsupported sampling parameters are
+  correctly removed based on the target model.
+- **Dispatch template passthrough** — `*-only` dispatch templates now correctly
+  use passthrough+transform for `model_list` / `model_get` operations.
+- **Session-expired toast suppressed** — the error toast for expired sessions
+  is now suppressed before the page reload, preventing a flash of error UI.
+- **Update-available toast color** — changed from error-red to green success
+  style.
+- **Noisy ORM logging** — `sqlx` and `sea_orm` log levels now default to
+  `warn`, reducing log noise at startup and during normal operation.
+- **Dispatch / sanitize rules overflow** — both panels now scroll when content
+  exceeds the viewport instead of overflowing the layout.
+- **Upstream proxy placeholder** — the upstream proxy input field now shows a
+  placeholder hint.
+- **Frontend i18n** — `alias`, `enable_suffix`, `enable_magic_cache` labels
+  are now properly translated; "模型" renamed to "模型价格表" / "Model Pricing";
+  `sanitize_rules` renamed to "消息重写规则" / "Message Rewrite Rules".
+
+---
+
+### 中文
+
+#### 新增
+
+- **渠道级重写规则** — 全部 14 个渠道 Settings 结构新增 `rewrite_rules`
+  字段，支持在请求最终发送前对请求体进行按路径重写，规则支持 JSON path
+  定位与 glob 匹配。控制台提供专用的 `RewriteRulesEditor` 结构化编辑组件，
+  完整支持中英文。
+- **Custom 渠道调度模板预设** — 控制台在配置 custom 渠道时提供内置调度模板
+  预设，且调度模板现在对所有渠道类型可见（不再限于 custom）。
+
+#### 修复
+
+- **请求日志查询按钮卡死** — 查询按钮不再永久停留在 loading 状态。
+- **HTTP 客户端协议协商** — 移除 `http1_only` 限制并启用 HTTP/1.1 支持，
+  改善通过仅支持 HTTP/1.1 的代理访问上游 provider 的兼容性。
+- **采样参数裁剪** — anthropic/claudecode 渠道现在根据目标模型感知地裁剪
+  不支持的采样参数。
+- **调度模板透传** — `*-only` 调度模板现在正确使用 passthrough+transform
+  处理 `model_list` / `model_get` 操作。
+- **会话过期 toast 抑制** — 页面刷新前不再闪现会话过期的错误提示。
+- **更新可用 toast 颜色** — 从红色错误样式改为绿色成功样式。
+- **ORM 日志降噪** — `sqlx` 和 `sea_orm` 日志级别默认设为 `warn`，减少
+  启动和运行期间的日志噪音。
+- **调度规则 / 重写规则溢出** — 两个面板内容超出视口时改为滚动，不再
+  撑破布局。
+- **上游代理占位提示** — 上游代理输入框现在显示占位符提示。
+- **前端国际化** — `alias`、`enable_suffix`、`enable_magic_cache` 标签
+  已正确翻译；"模型"改名为"模型价格表" / "Model Pricing"；`sanitize_rules`
+  改名为"消息重写规则" / "Message Rewrite Rules"。
+
 ## v1.0.3
 
 ### English
