@@ -354,7 +354,7 @@ impl GproxyEngineBuilder {
     /// Constructs both the normal client (with optional proxy) and the
     /// spoof client (with browser TLS impersonation + optional proxy).
     pub fn configure_clients(self, proxy: Option<&str>, emulation: Option<&str>) -> Self {
-        let mut client_builder = wreq::Client::builder();
+        let mut client_builder = wreq::Client::builder().http1_only();
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
@@ -370,7 +370,7 @@ impl GproxyEngineBuilder {
         };
 
         let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
-        let mut spoof_builder = wreq::Client::builder().emulation(emu);
+        let mut spoof_builder = wreq::Client::builder().emulation(emu).http1_only();
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
