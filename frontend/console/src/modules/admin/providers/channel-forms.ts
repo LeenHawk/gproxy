@@ -36,7 +36,7 @@ export const ALL_CHANNEL_IDS = [
 /// Common settings fields appended to every channel so sanitize_rules
 /// is always configurable regardless of channel type.
 const COMMON_SETTINGS_FIELDS: ChannelField[] = [
-  { key: "enable_suffix", label: "enable_suffix", type: "boolean", optional: true },
+  { key: "enable_suffix", label: "enable_suffix (启用模型后缀)", type: "boolean", optional: true },
   { key: "sanitize_rules", label: "sanitize_rules", type: "json", optional: true },
 ];
 
@@ -53,7 +53,7 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
-      { key: "enable_magic_cache", label: "enable_magic_cache", type: "boolean", optional: true },
+      { key: "enable_magic_cache", label: "enable_magic_cache (启用自动缓存)", type: "boolean", optional: true },
       { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
       { key: "extra_beta_headers", label: "extra_beta_headers", type: "json", optional: true },
     ],
@@ -128,7 +128,7 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
       { key: "claude_ai_base_url", label: "claude_ai_base_url", type: "text" },
       { key: "platform_base_url", label: "platform_base_url", type: "text" },
-      { key: "enable_magic_cache", label: "enable_magic_cache", type: "boolean", optional: true },
+      { key: "enable_magic_cache", label: "enable_magic_cache (启用自动缓存)", type: "boolean", optional: true },
       { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
       { key: "prelude_text", label: "prelude_text", type: "textarea", optional: true },
       { key: "extra_beta_headers", label: "extra_beta_headers", type: "json", optional: true },

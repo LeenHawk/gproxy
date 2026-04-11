@@ -353,6 +353,7 @@ export const enMessages: Record<string, string> = {
   "models.deleted": "Model deleted",
   "modelAliases.saved": "Model alias saved",
   "modelAliases.deleted": "Model alias deleted",
+  "modelAliases.alias": "Alias",
   "permissions.saved": "Permission saved",
   "permissions.deleted": "Permission deleted",
   "filePermissions.saved": "File permission saved",

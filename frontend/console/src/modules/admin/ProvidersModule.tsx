@@ -760,7 +760,7 @@ export function ProvidersModule({
                 create: t("common.create"),
                 save: t("common.save"),
                 delete: t("common.delete"),
-                alias: "alias",
+                alias: t("modelAliases.alias"),
                 modelId: t("common.modelId"),
               }}
             />
