@@ -1052,6 +1052,35 @@ impl GproxyEngine {
             normalized_nonstream_body
         };
 
+        // 3.5. Model list/get suffix post-processing.
+        // - ModelList: expand each model entry with all available suffixed variants.
+        // - ModelGet: append the matched suffix to the model id/name field
+        //   (the normal `rewrite_model_suffix_in_body` targets the `"model"` key,
+        //   but model-get responses use `"id"` or `"name"`).
+        let mut response_body = response_body;
+        match dst_op {
+            OperationFamily::ModelList => {
+                let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
+                let channel_groups = provider.model_suffix_groups();
+                crate::suffix::expand_model_list_with_suffixes(
+                    &mut response_body,
+                    request.protocol,
+                    proto_groups,
+                    channel_groups,
+                );
+            }
+            OperationFamily::ModelGet => {
+                if let Some(ref suffix) = suffix_str {
+                    crate::suffix::rewrite_model_get_suffix_in_body(
+                        &mut response_body,
+                        suffix,
+                        request.protocol,
+                    );
+                }
+            }
+            _ => {}
+        }
+
         let latency_ms = start.elapsed().as_millis() as u64;
 
         let meta = if self.enable_upstream_log {

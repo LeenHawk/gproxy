@@ -117,6 +117,110 @@ pub fn rewrite_model_suffix_in_body(body: &mut Vec<u8>, suffix: &str) {
     }
 }
 
+/// Append the combined suffix to the model identifier inside a model-get
+/// response body. The field name depends on the protocol:
+/// - Claude / OpenAI: `"id"`
+/// - Gemini: `"name"` and `"baseModelId"`
+pub fn rewrite_model_get_suffix_in_body(
+    body: &mut Vec<u8>,
+    suffix: &str,
+    response_proto: ProtocolKind,
+) {
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return;
+    };
+    match response_proto {
+        ProtocolKind::Claude
+        | ProtocolKind::OpenAi
+        | ProtocolKind::OpenAiResponse
+        | ProtocolKind::OpenAiChatCompletion => {
+            if let Some(id) = v.get("id").and_then(|i| i.as_str()).map(String::from) {
+                v["id"] = serde_json::Value::String(format!("{id}{suffix}"));
+            }
+        }
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            if let Some(name) = v.get("name").and_then(|n| n.as_str()).map(String::from) {
+                v["name"] = serde_json::Value::String(format!("{name}{suffix}"));
+            }
+            if let Some(base) = v
+                .get("baseModelId")
+                .and_then(|b| b.as_str())
+                .map(String::from)
+            {
+                v["baseModelId"] = serde_json::Value::String(format!("{base}{suffix}"));
+            }
+        }
+    }
+    if let Ok(b) = serde_json::to_vec(&v) {
+        *body = b;
+    }
+}
+
+/// Expand a model-list response body by appending suffixed copies of each
+/// model entry. The response is already in the client's protocol format.
+pub fn expand_model_list_with_suffixes(
+    body: &mut Vec<u8>,
+    response_proto: ProtocolKind,
+    proto_groups: &[SuffixGroup],
+    channel_groups: &[SuffixGroup],
+) {
+    // Collect all individual suffixes from both protocol and channel groups.
+    let mut suffixes: Vec<&str> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for group in channel_groups.iter().chain(proto_groups.iter()) {
+        for entry in group.entries {
+            if seen.insert(entry.suffix) {
+                suffixes.push(entry.suffix);
+            }
+        }
+    }
+    if suffixes.is_empty() {
+        return;
+    }
+
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return;
+    };
+
+    let (array_key, id_key) = match response_proto {
+        ProtocolKind::Claude
+        | ProtocolKind::OpenAi
+        | ProtocolKind::OpenAiResponse
+        | ProtocolKind::OpenAiChatCompletion => ("data", "id"),
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => ("models", "name"),
+    };
+
+    let Some(arr) = v.get_mut(array_key).and_then(|a| a.as_array_mut()) else {
+        return;
+    };
+
+    let originals: Vec<serde_json::Value> = arr.clone();
+    for suffix in &suffixes {
+        for model in &originals {
+            let Some(id) = model.get(id_key).and_then(|i| i.as_str()) else {
+                continue;
+            };
+            let mut copy = model.clone();
+            copy[id_key] = serde_json::Value::String(format!("{id}{suffix}"));
+            // For Gemini, also suffix baseModelId.
+            if matches!(
+                response_proto,
+                ProtocolKind::Gemini | ProtocolKind::GeminiNDJson
+            ) {
+                if let Some(base) = model.get("baseModelId").and_then(|b| b.as_str()) {
+                    copy["baseModelId"] =
+                        serde_json::Value::String(format!("{base}{suffix}"));
+                }
+            }
+            arr.push(copy);
+        }
+    }
+
+    if let Ok(b) = serde_json::to_vec(&v) {
+        *body = b;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Body mutation helper
 // ---------------------------------------------------------------------------
