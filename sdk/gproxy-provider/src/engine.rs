@@ -562,6 +562,17 @@ impl GproxyEngine {
         &self.store
     }
 
+    /// Get the rewrite rules for a named provider.
+    pub fn rewrite_rules(
+        &self,
+        provider: &str,
+    ) -> Vec<crate::utils::rewrite::RewriteRule> {
+        self.store
+            .get_runtime(provider)
+            .map(|rt| rt.rewrite_rules())
+            .unwrap_or_default()
+    }
+
     /// Bootstrap a credential on upsert — runs any channel-specific IO
     /// that should happen once, right before the credential lands in
     /// the DB. Currently only `claudecode` has a non-trivial

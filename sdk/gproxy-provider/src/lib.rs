@@ -31,7 +31,6 @@ pub mod request;
 pub mod response;
 pub mod retry;
 pub mod store;
-pub mod suffix;
 pub mod transform_dispatch;
 pub mod usage;
 pub mod utils;
