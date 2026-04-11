@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 use dashmap::DashMap;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings};
 use crate::count_tokens::CountStrategy;
@@ -368,8 +369,12 @@ impl Channel for VertexChannel {
         vertex_model_pricing()
     }
 
-    fn normalize_response(&self, _request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
-        crate::utils::vertex_normalize::normalize_vertex_response(body)
+    fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
+        match request.route.operation {
+            OperationFamily::ModelList => normalize_vertex_model_list_response(body),
+            OperationFamily::ModelGet => normalize_vertex_model_get_response(body),
+            _ => crate::utils::vertex_normalize::normalize_vertex_response(body),
+        }
     }
 
     fn refresh_credential<'a>(
@@ -503,6 +508,111 @@ fn vertex_request_path(
 
 fn vertex_dispatch_table() -> DispatchTable {
     VertexChannel.dispatch_table()
+}
+
+// ---------------------------------------------------------------------------
+// Vertex model list/get response normalization
+// ---------------------------------------------------------------------------
+// Vertex AI returns `publisherModels` instead of `models`, and model names
+// use the full resource path (`publishers/google/models/gemini-2.5-pro`).
+// These functions convert to the standard Gemini format.
+
+fn normalize_vertex_model_list_response(body: Vec<u8>) -> Vec<u8> {
+    let Ok(value) = serde_json::from_slice::<Value>(&body) else {
+        return body;
+    };
+    let Value::Object(mut map) = value else {
+        return body;
+    };
+    // Already in standard Gemini format
+    if map.contains_key("models") {
+        return body;
+    }
+    let models = match map.remove("publisherModels") {
+        Some(Value::Array(items)) => items
+            .into_iter()
+            .map(vertex_publisher_model_to_gemini)
+            .collect::<Vec<_>>(),
+        Some(item) => vec![vertex_publisher_model_to_gemini(item)],
+        None => Vec::new(),
+    };
+    let mut out = serde_json::Map::new();
+    out.insert("models".to_string(), Value::Array(models));
+    if let Some(token) = map.remove("nextPageToken").filter(|v| !v.is_null()) {
+        out.insert("nextPageToken".to_string(), token);
+    }
+    serde_json::to_vec(&Value::Object(out)).unwrap_or(body)
+}
+
+fn normalize_vertex_model_get_response(body: Vec<u8>) -> Vec<u8> {
+    let Ok(value) = serde_json::from_slice::<Value>(&body) else {
+        return body;
+    };
+    let Value::Object(mut map) = value else {
+        return body;
+    };
+    // Already in standard Gemini format (name starts with "models/")
+    if map
+        .get("name")
+        .and_then(|v| v.as_str())
+        .is_some_and(|n| n.starts_with("models/"))
+    {
+        return body;
+    }
+    let converted = if let Some(inner) = map.remove("publisherModel") {
+        vertex_publisher_model_to_gemini(inner)
+    } else {
+        vertex_publisher_model_to_gemini(Value::Object(map))
+    };
+    serde_json::to_vec(&converted).unwrap_or(body)
+}
+
+/// Convert a Vertex AI `publisherModel` object to standard Gemini model format.
+fn vertex_publisher_model_to_gemini(value: Value) -> Value {
+    let Value::Object(map) = value else {
+        return value;
+    };
+    // Extract model ID from full resource path
+    let raw_name = map
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .trim();
+    let model_id = if let Some((_, tail)) = raw_name.rsplit_once("/models/") {
+        tail
+    } else {
+        raw_name.strip_prefix("models/").unwrap_or(raw_name)
+    };
+    let model_id = if model_id.is_empty() {
+        "unknown"
+    } else {
+        model_id
+    };
+
+    let mut out = serde_json::Map::new();
+    out.insert(
+        "name".to_string(),
+        Value::String(format!("models/{model_id}")),
+    );
+    for key in [
+        "baseModelId",
+        "version",
+        "displayName",
+        "description",
+        "inputTokenLimit",
+        "outputTokenLimit",
+        "supportedGenerationMethods",
+        "thinking",
+        "temperature",
+        "maxTemperature",
+        "topP",
+        "topK",
+    ] {
+        if let Some(v) = map.get(key).cloned().filter(|v| !v.is_null()) {
+            out.insert(key.to_string(), v);
+        }
+    }
+    Value::Object(out)
 }
 
 inventory::submit! { ChannelRegistration::new(VertexChannel::ID, vertex_dispatch_table) }
