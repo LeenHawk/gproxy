@@ -1,8 +1,11 @@
 //! End-to-end tests that the `claude` (anthropic direct) and `claudecode`
-//! channels strip client-supplied sampling parameters (`temperature`,
-//! `top_p`, `top_k`) from the outbound request body inside
-//! `finalize_request`. These sit next to `dispatch_alignment.rs` because
-//! they exercise the same `Channel` trait integration boundary.
+//! channels normalize client-supplied sampling parameters in
+//! `finalize_request`.
+//!
+//! Rules:
+//!   - Full-strip models (e.g. `claude-opus-4-6`): remove `temperature`,
+//!     `top_p`, and `top_k` unconditionally.
+//!   - Other models: if `temperature` is present, remove `top_p` only.
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use gproxy_provider::channel::Channel;
@@ -13,8 +16,20 @@ use gproxy_provider::request::PreparedRequest;
 use http::{HeaderMap, Method};
 use serde_json::Value;
 
-const SAMPLING_PAYLOAD: &str = r#"{
-    "model": "claude-sonnet-4-5",
+fn generate_content_request(body: &str, model: &str) -> PreparedRequest {
+    PreparedRequest {
+        method: Method::POST,
+        route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::Claude),
+        model: Some(model.to_string()),
+        body: body.as_bytes().to_vec(),
+        headers: HeaderMap::new(),
+    }
+}
+
+// ── Full-strip model: claude-opus-4-6 ────────────────────────────────
+
+const OPUS_46_PAYLOAD: &str = r#"{
+    "model": "claude-opus-4-6",
     "max_tokens": 1024,
     "messages": [{"role": "user", "content": "hi"}],
     "temperature": 0.7,
@@ -22,78 +37,98 @@ const SAMPLING_PAYLOAD: &str = r#"{
     "top_k": 40
 }"#;
 
-fn generate_content_request(body: &str) -> PreparedRequest {
-    PreparedRequest {
-        method: Method::POST,
-        route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::Claude),
-        model: Some("claude-sonnet-4-5".to_string()),
-        body: body.as_bytes().to_vec(),
-        headers: HeaderMap::new(),
-    }
-}
-
-fn assert_sampling_fields_stripped(body_bytes: &[u8]) {
+fn assert_all_sampling_stripped(body_bytes: &[u8]) {
     let body: Value = serde_json::from_slice(body_bytes).expect("body is JSON object");
     let map = body.as_object().expect("body is object");
-    assert!(
-        !map.contains_key("temperature"),
-        "temperature must be stripped; got: {body}"
-    );
-    assert!(
-        !map.contains_key("top_p"),
-        "top_p must be stripped; got: {body}"
-    );
-    assert!(
-        !map.contains_key("top_k"),
-        "top_k must be stripped; got: {body}"
-    );
-    // Non-sampling fields should remain.
-    assert_eq!(
-        map.get("model").and_then(Value::as_str),
-        Some("claude-sonnet-4-5"),
-        "model must be preserved"
-    );
+    assert!(!map.contains_key("temperature"), "temperature must be stripped; got: {body}");
+    assert!(!map.contains_key("top_p"), "top_p must be stripped; got: {body}");
+    assert!(!map.contains_key("top_k"), "top_k must be stripped; got: {body}");
     assert!(map.get("messages").is_some(), "messages must be preserved");
-    assert_eq!(
-        map.get("max_tokens").and_then(Value::as_u64),
-        Some(1024),
-        "max_tokens must be preserved"
-    );
+    assert_eq!(map.get("max_tokens").and_then(Value::as_u64), Some(1024));
 }
 
 #[test]
-fn anthropic_channel_strips_sampling_params_in_finalize_request() {
+fn anthropic_channel_strips_all_for_opus_46() {
     let settings = AnthropicSettings::default();
-    let prepared = generate_content_request(SAMPLING_PAYLOAD);
+    let prepared = generate_content_request(OPUS_46_PAYLOAD, "claude-opus-4-6");
 
     let finalized = AnthropicChannel
         .finalize_request(&settings, prepared)
         .expect("anthropic finalize_request should succeed");
 
-    assert_sampling_fields_stripped(&finalized.body);
+    assert_all_sampling_stripped(&finalized.body);
 }
 
 #[test]
-fn claudecode_channel_strips_sampling_params_in_finalize_request() {
+fn claudecode_channel_strips_all_for_opus_46() {
     let settings = ClaudeCodeSettings::default();
-    let prepared = generate_content_request(SAMPLING_PAYLOAD);
+    let prepared = generate_content_request(OPUS_46_PAYLOAD, "claude-opus-4-6");
 
     let finalized = ClaudeCodeChannel
         .finalize_request(&settings, prepared)
         .expect("claudecode finalize_request should succeed");
 
-    assert_sampling_fields_stripped(&finalized.body);
+    assert_all_sampling_stripped(&finalized.body);
+}
+
+// ── Other model with temperature: strip top_p only ───────────────────
+
+const SONNET_WITH_TEMP_PAYLOAD: &str = r#"{
+    "model": "claude-sonnet-4-6",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "hi"}],
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40
+}"#;
+
+fn assert_only_top_p_stripped(body_bytes: &[u8]) {
+    let body: Value = serde_json::from_slice(body_bytes).expect("body is JSON object");
+    let map = body.as_object().expect("body is object");
+    assert!(map.contains_key("temperature"), "temperature must be kept; got: {body}");
+    assert!(!map.contains_key("top_p"), "top_p must be stripped; got: {body}");
+    assert!(map.contains_key("top_k"), "top_k must be kept; got: {body}");
+    assert!(map.get("messages").is_some(), "messages must be preserved");
+    assert_eq!(map.get("max_tokens").and_then(Value::as_u64), Some(1024));
 }
 
 #[test]
-fn anthropic_channel_leaves_body_unchanged_when_no_sampling_params() {
+fn anthropic_channel_strips_top_p_only_for_other_model_with_temp() {
+    let settings = AnthropicSettings::default();
+    let prepared = generate_content_request(SONNET_WITH_TEMP_PAYLOAD, "claude-sonnet-4-6");
+
+    let finalized = AnthropicChannel
+        .finalize_request(&settings, prepared)
+        .expect("anthropic finalize_request should succeed");
+
+    assert_only_top_p_stripped(&finalized.body);
+}
+
+#[test]
+fn claudecode_channel_strips_top_p_only_for_other_model_with_temp() {
+    let settings = ClaudeCodeSettings::default();
+    let prepared = generate_content_request(SONNET_WITH_TEMP_PAYLOAD, "claude-sonnet-4-6");
+
+    let finalized = ClaudeCodeChannel
+        .finalize_request(&settings, prepared)
+        .expect("claudecode finalize_request should succeed");
+
+    assert_only_top_p_stripped(&finalized.body);
+}
+
+// ── Other model without temperature: no stripping ────────────────────
+
+#[test]
+fn anthropic_channel_keeps_all_for_tolerant_model_without_temperature() {
     let settings = AnthropicSettings::default();
     let payload = r#"{
         "model": "claude-sonnet-4-5",
         "max_tokens": 1024,
-        "messages": [{"role": "user", "content": "hi"}]
+        "messages": [{"role": "user", "content": "hi"}],
+        "top_p": 0.9,
+        "top_k": 40
     }"#;
-    let prepared = generate_content_request(payload);
+    let prepared = generate_content_request(payload, "claude-sonnet-4-5");
 
     let finalized = AnthropicChannel
         .finalize_request(&settings, prepared)
@@ -101,12 +136,7 @@ fn anthropic_channel_leaves_body_unchanged_when_no_sampling_params() {
 
     let body: Value = serde_json::from_slice(&finalized.body).expect("body is JSON");
     let map = body.as_object().unwrap();
-    assert_eq!(
-        map.get("model").and_then(Value::as_str),
-        Some("claude-sonnet-4-5")
-    );
-    assert_eq!(map.get("max_tokens").and_then(Value::as_u64), Some(1024));
     assert!(!map.contains_key("temperature"));
-    assert!(!map.contains_key("top_p"));
-    assert!(!map.contains_key("top_k"));
+    assert!(map.contains_key("top_p"), "top_p must be kept without temperature");
+    assert!(map.contains_key("top_k"), "top_k must be kept without temperature");
 }
