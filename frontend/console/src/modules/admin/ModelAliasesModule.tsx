@@ -7,6 +7,8 @@ import { authHeaders } from "../../lib/auth";
 import { parseRequiredI64 } from "../../lib/form";
 import type { MemoryModelAliasRow, ModelAliasWrite, ProviderRow } from "../../lib/types/admin";
 
+type PullModelsResponse = { models: string[] };
+
 export function ModelAliasesModule({
   sessionToken,
   notify,
@@ -30,6 +32,13 @@ export function ModelAliasesModule({
     () => rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
     [rows],
   );
+
+  // Pull modal state
+  const [pullOpen, setPullOpen] = useState(false);
+  const [pullProviderId, setPullProviderId] = useState("");
+  const [pullLoading, setPullLoading] = useState(false);
+  const [pulledModels, setPulledModels] = useState<string[] | null>(null);
+  const [pullSelected, setPullSelected] = useState<Set<string>>(new Set());
 
   const beginCreate = () => {
     setSelectedAlias(null);
@@ -104,10 +113,73 @@ export function ModelAliasesModule({
     }
   };
 
+  const openPull = () => {
+    setPullOpen(true);
+    setPulledModels(null);
+    setPullSelected(new Set());
+    setPullProviderId(providers[0] ? String(providers[0].id) : "");
+  };
+
+  const closePull = () => {
+    setPullOpen(false);
+    setPulledModels(null);
+    setPullSelected(new Set());
+  };
+
+  const doPull = async () => {
+    if (!pullProviderId) return;
+    setPullLoading(true);
+    try {
+      const resp = await apiJson<PullModelsResponse>("/admin/model-aliases/pull", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ provider_id: Number(pullProviderId) }),
+      });
+
+      // Filter out models that already exist as aliases
+      const existingAliases = new Set(rows.map((row) => row.alias));
+      const newModels = resp.models.filter((m) => !existingAliases.has(m));
+
+      setPulledModels(newModels);
+      setPullSelected(new Set(newModels));
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    } finally {
+      setPullLoading(false);
+    }
+  };
+
+  const importSelected = async () => {
+    if (pullSelected.size === 0) return;
+    try {
+      const maxId = rows.reduce((max, row) => Math.max(max, row.id), 0);
+      const items: ModelAliasWrite[] = [...pullSelected].map((model, index) => ({
+        id: maxId + index + 1,
+        alias: model,
+        provider_id: Number(pullProviderId),
+        model_id: model,
+        enabled: true,
+      }));
+      await apiJson("/admin/model-aliases/batch-upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(items),
+      });
+      notify("success", t("modelAliases.pull.imported", { count: items.length }));
+      closePull();
+      await load();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   return (
     <Card title={t("modelAliases.title")}>
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="space-y-2">
+          <div className="flex gap-2 justify-end">
+            <Button variant="neutral" onClick={openPull}>{t("modelAliases.pull")}</Button>
+          </div>
           {rows.map((row) => (
             <div
               key={row.id}
@@ -155,6 +227,81 @@ export function ModelAliasesModule({
           </div>
         </div>
       </div>
+
+      {/* Pull Models Modal */}
+      {pullOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={closePull}>
+          <div className="card-shell w-full max-w-lg max-h-[80vh] overflow-y-auto p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold">{t("modelAliases.pull")}</h3>
+            <div>
+              <Label>{t("modelAliases.pull.selectProvider")}</Label>
+              <Select
+                value={pullProviderId}
+                onChange={setPullProviderId}
+                options={providers.map((provider) => ({ value: String(provider.id), label: provider.name }))}
+              />
+            </div>
+            {pulledModels === null ? (
+              <div className="flex gap-2 justify-end">
+                <Button variant="neutral" onClick={closePull}>{t("common.cancel")}</Button>
+                <Button onClick={() => void doPull()} disabled={pullLoading || !pullProviderId}>
+                  {pullLoading ? t("modelAliases.pull.loading") : t("common.fetch")}
+                </Button>
+              </div>
+            ) : pulledModels.length === 0 ? (
+              <div className="space-y-3">
+                <p className="text-muted text-sm">{t("modelAliases.pull.empty")}</p>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="neutral" onClick={closePull}>{t("common.cancel")}</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm">{t("modelAliases.pull.found", { count: pulledModels.length })}</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="neutral"
+                    onClick={() =>
+                      setPullSelected((prev) =>
+                        prev.size === pulledModels.length ? new Set() : new Set(pulledModels),
+                      )
+                    }
+                  >
+                    {pullSelected.size === pulledModels.length
+                      ? t("modelAliases.pull.deselectAll")
+                      : t("modelAliases.pull.selectAll")}
+                  </Button>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1 border border-border rounded p-2">
+                  {pulledModels.map((model) => (
+                    <label key={model} className="flex items-center gap-2 cursor-pointer text-sm py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={pullSelected.has(model)}
+                        onChange={() =>
+                          setPullSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(model)) next.delete(model);
+                            else next.add(model);
+                            return next;
+                          })
+                        }
+                      />
+                      {model}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="neutral" onClick={closePull}>{t("common.cancel")}</Button>
+                  <Button onClick={() => void importSelected()} disabled={pullSelected.size === 0}>
+                    {t("modelAliases.pull.importSelected")} ({pullSelected.size})
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

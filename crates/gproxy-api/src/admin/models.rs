@@ -3,7 +3,8 @@ use crate::error::{AckResponse, HttpError};
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use gproxy_server::{AppState, MemoryModel, ModelAliasTarget, PriceTier};
+use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
+use gproxy_server::{AppState, MemoryModel, ModelAliasTarget, OperationFamily, ProtocolKind, PriceTier};
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
 use std::collections::HashMap;
@@ -314,4 +315,158 @@ pub async fn batch_delete_model_aliases(
         state.remove_model_alias_from_memory(&p.alias);
     }
     Ok(Json(AckResponse { ok: true, id: None }))
+}
+
+// ---------------------------------------------------------------------------
+// Pull live model list from a provider
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Deserialize)]
+pub struct PullModelsPayload {
+    pub provider_id: i64,
+}
+
+#[derive(serde::Serialize)]
+pub struct PullModelsResponse {
+    pub models: Vec<String>,
+}
+
+/// Determine the protocol to use for model_list based on channel name.
+fn channel_to_model_list_protocol(channel: &str) -> ProtocolKind {
+    match channel {
+        "anthropic" | "claudecode" => ProtocolKind::Claude,
+        "vertex" | "vertexexpress" | "aistudio" | "geminicli" => ProtocolKind::Gemini,
+        _ => ProtocolKind::OpenAi,
+    }
+}
+
+/// Build the request body for a live model_list call (mirrors handler.rs logic).
+fn build_live_model_list_request_body(protocol: ProtocolKind) -> Vec<u8> {
+    match protocol {
+        ProtocolKind::Claude => serde_json::to_vec(&serde_json::json!({
+            "query": { "limit": 1000 }
+        }))
+        .unwrap_or_default(),
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            serde_json::to_vec(&serde_json::json!({
+                "query": { "pageSize": 1000 }
+            }))
+            .unwrap_or_default()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Extract model IDs from the response body, adapting to the protocol's format.
+fn extract_model_ids(body: &[u8], protocol: ProtocolKind) -> Vec<String> {
+    match protocol {
+        ProtocolKind::Claude => {
+            // Claude: { "data": [{ "id": "..." }, ...] }
+            if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) {
+                resp.get("data")
+                    .and_then(|d| d.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        }
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            // Gemini: { "models": [{ "name": "models/gemini-pro", ... }] }
+            if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) {
+                resp.get("models")
+                    .and_then(|d| d.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|m| {
+                                m.get("name").and_then(|v| v.as_str()).map(|name| {
+                                    name.strip_prefix("models/")
+                                        .unwrap_or(name)
+                                        .to_string()
+                                })
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        }
+        _ => {
+            // OpenAI: { "data": [{ "id": "gpt-4o", ... }] }
+            if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) {
+                resp.get("data")
+                    .and_then(|d| d.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(String::from))
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            }
+        }
+    }
+}
+
+pub async fn pull_models(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<PullModelsPayload>,
+) -> Result<Json<PullModelsResponse>, HttpError> {
+    authorize_admin(&headers, &state)?;
+
+    // Resolve provider_id -> provider_name
+    let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
+
+    // Determine protocol from channel
+    let channel = state
+        .provider_channel_for_name(&provider_name)
+        .ok_or_else(|| {
+            HttpError::internal(format!(
+                "provider '{}' has no channel configured",
+                provider_name
+            ))
+        })?;
+    let protocol = channel_to_model_list_protocol(&channel);
+
+    // Execute live model list request via the engine
+    let result = state
+        .engine()
+        .execute(ExecuteRequest {
+            provider: provider_name.clone(),
+            operation: OperationFamily::ModelList,
+            protocol,
+            body: build_live_model_list_request_body(protocol),
+            headers: headers.clone(),
+            model: None,
+            forced_credential_index: None,
+            response_model_override: None,
+        })
+        .await
+        .map_err(|e| HttpError::internal(format!("engine execute failed: {e}")))?;
+
+    if !(200..=299).contains(&result.status) {
+        return Err(HttpError::internal(format!(
+            "provider '{}' model list failed with HTTP {}",
+            provider_name, result.status
+        )));
+    }
+
+    let ExecuteBody::Full(body) = result.body else {
+        return Err(HttpError::internal(
+            "provider returned streaming response for model list".to_string(),
+        ));
+    };
+
+    let mut models = extract_model_ids(&body, protocol);
+    models.sort();
+    models.dedup();
+
+    Ok(Json(PullModelsResponse { models }))
 }

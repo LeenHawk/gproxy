@@ -17,6 +17,7 @@ export const KNOWN_DOWNSTREAM_REQUEST_PATHS = [
   "/admin/model-aliases/query",
   "/admin/model-aliases/upsert",
   "/admin/model-aliases/delete",
+  "/admin/model-aliases/pull",
   "/admin/users/query",
   "/admin/users/upsert",
   "/admin/users/delete",
