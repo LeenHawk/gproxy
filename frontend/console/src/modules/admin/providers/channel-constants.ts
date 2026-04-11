@@ -216,3 +216,74 @@ export const SANITIZE_TEMPLATES: Array<{
     rules: [{ pattern: "\\bCursor\\b", replacement: "Assistant" }],
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Rewrite rules
+// ---------------------------------------------------------------------------
+
+export type RewriteAction =
+  | { type: "Set"; value: unknown }
+  | { type: "Remove" };
+
+export type RewriteFilter = {
+  model_pattern?: string;
+  operations?: string[];
+  protocols?: string[];
+};
+
+export type RewriteRule = {
+  path: string;
+  action: RewriteAction;
+  filter?: RewriteFilter;
+};
+
+export function parseRewriteRules(value: unknown): RewriteRule[] {
+  let source: unknown = value;
+  if (typeof value === "string") {
+    try {
+      source = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  return source
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item) => {
+      const action = normalizeRewriteAction(item.action);
+      const filter = normalizeRewriteFilter(item.filter);
+      return {
+        path: typeof item.path === "string" ? item.path : "",
+        action,
+        ...(filter ? { filter } : {}),
+      };
+    });
+}
+
+function normalizeRewriteAction(value: unknown): RewriteAction {
+  if (value && typeof value === "object" && "type" in value) {
+    const obj = value as Record<string, unknown>;
+    if (obj.type === "Remove") return { type: "Remove" };
+    if (obj.type === "Set") return { type: "Set", value: obj.value ?? null };
+  }
+  return { type: "Set", value: null };
+}
+
+function normalizeRewriteFilter(value: unknown): RewriteFilter | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const obj = value as Record<string, unknown>;
+  const filter: RewriteFilter = {};
+  if (typeof obj.model_pattern === "string" && obj.model_pattern) {
+    filter.model_pattern = obj.model_pattern;
+  }
+  if (Array.isArray(obj.operations) && obj.operations.length > 0) {
+    filter.operations = obj.operations.filter((v): v is string => typeof v === "string");
+  }
+  if (Array.isArray(obj.protocols) && obj.protocols.length > 0) {
+    filter.protocols = obj.protocols.filter((v): v is string => typeof v === "string");
+  }
+  if (!filter.model_pattern && !filter.operations && !filter.protocols) return undefined;
+  return filter;
+}

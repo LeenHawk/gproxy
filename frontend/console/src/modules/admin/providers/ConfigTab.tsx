@@ -17,6 +17,7 @@ import {
   BetaHeadersEditor,
   CacheBreakpointsEditor,
   PreludeTextEditor,
+  RewriteRulesEditor,
   SanitizeRulesEditor,
 } from "./SettingsEditors";
 
@@ -26,6 +27,7 @@ const EDITOR_FIELDS = new Set([
   "extra_beta_headers",
   "prelude_text",
   "sanitize_rules",
+  "rewrite_rules",
 ]);
 
 /// Channels that show the Anthropic-specific editors (cache breakpoints,
@@ -195,6 +197,15 @@ export function ConfigTab({
         <SanitizeRulesEditor
           value={form.settings.sanitize_rules ?? "[]"}
           onChange={(v) => updateSetting("sanitize_rules", v)}
+          t={t}
+        />
+      </div>
+
+      {/* All channels: JSON path rewrite rules */}
+      <div className="mt-6">
+        <RewriteRulesEditor
+          value={form.settings.rewrite_rules ?? "[]"}
+          onChange={(v) => updateSetting("rewrite_rules", v)}
           t={t}
         />
       </div>
