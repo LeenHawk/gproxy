@@ -188,7 +188,8 @@ export function useRequestsModuleState({
   const [bodyLoadingByTraceId, setBodyLoadingByTraceId] = useState<Record<number, boolean>>({});
   const [bodyErrorByTraceId, setBodyErrorByTraceId] = useState<Record<number, string>>({});
 
-  const queryTokenRef = useRef(0);
+  const countTokenRef = useRef(0);
+  const rowsTokenRef = useRef(0);
 
   const updateFilter = useCallback(
     <K extends keyof RequestsFilterState>(key: K, value: RequestsFilterState[K]) => {
@@ -256,7 +257,7 @@ export function useRequestsModuleState({
       setTotalRows(0);
       return;
     }
-    const token = ++queryTokenRef.current;
+    const token = ++countTokenRef.current;
     setLoadingCount(true);
     void apiJson<CountResponse>(requestCountPath(activeQuery.kind), {
       method: "POST",
@@ -264,7 +265,7 @@ export function useRequestsModuleState({
       body: JSON.stringify(buildRequestCountPayload(activeQuery)),
     })
       .then((response) => {
-        if (queryTokenRef.current !== token) {
+        if (countTokenRef.current !== token) {
           return;
         }
         const maxRows = activeQuery.maxRows;
@@ -273,13 +274,13 @@ export function useRequestsModuleState({
         );
       })
       .catch((error) => {
-        if (queryTokenRef.current !== token) {
+        if (countTokenRef.current !== token) {
           return;
         }
         notify("error", error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (queryTokenRef.current === token) {
+        if (countTokenRef.current === token) {
           setLoadingCount(false);
         }
       });
@@ -293,7 +294,7 @@ export function useRequestsModuleState({
       setRows([]);
       return;
     }
-    const token = ++queryTokenRef.current;
+    const token = ++rowsTokenRef.current;
     setLoadingRows(true);
     const cursor = pageCursors[page - 1] ?? null;
     const offset = cursor ? 0 : (page - 1) * pageSize;
@@ -314,7 +315,7 @@ export function useRequestsModuleState({
       }),
     })
       .then((response) => {
-        if (queryTokenRef.current !== token) {
+        if (rowsTokenRef.current !== token) {
           return;
         }
         setRows(response);
@@ -334,13 +335,13 @@ export function useRequestsModuleState({
         }
       })
       .catch((error) => {
-        if (queryTokenRef.current !== token) {
+        if (rowsTokenRef.current !== token) {
           return;
         }
         notify("error", error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (queryTokenRef.current === token) {
+        if (rowsTokenRef.current === token) {
           setLoadingRows(false);
         }
       });
