@@ -180,6 +180,11 @@ pub trait ChannelSettings:
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &[]
     }
+    /// JSON-path rewrite rules applied to the request body before
+    /// `finalize_request`. Rules are executed in declaration order.
+    fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
+        &[]
+    }
     /// Whether model suffix processing (thinking, speed, effort, etc.) is
     /// enabled for this channel. When `false`, no suffix matching, stripping,
     /// or rewriting happens. Default: `false`.
