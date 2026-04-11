@@ -190,7 +190,7 @@ export function ConfigTab({
         </div>
       ) : null}
 
-      {/* All channels: sanitize rules */}
+      {/* All channels: message rewrite rules */}
       <div className="mt-6">
         <SanitizeRulesEditor
           value={form.settings.sanitize_rules ?? "[]"}
