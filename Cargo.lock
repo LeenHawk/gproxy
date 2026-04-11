@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1787,7 +1787,7 @@ dependencies = [
  "gproxy-server",
  "gproxy-storage",
  "mime_guess",
- "rand 0.10.0",
+ "rand 0.10.1",
  "rust-embed",
  "serde",
  "serde_json",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1816,7 +1816,7 @@ dependencies = [
  "gproxy-server",
  "gproxy-storage",
  "http",
- "rand 0.10.0",
+ "rand 0.10.1",
  "sea-orm",
  "serde",
  "serde_json",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1852,7 +1852,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-provider"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1876,7 +1876,7 @@ dependencies = [
  "http",
  "inventory",
  "jsonwebtoken",
- "rand 0.10.0",
+ "rand 0.10.1",
  "regex",
  "serde",
  "serde_json",
@@ -1894,7 +1894,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "bytes",
  "chrono",
@@ -1920,7 +1920,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-routing"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "gproxy-protocol",
  "http",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "gproxy-protocol",
  "gproxy-provider",
@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1959,7 +1959,7 @@ dependencies = [
  "gproxy-storage",
  "http",
  "http-body-util",
- "rand 0.10.0",
+ "rand 0.10.1",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1977,14 +1977,14 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "argon2",
  "base64 0.22.1",
  "chacha20poly1305",
  "gproxy-core",
  "gproxy-sdk",
- "rand 0.10.0",
+ "rand 0.10.1",
  "sea-orm",
  "serde",
  "serde_json",
@@ -3305,9 +3305,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db2770f06117d490610c7488547d543617b21bfa07796d7a12f6f1bd53850d1"
+checksum = "7ec095654a25171c2124e9e3393a930bddbffdc939556c914957a4c3e0a87166"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.5",
@@ -3315,9 +3315,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
+checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
 dependencies = [
  "chacha20 0.10.0",
  "getrandom 0.4.2",
@@ -4545,7 +4545,7 @@ dependencies = [
  "macro_rules_attribute",
  "monostate",
  "paste",
- "rand 0.9.2",
+ "rand 0.9.3",
  "rayon",
  "rayon-cond",
  "regex",
@@ -4844,7 +4844,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.9.2",
+ "rand 0.9.3",
  "sha1",
  "thiserror 2.0.18",
  "utf-8",
@@ -4861,7 +4861,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "rand 0.9.2",
+ "rand 0.9.3",
  "sha1",
  "thiserror 2.0.18",
 ]
