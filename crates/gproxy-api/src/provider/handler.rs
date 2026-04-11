@@ -59,24 +59,6 @@ pub async fn proxy(
         .get::<ExtractedModel>()
         .and_then(|m| m.0.clone());
 
-    // Check alias resolution
-    let resolved_alias = request.extensions().get::<ResolvedAlias>().cloned();
-    let (effective_provider, effective_model, alias_model_name) =
-        if let Some(alias) = &resolved_alias
-            && alias.provider_name.is_some()
-        {
-            let effective = alias.model_id.clone().or(model.clone());
-            // The original model name the user sent (for response rewriting).
-            let alias_name = model.clone();
-            (
-                alias.provider_name.clone().unwrap_or(provider_name.clone()),
-                effective,
-                alias_name,
-            )
-        } else {
-            (provider_name.clone(), model.clone(), None)
-        };
-
     // Map classification to SDK operation/protocol strings
     let operation = classification.operation;
 
@@ -86,6 +68,34 @@ pub async fn proxy(
         req_query.as_deref(),
         buffered_request_body(&request)?,
     );
+
+    // Apply rewrite_rules BEFORE alias resolution, using the original model
+    // name so patterns like `*-fast` can match the user-sent name.
+    let req_body = apply_handler_rewrite_rules(
+        &state,
+        &provider_name,
+        model.as_deref(),
+        operation,
+        classification.protocol,
+        req_body,
+    );
+
+    // Check alias resolution (after rewrite_rules)
+    let resolved_alias = request.extensions().get::<ResolvedAlias>().cloned();
+    let (effective_provider, effective_model, alias_model_name) =
+        if let Some(alias) = &resolved_alias
+            && alias.provider_name.is_some()
+        {
+            let effective = alias.model_id.clone().or(model.clone());
+            let alias_name = model.clone();
+            (
+                alias.provider_name.clone().unwrap_or(provider_name.clone()),
+                effective,
+                alias_name,
+            )
+        } else {
+            (provider_name.clone(), model.clone(), None)
+        };
 
     let protocol = resolve_file_operation_protocol(
         &state,
@@ -369,6 +379,18 @@ pub async fn proxy_unscoped(
 
     let operation = classification.operation;
     let protocol = classification.protocol;
+
+    // Apply rewrite_rules with the ORIGINAL model name (before alias rename)
+    // so patterns like `*-fast` can match the user-sent name.
+    let req_body = apply_handler_rewrite_rules(
+        &state,
+        &target_provider,
+        Some(model_name),
+        operation,
+        protocol,
+        req_body,
+    );
+
     let req_body = normalize_unscoped_request_body(operation, protocol, req_body, &target_model);
 
     // Check rate limit after rewriting the request body to the canonical target model.
@@ -802,6 +824,37 @@ fn resolve_unscoped_model_list_protocol(req_path: &str, classified: ProtocolKind
     } else {
         classified
     }
+}
+
+/// Apply provider-level rewrite_rules in the handler layer (before engine).
+/// Uses the original model name for pattern matching so alias-based patterns
+/// like `*-fast` can match before the model name is replaced by alias resolution.
+fn apply_handler_rewrite_rules(
+    state: &AppState,
+    provider_name: &str,
+    model: Option<&str>,
+    operation: OperationFamily,
+    protocol: ProtocolKind,
+    mut body: Vec<u8>,
+) -> Vec<u8> {
+    let rules = state.engine().rewrite_rules(provider_name);
+    if rules.is_empty() {
+        return body;
+    }
+    let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&body) else {
+        return body;
+    };
+    gproxy_sdk::provider::utils::rewrite::apply_rewrite_rules(
+        &mut body_json,
+        &rules,
+        model,
+        operation,
+        protocol,
+    );
+    if let Ok(patched) = serde_json::to_vec(&body_json) {
+        body = patched;
+    }
+    body
 }
 
 fn prefixed_model_id(provider_name: &str, model_id: &str) -> String {
