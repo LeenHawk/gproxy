@@ -898,12 +898,16 @@ impl GproxyEngine {
         let method = operation_http_method(dst_op);
         let mut body = body;
 
-        // Suffix processing: match protocol-level + channel-specific suffix groups
-        let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
-        let channel_groups = provider.model_suffix_groups();
-        let matched = request.model.as_ref().and_then(|model| {
-            crate::suffix::match_suffix_groups_combined(model, proto_groups, channel_groups)
-        });
+        // Suffix processing: match protocol-level suffix groups
+        let matched = if provider.enable_suffix() {
+            let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
+            request
+                .model
+                .as_ref()
+                .and_then(|model| crate::suffix::match_suffix_groups(model, proto_groups))
+        } else {
+            None
+        };
         let (model, suffix_str) = if let Some(ref m) = matched {
             crate::suffix::strip_model_suffix_in_body(&mut body, &m.base_model);
             (Some(m.base_model.clone()), Some(m.combined_suffix.clone()))
@@ -1060,14 +1064,14 @@ impl GproxyEngine {
         let mut response_body = response_body;
         match dst_op {
             OperationFamily::ModelList => {
-                let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
-                let channel_groups = provider.model_suffix_groups();
-                crate::suffix::expand_model_list_with_suffixes(
-                    &mut response_body,
-                    request.protocol,
-                    proto_groups,
-                    channel_groups,
-                );
+                if provider.enable_suffix() {
+                    let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
+                    crate::suffix::expand_model_list_with_suffixes(
+                        &mut response_body,
+                        request.protocol,
+                        proto_groups,
+                    );
+                }
             }
             OperationFamily::ModelGet => {
                 if let Some(ref suffix) = suffix_str {
@@ -1200,12 +1204,16 @@ impl GproxyEngine {
         let method = operation_http_method(dst_op);
         let mut body = body;
 
-        // Suffix processing: match protocol-level + channel-specific suffix groups
-        let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
-        let channel_groups = provider.model_suffix_groups();
-        let matched = request.model.as_ref().and_then(|model| {
-            crate::suffix::match_suffix_groups_combined(model, proto_groups, channel_groups)
-        });
+        // Suffix processing: match protocol-level suffix groups
+        let matched = if provider.enable_suffix() {
+            let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
+            request
+                .model
+                .as_ref()
+                .and_then(|model| crate::suffix::match_suffix_groups(model, proto_groups))
+        } else {
+            None
+        };
         let (model, suffix_str) = if let Some(ref m) = matched {
             crate::suffix::strip_model_suffix_in_body(&mut body, &m.base_model);
             (Some(m.base_model.clone()), Some(m.combined_suffix.clone()))

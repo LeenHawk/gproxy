@@ -68,7 +68,6 @@
 | 默认方法 | `fn handle_local(&self, _operation: OperationFamily, _protocol: ProtocolKind, _body: &[u8]) -> Option<Result<Vec<u8>, UpstreamError>>` | 处理本地路由。 |
 | 默认方法 | `fn needs_spoof_client(&self, _credential: &Self::Credential) -> bool` | 是否需要 spoof client。 |
 | 默认方法 | `fn ws_extra_headers(&self) -> http::HeaderMap` | WebSocket 握手附加 Header。 |
-| 默认方法 | `fn model_suffix_groups(&self) -> &'static [SuffixGroup]` | 额外模型后缀组。 |
 | 默认方法 | `fn refresh_credential<'a>(&'a self, _client: &'a wreq::Client, _credential: &'a mut Self::Credential) -> impl Future<Output = Result<bool, UpstreamError>> + Send + 'a` | 401/403 后尝试刷新 credential。 |
 | 默认方法 | `fn prepare_quota_request(&self, _credential: &Self::Credential, _settings: &Self::Settings) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError>` | 构造 quota 查询请求。 |
 | 默认方法 | `fn oauth_start<'a>(&'a self, _client: &'a wreq::Client, _settings: &'a Self::Settings, _params: &'a BTreeMap<String, String>) -> OAuthFuture<'a, OAuthFlow>` | 启动 OAuth。 |
@@ -314,7 +313,6 @@ There are currently 14 channel modules under `src/channels/`:
 | Default method | `fn handle_local(&self, _operation: OperationFamily, _protocol: ProtocolKind, _body: &[u8]) -> Option<Result<Vec<u8>, UpstreamError>>` | Handles local routes. |
 | Default method | `fn needs_spoof_client(&self, _credential: &Self::Credential) -> bool` | Indicates whether a spoof client is needed. |
 | Default method | `fn ws_extra_headers(&self) -> http::HeaderMap` | Extra headers for the WebSocket handshake. |
-| Default method | `fn model_suffix_groups(&self) -> &'static [SuffixGroup]` | Additional model suffix groups. |
 | Default method | `fn refresh_credential<'a>(&'a self, _client: &'a wreq::Client, _credential: &'a mut Self::Credential) -> impl Future<Output = Result<bool, UpstreamError>> + Send + 'a` | Tries to refresh the credential after 401/403. |
 | Default method | `fn prepare_quota_request(&self, _credential: &Self::Credential, _settings: &Self::Settings) -> Result<Option<http::Request<Vec<u8>>>, UpstreamError>` | Builds a quota query request. |
 | Default method | `fn oauth_start<'a>(&'a self, _client: &'a wreq::Client, _settings: &'a Self::Settings, _params: &'a BTreeMap<String, String>) -> OAuthFuture<'a, OAuthFlow>` | Starts OAuth. |

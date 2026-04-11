@@ -24,6 +24,8 @@ pub struct VertexExpressSettings {
     pub max_retries_on_429: Option<u32>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+    #[serde(default)]
+    pub enable_suffix: bool,
 }
 
 fn default_vertexexpress_base_url() -> String {
@@ -49,6 +51,9 @@ impl ChannelSettings for VertexExpressSettings {
     }
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &self.sanitize_rules
+    }
+    fn enable_suffix(&self) -> bool {
+        self.enable_suffix
     }
 }
 
@@ -203,7 +208,11 @@ impl Channel for VertexExpressChannel {
         // Vertex AI Express does not expose a standard model-listing endpoint.
         // All protocols are set to Local; handle_local converts the Gemini
         // catalogue to the target protocol via transform_response.
-        for proto in [ProtocolKind::Gemini, ProtocolKind::Claude, ProtocolKind::OpenAi] {
+        for proto in [
+            ProtocolKind::Gemini,
+            ProtocolKind::Claude,
+            ProtocolKind::OpenAi,
+        ] {
             t.set(
                 RouteKey::new(OperationFamily::ModelList, proto),
                 RouteImplementation::Local,
@@ -285,11 +294,9 @@ impl Channel for VertexExpressChannel {
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         match operation {
-            OperationFamily::ModelList => {
-                Some(vertexexpress_local_model_list(body).and_then(|gemini_body| {
-                    vertexexpress_local_transform(operation, protocol, gemini_body)
-                }))
-            }
+            OperationFamily::ModelList => Some(vertexexpress_local_model_list(body).and_then(
+                |gemini_body| vertexexpress_local_transform(operation, protocol, gemini_body),
+            )),
             OperationFamily::ModelGet => {
                 Some(vertexexpress_local_model_get(body).and_then(|gemini_body| {
                     vertexexpress_local_transform(operation, protocol, gemini_body)
@@ -350,8 +357,7 @@ fn vertexexpress_dispatch_table() -> DispatchTable {
 // Static model catalogue for Vertex AI Express
 // ---------------------------------------------------------------------------
 
-static VERTEXEXPRESS_MODELS_JSON: &str =
-    include_str!("vertexexpress_models.gemini.json");
+static VERTEXEXPRESS_MODELS_JSON: &str = include_str!("vertexexpress_models.gemini.json");
 
 /// If the client protocol is not Gemini, transform the Gemini-format body
 /// to the target protocol using the standard response transform pipeline.
@@ -416,13 +422,8 @@ fn vertexexpress_local_model_get(body: &[u8]) -> Result<Vec<u8>, UpstreamError> 
 
     // The Gemini ModelGet request body contains `{"name": "models/..."}`.
     let req: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
-    let target = req
-        .get("name")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-    let normalized = target
-        .trim()
-        .trim_start_matches("models/");
+    let target = req.get("name").and_then(|v| v.as_str()).unwrap_or_default();
+    let normalized = target.trim().trim_start_matches("models/");
 
     let all_models = models_doc
         .get("models")

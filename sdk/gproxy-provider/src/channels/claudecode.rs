@@ -281,6 +281,8 @@ pub struct ClaudeCodeSettings {
     /// `utils::sanitize::SanitizeRule` for format.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+    #[serde(default)]
+    pub enable_suffix: bool,
 }
 
 impl ChannelSettings for ClaudeCodeSettings {
@@ -295,6 +297,9 @@ impl ChannelSettings for ClaudeCodeSettings {
     }
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &self.sanitize_rules
+    }
+    fn enable_suffix(&self) -> bool {
+        self.enable_suffix
     }
 }
 
@@ -1010,10 +1015,6 @@ impl Channel for ClaudeCodeChannel {
         request.body = serde_json::to_vec(&body_json)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
         Ok(request)
-    }
-
-    fn model_suffix_groups(&self) -> &'static [crate::suffix::SuffixGroup] {
-        crate::suffix::CLAUDE_EXTRA_SUFFIX_GROUPS
     }
 
     fn classify_response(

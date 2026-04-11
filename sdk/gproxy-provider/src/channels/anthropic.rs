@@ -44,6 +44,8 @@ pub struct AnthropicSettings {
     /// longer phrases first, shorter single-word patterns last.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+    #[serde(default)]
+    pub enable_suffix: bool,
 }
 
 fn default_anthropic_base_url() -> String {
@@ -69,6 +71,9 @@ impl ChannelSettings for AnthropicSettings {
     }
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &self.sanitize_rules
+    }
+    fn enable_suffix(&self) -> bool {
+        self.enable_suffix
     }
 }
 
@@ -304,10 +309,6 @@ impl Channel for AnthropicChannel {
         request.body = serde_json::to_vec(&body_json)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
         Ok(request)
-    }
-
-    fn model_suffix_groups(&self) -> &'static [crate::suffix::SuffixGroup] {
-        crate::suffix::CLAUDE_EXTRA_SUFFIX_GROUPS
     }
 
     fn classify_response(

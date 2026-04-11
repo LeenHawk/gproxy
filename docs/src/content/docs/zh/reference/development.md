@@ -133,7 +133,6 @@ inventory::submit! {
 - `handle_local()` -- 不访问上游直接本地处理请求
 - `needs_spoof_client()` -- 使用浏览器伪装 HTTP 客户端
 - `ws_extra_headers()` -- WebSocket 握手附加请求头
-- `model_suffix_groups()` -- channel 特定的模型后缀
 - `refresh_credential()` -- 鉴权失败后刷新凭证
 - `prepare_quota_request()` -- 构建上游配额查询请求
 - `oauth_start()` / `oauth_finish()` -- OAuth 流程支持

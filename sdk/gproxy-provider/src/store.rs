@@ -196,7 +196,7 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule>;
 
-    fn model_suffix_groups(&self) -> &'static [crate::suffix::SuffixGroup];
+    fn enable_suffix(&self) -> bool;
 
     /// Build WS-ready (url, headers) pairs for each credential.
     fn prepare_ws_auth(
@@ -465,8 +465,8 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         self.settings.load().sanitize_rules().to_vec()
     }
 
-    fn model_suffix_groups(&self) -> &'static [crate::suffix::SuffixGroup] {
-        self.channel.model_suffix_groups()
+    fn enable_suffix(&self) -> bool {
+        self.settings.load().enable_suffix()
     }
 
     fn prepare_ws_auth(

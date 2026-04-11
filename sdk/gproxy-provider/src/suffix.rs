@@ -38,18 +38,8 @@ pub fn suffix_groups_for_protocol(dst_proto: ProtocolKind) -> &'static [SuffixGr
     }
 }
 
-/// Match suffix groups against a model name, combining protocol-level
-/// and channel-specific groups.
-pub fn match_suffix_groups_combined(
-    model: &str,
-    proto_groups: &[SuffixGroup],
-    channel_groups: &[SuffixGroup],
-) -> Option<MatchedSuffixes> {
-    // Try channel-specific groups first (higher priority), then protocol groups
-    let mut all_groups: Vec<&SuffixGroup> = Vec::new();
-    all_groups.extend(channel_groups.iter());
-    all_groups.extend(proto_groups.iter());
-
+/// Match suffix groups against a model name.
+pub fn match_suffix_groups(model: &str, groups: &[SuffixGroup]) -> Option<MatchedSuffixes> {
     let mut remaining = model;
     let mut apply_fns = Vec::new();
     let mut total_stripped = 0usize;
@@ -57,7 +47,7 @@ pub fn match_suffix_groups_combined(
     let mut matched_any = true;
     while matched_any {
         matched_any = false;
-        for group in &all_groups {
+        for group in groups {
             let mut best: Option<&SuffixEntry> = None;
             for entry in group.entries {
                 if remaining.ends_with(entry.suffix)
@@ -161,13 +151,12 @@ pub fn rewrite_model_get_suffix_in_body(
 pub fn expand_model_list_with_suffixes(
     body: &mut Vec<u8>,
     response_proto: ProtocolKind,
-    proto_groups: &[SuffixGroup],
-    channel_groups: &[SuffixGroup],
+    groups: &[SuffixGroup],
 ) {
-    // Collect all individual suffixes from both protocol and channel groups.
+    // Collect all individual suffixes from the groups.
     let mut suffixes: Vec<&str> = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for group in channel_groups.iter().chain(proto_groups.iter()) {
+    for group in groups.iter() {
         for entry in group.entries {
             if seen.insert(entry.suffix) {
                 suffixes.push(entry.suffix);
@@ -208,8 +197,7 @@ pub fn expand_model_list_with_suffixes(
                 ProtocolKind::Gemini | ProtocolKind::GeminiNDJson
             ) {
                 if let Some(base) = model.get("baseModelId").and_then(|b| b.as_str()) {
-                    copy["baseModelId"] =
-                        serde_json::Value::String(format!("{base}{suffix}"));
+                    copy["baseModelId"] = serde_json::Value::String(format!("{base}{suffix}"));
                 }
             }
             arr.push(copy);
@@ -419,12 +407,6 @@ pub static CLAUDE_SUFFIX_GROUPS: &[SuffixGroup] = &[
         entries: CLAUDE_EFFORT.entries,
     },
 ];
-
-/// Channel-specific extras for Claude channels (context window suffixes).
-/// The protocol-level thinking/speed/effort groups are applied automatically.
-pub static CLAUDE_EXTRA_SUFFIX_GROUPS: &[SuffixGroup] = &[SuffixGroup {
-    entries: CLAUDE_CONTEXT.entries,
-}];
 
 // ===========================================================================
 // OpenAI Response API suffix groups

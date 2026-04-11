@@ -23,6 +23,8 @@ pub struct OpenAiSettings {
     pub max_retries_on_429: Option<u32>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+    #[serde(default)]
+    pub enable_suffix: bool,
 }
 
 fn default_openai_base_url() -> String {
@@ -48,6 +50,9 @@ impl ChannelSettings for OpenAiSettings {
     }
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &self.sanitize_rules
+    }
+    fn enable_suffix(&self) -> bool {
+        self.enable_suffix
     }
 }
 

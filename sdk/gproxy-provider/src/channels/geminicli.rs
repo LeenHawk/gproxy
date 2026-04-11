@@ -306,6 +306,8 @@ pub struct GeminiCliSettings {
     pub api_version: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+    #[serde(default)]
+    pub enable_suffix: bool,
 }
 
 fn default_geminicli_base_url() -> String {
@@ -364,6 +366,9 @@ impl ChannelSettings for GeminiCliSettings {
     }
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
         &self.sanitize_rules
+    }
+    fn enable_suffix(&self) -> bool {
+        self.enable_suffix
     }
 }
 
@@ -1005,9 +1010,7 @@ fn quota_to_model_get_response(body: &[u8], target: &str) -> Vec<u8> {
         Err(_) => return body.to_vec(),
     };
     let models = models_from_quota_buckets(&payload);
-    let normalized_target = target
-        .trim()
-        .trim_start_matches("models/");
+    let normalized_target = target.trim().trim_start_matches("models/");
     let found = models.into_iter().find(|m| {
         m.get("name")
             .and_then(Value::as_str)

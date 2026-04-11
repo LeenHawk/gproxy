@@ -133,7 +133,6 @@ The `Channel` trait has several optional methods with default implementations:
 - `handle_local()` -- handle requests without upstream call
 - `needs_spoof_client()` -- use browser-impersonating HTTP client
 - `ws_extra_headers()` -- extra WebSocket handshake headers
-- `model_suffix_groups()` -- channel-specific model suffixes
 - `refresh_credential()` -- refresh credentials after auth failure
 - `prepare_quota_request()` -- build upstream quota query request
 - `oauth_start()` / `oauth_finish()` -- OAuth flow support

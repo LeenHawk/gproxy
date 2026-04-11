@@ -36,6 +36,7 @@ export const ALL_CHANNEL_IDS = [
 /// Common settings fields appended to every channel so sanitize_rules
 /// is always configurable regardless of channel type.
 const COMMON_SETTINGS_FIELDS: ChannelField[] = [
+  { key: "enable_suffix", label: "enable_suffix", type: "boolean", optional: true },
   { key: "sanitize_rules", label: "sanitize_rules", type: "json", optional: true },
 ];
 
