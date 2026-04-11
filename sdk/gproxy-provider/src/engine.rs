@@ -945,53 +945,14 @@ impl GproxyEngine {
 
         let body = inject_stream_flag(dst_op, dst_proto, body);
         let method = operation_http_method(dst_op);
-        let mut body = body;
 
-        // Suffix processing: match protocol-level suffix groups
-        let matched = if provider.enable_suffix() {
-            let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
-            request
-                .model
-                .as_ref()
-                .and_then(|model| crate::suffix::match_suffix_groups(model, proto_groups))
-        } else {
-            None
-        };
-        let (model, suffix_str) = if let Some(ref m) = matched {
-            crate::suffix::strip_model_suffix_in_body(&mut body, &m.base_model);
-            (Some(m.base_model.clone()), Some(m.combined_suffix.clone()))
-        } else {
-            (request.model.clone(), None)
-        };
-        let mut prepared = PreparedRequest {
+        let prepared = PreparedRequest {
             method,
             route: RouteKey::new(dst_op, dst_proto),
-            model,
+            model: request.model.clone(),
             body,
             headers: request.headers,
         };
-        if let Some(ref m) = matched {
-            for apply_fn in &m.apply_fns {
-                apply_fn(&mut prepared);
-            }
-        }
-        // Rewrite rules: apply JSON path set/remove before channel-specific
-        // finalize so finalize can process the rewritten values normally.
-        let rewrite_rules = provider.rewrite_rules();
-        if !rewrite_rules.is_empty()
-            && let Ok(mut body_json) = serde_json::from_slice::<Value>(&prepared.body)
-        {
-            crate::utils::rewrite::apply_rewrite_rules(
-                &mut body_json,
-                &rewrite_rules,
-                prepared.model.as_deref(),
-                prepared.route.operation,
-                prepared.route.protocol,
-            );
-            if let Ok(patched) = serde_json::to_vec(&body_json) {
-                prepared.body = patched;
-            }
-        }
 
         let mut prepared = provider.finalize_request(prepared)?;
 
@@ -1082,19 +1043,6 @@ impl GproxyEngine {
         });
         let cost = billing.as_ref().map(|billing| billing.total_cost);
 
-        // 2.5. Suffix response rewriting: append suffix to model field.
-        // Skip when response_model_override is set — the alias rewrite in
-        // step 3.6 will replace the model field entirely, making this a no-op.
-        let mut normalized_nonstream_body = normalized_nonstream_body;
-        if request.response_model_override.is_none()
-            && let Some(ref suffix) = suffix_str
-        {
-            crate::suffix::rewrite_model_suffix_in_body(
-                &mut normalized_nonstream_body,
-                suffix,
-            );
-        }
-
         // 3. Transform response if needed (cross-protocol).
         //
         // Only transform on 2xx success bodies. Upstream error bodies
@@ -1129,37 +1077,6 @@ impl GproxyEngine {
         } else {
             normalized_nonstream_body
         };
-
-        // 3.5. Model list/get suffix post-processing.
-        // - ModelList: expand each model entry with all available suffixed variants.
-        // - ModelGet: append the matched suffix to the model id/name field
-        //   (the normal `rewrite_model_suffix_in_body` targets the `"model"` key,
-        //   but model-get responses use `"id"` or `"name"`).
-        let mut response_body = response_body;
-        match dst_op {
-            OperationFamily::ModelList => {
-                if provider.enable_suffix() {
-                    let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
-                    crate::suffix::expand_model_list_with_suffixes(
-                        &mut response_body,
-                        request.protocol,
-                        proto_groups,
-                    );
-                }
-            }
-            OperationFamily::ModelGet => {
-                if request.response_model_override.is_none()
-                    && let Some(ref suffix) = suffix_str
-                {
-                    crate::suffix::rewrite_model_get_suffix_in_body(
-                        &mut response_body,
-                        suffix,
-                        request.protocol,
-                    );
-                }
-            }
-            _ => {}
-        }
 
         // 3.6. Alias response rewriting: replace model field with the alias
         // name the client sent. Applies to all non-ModelList operations. For
@@ -1293,53 +1210,14 @@ impl GproxyEngine {
 
         let body = inject_stream_flag(dst_op, dst_proto, body);
         let method = operation_http_method(dst_op);
-        let mut body = body;
 
-        // Suffix processing: match protocol-level suffix groups
-        let matched = if provider.enable_suffix() {
-            let proto_groups = crate::suffix::suffix_groups_for_protocol(dst_proto);
-            request
-                .model
-                .as_ref()
-                .and_then(|model| crate::suffix::match_suffix_groups(model, proto_groups))
-        } else {
-            None
-        };
-        let (model, suffix_str) = if let Some(ref m) = matched {
-            crate::suffix::strip_model_suffix_in_body(&mut body, &m.base_model);
-            (Some(m.base_model.clone()), Some(m.combined_suffix.clone()))
-        } else {
-            (request.model.clone(), None)
-        };
-        let mut prepared = PreparedRequest {
+        let prepared = PreparedRequest {
             method,
             route: RouteKey::new(dst_op, dst_proto),
-            model,
+            model: request.model.clone(),
             body,
             headers: request.headers,
         };
-        if let Some(ref m) = matched {
-            for apply_fn in &m.apply_fns {
-                apply_fn(&mut prepared);
-            }
-        }
-        // Rewrite rules: apply JSON path set/remove before channel-specific
-        // finalize so finalize can process the rewritten values normally.
-        let rewrite_rules = provider.rewrite_rules();
-        if !rewrite_rules.is_empty()
-            && let Ok(mut body_json) = serde_json::from_slice::<Value>(&prepared.body)
-        {
-            crate::utils::rewrite::apply_rewrite_rules(
-                &mut body_json,
-                &rewrite_rules,
-                prepared.model.as_deref(),
-                prepared.route.operation,
-                prepared.route.protocol,
-            );
-            if let Ok(patched) = serde_json::to_vec(&body_json) {
-                prepared.body = patched;
-            }
-        }
 
         let mut prepared = provider.finalize_request(prepared)?;
 
@@ -1440,7 +1318,6 @@ impl GproxyEngine {
             )?;
 
             let mut upstream = response.body;
-            let suffix_to_rewrite = suffix_str.clone();
             let model_override = request.response_model_override.clone();
             // Helper that pins the try_stream's Ok type so the macro can
             // infer its error type from the `?` uses below. Without this,
@@ -1456,11 +1333,6 @@ impl GproxyEngine {
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
                     let mut out = transformer.push_chunk(&chunk)?;
-                    if model_override.is_none()
-                        && let Some(ref suffix) = suffix_to_rewrite
-                    {
-                        crate::suffix::rewrite_model_suffix_in_body(&mut out, suffix);
-                    }
                     if let Some(ref alias) = model_override {
                         rewrite_model_field_in_body(&mut out, alias);
                     }
@@ -1470,11 +1342,6 @@ impl GproxyEngine {
                 }
 
                 let mut tail = transformer.finish()?;
-                if model_override.is_none()
-                    && let Some(ref suffix) = suffix_to_rewrite
-                {
-                    crate::suffix::rewrite_model_suffix_in_body(&mut tail, suffix);
-                }
                 if let Some(ref alias) = model_override {
                     rewrite_model_field_in_body(&mut tail, alias);
                 }
@@ -1483,9 +1350,8 @@ impl GproxyEngine {
                 }
             });
             ExecuteBody::Stream(stream)
-        } else if suffix_str.is_some() || request.response_model_override.is_some() {
-            // Passthrough with suffix and/or alias rewriting
-            let suffix = suffix_str.clone();
+        } else if request.response_model_override.is_some() {
+            // Passthrough with alias rewriting
             let model_override = request.response_model_override.clone();
             let mut upstream = response.body;
             fn typed_stream(
@@ -1497,11 +1363,6 @@ impl GproxyEngine {
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
                     let mut buf = chunk.to_vec();
-                    if model_override.is_none()
-                        && let Some(ref s) = suffix
-                    {
-                        crate::suffix::rewrite_model_suffix_in_body(&mut buf, s);
-                    }
                     if let Some(ref alias) = model_override {
                         rewrite_model_field_in_body(&mut buf, alias);
                     }

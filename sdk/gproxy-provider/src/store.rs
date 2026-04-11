@@ -198,8 +198,6 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn rewrite_rules(&self) -> Vec<crate::utils::rewrite::RewriteRule>;
 
-    fn enable_suffix(&self) -> bool;
-
     /// Build WS-ready (url, headers) pairs for each credential.
     fn prepare_ws_auth(
         &self,
@@ -469,10 +467,6 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
 
     fn rewrite_rules(&self) -> Vec<crate::utils::rewrite::RewriteRule> {
         self.settings.load().rewrite_rules().to_vec()
-    }
-
-    fn enable_suffix(&self) -> bool {
-        self.settings.load().enable_suffix()
     }
 
     fn prepare_ws_auth(

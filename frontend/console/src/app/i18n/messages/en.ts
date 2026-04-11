@@ -365,7 +365,6 @@ export const enMessages: Record<string, string> = {
   "modelAliases.saved": "Model alias saved",
   "modelAliases.deleted": "Model alias deleted",
   "modelAliases.alias": "Alias",
-  "field.enable_suffix": "Enable Model Suffix",
   "field.enable_magic_cache": "Enable Auto Cache",
   "permissions.saved": "Permission saved",
   "permissions.deleted": "Permission deleted",

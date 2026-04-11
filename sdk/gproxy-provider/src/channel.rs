@@ -185,12 +185,6 @@ pub trait ChannelSettings:
     fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
         &[]
     }
-    /// Whether model suffix processing (thinking, speed, effort, etc.) is
-    /// enabled for this channel. When `false`, no suffix matching, stripping,
-    /// or rewriting happens. Default: `false`.
-    fn enable_suffix(&self) -> bool {
-        false
-    }
 }
 
 /// Channel credential (API key, OAuth token, etc.).
