@@ -146,6 +146,52 @@ pub fn rewrite_model_get_suffix_in_body(
     }
 }
 
+/// Collect all unique suffix strings from the given groups.
+pub fn collect_all_suffixes(groups: &[SuffixGroup]) -> Vec<&str> {
+    let mut seen = std::collections::HashSet::new();
+    groups
+        .iter()
+        .flat_map(|g| g.entries.iter().map(|e| e.suffix))
+        .filter(|s| seen.insert(*s))
+        .collect()
+}
+
+/// Collect all unique suffix strings across ALL protocols.
+pub fn collect_all_suffixes_global() -> Vec<&'static str> {
+    let mut seen = std::collections::HashSet::new();
+    let all_groups: &[&[SuffixGroup]] = &[
+        CLAUDE_SUFFIX_GROUPS,
+        OPENAI_RESPONSE_SUFFIX_GROUPS,
+        OPENAI_CHAT_COMPLETIONS_SUFFIX_GROUPS,
+        GEMINI_SUFFIX_GROUPS,
+    ];
+    all_groups
+        .iter()
+        .flat_map(|groups| {
+            groups
+                .iter()
+                .flat_map(|g| g.entries.iter().map(|e| e.suffix))
+        })
+        .filter(|s| seen.insert(*s))
+        .collect()
+}
+
+/// Try to strip a known suffix from a model name, returning `(base, suffix)`.
+///
+/// Tries longer suffixes first so composite matches take priority.
+pub fn strip_any_suffix(model: &str) -> Option<(&str, &str)> {
+    let mut all = collect_all_suffixes_global();
+    // Sort by length descending so longest (composite) suffixes match first.
+    all.sort_by_key(|b| std::cmp::Reverse(b.len()));
+    for suffix in &all {
+        if let Some(base) = model.strip_suffix(suffix)
+            && !base.is_empty() {
+                return Some((base, suffix));
+            }
+    }
+    None
+}
+
 /// Expand a model-list response body by appending suffixed copies of each
 /// model entry. The response is already in the client's protocol format.
 pub fn expand_model_list_with_suffixes(

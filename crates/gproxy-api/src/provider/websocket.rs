@@ -902,6 +902,7 @@ async fn start_http_request(
             headers: headers.clone(),
             model: Some(effective_model.clone()),
             forced_credential_index: None,
+            response_model_override: None,
         })
         .await;
 

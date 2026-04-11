@@ -63,6 +63,11 @@ pub struct ExecuteRequest {
     pub headers: http::HeaderMap,
     pub model: Option<String>,
     pub forced_credential_index: Option<usize>,
+    /// When set, the engine replaces the `"model"` field in all non-ModelList
+    /// responses with this value (both full and streaming). Used for alias
+    /// rewriting so clients see the alias name they sent, not the resolved
+    /// upstream model.
+    pub response_model_override: Option<String>,
 }
 
 /// Result of an engine execution.
@@ -1147,6 +1152,21 @@ impl GproxyEngine {
             _ => {}
         }
 
+        // 3.6. Alias response rewriting: replace model field with the alias
+        // name the client sent. Applies to all non-ModelList operations. For
+        // ModelGet, rewrites the id/name field instead of the "model" key.
+        if let Some(ref override_model) = request.response_model_override {
+            match dst_op {
+                OperationFamily::ModelList => {} // alias injection handled by caller
+                OperationFamily::ModelGet => {
+                    rewrite_model_id_in_body(&mut response_body, override_model, request.protocol);
+                }
+                _ => {
+                    rewrite_model_field_in_body(&mut response_body, override_model);
+                }
+            }
+        }
+
         let latency_ms = start.elapsed().as_millis() as u64;
 
         let meta = if self.enable_upstream_log {
@@ -1412,6 +1432,7 @@ impl GproxyEngine {
 
             let mut upstream = response.body;
             let suffix_to_rewrite = suffix_str.clone();
+            let model_override = request.response_model_override.clone();
             // Helper that pins the try_stream's Ok type so the macro can
             // infer its error type from the `?` uses below. Without this,
             // the outer fn's new `ExecuteError` return type confuses
@@ -1429,6 +1450,9 @@ impl GproxyEngine {
                     if let Some(ref suffix) = suffix_to_rewrite {
                         crate::suffix::rewrite_model_suffix_in_body(&mut out, suffix);
                     }
+                    if let Some(ref alias) = model_override {
+                        rewrite_model_field_in_body(&mut out, alias);
+                    }
                     if !out.is_empty() {
                         yield Bytes::from(out);
                     }
@@ -1438,14 +1462,18 @@ impl GproxyEngine {
                 if let Some(ref suffix) = suffix_to_rewrite {
                     crate::suffix::rewrite_model_suffix_in_body(&mut tail, suffix);
                 }
+                if let Some(ref alias) = model_override {
+                    rewrite_model_field_in_body(&mut tail, alias);
+                }
                 if !tail.is_empty() {
                     yield Bytes::from(tail);
                 }
             });
             ExecuteBody::Stream(stream)
-        } else if let Some(ref suffix) = suffix_str {
-            // Passthrough with suffix rewriting
-            let suffix = suffix.clone();
+        } else if suffix_str.is_some() || request.response_model_override.is_some() {
+            // Passthrough with suffix and/or alias rewriting
+            let suffix = suffix_str.clone();
+            let model_override = request.response_model_override.clone();
             let mut upstream = response.body;
             fn typed_stream(
                 s: impl Stream<Item = Result<Bytes, UpstreamError>> + Send + 'static,
@@ -1456,7 +1484,12 @@ impl GproxyEngine {
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
                     let mut buf = chunk.to_vec();
-                    crate::suffix::rewrite_model_suffix_in_body(&mut buf, &suffix);
+                    if let Some(ref s) = suffix {
+                        crate::suffix::rewrite_model_suffix_in_body(&mut buf, s);
+                    }
+                    if let Some(ref alias) = model_override {
+                        rewrite_model_field_in_body(&mut buf, alias);
+                    }
                     yield Bytes::from(buf);
                 }
             });
@@ -1576,6 +1609,46 @@ fn operation_http_method(operation: OperationFamily) -> http::Method {
         | OperationFamily::ModelGet => http::Method::GET,
         OperationFamily::FileDelete => http::Method::DELETE,
         _ => http::Method::POST,
+    }
+}
+
+/// Replace the `"model"` field in a JSON response body with `new_model`.
+/// Used for alias rewriting on chat/messages responses.
+fn rewrite_model_field_in_body(body: &mut Vec<u8>, new_model: &str) {
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return;
+    };
+    if v.get("model").is_some() {
+        v["model"] = serde_json::Value::String(new_model.to_string());
+        if let Ok(b) = serde_json::to_vec(&v) {
+            *body = b;
+        }
+    }
+}
+
+/// Replace the model identifier field in a model-get response body.
+/// OpenAI/Claude use `"id"`, Gemini uses `"name"`.
+fn rewrite_model_id_in_body(body: &mut Vec<u8>, new_id: &str, protocol: ProtocolKind) {
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return;
+    };
+    match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            if v.get("name").is_some() {
+                v["name"] = serde_json::Value::String(format!("models/{new_id}"));
+            }
+            if v.get("baseModelId").is_some() {
+                v["baseModelId"] = serde_json::Value::String(new_id.to_string());
+            }
+        }
+        _ => {
+            if v.get("id").is_some() {
+                v["id"] = serde_json::Value::String(new_id.to_string());
+            }
+        }
+    }
+    if let Ok(b) = serde_json::to_vec(&v) {
+        *body = b;
     }
 }
 
