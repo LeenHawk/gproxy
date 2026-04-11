@@ -65,22 +65,12 @@ pub async fn proxy(
         if let Some(alias) = &resolved_alias
             && alias.provider_name.is_some()
         {
-            let base_model = alias.model_id.clone();
-            // Append suffix back to the resolved model if suffix was stripped
-            // during alias resolution (e.g. `gpt4-fast` → base `gpt4` resolved
-            // to `openai/gpt-4o`, effective model becomes `gpt-4o-fast`).
-            let effective = base_model.map(|m| {
-                if let Some(ref suffix) = alias.suffix {
-                    format!("{m}{suffix}")
-                } else {
-                    m
-                }
-            });
+            let effective = alias.model_id.clone().or(model.clone());
             // The original model name the user sent (for response rewriting).
             let alias_name = model.clone();
             (
                 alias.provider_name.clone().unwrap_or(provider_name.clone()),
-                effective.or(model.clone()),
+                effective,
                 alias_name,
             )
         } else {
@@ -356,32 +346,14 @@ pub async fn proxy_unscoped(
         buffered_request_body(&request)?,
     );
 
-    // Resolve provider: alias (suffix-aware) → prefix → error
+    // Resolve provider: alias → prefix → error
     let (target_provider, target_model, alias_model_override) =
         if let Some(alias) = state.resolve_model_alias(model_name) {
-            // Exact alias match.
             (
                 alias.provider_name,
                 alias.model_id,
                 Some(model_name.clone()),
             )
-        } else if let Some((base, suffix)) =
-            gproxy_sdk::provider::suffix::strip_any_suffix(model_name)
-        {
-            // Try alias resolution on suffix-stripped base.
-            if let Some(alias) = state.resolve_model_alias(base) {
-                (
-                    alias.provider_name,
-                    format!("{}{}", alias.model_id, suffix),
-                    Some(model_name.clone()),
-                )
-            } else if let Some((provider, model)) = model_name.split_once('/') {
-                (provider.to_string(), model.to_string(), None)
-            } else {
-                return Err(HttpError::bad_request(
-                    "model must have provider prefix (provider/model) or match an alias",
-                ));
-            }
         } else if let Some((provider, model)) = model_name.split_once('/') {
             (provider.to_string(), model.to_string(), None)
         } else {
@@ -968,7 +940,7 @@ async fn build_openai_unscoped_model_list_body(
         return Err(err);
     }
 
-    // Inject model alias entries (base + suffix variants).
+    // Inject model alias entries.
     inject_openai_alias_entries(state, user_id, &mut models);
 
     let mut data: Vec<_> = models.into_values().collect();
@@ -1050,7 +1022,7 @@ async fn build_claude_unscoped_model_list_body(
         return Err(err);
     }
 
-    // Inject model alias entries (base + suffix variants).
+    // Inject model alias entries.
     inject_claude_alias_entries(state, user_id, &mut models);
 
     let mut data: Vec<_> = models.into_values().collect();
@@ -1153,7 +1125,7 @@ async fn build_gemini_unscoped_model_list_body(
         return Err(err);
     }
 
-    // Inject model alias entries (base + suffix variants).
+    // Inject model alias entries.
     inject_gemini_alias_entries(state, user_id, &mut models);
 
     let mut data: Vec<_> = models.into_values().collect();
@@ -1171,14 +1143,13 @@ async fn build_gemini_unscoped_model_list_body(
 
 /// Inject model alias entries into an OpenAI-format model HashMap.
 /// For each alias whose target model exists in the map, creates a base alias
-/// entry plus mirrored suffix variants.
+/// entry.
 fn inject_openai_alias_entries(
     state: &AppState,
     user_id: i64,
     models: &mut HashMap<String, gproxy_sdk::protocol::openai::types::OpenAiModel>,
 ) {
     let aliases = state.model_aliases_snapshot();
-    let all_suffixes = gproxy_sdk::provider::suffix::collect_all_suffixes_global();
     for (alias_name, target) in aliases.iter() {
         if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
             continue;
@@ -1191,18 +1162,7 @@ fn inject_openai_alias_entries(
         let mut alias_entry = base_model;
         alias_entry.id = alias_name.clone();
         alias_entry.owned_by = target.provider_name.clone();
-        models.insert(alias_name.clone(), alias_entry.clone());
-        // Mirror suffix variants.
-        for suffix in &all_suffixes {
-            let suffixed_key = format!("{prefixed_target}{suffix}");
-            if let Some(suffixed_model) = models.get(&suffixed_key).cloned() {
-                let alias_suffixed_id = format!("{alias_name}{suffix}");
-                let mut entry = suffixed_model;
-                entry.id = alias_suffixed_id.clone();
-                entry.owned_by = target.provider_name.clone();
-                models.insert(alias_suffixed_id, entry);
-            }
-        }
+        models.insert(alias_name.clone(), alias_entry);
     }
 }
 
@@ -1213,7 +1173,6 @@ fn inject_claude_alias_entries(
     models: &mut HashMap<String, gproxy_sdk::protocol::claude::types::BetaModelInfo>,
 ) {
     let aliases = state.model_aliases_snapshot();
-    let all_suffixes = gproxy_sdk::provider::suffix::collect_all_suffixes_global();
     for (alias_name, target) in aliases.iter() {
         if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
             continue;
@@ -1225,15 +1184,6 @@ fn inject_claude_alias_entries(
         let mut alias_entry = base_model;
         alias_entry.id = alias_name.clone();
         models.insert(alias_name.clone(), alias_entry);
-        for suffix in &all_suffixes {
-            let suffixed_key = format!("{prefixed_target}{suffix}");
-            if let Some(suffixed_model) = models.get(&suffixed_key).cloned() {
-                let alias_suffixed_id = format!("{alias_name}{suffix}");
-                let mut entry = suffixed_model;
-                entry.id = alias_suffixed_id.clone();
-                models.insert(alias_suffixed_id, entry);
-            }
-        }
     }
 }
 
@@ -1244,7 +1194,6 @@ fn inject_gemini_alias_entries(
     models: &mut HashMap<String, gproxy_sdk::protocol::gemini::types::GeminiModelInfo>,
 ) {
     let aliases = state.model_aliases_snapshot();
-    let all_suffixes = gproxy_sdk::provider::suffix::collect_all_suffixes_global();
     for (alias_name, target) in aliases.iter() {
         if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
             continue;
@@ -1259,16 +1208,6 @@ fn inject_gemini_alias_entries(
         alias_entry.name = alias_key.clone();
         alias_entry.base_model_id = Some(alias_name.clone());
         models.insert(alias_key, alias_entry);
-        for suffix in &all_suffixes {
-            let suffixed_gemini_key = format!("models/{prefixed_target}{suffix}");
-            if let Some(suffixed_model) = models.get(&suffixed_gemini_key).cloned() {
-                let alias_suffixed_name = format!("models/{alias_name}{suffix}");
-                let mut entry = suffixed_model;
-                entry.name = alias_suffixed_name.clone();
-                entry.base_model_id = Some(format!("{alias_name}{suffix}"));
-                models.insert(alias_suffixed_name, entry);
-            }
-        }
     }
 }
 
@@ -1304,8 +1243,6 @@ fn inject_scoped_model_list_aliases(
         return;
     };
 
-    let all_suffixes = gproxy_sdk::provider::suffix::collect_all_suffixes_global();
-
     // Snapshot the original entries so we can look up targets.
     let originals: Vec<serde_json::Value> = arr.clone();
     let find_by_id = |target_id: &str| -> Option<&serde_json::Value> {
@@ -1331,7 +1268,7 @@ fn inject_scoped_model_list_aliases(
         let Some(base) = find_by_id(&target.model_id) else {
             continue;
         };
-        // Inject base alias entry.
+        // Inject alias entry.
         let mut alias_entry = base.clone();
         if id_key == "name" {
             alias_entry["name"] = serde_json::Value::String(format!("models/{alias_name}"));
@@ -1343,27 +1280,6 @@ fn inject_scoped_model_list_aliases(
             alias_entry[id_key] = serde_json::Value::String(alias_name.to_string());
         }
         arr.push(alias_entry);
-        // Mirror suffix variants.
-        for suffix in &all_suffixes {
-            let suffixed_target = format!("{}{suffix}", target.model_id);
-            let Some(suffixed_base) = find_by_id(&suffixed_target) else {
-                continue;
-            };
-            let mut suffixed_alias = suffixed_base.clone();
-            let alias_suffixed = format!("{alias_name}{suffix}");
-            if id_key == "name" {
-                suffixed_alias["name"] =
-                    serde_json::Value::String(format!("models/{alias_suffixed}"));
-                if suffixed_alias.get("baseModelId").is_some() {
-                    suffixed_alias["baseModelId"] =
-                        serde_json::Value::String(alias_suffixed.clone());
-                }
-            } else {
-                suffixed_alias[id_key] =
-                    serde_json::Value::String(alias_suffixed);
-            }
-            arr.push(suffixed_alias);
-        }
     }
 
     if let Ok(b) = serde_json::to_vec(&v) {

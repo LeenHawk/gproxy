@@ -1065,7 +1065,7 @@ impl GproxyEngine {
         let needs_response_transform = needs_transform
             && (200..=299).contains(&response.status)
             && !(request.protocol == dst_proto && response_transform_dst_op == request.operation);
-        let response_body = if needs_response_transform {
+        let mut response_body = if needs_response_transform {
             tracing::debug!("transforming response");
             crate::transform_dispatch::transform_response(
                 request.operation,
