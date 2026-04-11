@@ -223,9 +223,8 @@ export function ConfigTab({
           </div>
         </div>
 
-        {/* Template chips — only for custom channel */}
-        {form.channel === "custom" ? (
-          <div>
+        {/* Template chips */}
+        <div>
             <div className="mb-1.5 text-xs text-muted">{t("providers.dispatch.templates")}</div>
             <div className="flex flex-wrap gap-1.5">
               {DISPATCH_TEMPLATES.map((tmpl) => {
@@ -248,7 +247,6 @@ export function ConfigTab({
               })}
             </div>
           </div>
-        ) : null}
 
         {dispatchExpanded ? (
           <div className="space-y-3">
