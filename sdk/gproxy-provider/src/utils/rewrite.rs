@@ -99,7 +99,9 @@ fn set_path(body: &mut Value, segments: &[&str], value: Value) {
     // Ensure the next node exists and is an object.
     let key = segments[0];
     if let Some(map) = body.as_object_mut() {
-        let next = map.entry(key.to_string()).or_insert_with(|| Value::Object(Default::default()));
+        let next = map
+            .entry(key.to_string())
+            .or_insert_with(|| Value::Object(Default::default()));
         // If the existing value is not an object, overwrite it.
         if !next.is_object() {
             *next = Value::Object(Default::default());
@@ -286,10 +288,7 @@ mod tests {
         let mut body = json!({});
         apply_rewrite_rules(
             &mut body,
-            &[rule(
-                "stop",
-                RewriteAction::Set(json!(["END", "STOP"])),
-            )],
+            &[rule("stop", RewriteAction::Set(json!(["END", "STOP"])))],
             None,
             op(),
             proto(),
