@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Badge, Button, Card, Input, Label, TextArea } from "../../../components/ui";
+import { useI18n } from "../../../app/i18n";
 import type { CredentialHealthRow, CredentialRow } from "../../../lib/types/admin";
 import { credentialFieldsForChannel } from "./channel-forms";
 import { getCredentialUsageActionLabels } from "./credential-usage";
@@ -74,6 +75,12 @@ export function CredentialsTab({
   };
 }) {
   const fields = credentialFieldsForChannel(channel);
+  const { t } = useI18n();
+  const fieldLabel = (field: { key: string; label: string }) => {
+    const i18nKey = "field." + field.key;
+    const translated = t(i18nKey);
+    return translated !== i18nKey ? translated : field.label;
+  };
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [expandedUsageKey, setExpandedUsageKey] = useState<string | null>(null);
   const statusByIndex = new Map(statuses.map((row) => [row.index, row]));
@@ -248,7 +255,7 @@ export function CredentialsTab({
               <>
                 {fields.map((field) => (
                   <div key={field.key}>
-                    <Label>{field.label}</Label>
+                    <Label>{fieldLabel(field)}</Label>
                     {field.type === "textarea" ? (
                       <TextArea
                         value={form.values[field.key] ?? ""}

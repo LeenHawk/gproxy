@@ -354,6 +354,8 @@ export const zhMessages: Record<string, string> = {
   "modelAliases.saved": "模型别名已保存",
   "modelAliases.deleted": "模型别名已删除",
   "modelAliases.alias": "别名",
+  "field.enable_suffix": "启用模型后缀",
+  "field.enable_magic_cache": "启用自动缓存",
   "permissions.saved": "权限已保存",
   "permissions.deleted": "权限已删除",
   "filePermissions.saved": "文件权限已保存",

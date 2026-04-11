@@ -95,6 +95,12 @@ export function ConfigTab({
   const isAnthropic = ANTHROPIC_CHANNELS.has(form.channel);
   const isClaudeCode = form.channel === "claudecode";
 
+  const fieldLabel = (field: { key: string; label: string }) => {
+    const i18nKey = "field." + field.key;
+    const translated = t(i18nKey);
+    return translated !== i18nKey ? translated : field.label;
+  };
+
   // Filter out fields handled by dedicated editors
   const genericFields = settingsFieldsForChannel(form.channel).filter(
     (field) => !EDITOR_FIELDS.has(field.key),
@@ -121,7 +127,7 @@ export function ConfigTab({
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {genericFields.map((field) => (
           <div key={field.key}>
-            <Label>{field.label}</Label>
+            <Label>{fieldLabel(field)}</Label>
             {field.type === "textarea" || field.type === "json" ? (
               <TextArea
                 value={form.settings[field.key] ?? ""}
