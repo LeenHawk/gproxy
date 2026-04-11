@@ -166,11 +166,23 @@ function local(op: string, proto: string) {
   return { srcOperation: op, srcProtocol: proto, implementation: "Local" as const, destinationOperation: "", destinationProtocol: "" };
 }
 
-// Common Local rules for model list/get/count across all three base protocols
-const LOCAL_MODEL_AND_COUNT = [
-  local("model_list", "openai"), local("model_list", "claude"), local("model_list", "gemini"),
-  local("model_get", "openai"), local("model_get", "claude"), local("model_get", "gemini"),
+// Common Local rules for count_tokens across all three base protocols
+const LOCAL_COUNT = [
   local("count_tokens", "openai"), local("count_tokens", "claude"), local("count_tokens", "gemini"),
+];
+
+// Per-protocol model_list/model_get: passthrough on native, transform others
+const OPENAI_MODEL_RULES = [
+  pass("model_list", "openai"), xform("model_list", "claude", "model_list", "openai"), xform("model_list", "gemini", "model_list", "openai"),
+  pass("model_get", "openai"), xform("model_get", "claude", "model_get", "openai"), xform("model_get", "gemini", "model_get", "openai"),
+];
+const CLAUDE_MODEL_RULES = [
+  pass("model_list", "claude"), xform("model_list", "openai", "model_list", "claude"), xform("model_list", "gemini", "model_list", "claude"),
+  pass("model_get", "claude"), xform("model_get", "openai", "model_get", "claude"), xform("model_get", "gemini", "model_get", "claude"),
+];
+const GEMINI_MODEL_RULES = [
+  pass("model_list", "gemini"), xform("model_list", "claude", "model_list", "gemini"), xform("model_list", "openai", "model_list", "gemini"),
+  pass("model_get", "gemini"), xform("model_get", "claude", "model_get", "gemini"), xform("model_get", "openai", "model_get", "gemini"),
 ];
 
 export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
@@ -245,7 +257,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "chat-completions-only",
     label: "Chat Completions Only",
     rules: [
-      ...LOCAL_MODEL_AND_COUNT,
+      ...OPENAI_MODEL_RULES, ...LOCAL_COUNT,
       pass("generate_content", "openai_chat_completions"),
       pass("stream_generate_content", "openai_chat_completions"),
       xform("generate_content", "openai_response", "generate_content", "openai_chat_completions"),
@@ -263,7 +275,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "response-only",
     label: "Response Only",
     rules: [
-      ...LOCAL_MODEL_AND_COUNT,
+      ...OPENAI_MODEL_RULES, ...LOCAL_COUNT,
       pass("generate_content", "openai_response"),
       pass("stream_generate_content", "openai_response"),
       pass("compact", "openai"),
@@ -281,7 +293,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "claude-only",
     label: "Claude Only",
     rules: [
-      ...LOCAL_MODEL_AND_COUNT,
+      ...CLAUDE_MODEL_RULES, ...LOCAL_COUNT,
       pass("generate_content", "claude"),
       pass("stream_generate_content", "claude"),
       xform("generate_content", "openai_chat_completions", "generate_content", "claude"),
@@ -299,7 +311,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "gemini-only",
     label: "Gemini Only",
     rules: [
-      ...LOCAL_MODEL_AND_COUNT,
+      ...GEMINI_MODEL_RULES, ...LOCAL_COUNT,
       pass("generate_content", "gemini"),
       pass("stream_generate_content", "gemini"),
       pass("stream_generate_content", "gemini_ndjson"),
