@@ -138,6 +138,7 @@ export function GlobalSettingsModule({
           <Input
             value={form.proxy ?? ""}
             onChange={(value) => setForm((current) => (current ? { ...current, proxy: value } : current))}
+            placeholder="http://127.0.0.1:7860"
           />
         </div>
         <div>
