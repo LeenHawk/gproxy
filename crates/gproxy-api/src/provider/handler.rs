@@ -98,6 +98,12 @@ pub async fn proxy(
         req_query.as_deref(),
     )?;
 
+    if !state.check_provider_access(user_key.user_id, &effective_provider) {
+        return Err(HttpError::forbidden(
+            "provider not authorized for this user",
+        ));
+    }
+
     if let Some(ref m) = effective_model
         && !is_file_operation(operation)
         && !state.check_model_permission(user_key.user_id, &effective_provider, m)
