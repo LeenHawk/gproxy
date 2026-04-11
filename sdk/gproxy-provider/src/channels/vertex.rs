@@ -218,6 +218,42 @@ async fn refresh_access_token(
 
 // === Channel impl ===
 
+/// Bootstrap a Vertex credential on upsert: if `access_token` is empty but
+/// `client_email` and `private_key` are present, exchange the service account
+/// key for an access token so the first request doesn't fail with empty auth.
+pub async fn bootstrap_vertex_token(
+    client: &wreq::Client,
+    credential_json: &Value,
+) -> Result<
+    (Option<Value>, Vec<crate::engine::UpstreamRequestMeta>),
+    (UpstreamError, Vec<crate::engine::UpstreamRequestMeta>),
+> {
+    let cred: VertexCredential = serde_json::from_value(credential_json.clone())
+        .map_err(|e| (UpstreamError::Channel(format!("parse vertex credential: {e}")), Vec::new()))?;
+
+    // Nothing to do if access_token is already populated or no SA material
+    if !cred.access_token.is_empty()
+        || cred.client_email.is_empty()
+        || cred.private_key.is_empty()
+    {
+        return Ok((None, Vec::new()));
+    }
+
+    let token = refresh_access_token(client, &cred)
+        .await
+        .map_err(|e| (e, Vec::new()))?;
+
+    // Populate access_token and expires_at_ms in the credential JSON
+    let mut updated = credential_json.clone();
+    updated["access_token"] = Value::String(token.access_token.clone());
+    updated["expires_at_ms"] = Value::Number(token.expires_at_ms.into());
+
+    // Cache the token
+    token_cache().insert(cred.client_email.clone(), token);
+
+    Ok((Some(updated), Vec::new()))
+}
+
 impl Channel for VertexChannel {
     const ID: &'static str = "vertex";
     type Settings = VertexSettings;

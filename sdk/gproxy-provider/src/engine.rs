@@ -356,20 +356,34 @@ impl GproxyEngineBuilder {
     pub fn configure_clients(self, proxy: Option<&str>, emulation: Option<&str>) -> Self {
         let mut client_builder = wreq::Client::builder();
         if let Some(proxy_url) = proxy
+            && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
         {
             client_builder = client_builder.proxy(p);
         }
-        let client = client_builder.build().unwrap_or_default();
+        let client = match client_builder.build() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to build http client, falling back to default");
+                wreq::Client::default()
+            }
+        };
 
         let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
         let mut spoof_builder = wreq::Client::builder().emulation(emu);
         if let Some(proxy_url) = proxy
+            && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
         {
             spoof_builder = spoof_builder.proxy(p);
         }
-        let spoof = spoof_builder.build().unwrap_or_default();
+        let spoof = match spoof_builder.build() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to build spoof client, falling back to default");
+                wreq::Client::default()
+            }
+        };
 
         self.http_client(client).spoof_client(spoof)
     }
@@ -483,20 +497,34 @@ impl GproxyEngine {
     pub fn with_new_clients(&self, proxy: Option<&str>, emulation: Option<&str>) -> GproxyEngine {
         let mut client_builder = wreq::Client::builder();
         if let Some(proxy_url) = proxy
+            && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
         {
             client_builder = client_builder.proxy(p);
         }
-        let client = client_builder.build().unwrap_or_default();
+        let client = match client_builder.build() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to build http client in with_new_clients");
+                wreq::Client::default()
+            }
+        };
 
         let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
         let mut spoof_builder = wreq::Client::builder().emulation(emu);
         if let Some(proxy_url) = proxy
+            && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
         {
             spoof_builder = spoof_builder.proxy(p);
         }
-        let spoof_client = Some(spoof_builder.build().unwrap_or_default());
+        let spoof_client = match spoof_builder.build() {
+            Ok(c) => Some(c),
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to build spoof client in with_new_clients");
+                None
+            }
+        };
 
         GproxyEngine {
             store: Arc::clone(&self.store),
@@ -555,6 +583,13 @@ impl GproxyEngine {
                 crate::channels::claudecode::bootstrap_credential_from_cookie(
                     &self.client,
                     self.spoof_client.as_ref(),
+                    credential_json,
+                )
+                .await
+            }
+            "vertex" => {
+                crate::channels::vertex::bootstrap_vertex_token(
+                    &self.client,
                     credential_json,
                 )
                 .await
