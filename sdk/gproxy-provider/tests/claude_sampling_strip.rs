@@ -40,9 +40,18 @@ const OPUS_46_PAYLOAD: &str = r#"{
 fn assert_all_sampling_stripped(body_bytes: &[u8]) {
     let body: Value = serde_json::from_slice(body_bytes).expect("body is JSON object");
     let map = body.as_object().expect("body is object");
-    assert!(!map.contains_key("temperature"), "temperature must be stripped; got: {body}");
-    assert!(!map.contains_key("top_p"), "top_p must be stripped; got: {body}");
-    assert!(!map.contains_key("top_k"), "top_k must be stripped; got: {body}");
+    assert!(
+        !map.contains_key("temperature"),
+        "temperature must be stripped; got: {body}"
+    );
+    assert!(
+        !map.contains_key("top_p"),
+        "top_p must be stripped; got: {body}"
+    );
+    assert!(
+        !map.contains_key("top_k"),
+        "top_k must be stripped; got: {body}"
+    );
     assert!(map.get("messages").is_some(), "messages must be preserved");
     assert_eq!(map.get("max_tokens").and_then(Value::as_u64), Some(1024));
 }
@@ -85,8 +94,14 @@ const SONNET_WITH_TEMP_PAYLOAD: &str = r#"{
 fn assert_only_top_p_stripped(body_bytes: &[u8]) {
     let body: Value = serde_json::from_slice(body_bytes).expect("body is JSON object");
     let map = body.as_object().expect("body is object");
-    assert!(map.contains_key("temperature"), "temperature must be kept; got: {body}");
-    assert!(!map.contains_key("top_p"), "top_p must be stripped; got: {body}");
+    assert!(
+        map.contains_key("temperature"),
+        "temperature must be kept; got: {body}"
+    );
+    assert!(
+        !map.contains_key("top_p"),
+        "top_p must be stripped; got: {body}"
+    );
     assert!(map.contains_key("top_k"), "top_k must be kept; got: {body}");
     assert!(map.get("messages").is_some(), "messages must be preserved");
     assert_eq!(map.get("max_tokens").and_then(Value::as_u64), Some(1024));
@@ -137,6 +152,12 @@ fn anthropic_channel_keeps_all_for_tolerant_model_without_temperature() {
     let body: Value = serde_json::from_slice(&finalized.body).expect("body is JSON");
     let map = body.as_object().unwrap();
     assert!(!map.contains_key("temperature"));
-    assert!(map.contains_key("top_p"), "top_p must be kept without temperature");
-    assert!(map.contains_key("top_k"), "top_k must be kept without temperature");
+    assert!(
+        map.contains_key("top_p"),
+        "top_p must be kept without temperature"
+    );
+    assert!(
+        map.contains_key("top_k"),
+        "top_k must be kept without temperature"
+    );
 }

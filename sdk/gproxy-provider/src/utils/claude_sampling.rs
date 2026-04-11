@@ -48,10 +48,11 @@ pub fn strip_sampling_params(body: &mut Value) {
         return;
     };
 
-    let tolerant = map
-        .get("model")
-        .and_then(Value::as_str)
-        .is_some_and(|m| SAMPLING_TOLERANT_MODELS.iter().any(|&prefix| m.starts_with(prefix)));
+    let tolerant = map.get("model").and_then(Value::as_str).is_some_and(|m| {
+        SAMPLING_TOLERANT_MODELS
+            .iter()
+            .any(|&prefix| m.starts_with(prefix))
+    });
 
     if tolerant {
         if map.contains_key("temperature") {
