@@ -82,7 +82,7 @@ function AppFrame() {
     })
       .then((res) => {
         if (res.update_available && res.latest_version) {
-          notify("info", t("app.updateAvailable", { version: res.latest_version }));
+          notify("success", t("app.updateAvailable", { version: res.latest_version }));
         }
       })
       .catch(() => {});
