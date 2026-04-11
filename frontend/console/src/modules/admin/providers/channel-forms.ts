@@ -194,7 +194,7 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
       { key: "project_id", label: "project_id", type: "text" },
     ],
   },
-  vertexexpress: { fields: [{ key: "access_token", label: "access_token", type: "textarea" }] },
+  vertexexpress: { fields: [{ key: "api_key", label: "api_key", type: "text" }] },
   geminicli: {
     fields: [
       { key: "access_token", label: "access_token", type: "textarea" },
