@@ -1082,10 +1082,17 @@ impl GproxyEngine {
         });
         let cost = billing.as_ref().map(|billing| billing.total_cost);
 
-        // 2.5. Suffix response rewriting: append suffix to model field
+        // 2.5. Suffix response rewriting: append suffix to model field.
+        // Skip when response_model_override is set — the alias rewrite in
+        // step 3.6 will replace the model field entirely, making this a no-op.
         let mut normalized_nonstream_body = normalized_nonstream_body;
-        if let Some(ref suffix) = suffix_str {
-            crate::suffix::rewrite_model_suffix_in_body(&mut normalized_nonstream_body, suffix);
+        if request.response_model_override.is_none()
+            && let Some(ref suffix) = suffix_str
+        {
+            crate::suffix::rewrite_model_suffix_in_body(
+                &mut normalized_nonstream_body,
+                suffix,
+            );
         }
 
         // 3. Transform response if needed (cross-protocol).
@@ -1141,7 +1148,9 @@ impl GproxyEngine {
                 }
             }
             OperationFamily::ModelGet => {
-                if let Some(ref suffix) = suffix_str {
+                if request.response_model_override.is_none()
+                    && let Some(ref suffix) = suffix_str
+                {
                     crate::suffix::rewrite_model_get_suffix_in_body(
                         &mut response_body,
                         suffix,
@@ -1447,7 +1456,9 @@ impl GproxyEngine {
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
                     let mut out = transformer.push_chunk(&chunk)?;
-                    if let Some(ref suffix) = suffix_to_rewrite {
+                    if model_override.is_none()
+                        && let Some(ref suffix) = suffix_to_rewrite
+                    {
                         crate::suffix::rewrite_model_suffix_in_body(&mut out, suffix);
                     }
                     if let Some(ref alias) = model_override {
@@ -1459,7 +1470,9 @@ impl GproxyEngine {
                 }
 
                 let mut tail = transformer.finish()?;
-                if let Some(ref suffix) = suffix_to_rewrite {
+                if model_override.is_none()
+                    && let Some(ref suffix) = suffix_to_rewrite
+                {
                     crate::suffix::rewrite_model_suffix_in_body(&mut tail, suffix);
                 }
                 if let Some(ref alias) = model_override {
@@ -1484,7 +1497,9 @@ impl GproxyEngine {
                 while let Some(chunk) = upstream.next().await {
                     let chunk = chunk?;
                     let mut buf = chunk.to_vec();
-                    if let Some(ref s) = suffix {
+                    if model_override.is_none()
+                        && let Some(ref s) = suffix
+                    {
                         crate::suffix::rewrite_model_suffix_in_body(&mut buf, s);
                     }
                     if let Some(ref alias) = model_override {
