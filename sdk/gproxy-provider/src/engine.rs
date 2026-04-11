@@ -76,9 +76,6 @@ pub struct ExecuteResult {
     pub headers: http::HeaderMap,
     pub body: ExecuteBody,
     pub usage: Option<Usage>,
-    pub cost: Option<f64>,
-    pub billing: Option<crate::billing::BillingResult>,
-    pub billing_context: Option<crate::billing::BillingContext>,
     pub meta: Option<UpstreamRequestMeta>,
     pub credential_updates: Vec<CredentialUpdate>,
     pub credential_index: usize,
@@ -619,6 +616,18 @@ impl GproxyEngine {
         self.store.estimate_billing(provider_name, context, usage)
     }
 
+    /// Build a [`BillingContext`] for a provider from the model name and
+    /// raw request body, without requiring an engine-internal
+    /// [`PreparedRequest`].
+    pub fn build_billing_context(
+        &self,
+        provider_name: &str,
+        model: Option<&str>,
+        body: &[u8],
+    ) -> Option<crate::billing::BillingContext> {
+        self.store.build_billing_context(provider_name, model, body)
+    }
+
     /// Connect to an upstream WebSocket endpoint for a provider.
     ///
     /// Returns `Connected` for passthrough (same protocol), `NeedsProtocolBridge`
@@ -917,9 +926,6 @@ impl GproxyEngine {
                     headers: http::HeaderMap::new(),
                     body: ExecuteBody::Full(body),
                     usage: None,
-                    cost: None,
-                    billing: None,
-                    billing_context: None,
                     meta: None,
                     credential_updates: Vec::new(),
                     credential_index: 0,
@@ -1046,13 +1052,6 @@ impl GproxyEngine {
         } else {
             None
         };
-        let billing_context = provider.build_billing_context(&prepared);
-        let billing = usage.as_ref().and_then(|usage| {
-            billing_context
-                .as_ref()
-                .and_then(|context| provider.estimate_billing(context, usage))
-        });
-        let cost = billing.as_ref().map(|billing| billing.total_cost);
 
         // 3. Transform response if needed (cross-protocol).
         //
@@ -1137,9 +1136,6 @@ impl GproxyEngine {
             headers: response.headers,
             body: ExecuteBody::Full(response_body),
             usage,
-            cost,
-            billing,
-            billing_context,
             meta,
             credential_updates,
             credential_index: used_credential_index,
@@ -1191,9 +1187,6 @@ impl GproxyEngine {
                     headers: http::HeaderMap::new(),
                     body: ExecuteBody::Full(body),
                     usage: None,
-                    cost: None,
-                    billing: None,
-                    billing_context: None,
                     meta: None,
                     credential_updates: Vec::new(),
                     credential_index: 0,
@@ -1384,16 +1377,12 @@ impl GproxyEngine {
         } else {
             ExecuteBody::Stream(response.body)
         };
-        let billing_context = provider.build_billing_context(&prepared);
 
         Ok(ExecuteResult {
             status: response.status,
             headers: response.headers,
             body,
             usage: None,
-            cost: None,
-            billing: None,
-            billing_context,
             meta,
             credential_updates,
             credential_index: used_credential_index,

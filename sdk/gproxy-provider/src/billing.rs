@@ -103,8 +103,19 @@ pub fn build_billing_context(
     channel_id: &str,
     request: &PreparedRequest,
 ) -> Option<BillingContext> {
-    let model_id = request.model.clone()?;
-    let body_json = serde_json::from_slice::<serde_json::Value>(&request.body).ok();
+    build_billing_context_from_parts(channel_id, request.model.as_deref(), &request.body)
+}
+
+/// Build a [`BillingContext`] from individual parts instead of a full
+/// [`PreparedRequest`].  Used by the handler layer which does not have
+/// access to the engine-internal `PreparedRequest`.
+pub fn build_billing_context_from_parts(
+    channel_id: &str,
+    model: Option<&str>,
+    body: &[u8],
+) -> Option<BillingContext> {
+    let model_id = model?.to_string();
+    let body_json = serde_json::from_slice::<serde_json::Value>(body).ok();
     let mode = detect_billing_mode(channel_id, body_json.as_ref());
     let tool_keys = body_json
         .as_ref()

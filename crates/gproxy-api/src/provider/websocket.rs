@@ -891,6 +891,15 @@ async fn start_http_request(
     let operation = OperationFamily::StreamGenerateContent;
     let protocol = ProtocolKind::OpenAiResponse;
 
+    let billing_context = ctx
+        .state
+        .engine()
+        .build_billing_context(
+            &ctx.provider_name,
+            Some(&effective_model),
+            &http_request_body,
+        );
+
     let result = ctx
         .state
         .engine()
@@ -909,15 +918,21 @@ async fn start_http_request(
     match result {
         Ok(result) => {
             if let Some(ref usage) = result.usage {
+                let precomputed_cost = billing_context.as_ref().and_then(|bc| {
+                    ctx.state
+                        .engine()
+                        .estimate_billing(&ctx.provider_name, bc, usage)
+                        .map(|b| b.total_cost)
+                });
                 let usage_ctx = super::handler::UsageRecordContext {
                     state: ctx.state.clone(),
                     user_id: ctx.user_id,
                     user_key_id: ctx.user_key_id,
                     provider_name: ctx.provider_name.clone(),
                     credential_index: Some(result.credential_index),
-                    precomputed_cost: result.cost,
+                    precomputed_cost,
                     model: Some(effective_model.clone()),
-                    billing_context: result.billing_context.clone(),
+                    billing_context: billing_context.clone(),
                     operation,
                     protocol,
                     downstream_trace_id: Some(ctx.trace_id),

@@ -226,15 +226,29 @@ pub async fn proxy(
     .await;
 
     // Build usage context (shared by record_usage and stream_with_usage_tracking)
+    let billing_context = state
+        .engine()
+        .build_billing_context(
+            &effective_provider,
+            effective_model.as_deref(),
+            &req_body,
+        );
+    let precomputed_cost = result.usage.as_ref().and_then(|usage| {
+        let ctx = billing_context.as_ref()?;
+        state
+            .engine()
+            .estimate_billing(&effective_provider, ctx, usage)
+            .map(|b| b.total_cost)
+    });
     let usage_ctx = UsageRecordContext {
         state: state.clone(),
         user_id: user_key.user_id,
         user_key_id: user_key.id,
         provider_name: effective_provider.clone(),
         credential_index: Some(result.credential_index),
-        precomputed_cost: result.cost,
+        precomputed_cost,
         model: effective_model.clone(),
-        billing_context: result.billing_context.clone(),
+        billing_context,
         operation,
         protocol,
         downstream_trace_id: Some(trace_id),
@@ -439,15 +453,29 @@ pub async fn proxy_unscoped(
         }
     };
 
+    let billing_context = state
+        .engine()
+        .build_billing_context(
+            &target_provider,
+            Some(&target_model),
+            &req_body,
+        );
+    let precomputed_cost = result.usage.as_ref().and_then(|usage| {
+        let ctx = billing_context.as_ref()?;
+        state
+            .engine()
+            .estimate_billing(&target_provider, ctx, usage)
+            .map(|b| b.total_cost)
+    });
     let usage_ctx = UsageRecordContext {
         state: state.clone(),
         user_id: user_key.user_id,
         user_key_id: user_key.id,
         provider_name: target_provider.clone(),
         credential_index: Some(result.credential_index),
-        precomputed_cost: result.cost,
+        precomputed_cost,
         model: Some(target_model.clone()),
-        billing_context: result.billing_context.clone(),
+        billing_context,
         operation,
         protocol,
         downstream_trace_id: Some(trace_id),
@@ -642,15 +670,27 @@ pub async fn proxy_unscoped_files(
 
     // Record usage via storage write channel
     if let Some(ref usage) = result.usage {
+        let billing_context = state
+            .engine()
+            .build_billing_context(&target_provider, None, &req_body);
+        let precomputed_cost = {
+            let ctx = billing_context.as_ref();
+            ctx.and_then(|ctx| {
+                state
+                    .engine()
+                    .estimate_billing(&target_provider, ctx, usage)
+                    .map(|b| b.total_cost)
+            })
+        };
         let usage_ctx = UsageRecordContext {
             state: state.clone(),
             user_id: user_key.user_id,
             user_key_id: user_key.id,
             provider_name: target_provider.clone(),
             credential_index: Some(result.credential_index),
-            precomputed_cost: result.cost,
+            precomputed_cost,
             model: None,
-            billing_context: result.billing_context.clone(),
+            billing_context,
             operation,
             protocol,
             downstream_trace_id: Some(trace_id),

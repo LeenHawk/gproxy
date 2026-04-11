@@ -173,10 +173,7 @@ impl<T> ExecutionOutcome<T> {
 
 pub(crate) trait ProviderRuntime: Send + Sync {
     fn dispatch_table(&self) -> &DispatchTable;
-    fn build_billing_context(
-        &self,
-        request: &PreparedRequest,
-    ) -> Option<crate::billing::BillingContext>;
+    fn channel_id(&self) -> &str;
     fn estimate_billing(
         &self,
         context: &crate::billing::BillingContext,
@@ -428,11 +425,8 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         &self.dispatch_table
     }
 
-    fn build_billing_context(
-        &self,
-        request: &PreparedRequest,
-    ) -> Option<crate::billing::BillingContext> {
-        crate::billing::build_billing_context(C::ID, request)
+    fn channel_id(&self) -> &str {
+        C::ID
     }
 
     fn estimate_billing(
@@ -1307,6 +1301,20 @@ impl ProviderStore {
     ) -> Option<crate::billing::BillingResult> {
         self.get_runtime(provider_name)
             .and_then(|provider| provider.estimate_billing(context, usage))
+    }
+
+    /// Build a [`BillingContext`] for a provider using the model name and
+    /// raw request body.  Delegates to the provider's channel-specific
+    /// billing-mode detection without requiring an engine-internal
+    /// [`PreparedRequest`].
+    pub fn build_billing_context(
+        &self,
+        provider_name: &str,
+        model: Option<&str>,
+        body: &[u8],
+    ) -> Option<crate::billing::BillingContext> {
+        let provider = self.get_runtime(provider_name)?;
+        crate::billing::build_billing_context_from_parts(provider.channel_id(), model, body)
     }
 
     pub(crate) fn get_runtime(&self, name: &str) -> Option<Arc<dyn ProviderRuntime>> {
