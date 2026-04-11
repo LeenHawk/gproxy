@@ -101,13 +101,15 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
     track_exchange(
         tracked,
-        "POST",
-        &auth_url,
-        Some(auth_req_body),
-        status,
-        &resp_headers,
-        &body,
-        auth_start,
+        ExchangeInfo {
+            method: "POST",
+            url: &auth_url,
+            request_body: Some(auth_req_body),
+            status,
+            response_headers: &resp_headers,
+            response_body: &body,
+            start: auth_start,
+        },
     );
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
@@ -171,13 +173,15 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
     track_exchange(
         tracked,
-        "POST",
-        &token_url,
-        Some(token_body.into_bytes()),
-        token_status,
-        &token_resp_headers,
-        &token_bytes,
-        token_start,
+        ExchangeInfo {
+            method: "POST",
+            url: &token_url,
+            request_body: Some(token_body.into_bytes()),
+            status: token_status,
+            response_headers: &token_resp_headers,
+            response_body: &token_bytes,
+            start: token_start,
+        },
     );
     if !(200..300).contains(&token_status) {
         return Err(UpstreamError::Channel(format!(
@@ -241,13 +245,15 @@ async fn fetch_org_info(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
     track_exchange(
         tracked,
-        "GET",
-        &bootstrap_url,
-        None,
-        status,
-        &resp_headers,
-        &body,
-        bootstrap_start,
+        ExchangeInfo {
+            method: "GET",
+            url: &bootstrap_url,
+            request_body: None,
+            status,
+            response_headers: &resp_headers,
+            response_body: &body,
+            start: bootstrap_start,
+        },
     );
     if !(200..300).contains(&status) {
         return Err(UpstreamError::Channel(format!(
@@ -304,13 +310,15 @@ async fn fetch_org_info(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
     track_exchange(
         tracked,
-        "GET",
-        &orgs_url,
-        None,
-        orgs_status,
-        &orgs_resp_headers,
-        &body,
-        orgs_start,
+        ExchangeInfo {
+            method: "GET",
+            url: &orgs_url,
+            request_body: None,
+            status: orgs_status,
+            response_headers: &orgs_resp_headers,
+            response_body: &body,
+            start: orgs_start,
+        },
     );
     let orgs: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| UpstreamError::Channel(format!("organizations parse error: {e}")))?;
@@ -395,29 +403,31 @@ fn extract_query_param(url: &str, key: &str) -> Option<String> {
     })
 }
 
-fn track_exchange(
-    tracked: &mut Vec<UpstreamRequestMeta>,
-    method: &str,
-    url: &str,
+struct ExchangeInfo<'a> {
+    method: &'a str,
+    url: &'a str,
     request_body: Option<Vec<u8>>,
     status: u16,
-    response_headers: &http::HeaderMap,
-    response_body: &[u8],
+    response_headers: &'a http::HeaderMap,
+    response_body: &'a [u8],
     start: std::time::Instant,
-) {
+}
+
+fn track_exchange(tracked: &mut Vec<UpstreamRequestMeta>, info: ExchangeInfo<'_>) {
     tracked.push(UpstreamRequestMeta {
-        method: method.to_string(),
-        url: url.to_string(),
+        method: info.method.to_string(),
+        url: info.url.to_string(),
         request_headers: Vec::new(),
-        request_body,
-        response_status: Some(status),
-        response_headers: response_headers
+        request_body: info.request_body,
+        response_status: Some(info.status),
+        response_headers: info
+            .response_headers
             .iter()
             .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
             .collect(),
-        response_body: Some(response_body.to_vec()),
+        response_body: Some(info.response_body.to_vec()),
         model: None,
-        latency_ms: start.elapsed().as_millis() as u64,
+        latency_ms: info.start.elapsed().as_millis() as u64,
         credential_index: None,
     });
 }
