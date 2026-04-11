@@ -6,7 +6,10 @@ import {
   DISPATCH_IMPLEMENTATION_OPTIONS,
   DISPATCH_OPERATION_OPTIONS,
   DISPATCH_PROTOCOL_OPTIONS,
+  DISPATCH_TEMPLATES,
+  applyDispatchTemplate,
   createDispatchRuleDraft,
+  isDispatchTemplateMatch,
 } from "./dispatch";
 import { settingsFieldsForChannel } from "./channel-forms";
 import type { ProviderFormState } from "./index";
@@ -219,6 +222,33 @@ export function ConfigTab({
             ) : null}
           </div>
         </div>
+
+        {/* Template chips — only for custom channel */}
+        {form.channel === "custom" ? (
+          <div>
+            <div className="mb-1.5 text-xs text-muted">{t("providers.dispatch.templates")}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {DISPATCH_TEMPLATES.map((tmpl) => {
+                const active = isDispatchTemplateMatch(tmpl, form.dispatchRules);
+                return (
+                  <button
+                    key={tmpl.key}
+                    type="button"
+                    className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                      active ? "btn-primary" : "btn-neutral"
+                    }`}
+                    onClick={() => {
+                      onChange({ dispatchRules: applyDispatchTemplate(tmpl) });
+                      setDispatchExpanded(true);
+                    }}
+                  >
+                    {tmpl.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {dispatchExpanded ? (
           <div className="space-y-3">

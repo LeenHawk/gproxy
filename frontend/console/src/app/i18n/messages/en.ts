@@ -134,6 +134,7 @@ export const enMessages: Record<string, string> = {
   "providers.dispatch.expand": "Expand Rules",
   "providers.dispatch.collapse": "Collapse Rules",
   "providers.dispatch.collapsedSummary": "{count} rules configured.",
+  "providers.dispatch.templates": "Templates",
   "providers.dispatch.mode.passthrough": "Passthrough",
   "providers.dispatch.mode.transformTo": "TransformTo",
   "providers.dispatch.mode.local": "Local",

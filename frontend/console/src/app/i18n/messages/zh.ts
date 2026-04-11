@@ -134,6 +134,7 @@ export const zhMessages: Record<string, string> = {
   "providers.dispatch.expand": "展开规则",
   "providers.dispatch.collapse": "收起规则",
   "providers.dispatch.collapsedSummary": "当前已配置 {count} 条规则。",
+  "providers.dispatch.templates": "模板",
   "providers.dispatch.mode.passthrough": "直通",
   "providers.dispatch.mode.transformTo": "转换",
   "providers.dispatch.mode.local": "本地",
