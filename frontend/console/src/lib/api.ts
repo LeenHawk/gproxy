@@ -16,11 +16,19 @@ function isSessionRoute(path: string): boolean {
   return path.startsWith("/admin") || path.startsWith("/login");
 }
 
-function handleUnauthorized(path: string): void {
+function handleUnauthorized(path: string): boolean {
   if (isSessionRoute(path)) {
     clearSession();
     window.location.reload();
+    return true;
   }
+  return false;
+}
+
+/** A promise that never resolves — used after triggering a page reload
+ *  so callers don't flash error toasts before the browser navigates. */
+function hang(): Promise<never> {
+  return new Promise(() => {});
 }
 
 export async function parseApiError(response: Response): Promise<ApiError> {
@@ -41,9 +49,7 @@ export async function parseApiError(response: Response): Promise<ApiError> {
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
-    if (response.status === 401) {
-      handleUnauthorized(path);
-    }
+    if (response.status === 401 && handleUnauthorized(path)) return hang();
     throw await parseApiError(response);
   }
   const text = await response.text();
@@ -53,9 +59,7 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 export async function apiText(path: string, init?: RequestInit): Promise<string> {
   const response = await fetch(path, init);
   if (!response.ok) {
-    if (response.status === 401) {
-      handleUnauthorized(path);
-    }
+    if (response.status === 401 && handleUnauthorized(path)) return hang();
     throw await parseApiError(response);
   }
   return response.text();
@@ -64,9 +68,7 @@ export async function apiText(path: string, init?: RequestInit): Promise<string>
 export async function apiVoid(path: string, init?: RequestInit): Promise<void> {
   const response = await fetch(path, init);
   if (!response.ok) {
-    if (response.status === 401) {
-      handleUnauthorized(path);
-    }
+    if (response.status === 401 && handleUnauthorized(path)) return hang();
     throw await parseApiError(response);
   }
 }
