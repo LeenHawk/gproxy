@@ -599,12 +599,26 @@ impl Channel for GeminiCliChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        // --- body: Code Assist envelope wrapping ---
-        let wrapped_body = code_assist_envelope::wrap_request(
-            &request.body,
-            request.model.as_deref(),
-            &credential.project_id,
-        )?;
+        let is_model_op = matches!(
+            request.route.operation,
+            OperationFamily::ModelList | OperationFamily::ModelGet
+        );
+
+        // For ModelList/ModelGet, use a quota request body instead of envelope wrapping.
+        let (method, final_body) = if is_model_op {
+            let quota_body = serde_json::to_vec(&json!({
+                "project": credential.project_id.trim(),
+            }))
+            .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
+            (http::Method::POST, quota_body)
+        } else {
+            let wrapped = code_assist_envelope::wrap_request(
+                &request.body,
+                request.model.as_deref(),
+                &credential.project_id,
+            )?;
+            (request.method.clone(), wrapped)
+        };
 
         // --- User-Agent ---
         // If the operator explicitly set `user_agent` in settings, honour that.
@@ -625,7 +639,7 @@ impl Channel for GeminiCliChannel {
         let x_goog_api_client = build_x_goog_api_client();
 
         let mut builder = http::Request::builder()
-            .method(request.method.clone())
+            .method(method)
             .uri(&url)
             .header(
                 "Authorization",
@@ -642,7 +656,7 @@ impl Channel for GeminiCliChannel {
         }
 
         builder
-            .body(wrapped_body)
+            .body(final_body)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
     }
 
@@ -659,9 +673,18 @@ impl Channel for GeminiCliChannel {
         Ok(request)
     }
 
-    fn normalize_response(&self, _request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
-        let unwrapped = code_assist_envelope::unwrap_response(&body);
-        vertex_normalize::normalize_vertex_response(unwrapped)
+    fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
+        match request.route.operation {
+            OperationFamily::ModelList => quota_to_model_list_response(&body),
+            OperationFamily::ModelGet => {
+                let target = request.model.as_deref().unwrap_or_default();
+                quota_to_model_get_response(&body, target)
+            }
+            _ => {
+                let unwrapped = code_assist_envelope::unwrap_response(&body);
+                vertex_normalize::normalize_vertex_response(unwrapped)
+            }
+        }
     }
 
     fn classify_response(
@@ -890,7 +913,9 @@ impl Channel for GeminiCliChannel {
 fn geminicli_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
     let model = request.model.as_deref().unwrap_or_default();
     match request.route.operation {
-        OperationFamily::ModelList | OperationFamily::ModelGet => Ok(String::new()),
+        OperationFamily::ModelList | OperationFamily::ModelGet => {
+            Ok("/v1internal:retrieveUserQuota".to_string())
+        }
         OperationFamily::CountToken => Ok("/v1internal:countTokens".to_string()),
         OperationFamily::GenerateContent => Ok("/v1internal:generateContent".to_string()),
         OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => {
@@ -917,6 +942,89 @@ fn geminicli_request_path(request: &PreparedRequest) -> Result<String, UpstreamE
 
 fn geminicli_dispatch_table() -> DispatchTable {
     GeminiCliChannel.dispatch_table()
+}
+
+// ---------------------------------------------------------------------------
+// Model list/get from retrieveUserQuota response
+// ---------------------------------------------------------------------------
+
+/// Extract unique models from the `buckets` array in a `retrieveUserQuota` response.
+fn models_from_quota_buckets(payload: &Value) -> Vec<Value> {
+    let Some(buckets) = payload.get("buckets").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let mut seen = std::collections::HashSet::new();
+    let mut models = Vec::new();
+    for bucket in buckets {
+        if let Some(token_type) = bucket.get("tokenType").and_then(Value::as_str)
+            && token_type != "REQUESTS"
+        {
+            continue;
+        }
+        let Some(model_id_raw) = bucket.get("modelId").and_then(Value::as_str) else {
+            continue;
+        };
+        let model_id = model_id_raw.trim().to_string();
+        if model_id.is_empty() || !seen.insert(model_id.clone()) {
+            continue;
+        }
+        let model_name = if model_id.starts_with("models/") {
+            model_id.clone()
+        } else {
+            format!("models/{model_id}")
+        };
+        models.push(json!({
+            "name": model_name,
+            "baseModelId": model_id,
+            "displayName": model_id,
+            "description": "Derived from Gemini CLI retrieveUserQuota buckets.",
+            "supportedGenerationMethods": [
+                "generateContent",
+                "streamGenerateContent",
+                "countTokens"
+            ]
+        }));
+    }
+    models
+}
+
+/// Transform a `retrieveUserQuota` response body into a standard Gemini model list response.
+fn quota_to_model_list_response(body: &[u8]) -> Vec<u8> {
+    let payload: Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(_) => return body.to_vec(),
+    };
+    let models = models_from_quota_buckets(&payload);
+    serde_json::to_vec(&json!({ "models": models })).unwrap_or_else(|_| body.to_vec())
+}
+
+/// Transform a `retrieveUserQuota` response body into a standard Gemini model get response.
+fn quota_to_model_get_response(body: &[u8], target: &str) -> Vec<u8> {
+    let payload: Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(_) => return body.to_vec(),
+    };
+    let models = models_from_quota_buckets(&payload);
+    let normalized_target = target
+        .trim()
+        .trim_start_matches("models/");
+    let found = models.into_iter().find(|m| {
+        m.get("name")
+            .and_then(Value::as_str)
+            .map(|n| n.trim_start_matches("models/") == normalized_target)
+            .unwrap_or(false)
+    });
+    match found {
+        Some(model) => serde_json::to_vec(&model).unwrap_or_else(|_| body.to_vec()),
+        None => serde_json::to_vec(&json!({
+            "error": {
+                "code": 404,
+                "message": format!("model {} not found", target),
+                "status": "NOT_FOUND"
+            }
+        }))
+        .unwrap_or_else(|_| body.to_vec()),
+    }
 }
 
 inventory::submit! { ChannelRegistration::new(GeminiCliChannel::ID, geminicli_dispatch_table) }

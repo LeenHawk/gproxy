@@ -600,11 +600,24 @@ impl Channel for AntigravityChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let wrapped_body = code_assist_envelope::wrap_request(
-            &request.body,
-            request.model.as_deref(),
-            &credential.project_id,
-        )?;
+        let is_model_op = matches!(
+            request.route.operation,
+            OperationFamily::ModelList | OperationFamily::ModelGet
+        );
+
+        // For ModelList/ModelGet, use a simple empty body POST instead of envelope wrapping.
+        let (method, final_body) = if is_model_op {
+            let body = serde_json::to_vec(&json!({}))
+                .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
+            (http::Method::POST, body)
+        } else {
+            let wrapped = code_assist_envelope::wrap_request(
+                &request.body,
+                request.model.as_deref(),
+                &credential.project_id,
+            )?;
+            (request.method.clone(), wrapped)
+        };
 
         let url = format!(
             "{}{}",
@@ -621,10 +634,10 @@ impl Channel for AntigravityChannel {
             .unwrap_or("agent");
 
         let ua = settings.effective_user_agent();
-        let request_id = generate_request_id(request, &wrapped_body, request_type);
+        let request_id = generate_request_id(request, &final_body, request_type);
 
         let mut builder = http::Request::builder()
-            .method(request.method.clone())
+            .method(method)
             .uri(&url)
             .header(
                 "Authorization",
@@ -641,7 +654,7 @@ impl Channel for AntigravityChannel {
         }
 
         builder
-            .body(wrapped_body)
+            .body(final_body)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
     }
 
@@ -658,9 +671,18 @@ impl Channel for AntigravityChannel {
         Ok(request)
     }
 
-    fn normalize_response(&self, _request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
-        let unwrapped = code_assist_envelope::unwrap_response(&body);
-        vertex_normalize::normalize_vertex_response(unwrapped)
+    fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
+        match request.route.operation {
+            OperationFamily::ModelList => available_models_to_list_response(&body),
+            OperationFamily::ModelGet => {
+                let target = request.model.as_deref().unwrap_or_default();
+                available_models_to_get_response(&body, target)
+            }
+            _ => {
+                let unwrapped = code_assist_envelope::unwrap_response(&body);
+                vertex_normalize::normalize_vertex_response(unwrapped)
+            }
+        }
     }
 
     fn classify_response(
@@ -911,6 +933,125 @@ fn antigravity_request_path(request: &PreparedRequest) -> Result<String, Upstrea
 
 fn antigravity_dispatch_table() -> DispatchTable {
     AntigravityChannel.dispatch_table()
+}
+
+// ---------------------------------------------------------------------------
+// Model list/get from fetchAvailableModels response
+// ---------------------------------------------------------------------------
+
+/// Extract models from an `fetchAvailableModels` response.
+///
+/// The response contains either `{"models": {"model-id": {...}, ...}}` (object)
+/// or `{"models": [{"id": "...", ...}, ...]}` (array).
+fn extract_available_models(payload: &Value) -> Vec<Value> {
+    let mut models = Vec::new();
+    if let Some(models_obj) = payload.get("models").and_then(Value::as_object) {
+        for (model_id, model_meta) in models_obj {
+            models.push(build_model_entry(model_id.as_str(), model_meta));
+        }
+    } else if let Some(models_arr) = payload.get("models").and_then(Value::as_array) {
+        for item in models_arr {
+            if let Some(id) = item
+                .get("id")
+                .and_then(Value::as_str)
+                .or_else(|| item.get("name").and_then(Value::as_str))
+            {
+                let normalized = normalize_model_id(id);
+                models.push(build_model_entry(&normalized, item));
+            } else if let Some(value) = item.as_str() {
+                let normalized = normalize_model_id(value);
+                models.push(build_model_entry(&normalized, &Value::Null));
+            }
+        }
+    }
+    models.sort_by(|a, b| {
+        let a_name = a.get("name").and_then(Value::as_str).unwrap_or_default();
+        let b_name = b.get("name").and_then(Value::as_str).unwrap_or_default();
+        a_name.cmp(b_name)
+    });
+    models.dedup_by(|a, b| {
+        let a_name = a.get("name").and_then(Value::as_str).unwrap_or_default();
+        let b_name = b.get("name").and_then(Value::as_str).unwrap_or_default();
+        a_name == b_name
+    });
+    models
+}
+
+fn normalize_model_id(model: &str) -> String {
+    model
+        .trim()
+        .trim_start_matches('/')
+        .trim_start_matches("models/")
+        .to_string()
+}
+
+fn build_model_entry(model_id: &str, meta: &Value) -> Value {
+    let display_name = meta
+        .get("displayName")
+        .and_then(Value::as_str)
+        .or_else(|| meta.get("display_name").and_then(Value::as_str))
+        .unwrap_or(model_id);
+
+    let mut obj = json!({
+        "name": format!("models/{model_id}"),
+        "baseModelId": model_id,
+        "version": "1",
+        "displayName": display_name,
+        "supportedGenerationMethods": [
+            "generateContent",
+            "countTokens",
+            "streamGenerateContent"
+        ]
+    });
+
+    if let Some(limit) = meta.get("maxTokens").and_then(Value::as_u64) {
+        obj["inputTokenLimit"] = json!(limit);
+    }
+    if let Some(limit) = meta
+        .get("maxOutputTokens")
+        .and_then(Value::as_u64)
+        .or_else(|| meta.get("outputTokenLimit").and_then(Value::as_u64))
+    {
+        obj["outputTokenLimit"] = json!(limit);
+    }
+    obj
+}
+
+/// Transform a `fetchAvailableModels` response body into a standard Gemini model list response.
+fn available_models_to_list_response(body: &[u8]) -> Vec<u8> {
+    let payload: Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(_) => return body.to_vec(),
+    };
+    let models = extract_available_models(&payload);
+    serde_json::to_vec(&json!({ "models": models })).unwrap_or_else(|_| body.to_vec())
+}
+
+/// Transform a `fetchAvailableModels` response body into a standard Gemini model get response.
+fn available_models_to_get_response(body: &[u8], target: &str) -> Vec<u8> {
+    let payload: Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(_) => return body.to_vec(),
+    };
+    let models = extract_available_models(&payload);
+    let normalized_target = normalize_model_id(target);
+    let found = models.into_iter().find(|m| {
+        m.get("name")
+            .and_then(Value::as_str)
+            .map(|n| normalize_model_id(n) == normalized_target)
+            .unwrap_or(false)
+    });
+    match found {
+        Some(model) => serde_json::to_vec(&model).unwrap_or_else(|_| body.to_vec()),
+        None => serde_json::to_vec(&json!({
+            "error": {
+                "code": 404,
+                "message": format!("model {} not found", target),
+                "status": "NOT_FOUND"
+            }
+        }))
+        .unwrap_or_else(|_| body.to_vec()),
+    }
 }
 
 inventory::submit! { ChannelRegistration::new(AntigravityChannel::ID, antigravity_dispatch_table) }
