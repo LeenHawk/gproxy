@@ -83,8 +83,9 @@ impl Channel for VertexExpressChannel {
         };
 
         let routes = vec![
-            // Model list/get
-            pass(OperationFamily::ModelList, ProtocolKind::Gemini),
+            // Model list/get — served locally from a static model catalogue;
+            // Vertex AI Express does not expose a standard model-listing endpoint.
+            // Transform routes remain so Claude/OpenAI clients get protocol conversion.
             xform(
                 OperationFamily::ModelList,
                 ProtocolKind::Claude,
@@ -97,7 +98,6 @@ impl Channel for VertexExpressChannel {
                 OperationFamily::ModelList,
                 ProtocolKind::Gemini,
             ),
-            pass(OperationFamily::ModelGet, ProtocolKind::Gemini),
             xform(
                 OperationFamily::ModelGet,
                 ProtocolKind::Claude,
@@ -226,6 +226,16 @@ impl Channel for VertexExpressChannel {
         for (key, implementation) in routes {
             t.set(key, implementation);
         }
+        // Override native Gemini model list/get to Local — these are served
+        // from a static model catalogue embedded at compile time.
+        t.set(
+            RouteKey::new(OperationFamily::ModelList, ProtocolKind::Gemini),
+            RouteImplementation::Local,
+        );
+        t.set(
+            RouteKey::new(OperationFamily::ModelGet, ProtocolKind::Gemini),
+            RouteImplementation::Local,
+        );
         t
     }
 
@@ -291,6 +301,19 @@ impl Channel for VertexExpressChannel {
         }
     }
 
+    fn handle_local(
+        &self,
+        operation: OperationFamily,
+        _protocol: ProtocolKind,
+        body: &[u8],
+    ) -> Option<Result<Vec<u8>, UpstreamError>> {
+        match operation {
+            OperationFamily::ModelList => Some(vertexexpress_local_model_list(body)),
+            OperationFamily::ModelGet => Some(vertexexpress_local_model_get(body)),
+            _ => None,
+        }
+    }
+
     fn normalize_response(&self, _request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
         crate::utils::vertex_normalize::normalize_vertex_response(body)
     }
@@ -336,6 +359,92 @@ fn vertexexpress_request_path(request: &PreparedRequest) -> Result<String, Upstr
 
 fn vertexexpress_dispatch_table() -> DispatchTable {
     VertexExpressChannel.dispatch_table()
+}
+
+// ---------------------------------------------------------------------------
+// Static model catalogue for Vertex AI Express
+// ---------------------------------------------------------------------------
+
+static VERTEXEXPRESS_MODELS_JSON: &str =
+    include_str!("vertexexpress_models.gemini.json");
+
+fn vertexexpress_local_model_list(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let models_doc: serde_json::Value = serde_json::from_str(VERTEXEXPRESS_MODELS_JSON)
+        .map_err(|e| UpstreamError::Channel(format!("static models parse: {e}")))?;
+
+    // Extract pagination from the incoming request body (Gemini ModelList format).
+    let req: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
+    let page_size = req
+        .get("pageSize")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
+    let page_token = req
+        .get("pageToken")
+        .and_then(|v| v.as_str())
+        .and_then(|t| t.parse::<usize>().ok());
+
+    let all_models = models_doc
+        .get("models")
+        .and_then(|m| m.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let total = all_models.len();
+    let start = page_token.unwrap_or(0).min(total);
+    let size = page_size.unwrap_or(total.saturating_sub(start));
+    let end = start.saturating_add(size).min(total);
+    let next_page_token = if end < total {
+        Some(end.to_string())
+    } else {
+        None
+    };
+
+    let response = serde_json::json!({
+        "models": &all_models[start..end],
+        "nextPageToken": next_page_token,
+    });
+    serde_json::to_vec(&response)
+        .map_err(|e| UpstreamError::Channel(format!("model list serialize: {e}")))
+}
+
+fn vertexexpress_local_model_get(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let models_doc: serde_json::Value = serde_json::from_str(VERTEXEXPRESS_MODELS_JSON)
+        .map_err(|e| UpstreamError::Channel(format!("static models parse: {e}")))?;
+
+    // The Gemini ModelGet request body contains `{"name": "models/..."}`.
+    let req: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
+    let target = req
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    let normalized = target
+        .trim()
+        .trim_start_matches("models/");
+
+    let all_models = models_doc
+        .get("models")
+        .and_then(|m| m.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let found = all_models.into_iter().find(|m| {
+        m.get("name")
+            .and_then(|n| n.as_str())
+            .map(|n| n.trim_start_matches("models/") == normalized)
+            .unwrap_or(false)
+    });
+
+    match found {
+        Some(model) => serde_json::to_vec(&model)
+            .map_err(|e| UpstreamError::Channel(format!("model get serialize: {e}"))),
+        None => serde_json::to_vec(&serde_json::json!({
+            "error": {
+                "code": 404,
+                "message": format!("model {} not found", target),
+                "status": "NOT_FOUND"
+            }
+        }))
+        .map_err(|e| UpstreamError::Channel(format!("model get serialize: {e}"))),
+    }
 }
 
 inventory::submit! { ChannelRegistration::new(VertexExpressChannel::ID, vertexexpress_dispatch_table) }
