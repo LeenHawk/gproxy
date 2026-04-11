@@ -970,6 +970,24 @@ impl GproxyEngine {
                 apply_fn(&mut prepared);
             }
         }
+        // Rewrite rules: apply JSON path set/remove before channel-specific
+        // finalize so finalize can process the rewritten values normally.
+        let rewrite_rules = provider.rewrite_rules();
+        if !rewrite_rules.is_empty() {
+            if let Ok(mut body_json) = serde_json::from_slice::<Value>(&prepared.body) {
+                crate::utils::rewrite::apply_rewrite_rules(
+                    &mut body_json,
+                    &rewrite_rules,
+                    prepared.model.as_deref(),
+                    prepared.route.operation,
+                    prepared.route.protocol,
+                );
+                if let Ok(patched) = serde_json::to_vec(&body_json) {
+                    prepared.body = patched;
+                }
+            }
+        }
+
         let mut prepared = provider.finalize_request(prepared)?;
 
         // Sanitize request body text after finalize_request so channel-
@@ -1276,6 +1294,24 @@ impl GproxyEngine {
                 apply_fn(&mut prepared);
             }
         }
+        // Rewrite rules: apply JSON path set/remove before channel-specific
+        // finalize so finalize can process the rewritten values normally.
+        let rewrite_rules = provider.rewrite_rules();
+        if !rewrite_rules.is_empty() {
+            if let Ok(mut body_json) = serde_json::from_slice::<Value>(&prepared.body) {
+                crate::utils::rewrite::apply_rewrite_rules(
+                    &mut body_json,
+                    &rewrite_rules,
+                    prepared.model.as_deref(),
+                    prepared.route.operation,
+                    prepared.route.protocol,
+                );
+                if let Ok(patched) = serde_json::to_vec(&body_json) {
+                    prepared.body = patched;
+                }
+            }
+        }
+
         let mut prepared = provider.finalize_request(prepared)?;
 
         // Sanitize request body text after finalize_request so channel-
