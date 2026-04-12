@@ -170,6 +170,16 @@ async fn sync_provider_runtime(
             .await
             .map_err(|e| HttpError::internal(e.to_string()))?;
     state.replace_models(model_rows_to_memory_models(&model_rows));
+    // Push pricing into the engine for every registered provider so admin-edited
+    // prices on any provider take effect at billing time after a provider upsert.
+    for snapshot in state
+        .engine()
+        .store()
+        .list_providers()
+        .unwrap_or_default()
+    {
+        state.push_pricing_to_engine(&snapshot.name);
+    }
 
     Ok(())
 }

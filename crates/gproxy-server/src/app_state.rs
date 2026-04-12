@@ -663,6 +663,23 @@ impl AppState {
         self.routing.replace_models(models);
     }
 
+    /// Rebuild the pricing slice for a single provider from the current
+    /// in-memory model snapshot and push it into the billing engine. Call
+    /// after any mutation that changes a provider's model set or pricing.
+    pub fn push_pricing_to_engine(&self, provider_name: &str) {
+        let provider_id = match self.provider_id_for_name(provider_name) {
+            Some(id) => id,
+            None => return,
+        };
+        let models = self.routing.models_snapshot();
+        let prices: Vec<gproxy_sdk::provider::billing::ModelPrice> = models
+            .iter()
+            .filter(|m| m.provider_id == provider_id)
+            .map(memory_model_to_model_price)
+            .collect();
+        self.engine().set_model_pricing(provider_name, prices);
+    }
+
     // --- User permissions ---
 
     pub fn user_permissions_snapshot(&self) -> Arc<HashMap<i64, Vec<PermissionEntry>>> {
@@ -873,6 +890,39 @@ impl AppStateBuilder {
 impl Default for AppStateBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn memory_model_to_model_price(
+    model: &crate::MemoryModel,
+) -> gproxy_sdk::provider::billing::ModelPrice {
+    use gproxy_sdk::provider::billing::{ModelPrice, ModelPriceTier};
+    let price_tiers: Vec<ModelPriceTier> = model
+        .price_tiers
+        .iter()
+        .map(|tier| ModelPriceTier {
+            input_tokens_up_to: tier.input_tokens_up_to,
+            price_input_tokens: tier.price_input_tokens,
+            price_output_tokens: tier.price_output_tokens,
+            price_cache_read_input_tokens: tier.price_cache_read_input_tokens,
+            price_cache_creation_input_tokens: tier.price_cache_creation_input_tokens,
+            price_cache_creation_input_tokens_5min: tier.price_cache_creation_input_tokens_5min,
+            price_cache_creation_input_tokens_1h: tier.price_cache_creation_input_tokens_1h,
+        })
+        .collect();
+    ModelPrice {
+        model_id: model.model_id.clone(),
+        display_name: model.display_name.clone(),
+        price_each_call: model.price_each_call,
+        price_tiers,
+        // Phase 2 populates these from the new pricing_json column.
+        flex_price_each_call: None,
+        flex_price_tiers: Vec::new(),
+        scale_price_each_call: None,
+        scale_price_tiers: Vec::new(),
+        priority_price_each_call: None,
+        priority_price_tiers: Vec::new(),
+        tool_call_prices: std::collections::BTreeMap::new(),
     }
 }
 

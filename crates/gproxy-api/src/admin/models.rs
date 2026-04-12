@@ -135,6 +135,8 @@ pub async fn upsert_model(
         price_tiers,
         alias_of: payload.alias_of,
     });
+    let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
+    state.push_pricing_to_engine(&provider_name);
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -150,9 +152,20 @@ pub async fn delete_model(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    state.storage().delete_model(payload.id).await?;
+    let provider_id_for_delete = state
+        .models()
+        .iter()
+        .find(|m| m.id == payload.id)
+        .map(|m| m.provider_id);
 
+    state.storage().delete_model(payload.id).await?;
     state.remove_model_from_memory(payload.id);
+
+    if let Some(pid) = provider_id_for_delete {
+        let name = resolve_provider_name(&state, pid).await?;
+        state.push_pricing_to_engine(&name);
+    }
+
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -162,7 +175,7 @@ pub async fn batch_upsert_models(
     Json(items): Json<Vec<gproxy_storage::ModelWrite>>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    for item in items {
+    for item in &items {
         state.storage().upsert_model(item.clone()).await?;
         let price_tiers: Vec<PriceTier> = item
             .price_tiers_json
@@ -180,6 +193,12 @@ pub async fn batch_upsert_models(
             alias_of: item.alias_of,
         });
     }
+    use std::collections::BTreeSet;
+    let touched_providers: BTreeSet<i64> = items.iter().map(|i| i.provider_id).collect();
+    for pid in touched_providers {
+        let name = resolve_provider_name(&state, pid).await?;
+        state.push_pricing_to_engine(&name);
+    }
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -189,9 +208,21 @@ pub async fn batch_delete_models(
     Json(ids): Json<Vec<i64>>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
+    use std::collections::BTreeSet;
+    // Collect provider_ids before deleting from memory.
+    let touched_providers: BTreeSet<i64> = {
+        let models = state.models();
+        ids.iter()
+            .filter_map(|id| models.iter().find(|m| m.id == *id).map(|m| m.provider_id))
+            .collect()
+    };
     for id in ids {
         state.storage().delete_model(id).await?;
         state.remove_model_from_memory(id);
+    }
+    for pid in touched_providers {
+        let name = resolve_provider_name(&state, pid).await?;
+        state.push_pricing_to_engine(&name);
     }
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -357,4 +388,124 @@ pub async fn pull_models(
     models.dedup();
 
     Ok(Json(PullModelsResponse { models }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use gproxy_sdk::provider::billing::{BillingContext, BillingMode};
+    use gproxy_sdk::provider::engine::Usage;
+    use gproxy_server::{AppState, AppStateBuilder, GlobalConfig, MemoryModel};
+    use gproxy_storage::{SeaOrmStorage, repository::{ModelRepository, UserRepository}};
+
+    async fn build_test_state_for_pricing() -> Arc<AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        // Seed an admin user + key so authorize_admin passes if needed.
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "admin".to_string(),
+                password: crate::login::hash_password("admin-password"),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .expect("seed admin");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-admin".to_string(),
+                label: Some("admin".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed admin key");
+        // Create an openai provider so the engine has a registered provider.
+        storage
+            .create_provider(
+                "openai-test",
+                "openai",
+                "{\"base_url\":\"https://api.openai.com\"}",
+                "{}",
+            )
+            .await
+            .expect("seed provider");
+
+        let state = Arc::new(
+            AppStateBuilder::new()
+                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .storage(storage)
+                .config(GlobalConfig {
+                    dsn: "sqlite::memory:".to_string(),
+                    ..GlobalConfig::default()
+                })
+                .build(),
+        );
+        crate::bootstrap::reload_from_db(&state)
+            .await
+            .expect("reload state");
+        state
+    }
+
+    #[tokio::test]
+    async fn admin_upsert_model_price_affects_billing() {
+        let state = build_test_state_for_pricing().await;
+        let provider_name = "openai-test";
+        let provider_id = state
+            .provider_id_for_name(provider_name)
+            .expect("provider registered");
+        // Use a model_id that does NOT exist in the built-in price table so that
+        // without the push the engine has no entry and estimate_billing returns None.
+        let model_id = "gpt-custom-pricing-test-9999";
+
+        // Insert the model row into storage and in-memory state, then push pricing.
+        state
+            .storage()
+            .upsert_model(gproxy_storage::ModelWrite {
+                id: 99999,
+                provider_id,
+                model_id: model_id.to_string(),
+                display_name: None,
+                enabled: true,
+                price_each_call: Some(999.0),
+                price_tiers_json: None,
+                alias_of: None,
+            })
+            .await
+            .expect("upsert model in storage");
+        state.upsert_model_in_memory(MemoryModel {
+            id: 99999,
+            provider_id,
+            model_id: model_id.to_string(),
+            display_name: None,
+            enabled: true,
+            price_each_call: Some(999.0),
+            price_tiers: Vec::new(),
+            alias_of: None,
+        });
+        state.push_pricing_to_engine(provider_name);
+
+        let ctx = BillingContext {
+            model_id: model_id.to_string(),
+            mode: BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+        let usage = Usage::default();
+        let result = state
+            .engine()
+            .estimate_billing(provider_name, &ctx, &usage)
+            .expect("estimate_billing must return Some — push_pricing_to_engine was not called or failed");
+        assert!(
+            (result.total_cost - 999.0).abs() < 1e-9,
+            "expected total_cost 999.0, got {}",
+            result.total_cost
+        );
+    }
 }

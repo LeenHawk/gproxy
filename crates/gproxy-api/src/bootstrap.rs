@@ -760,6 +760,10 @@ pub async fn reload_from_db(
     state.replace_users(memory_users);
     state.replace_keys(memory_keys);
     state.replace_models(memory_models);
+    // Push pricing into the engine so admin-edited prices take effect at billing time.
+    for provider in &providers {
+        state.push_pricing_to_engine(&provider.name);
+    }
     state.replace_user_permissions(perm_map);
     state.replace_user_file_permissions(file_permission_map);
     state.replace_user_rate_limits(limit_map);
@@ -1016,6 +1020,10 @@ pub async fn seed_from_toml_with_bootstrap(
         .list_models(&gproxy_storage::ModelQuery::default())
         .await?;
     state.replace_models(model_rows_to_memory_models(&all_models));
+    // Push pricing into the engine so admin-edited prices take effect at billing time.
+    for provider_name in provider_runtime.provider_name_to_id.keys() {
+        state.push_pricing_to_engine(provider_name);
+    }
 
     // 5. Model aliases → upsert into models table with alias_of set
     let current_max_id = all_models.iter().map(|r| r.id).max().unwrap_or(0);
@@ -1054,6 +1062,10 @@ pub async fn seed_from_toml_with_bootstrap(
         .list_models(&gproxy_storage::ModelQuery::default())
         .await?;
     state.replace_models(model_rows_to_memory_models(&all_models));
+    // Push pricing into the engine so admin-edited prices take effect at billing time.
+    for provider_name in provider_runtime.provider_name_to_id.keys() {
+        state.push_pricing_to_engine(provider_name);
+    }
 
     // 6. Permissions, file permissions, rate limits, quotas → memory + DB
     let users_snapshot = state.users_snapshot();
