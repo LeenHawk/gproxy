@@ -137,8 +137,6 @@ pub(crate) async fn ensure_default_models_in_storage(
                     model_id: price.model_id,
                     display_name: price.display_name,
                     enabled: true,
-                    price_each_call: None,  // legacy, unused post-Phase 2
-                    price_tiers_json: None, // legacy, unused post-Phase 2
                     pricing_json,
                     alias_of: None,
                 })
@@ -155,70 +153,6 @@ pub(crate) async fn ensure_default_models_in_storage(
     }
 
     Ok(existing)
-}
-
-/// One-shot migration: for every model row where `pricing_json` is NULL but
-/// the legacy `price_each_call` / `price_tiers_json` columns have data,
-/// synthesize a `ModelPrice`, write it back into `pricing_json`, and leave
-/// the legacy columns alone. Idempotent on subsequent boots — rows that
-/// already have `pricing_json` are skipped.
-pub(crate) async fn backfill_legacy_pricing_json(
-    state: &AppState,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    use gproxy_sdk::provider::billing::{ModelPrice, ModelPriceTier};
-    let storage = state.storage();
-    let rows = storage
-        .list_models(&gproxy_storage::ModelQuery::default())
-        .await?;
-    let mut migrated = 0usize;
-    for row in rows {
-        if row.pricing_json.is_some() {
-            continue;
-        }
-        if row.price_each_call.is_none() && row.price_tiers_json.is_none() {
-            continue;
-        }
-        let price_tiers: Vec<ModelPriceTier> = row
-            .price_tiers_json
-            .as_deref()
-            .and_then(|raw| serde_json::from_str(raw).ok())
-            .unwrap_or_default();
-        let mp = ModelPrice {
-            model_id: String::new(),
-            display_name: None,
-            price_each_call: row.price_each_call,
-            price_tiers,
-            flex_price_each_call: None,
-            flex_price_tiers: Vec::new(),
-            scale_price_each_call: None,
-            scale_price_tiers: Vec::new(),
-            priority_price_each_call: None,
-            priority_price_tiers: Vec::new(),
-            tool_call_prices: std::collections::BTreeMap::new(),
-        };
-        let pricing_json = model_price_to_storage_json(&mp)?;
-        storage
-            .upsert_model(gproxy_storage::ModelWrite {
-                id: row.id,
-                provider_id: row.provider_id,
-                model_id: row.model_id,
-                display_name: row.display_name,
-                enabled: row.enabled,
-                price_each_call: None,
-                price_tiers_json: None,
-                pricing_json: Some(pricing_json),
-                alias_of: row.alias_of,
-            })
-            .await?;
-        migrated += 1;
-    }
-    if migrated > 0 {
-        tracing::info!(
-            migrated,
-            "backfilled legacy pricing columns into models.pricing_json"
-        );
-    }
-    Ok(())
 }
 
 pub fn config_has_enabled_admin_with_key(config: &GproxyToml) -> bool {
@@ -563,10 +497,6 @@ pub async fn reload_from_db(
     state: &AppState,
 ) -> Result<ReloadCounts, Box<dyn std::error::Error + Send + Sync>> {
     let storage = state.storage();
-
-    // One-shot migration: any row still using the legacy pricing columns
-    // gets converted to pricing_json before we read the model list below.
-    backfill_legacy_pricing_json(state).await?;
 
     // Phase 1: read and build everything from the DB without mutating memory.
     let replacement_config = storage
@@ -1115,8 +1045,6 @@ pub async fn seed_from_toml_with_bootstrap(
                 model_id: m.model_id.clone(),
                 display_name: m.display_name.clone(),
                 enabled: m.enabled,
-                price_each_call: None,  // legacy, unused post-Phase 2
-                price_tiers_json: None, // legacy, unused post-Phase 2
                 pricing_json,
                 alias_of: None,
             })
@@ -1157,8 +1085,6 @@ pub async fn seed_from_toml_with_bootstrap(
                 model_id: a.alias.clone(),
                 display_name: None,
                 enabled: true,
-                price_each_call: None,
-                price_tiers_json: None,
                 pricing_json: None,
                 alias_of,
             })

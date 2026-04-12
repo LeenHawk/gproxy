@@ -533,8 +533,6 @@ mod tests {
                 model_id: model_id.to_string(),
                 display_name: None,
                 enabled: true,
-                price_each_call: None,
-                price_tiers_json: None,
                 pricing_json: Some(pricing_json_str),
                 alias_of: None,
             })
@@ -604,8 +602,6 @@ mod tests {
                 model_id: model_id.to_string(),
                 display_name: None,
                 enabled: true,
-                price_each_call: None,
-                price_tiers_json: None,
                 pricing_json: Some(pricing_json_str),
                 alias_of: None,
             })

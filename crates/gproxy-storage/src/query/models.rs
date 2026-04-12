@@ -20,8 +20,6 @@ pub struct ModelQueryRow {
     pub model_id: String,
     pub display_name: Option<String>,
     pub enabled: bool,
-    pub price_each_call: Option<f64>,
-    pub price_tiers_json: Option<String>,
     pub pricing_json: Option<String>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
     pub alias_of: Option<i64>,

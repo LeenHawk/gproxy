@@ -316,8 +316,6 @@ impl SeaOrmStorage {
                 model_id: r.model_id,
                 display_name: r.display_name,
                 enabled: r.enabled,
-                price_each_call: r.price_each_call,
-                price_tiers_json: r.price_tiers_json,
                 pricing_json: r.pricing_json,
                 alias_of: r.alias_of,
                 created_at: r.created_at,

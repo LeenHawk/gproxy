@@ -492,8 +492,14 @@ mod tests {
         assert_eq!(parsed.priority_price_each_call, Some(0.01));
         assert_eq!(parsed.priority_price_tiers.len(), 1);
         assert_eq!(parsed.priority_price_tiers[0].price_input_tokens, Some(6.0));
-        assert_eq!(parsed.tool_call_prices.get("web_search").copied(), Some(0.01));
-        assert_eq!(parsed.tool_call_prices.get("file_search").copied(), Some(0.0025));
+        assert_eq!(
+            parsed.tool_call_prices.get("web_search").copied(),
+            Some(0.01)
+        );
+        assert_eq!(
+            parsed.tool_call_prices.get("file_search").copied(),
+            Some(0.0025)
+        );
     }
 
     #[test]
