@@ -24,6 +24,8 @@ const HEADER_DENYLIST: &[&str] = &[
     "x-forwarded-proto",
     // Client identity — upstream provider should see its own defaults
     "user-agent",
+    "x-title",
+    "http-referer",
     "accept",
     "accept-encoding",
     "accept-language",

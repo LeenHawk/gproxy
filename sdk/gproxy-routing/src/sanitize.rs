@@ -60,6 +60,8 @@ const HEADER_DENYLIST: &[&str] = &[
     "x-forwarded-host",
     "x-forwarded-proto",
     "user-agent",
+    "x-title",
+    "http-referer",
     "accept",
     "accept-encoding",
     "accept-language",
