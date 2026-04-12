@@ -13,6 +13,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/keys/generate", post(keys::generate_key))
         .route("/keys/update-enabled", post(keys::update_key_enabled))
         .route("/keys/delete", post(keys::delete_key))
+        .route("/keys/batch-delete", post(keys::batch_delete_keys))
         .route("/quota", get(quota::get_quota))
         .route("/usages/query", post(usages::query_usages))
         .route("/usages/count", post(usages::count_usages))

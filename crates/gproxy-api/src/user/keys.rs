@@ -133,6 +133,29 @@ pub async fn delete_key(
     Ok(Json(crate::error::AckResponse { ok: true, id: None }))
 }
 
+pub async fn batch_delete_keys(
+    State(state): State<Arc<AppState>>,
+    Extension(session): Extension<SessionUser>,
+    Json(ids): Json<Vec<i64>>,
+) -> Result<Json<crate::error::AckResponse>, HttpError> {
+    let user_id = session.user_id;
+    let owned: std::collections::HashSet<i64> = state
+        .keys_for_user(user_id)
+        .into_iter()
+        .map(|k| k.id)
+        .collect();
+    for id in &ids {
+        if !owned.contains(id) {
+            return Err(HttpError::not_found("user key not found"));
+        }
+    }
+    for id in &ids {
+        state.storage().delete_user_key(*id).await?;
+        state.remove_key_from_memory(*id);
+    }
+    Ok(Json(crate::error::AckResponse { ok: true, id: None }))
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
