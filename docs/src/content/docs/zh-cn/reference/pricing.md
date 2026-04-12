@@ -136,18 +136,34 @@ extractor 填充。
 
 **目前已接入的字段：**
 
-| Channel           | 数据源                                         | 工具 key      |
-|-------------------|------------------------------------------------|---------------|
-| `anthropic`       | `usage.server_tool_use.web_search_requests`    | `web_search`  |
-| `claudecode`      | 同上（message_delta 事件也会累计）             | `web_search`  |
+| Channel           | 数据源                                                             | 工具 key           |
+|-------------------|--------------------------------------------------------------------|--------------------|
+| `anthropic`       | `usage.server_tool_use.web_search_requests`                        | `web_search`       |
+| `claudecode`      | 同上（`message_delta` 事件也会累计）                               | `web_search`       |
+| `openai` (Responses API) | `output[].type == "web_search_call"` 的条目计数              | `web_search`       |
+| `openai` (Responses API) | `output[].type == "file_search_call"` 的条目计数             | `file_search`      |
+| `openai` (Responses API) | `output[].type == "code_interpreter_call"` 的条目计数        | `code_interpreter` |
+| `openai` (ChatCompletions) | `choices[0].message.annotations[type=url_citation]`（见下方注意） | `web_search`     |
+| `aistudio` / `vertex` / `geminicli` | `candidates[].groundingMetadata.webSearchQueries[]` 长度   | `google_search`    |
+| `aistudio` / `vertex` / `geminicli` | `candidates[].urlContextMetadata.urlMetadata[]` 长度       | `url_context`      |
+| `aistudio` / `vertex` / `geminicli` | `candidates[].content.parts[].executableCode` 条目计数     | `code_execution`   |
+
+**ChatCompletions 注意事项：** OpenAI 的 ChatCompletions API 并不在响应体
+里暴露 `web_search_preview` 的精确 per-query 次数。唯一的服务端工具信号
+是 `url_citation` 注解 —— 这是**按 URL** 发出的，一次搜索查询可能产生
+多个引用。GPROXY 在看到任何 `url_citation` 时只发 `{ web_search: 1 }` —— 多
+查询场景会低估（但绝不会超收）。需要精确工具计费的用户应该使用 Responses
+API，它会把每次工具调用当作独立的 `output[]` 条目上报。
+
+**Gemini 流式注意事项：** grounding / URL context / code execution 元数据
+通常只在最终的流式 chunk（带完整 `candidates[]`）里出现。如果上游响应形状
+将来在多个 chunk 里分别报告 grounding metadata，调用方的累加合并会导致
+超计数 —— 当前把它当作一个 best-effort 的信号。
 
 **目前 NOT 接入的：**
 
-- OpenAI Responses API 的工具次数（`file_search`、`web_search_preview`）。
-  响应形状把它们放在 `output[]` 数组里，需要按类型分别计数。另立 issue
-  跟进。
-- Gemini 的 `google_search`、`code_execution`、`url_context`。Gemini 的
-  `usageMetadata` 不给调用次数；工具会触发但不会报告总数。
+- Gemini 的 `google_maps` 和 `retrieval` 工具。Gemini 的 grounding
+  metadata 在当前响应形状里没有暴露这两个的调用次数。
 
 在 `tool_call_prices` 里配置了但从没被调用的工具，计费为 0。被调用但没
 有匹配 `tool_call_prices` 条目的工具，计费也为 0。
