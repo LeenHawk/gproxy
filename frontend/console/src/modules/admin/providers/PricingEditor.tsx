@@ -25,8 +25,6 @@ const EMPTY_TIER: TierForm = {
   price_cache_creation_input_tokens_1h: "",
 };
 
-type ToolPriceForm = { key: string; price: string };
-
 type PricingForm = {
   price_each_call: string;
   price_tiers: TierForm[];
@@ -36,7 +34,6 @@ type PricingForm = {
   scale_price_tiers: TierForm[];
   priority_price_each_call: string;
   priority_price_tiers: TierForm[];
-  tool_call_prices: ToolPriceForm[];
 };
 
 const EMPTY_FORM: PricingForm = {
@@ -48,7 +45,6 @@ const EMPTY_FORM: PricingForm = {
   scale_price_tiers: [],
   priority_price_each_call: "",
   priority_price_tiers: [],
-  tool_call_prices: [],
 };
 
 function parseJsonToForm(raw: string): PricingForm | null {
@@ -72,13 +68,6 @@ function parseJsonToForm(raw: string): PricingForm | null {
     };
     const tiers = (arr: unknown): TierForm[] =>
       Array.isArray(arr) ? arr.map(tier) : [];
-    const toolPrices = (v: unknown): ToolPriceForm[] => {
-      if (v === null || typeof v !== "object") return [];
-      return Object.entries(v as Record<string, unknown>).map(([key, price]) => ({
-        key,
-        price: typeof price === "number" ? String(price) : "",
-      }));
-    };
     return {
       price_each_call: num((obj as Record<string, unknown>).price_each_call),
       price_tiers: tiers((obj as Record<string, unknown>).price_tiers),
@@ -88,7 +77,6 @@ function parseJsonToForm(raw: string): PricingForm | null {
       scale_price_tiers: tiers((obj as Record<string, unknown>).scale_price_tiers),
       priority_price_each_call: num((obj as Record<string, unknown>).priority_price_each_call),
       priority_price_tiers: tiers((obj as Record<string, unknown>).priority_price_tiers),
-      tool_call_prices: toolPrices((obj as Record<string, unknown>).tool_call_prices),
     };
   } catch {
     return null;
@@ -139,13 +127,6 @@ function formToJson(form: PricingForm): string {
   putTiers("scale_price_tiers", form.scale_price_tiers);
   putNumber("priority_price_each_call", form.priority_price_each_call);
   putTiers("priority_price_tiers", form.priority_price_tiers);
-  const toolPrices: Record<string, number> = {};
-  for (const { key, price } of form.tool_call_prices) {
-    const k = key.trim();
-    const n = numOrNull(price);
-    if (k && n !== null) toolPrices[k] = n;
-  }
-  if (Object.keys(toolPrices).length > 0) out.tool_call_prices = toolPrices;
   if (Object.keys(out).length === 0) return "";
   return JSON.stringify(out, null, 2);
 }
@@ -161,9 +142,7 @@ export type PricingEditorLabels = {
   scalePriceTiers: string;
   priorityPriceEachCall: string;
   priorityPriceTiers: string;
-  toolCallPrices: string;
   addTier: string;
-  addToolPrice: string;
   removeRow: string;
   tierInputTokensUpTo: string;
   tierPriceInput: string;
@@ -172,8 +151,6 @@ export type PricingEditorLabels = {
   tierPriceCacheCreation: string;
   tierPriceCacheCreation5min: string;
   tierPriceCacheCreation1h: string;
-  toolKey: string;
-  toolPrice: string;
   emptyHint: string;
   jsonParseError: string;
   jsonTextareaLabel: string;
@@ -254,24 +231,6 @@ export function PricingEditor({
     commit({
       ...form,
       [tiersKey]: form[tiersKey].filter((_, i) => i !== index),
-    });
-  };
-
-  const updateToolPrice = (index: number, patch: Partial<ToolPriceForm>) => {
-    const next = form.tool_call_prices.map((t, i) =>
-      i === index ? { ...t, ...patch } : t,
-    );
-    commit({ ...form, tool_call_prices: next });
-  };
-
-  const addToolPrice = () => {
-    commit({ ...form, tool_call_prices: [...form.tool_call_prices, { key: "", price: "" }] });
-  };
-
-  const removeToolPrice = (index: number) => {
-    commit({
-      ...form,
-      tool_call_prices: form.tool_call_prices.filter((_, i) => i !== index),
     });
   };
 
@@ -374,42 +333,6 @@ export function PricingEditor({
             onAdd={() => addTier("priority_price_tiers")}
             onRemove={(i) => removeTier("priority_price_tiers", i)}
           />
-
-          <div>
-            <div className="flex items-center justify-between">
-              <Label>{labels.toolCallPrices}</Label>
-              <Button variant="neutral" onClick={addToolPrice}>
-                + {labels.addToolPrice}
-              </Button>
-            </div>
-            {form.tool_call_prices.length === 0 ? (
-              <p className="text-xs text-muted mt-1">{labels.emptyHint}</p>
-            ) : (
-              <div className="space-y-1 mt-1">
-                {form.tool_call_prices.map((tp, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <Input
-                        value={tp.key}
-                        onChange={(v) => updateToolPrice(i, { key: v })}
-                        placeholder={labels.toolKey}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <Input
-                        value={tp.price}
-                        onChange={(v) => updateToolPrice(i, { price: v })}
-                        placeholder={labels.toolPrice}
-                      />
-                    </div>
-                    <Button variant="danger" onClick={() => removeToolPrice(i)}>
-                      {labels.removeRow}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
     </div>

@@ -138,8 +138,8 @@ export type MemoryModelRow = {
   display_name?: string | null;
   enabled: boolean;
   /// Full serialized ModelPrice JSON blob (same shape as `models.pricing_json`).
-  /// Covers every billing mode (default / flex / scale / priority) plus
-  /// `tool_call_prices`. `null` on rows with no pricing configured.
+  /// Covers every billing mode (default / flex / scale / priority).
+  /// `null` on rows with no pricing configured.
   pricing_json?: string | null;
   alias_of?: number | null;
 };
