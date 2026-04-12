@@ -478,6 +478,7 @@ mod tests {
                 enabled: true,
                 price_each_call: Some(999.0),
                 price_tiers_json: None,
+                pricing_json: None,
                 alias_of: None,
             })
             .await

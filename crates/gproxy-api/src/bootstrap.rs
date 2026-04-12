@@ -124,6 +124,7 @@ pub(crate) async fn ensure_default_models_in_storage(
                     } else {
                         Some(serde_json::to_string(&price.price_tiers)?)
                     },
+                    pricing_json: None,
                     alias_of: None,
                 })
                 .await?;
@@ -1011,6 +1012,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 } else {
                     serde_json::to_string(&m.price_tiers).ok()
                 },
+                pricing_json: None,
                 alias_of: None,
             })
             .await?;
@@ -1052,6 +1054,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 enabled: true,
                 price_each_call: None,
                 price_tiers_json: None,
+                pricing_json: None,
                 alias_of,
             })
             .await?;

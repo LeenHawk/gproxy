@@ -455,6 +455,7 @@ impl SeaOrmStorage {
                         enabled: Set(m.enabled),
                         price_each_call: Set(m.price_each_call),
                         price_tiers_json: Set(m.price_tiers_json.clone()),
+                        pricing_json: Set(m.pricing_json.clone()),
                         alias_of: Set(m.alias_of),
                         created_at: Set(now),
                         updated_at: Set(now),

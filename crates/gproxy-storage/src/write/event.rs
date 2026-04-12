@@ -148,6 +148,8 @@ pub struct ModelWrite {
     pub price_each_call: Option<f64>,
     #[serde(default)]
     pub price_tiers_json: Option<String>,
+    #[serde(default)]
+    pub pricing_json: Option<String>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
     #[serde(default)]
     pub alias_of: Option<i64>,

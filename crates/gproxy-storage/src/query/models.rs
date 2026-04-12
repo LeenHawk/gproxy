@@ -22,6 +22,7 @@ pub struct ModelQueryRow {
     pub enabled: bool,
     pub price_each_call: Option<f64>,
     pub price_tiers_json: Option<String>,
+    pub pricing_json: Option<String>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
     pub alias_of: Option<i64>,
     pub created_at: OffsetDateTime,
