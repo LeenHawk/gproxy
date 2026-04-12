@@ -161,7 +161,7 @@ export function ModelsTab({
               </Button>
             ))}
           </div>
-          <div className="space-y-2">
+          <div className="max-h-128 overflow-y-auto space-y-2 pr-1">
             {filteredRows.length === 0 ? (
               <p className="text-sm text-muted">{labels.empty}</p>
             ) : null}
