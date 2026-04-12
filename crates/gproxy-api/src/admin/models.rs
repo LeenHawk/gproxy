@@ -334,9 +334,10 @@ pub async fn pull_models(
     if !(200..=299).contains(&result.status) {
         // Include the upstream response body so admins can see what went wrong.
         let body_preview = match &result.body {
-            ExecuteBody::Full(bytes) => {
-                String::from_utf8_lossy(bytes).chars().take(500).collect::<String>()
-            }
+            ExecuteBody::Full(bytes) => String::from_utf8_lossy(bytes)
+                .chars()
+                .take(500)
+                .collect::<String>(),
             ExecuteBody::Stream(_) => "<streaming>".to_string(),
         };
         return Err(HttpError::internal(format!(

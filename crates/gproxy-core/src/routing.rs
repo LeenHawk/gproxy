@@ -198,10 +198,7 @@ impl RoutingService {
 
     /// Build a lookup index: model_id -> model.id for all models.
     fn build_model_index(models: &[MemoryModel]) -> HashMap<String, i64> {
-        models
-            .iter()
-            .map(|m| (m.model_id.clone(), m.id))
-            .collect()
+        models.iter().map(|m| (m.model_id.clone(), m.id)).collect()
     }
 }
 

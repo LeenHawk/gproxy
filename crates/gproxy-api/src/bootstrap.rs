@@ -7,8 +7,7 @@ use gproxy_sdk::provider::dispatch::DispatchTableDocument;
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
     AppState, FilePermissionEntry, GlobalConfig, MemoryClaudeFile, MemoryModel, MemoryUser,
-    MemoryUserCredentialFile, MemoryUserKey, PermissionEntry, PriceTier,
-    RateLimitRule,
+    MemoryUserCredentialFile, MemoryUserKey, PermissionEntry, PriceTier, RateLimitRule,
 };
 use gproxy_storage::repository::{
     CredentialRepository, ModelRepository, PermissionRepository, ProviderRepository,

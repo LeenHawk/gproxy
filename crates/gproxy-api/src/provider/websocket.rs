@@ -316,7 +316,11 @@ pub async fn openai_responses_ws_unscoped(
     // so aliases don't silently inherit the target model's permissions.
     let (target_provider, target_model, permission_model) =
         if let Some(alias) = state.resolve_model_alias(model_name) {
-            (alias.provider_name, Some(alias.model_id), model_name.clone())
+            (
+                alias.provider_name,
+                Some(alias.model_id),
+                model_name.clone(),
+            )
         } else if let Some((provider, model)) = model_name.split_once('/') {
             (
                 provider.to_string(),
