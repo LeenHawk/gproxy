@@ -434,4 +434,12 @@ export const zhMessages: Record<string, string> = {
   "placeholder.myKeys.title": "我的密钥",
   "placeholder.myQuota.title": "我的额度",
   "placeholder.myUsage.title": "我的用量",
+  "batch.enter": "批量",
+  "batch.exit": "退出",
+  "batch.selectAll": "全选",
+  "batch.clear": "清空",
+  "batch.delete": "删除 {count} 项",
+  "batch.confirm": "确认删除这 {count} 项吗？此操作不可撤销。",
+  "batch.deleted": "已删除 {count} 项",
+  "batch.empty": "未选择任何项",
 };

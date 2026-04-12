@@ -434,4 +434,12 @@ export const enMessages: Record<string, string> = {
   "placeholder.myKeys.title": "My Keys",
   "placeholder.myQuota.title": "My Quota",
   "placeholder.myUsage.title": "My Usage",
+  "batch.enter": "Batch",
+  "batch.exit": "Exit",
+  "batch.selectAll": "Select all",
+  "batch.clear": "Clear",
+  "batch.delete": "Delete {count}",
+  "batch.confirm": "Delete {count} selected item(s)? This cannot be undone.",
+  "batch.deleted": "Deleted {count} item(s)",
+  "batch.empty": "No items selected",
 };
