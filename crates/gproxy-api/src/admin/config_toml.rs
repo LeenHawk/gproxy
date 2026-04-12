@@ -81,16 +81,13 @@ pub struct ProviderToml {
     pub credentials: Vec<serde_json::Value>,
 }
 
-/// Partial representation of a model row for TOML import/export.
+/// TOML representation of a model row. Covers the full
+/// `gproxy_sdk::provider::billing::ModelPrice` shape so that
+/// import/export round-trips preserve every billing mode
+/// (`default` / `flex` / `scale` / `priority`) and `tool_call_prices`.
 ///
-/// **Lossy roundtrip warning:** this shape only carries default-mode pricing
-/// (`price_each_call` + `price_tiers`). Mode variants
-/// (`flex_*`, `scale_*`, `priority_*`) and `tool_call_prices` live in
-/// `models.pricing_json` in the DB and are NOT exported to TOML, nor can they
-/// be configured via TOML import. Use the admin HTTP API / console to manage
-/// those. See `docs/superpowers/plans/2026-04-12-pricing-and-tool-billing-fix.md`
-/// "Out of Scope" for the follow-up that will extend TOML to cover the full
-/// `ModelPrice` shape.
+/// All pricing fields are optional; empty collections and `None` values
+/// are omitted from the serialized output.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModelToml {
     pub provider_name: String,
@@ -99,10 +96,24 @@ pub struct ModelToml {
     pub display_name: Option<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price_each_call: Option<f64>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flex_price_each_call: Option<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flex_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale_price_each_call: Option<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scale_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority_price_each_call: Option<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub priority_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub tool_call_prices: std::collections::BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -231,20 +242,34 @@ pub async fn export_toml(
     let models: Vec<ModelToml> = memory_models
         .iter()
         .filter(|m| m.alias_of.is_none())
-        .map(|m| ModelToml {
-            provider_name: provider_id_to_name
-                .get(&m.provider_id)
-                .cloned()
-                .unwrap_or_else(|| m.provider_id.to_string()),
-            model_id: m.model_id.clone(),
-            display_name: m.display_name.clone(),
-            enabled: m.enabled,
-            price_each_call: m.pricing.as_ref().and_then(|p| p.price_each_call),
-            price_tiers: m
-                .pricing
-                .as_ref()
-                .map(|p| p.price_tiers.clone())
-                .unwrap_or_default(),
+        .map(|m| {
+            let pricing = m.pricing.as_ref();
+            ModelToml {
+                provider_name: provider_id_to_name
+                    .get(&m.provider_id)
+                    .cloned()
+                    .unwrap_or_else(|| m.provider_id.to_string()),
+                model_id: m.model_id.clone(),
+                display_name: m.display_name.clone(),
+                enabled: m.enabled,
+                price_each_call: pricing.and_then(|p| p.price_each_call),
+                price_tiers: pricing.map(|p| p.price_tiers.clone()).unwrap_or_default(),
+                flex_price_each_call: pricing.and_then(|p| p.flex_price_each_call),
+                flex_price_tiers: pricing
+                    .map(|p| p.flex_price_tiers.clone())
+                    .unwrap_or_default(),
+                scale_price_each_call: pricing.and_then(|p| p.scale_price_each_call),
+                scale_price_tiers: pricing
+                    .map(|p| p.scale_price_tiers.clone())
+                    .unwrap_or_default(),
+                priority_price_each_call: pricing.and_then(|p| p.priority_price_each_call),
+                priority_price_tiers: pricing
+                    .map(|p| p.priority_price_tiers.clone())
+                    .unwrap_or_default(),
+                tool_call_prices: pricing
+                    .map(|p| p.tool_call_prices.clone())
+                    .unwrap_or_default(),
+            }
         })
         .collect();
 
@@ -383,7 +408,8 @@ pub async fn export_toml(
 
 #[cfg(test)]
 mod tests {
-    use super::{UserKeyToml, UserToml};
+    use super::{ModelToml, UserKeyToml, UserToml};
+    use gproxy_sdk::provider::billing::ModelPriceTier;
 
     #[test]
     fn user_toml_round_trips_argon2_hashes() {
@@ -412,5 +438,88 @@ mod tests {
         assert_eq!(parsed.keys[0].label.as_deref(), Some("default"));
         assert!(!parsed.keys[0].enabled);
         assert!(parsed.is_admin);
+    }
+
+    #[test]
+    fn model_toml_round_trips_full_pricing() {
+        let original = ModelToml {
+            provider_name: "anthropic-main".into(),
+            model_id: "claude-3-5-sonnet-20241022".into(),
+            display_name: Some("Claude 3.5 Sonnet".into()),
+            enabled: true,
+            price_each_call: Some(0.005),
+            price_tiers: vec![ModelPriceTier {
+                input_tokens_up_to: 200_000,
+                price_input_tokens: Some(3.0),
+                price_output_tokens: Some(15.0),
+                price_cache_read_input_tokens: Some(0.3),
+                price_cache_creation_input_tokens: Some(3.75),
+                price_cache_creation_input_tokens_5min: Some(3.75),
+                price_cache_creation_input_tokens_1h: Some(6.0),
+            }],
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: Some(0.01),
+            priority_price_tiers: vec![ModelPriceTier {
+                input_tokens_up_to: i64::MAX,
+                price_input_tokens: Some(6.0),
+                price_output_tokens: Some(22.5),
+                price_cache_read_input_tokens: Some(0.6),
+                price_cache_creation_input_tokens: Some(7.5),
+                price_cache_creation_input_tokens_5min: None,
+                price_cache_creation_input_tokens_1h: None,
+            }],
+            tool_call_prices: {
+                let mut m = std::collections::BTreeMap::new();
+                m.insert("web_search".to_string(), 0.01);
+                m.insert("file_search".to_string(), 0.0025);
+                m
+            },
+        };
+
+        let serialized = toml::to_string(&original).expect("serialize model toml");
+        let parsed: ModelToml = toml::from_str(&serialized).expect("deserialize model toml");
+
+        assert_eq!(parsed.provider_name, original.provider_name);
+        assert_eq!(parsed.model_id, original.model_id);
+        assert_eq!(parsed.price_each_call, Some(0.005));
+        assert_eq!(parsed.price_tiers.len(), 1);
+        assert_eq!(parsed.price_tiers[0].price_input_tokens, Some(3.0));
+        assert_eq!(parsed.flex_price_each_call, None);
+        assert!(parsed.flex_price_tiers.is_empty());
+        assert_eq!(parsed.priority_price_each_call, Some(0.01));
+        assert_eq!(parsed.priority_price_tiers.len(), 1);
+        assert_eq!(parsed.priority_price_tiers[0].price_input_tokens, Some(6.0));
+        assert_eq!(parsed.tool_call_prices.get("web_search").copied(), Some(0.01));
+        assert_eq!(parsed.tool_call_prices.get("file_search").copied(), Some(0.0025));
+    }
+
+    #[test]
+    fn model_toml_omits_empty_pricing_fields() {
+        // A model with no pricing at all should serialize with only the
+        // minimum required fields (no stray empty arrays or null bodies).
+        let minimal = ModelToml {
+            provider_name: "openai-test".into(),
+            model_id: "gpt-4.1".into(),
+            display_name: None,
+            enabled: true,
+            price_each_call: None,
+            price_tiers: Vec::new(),
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: None,
+            priority_price_tiers: Vec::new(),
+            tool_call_prices: std::collections::BTreeMap::new(),
+        };
+        let serialized = toml::to_string(&minimal).expect("serialize");
+        assert!(!serialized.contains("price_tiers"));
+        assert!(!serialized.contains("flex_price"));
+        assert!(!serialized.contains("scale_price"));
+        assert!(!serialized.contains("priority_price"));
+        assert!(!serialized.contains("tool_call_prices"));
     }
 }

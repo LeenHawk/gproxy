@@ -1064,19 +1064,28 @@ pub async fn seed_from_toml_with_bootstrap(
                 .get(&m.provider_name)
                 .copied()
                 .unwrap_or(0);
-            let pricing = if m.price_each_call.is_some() || !m.price_tiers.is_empty() {
+            let has_any_pricing = m.price_each_call.is_some()
+                || !m.price_tiers.is_empty()
+                || m.flex_price_each_call.is_some()
+                || !m.flex_price_tiers.is_empty()
+                || m.scale_price_each_call.is_some()
+                || !m.scale_price_tiers.is_empty()
+                || m.priority_price_each_call.is_some()
+                || !m.priority_price_tiers.is_empty()
+                || !m.tool_call_prices.is_empty();
+            let pricing = if has_any_pricing {
                 Some(gproxy_sdk::provider::billing::ModelPrice {
                     model_id: m.model_id.clone(),
                     display_name: m.display_name.clone(),
                     price_each_call: m.price_each_call,
                     price_tiers: m.price_tiers.clone(),
-                    flex_price_each_call: None,
-                    flex_price_tiers: Vec::new(),
-                    scale_price_each_call: None,
-                    scale_price_tiers: Vec::new(),
-                    priority_price_each_call: None,
-                    priority_price_tiers: Vec::new(),
-                    tool_call_prices: std::collections::BTreeMap::new(),
+                    flex_price_each_call: m.flex_price_each_call,
+                    flex_price_tiers: m.flex_price_tiers.clone(),
+                    scale_price_each_call: m.scale_price_each_call,
+                    scale_price_tiers: m.scale_price_tiers.clone(),
+                    priority_price_each_call: m.priority_price_each_call,
+                    priority_price_tiers: m.priority_price_tiers.clone(),
+                    tool_call_prices: m.tool_call_prices.clone(),
                 })
             } else {
                 None
