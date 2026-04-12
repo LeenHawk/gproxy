@@ -75,6 +75,30 @@
   control what is visible. The edit form has an `alias_of` dropdown for
   picking an alias target, and the pull-models flow is embedded in the
   same tab.
+- **"+ Add Suffix Variant" dialog** in the Models tab — when a real
+  model is selected, a new button opens a dialog that mirrors the old
+  composable suffix system: the user picks one entry per group
+  (thinking / reasoning / service tier / effort / verbosity / ...), the
+  dialog computes a combined suffix string and a list of rewrite-rule
+  actions, and on confirm it atomically creates an alias row
+  (`alias_of = base.id`, `model_id = base + suffix`) and appends the
+  rewrite rules to the provider's `settings_json` with
+  `filter.model_pattern` scoped to the new alias name. Presets cover
+  everything the deleted Rust suffix module supported except the Claude
+  header-modifying suffixes (`-fast`, `-non-fast`, `-1m`, `-200k`),
+  which rewrite rules can't express.
+- **Rewrite rules editor: typed value input** — the "Set" action no
+  longer forces admins to hand-write JSON. A Type dropdown
+  (string / number / boolean / null / array / object) switches the
+  value editor between a plain text input, numeric input, boolean
+  dropdown, null placeholder, or JSON textarea (for arrays/objects).
+  Switching type resets the value to a sensible default for the new
+  type.
+- **Rewrite rules editor: model-pattern autocomplete** — focusing the
+  `model_pattern` input shows a scrollable dropdown of matching model
+  names (real + aliases) for the current provider. Typing filters the
+  list by substring without auto-completing the input; clicking an
+  entry fills in the pattern exactly.
 - **Pricing-by-alias in the billing pipeline** — the engine now exposes
   `build_billing_context` / `estimate_billing` as public methods, and the
   handler builds the billing context in the handler layer with the
@@ -230,6 +254,26 @@
   "alias" 标签和 `→ 真实模型` 指示器，顶部有三个过滤按钮（全部
   / 仅真实模型 / 仅别名）。编辑表单新增 `alias_of` 下拉框用于
   选择别名指向的目标，拉取模型的流程也嵌入到同一个 Tab。
+- **"+ 添加后缀变体"对话框** — Models Tab 里选中真实模型后，
+  新按钮会打开一个对话框，对应旧的可组合 suffix 系统：用户在每个
+  组（thinking / reasoning / service tier / effort / verbosity
+  等）里挑一项，对话框合成出完整的后缀字符串和一组 rewrite_rules
+  动作。确认后自动完成：创建别名行（`alias_of = 基础模型 id`，
+  `model_id = 基础名 + 后缀`），并往该 provider 的 `settings_json`
+  里追加带 `filter.model_pattern = 新别名` 的 rewrite_rules。预设
+  覆盖了旧 Rust suffix 模块支持的所有配置，**但不包括** Claude 那
+  几个改 header 的后缀（`-fast` / `-non-fast` / `-1m` / `-200k`），
+  因为 rewrite_rules 只能改 body、不能改 header。
+- **覆写规则编辑器：类型化值输入** — "Set/覆写" 动作不再强制手写
+  JSON。新增"类型"下拉（string / number / boolean / null /
+  array / object），按类型切换输入控件：字符串用普通文本输入框、
+  数字用数字输入、布尔用 true/false 下拉、null 只显示占位提示，
+  array / object 仍然用 JSON 编辑框。切换类型时会把值重置为该
+  类型的默认值。
+- **覆写规则编辑器：模型名自动补全** — `model_pattern` 输入框
+  聚焦后弹出可滚动下拉列表，显示当前 provider 下所有模型名
+  （真实 + 别名）。输入字符会按子串过滤列表，不会自动补全输入
+  内容；点击下拉项会把完整模型名填进输入框。
 - **计费管线支持按别名计价** — engine 现在把
   `build_billing_context` / `estimate_billing` 暴露为公开方法，
   handler 在 handler 层构造带有别名名的 billing context，让
