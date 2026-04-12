@@ -1451,8 +1451,8 @@ mod tests {
     use crate::channels::codex::{CodexChannel, CodexSettings};
     use crate::health::ModelCooldownHealth;
 
-    #[tokio::test]
-    async fn set_model_pricing_updates_billing() {
+    #[test]
+    fn set_model_pricing_updates_billing() {
         // Build a store with the Codex channel (any channel works; pricing will be overridden).
         let store = ProviderStore::builder()
             .add_provider(
@@ -1520,6 +1520,9 @@ mod tests {
             .unwrap()
             .total_cost;
         assert!((after - 2.50).abs() < 1e-9);
+
+        // Unknown provider returns false — no panic, no silent success.
+        assert!(!store.set_model_pricing("nonexistent", vec![]));
     }
 
     #[test]
