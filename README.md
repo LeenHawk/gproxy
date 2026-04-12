@@ -1,83 +1,65 @@
-# Deployment Guide
+# GPROXY
 
-### Build
+**A high-performance LLM proxy server written in Rust.** Multi-provider,
+multi-tenant, with an embedded React console — all in a single static
+binary.
 
-Single-instance release build:
+- 📘 **Documentation:** <https://gproxy.leenhawk.com>
+- 📦 **Downloads:** <https://gproxy.leenhawk.com/downloads/>
+- 🦀 **Crate:** `gproxy-sdk`
+- 🪪 **License:** AGPL-3.0-or-later
+- 🌐 **Languages:** English · [简体中文](./README.zh_CN.md)
+
+---
+
+## What it does
+
+GPROXY exposes a unified, **OpenAI / Anthropic / Gemini compatible** HTTP
+surface on top of many upstream LLM providers, and adds the primitives
+you need to run it as a shared service:
+
+- **Multi-provider routing** — OpenAI, Anthropic, Vertex / Gemini,
+  DeepSeek, Groq, OpenRouter, NVIDIA, Claude Code, Codex, Antigravity,
+  and any OpenAI-compatible custom endpoint.
+- **Two routing modes** — aggregated `/v1/...` (provider encoded in the
+  model name) and scoped `/{provider}/v1/...` (provider in the URL).
+- **Same-protocol passthrough** — minimal-parsing fast path when the
+  client and upstream speak the same dialect.
+- **Cross-protocol translation** — an OpenAI client can route to a
+  Claude upstream (and vice versa) through the protocol `transform`
+  layer.
+- **Multi-tenant auth** — users, API keys, glob model permissions,
+  RPM / RPD / token rate limits, and USD-denominated quotas.
+- **Claude prompt caching** — server-side `cache_breakpoint` rules and
+  magic-string triggers for `anthropic` / `claudecode` channels.
+- **Request & message rewrite rules** — JSON-field manipulation on the
+  request body, plus regex text substitution on message content.
+- **Embedded React console** — built into the binary, mounted at
+  `/console`. No separate frontend to deploy.
+- **Pluggable storage** — SQLite, PostgreSQL, MySQL via SeaORM / SQLx,
+  with optional XChaCha20-Poly1305 at-rest encryption.
+- **Rust SDK** — `gproxy-sdk` re-exports the protocol, routing, and
+  provider crates so you can embed the engine into your own service.
+
+## Quick start
 
 ```bash
+# 1. Build
+git clone https://github.com/LeenHawk/gproxy.git
+cd gproxy
 cargo build -p gproxy --release
+
+# 2. Run with a minimal config
+GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 ```
 
-If you changed the embedded console frontend, build it before packaging or running the binary:
-
-```bash
-cd frontend/console
-pnpm install
-pnpm build
-```
-
-The output binary is located at `target/release/gproxy`.
-
-### Embedded Console
-
-The current binary includes an embedded browser console mounted at `/console`.
-
-- Console URL: `http://127.0.0.1:8787/console`
-- Browser login: `POST /login`
-- Browser auth header: `Authorization: Bearer <session_token>`
-
-Typical local workflow:
-
-```bash
-cd frontend/console
-pnpm install
-pnpm build
-
-cargo run -p gproxy
-```
-
-Then open `/console` in a browser and log in with a current v1 username and password.
-
-### Environment Variables
-
-The full set of startup parameters and their corresponding environment variables are defined in `apps/gproxy/src/main.rs`:
-
-| Environment Variable | Default | Required | Description |
-| --- | --- | --- | --- |
-| `GPROXY_HOST` | `127.0.0.1` | No | Listen address. |
-| `GPROXY_PORT` | `8787` | No | Listen port. |
-| `GPROXY_ADMIN_USER` | `admin` | No | Bootstrap admin username used when creating or reconciling the admin account. |
-| `GPROXY_ADMIN_PASSWORD` | None | No | Bootstrap admin password. On first startup, if an admin account must be created and no password is provided, one is generated and logged once. |
-| `GPROXY_ADMIN_API_KEY` | None | No | Bootstrap admin API key. On first startup, if an admin account must be created and no API key is provided, one is generated and logged once. |
-| `GPROXY_DSN` | If unset, `sqlite://<data_dir>/gproxy.db?mode=rwc` is generated automatically. | No | Database DSN. |
-| `GPROXY_PROXY` | None | No | Upstream HTTP proxy. |
-| `GPROXY_SPOOF` | `chrome_136` | No | TLS fingerprint emulation name. |
-| `DATABASE_SECRET_KEY` | None | No | Database-at-rest encryption key; when set, credentials, passwords, and API keys are encrypted at rest with XChaCha20Poly1305. |
-| `GPROXY_REDIS_URL` | None | No | Redis DSN; the Redis backend is enabled only when the binary is built with the `redis` feature. |
-| `GPROXY_CONFIG` | `gproxy.toml` | No | TOML config path used as the seed file during first-time initialization. |
-| `GPROXY_DATA_DIR` | `./data` | No | Data directory; the default SQLite file and runtime data are based on this directory. |
-
-Additional Notes:
-
-- CLI arguments and environment variables are both parsed by `clap`; explicit CLI values take priority over defaults.
-- If the database already contains `global_settings` and `GPROXY_DSN` / `GPROXY_DATA_DIR` were not passed explicitly at startup, the process will reconnect to the database using the persisted configuration.
-
-### TOML Config Format
-
-The TOML file pointed to by `GPROXY_CONFIG` is only used during initialization when the database does not already contain data. The corresponding structure is defined in `crates/gproxy-api/src/admin/config_toml.rs`.
+A minimal `gproxy.toml` seed that creates an admin user with wildcard
+permissions:
 
 ```toml
 [global]
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 8787
-proxy = "http://127.0.0.1:7890"
-spoof_emulation = "chrome_136"
-update_source = "github"
-enable_usage = true
-enable_upstream_log = false
-enable_upstream_log_body = false
-enable_downstream_log = false
-enable_downstream_log_body = false
 dsn = "sqlite://./data/gproxy.db?mode=rwc"
 data_dir = "./data"
 
@@ -85,98 +67,106 @@ data_dir = "./data"
 name = "openai-main"
 channel = "openai"
 settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-provider-1" }
-]
+credentials = [ { api_key = "sk-your-upstream-key" } ]
 
 [[models]]
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-display_name = "GPT-4.1 mini"
-enabled = true
-price_each_call = 0.0
-
-[[model_aliases]]
-alias = "chat-default"
 provider_name = "openai-main"
 model_id = "gpt-4.1-mini"
 enabled = true
 
 [[users]]
-name = "alice"
-password = "plain-text-or-argon2-phc"
+name = "admin"
+password = "change-me"
+is_admin = true
 enabled = true
 
 [[users.keys]]
-api_key = "sk-user-1"
+api_key = "sk-admin-1"
 label = "default"
 enabled = true
 
 [[permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-model_pattern = "gpt-*"
-
-[[file_permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-
-[[rate_limits]]
-user_name = "alice"
-model_pattern = "gpt-*"
-rpm = 60
-rpd = 10000
-total_tokens = 200000
-
-[[quotas]]
-user_name = "alice"
-quota = 100.0
-cost_used = 0.0
+user_name = "admin"
+model_pattern = "*"
 ```
 
-Field Descriptions:
+Then open <http://127.0.0.1:8787/console> and log in as `admin`.
 
-- `[global]` covers global listen address, logging, update source, DSN, and data directory configuration.
-- `[[providers]]` defines a provider; `settings` and `credentials` are both JSON values read via `serde_json::Value`.
-- `[[models]]` / `[[model_aliases]]` define forwardable models and their aliases.
-- Admin access is represented by `[[users]]` entries with `is_admin = true` and at least one enabled `[[users.keys]]` entry. If the seed config does not define such an admin, startup can bootstrap one from `GPROXY_ADMIN_USER`, `GPROXY_ADMIN_PASSWORD`, and `GPROXY_ADMIN_API_KEY`.
-- The `password` field under `[[users]]` can be either plaintext or a direct Argon2 PHC hash.
-- `[[users.keys]]` is a nested array table representing the user's API key list.
-- `[[permissions]]`, `[[file_permissions]]`, `[[rate_limits]]`, and `[[quotas]]` correspond to model permissions, file permissions, rate limiting, and cost quotas respectively.
+Full walkthrough: **[Quick Start](https://gproxy.leenhawk.com/getting-started/quick-start/)**.
 
-### Database Support
+## Sending your first request
 
-`gproxy-storage` compiles in three database backends via SeaORM / SQLx:
+```bash
+# Aggregated endpoint — provider/model prefix in the body
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer sk-admin-1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai-main/gpt-4.1-mini",
+    "messages": [ { "role": "user", "content": "Hello" } ]
+  }'
 
-| Database | DSN Prefix | Description |
-| --- | --- | --- |
-| SQLite | `sqlite:` | Default mode; if `GPROXY_DSN` is not set explicitly, startup generates a SQLite file DSN automatically. |
-| PostgreSQL | `postgres:` | Provided by `sqlx-postgres` and the SeaORM Postgres feature. |
-| MySQL | `mysql:` | Provided by `sqlx-mysql` and the SeaORM MySQL feature. |
+# Scoped endpoint — provider in the URL, raw upstream model id in the body
+curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
+  -H "Authorization: Bearer sk-admin-1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4.1-mini",
+    "messages": [ { "role": "user", "content": "Hello" } ]
+  }'
+```
 
-Common DSN examples:
+See **[First Request](https://gproxy.leenhawk.com/getting-started/first-request/)**
+for Anthropic and Gemini examples.
+
+## Repository layout
 
 ```text
-sqlite://./data/gproxy.db?mode=rwc
-postgres://gproxy:secret@127.0.0.1:5432/gproxy
-mysql://gproxy:secret@127.0.0.1:3306/gproxy
+apps/                  # Runnable binaries
+  gproxy/              # Main binary (HTTP server + embedded console)
+  gproxy-recorder/     # Upstream traffic recorder (dev/debugging)
+crates/                # Server-side crates composed by the binary
+  gproxy-core/         # Config, identity, policy, quota, routing types
+  gproxy-storage/      # SeaORM storage + at-rest encryption + schema sync
+  gproxy-api/          # Admin + user HTTP API, auth, login, CORS
+  gproxy-server/       # The Axum server wiring it all together
+sdk/                   # Framework-agnostic libraries (no DB/HTTP dependencies)
+  gproxy-protocol/     # OpenAI/Claude/Gemini wire types + transforms
+  gproxy-routing/      # Route classification, permission & rate-limit matching
+  gproxy-provider/     # Channel trait, ProviderStore, GproxyEngine
+  gproxy-sdk/          # Umbrella crate re-exporting the three above
+frontend/console/      # React console, embedded into the binary at build time
+docs/                  # Starlight documentation site (source for gproxy.leenhawk.com)
 ```
 
-After establishing the connection, `SeaOrmStorage::connect()` will:
+## Documentation
 
-1. Optionally load the database encryptor corresponding to `DATABASE_SECRET_KEY`.
-2. Apply per-database connection tuning parameters.
-3. Connect to the database and run `sync()` to synchronize the schema.
+The full documentation lives at **<https://gproxy.leenhawk.com>**. Some
+entry points:
 
-### Graceful Shutdown
+- [What is GPROXY?](https://gproxy.leenhawk.com/introduction/what-is-gproxy/)
+- [Architecture](https://gproxy.leenhawk.com/introduction/architecture/)
+- [Installation](https://gproxy.leenhawk.com/getting-started/installation/)
+- [Providers & Channels](https://gproxy.leenhawk.com/guides/providers/)
+- [Models & Aliases](https://gproxy.leenhawk.com/guides/models/)
+- [Permissions, Rate Limits & Quotas](https://gproxy.leenhawk.com/guides/permissions/)
+- [Request Rewrite Rules](https://gproxy.leenhawk.com/guides/rewrite-rules/) · [Message Rewrite Rules](https://gproxy.leenhawk.com/guides/message-rewrite/)
+- [Claude Prompt Caching](https://gproxy.leenhawk.com/guides/claude-caching/)
+- [Adding a Channel](https://gproxy.leenhawk.com/guides/adding-a-channel/)
+- [Dispatch Table](https://gproxy.leenhawk.com/reference/dispatch-table/)
+- [Environment Variables](https://gproxy.leenhawk.com/reference/environment-variables/) · [TOML Config](https://gproxy.leenhawk.com/reference/toml-config/)
+- [Rust SDK](https://gproxy.leenhawk.com/reference/sdk/)
 
-Graceful shutdown behavior is jointly implemented by `apps/gproxy/src/main.rs` and `apps/gproxy/src/workers/mod.rs`:
+To run the docs locally:
 
-1. The process listens for `Ctrl+C`; on Unix it also listens for `SIGTERM`.
-2. Once shutdown is triggered, the Axum server enters the `with_graceful_shutdown` flow and stops accepting new requests.
-3. The main thread then calls `worker_set.shutdown()`, broadcasting the shutdown signal to all workers.
-4. `WorkerSet` waits up to 5 seconds for workers to drain.
-5. `UsageSink` closes its receiver, drains remaining usage messages, and performs a final batch write.
-6. `HealthBroadcaster` flushes any health states still in its debounce window to the database.
-7. `QuotaReconciler` and `RateLimitGC` exit their next loop iteration upon receiving the signal.
-8. If any workers have not finished within 5 seconds, the process logs a warning but does not block indefinitely.
+```bash
+cd docs
+pnpm install
+pnpm dev
+```
+
+## License
+
+Released under the [AGPL-3.0-or-later](./LICENSE) license.
+
+Author: [LeenHawk](https://github.com/LeenHawk)

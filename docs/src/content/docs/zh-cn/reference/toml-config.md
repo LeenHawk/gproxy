@@ -174,7 +174,7 @@ Argon2 PHC 字符串。设 `is_admin = true` 即为管理员 —— 该账号可
 
 ## Bootstrap 行为
 
-启动时，gproxy 检查数据库是否已有数据：
+启动时，GPROXY 检查数据库是否已有数据：
 
 - **空库：** 导入 TOML 种子。管理员账号要么来自种子 (`is_admin = true` 且有
   启用 key 的用户)，要么来自 `GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` /

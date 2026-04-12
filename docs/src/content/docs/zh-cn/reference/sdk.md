@@ -3,8 +3,8 @@ title: Rust SDK
 description: 使用 gproxy-sdk 把 provider 引擎嵌入到你自己的 Rust 应用。
 ---
 
-`gproxy-sdk` 是 gproxy Rust SDK 的入口 crate，把协议类型、路由工具和供应商引擎
-统一暴露出来 —— 方便在不跑完整 gproxy 服务器的情况下，自己组装 LLM agent、
+`gproxy-sdk` 是 GPROXY Rust SDK 的入口 crate，把协议类型、路由工具和供应商引擎
+统一暴露出来 —— 方便在不跑完整 GPROXY 服务器的情况下，自己组装 LLM agent、
 网关、转发层或多上游聚合服务。
 
 ## Umbrella 里有什么

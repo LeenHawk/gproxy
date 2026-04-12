@@ -1,9 +1,9 @@
 ---
 title: 环境变量
-description: gproxy 启动时读取的全部环境变量。
+description: GPROXY 启动时读取的全部环境变量。
 ---
 
-gproxy 的启动参数定义在 `apps/gproxy/src/main.rs`，由
+GPROXY 的启动参数定义在 `apps/gproxy/src/main.rs`，由
 [`clap`](https://crates.io/crates/clap) 解析。每个 CLI flag 都有对应的环境
 变量；**CLI 参数优先于环境变量**。
 
@@ -23,8 +23,8 @@ gproxy 的启动参数定义在 `apps/gproxy/src/main.rs`，由
 | 变量 | 默认 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `GPROXY_ADMIN_USER` | `admin` | 否 | 管理员用户名。 |
-| `GPROXY_ADMIN_PASSWORD` | 无 | 否 | 管理员密码。若未设置且需要创建管理员，gproxy **自动生成并打印一次**。 |
-| `GPROXY_ADMIN_API_KEY` | 无 | 否 | 管理员 API key。若未设置且需要创建管理员，gproxy **自动生成并打印一次**。 |
+| `GPROXY_ADMIN_PASSWORD` | 无 | 否 | 管理员密码。若未设置且需要创建管理员，GPROXY **自动生成并打印一次**。 |
+| `GPROXY_ADMIN_API_KEY` | 无 | 否 | 管理员 API key。若未设置且需要创建管理员，GPROXY **自动生成并打印一次**。 |
 
 ## 存储
 

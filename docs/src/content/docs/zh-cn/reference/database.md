@@ -1,6 +1,6 @@
 ---
 title: 数据库后端
-description: gproxy 支持的数据库、DSN 格式和静态加密。
+description: GPROXY 支持的数据库、DSN 格式和静态加密。
 ---
 
 `gproxy-storage` 通过 **SeaORM** 与 **SQLx** 同时编入三种数据库后端，
@@ -10,7 +10,7 @@ description: gproxy 支持的数据库、DSN 格式和静态加密。
 
 | 数据库 | DSN 前缀 | 备注 |
 | --- | --- | --- |
-| SQLite | `sqlite:` | 默认。未设置 `GPROXY_DSN` 时，gproxy 会在 `GPROXY_DATA_DIR` 下自动生成 SQLite 文件 DSN。 |
+| SQLite | `sqlite:` | 默认。未设置 `GPROXY_DSN` 时，GPROXY 会在 `GPROXY_DATA_DIR` 下自动生成 SQLite 文件 DSN。 |
 | PostgreSQL | `postgres:` | 通过 `sqlx-postgres` + SeaORM Postgres feature 提供。 |
 | MySQL | `mysql:` | 通过 `sqlx-mysql` + SeaORM MySQL feature 提供。 |
 

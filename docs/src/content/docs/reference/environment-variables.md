@@ -1,9 +1,9 @@
 ---
 title: Environment Variables
-description: Full list of environment variables consumed by gproxy at startup.
+description: Full list of environment variables consumed by GPROXY at startup.
 ---
 
-gproxy's startup arguments are defined in `apps/gproxy/src/main.rs` and
+GPROXY's startup arguments are defined in `apps/gproxy/src/main.rs` and
 parsed by [`clap`](https://crates.io/crates/clap). Every CLI flag has a
 matching environment variable. When both are provided, **CLI arguments
 take priority**.
@@ -25,8 +25,8 @@ account if the seed config doesn't define one.
 | Variable | Default | Required | Description |
 | --- | --- | --- | --- |
 | `GPROXY_ADMIN_USER` | `admin` | No | Admin username. |
-| `GPROXY_ADMIN_PASSWORD` | None | No | Admin password. If unset and an admin must be created, gproxy **generates one and logs it once**. |
-| `GPROXY_ADMIN_API_KEY` | None | No | Admin API key. If unset and an admin must be created, gproxy **generates one and logs it once**. |
+| `GPROXY_ADMIN_PASSWORD` | None | No | Admin password. If unset and an admin must be created, GPROXY **generates one and logs it once**. |
+| `GPROXY_ADMIN_API_KEY` | None | No | Admin API key. If unset and an admin must be created, GPROXY **generates one and logs it once**. |
 
 ## Storage
 
@@ -44,7 +44,7 @@ account if the seed config doesn't define one.
   If you set both, the CLI wins.
 - **Persisted global settings.** If the database already contains a
   `global_settings` row and you did not pass `GPROXY_DSN` / `GPROXY_DATA_DIR`
-  explicitly at startup, gproxy reconnects using the **persisted**
+  explicitly at startup, GPROXY reconnects using the **persisted**
   configuration — not the environment defaults. This is intentional: it
   lets you change host / port / DSN permanently from the console.
 - **Bootstrap logging.** Generated admin passwords and API keys are logged

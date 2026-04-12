@@ -10,7 +10,7 @@ description: Supported databases, DSN formats, and at-rest encryption in gproxy.
 
 | Database | DSN prefix | Notes |
 | --- | --- | --- |
-| SQLite | `sqlite:` | Default mode. If `GPROXY_DSN` is not set, gproxy generates a SQLite file DSN automatically under `GPROXY_DATA_DIR`. |
+| SQLite | `sqlite:` | Default mode. If `GPROXY_DSN` is not set, GPROXY generates a SQLite file DSN automatically under `GPROXY_DATA_DIR`. |
 | PostgreSQL | `postgres:` | Provided by `sqlx-postgres` and the SeaORM Postgres feature. |
 | MySQL | `mysql:` | Provided by `sqlx-mysql` and the SeaORM MySQL feature. |
 
@@ -28,7 +28,7 @@ bootstrap.
 
 ## Connection lifecycle
 
-When gproxy starts, `SeaOrmStorage::connect()`:
+When GPROXY starts, `SeaOrmStorage::connect()`:
 
 1. Optionally loads the database encryptor corresponding to
    `DATABASE_SECRET_KEY`.
@@ -38,13 +38,13 @@ When gproxy starts, `SeaOrmStorage::connect()`:
    with the compiled-in entity definitions.
 
 There are no separate "run migrations" commands — the schema sync is
-part of startup. If the sync fails, gproxy aborts with a loud error
+part of startup. If the sync fails, GPROXY aborts with a loud error
 rather than running with a partial schema.
 
 ## At-rest encryption
 
 Set `DATABASE_SECRET_KEY` to turn on the database encryptor. When it is
-enabled, gproxy encrypts the following fields with
+enabled, GPROXY encrypts the following fields with
 **XChaCha20-Poly1305** before writing them:
 
 - Provider credentials

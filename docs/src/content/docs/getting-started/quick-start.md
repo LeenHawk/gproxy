@@ -1,15 +1,15 @@
 ---
 title: Quick Start
-description: Boot a working gproxy instance with one provider, one user, and one API key in five minutes.
+description: Boot a working GPROXY instance with one provider, one user, and one API key in five minutes.
 ---
 
-This page gets you from zero to a running gproxy with a real upstream, an
+This page gets you from zero to a running GPROXY with a real upstream, an
 admin account, and a user API key that can make requests.
 
 ## 1. Write a seed TOML config
 
 The TOML file pointed to by `GPROXY_CONFIG` is only used the **first time**
-gproxy starts — it seeds the database. After that, the database is the
+GPROXY starts — it seeds the database. After that, the database is the
 source of truth and you manage everything from the console or the admin API.
 
 Save this as `gproxy.toml` somewhere on disk. The snippet below creates one
@@ -65,13 +65,13 @@ entirely. Define non-admin users later from the console.
 See the [TOML Config reference](/reference/toml-config/) for every field this
 file supports.
 
-## 2. Launch gproxy
+## 2. Launch GPROXY
 
 ```bash
 GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 ```
 
-On the first run gproxy will:
+On the first run GPROXY will:
 
 1. Create `./data/gproxy.db` (SQLite) automatically.
 2. Import the seed TOML into the database.
@@ -83,8 +83,8 @@ They are only used when the seed has no admin.
 
 :::tip
 If you're running without a seed TOML, set those three environment
-variables so gproxy can bootstrap an admin on first launch. When they
-are unset, gproxy generates a password and API key and **logs them
+variables so GPROXY can bootstrap an admin on first launch. When they
+are unset, GPROXY generates a password and API key and **logs them
 once** — copy them immediately.
 :::
 

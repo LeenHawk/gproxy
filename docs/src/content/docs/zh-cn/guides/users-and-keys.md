@@ -1,9 +1,9 @@
 ---
 title: 用户与 API 密钥
-description: gproxy 中用户、API 密钥和管理员账号的组织方式。
+description: GPROXY 中用户、API 密钥和管理员账号的组织方式。
 ---
 
-gproxy 原生就是多租户的。每个请求都必须以**用户**身份鉴权，每个用户可以持有
+GPROXY 原生就是多租户的。每个请求都必须以**用户**身份鉴权，每个用户可以持有
 多个 **API 密钥**。
 
 ## 数据模型
@@ -42,13 +42,13 @@ label = "ci-runner"
 enabled = true
 ```
 
-`password` 可以是明文 (导入时 gproxy 用 Argon2 进行哈希)，也可以直接是
+`password` 可以是明文 (导入时 GPROXY 用 Argon2 进行哈希)，也可以直接是
 Argon2 PHC 字符串 (`$argon2id$…`)，便于从外部系统迁移已经哈希过的凭证。
 
 ## 引导 (bootstrap) 管理员
 
 启动时，若种子 TOML 中**没有**任何 `is_admin = true` 且至少有一个启用 key 的用户，
-gproxy 会从以下环境变量创建管理员：
+GPROXY 会从以下环境变量创建管理员：
 
 - `GPROXY_ADMIN_USER` (默认 `admin`)
 - `GPROXY_ADMIN_PASSWORD` —— 未设置则自动生成并打印一次

@@ -3,7 +3,7 @@ title: Observability
 description: Usage accounting, request logging, and health tracking in gproxy.
 ---
 
-gproxy captures three independent streams of operational data: **usage**,
+GPROXY captures three independent streams of operational data: **usage**,
 **request logs**, and **health**. Each is controlled by its own toggle and
 written through its own background worker so the hot path stays fast.
 
@@ -49,7 +49,7 @@ filters by user, provider, model, status, and time range.
 
 ## Health tracking
 
-For every credential on every provider, gproxy maintains an in-memory
+For every credential on every provider, GPROXY maintains an in-memory
 health state:
 
 - **Healthy** — the default, counts towards load balancing.
@@ -66,7 +66,7 @@ show the current state after a restart.
 
 All three streams land in the configured database (SQLite by default).
 There is no external sink dependency — point a SQL client at your DSN
-and you can query everything gproxy records.
+and you can query everything GPROXY records.
 
 Typical tables you'll want to know about:
 
@@ -77,7 +77,7 @@ Typical tables you'll want to know about:
 
 ## Rotating and pruning
 
-gproxy does not include a log-rotation feature. Because everything is in
+GPROXY does not include a log-rotation feature. Because everything is in
 the database, handle retention with a scheduled SQL job — for example,
 `DELETE FROM upstream_requests WHERE created_at < NOW() - INTERVAL '14 days'`
 on PostgreSQL. The `QuotaReconciler` only reads usage rows to recompute

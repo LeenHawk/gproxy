@@ -3,7 +3,7 @@ title: Providers & Channels
 description: How providers, channels, and credentials fit together in gproxy.
 ---
 
-A **provider** in gproxy is a named upstream LLM endpoint. Each provider is
+A **provider** in GPROXY is a named upstream LLM endpoint. Each provider is
 backed by exactly one **channel** (the code that speaks the upstream's
 protocol) and has one or more **credentials** attached to it.
 
@@ -59,7 +59,7 @@ The console renders a structured editor for each one.
 
 ## Credentials and health
 
-When a provider has multiple credentials, gproxy treats them as a rotation
+When a provider has multiple credentials, GPROXY treats them as a rotation
 pool. The `GproxyEngine` picks a credential, calls upstream, and on failure
 updates a **per-credential health state** (cooldowns for rate-limited keys,
 disables for revoked keys, and so on). The `HealthBroadcaster` worker
@@ -69,14 +69,29 @@ failures doesn't spam the database.
 You can watch the current health state from the console or from the
 `/admin/health` endpoints.
 
+## Two routing modes
+
+Every provider is reachable two ways on the same GPROXY instance:
+
+| Mode | URL shape | How the provider is chosen |
+| --- | --- | --- |
+| **Aggregated** | `/v1/...`, `/v1beta/...` | From a `provider/model` prefix in the `model` field (or from an alias). |
+| **Scoped** | `/{provider}/v1/...` | From the URL path; the `model` field carries just the upstream id. |
+
+Both modes serve every protocol (OpenAI / Claude / Gemini) and both go
+through the same `permission → rewrite → alias → execute` pipeline. Pick
+whichever fits your client — see
+[First Request](/getting-started/first-request/) for concrete curl
+examples of each.
+
 ## Same-protocol passthrough
 
 If the client and the selected upstream speak the same protocol (for
-example, an OpenAI-compatible client hitting an OpenAI provider), gproxy
+example, an OpenAI-compatible client hitting an OpenAI provider), GPROXY
 forwards the request with **minimal parsing**. It still applies auth, model
 resolution, usage accounting, and rate limiting — it just avoids
 deserializing the body when nothing needs to be rewritten. This is the hot
-path and where gproxy gets most of its throughput.
+path and where GPROXY gets most of its throughput.
 
 When the protocols differ, the `gproxy-protocol::transform` layer converts
 the request shape on the way in and the response shape on the way out.

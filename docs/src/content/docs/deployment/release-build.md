@@ -1,9 +1,9 @@
 ---
 title: Release Build
-description: How to produce a production binary of gproxy, including the embedded console.
+description: How to produce a production binary of GPROXY, including the embedded console.
 ---
 
-A production build of gproxy is a single Cargo release build plus a
+A production build of GPROXY is a single Cargo release build plus a
 one-time frontend build. Both steps are idempotent and can be wired into
 CI.
 
@@ -50,7 +50,7 @@ dependencies beyond `libc` and the TLS stack.
 
 ## 4. First run
 
-On the first run, gproxy will:
+On the first run, GPROXY will:
 
 - Create `GPROXY_DATA_DIR` if it doesn't exist.
 - Generate a SQLite file under the data directory if `GPROXY_DSN` is unset.

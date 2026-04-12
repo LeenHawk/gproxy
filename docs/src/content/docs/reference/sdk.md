@@ -3,11 +3,11 @@ title: Rust SDK
 description: Using gproxy-sdk to embed the provider engine in your own Rust application.
 ---
 
-`gproxy-sdk` is the entry crate for the gproxy Rust SDK. It exposes the
+`gproxy-sdk` is the entry crate for the GPROXY Rust SDK. It exposes the
 protocol types, routing helpers, and the provider engine through one
 surface — suitable for Rust developers who want to assemble their own LLM
 agent, gateway, forwarding layer, or multi-upstream aggregation service
-without running the full gproxy server.
+without running the full GPROXY server.
 
 ## What's in the umbrella
 

@@ -1,6 +1,6 @@
 ---
 title: Docker 部署
-description: 使用容器运行 gproxy，包括持久化数据和通过环境变量传参。
+description: 使用容器运行 GPROXY，包括持久化数据和通过环境变量传参。
 ---
 
 仓库自带 [`Dockerfile.action`](https://github.com/LeenHawk/gproxy/blob/main/Dockerfile.action)，
@@ -17,7 +17,7 @@ docker build -f Dockerfile.action -t gproxy:local .
 
 ## 运行
 
-gproxy 需要一个地方持久化数据目录 (使用 SQLite 时就是 SQLite 文件)。
+GPROXY 需要一个地方持久化数据目录 (使用 SQLite 时就是 SQLite 文件)。
 挂载一个 volume，并按常规方式传环境变量：
 
 ```bash
@@ -85,7 +85,7 @@ volumes:
 
 ## 关机行为
 
-`docker stop` 会向主进程发送 `SIGTERM`。gproxy 会像处理 Ctrl+C 一样处理它 ——
+`docker stop` 会向主进程发送 `SIGTERM`。GPROXY 会像处理 Ctrl+C 一样处理它 ——
 Axum drain 在途请求，`UsageSink` 写入最后一批，然后进程退出。给它足够的
 宽限时间 (Docker 默认 10 秒即可)。完整流程见
 [优雅关机](/zh-cn/reference/graceful-shutdown/)。

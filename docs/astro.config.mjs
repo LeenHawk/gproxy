@@ -4,11 +4,47 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://gproxy.leenhawk.com',
 	integrations: [
 		starlight({
 			title: 'gproxy',
 			description:
 				'A high-performance LLM proxy server written in Rust — multi-provider, multi-tenant, with an embedded console.',
+			favicon: '/favicon.ico',
+			head: [
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'icon',
+						type: 'image/png',
+						sizes: '96x96',
+						href: '/favicon-96x96.png',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'icon',
+						type: 'image/svg+xml',
+						href: '/favicon.svg',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'apple-touch-icon',
+						sizes: '180x180',
+						href: '/apple-touch-icon.png',
+					},
+				},
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'manifest',
+						href: '/site.webmanifest',
+					},
+				},
+			],
 			social: [
 				{
 					icon: 'github',
@@ -84,6 +120,26 @@ export default defineConfig({
 							translations: { 'zh-CN': '权限、限流与配额' },
 						},
 						{
+							label: 'Request Rewrite Rules',
+							slug: 'guides/rewrite-rules',
+							translations: { 'zh-CN': '请求改写规则' },
+						},
+						{
+							label: 'Message Rewrite Rules',
+							slug: 'guides/message-rewrite',
+							translations: { 'zh-CN': '消息改写规则' },
+						},
+						{
+							label: 'Claude Prompt Caching',
+							slug: 'guides/claude-caching',
+							translations: { 'zh-CN': 'Claude 提示缓存' },
+						},
+						{
+							label: 'Adding a Channel',
+							slug: 'guides/adding-a-channel',
+							translations: { 'zh-CN': '新增通道' },
+						},
+						{
 							label: 'Embedded Console',
 							slug: 'guides/console',
 							translations: { 'zh-CN': '内嵌控制台' },
@@ -108,6 +164,11 @@ export default defineConfig({
 							label: 'TOML Config',
 							slug: 'reference/toml-config',
 							translations: { 'zh-CN': 'TOML 配置' },
+						},
+						{
+							label: 'Dispatch Table',
+							slug: 'reference/dispatch-table',
+							translations: { 'zh-CN': '路由表' },
 						},
 						{
 							label: 'Database Backends',
@@ -141,6 +202,11 @@ export default defineConfig({
 							translations: { 'zh-CN': 'Docker 部署' },
 						},
 					],
+				},
+				{
+					label: 'Downloads',
+					translations: { 'zh-CN': '下载' },
+					link: '/downloads/',
 				},
 			],
 		}),

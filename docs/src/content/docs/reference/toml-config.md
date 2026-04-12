@@ -157,7 +157,7 @@ with pricing. `[[model_aliases]]` defines an alias pointing at a
 
 ## `[[users]]` and `[[users.keys]]`
 
-`[[users]]` defines an account. `password` may be plain text (gproxy hashes
+`[[users]]` defines an account. `password` may be plain text (GPROXY hashes
 with Argon2 on import) or a direct Argon2 PHC string. Set `is_admin = true`
 to create an admin — that account can log into the console and call
 `/admin/*`.
@@ -186,7 +186,7 @@ semantics and the order in which these are evaluated.
 
 ## Bootstrap behavior
 
-On startup, gproxy checks whether the database already has data:
+On startup, GPROXY checks whether the database already has data:
 
 - **Empty database:** the TOML seed is imported. The admin account is
   either picked up from the seed (a user with `is_admin = true` and an

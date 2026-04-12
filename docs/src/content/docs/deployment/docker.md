@@ -1,6 +1,6 @@
 ---
 title: Docker
-description: Running gproxy in a container with persistent data and environment-based configuration.
+description: Running GPROXY in a container with persistent data and environment-based configuration.
 ---
 
 The repository ships [`Dockerfile.action`](https://github.com/LeenHawk/gproxy/blob/main/Dockerfile.action),
@@ -19,7 +19,7 @@ the frontend is built as part of the Docker build.
 
 ## Run
 
-gproxy needs a place to persist its data directory (the SQLite file, if
+GPROXY needs a place to persist its data directory (the SQLite file, if
 you're using SQLite). Mount a volume and pass the usual environment
 variables:
 
@@ -91,7 +91,7 @@ volumes:
 
 ## Shutdown behavior
 
-Docker sends `SIGTERM` to the main process on `docker stop`. gproxy
+Docker sends `SIGTERM` to the main process on `docker stop`. GPROXY
 handles it exactly like a Ctrl+C — Axum drains in-flight requests,
 `UsageSink` writes its final batch, and the process exits. Give it
 enough grace time (Docker default is 10 s, which is fine); see

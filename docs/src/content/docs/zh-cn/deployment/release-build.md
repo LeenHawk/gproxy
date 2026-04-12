@@ -1,6 +1,6 @@
 ---
 title: 发行版构建
-description: 如何生成 gproxy 的生产二进制 —— 包括内嵌控制台。
+description: 如何生成 GPROXY 的生产二进制 —— 包括内嵌控制台。
 ---
 
 生产构建 = 一次 Cargo release 构建 + 一次前端构建。两个步骤都是幂等的，
@@ -43,7 +43,7 @@ strip target/release/gproxy
 
 ## 4. 首次启动
 
-首次启动时 gproxy 会：
+首次启动时 GPROXY 会：
 
 - 若 `GPROXY_DATA_DIR` 不存在则创建。
 - 若未设置 `GPROXY_DSN`，在数据目录下生成 SQLite 文件。

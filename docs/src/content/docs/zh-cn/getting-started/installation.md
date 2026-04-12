@@ -1,9 +1,9 @@
 ---
 title: 安装
-description: 如何从源码、发布二进制或 Docker 镜像安装 gproxy。
+description: 如何从源码、发布二进制或 Docker 镜像安装 GPROXY。
 ---
 
-gproxy 以单一静态二进制的形式发布，React 控制台已经内嵌在里面。获取方式有三种：
+GPROXY 以单一静态二进制的形式发布，React 控制台已经内嵌在里面。获取方式有三种：
 
 1. **从源码编译** (开发推荐)。
 2. **下载发布二进制** (GitHub Releases 页面)。

@@ -1,9 +1,9 @@
 ---
 title: Architecture
-description: A tour of the gproxy workspace — apps, crates, and SDK layers — and how a request flows through the system.
+description: A tour of the GPROXY workspace — apps, crates, and SDK layers — and how a request flows through the system.
 ---
 
-gproxy is a Cargo workspace organized into three layers:
+GPROXY is a Cargo workspace organized into three layers:
 
 1. **Apps** — runnable binaries (`gproxy`, `gproxy-recorder`).
 2. **Crates** — the server-side pieces that the main app composes (`gproxy-core`,

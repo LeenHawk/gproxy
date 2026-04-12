@@ -1,5 +1,5 @@
 ---
-title: gproxy
+title: GPROXY
 description: 使用 Rust 编写的高性能 LLM 代理服务器 —— 多供应商、多租户，自带内嵌控制台。
 template: splash
 hero:
@@ -8,15 +8,19 @@ hero:
     - text: 快速上手
       link: /zh-cn/getting-started/installation/
       icon: right-arrow
+    - text: 下载
+      link: /zh-cn/downloads/
+      icon: down-caret
+      variant: secondary
     - text: 在 GitHub 上查看
       link: https://github.com/LeenHawk/gproxy
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## 为什么选择 gproxy?
+## 为什么选择 GPROXY?
 
 <CardGrid stagger>
 	<Card title="多供应商接入" icon="puzzle">
@@ -24,7 +28,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		Claude Code、Codex 等等 —— 统一通过 OpenAI / Claude / Gemini 兼容接口暴露。
 	</Card>
 	<Card title="同协议透传" icon="rocket">
-		当客户端与上游使用相同协议时，gproxy 以最小解析开销直接透传字节 ——
+		当客户端与上游使用相同协议时，GPROXY 以最小解析开销直接透传字节 ——
 		低延迟、高吞吐。
 	</Card>
 	<Card title="原生多租户" icon="seti:lock">
@@ -44,3 +48,11 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		方便你把引擎嵌入到自己的服务中。
 	</Card>
 </CardGrid>
+
+## 获取二进制
+
+<LinkCard
+	title="下载 GPROXY"
+	description="针对 Linux / macOS / Windows 的预构建二进制 —— 自带 SHA256 校验和根据当前设备自动推荐的版本。"
+	href="/zh-cn/downloads/"
+/>

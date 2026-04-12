@@ -1,14 +1,14 @@
 ---
 title: 内嵌控制台
-description: gproxy 二进制内自带的 React 控制台。
+description: GPROXY 二进制内自带的 React 控制台。
 ---
 
-gproxy 把一整个 **React 控制台**打包进了发布二进制。服务启动后，控制台
+GPROXY 把一整个 **React 控制台**打包进了发布二进制。服务启动后，控制台
 就挂载在 `/console` —— 不需要单独跑或部署前端进程。
 
 ## 访问控制台
 
-1. 启动 gproxy (参见 [快速开始](/zh-cn/getting-started/quick-start/))。
+1. 启动 GPROXY (参见 [快速开始](/zh-cn/getting-started/quick-start/))。
 2. 浏览器访问 `http://<host>:<port>/console`。
 3. 使用任一启用用户的用户名/密码登录。若该用户 `is_admin = true`，
    你会看到管理员视图。
@@ -63,5 +63,5 @@ pnpm dev
 ## 放到反向代理后
 
 控制台的鉴权方式是用户名/密码 + bearer token —— 它本身不对接外部 SSO。
-若需要 SSO，请把 gproxy 放在反向代理后面，在代理层做鉴权，仅对认证后的
+若需要 SSO，请把 GPROXY 放在反向代理后面，在代理层做鉴权，仅对认证后的
 会话放行 `/console` 和 `/admin/*`；LLM 路由继续走 API-key 流程。

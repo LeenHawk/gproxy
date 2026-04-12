@@ -1,9 +1,9 @@
 ---
 title: Models & Aliases
-description: How gproxy resolves a model name end-to-end, including aliases, rewrite rules, and local model-list dispatch.
+description: How GPROXY resolves a model name end-to-end, including aliases, rewrite rules, and local model-list dispatch.
 ---
 
-Every request to gproxy carries a model name. The route it takes from that
+Every request to GPROXY carries a model name. The route it takes from that
 string to an actual upstream call is **one canonical pipeline**:
 
 ```text
@@ -84,7 +84,7 @@ configured for the route:
   **Local** implementation. Requests are answered entirely from the local
   `models` table and never hit upstream.
 - **`*-like` / pass-through presets** still call upstream for `model_list`,
-  but gproxy **merges** the upstream response with the local `models`
+  but GPROXY **merges** the upstream response with the local `models`
   table: real local models that aren't in the upstream response are
   appended, and aliases mirror their target entry. `model_get` checks the
   local table first and falls through to upstream only on miss.

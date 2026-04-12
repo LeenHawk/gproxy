@@ -1,9 +1,9 @@
 ---
 title: 架构概览
-description: gproxy 工作空间结构 —— apps、crates 与 SDK 分层，以及一次请求是如何被处理的。
+description: GPROXY 工作空间结构 —— apps、crates 与 SDK 分层，以及一次请求是如何被处理的。
 ---
 
-gproxy 是一个 Cargo 工作空间，按三层组织：
+GPROXY 是一个 Cargo 工作空间，按三层组织：
 
 1. **Apps** —— 可运行的二进制 (`gproxy`、`gproxy-recorder`)。
 2. **Crates** —— 主程序组合使用的服务端组件 (`gproxy-core`、`gproxy-storage`、

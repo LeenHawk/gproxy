@@ -3,7 +3,7 @@ title: Users & API Keys
 description: How users, API keys, and admin accounts work in gproxy.
 ---
 
-gproxy is multi-tenant out of the box. Every request must authenticate as
+GPROXY is multi-tenant out of the box. Every request must authenticate as
 a **user**, and every user carries one or more **API keys**.
 
 ## The data model
@@ -45,7 +45,7 @@ label = "ci-runner"
 enabled = true
 ```
 
-`password` accepts either plain text (which gproxy will hash with Argon2 on
+`password` accepts either plain text (which GPROXY will hash with Argon2 on
 import) or a direct Argon2 PHC string (`$argon2id$…`), so you can bring
 pre-hashed credentials in from an external system.
 
@@ -92,7 +92,7 @@ will fail auth.
 
 ## At-rest encryption
 
-When `DATABASE_SECRET_KEY` is set at startup, gproxy enables the database
+When `DATABASE_SECRET_KEY` is set at startup, GPROXY enables the database
 encryptor: user passwords and API keys (as well as provider credentials)
 are encrypted with **XChaCha20-Poly1305** before being written to the
 database. Losing the key means losing access to the ciphertext —

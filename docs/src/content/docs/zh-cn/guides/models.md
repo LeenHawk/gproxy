@@ -1,9 +1,9 @@
 ---
 title: 模型与别名
-description: gproxy 如何端到端地解析一个模型名 —— 包括别名、重写规则和本地 model_list 分发。
+description: GPROXY 如何端到端地解析一个模型名 —— 包括别名、重写规则和本地 model_list 分发。
 ---
 
-发给 gproxy 的每个请求都携带一个模型名。它从这个字符串走到真实上游调用的路径
+发给 GPROXY 的每个请求都携带一个模型名。它从这个字符串走到真实上游调用的路径
 只有**一条规范管道**：
 
 ```text
@@ -68,7 +68,7 @@ enabled = true
 - **`*-only` 预设** (`chat-completions-only`、`response-only`、`claude-only`、
   `gemini-only`) 的 `model_list` 和 `model_get` 默认使用 **Local** 实现：
   请求完全由本地 `models` 表响应，永远不会打到上游。
-- **`*-like` / 透传预设**仍会为 `model_list` 调用上游，但 gproxy 会把上游响应
+- **`*-like` / 透传预设**仍会为 `model_list` 调用上游，但 GPROXY 会把上游响应
   与本地 `models` 表**合并**：本地存在但上游没有的真实模型追加到响应里，别名镜像
   其目标模型。`model_get` 先查本地表，未命中再落到上游。
 

@@ -1,6 +1,6 @@
 ---
 title: 优雅关机
-description: gproxy 如何 drain worker、flush 用量并干净退出。
+description: GPROXY 如何 drain worker、flush 用量并干净退出。
 ---
 
 优雅关机由
@@ -25,7 +25,7 @@ description: gproxy 如何 drain worker、flush 用量并干净退出。
 ## 运维注意事项
 
 - **设置合理的 terminationGracePeriodSeconds。** Kubernetes 或 systemd 下，
-  至少给 gproxy 10 秒时间退出 (5 秒 worker drain + 余量)。太短可能会截断
+  至少给 GPROXY 10 秒时间退出 (5 秒 worker drain + 余量)。太短可能会截断
   最后一批用量写入。
 - **热更新 != 重启。** 绝大多数运行态设置 (供应商、模型、用户、权限、
   限流、配额) 都可以在控制台或管理 API 中热改，下一次请求即生效。

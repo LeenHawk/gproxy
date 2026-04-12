@@ -1,9 +1,9 @@
 ---
 title: Installation
-description: How to install gproxy from source, from a release binary, or via Docker.
+description: How to install GPROXY from source, from a release binary, or via Docker.
 ---
 
-gproxy ships as a single static binary with the React console embedded inside.
+GPROXY ships as a single static binary with the React console embedded inside.
 You can get it three ways:
 
 1. **Build from source** (recommended for development).

@@ -1,15 +1,15 @@
 ---
 title: Embedded Console
-description: The built-in React console shipped inside the gproxy binary.
+description: The built-in React console shipped inside the GPROXY binary.
 ---
 
-gproxy bundles a full **React console** into the release binary. When
+GPROXY bundles a full **React console** into the release binary. When
 the server starts, it serves the console at `/console` — there is no
 separate frontend process to run or deploy.
 
 ## Accessing the console
 
-1. Start gproxy (see [Quick Start](/getting-started/quick-start/)).
+1. Start GPROXY (see [Quick Start](/getting-started/quick-start/)).
 2. Open `http://<host>:<port>/console` in a browser.
 3. Log in with a username / password belonging to any enabled user. If
    the user is `is_admin = true`, you get the administrative views.
@@ -73,7 +73,7 @@ Set the Vite dev proxy to point at your local `gproxy` instance so
 
 The console authenticates with a username/password and bearer token — it
 does not integrate with external SSO on its own. If you need SSO, put
-gproxy behind a reverse proxy that terminates auth and forwards
+GPROXY behind a reverse proxy that terminates auth and forwards
 requests. Restrict `/console` and `/admin/*` to authenticated sessions
 at the proxy level, and continue to use the API-key flow for LLM
 routes.

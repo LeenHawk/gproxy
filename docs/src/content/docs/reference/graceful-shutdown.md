@@ -1,6 +1,6 @@
 ---
 title: Graceful Shutdown
-description: How gproxy drains workers, flushes usage, and exits cleanly.
+description: How GPROXY drains workers, flushes usage, and exits cleanly.
 ---
 
 Graceful shutdown is implemented jointly by
@@ -33,7 +33,7 @@ within a bounded time window.
 ## Operational implications
 
 - **Set a reasonable terminationGracePeriodSeconds.** On Kubernetes or
-  systemd, give gproxy at least 10 seconds to exit cleanly (5 s for
+  systemd, give GPROXY at least 10 seconds to exit cleanly (5 s for
   worker drain + some headroom). Anything less risks clipping the
   final usage batch.
 - **Hot reloading is not the same as a restart.** Most runtime

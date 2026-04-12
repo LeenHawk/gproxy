@@ -1,9 +1,9 @@
 ---
-title: What is gproxy?
-description: A high-level overview of the gproxy LLM proxy server and what it is designed to do.
+title: What is GPROXY?
+description: A high-level overview of the GPROXY LLM proxy server and what it is designed to do.
 ---
 
-**gproxy** is a high-performance LLM proxy server written in Rust. It exposes a
+**GPROXY** is a high-performance LLM proxy server written in Rust. It exposes a
 unified, OpenAI / Anthropic / Gemini compatible HTTP surface on top of many
 upstream providers, while adding the primitives you need to run it as a shared
 service: users, API keys, model permissions, rate limits, cost quotas, usage
@@ -15,7 +15,7 @@ applications.
 
 ## What it is good at
 
-- **Fanning out to many upstreams from one endpoint.** A single gproxy instance
+- **Fanning out to many upstreams from one endpoint.** A single GPROXY instance
   can route to OpenAI, Anthropic, Vertex / Gemini, DeepSeek, Groq, OpenRouter,
   NVIDIA, Claude Code, Codex, Antigravity, custom OpenAI-compatible endpoints,
   and more — each configured as an independent *provider*.
@@ -27,7 +27,7 @@ applications.
   Completions format can be routed to an Anthropic or Gemini upstream (and
   vice versa) through the protocol `transform` layer.
 - **Same-protocol passthrough.** When the client and upstream speak the same
-  protocol, gproxy forwards bytes with minimal parsing for low-overhead,
+  protocol, GPROXY forwards bytes with minimal parsing for low-overhead,
   high-throughput operation.
 - **Operational visibility.** Structured upstream / downstream logs (with
   optional body capture), per-request usage accounting, model health tracking,
@@ -35,7 +35,7 @@ applications.
 
 ## What it is not
 
-- It is **not a model host.** gproxy does not run inference itself; it talks
+- It is **not a model host.** GPROXY does not run inference itself; it talks
   to real upstream providers over HTTP.
 - It is **not a load balancer for web traffic generally.** It understands
   LLM protocols (OpenAI, Claude, Gemini) and is optimized for them.
@@ -45,7 +45,7 @@ applications.
 
 ## Core concepts at a glance
 
-| Concept | What it means in gproxy |
+| Concept | What it means in GPROXY |
 | --- | --- |
 | **Provider** | A configured upstream (name + channel + settings + credentials). |
 | **Channel** | The code that speaks a specific upstream protocol (OpenAI, Anthropic, Gemini, …). |

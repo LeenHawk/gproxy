@@ -1,9 +1,9 @@
 ---
 title: 快速开始
-description: 5 分钟内用一个供应商、一个用户和一个 API 密钥把 gproxy 跑起来。
+description: 5 分钟内用一个供应商、一个用户和一个 API 密钥把 GPROXY 跑起来。
 ---
 
-本页帮你从零跑到一个真正可用的 gproxy：连接上游、创建管理员账号，以及一个可以发请求的用户 API key。
+本页帮你从零跑到一个真正可用的 GPROXY：连接上游、创建管理员账号，以及一个可以发请求的用户 API key。
 
 ## 1. 编写种子 TOML 配置
 
@@ -61,13 +61,13 @@ model_pattern = "*"
 
 该文件支持的全部字段见 [TOML 配置参考](/zh-cn/reference/toml-config/)。
 
-## 2. 启动 gproxy
+## 2. 启动 GPROXY
 
 ```bash
 GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 ```
 
-首次启动时 gproxy 会：
+首次启动时 GPROXY 会：
 
 1. 自动创建 `./data/gproxy.db` (SQLite)。
 2. 把种子 TOML 导入数据库。
@@ -78,8 +78,8 @@ GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 没有管理员时才会被用到。
 
 :::tip
-如果你不使用种子 TOML，可以改为设置上述三个环境变量，让 gproxy 在首次启动时
-bootstrap 一个管理员。未设置时 gproxy 会自动生成密码和 API key 并
+如果你不使用种子 TOML，可以改为设置上述三个环境变量，让 GPROXY 在首次启动时
+bootstrap 一个管理员。未设置时 GPROXY 会自动生成密码和 API key 并
 **打印一次** —— 请立刻记下。
 :::
 

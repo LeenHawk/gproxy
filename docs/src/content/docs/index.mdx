@@ -1,5 +1,5 @@
 ---
-title: gproxy
+title: GPROXY
 description: A high-performance LLM proxy server written in Rust — multi-provider, multi-tenant, with an embedded console.
 template: splash
 hero:
@@ -8,15 +8,19 @@ hero:
     - text: Get Started
       link: /getting-started/installation/
       icon: right-arrow
+    - text: Downloads
+      link: /downloads/
+      icon: down-caret
+      variant: secondary
     - text: View on GitHub
       link: https://github.com/LeenHawk/gproxy
       icon: external
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## Why gproxy?
+## Why GPROXY?
 
 <CardGrid stagger>
 	<Card title="Multi-provider" icon="puzzle">
@@ -24,7 +28,7 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		Codex, and more — behind a unified OpenAI / Claude / Gemini compatible surface.
 	</Card>
 	<Card title="Same-protocol passthrough" icon="rocket">
-		When the client and upstream speak the same protocol, gproxy forwards bytes with
+		When the client and upstream speak the same protocol, GPROXY forwards bytes with
 		minimal parsing — low overhead, high throughput.
 	</Card>
 	<Card title="Multi-tenant by design" icon="seti:lock">
@@ -44,3 +48,11 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 		crates so you can embed the engine into your own service.
 	</Card>
 </CardGrid>
+
+## Get the binary
+
+<LinkCard
+	title="Download GPROXY"
+	description="Pre-built binaries for Linux, macOS, and Windows — with SHA256 verification and auto-detected device recommendations."
+	href="/downloads/"
+/>

@@ -1,83 +1,60 @@
-# 部署指南
+# GPROXY
 
-### 编译
+**使用 Rust 编写的高性能 LLM 代理服务器。** 多供应商、多租户，内嵌
+React 控制台 —— 全部塞进一个静态二进制里。
 
-单实例构建：
+- 📘 **文档：** <https://gproxy.leenhawk.com/zh-cn/>
+- 📦 **下载：** <https://gproxy.leenhawk.com/zh-cn/downloads/>
+- 🦀 **Crate：** `gproxy-sdk`
+- 🪪 **许可证：** AGPL-3.0-or-later
+- 🌐 **语言：** 简体中文 · [English](./README.md)
+
+---
+
+## 能做什么
+
+GPROXY 在多家上游 LLM 供应商之上暴露一个统一的、**OpenAI / Anthropic /
+Gemini 兼容**的 HTTP 接口，并提供把它作为共享服务运行所需的一切基础设施：
+
+- **多供应商路由** —— OpenAI、Anthropic、Vertex / Gemini、DeepSeek、
+  Groq、OpenRouter、NVIDIA、Claude Code、Codex、Antigravity，以及任意
+  OpenAI 兼容的自定义端点。
+- **两种路由模式** —— 聚合 `/v1/...`（供应商名编码在 model 字段里）
+  和限定作用域 `/{provider}/v1/...`（供应商在 URL 里）。
+- **同协议透传** —— 当客户端和上游使用相同协议时，走最小解析的快路径。
+- **跨协议翻译** —— OpenAI 客户端可以路由到 Claude 上游（反之亦然），
+  通过协议 `transform` 层完成请求和响应格式转换。
+- **多租户鉴权** —— 用户、API key、glob 模型权限、RPM / RPD / token
+  限流、美元配额。
+- **Claude 提示缓存** —— `anthropic` / `claudecode` 通道的服务端
+  `cache_breakpoint` 规则和魔法字符串触发器。
+- **请求改写 & 消息改写规则** —— 对请求体任意 JSON 字段的操作，以及
+  对消息文本内容的正则替换。
+- **内嵌 React 控制台** —— 编译进二进制，挂载在 `/console`，无需单独
+  部署前端。
+- **可插拔存储** —— SQLite / PostgreSQL / MySQL（通过 SeaORM / SQLx），
+  可选的 XChaCha20-Poly1305 磁盘加密。
+- **Rust SDK** —— `gproxy-sdk` 再导出协议、路由、供应商三个 crate，
+  方便你把引擎嵌入到自己的服务中。
+
+## 快速开始
 
 ```bash
+# 1. 构建
+git clone https://github.com/LeenHawk/gproxy.git
+cd gproxy
 cargo build -p gproxy --release
+
+# 2. 用最小配置运行
+GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 ```
 
-如果你修改了内嵌控制台前端，先构建前端再运行或打包二进制：
-
-```bash
-cd frontend/console
-pnpm install
-pnpm build
-```
-
-构建产物位于 `target/release/gproxy`。
-
-### 内嵌控制台
-
-当前二进制内嵌了一个挂载在 `/console` 下的浏览器控制台。
-
-- 控制台地址：`http://127.0.0.1:8787/console`
-- 浏览器登录接口：`POST /login`
-- 浏览器鉴权头：`Authorization: Bearer <session_token>`
-
-本地常见流程：
-
-```bash
-cd frontend/console
-pnpm install
-pnpm build
-
-cargo run -p gproxy
-```
-
-然后在浏览器里打开 `/console`，使用当前 v1 用户名和密码登录。
-
-### 环境变量
-
-`apps/gproxy/src/main.rs` 中定义了完整的启动参数和对应环境变量：
-
-| 环境变量 | 默认值 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `GPROXY_HOST` | `127.0.0.1` | 否 | 监听地址。 |
-| `GPROXY_PORT` | `8787` | 否 | 监听端口。 |
-| `GPROXY_ADMIN_USER` | `admin` | 否 | 创建或对齐 bootstrap 管理员账号时使用的用户名。 |
-| `GPROXY_ADMIN_PASSWORD` | 无 | 否 | bootstrap 管理员密码。首次启动需要创建管理员且未提供时，会自动生成并只在日志中输出一次。 |
-| `GPROXY_ADMIN_API_KEY` | 无 | 否 | bootstrap 管理员 API Key。首次启动需要创建管理员且未提供时，会自动生成并只在日志中输出一次。 |
-| `GPROXY_DSN` | 若未设置，则自动生成 `sqlite://<data_dir>/gproxy.db?mode=rwc`。 | 否 | 数据库连接串。 |
-| `GPROXY_PROXY` | 无 | 否 | 上游 HTTP 代理。 |
-| `GPROXY_SPOOF` | `chrome_136` | 否 | TLS 指纹模拟名称。 |
-| `DATABASE_SECRET_KEY` | 无 | 否 | 数据库存储加密密钥；设置后，凭证、密码和 API Key 会以 XChaCha20Poly1305 方式静态加密。 |
-| `GPROXY_REDIS_URL` | 无 | 否 | Redis 连接串；只有编译了 `redis` feature 时才会真正启用 Redis backend。 |
-| `GPROXY_CONFIG` | `gproxy.toml` | 否 | 首次初始化时用于 seed 的 TOML 配置文件路径。 |
-| `GPROXY_DATA_DIR` | `./data` | 否 | 数据目录；默认 SQLite 文件和运行期数据都基于这个目录。 |
-
-补充说明：
-
-- CLI 参数和环境变量都由 `clap` 解析，命令行显式传参优先于默认值。
-- 如果数据库里已经有 `global_settings`，且启动时没有显式传入 `GPROXY_DSN` / `GPROXY_DATA_DIR`，进程会按持久化配置重新连接数据库。
-
-### TOML 配置文件格式
-
-`GPROXY_CONFIG` 指向的 TOML 只在"数据库没有现成数据"时参与初始化。对应结构定义在 `crates/gproxy-api/src/admin/config_toml.rs`。
+一份最小的 `gproxy.toml` 种子配置，会创建一个带通配权限的管理员用户：
 
 ```toml
 [global]
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 8787
-proxy = "http://127.0.0.1:7890"
-spoof_emulation = "chrome_136"
-update_source = "github"
-enable_usage = true
-enable_upstream_log = false
-enable_upstream_log_body = false
-enable_downstream_log = false
-enable_downstream_log_body = false
 dsn = "sqlite://./data/gproxy.db?mode=rwc"
 data_dir = "./data"
 
@@ -85,98 +62,105 @@ data_dir = "./data"
 name = "openai-main"
 channel = "openai"
 settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-provider-1" }
-]
+credentials = [ { api_key = "sk-your-upstream-key" } ]
 
 [[models]]
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-display_name = "GPT-4.1 mini"
-enabled = true
-price_each_call = 0.0
-
-[[model_aliases]]
-alias = "chat-default"
 provider_name = "openai-main"
 model_id = "gpt-4.1-mini"
 enabled = true
 
 [[users]]
-name = "alice"
-password = "plain-text-or-argon2-phc"
+name = "admin"
+password = "change-me"
+is_admin = true
 enabled = true
 
 [[users.keys]]
-api_key = "sk-user-1"
+api_key = "sk-admin-1"
 label = "default"
 enabled = true
 
 [[permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-model_pattern = "gpt-*"
-
-[[file_permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-
-[[rate_limits]]
-user_name = "alice"
-model_pattern = "gpt-*"
-rpm = 60
-rpd = 10000
-total_tokens = 200000
-
-[[quotas]]
-user_name = "alice"
-quota = 100.0
-cost_used = 0.0
+user_name = "admin"
+model_pattern = "*"
 ```
 
-字段说明：
+然后打开 <http://127.0.0.1:8787/console>，用 `admin` 登录。
 
-- `[global]` 对应全局监听、日志、更新源、DSN 和数据目录配置。
-- `[[providers]]` 定义 Provider；`settings` 与 `credentials` 都是 JSON 值，经 `serde_json::Value` 读取。
-- `[[models]]` / `[[model_aliases]]` 定义可转发模型和别名。
-- 管理员身份通过 `[[users]]` 中 `is_admin = true` 且至少有一个启用中的 `[[users.keys]]` 来表示。如果 seed 配置里没有这样的管理员，启动时可以用 `GPROXY_ADMIN_USER`、`GPROXY_ADMIN_PASSWORD`、`GPROXY_ADMIN_API_KEY` 自动补一个 bootstrap 管理员。
-- `[[users]]` 下的 `password` 既可以是明文，也可以直接是 Argon2 PHC hash。
-- `[[users.keys]]` 是嵌套数组表，表示该用户的 API Key 列表。
-- `[[permissions]]`、`[[file_permissions]]`、`[[rate_limits]]`、`[[quotas]]` 分别对应模型权限、文件权限、限流和成本配额。
+完整流程见 **[快速开始](https://gproxy.leenhawk.com/zh-cn/getting-started/quick-start/)**。
 
-### 数据库支持
+## 发送第一个请求
 
-`gproxy-storage` 通过 SeaORM / SQLx 编译进了三类数据库支持：
+```bash
+# 聚合入口 —— 在 body 里写 provider/model 前缀
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer sk-admin-1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai-main/gpt-4.1-mini",
+    "messages": [ { "role": "user", "content": "你好" } ]
+  }'
 
-| 数据库 | DSN 前缀 | 说明 |
-| --- | --- | --- |
-| SQLite | `sqlite:` | 默认模式；如果未显式设置 `GPROXY_DSN`，启动时会自动生成 SQLite 文件 DSN。 |
-| PostgreSQL | `postgres:` | 由 `sqlx-postgres` / SeaORM Postgres feature 提供。 |
-| MySQL | `mysql:` | 由 `sqlx-mysql` / SeaORM MySQL feature 提供。 |
+# 限定作用域入口 —— 供应商在 URL 里，body 里只放上游原始 id
+curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
+  -H "Authorization: Bearer sk-admin-1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4.1-mini",
+    "messages": [ { "role": "user", "content": "你好" } ]
+  }'
+```
 
-常见 DSN 示例：
+Anthropic 和 Gemini 的例子见
+**[发送第一个请求](https://gproxy.leenhawk.com/zh-cn/getting-started/first-request/)**。
+
+## 仓库结构
 
 ```text
-sqlite://./data/gproxy.db?mode=rwc
-postgres://gproxy:secret@127.0.0.1:5432/gproxy
-mysql://gproxy:secret@127.0.0.1:3306/gproxy
+apps/                  # 可运行二进制
+  gproxy/              # 主二进制 (HTTP 服务 + 内嵌控制台)
+  gproxy-recorder/     # 上游流量录制工具 (开发/调试)
+crates/                # 主程序组合使用的服务端 crate
+  gproxy-core/         # 配置、身份、策略、配额、路由类型
+  gproxy-storage/      # SeaORM 存储 + 静态加密 + schema 同步
+  gproxy-api/          # 管理与用户 HTTP API、鉴权、登录、CORS
+  gproxy-server/       # 把上述部分组装在一起的 Axum 服务
+sdk/                   # 框架无关库 (不依赖 DB/HTTP)
+  gproxy-protocol/     # OpenAI/Claude/Gemini 协议类型 + transform
+  gproxy-routing/      # 路由分类、权限与限流匹配
+  gproxy-provider/     # Channel trait、ProviderStore、GproxyEngine
+  gproxy-sdk/          # 再导出上述三个的伞 crate
+frontend/console/      # React 控制台，构建时嵌入到二进制
+docs/                  # Starlight 文档站 (gproxy.leenhawk.com 的源)
 ```
 
-连接建立后，`SeaOrmStorage::connect()` 会：
+## 文档
 
-1. 可选加载 `DATABASE_SECRET_KEY` 对应的数据库加密器。
-2. 按数据库类型应用连接优化参数。
-3. 连接数据库并执行 `sync()` 以同步 schema。
+完整文档在 **<https://gproxy.leenhawk.com/zh-cn/>**，常用入口：
 
-### Graceful Shutdown
+- [GPROXY 是什么?](https://gproxy.leenhawk.com/zh-cn/introduction/what-is-gproxy/)
+- [架构概览](https://gproxy.leenhawk.com/zh-cn/introduction/architecture/)
+- [安装](https://gproxy.leenhawk.com/zh-cn/getting-started/installation/)
+- [供应商与通道](https://gproxy.leenhawk.com/zh-cn/guides/providers/)
+- [模型与别名](https://gproxy.leenhawk.com/zh-cn/guides/models/)
+- [权限、限流与配额](https://gproxy.leenhawk.com/zh-cn/guides/permissions/)
+- [请求改写规则](https://gproxy.leenhawk.com/zh-cn/guides/rewrite-rules/) · [消息改写规则](https://gproxy.leenhawk.com/zh-cn/guides/message-rewrite/)
+- [Claude 提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)
+- [新增通道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)
+- [路由表](https://gproxy.leenhawk.com/zh-cn/reference/dispatch-table/)
+- [环境变量](https://gproxy.leenhawk.com/zh-cn/reference/environment-variables/) · [TOML 配置](https://gproxy.leenhawk.com/zh-cn/reference/toml-config/)
+- [Rust SDK](https://gproxy.leenhawk.com/zh-cn/reference/sdk/)
 
-优雅停机行为由 `apps/gproxy/src/main.rs` 和 `apps/gproxy/src/workers/mod.rs` 共同实现：
+本地预览文档：
 
-1. 进程监听 `Ctrl+C`；在 Unix 上还监听 `SIGTERM`。
-2. 触发停机后，Axum server 进入 `with_graceful_shutdown` 流程，不再继续正常服务。
-3. 主线程随后调用 `worker_set.shutdown()`，向所有 worker 广播关闭信号。
-4. `WorkerSet` 最多等待 5 秒让 worker 排空。
-5. `UsageSink` 会关闭接收端、吸干剩余 usage 消息并执行最后一次批量写入。
-6. `HealthBroadcaster` 会把防抖窗口里尚未落库的健康状态补写到数据库。
-7. `QuotaReconciler` 和 `RateLimitGC` 收到信号后直接退出下一轮循环。
-8. 如果 5 秒内还有 worker 没结束，进程会记录 warning，但不会无限阻塞。
+```bash
+cd docs
+pnpm install
+pnpm dev
+```
+
+## 许可证
+
+以 [AGPL-3.0-or-later](./LICENSE) 许可证发布。
+
+作者：[LeenHawk](https://github.com/LeenHawk)
