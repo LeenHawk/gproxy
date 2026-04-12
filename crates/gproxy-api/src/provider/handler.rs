@@ -208,6 +208,31 @@ pub async fn proxy(
         .await);
     }
 
+    // Non-Local model_get: try the local models table first. If the requested
+    // model exists locally (real model or alias), return the local info
+    // without hitting upstream. Otherwise fall through to engine.execute.
+    if operation == OperationFamily::ModelGet
+        && let Some(model_id) = effective_model.as_deref()
+        && let Some(body) = build_local_model_get_body(
+            &state,
+            user_key.user_id,
+            &effective_provider,
+            model_id,
+            protocol,
+        )
+    {
+        return Ok(respond_with_local_json(
+            LocalJsonResponseContext {
+                start,
+                trace_id,
+                req_method: &req_method,
+                req_path: &req_path,
+            },
+            body,
+        )
+        .await);
+    }
+
     let forced_credential_index = file_plan
         .as_ref()
         .and_then(FileOperationPlan::forced_credential_index);
@@ -337,11 +362,11 @@ pub async fn proxy(
         record_upstream_log(&state, trace_id, &effective_provider, result.meta.as_ref()).await;
     }
 
-    // Inject model alias entries into scoped model_list responses.
+    // Merge local real models + aliases into scoped model_list responses.
     if operation == OperationFamily::ModelList
         && let ExecuteBody::Full(ref mut body) = result.body
     {
-        inject_scoped_model_list_aliases(
+        inject_scoped_model_list_locals(
             &state,
             user_key.user_id,
             &effective_provider,
@@ -494,32 +519,35 @@ pub async fn proxy_unscoped(
         ));
     }
 
-    // Local dispatch short-circuit for model_get: serve from the local
-    // models table. (model_list is handled earlier as an early return.)
-    if operation == OperationFamily::ModelGet
-        && state
-            .engine()
-            .is_local_dispatch(&target_provider, operation, protocol)
-    {
-        let Some(body) = build_local_model_get_body(
+    // model_get: try local table first (works for both Local dispatch and
+    // Passthrough/Transform dispatch — local always takes precedence when the
+    // model is found locally). If the model isn't in the local table and the
+    // dispatch is Local, 404; otherwise fall through to upstream.
+    if operation == OperationFamily::ModelGet {
+        if let Some(body) = build_local_model_get_body(
             &state,
             user_key.user_id,
             &target_provider,
             &target_model,
             protocol,
-        ) else {
+        ) {
+            return Ok(respond_with_local_json(
+                LocalJsonResponseContext {
+                    start,
+                    trace_id,
+                    req_method: &req_method,
+                    req_path: &req_path,
+                },
+                body,
+            )
+            .await);
+        }
+        if state
+            .engine()
+            .is_local_dispatch(&target_provider, operation, protocol)
+        {
             return Err(HttpError::not_found("model not found in local table"));
-        };
-        return Ok(respond_with_local_json(
-            LocalJsonResponseContext {
-                start,
-                trace_id,
-                req_method: &req_method,
-                req_path: &req_path,
-            },
-            body,
-        )
-        .await);
+        }
     }
 
     let result = match state
@@ -1473,7 +1501,35 @@ fn inject_openai_alias_entries(
     models: &mut HashMap<String, gproxy_sdk::protocol::openai::types::OpenAiModel>,
 ) {
     let all_models = state.models();
-    for alias_model in all_models.iter().filter(|m| m.alias_of.is_some() && m.enabled) {
+
+    // 1. Inject real local models (alias_of is None) that aren't already in
+    // the upstream response. This lets admins add custom models locally.
+    for real_model in all_models
+        .iter()
+        .filter(|m| m.alias_of.is_none() && m.enabled)
+    {
+        let Some(provider_name) = state.routing.provider_name_for_id(real_model.provider_id) else {
+            continue;
+        };
+        if !state.check_model_permission(user_id, &provider_name, &real_model.model_id) {
+            continue;
+        }
+        let prefixed = prefixed_model_id(&provider_name, &real_model.model_id);
+        models.entry(prefixed.clone()).or_insert_with(|| {
+            gproxy_sdk::protocol::openai::types::OpenAiModel {
+                id: prefixed,
+                object: gproxy_sdk::protocol::openai::types::OpenAiModelObject::Model,
+                created: 0,
+                owned_by: provider_name,
+            }
+        });
+    }
+
+    // 2. Inject alias entries: clone the target model and rename.
+    for alias_model in all_models
+        .iter()
+        .filter(|m| m.alias_of.is_some() && m.enabled)
+    {
         let Some(target_id) = alias_model.alias_of else {
             continue;
         };
@@ -1504,7 +1560,41 @@ fn inject_claude_alias_entries(
     models: &mut HashMap<String, gproxy_sdk::protocol::claude::types::BetaModelInfo>,
 ) {
     let all_models = state.models();
-    for alias_model in all_models.iter().filter(|m| m.alias_of.is_some() && m.enabled) {
+
+    // 1. Inject real local models (not in upstream response).
+    for real_model in all_models
+        .iter()
+        .filter(|m| m.alias_of.is_none() && m.enabled)
+    {
+        let Some(provider_name) = state.routing.provider_name_for_id(real_model.provider_id) else {
+            continue;
+        };
+        if !state.check_model_permission(user_id, &provider_name, &real_model.model_id) {
+            continue;
+        }
+        let prefixed = prefixed_model_id(&provider_name, &real_model.model_id);
+        let display_name = real_model
+            .display_name
+            .clone()
+            .unwrap_or_else(|| real_model.model_id.clone());
+        models.entry(prefixed.clone()).or_insert_with(|| {
+            gproxy_sdk::protocol::claude::types::BetaModelInfo {
+                id: prefixed,
+                created_at: time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
+                display_name,
+                max_input_tokens: None,
+                max_tokens: None,
+                capabilities: None,
+                type_: gproxy_sdk::protocol::claude::types::BetaModelType::Model,
+            }
+        });
+    }
+
+    // 2. Inject aliases.
+    for alias_model in all_models
+        .iter()
+        .filter(|m| m.alias_of.is_some() && m.enabled)
+    {
         let Some(target_id) = alias_model.alias_of else {
             continue;
         };
@@ -1534,7 +1624,48 @@ fn inject_gemini_alias_entries(
     models: &mut HashMap<String, gproxy_sdk::protocol::gemini::types::GeminiModelInfo>,
 ) {
     let all_models = state.models();
-    for alias_model in all_models.iter().filter(|m| m.alias_of.is_some() && m.enabled) {
+
+    // 1. Inject real local models (not in upstream response).
+    for real_model in all_models
+        .iter()
+        .filter(|m| m.alias_of.is_none() && m.enabled)
+    {
+        let Some(provider_name) = state.routing.provider_name_for_id(real_model.provider_id) else {
+            continue;
+        };
+        if !state.check_model_permission(user_id, &provider_name, &real_model.model_id) {
+            continue;
+        }
+        let prefixed = prefixed_model_id(&provider_name, &real_model.model_id);
+        let gemini_name = format!("models/{prefixed}");
+        let display_name = real_model
+            .display_name
+            .clone()
+            .unwrap_or_else(|| real_model.model_id.clone());
+        models.entry(gemini_name.clone()).or_insert_with(|| {
+            gproxy_sdk::protocol::gemini::types::GeminiModelInfo {
+                name: gemini_name,
+                base_model_id: Some(prefixed),
+                version: None,
+                display_name: Some(display_name),
+                description: None,
+                input_token_limit: None,
+                output_token_limit: None,
+                supported_generation_methods: None,
+                thinking: None,
+                temperature: None,
+                max_temperature: None,
+                top_p: None,
+                top_k: None,
+            }
+        });
+    }
+
+    // 2. Inject aliases.
+    for alias_model in all_models
+        .iter()
+        .filter(|m| m.alias_of.is_some() && m.enabled)
+    {
         let Some(target_id) = alias_model.alias_of else {
             continue;
         };
@@ -1693,16 +1824,31 @@ fn empty_model_list_body(protocol: ProtocolKind) -> Vec<u8> {
     serde_json::to_vec(&body).unwrap_or_default()
 }
 
-fn inject_scoped_model_list_aliases(
+fn inject_scoped_model_list_locals(
     state: &AppState,
     user_id: i64,
     provider_name: &str,
     protocol: ProtocolKind,
     body: &mut Vec<u8>,
 ) {
+    let Some(provider_id) = state.provider_id_for_name(provider_name) else {
+        return;
+    };
     let all_models = state.models();
-    // Build alias → target pairs for this provider
-    let relevant: Vec<(String, String)> = all_models
+
+    // Collect local real models for this provider (alias_of is None).
+    let real_locals: Vec<&gproxy_core::MemoryModel> = all_models
+        .iter()
+        .filter(|m| {
+            m.provider_id == provider_id
+                && m.enabled
+                && m.alias_of.is_none()
+                && state.check_model_permission(user_id, provider_name, &m.model_id)
+        })
+        .collect();
+
+    // Collect alias → target model_id pairs for this provider.
+    let alias_pairs: Vec<(String, String)> = all_models
         .iter()
         .filter(|m| m.alias_of.is_some() && m.enabled)
         .filter_map(|m| {
@@ -1718,7 +1864,8 @@ fn inject_scoped_model_list_aliases(
             Some((m.model_id.clone(), target.model_id.clone()))
         })
         .collect();
-    if relevant.is_empty() {
+
+    if real_locals.is_empty() && alias_pairs.is_empty() {
         return;
     }
 
@@ -1735,13 +1882,36 @@ fn inject_scoped_model_list_aliases(
         return;
     };
 
-    // Snapshot the original entries so we can look up targets.
-    let originals: Vec<serde_json::Value> = arr.clone();
+    // Check which model_ids are already in the upstream response.
+    let existing_ids: std::collections::HashSet<String> = arr
+        .iter()
+        .filter_map(|m| m.get(id_key).and_then(|i| i.as_str()))
+        .map(|id| {
+            if id_key == "name" {
+                id.strip_prefix("models/").unwrap_or(id).to_string()
+            } else {
+                id.to_string()
+            }
+        })
+        .collect();
+
+    // 1. Append real local models that aren't already in the upstream response.
+    for m in &real_locals {
+        if existing_ids.contains(&m.model_id) {
+            continue;
+        }
+        let entry = local_model_to_json(m, provider_name, protocol);
+        arr.push(entry);
+    }
+
+    // 2. Append alias entries that mirror their target model.
+    // Snapshot the current array (which now includes real locals) so we can
+    // find targets that were just added too.
+    let snapshot: Vec<serde_json::Value> = arr.clone();
     let find_by_id = |target_id: &str| -> Option<&serde_json::Value> {
-        originals.iter().find(|m| {
+        snapshot.iter().find(|m| {
             m.get(id_key).and_then(|i| i.as_str()).is_some_and(|id| {
                 if id_key == "name" {
-                    // Gemini: name is "models/model_id"
                     id == format!("models/{target_id}")
                 } else {
                     id == target_id
@@ -1750,12 +1920,10 @@ fn inject_scoped_model_list_aliases(
         })
     };
 
-    for (alias_name, target_model_id) in &relevant {
-        // Find the base model in the response array.
+    for (alias_name, target_model_id) in &alias_pairs {
         let Some(base) = find_by_id(target_model_id) else {
             continue;
         };
-        // Inject alias entry.
         let mut alias_entry = base.clone();
         if id_key == "name" {
             alias_entry["name"] = serde_json::Value::String(format!("models/{alias_name}"));
