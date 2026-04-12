@@ -2499,14 +2499,10 @@ impl StreamUsageRecorder {
         let mut state = self.state.lock().ok()?;
         state.finalized = true;
         // Return the merged view from `partial_usage`, not the last single
-        // chunk. The merge captures:
-        //   - token counts from whichever chunk is authoritative (cumulative
-        //     across replaces)
-        //   - tool_uses additively summed across chunks (needed for OpenAI
-        //     Responses streaming where every `output_item.done` emits one)
-        // For protocols that emit a single terminal chunk (Claude
-        // message_delta, OpenAI ChatCompletions final chunk), this is
-        // identical to `last_usage`.
+        // chunk. The merge captures token counts from whichever chunk is
+        // authoritative (cumulative across replaces). For protocols that emit
+        // a single terminal chunk (Claude message_delta, OpenAI
+        // ChatCompletions final chunk), this is identical to `last_usage`.
         if usage_has_any_value(&state.partial_usage) {
             Some(state.partial_usage.clone())
         } else {
@@ -2667,7 +2663,6 @@ fn usage_has_any_value(usage: &Usage) -> bool {
         || usage.cache_creation_input_tokens.is_some()
         || usage.cache_creation_input_tokens_5min.is_some()
         || usage.cache_creation_input_tokens_1h.is_some()
-        || !usage.tool_uses.is_empty()
 }
 
 fn merge_usage(dst: &mut Usage, src: &Usage) {
@@ -2689,14 +2684,6 @@ fn merge_usage(dst: &mut Usage, src: &Usage) {
     if src.cache_creation_input_tokens_1h.is_some() {
         dst.cache_creation_input_tokens_1h = src.cache_creation_input_tokens_1h;
     }
-    // Additively merge tool invocation counts so OpenAI Responses streaming
-    // (where every `response.output_item.done` event emits {tool: 1}) and
-    // other per-chunk emitters correctly accumulate. For single-emit
-    // protocols (Claude final message_delta, non-streaming bodies) this is
-    // equivalent to replace because the previous value is 0.
-    for (k, v) in &src.tool_uses {
-        *dst.tool_uses.entry(k.clone()).or_insert(0) += v;
-    }
 }
 
 fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Option<Usage> {
@@ -2717,7 +2704,6 @@ fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Op
                         .ok(),
                     cache_creation_input_tokens_5min: None,
                     cache_creation_input_tokens_1h: None,
-                    tool_uses: Default::default(),
                 }),
                 _ => None,
             }
@@ -2744,7 +2730,6 @@ fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Op
                 cache_creation_input_tokens: None,
                 cache_creation_input_tokens_5min: None,
                 cache_creation_input_tokens_1h: None,
-                tool_uses: Default::default(),
             })
         }
         ProtocolKind::OpenAi => {
@@ -2759,7 +2744,6 @@ fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Op
                     cache_creation_input_tokens: None,
                     cache_creation_input_tokens_5min: None,
                     cache_creation_input_tokens_1h: None,
-                    tool_uses: Default::default(),
                 }),
                 _ => None,
             }
@@ -3611,7 +3595,6 @@ mod tests {
                 cache_creation_input_tokens: None,
                 cache_creation_input_tokens_5min: None,
                 cache_creation_input_tokens_1h: None,
-                tool_uses: Default::default(),
             },
         )
         .await;

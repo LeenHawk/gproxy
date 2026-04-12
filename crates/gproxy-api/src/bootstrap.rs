@@ -1001,8 +1001,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 || m.scale_price_each_call.is_some()
                 || !m.scale_price_tiers.is_empty()
                 || m.priority_price_each_call.is_some()
-                || !m.priority_price_tiers.is_empty()
-                || !m.tool_call_prices.is_empty();
+                || !m.priority_price_tiers.is_empty();
             let pricing = if has_any_pricing {
                 Some(gproxy_sdk::provider::billing::ModelPrice {
                     model_id: m.model_id.clone(),
@@ -1015,7 +1014,6 @@ pub async fn seed_from_toml_with_bootstrap(
                     scale_price_tiers: m.scale_price_tiers.clone(),
                     priority_price_each_call: m.priority_price_each_call,
                     priority_price_tiers: m.priority_price_tiers.clone(),
-                    tool_call_prices: m.tool_call_prices.clone(),
                 })
             } else {
                 None

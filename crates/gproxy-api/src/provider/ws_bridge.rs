@@ -120,7 +120,6 @@ fn extract_openai_ws_usage(msg: &[u8]) -> Option<Usage> {
                 cache_creation_input_tokens: None,
                 cache_creation_input_tokens_5min: None,
                 cache_creation_input_tokens_1h: None,
-                tool_uses: Default::default(),
             })
         }
         _ => None,
@@ -141,7 +140,6 @@ fn extract_gemini_ws_usage(msg: &[u8]) -> Option<Usage> {
         cache_creation_input_tokens: None,
         cache_creation_input_tokens_5min: None,
         cache_creation_input_tokens_1h: None,
-        tool_uses: Default::default(),
     })
 }
 

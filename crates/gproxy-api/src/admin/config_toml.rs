@@ -266,9 +266,7 @@ pub async fn export_toml(
                 priority_price_tiers: pricing
                     .map(|p| p.priority_price_tiers.clone())
                     .unwrap_or_default(),
-                tool_call_prices: pricing
-                    .map(|p| p.tool_call_prices.clone())
-                    .unwrap_or_default(),
+                tool_call_prices: Default::default(),
             }
         })
         .collect();

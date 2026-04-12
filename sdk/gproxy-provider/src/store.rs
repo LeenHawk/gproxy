@@ -1487,7 +1487,6 @@ mod tests {
             scale_price_tiers: Vec::new(),
             priority_price_each_call: None,
             priority_price_tiers: Vec::new(),
-            tool_call_prices: std::collections::BTreeMap::new(),
         }];
         assert!(store.set_model_pricing("demo", initial_prices));
 
@@ -1510,7 +1509,6 @@ mod tests {
             scale_price_tiers: Vec::new(),
             priority_price_each_call: None,
             priority_price_tiers: Vec::new(),
-            tool_call_prices: std::collections::BTreeMap::new(),
         }];
         assert!(store.set_model_pricing("demo", new_prices));
 

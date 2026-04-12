@@ -521,7 +521,6 @@ mod tests {
             scale_price_tiers: Vec::new(),
             priority_price_each_call: None,
             priority_price_tiers: Vec::new(),
-            tool_call_prices: std::collections::BTreeMap::new(),
         };
         let pricing_json_str = serde_json::to_string(&model_price).unwrap();
 
@@ -561,79 +560,6 @@ mod tests {
         assert!(
             (result.total_cost - 999.0).abs() < 1e-9,
             "expected total_cost 999.0, got {}",
-            result.total_cost
-        );
-    }
-
-    /// Task 2.6 / 3.3 — verify admin-overridden `tool_call_prices` reach the
-    /// billing engine and fire per actual invocation count from
-    /// `usage.tool_uses` (the Phase 3 behavior).
-    #[tokio::test]
-    async fn admin_tool_call_price_override_affects_billing() {
-        let state = build_test_state_for_pricing().await;
-        let provider_name = "openai-test";
-        let provider_id = state
-            .provider_id_for_name(provider_name)
-            .expect("provider registered");
-        let model_id = "gpt-tool-pricing-test-9998";
-
-        let mut tool_call_prices = std::collections::BTreeMap::new();
-        tool_call_prices.insert("web_search".to_string(), 0.05);
-        let model_price = gproxy_sdk::provider::billing::ModelPrice {
-            model_id: model_id.to_string(),
-            display_name: None,
-            price_each_call: None,
-            price_tiers: Vec::new(),
-            flex_price_each_call: None,
-            flex_price_tiers: Vec::new(),
-            scale_price_each_call: None,
-            scale_price_tiers: Vec::new(),
-            priority_price_each_call: None,
-            priority_price_tiers: Vec::new(),
-            tool_call_prices,
-        };
-        let pricing_json_str = crate::bootstrap::model_price_to_storage_json(&model_price).unwrap();
-
-        state
-            .storage()
-            .upsert_model(gproxy_storage::ModelWrite {
-                id: 99998,
-                provider_id,
-                model_id: model_id.to_string(),
-                display_name: None,
-                enabled: true,
-                pricing_json: Some(pricing_json_str),
-                alias_of: None,
-            })
-            .await
-            .expect("upsert model in storage");
-        state.upsert_model_in_memory(MemoryModel {
-            id: 99998,
-            provider_id,
-            model_id: model_id.to_string(),
-            display_name: None,
-            enabled: true,
-            pricing: Some(model_price),
-            alias_of: None,
-        });
-        state.push_pricing_to_engine(provider_name);
-
-        let ctx = BillingContext {
-            model_id: model_id.to_string(),
-            mode: BillingMode::Default,
-        };
-        // Phase 3 semantics: charge per actual server_tool_use count. The
-        // provider reported 2 web_search invocations; at 0.05 each the
-        // expected cost is 0.10.
-        let mut usage = Usage::default();
-        usage.tool_uses.insert("web_search".to_string(), 2);
-        let result = state
-            .engine()
-            .estimate_billing(provider_name, &ctx, &usage)
-            .expect("estimate_billing must return Some");
-        assert!(
-            (result.total_cost - 0.10).abs() < 1e-9,
-            "expected 2 × 0.05 = 0.10, got {}",
             result.total_cost
         );
     }

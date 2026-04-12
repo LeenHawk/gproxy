@@ -67,7 +67,6 @@ pub fn estimate_partial_usage(
         cache_creation_input_tokens: None,
         cache_creation_input_tokens_5min: None,
         cache_creation_input_tokens_1h: None,
-        tool_uses: Default::default(),
     }
 }
 
