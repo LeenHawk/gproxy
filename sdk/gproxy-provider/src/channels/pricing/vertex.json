@@ -2,11 +2,6 @@
   {
     "model_id": "gemini-1.5-pro-002",
     "display_name": "Gemini 1.5 Pro 002",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -25,11 +20,6 @@
   {
     "model_id": "gemini-2.0-flash-001",
     "display_name": "Gemini 2.0 Flash 001",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -42,11 +32,6 @@
   {
     "model_id": "gemini-2.0-flash",
     "display_name": "Gemini 2.0 Flash",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -59,11 +44,6 @@
   {
     "model_id": "gemini-2.0-flash-lite-001",
     "display_name": "Gemini 2.0 Flash-Lite 001",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -76,11 +56,6 @@
   {
     "model_id": "gemini-2.5-flash-preview-04-17",
     "display_name": "Gemini 2.5 Flash Preview 04-17",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -93,11 +68,6 @@
   {
     "model_id": "gemini-2.5-pro-exp-03-25",
     "display_name": "Gemini 2.5 Pro Exp 03-25",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -116,11 +86,6 @@
   {
     "model_id": "gemini-2.5-pro",
     "display_name": "Gemini 2.5 Pro",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -139,11 +104,6 @@
   {
     "model_id": "gemini-2.5-flash",
     "display_name": "Gemini 2.5 Flash",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -156,11 +116,6 @@
   {
     "model_id": "gemini-2.5-flash-lite",
     "display_name": "Gemini 2.5 Flash-Lite",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -209,11 +164,6 @@
   {
     "model_id": "gemini-3-flash-preview",
     "display_name": "Gemini 3 Flash Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -242,11 +192,6 @@
   {
     "model_id": "gemini-3.1-flash-lite-preview",
     "display_name": "Gemini 3.1 Flash-Lite Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -275,11 +220,6 @@
   {
     "model_id": "gemini-3.1-flash-image-preview",
     "display_name": "Gemini 3.1 Flash Image Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -292,11 +232,6 @@
   {
     "model_id": "gemini-3.1-pro-preview",
     "display_name": "Gemini 3.1 Pro Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,

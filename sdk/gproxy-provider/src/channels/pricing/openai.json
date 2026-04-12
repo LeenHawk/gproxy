@@ -2,11 +2,6 @@
   {
     "model_id": "gpt-5.4",
     "display_name": "GPT-5.4",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 272000,
@@ -47,11 +42,6 @@
   {
     "model_id": "gpt-5.4-mini",
     "display_name": "GPT-5.4 Mini",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -80,11 +70,6 @@
   {
     "model_id": "gpt-5.4-nano",
     "display_name": "GPT-5.4 Nano",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -105,11 +90,6 @@
   {
     "model_id": "gpt-5.4-pro",
     "display_name": "GPT-5.4 Pro",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 272000,
@@ -138,11 +118,6 @@
   {
     "model_id": "gpt-5.2",
     "display_name": "GPT-5.2",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -155,11 +130,6 @@
   {
     "model_id": "gpt-5.1",
     "display_name": "GPT-5.1",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -172,11 +142,6 @@
   {
     "model_id": "gpt-5",
     "display_name": "GPT-5",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -189,11 +154,6 @@
   {
     "model_id": "gpt-5-mini",
     "display_name": "GPT-5 Mini",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -206,11 +166,6 @@
   {
     "model_id": "gpt-5-nano",
     "display_name": "GPT-5 Nano",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -223,11 +178,6 @@
   {
     "model_id": "gpt-5.3-chat-latest",
     "display_name": "GPT-5.3 Chat",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -240,11 +190,6 @@
   {
     "model_id": "gpt-5.2-chat-latest",
     "display_name": "GPT-5.2 Chat",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -257,11 +202,6 @@
   {
     "model_id": "gpt-5.1-chat-latest",
     "display_name": "GPT-5.1 Chat",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -274,11 +214,6 @@
   {
     "model_id": "gpt-5-chat-latest",
     "display_name": "GPT-5 Chat",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -291,11 +226,6 @@
   {
     "model_id": "gpt-5.2-pro",
     "display_name": "GPT-5.2 Pro",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -307,11 +237,6 @@
   {
     "model_id": "gpt-5-pro",
     "display_name": "GPT-5 Pro",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -323,11 +248,6 @@
   {
     "model_id": "gpt-4.1",
     "display_name": "GPT-4.1",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.025,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -340,11 +260,6 @@
   {
     "model_id": "gpt-4.1-mini",
     "display_name": "GPT-4.1 Mini",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.025,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -357,11 +272,6 @@
   {
     "model_id": "gpt-4.1-nano",
     "display_name": "GPT-4.1 Nano",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.025,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -374,11 +284,6 @@
   {
     "model_id": "gpt-4o",
     "display_name": "GPT-4o",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.025,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -391,11 +296,6 @@
   {
     "model_id": "gpt-4o-mini",
     "display_name": "GPT-4o Mini",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.025,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -408,11 +308,6 @@
   {
     "model_id": "o4-mini",
     "display_name": "o4-mini",
-    "tool_call_prices": {
-      "web_search": 0.01,
-      "web_search_preview": 0.01,
-      "file_search": 0.0025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,

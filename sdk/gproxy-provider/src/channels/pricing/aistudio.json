@@ -2,11 +2,6 @@
   {
     "model_id": "gemini-3.1-pro-preview",
     "display_name": "Gemini 3.1 Pro Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -25,11 +20,6 @@
   {
     "model_id": "gemini-3.1-pro-preview-customtools",
     "display_name": "Gemini 3.1 Pro Preview Custom Tools",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -48,11 +38,6 @@
   {
     "model_id": "gemini-3.1-flash-lite-preview",
     "display_name": "Gemini 3.1 Flash-Lite Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -81,11 +66,6 @@
   {
     "model_id": "gemini-3-pro-preview",
     "display_name": "Gemini 3 Pro Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -104,11 +84,6 @@
   {
     "model_id": "gemini-3-flash-preview",
     "display_name": "Gemini 3 Flash Preview",
-    "tool_call_prices": {
-      "google_search": 0.014,
-      "google_search_retrieval": 0.014,
-      "google_maps": 0.014
-    },
     "flex_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -137,11 +112,6 @@
   {
     "model_id": "gemini-2.5-pro",
     "display_name": "Gemini 2.5 Pro",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -160,11 +130,6 @@
   {
     "model_id": "gemini-2.5-flash",
     "display_name": "Gemini 2.5 Flash",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -177,11 +142,6 @@
   {
     "model_id": "gemini-2.5-flash-lite",
     "display_name": "Gemini 2.5 Flash-Lite",
-    "tool_call_prices": {
-      "google_search": 0.035,
-      "google_search_retrieval": 0.035,
-      "google_maps": 0.025
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,

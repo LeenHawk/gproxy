@@ -2,9 +2,6 @@
   {
     "model_id": "claude-opus-4-6",
     "display_name": "Claude Opus 4.6",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "priority_price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -29,9 +26,6 @@
   {
     "model_id": "claude-opus-4-5-20251101",
     "display_name": "Claude Opus 4.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -46,9 +40,6 @@
   {
     "model_id": "claude-opus-4-5",
     "display_name": "Claude Opus 4.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -63,9 +54,6 @@
   {
     "model_id": "claude-opus-4-1-20250805",
     "display_name": "Claude Opus 4.1",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -80,9 +68,6 @@
   {
     "model_id": "claude-opus-4-1",
     "display_name": "Claude Opus 4.1",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -97,9 +82,6 @@
   {
     "model_id": "claude-opus-4-20250514",
     "display_name": "Claude Opus 4",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -114,9 +96,6 @@
   {
     "model_id": "claude-opus-4",
     "display_name": "Claude Opus 4",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -131,9 +110,6 @@
   {
     "model_id": "claude-sonnet-4-6",
     "display_name": "Claude Sonnet 4.6",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -148,9 +124,6 @@
   {
     "model_id": "claude-sonnet-4-5-20250929",
     "display_name": "Claude Sonnet 4.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -173,9 +146,6 @@
   {
     "model_id": "claude-sonnet-4-5",
     "display_name": "Claude Sonnet 4.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -198,9 +168,6 @@
   {
     "model_id": "claude-sonnet-4-20250514",
     "display_name": "Claude Sonnet 4",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -223,9 +190,6 @@
   {
     "model_id": "claude-sonnet-4",
     "display_name": "Claude Sonnet 4",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 200000,
@@ -248,9 +212,6 @@
   {
     "model_id": "claude-3-7-sonnet-20250219",
     "display_name": "Claude Sonnet 3.7",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -265,9 +226,6 @@
   {
     "model_id": "claude-3-7-sonnet",
     "display_name": "Claude Sonnet 3.7",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -282,9 +240,6 @@
   {
     "model_id": "claude-haiku-4-5-20251001",
     "display_name": "Claude Haiku 4.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -299,9 +254,6 @@
   {
     "model_id": "claude-haiku-4-5",
     "display_name": "Claude Haiku 4.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -316,9 +268,6 @@
   {
     "model_id": "claude-3-5-haiku-20241022",
     "display_name": "Claude Haiku 3.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -333,9 +282,6 @@
   {
     "model_id": "claude-3-5-haiku",
     "display_name": "Claude Haiku 3.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -350,9 +296,6 @@
   {
     "model_id": "claude-3-5-haiku-latest",
     "display_name": "Claude Haiku 3.5",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -367,9 +310,6 @@
   {
     "model_id": "claude-3-haiku-20240307",
     "display_name": "Claude Haiku 3",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
@@ -384,9 +324,6 @@
   {
     "model_id": "claude-3-haiku",
     "display_name": "Claude Haiku 3",
-    "tool_call_prices": {
-      "web_search": 0.01
-    },
     "price_tiers": [
       {
         "input_tokens_up_to": 9223372036854775807,
