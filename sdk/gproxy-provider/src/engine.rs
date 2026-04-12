@@ -182,6 +182,11 @@ pub struct Usage {
     pub cache_creation_input_tokens: Option<i64>,
     pub cache_creation_input_tokens_5min: Option<i64>,
     pub cache_creation_input_tokens_1h: Option<i64>,
+    /// Count of server-side tool invocations per tool key. Populated by the
+    /// usage extractor when the upstream response carries an explicit count
+    /// (e.g. Claude's `server_tool_use`). An empty map means "no tools
+    /// invoked" — not "unknown."
+    pub tool_uses: std::collections::BTreeMap<String, i64>,
 }
 
 /// Metadata about the upstream request for logging/storage.

@@ -2695,6 +2695,7 @@ fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Op
                         .ok(),
                     cache_creation_input_tokens_5min: None,
                     cache_creation_input_tokens_1h: None,
+                    tool_uses: Default::default(),
                 }),
                 _ => None,
             }
@@ -2721,6 +2722,7 @@ fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Op
                 cache_creation_input_tokens: None,
                 cache_creation_input_tokens_5min: None,
                 cache_creation_input_tokens_1h: None,
+                tool_uses: Default::default(),
             })
         }
         ProtocolKind::OpenAi => {
@@ -2735,6 +2737,7 @@ fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Op
                     cache_creation_input_tokens: None,
                     cache_creation_input_tokens_5min: None,
                     cache_creation_input_tokens_1h: None,
+                    tool_uses: Default::default(),
                 }),
                 _ => None,
             }
@@ -3586,6 +3589,7 @@ mod tests {
                 cache_creation_input_tokens: None,
                 cache_creation_input_tokens_5min: None,
                 cache_creation_input_tokens_1h: None,
+                tool_uses: Default::default(),
             },
         )
         .await;

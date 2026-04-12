@@ -460,6 +460,7 @@ mod tests {
             cache_creation_input_tokens: None,
             cache_creation_input_tokens_5min: None,
             cache_creation_input_tokens_1h: None,
+            tool_uses: Default::default(),
         };
         let context = BillingContext {
             model_id: "test-model".to_string(),
@@ -558,6 +559,7 @@ mod tests {
             cache_creation_input_tokens: None,
             cache_creation_input_tokens_5min: None,
             cache_creation_input_tokens_1h: None,
+            tool_uses: Default::default(),
         };
         let context = BillingContext {
             model_id: "test-model".to_string(),
@@ -597,6 +599,7 @@ mod tests {
             cache_creation_input_tokens: None,
             cache_creation_input_tokens_5min: None,
             cache_creation_input_tokens_1h: None,
+            tool_uses: Default::default(),
         };
         let context = BillingContext {
             model_id: "test-model".to_string(),
@@ -682,6 +685,7 @@ mod tests {
             cache_creation_input_tokens: None,
             cache_creation_input_tokens_5min: None,
             cache_creation_input_tokens_1h: None,
+            tool_uses: Default::default(),
         };
         let context = BillingContext {
             model_id: "missing-model".to_string(),
@@ -717,6 +721,7 @@ mod tests {
             cache_creation_input_tokens: None,
             cache_creation_input_tokens_5min: None,
             cache_creation_input_tokens_1h: None,
+            tool_uses: Default::default(),
         };
         let context = BillingContext {
             model_id: "missing-model".to_string(),
