@@ -501,6 +501,44 @@ export function ProvidersModule({
     }
   };
 
+  const pullModels = async (): Promise<string[]> => {
+    if (!selectedProvider) return [];
+    const resp = await apiJson<{ models: string[] }>("/admin/model-aliases/pull", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ provider_id: selectedProvider.id }),
+    });
+    return resp.models;
+  };
+
+  const importPulledModels = async (models: string[]) => {
+    if (!selectedProvider || models.length === 0) return;
+    try {
+      const maxId = allAliasRows.reduce((max, row) => Math.max(max, row.id), 0);
+      const items: ModelAliasWrite[] = models.map((model, index) => ({
+        id: maxId + index + 1,
+        alias: model,
+        provider_id: selectedProvider.id,
+        model_id: model,
+        enabled: true,
+      }));
+      await apiJson("/admin/model-aliases/batch-upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(items),
+      });
+      notify("success", t("modelAliases.pull.imported", { count: items.length }));
+      const rows = await apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({}),
+      });
+      setAllAliasRows(rows);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const updateStatus = async (
     row: { provider: string; index: number },
     status: "healthy" | "dead",
@@ -755,14 +793,24 @@ export function ProvidersModule({
               onChangeForm={(patch) => setAliasForm((current) => ({ ...current, ...patch }))}
               onSave={() => void saveAlias()}
               onDelete={(alias) => void deleteAlias(alias)}
+              onPull={pullModels}
+              onImport={(models) => void importPulledModels(models)}
               labels={{
                 title: t("modelAliases.title"),
                 empty: t("common.noData"),
                 create: t("common.create"),
                 save: t("common.save"),
                 delete: t("common.delete"),
+                cancel: t("common.cancel"),
                 alias: t("modelAliases.alias"),
                 modelId: t("common.modelId"),
+                pull: t("modelAliases.pull"),
+                pullLoading: t("modelAliases.pull.loading"),
+                pullEmpty: t("modelAliases.pull.empty"),
+                pullFound: t("modelAliases.pull.found"),
+                pullImport: t("modelAliases.pull.importSelected"),
+                pullSelectAll: t("modelAliases.pull.selectAll"),
+                pullDeselectAll: t("modelAliases.pull.deselectAll"),
               }}
             />
           ) : null}
