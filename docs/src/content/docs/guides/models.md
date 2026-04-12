@@ -100,6 +100,6 @@ This means admins can set different prices for the same real model under
 different aliases — for example, to mark up a `premium-gpt4` alias while
 keeping `chat-default` at cost.
 
-See [Pricing & Tool Billing](../reference/pricing) for the full
+See [Pricing & Tool Billing](/reference/pricing/) for the full
 `ModelPrice` shape, billing mode selection, and how tool call counts are
 charged per actual invocation.

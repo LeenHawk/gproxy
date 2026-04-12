@@ -171,6 +171,11 @@ export default defineConfig({
 							translations: { 'zh-CN': '路由表' },
 						},
 						{
+							label: 'Pricing & Tool Billing',
+							slug: 'reference/pricing',
+							translations: { 'zh-CN': '价格与工具计费' },
+						},
+						{
 							label: 'Database Backends',
 							slug: 'reference/database',
 							translations: { 'zh-CN': '数据库后端' },
