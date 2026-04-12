@@ -152,4 +152,3 @@ fn extract_claude_event_usage(chunk: &[u8]) -> Option<Usage> {
             .and_then(|v| v.as_i64()),
     })
 }
-
