@@ -165,7 +165,13 @@ export function MyUsageModule({
   const [knownModels, setKnownModels] = useState<string[]>([]);
   const [knownModelsByChannel, setKnownModelsByChannel] = useState<Record<string, string[]>>({});
 
-  const queryTokenRef = useRef(0);
+  // Split into two refs so the summary and rows requests don't clobber
+  // each other's cancellation token. Sharing one ref lets the second
+  // effect bump the counter before the first request resolves, which
+  // leaves `loadingMeta` stuck at `true` forever (button pinned on
+  // "querying").
+  const summaryTokenRef = useRef(0);
+  const rowsTokenRef = useRef(0);
 
   /// Harvest observed channels/models from loaded rows so the filter
   /// dropdowns grow with the visible data. Mirrors the admin UsageModule.
@@ -342,7 +348,7 @@ export function MyUsageModule({
     if (!activeQuery) {
       return;
     }
-    const token = ++queryTokenRef.current;
+    const token = ++summaryTokenRef.current;
     setLoadingMeta(true);
     void apiJson<UsageSummary>("/user/usages/summary", {
       method: "POST",
@@ -350,7 +356,7 @@ export function MyUsageModule({
       body: JSON.stringify(buildUsageBasePayload(activeQuery)),
     })
       .then((result) => {
-        if (queryTokenRef.current !== token) {
+        if (summaryTokenRef.current !== token) {
           return;
         }
         const maxRows = activeQuery.maxRows;
@@ -358,13 +364,13 @@ export function MyUsageModule({
         setSummary(result);
       })
       .catch((error) => {
-        if (queryTokenRef.current !== token) {
+        if (summaryTokenRef.current !== token) {
           return;
         }
         notify("error", error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (queryTokenRef.current === token) {
+        if (summaryTokenRef.current === token) {
           setLoadingMeta(false);
         }
       });
@@ -385,7 +391,7 @@ export function MyUsageModule({
       return;
     }
 
-    const token = ++queryTokenRef.current;
+    const token = ++rowsTokenRef.current;
     setLoadingRows(true);
     void apiJson<UsageQueryRow[]>("/user/usages/query", {
       method: "POST",
@@ -395,7 +401,7 @@ export function MyUsageModule({
       ),
     })
       .then((data) => {
-        if (queryTokenRef.current !== token) {
+        if (rowsTokenRef.current !== token) {
           return;
         }
         setRows(data);
@@ -416,13 +422,13 @@ export function MyUsageModule({
         }
       })
       .catch((error) => {
-        if (queryTokenRef.current !== token) {
+        if (rowsTokenRef.current !== token) {
           return;
         }
         notify("error", error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
-        if (queryTokenRef.current === token) {
+        if (rowsTokenRef.current === token) {
           setLoadingRows(false);
         }
       });
