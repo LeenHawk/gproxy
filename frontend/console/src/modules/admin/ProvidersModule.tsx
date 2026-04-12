@@ -28,13 +28,11 @@ import {
 import { buildOAuthCallbackQuery } from "./providers/oauth";
 import { ConfigTab } from "./providers/ConfigTab";
 import { CredentialsTab } from "./providers/CredentialsTab";
-import { ModelAliasesTab } from "./providers/ModelAliasesTab";
-import { ModelsTab } from "./providers/ModelsTab";
+import { ModelsTab, type ModelFormState } from "./providers/ModelsTab";
 import { OAuthTab } from "./providers/OAuthTab";
 import { RewriteRulesTab } from "./providers/RewriteRulesTab";
 import { ProviderList } from "./providers/ProviderList";
 import {
-  filterAliasesForProvider,
   filterModelsForProvider,
   nextResourceId,
 } from "./providers/resources";
@@ -79,19 +77,14 @@ export function ProvidersModule({
   const [usageLoadingByCredential, setUsageLoadingByCredential] = useState<Record<number, boolean>>({});
   const [allModelRows, setAllModelRows] = useState<MemoryModelRow[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-  const [selectedAliasId, setSelectedAliasId] = useState<number | null>(null);
-  const [modelForm, setModelForm] = useState({
+  const [modelForm, setModelForm] = useState<ModelFormState>({
     id: "",
     model_id: "",
     display_name: "",
     enabled: true,
     price_each_call: "",
     price_tiers_json: "[]",
-  });
-  const [aliasForm, setAliasForm] = useState({
-    id: "",
-    alias: "",
-    model_id: "",
+    alias_of: "",
   });
 
   useEffect(() => {
@@ -110,16 +103,11 @@ export function ProvidersModule({
     setUsageRowsByCredential({});
     setUsageLoadingByCredential({});
     setSelectedModelId(null);
-    setSelectedAliasId(null);
   }, [selectedProvider?.id, providerForm.channel]);
 
   const providerModelRows = useMemo(
     () => filterModelsForProvider(allModelRows, selectedProvider?.id ?? null),
     [allModelRows, selectedProvider?.id],
-  );
-  const providerAliasRows = useMemo(
-    () => filterAliasesForProvider(allModelRows, selectedProvider?.id ?? null, providerRows),
-    [allModelRows, selectedProvider?.id, providerRows],
   );
 
   const beginCreateModel = () => {
@@ -131,15 +119,7 @@ export function ProvidersModule({
       enabled: true,
       price_each_call: "",
       price_tiers_json: "[]",
-    });
-  };
-
-  const beginCreateAlias = () => {
-    setSelectedAliasId(null);
-    setAliasForm({
-      id: nextResourceId(allModelRows),
-      alias: "",
-      model_id: "",
+      alias_of: "",
     });
   };
 
@@ -222,7 +202,6 @@ export function ProvidersModule({
     if (!selectedProvider) {
       setAllModelRows([]);
       beginCreateModel();
-      beginCreateAlias();
       return;
     }
     let active = true;
@@ -256,15 +235,6 @@ export function ProvidersModule({
       beginCreateModel();
     }
   }, [allModelRows, selectedModelId, selectedProvider?.id]);
-
-  useEffect(() => {
-    if (!selectedProvider) {
-      return;
-    }
-    if (selectedAliasId === null) {
-      beginCreateAlias();
-    }
-  }, [allModelRows, selectedAliasId, selectedProvider?.id]);
 
   const saveProvider = async () => {
     try {
@@ -393,6 +363,7 @@ export function ProvidersModule({
       return;
     }
     try {
+      const aliasOf = modelForm.alias_of.trim() ? Number(modelForm.alias_of) : null;
       const payload: ModelWrite = {
         id: parseRequiredI64(modelForm.id, "id"),
         provider_id: selectedProvider.id,
@@ -401,6 +372,7 @@ export function ProvidersModule({
         enabled: modelForm.enabled,
         price_each_call: modelForm.price_each_call.trim() ? Number(modelForm.price_each_call) : null,
         price_tiers_json: modelForm.price_tiers_json,
+        alias_of: aliasOf,
       };
       await apiJson("/admin/models/upsert", {
         method: "POST",
@@ -449,63 +421,6 @@ export function ProvidersModule({
     setAllModelRows(models);
   };
 
-  const saveAlias = async () => {
-    if (!selectedProvider) {
-      notify("error", t("providers.error.needProvider"));
-      return;
-    }
-    try {
-      const targetModelId = aliasForm.model_id.trim();
-      // Find the target real model for alias_of
-      const target = allModelRows.find(
-        (m) => m.provider_id === selectedProvider.id && m.model_id === targetModelId && m.alias_of == null,
-      );
-      const payload: ModelWrite = {
-        id: parseRequiredI64(aliasForm.id, "id"),
-        provider_id: selectedProvider.id,
-        model_id: aliasForm.alias.trim(),
-        display_name: null,
-        enabled: true,
-        price_each_call: null,
-        price_tiers_json: null,
-        alias_of: target?.id ?? null,
-      };
-      await apiJson("/admin/models/upsert", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-      notify("success", t("modelAliases.saved"));
-      await reloadModels();
-      setSelectedAliasId(payload.id);
-    } catch (error) {
-      notify("error", error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const deleteAlias = async (alias: string) => {
-    try {
-      // Find the alias model by alias name
-      const aliasModel = allModelRows.find(
-        (m) => m.model_id === alias && m.alias_of != null,
-      );
-      if (!aliasModel) {
-        notify("error", "Alias not found");
-        return;
-      }
-      await apiVoid("/admin/models/delete", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ id: aliasModel.id }),
-      });
-      notify("success", t("modelAliases.deleted"));
-      await reloadModels();
-      beginCreateAlias();
-    } catch (error) {
-      notify("error", error instanceof Error ? error.message : String(error));
-    }
-  };
-
   const pullModels = async (): Promise<string[]> => {
     if (!selectedProvider) return [];
     const resp = await apiJson<{ models: string[] }>("/admin/models/pull", {
@@ -520,28 +435,22 @@ export function ProvidersModule({
     if (!selectedProvider || models.length === 0) return;
     try {
       const maxId = allModelRows.reduce((max, row) => Math.max(max, row.id), 0);
-      const items: ModelWrite[] = models.map((model, index) => {
-        // Find target real model for alias_of
-        const target = allModelRows.find(
-          (m) => m.provider_id === selectedProvider.id && m.model_id === model && m.alias_of == null,
-        );
-        return {
-          id: maxId + index + 1,
-          provider_id: selectedProvider.id,
-          model_id: model,
-          display_name: null,
-          enabled: true,
-          price_each_call: null,
-          price_tiers_json: null,
-          alias_of: target?.id ?? null,
-        };
-      });
+      const items: ModelWrite[] = models.map((model, index) => ({
+        id: maxId + index + 1,
+        provider_id: selectedProvider.id,
+        model_id: model,
+        display_name: null,
+        enabled: true,
+        price_each_call: null,
+        price_tiers_json: null,
+        alias_of: null,
+      }));
       await apiJson("/admin/models/batch-upsert", {
         method: "POST",
         headers,
         body: JSON.stringify(items),
       });
-      notify("success", t("modelAliases.pull.imported", { count: items.length }));
+      notify("success", t("models.pull.imported", { count: items.length }));
       await reloadModels();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -653,18 +562,14 @@ export function ProvidersModule({
         />
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            {(["config", "models", "aliases", "rewrite", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
+            {(["config", "models", "rewrite", "credentials", "oauth"] as ProviderWorkspaceTab[]).map(
               (tab) => (
                 <Button
                   key={tab}
                   variant={activeTab === tab ? "primary" : "neutral"}
                   onClick={() => setActiveTab(tab)}
                 >
-                  {tab === "models"
-                    ? t("models.title")
-                    : tab === "aliases"
-                      ? t("modelAliases.title")
-                      : t(`providers.tab.${tab}`)}
+                  {tab === "models" ? t("models.title") : t(`providers.tab.${tab}`)}
                 </Button>
               ),
             )}
@@ -765,61 +670,41 @@ export function ProvidersModule({
                   enabled: row.enabled,
                   price_each_call: row.price_each_call?.toString() ?? "",
                   price_tiers_json: JSON.stringify(row.price_tiers, null, 2),
+                  alias_of: row.alias_of != null ? String(row.alias_of) : "",
                 });
               }}
               onCreate={beginCreateModel}
               onChangeForm={(patch) => setModelForm((current) => ({ ...current, ...patch }))}
               onSave={() => void saveModel()}
               onDelete={(id) => void deleteModel(id)}
+              onPull={pullModels}
+              onImport={(models) => void importPulledModels(models)}
               labels={{
                 title: t("models.title"),
                 empty: t("common.noData"),
                 create: t("common.create"),
                 save: t("common.save"),
                 delete: t("common.delete"),
+                cancel: t("common.cancel"),
                 modelId: t("common.modelId"),
                 displayName: t("common.displayName"),
                 enabled: t("common.enabled"),
                 priceEachCall: t("common.priceEachCall"),
                 priceTiersJson: t("common.priceTiersJson"),
-              }}
-            />
-          ) : null}
-          {activeTab === "aliases" ? (
-            <ModelAliasesTab
-              rows={providerAliasRows}
-              selectedId={selectedAliasId}
-              form={aliasForm}
-              onSelect={(row) => {
-                setSelectedAliasId(row.id);
-                setAliasForm({
-                  id: String(row.id),
-                  alias: row.alias,
-                  model_id: row.model_id,
-                });
-              }}
-              onCreate={beginCreateAlias}
-              onChangeForm={(patch) => setAliasForm((current) => ({ ...current, ...patch }))}
-              onSave={() => void saveAlias()}
-              onDelete={(alias) => void deleteAlias(alias)}
-              onPull={pullModels}
-              onImport={(models) => void importPulledModels(models)}
-              labels={{
-                title: t("modelAliases.title"),
-                empty: t("common.noData"),
-                create: t("common.create"),
-                save: t("common.save"),
-                delete: t("common.delete"),
-                cancel: t("common.cancel"),
-                alias: t("modelAliases.alias"),
-                modelId: t("common.modelId"),
-                pull: t("modelAliases.pull"),
-                pullLoading: t("modelAliases.pull.loading"),
-                pullEmpty: t("modelAliases.pull.empty"),
-                pullFound: t("modelAliases.pull.found"),
-                pullImport: t("modelAliases.pull.importSelected"),
-                pullSelectAll: t("modelAliases.pull.selectAll"),
-                pullDeselectAll: t("modelAliases.pull.deselectAll"),
+                aliasOf: t("models.aliasOf"),
+                aliasOfNone: t("models.aliasOf.none"),
+                aliasBadge: t("models.aliasBadge"),
+                filterAll: t("models.filter.all"),
+                filterReal: t("models.filter.real"),
+                filterAliases: t("models.filter.aliases"),
+                priceOverrideHint: t("models.priceOverrideHint"),
+                pull: t("models.pull"),
+                pullLoading: t("models.pull.loading"),
+                pullEmpty: t("models.pull.empty"),
+                pullFound: t("models.pull.found"),
+                pullImport: t("models.pull.importSelected"),
+                pullSelectAll: t("models.pull.selectAll"),
+                pullDeselectAll: t("models.pull.deselectAll"),
               }}
             />
           ) : null}

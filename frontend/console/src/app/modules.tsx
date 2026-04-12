@@ -2,7 +2,6 @@ import type { NavItem } from "../components/Nav";
 import { ConfigExportModule } from "../modules/admin/ConfigExportModule";
 import { FilePermissionsModule } from "../modules/admin/FilePermissionsModule";
 import { GlobalSettingsModule } from "../modules/admin/GlobalSettingsModule";
-import { ModelAliasesModule } from "../modules/admin/ModelAliasesModule";
 import { ModelsModule } from "../modules/admin/ModelsModule";
 import { PermissionsModule } from "../modules/admin/PermissionsModule";
 import { ProvidersModule } from "../modules/admin/ProvidersModule";
@@ -68,8 +67,6 @@ export function renderActiveModule(
         return <ProvidersModule sessionToken={sessionToken} notify={notify} />;
       case "models":
         return <ModelsModule sessionToken={sessionToken} notify={notify} />;
-      case "model-aliases":
-        return <ModelAliasesModule sessionToken={sessionToken} notify={notify} />;
       case "users":
         return <UsersModule sessionToken={sessionToken} notify={notify} />;
       case "user-permissions":
