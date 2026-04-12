@@ -1,7 +1,0 @@
-/* Keep the tint extremely subtle in light mode only. */
-:root[data-theme='light'],
-[data-theme='light'] ::backdrop {
-	--sl-color-bg: hsl(210 100% 99%);
-	--sl-color-bg-nav: hsl(210 100% 99%);
-	--sl-color-bg-sidebar: hsl(210 100% 99%);
-}
