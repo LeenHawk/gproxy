@@ -7,7 +7,7 @@ export default defineConfig({
 	site: 'https://gproxy.leenhawk.com',
 	integrations: [
 		starlight({
-			title: 'gproxy',
+			title: 'GPROXY',
 			description:
 				'A high-performance LLM proxy server written in Rust — multi-provider, multi-tenant, with an embedded console.',
 			favicon: '/favicon.ico',
@@ -63,9 +63,9 @@ export default defineConfig({
 					translations: { 'zh-CN': '介绍' },
 					items: [
 						{
-							label: 'What is gproxy?',
+							label: 'What is GPROXY?',
 							slug: 'introduction/what-is-gproxy',
-							translations: { 'zh-CN': 'gproxy 是什么?' },
+							translations: { 'zh-CN': 'GPROXY 是什么?' },
 						},
 						{
 							label: 'Architecture',
