@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { Button, Card, Input, Label } from "../../../components/ui";
-import type { MemoryModelAliasRow } from "../../../lib/types/admin";
+import type { DerivedAliasRow } from "./resources";
 
 export function ModelAliasesTab({
   rows,
@@ -16,14 +16,14 @@ export function ModelAliasesTab({
   onImport,
   labels,
 }: {
-  rows: MemoryModelAliasRow[];
+  rows: DerivedAliasRow[];
   selectedId: number | null;
   form: {
     id: string;
     alias: string;
     model_id: string;
   };
-  onSelect: (row: MemoryModelAliasRow) => void;
+  onSelect: (row: DerivedAliasRow) => void;
   onCreate: () => void;
   onChangeForm: (patch: Partial<{ id: string; alias: string; model_id: string }>) => void;
   onSave: () => void;

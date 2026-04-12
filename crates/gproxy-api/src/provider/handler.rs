@@ -62,6 +62,21 @@ pub async fn proxy(
     // Map classification to SDK operation/protocol strings
     let operation = classification.operation;
 
+    // Permission check BEFORE alias resolution, using the ORIGINAL model name
+    // and the provider from the URL path. This way aliases only serve as a
+    // provider/model redirect — they don't bypass the user's permission set.
+    if !state.check_provider_access(user_key.user_id, &provider_name) {
+        return Err(HttpError::forbidden(
+            "provider not authorized for this user",
+        ));
+    }
+    if let Some(ref m) = model
+        && !is_file_operation(operation)
+        && !state.check_model_permission(user_key.user_id, &provider_name, m)
+    {
+        return Err(HttpError::forbidden("model not authorized for this user"));
+    }
+
     let req_body = build_execute_body(
         classification.operation,
         &req_path,
@@ -80,7 +95,7 @@ pub async fn proxy(
         req_body,
     );
 
-    // Check alias resolution (after rewrite_rules)
+    // Resolve alias (after permission check and rewrite_rules).
     let resolved_alias = request.extensions().get::<ResolvedAlias>().cloned();
     let (effective_provider, effective_model, alias_model_name) = if let Some(alias) =
         &resolved_alias
@@ -112,19 +127,6 @@ pub async fn proxy(
         &req_path,
         req_query.as_deref(),
     )?;
-
-    if !state.check_provider_access(user_key.user_id, &effective_provider) {
-        return Err(HttpError::forbidden(
-            "provider not authorized for this user",
-        ));
-    }
-
-    if let Some(ref m) = effective_model
-        && !is_file_operation(operation)
-        && !state.check_model_permission(user_key.user_id, &effective_provider, m)
-    {
-        return Err(HttpError::forbidden("model not authorized for this user"));
-    }
 
     if !is_file_operation(operation)
         && let Some(ref m) = effective_model
@@ -391,24 +393,34 @@ pub async fn proxy_unscoped(
         buffered_request_body(&request)?,
     );
 
-    // Resolve provider: alias → prefix → error
-    let (target_provider, target_model, alias_model_override) =
+    // Resolve provider: alias → prefix → error.
+    // `permission_model` is the name we'll check against the permission
+    // whitelist — for aliases this is the alias NAME (not the target model)
+    // so aliases don't silently inherit the target model's permissions.
+    let (target_provider, target_model, alias_model_override, permission_model) =
         if let Some(alias) = state.resolve_model_alias(model_name) {
             (
                 alias.provider_name,
                 alias.model_id,
                 Some(model_name.clone()),
+                model_name.clone(),
             )
         } else if let Some((provider, model)) = model_name.split_once('/') {
-            (provider.to_string(), model.to_string(), None)
+            (
+                provider.to_string(),
+                model.to_string(),
+                None,
+                model.to_string(),
+            )
         } else {
             return Err(HttpError::bad_request(
                 "model must have provider prefix (provider/model) or match an alias",
             ));
         };
 
-    // Check permission (whitelist)
-    if !state.check_model_permission(user_key.user_id, &target_provider, &target_model) {
+    // Permission check BEFORE further rewrites. The alias path uses the
+    // alias name itself so admins must whitelist the alias explicitly.
+    if !state.check_model_permission(user_key.user_id, &target_provider, &permission_model) {
         return Err(HttpError::forbidden("model not authorized for this user"));
     }
 

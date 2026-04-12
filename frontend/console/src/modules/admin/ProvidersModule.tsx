@@ -41,7 +41,7 @@ import {
 import { useProviderData } from "./providers/hooks/useProviderData";
 import type { CredentialFormState, ProviderWorkspaceTab } from "./providers";
 import { parseLiveUsageRows, supportsCredentialUsageChannel, type LiveUsageRow } from "./providers/usage";
-import type { MemoryModelAliasRow, MemoryModelRow, ModelAliasWrite, ModelWrite } from "../../lib/types/admin";
+import type { MemoryModelRow, ModelWrite } from "../../lib/types/admin";
 
 export function ProvidersModule({
   sessionToken,
@@ -78,7 +78,6 @@ export function ProvidersModule({
   const [usageRowsByCredential, setUsageRowsByCredential] = useState<Record<number, LiveUsageRow[]>>({});
   const [usageLoadingByCredential, setUsageLoadingByCredential] = useState<Record<number, boolean>>({});
   const [allModelRows, setAllModelRows] = useState<MemoryModelRow[]>([]);
-  const [allAliasRows, setAllAliasRows] = useState<MemoryModelAliasRow[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
   const [selectedAliasId, setSelectedAliasId] = useState<number | null>(null);
   const [modelForm, setModelForm] = useState({
@@ -119,8 +118,8 @@ export function ProvidersModule({
     [allModelRows, selectedProvider?.id],
   );
   const providerAliasRows = useMemo(
-    () => filterAliasesForProvider(allAliasRows, selectedProvider?.name ?? null),
-    [allAliasRows, selectedProvider?.name],
+    () => filterAliasesForProvider(allModelRows, selectedProvider?.id ?? null, providerRows),
+    [allModelRows, selectedProvider?.id, providerRows],
   );
 
   const beginCreateModel = () => {
@@ -138,7 +137,7 @@ export function ProvidersModule({
   const beginCreateAlias = () => {
     setSelectedAliasId(null);
     setAliasForm({
-      id: nextResourceId(allAliasRows),
+      id: nextResourceId(allModelRows),
       alias: "",
       model_id: "",
     });
@@ -222,30 +221,21 @@ export function ProvidersModule({
   useEffect(() => {
     if (!selectedProvider) {
       setAllModelRows([]);
-      setAllAliasRows([]);
       beginCreateModel();
       beginCreateAlias();
       return;
     }
     let active = true;
-    void Promise.all([
-      apiJson<MemoryModelRow[]>("/admin/models/query", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-      }),
-      apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-      }),
-    ])
-      .then(([models, aliases]) => {
+    void apiJson<MemoryModelRow[]>("/admin/models/query", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    })
+      .then((models) => {
         if (!active) {
           return;
         }
         setAllModelRows(models);
-        setAllAliasRows(aliases);
       })
       .catch((error) => {
         if (!active) {
@@ -274,7 +264,7 @@ export function ProvidersModule({
     if (selectedAliasId === null) {
       beginCreateAlias();
     }
-  }, [allAliasRows, selectedAliasId, selectedProvider?.id]);
+  }, [allModelRows, selectedAliasId, selectedProvider?.id]);
 
   const saveProvider = async () => {
     try {
@@ -450,31 +440,43 @@ export function ProvidersModule({
     }
   };
 
+  const reloadModels = async () => {
+    const models = await apiJson<MemoryModelRow[]>("/admin/models/query", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({}),
+    });
+    setAllModelRows(models);
+  };
+
   const saveAlias = async () => {
     if (!selectedProvider) {
       notify("error", t("providers.error.needProvider"));
       return;
     }
     try {
-      const payload: ModelAliasWrite = {
+      const targetModelId = aliasForm.model_id.trim();
+      // Find the target real model for alias_of
+      const target = allModelRows.find(
+        (m) => m.provider_id === selectedProvider.id && m.model_id === targetModelId && m.alias_of == null,
+      );
+      const payload: ModelWrite = {
         id: parseRequiredI64(aliasForm.id, "id"),
-        alias: aliasForm.alias.trim(),
         provider_id: selectedProvider.id,
-        model_id: aliasForm.model_id.trim(),
+        model_id: aliasForm.alias.trim(),
+        display_name: null,
         enabled: true,
+        price_each_call: null,
+        price_tiers_json: null,
+        alias_of: target?.id ?? null,
       };
-      await apiJson("/admin/model-aliases/upsert", {
+      await apiJson("/admin/models/upsert", {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
       });
       notify("success", t("modelAliases.saved"));
-      const rows = await apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-      });
-      setAllAliasRows(rows);
+      await reloadModels();
       setSelectedAliasId(payload.id);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -483,18 +485,21 @@ export function ProvidersModule({
 
   const deleteAlias = async (alias: string) => {
     try {
-      await apiVoid("/admin/model-aliases/delete", {
+      // Find the alias model by alias name
+      const aliasModel = allModelRows.find(
+        (m) => m.model_id === alias && m.alias_of != null,
+      );
+      if (!aliasModel) {
+        notify("error", "Alias not found");
+        return;
+      }
+      await apiVoid("/admin/models/delete", {
         method: "POST",
         headers,
-        body: JSON.stringify({ alias }),
+        body: JSON.stringify({ id: aliasModel.id }),
       });
       notify("success", t("modelAliases.deleted"));
-      const rows = await apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-      });
-      setAllAliasRows(rows);
+      await reloadModels();
       beginCreateAlias();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -503,7 +508,7 @@ export function ProvidersModule({
 
   const pullModels = async (): Promise<string[]> => {
     if (!selectedProvider) return [];
-    const resp = await apiJson<{ models: string[] }>("/admin/model-aliases/pull", {
+    const resp = await apiJson<{ models: string[] }>("/admin/models/pull", {
       method: "POST",
       headers,
       body: JSON.stringify({ provider_id: selectedProvider.id }),
@@ -514,26 +519,30 @@ export function ProvidersModule({
   const importPulledModels = async (models: string[]) => {
     if (!selectedProvider || models.length === 0) return;
     try {
-      const maxId = allAliasRows.reduce((max, row) => Math.max(max, row.id), 0);
-      const items: ModelAliasWrite[] = models.map((model, index) => ({
-        id: maxId + index + 1,
-        alias: model,
-        provider_id: selectedProvider.id,
-        model_id: model,
-        enabled: true,
-      }));
-      await apiJson("/admin/model-aliases/batch-upsert", {
+      const maxId = allModelRows.reduce((max, row) => Math.max(max, row.id), 0);
+      const items: ModelWrite[] = models.map((model, index) => {
+        // Find target real model for alias_of
+        const target = allModelRows.find(
+          (m) => m.provider_id === selectedProvider.id && m.model_id === model && m.alias_of == null,
+        );
+        return {
+          id: maxId + index + 1,
+          provider_id: selectedProvider.id,
+          model_id: model,
+          display_name: null,
+          enabled: true,
+          price_each_call: null,
+          price_tiers_json: null,
+          alias_of: target?.id ?? null,
+        };
+      });
+      await apiJson("/admin/models/batch-upsert", {
         method: "POST",
         headers,
         body: JSON.stringify(items),
       });
       notify("success", t("modelAliases.pull.imported", { count: items.length }));
-      const rows = await apiJson<MemoryModelAliasRow[]>("/admin/model-aliases/query", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({}),
-      });
-      setAllAliasRows(rows);
+      await reloadModels();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }

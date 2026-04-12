@@ -127,6 +127,7 @@ export type ModelQueryParams = {
   provider_id?: Scope<number>;
   model_id?: Scope<string>;
   enabled?: Scope<boolean>;
+  alias_of_filter?: "only_aliases" | "only_real";
   limit?: number;
   offset?: number;
 };
@@ -139,6 +140,7 @@ export type MemoryModelRow = {
   enabled: boolean;
   price_each_call?: number | null;
   price_tiers: PriceTier[];
+  alias_of?: number | null;
 };
 
 export type ModelWrite = {
@@ -149,21 +151,7 @@ export type ModelWrite = {
   enabled: boolean;
   price_each_call?: number | null;
   price_tiers_json?: string | null;
-};
-
-export type MemoryModelAliasRow = {
-  id: number;
-  alias: string;
-  provider_name: string;
-  model_id: string;
-};
-
-export type ModelAliasWrite = {
-  id: number;
-  alias: string;
-  provider_id: number;
-  model_id: string;
-  enabled: boolean;
+  alias_of?: number | null;
 };
 
 export type UserQueryParams = {

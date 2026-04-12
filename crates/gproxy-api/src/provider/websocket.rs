@@ -310,22 +310,28 @@ pub async fn openai_responses_ws_unscoped(
         ));
     };
 
-    // Resolve provider from model (alias or provider/model format)
-    let (target_provider, target_model) = if let Some(alias) = state.resolve_model_alias(model_name)
-    {
-        (alias.provider_name, Some(alias.model_id))
-    } else if let Some((provider, model)) = model_name.split_once('/') {
-        (provider.to_string(), Some(model.to_string()))
-    } else {
-        return Err(HttpError::bad_request(
-            "model must have provider prefix (provider/model) or match an alias",
-        ));
-    };
+    // Resolve provider from model (alias or provider/model format).
+    // `permission_model` is the name we'll check against the permission
+    // whitelist — for aliases this is the alias NAME (not the target model)
+    // so aliases don't silently inherit the target model's permissions.
+    let (target_provider, target_model, permission_model) =
+        if let Some(alias) = state.resolve_model_alias(model_name) {
+            (alias.provider_name, Some(alias.model_id), model_name.clone())
+        } else if let Some((provider, model)) = model_name.split_once('/') {
+            (
+                provider.to_string(),
+                Some(model.to_string()),
+                model.to_string(),
+            )
+        } else {
+            return Err(HttpError::bad_request(
+                "model must have provider prefix (provider/model) or match an alias",
+            ));
+        };
 
-    // Permission check
-    if let Some(ref m) = target_model
-        && !state.check_model_permission(user_key.user_id, &target_provider, m)
-    {
+    // Permission check uses the ORIGINAL model name against the resolved
+    // provider. Aliases must be explicitly whitelisted for the user.
+    if !state.check_model_permission(user_key.user_id, &target_provider, &permission_model) {
         return Err(HttpError::forbidden("model not authorized for this user"));
     }
 

@@ -12,27 +12,32 @@ describe("provider resources helpers", () => {
     expect(nextResourceId([{ id: 2 }, { id: 9 }, { id: 4 }])).toBe("10");
   });
 
-  it("filters models by provider id", () => {
+  it("filters models by provider id (excludes aliases)", () => {
     expect(
       filterModelsForProvider(
         [
-          { id: 1, provider_id: 10, model_id: "a", enabled: true, price_tiers: [] },
-          { id: 2, provider_id: 20, model_id: "b", enabled: true, price_tiers: [] },
+          { id: 1, provider_id: 10, model_id: "a", enabled: true, price_tiers: [], alias_of: null },
+          { id: 2, provider_id: 20, model_id: "b", enabled: true, price_tiers: [], alias_of: null },
+          { id: 3, provider_id: 20, model_id: "alias-b", enabled: true, price_tiers: [], alias_of: 2 },
         ] as never,
         20,
       ).map((row) => row.id),
     ).toEqual([2]);
   });
 
-  it("filters aliases by provider name", () => {
+  it("derives aliases for a provider from unified models", () => {
+    const providers = [
+      { id: 10, name: "first" },
+      { id: 20, name: "second" },
+    ] as never;
+    const allModels = [
+      { id: 1, provider_id: 10, model_id: "m1", enabled: true, price_tiers: [], alias_of: null },
+      { id: 2, provider_id: 20, model_id: "m2", enabled: true, price_tiers: [], alias_of: null },
+      { id: 3, provider_id: 20, model_id: "b", enabled: true, price_tiers: [], alias_of: 2 },
+      { id: 4, provider_id: 10, model_id: "a", enabled: true, price_tiers: [], alias_of: 1 },
+    ] as never;
     expect(
-      filterAliasesForProvider(
-        [
-          { id: 1, alias: "a", provider_name: "first", model_id: "m1" },
-          { id: 2, alias: "b", provider_name: "second", model_id: "m2" },
-        ],
-        "second",
-      ).map((row) => row.alias),
+      filterAliasesForProvider(allModels, 20, providers).map((row) => row.alias),
     ).toEqual(["b"]);
   });
 

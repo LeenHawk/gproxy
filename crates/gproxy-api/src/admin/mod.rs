@@ -75,18 +75,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/models/delete", post(models::delete_model))
         .route("/models/batch-upsert", post(models::batch_upsert_models))
         .route("/models/batch-delete", post(models::batch_delete_models))
-        .route("/model-aliases/query", post(models::query_model_aliases))
-        .route("/model-aliases/upsert", post(models::upsert_model_alias))
-        .route("/model-aliases/delete", post(models::delete_model_alias))
-        .route(
-            "/model-aliases/batch-upsert",
-            post(models::batch_upsert_model_aliases),
-        )
-        .route(
-            "/model-aliases/batch-delete",
-            post(models::batch_delete_model_aliases),
-        )
-        .route("/model-aliases/pull", post(models::pull_models))
+        .route("/models/pull", post(models::pull_models))
         // Users
         .route("/users/query", post(users::query_users))
         .route("/users/upsert", post(users::upsert_user))

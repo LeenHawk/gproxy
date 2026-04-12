@@ -4,12 +4,9 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
-use gproxy_server::{
-    AppState, MemoryModel, OperationFamily, PriceTier, ProtocolKind,
-};
+use gproxy_server::{AppState, MemoryModel, OperationFamily, PriceTier, ProtocolKind};
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Resolve a single provider_id to its name via storage query.
@@ -26,16 +23,6 @@ async fn resolve_provider_name(state: &AppState, provider_id: i64) -> Result<Str
         .ok_or_else(|| HttpError::internal(format!("provider_id {} not found", provider_id)))
 }
 
-/// Build a provider_id -> name map for a set of provider IDs.
-async fn resolve_provider_names(state: &AppState) -> Result<HashMap<i64, String>, HttpError> {
-    let storage = state.storage();
-    let providers = storage
-        .list_providers(&gproxy_storage::ProviderQuery::default())
-        .await
-        .map_err(|e| HttpError::internal(e.to_string()))?;
-    Ok(providers.into_iter().map(|p| (p.id, p.name)).collect())
-}
-
 /// Response row for query_models (from in-memory data, no timestamps).
 #[derive(serde::Serialize)]
 pub struct MemoryModelRow {
@@ -46,6 +33,8 @@ pub struct MemoryModelRow {
     pub enabled: bool,
     pub price_each_call: Option<f64>,
     pub price_tiers: Vec<PriceTier>,
+    /// NULL = real model, Some(id) = alias pointing to another model's id.
+    pub alias_of: Option<i64>,
 }
 
 /// Query filter for models (simplified from storage ModelQuery).
@@ -55,8 +44,20 @@ pub struct ModelQueryParams {
     pub provider_id: Option<Scope<i64>>,
     pub model_id: Option<Scope<String>>,
     pub enabled: Option<Scope<bool>>,
+    /// Filter by alias status:
+    /// - omit / null → return all models (aliases + real)
+    /// - `"only_aliases"` → only rows where alias_of IS NOT NULL
+    /// - `"only_real"` → only rows where alias_of IS NULL
+    pub alias_of_filter: Option<AliasOfFilter>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+}
+
+#[derive(serde::Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum AliasOfFilter {
+    OnlyAliases,
+    OnlyReal,
 }
 
 fn scope_matches<T: PartialEq>(scope: &Option<Scope<T>>, value: &T) -> bool {
@@ -82,6 +83,11 @@ pub async fn query_models(
                 && scope_matches(&query.provider_id, &m.provider_id)
                 && scope_matches(&query.model_id, &m.model_id)
                 && scope_matches(&query.enabled, &m.enabled)
+                && match query.alias_of_filter {
+                    None => true,
+                    Some(AliasOfFilter::OnlyAliases) => m.alias_of.is_some(),
+                    Some(AliasOfFilter::OnlyReal) => m.alias_of.is_none(),
+                }
         })
         .map(|m| MemoryModelRow {
             id: m.id,
@@ -91,6 +97,7 @@ pub async fn query_models(
             enabled: m.enabled,
             price_each_call: m.price_each_call,
             price_tiers: m.price_tiers.clone(),
+            alias_of: m.alias_of,
         })
         .collect();
 
@@ -149,119 +156,6 @@ pub async fn delete_model(
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
-/// Response row for model aliases from memory.
-#[derive(serde::Serialize)]
-pub struct MemoryModelAliasRow {
-    pub id: i64,
-    pub alias: String,
-    pub provider_name: String,
-    pub model_id: String,
-}
-
-pub async fn query_model_aliases(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<MemoryModelAliasRow>>, HttpError> {
-    authorize_admin(&headers, &state)?;
-    let provider_names = resolve_provider_names(&state).await?;
-    let models = state.models();
-    let rows: Vec<MemoryModelAliasRow> = models
-        .iter()
-        .filter(|m| m.alias_of.is_some())
-        .filter_map(|m| {
-            // Find the target model to get its model_id
-            let target_id = m.alias_of?;
-            let target = models.iter().find(|t| t.id == target_id)?;
-            Some(MemoryModelAliasRow {
-                id: m.id,
-                alias: m.model_id.clone(),
-                provider_name: provider_names
-                    .get(&target.provider_id)
-                    .cloned()
-                    .unwrap_or_else(|| target.provider_id.to_string()),
-                model_id: target.model_id.clone(),
-            })
-        })
-        .collect();
-    Ok(Json(rows))
-}
-
-/// Payload for upserting a model alias (now stored as a model row with alias_of).
-#[derive(serde::Deserialize, Clone)]
-pub struct UpsertModelAliasPayload {
-    pub id: i64,
-    pub alias: String,
-    pub provider_id: i64,
-    pub model_id: String,
-    pub enabled: bool,
-}
-
-pub async fn upsert_model_alias(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payload): Json<UpsertModelAliasPayload>,
-) -> Result<Json<AckResponse>, HttpError> {
-    authorize_admin(&headers, &state)?;
-
-    // Find the target model by provider_id + model_id
-    let models = state.models();
-    let target = models
-        .iter()
-        .find(|m| m.provider_id == payload.provider_id && m.model_id == payload.model_id && m.alias_of.is_none());
-    let alias_of = target.map(|t| t.id);
-
-    state
-        .storage()
-        .upsert_model(gproxy_storage::ModelWrite {
-            id: payload.id,
-            provider_id: payload.provider_id,
-            model_id: payload.alias.clone(),
-            display_name: None,
-            enabled: payload.enabled,
-            price_each_call: None,
-            price_tiers_json: None,
-            alias_of,
-        })
-        .await?;
-
-    state.upsert_model_in_memory(MemoryModel {
-        id: payload.id,
-        provider_id: payload.provider_id,
-        model_id: payload.alias,
-        display_name: None,
-        enabled: payload.enabled,
-        price_each_call: None,
-        price_tiers: Vec::new(),
-        alias_of,
-    });
-    Ok(Json(AckResponse { ok: true, id: None }))
-}
-
-#[derive(serde::Deserialize)]
-pub struct DeleteModelAliasPayload {
-    alias: String,
-}
-
-pub async fn delete_model_alias(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payload): Json<DeleteModelAliasPayload>,
-) -> Result<Json<AckResponse>, HttpError> {
-    authorize_admin(&headers, &state)?;
-
-    // Find the alias model by model_id (alias name) with alias_of set
-    let models = state.models();
-    let alias_model = models
-        .iter()
-        .find(|m| m.model_id == payload.alias && m.alias_of.is_some())
-        .ok_or_else(|| HttpError::not_found("model alias not found"))?;
-    let id = alias_model.id;
-
-    state.storage().delete_model(id).await?;
-    state.remove_model_from_memory(id);
-    Ok(Json(AckResponse { ok: true, id: None }))
-}
-
 pub async fn batch_upsert_models(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -296,67 +190,6 @@ pub async fn batch_delete_models(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for id in ids {
-        state.storage().delete_model(id).await?;
-        state.remove_model_from_memory(id);
-    }
-    Ok(Json(AckResponse { ok: true, id: None }))
-}
-
-pub async fn batch_upsert_model_aliases(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(items): Json<Vec<UpsertModelAliasPayload>>,
-) -> Result<Json<AckResponse>, HttpError> {
-    authorize_admin(&headers, &state)?;
-
-    for item in items {
-        let models = state.models();
-        let target = models
-            .iter()
-            .find(|m| m.provider_id == item.provider_id && m.model_id == item.model_id && m.alias_of.is_none());
-        let alias_of = target.map(|t| t.id);
-
-        state
-            .storage()
-            .upsert_model(gproxy_storage::ModelWrite {
-                id: item.id,
-                provider_id: item.provider_id,
-                model_id: item.alias.clone(),
-                display_name: None,
-                enabled: item.enabled,
-                price_each_call: None,
-                price_tiers_json: None,
-                alias_of,
-            })
-            .await?;
-
-        state.upsert_model_in_memory(MemoryModel {
-            id: item.id,
-            provider_id: item.provider_id,
-            model_id: item.alias,
-            display_name: None,
-            enabled: item.enabled,
-            price_each_call: None,
-            price_tiers: Vec::new(),
-            alias_of,
-        });
-    }
-    Ok(Json(AckResponse { ok: true, id: None }))
-}
-
-pub async fn batch_delete_model_aliases(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payloads): Json<Vec<DeleteModelAliasPayload>>,
-) -> Result<Json<AckResponse>, HttpError> {
-    authorize_admin(&headers, &state)?;
-    for p in payloads {
-        let models = state.models();
-        let alias_model = models
-            .iter()
-            .find(|m| m.model_id == p.alias && m.alias_of.is_some())
-            .ok_or_else(|| HttpError::not_found("model alias not found"))?;
-        let id = alias_model.id;
         state.storage().delete_model(id).await?;
         state.remove_model_from_memory(id);
     }
