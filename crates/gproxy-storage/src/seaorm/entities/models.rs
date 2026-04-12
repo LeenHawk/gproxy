@@ -19,9 +19,9 @@ pub struct Model {
     pub enabled: bool,
     /// Full serialized `gproxy_sdk::provider::billing::ModelPrice` (minus
     /// `model_id` / `display_name` which live in their own columns).
-    /// Covers every billing mode (default / flex / scale / priority) plus
-    /// `tool_call_prices`. `NULL` means "no custom pricing" — the row
-    /// falls through to the provider's `default` built-in price entry.
+    /// Covers every billing mode (default / flex / scale / priority).
+    /// `NULL` means "no custom pricing" — the row falls through to the
+    /// provider's `default` built-in price entry.
     #[sea_orm(column_type = "Text", nullable)]
     pub pricing_json: Option<String>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
