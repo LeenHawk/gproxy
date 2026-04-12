@@ -1,5 +1,456 @@
 # Release Notes
 
+## v1.0.6
+
+> **Pricing is now fully admin-editable, end to end.** Model prices move
+> out of the compiled-in `&'static [ModelPrice]` slice into a
+> `pricing_json` column on the `models` table, the provider store holds
+> an `ArcSwap<Vec<ModelPrice>>` that bootstrap and every admin mutation
+> push into, and the console grows a structured editor that covers all
+> four billing modes plus `tool_call_prices`. Tool-call billing also
+> switches from declaration-based flat fees to per-invocation counts
+> extracted from upstream usage blocks across all four protocols — this
+> is a behavior change for anyone who was paying a flat fee for
+> declaring `web_search` and friends. The docs site is rewritten as a
+> full bilingual Starlight site (25 pages × 2 locales) including a new
+> pricing reference page.
+
+### English
+
+#### Added
+
+- **`models.pricing_json` column** — nullable `TEXT` column on the
+  `models` entity holding the full `ModelPrice` JSON blob: all four
+  billing modes (`default` / `flex` / `scale` / `priority`) and
+  `tool_call_prices` in one place. Threaded through `ModelQueryRow`,
+  `ModelWrite`, `store_query/admin`, and `write_sink`. `MemoryModel` now
+  carries a single `Option<ModelPrice>` deserialized from the column on
+  load and re-serialized on admin upsert, so the complete pricing shape
+  round-trips through the DB.
+- **Hot-swappable provider pricing** — `ProviderInstance.model_pricing`
+  goes from `&'static [ModelPrice]` to
+  `ArcSwap<Vec<ModelPrice>>`, and the `ProviderRuntime` trait gains
+  `set_model_pricing`. `Engine::set_model_pricing(provider, prices)` is
+  exposed for host wiring. `AppState::push_pricing_to_engine` rebuilds
+  a `ModelPrice` slice from the current `MemoryModel` snapshot and
+  pushes it into the engine; it runs once during bootstrap after
+  `replace_models` and again from every admin mutation handler that
+  changes the model set. **This fixes a long-standing bug** where admin
+  edits to `price_each_call` / `price_tiers_json` were persisted to the
+  DB but the billing engine kept reading the compiled-in slice forever.
+- **Tool-call billing by actual invocation count** — `Usage` gains
+  `tool_uses: BTreeMap<String, i64>`, populated from upstream response
+  usage blocks. `estimate_billing` now iterates `usage.tool_uses` and
+  charges `unit_price × count` per tool. A tool that's declared in the
+  request body but never invoked bills nothing; a tool invoked three
+  times bills `3 × unit_price`.
+- **Tool-use extractors for all four protocols**
+  - *Claude*: `usage.server_tool_use.web_search_requests` →
+    `tool_uses["web_search"]`, for both non-streaming and `message_delta`
+    streaming.
+  - *OpenAI Responses*: counts `output[].type ==
+    web_search_call | file_search_call | code_interpreter_call` for
+    non-streaming; emits `{ <tool>: 1 }` on each
+    `response.output_item.done` event for streaming (the spec-compliant
+    `response.completed` carries an empty `output[]`). `merge_usage` sums
+    `tool_uses` additively so per-item emits accumulate into the final
+    count.
+  - *OpenAI ChatCompletions*: detects
+    `choices[].message.annotations` / `.delta.annotations` with
+    `type == "url_citation"` and conservatively emits
+    `{ web_search: 1 }` if any are present. ChatCompletions doesn't
+    expose per-query counts, so this underestimates multi-query
+    responses but never overcharges (documented in the pricing
+    reference).
+  - *Gemini*: `candidates[].groundingMetadata.webSearchQueries[]`
+    length → `google_search`;
+    `candidates[].urlContextMetadata.urlMetadata[]` length →
+    `url_context`; `candidates[].content.parts[]` with `executableCode`
+    → `code_execution`.
+- **Structured pricing editor in `ModelsTab`** — the lone
+  `pricing_json` textarea is replaced with a `PricingEditor` component
+  that toggles between "Structured" and "JSON" views. Structured view
+  provides: a single `price_each_call` USD input; an add/remove
+  `price_tiers` table with 7 per-tier fields (`input_tokens_up_to`
+  plus the six per-token unit prices); collapsible `<details>`
+  sections for `flex` / `scale` / `priority`, each with its own
+  `price_each_call` and tiers table and auto-expanded when the model
+  already has pricing in that mode; and a `tool_call_prices` table of
+  key/value rows keyed by tool name (`web_search`, etc.). All numeric
+  fields are held as strings in form state so users can type freely.
+- **TOML import/export round-trips full `ModelPrice`** — `ModelToml`
+  gains five new fields (`flex_price_each_call` / `flex_price_tiers`,
+  `scale_price_each_call` / `scale_price_tiers`,
+  `priority_price_each_call` / `priority_price_tiers`, and
+  `tool_call_prices: BTreeMap<String, f64>`). All ten pricing fields
+  use `#[serde(default, skip_serializing_if = ...)]` so minimal models
+  still produce compact TOML. Previously the shape only carried
+  default-mode tiers, so admin-edited priority pricing and tool
+  overrides were silently dropped on export.
+- **Bilingual Starlight documentation site** — the placeholder docs
+  template is replaced with a comprehensive site covering the whole
+  gproxy stack. 25 pages per locale (English + 简体中文), all validated
+  against the source rather than inferred from READMEs. Sections:
+  Introduction, Getting Started (installation, quick start, first
+  request for both aggregated `/v1` and scoped `/{provider}/v1`
+  routing), Guides (providers & channels, models & aliases, users &
+  API keys, permissions / rate limits / quotas, rewrite rules, Claude
+  prompt caching, adding a channel, embedded console, observability),
+  Reference (env vars, TOML config, dispatch table, database backends,
+  graceful shutdown, Rust SDK), and Deployment (release build, Docker).
+  Root READMEs rewritten as project overviews pointing at the docs
+  site.
+- **Pricing & tool-billing reference page** — new
+  `reference/pricing.md` in both English and Chinese covers the
+  `ModelPrice` JSON shape, the per-1M-token formula, billing mode
+  selection, tool-call invocation counting, exact-then-default price
+  matching, and debugging checklist for when a price doesn't apply.
+  Linked from `guides/models.md` and from the Starlight sidebar.
+- **Unit tests for the new pricing and usage paths** —
+  `tool_calls_billed_by_usage_count` (3 × 0.01 = 0.03),
+  `tool_calls_not_billed_when_usage_tool_uses_empty` (`Some(0.0)`),
+  three Claude extractor tests (non-streaming `web_search` count,
+  `message_delta` streaming, empty map when `server_tool_use` is
+  absent), an `admin_tool_call_price_override_affects_billing`
+  end-to-end test, and an `unknown-provider` branch assertion on
+  `set_model_pricing`.
+- **Batch delete mode across 5 admin tables** — the Users, User Keys,
+  My Keys, Models, and Rewrite Rules lists gain a reusable "batch"
+  toggle. Activating it swaps per-row delete buttons for checkboxes and
+  surfaces a `[Select all] [Clear] [Delete N] [Exit]` action bar.
+  Confirmation goes through `window.confirm`, matching existing delete
+  UX. Four of the five tables reuse existing `*/batch-delete` handlers
+  already exposed by `crates/gproxy-api/src/admin/mod.rs`; the fifth
+  (`/user/keys/batch-delete`) is new — user-scoped with an up-front
+  ownership check against `keys_for_user` to prevent cross-user key
+  deletion. Rewrite rules batch delete is purely client-side (filters
+  the in-memory `rewrite_rules` JSON) since that resource has no
+  backend CRUD. Implementation is factored into two shared primitives
+  in `frontend/console/src/components/`: a generic `useBatchSelection`
+  hook (selection state, stale-key pruning on row refetch, confirm +
+  delete orchestration) and a presentational `BatchActionBar`.
+
+#### Changed
+
+- **Tool billing behaviour change** — billing no longer reads
+  `BillingContext.tool_keys` (what the client declared in the request
+  body). Users who were relying on the old declaration-based flat fee
+  for Anthropic `web_search` will see different bills:
+  - *Before*: declaring `web_search` in the request `tools` array
+    charged a flat `0.01` per request, regardless of actual invocation.
+  - *After*: cost = `usage.server_tool_use.web_search_requests × 0.01`.
+    A request that declares but never invokes `web_search` pays `0`;
+    a request that invokes it three times pays `0.03`.
+- **`ModelsTab` model-pricing field** — replaced `price_each_call` +
+  `price_tiers_json` text inputs with the new structured
+  `PricingEditor` / JSON textarea toggle. `MemoryModelRow` and
+  `ModelWrite` TS types now expose `pricing_json` instead of the two
+  legacy fields; the legacy fields remain on `ModelWrite` as nullable
+  for API-schema compatibility but are always written as `null` by the
+  console. `i18n` strings `common.priceEachCall` /
+  `common.priceTiersJson` removed.
+- **Atomic admin upsert validation** — `batch_upsert_models` now
+  pre-validates every item's `pricing_json` before writing any of
+  them, so a malformed entry halfway through a batch no longer leaves
+  half of the DB updated.
+- **`push_pricing_to_engine` is best-effort / last-writer-wins** —
+  documented as such so future readers don't reach for a mutex. Logs
+  a `warn!` when `set_model_pricing` returns `false` (i.e. the
+  provider is missing from the engine store), so the no-op state
+  surfaces instead of being silent.
+- **Responsive breakpoints tightened across admin modules** — most
+  admin pages used `xl:grid-cols` (1280px) for sidebar+content splits
+  and `lg:grid-cols-2` (1024px) for forms, so common laptop widths
+  collapsed to a single wasteful column. Drop those to `lg:` / `md:`
+  so the intended two-column layouts appear at 1024px / 768px; add
+  `sm:` fallback to 6-field filter grids; let 8-metric rows shrink to
+  1 column on small phones; scope the mobile full-width `.btn` rule to
+  `.toolbar-shell` so inline table/card buttons stay compact; cap
+  toast `min-width` to the viewport; and give the suffix-dialog modal
+  padding so it no longer hugs the screen edge on phones.
+
+#### Fixed
+
+- **UsageModule query button stuck on "querying"** — `UsageModule`
+  (admin) and `MyUsageModule` (user) shared a single `queryTokenRef`
+  between their summary and rows effects. When `setActiveQuery` fired
+  both effects, the rows effect bumped the counter before the summary
+  request resolved, so the summary's `.finally()` check
+  (`queryTokenRef.current === token`) failed and `setLoadingMeta(false)`
+  was never called — pinning the button on "querying" forever. Split
+  into `summaryTokenRef` + `rowsTokenRef` so the cancellation tokens
+  are independent, matching the pattern in `useRequestsModuleState`.
+- **`x-title` and `http-referer` headers leaked upstream** — added to
+  the request-header denylist in both
+  `gproxy-server/src/middleware/sanitize.rs` and
+  `sdk/gproxy-routing/src/sanitize.rs`, so OpenRouter-style client
+  metadata stops reaching upstream channels that might reject or log
+  it.
+
+#### Removed
+
+- **Declaration-based tool billing path** — `BillingContext.tool_keys`
+  field, `collect_tool_keys()` free function, and all the per-channel
+  tool-key parsers
+  (`aistudio`/`vertex`/`google_search`,
+  `anthropic`/`web_search`, `openai`/`file_search`, etc.) are deleted.
+  Tool billing reads from `usage.tool_uses`, which is channel-agnostic,
+  so this code had no remaining consumer.
+- **Legacy `price_each_call` + `price_tiers_json` columns on `models`**
+  — the two columns are removed from the SeaORM entity,
+  `ModelQueryRow`, `ModelWrite`, `store_query/admin`, `write_sink`, and
+  `write/event`. Pricing lives in `pricing_json` only. The 2.3→2.4
+  transition intentionally left the legacy columns on disk temporarily
+  to allow a backfill; this release retires them.
+- **Update source configuration** — `update_source` TOML field,
+  related i18n messages, admin types, and the
+  `.github/workflows/release-binary.yml` internal update server flow
+  are removed. The standalone `DownloadsPage.astro` is gone; docs
+  download links now point at GitHub Releases.
+- **Orphan frontend `ModelsModule`** — the module was wired into
+  `app/modules.tsx`'s `activeModule` switch as `case "models"`, but
+  `buildAdminNavItems` never emitted a nav item for `"models"`, so it
+  was unreachable. Admin model management already lives inside the
+  provider workspace's Models tab.
+- **`PriceTier` from `gproxy-core`** — downstream consumers use
+  `gproxy_sdk::provider::billing::ModelPriceTier` instead.
+
+#### Compatibility
+
+- **DB schema**: `models.pricing_json` is a pure column add, picked up
+  by the SeaORM schema-sync step on startup. Existing rows get `NULL`
+  and fall back to whatever `ModelPrice` the provider compiled in. The
+  legacy `price_each_call` and `price_tiers_json` columns are
+  **removed** from the entity — if you are upgrading a DB that still
+  has data in those columns, migrate them into `pricing_json` **before**
+  pointing v1.0.6 at the DB. A clean install via TOML seed is not
+  affected.
+- **Tool billing amounts change** for anyone who was paying a flat
+  declaration-based fee (primarily Anthropic `web_search` users).
+  Bills shift from "any request that declares the tool" to "per actual
+  invocation reported in the upstream usage block". Audit downstream
+  dashboards / expected-cost tests before rolling out.
+- **Admin clients**: upsert payloads now carry `pricing_json: string |
+  null`. Legacy `price_each_call` / `price_tiers_json` fields remain
+  on the admin API as nullable for schema compatibility, but the
+  backend no longer reads them — clients should stop sending them and
+  send `pricing_json` instead.
+- **TOML exports**: pricing blocks now include the extra flex / scale
+  / priority / tool fields when set. Existing TOML files without
+  those fields continue to import cleanly.
+- **Self-update source is now hardcoded to GitHub Releases** — the
+  `update_source` configuration is gone, so deployments can no
+  longer point the in-process self-updater at a private mirror or
+  reverse proxy. The in-place upgrade flow itself still works and
+  pulls from `LeenHawk/gproxy` on GitHub; anyone who was relying on
+  a custom mirror must either update that binary out-of-band and
+  restart, or rebuild gproxy with a patched download base.
+
+### 中文
+
+#### 新增
+
+- **`models.pricing_json` 列** — 在 `models` 实体上新增可空的 `TEXT`
+  列，存放完整的 `ModelPrice` JSON：四种计费模式（`default` / `flex`
+  / `scale` / `priority`）以及 `tool_call_prices` 全部放在一个字段
+  里。变更贯穿 `ModelQueryRow` / `ModelWrite` / `store_query/admin`
+  / `write_sink`。`MemoryModel` 改为携带一个 `Option<ModelPrice>`，
+  在加载时从新列反序列化、在 admin upsert 时重新序列化，使得完整的
+  pricing 结构能在 DB 中完整来回。
+- **可热替换的 provider 定价** — `ProviderInstance.model_pricing`
+  从 `&'static [ModelPrice]` 切换到
+  `ArcSwap<Vec<ModelPrice>>`，`ProviderRuntime` trait 新增
+  `set_model_pricing`。`Engine::set_model_pricing(provider, prices)`
+  作为 host 接入点对外暴露。`AppState::push_pricing_to_engine` 会用
+  当前的 `MemoryModel` 快照重建一份 `ModelPrice` 并推送到 engine —
+  启动完成 `replace_models` 之后推一次，之后每一次会改动模型集的
+  admin handler 都会再推一次。**这修复了一个长期存在的 bug**：
+  admin 对 `price_each_call` / `price_tiers_json` 的编辑明明写进
+  了 DB，billing engine 却一直在读编译期嵌入的 `&'static` 切片。
+- **按真实调用次数计费的工具计费** — `Usage` 新增
+  `tool_uses: BTreeMap<String, i64>`，由 provider 响应的 usage 块
+  填充。`estimate_billing` 现在遍历 `usage.tool_uses`，按
+  `unit_price × count` 收费。请求体里声明但从未被调用的工具计 0；
+  被调用三次的工具计 `3 × unit_price`。
+- **四种协议的 tool_use 提取器**
+  - *Claude*：`usage.server_tool_use.web_search_requests` 映射到
+    `tool_uses["web_search"]`，非流式和 `message_delta` 流式都覆盖。
+  - *OpenAI Responses*：非流式数 `output[].type ==
+    web_search_call | file_search_call | code_interpreter_call` 的
+    条目；流式按 `response.output_item.done` 事件逐条发
+    `{ <tool>: 1 }`（spec 里 `response.completed` 的 `output[]`
+    是空的）。`merge_usage` 现在对 `tool_uses` 做加法合并，逐条发
+    的计数会累加成最终值。
+  - *OpenAI ChatCompletions*：检测
+    `choices[].message.annotations` / `.delta.annotations` 里
+    `type == "url_citation"` 的条目，只要出现就保守地记一次
+    `{ web_search: 1 }`。ChatCompletions 不暴露精确的 per-query
+    次数，所以该策略会低估多 query 响应，但永远不会多收费 —
+    pricing 文档里明确说明了这一点。
+  - *Gemini*：`candidates[].groundingMetadata.webSearchQueries[]`
+    长度 → `google_search`；
+    `candidates[].urlContextMetadata.urlMetadata[]` 长度 →
+    `url_context`；`candidates[].content.parts[]` 中带
+    `executableCode` 的 part → `code_execution`。
+- **`ModelsTab` 的结构化定价编辑器** — 把原先孤零零的
+  `pricing_json` textarea 替换成 `PricingEditor` 组件，提供
+  "结构化" 与 "JSON" 两种视图切换。结构化视图包含：单个
+  `price_each_call` USD 输入框；可增删的 `price_tiers` 表格（每条
+  7 个字段 —— `input_tokens_up_to` 加六个 per-token 单价）；
+  `flex` / `scale` / `priority` 三个可折叠 `<details>` 段落，各自
+  维护独立的 `price_each_call` 与 tiers 表格，对应模式已有定价时
+  自动展开；以及 `tool_call_prices` 的 key/value 行表格，以工具名
+  （`web_search` 等）为键。所有数值字段在表单状态里以字符串存储，
+  允许用户自由输入。
+- **TOML 导入 / 导出完整来回 `ModelPrice`** — `ModelToml` 新增
+  5 个字段（`flex_price_each_call` / `flex_price_tiers`、
+  `scale_price_each_call` / `scale_price_tiers`、
+  `priority_price_each_call` / `priority_price_tiers`、
+  `tool_call_prices: BTreeMap<String, f64>`）。全部 10 个定价字段
+  都使用 `#[serde(default, skip_serializing_if = ...)]`，最小化的
+  model 仍然生成紧凑的 TOML。此前结构只承载 default 模式的 tiers，
+  所以 admin 编辑的 priority 定价和 tool 覆写在 TOML 导出时会被
+  悄悄丢掉。
+- **双语 Starlight 文档站** — 占位的 docs 模板替换为覆盖整个 gproxy
+  技术栈的完整站点。每个语言 25 页（English + 简体中文），全部依据
+  源代码核对、不是从 README 里推断。章节包括：Introduction、
+  Getting Started（installation / quick start / first request，
+  聚合 `/v1` 与 scoped `/{provider}/v1` 两种路由模式都覆盖）、
+  Guides（providers & channels、models & aliases、users & API
+  keys、permissions / rate limits / quotas、rewrite rules、
+  Claude prompt caching、adding a channel、embedded console、
+  observability）、Reference（env vars、TOML config、dispatch
+  table、database backends、graceful shutdown、Rust SDK）、
+  Deployment（release build、Docker）。根 README 重写为项目总览，
+  链接回 docs 站。
+- **定价与工具计费参考页** — 新增
+  `reference/pricing.md`（中英双语），涵盖 `ModelPrice` JSON
+  结构、per-1M-token 公式、计费模式选择、工具调用计数、
+  精确匹配→默认 fallback，以及当定价没生效时的排查清单。
+  从 `guides/models.md` 和 Starlight 侧边栏均有入口。
+- **针对新定价 / usage 路径的单测** —
+  `tool_calls_billed_by_usage_count`（3 × 0.01 = 0.03）、
+  `tool_calls_not_billed_when_usage_tool_uses_empty`（`Some(0.0)`）、
+  三个 Claude 提取器测试（非流式 `web_search` 计数、
+  `message_delta` 流式、`server_tool_use` 缺失时返回空 map）、
+  一个 `admin_tool_call_price_override_affects_billing` 端到端测
+  试，以及 `set_model_pricing` 对未知 provider 的 false 断言。
+- **5 张管理表的批量删除模式** — Users、User Keys、My Keys、Models、
+  Rewrite Rules 共享同一套「批量」开关。开启后逐行删除按钮变成复选
+  框，顶部出现 `[全选] [清空] [删除 N 项] [退出]` 操作条。确认走
+  `window.confirm`，与既有删除交互一致。其中 4 张表复用
+  `crates/gproxy-api/src/admin/mod.rs` 已有的 `*/batch-delete`
+  handler；第 5 个 `/user/keys/batch-delete` 是新增的，用户态，
+  在删除前用 `keys_for_user` 做一次所有权校验，防止越权删除他人
+  密钥。Rewrite Rules 因为没有后端 CRUD，批量删除纯客户端（过滤
+  `rewrite_rules` JSON 数组后整体 re-save）。前端抽出两个共享
+  原语到 `frontend/console/src/components/`：泛型
+  `useBatchSelection` hook（选中状态、rows 变化时自动剔除陈旧
+  key、confirm + 删除编排）和展示型组件 `BatchActionBar`。
+
+#### 变更
+
+- **工具计费行为变更** — 计费不再读取
+  `BillingContext.tool_keys`（客户端在请求体里声明的工具）。原先
+  依赖声明即收费的用户（主要是 Anthropic `web_search`）会看到
+  账单变化：
+  - *此前*：请求的 `tools` 数组里出现 `web_search` 就按 `0.01`
+    一次收，无论是否真的调用。
+  - *此后*：费用 = `usage.server_tool_use.web_search_requests
+    × 0.01`。声明但没调用计 0；调用了三次按 `0.03` 计。
+- **`ModelsTab` 的定价字段** — `price_each_call` + `price_tiers_json`
+  两个文本输入框被替换为新的 `PricingEditor` / JSON textarea 切换
+  组件。`MemoryModelRow` 与 `ModelWrite` 的 TS 类型改为暴露
+  `pricing_json` 而不是旧的两个字段；旧字段在 `ModelWrite` 上仍
+  保留为 nullable 以兼容 API schema，但前端始终写 `null`。i18n
+  的 `common.priceEachCall` / `common.priceTiersJson` 已删除。
+- **Admin upsert 原子预校验** — `batch_upsert_models` 现在在写入
+  任何一项之前，先把整个 batch 里每一项的 `pricing_json` 全部校验
+  一遍，避免中途出现格式错误的条目把一半数据写进 DB、另一半没
+  写的情况。
+- **`push_pricing_to_engine` 是 best-effort / last-writer-wins**
+  语义 — 代码注释里显式标注，免得后来人想去上锁。当
+  `set_model_pricing` 返回 `false`（即 provider 不在 engine store
+  里）时打 `warn!`，让"没推进去"的状态浮出水面而不是静默。
+- **管理后台响应式断点收紧** — 大部分 admin 页面在侧边栏+内容
+  布局上用 `xl:grid-cols`（1280px），表单里用
+  `lg:grid-cols-2`（1024px），导致常见笔记本宽度塌成一列、空间
+  浪费严重。把这些下调到 `lg:` / `md:`，让双列布局在 1024px /
+  768px 就能生效；6 字段过滤器网格增加 `sm:` fallback；8-metric
+  行在小屏手机上缩成 1 列；把移动端"按钮占满宽"的规则限定到
+  `.toolbar-shell` 内部，避免表格/卡片里的内联按钮被撑满；toast
+  的 `min-width` 上限限制到视窗宽度；suffix-dialog 模态框加上
+  外边距，手机上不再紧贴屏幕边缘。
+
+#### 修复
+
+- **UsageModule 查询按钮卡在 "查询中"** — admin `UsageModule` 和
+  用户 `MyUsageModule` 的 summary 与 rows 两个 effect 共用同一个
+  `queryTokenRef`。`setActiveQuery` 同时触发两个 effect 时，rows
+  effect 在 summary 请求 resolve 之前就把 counter 递增了，于是
+  summary 的 `.finally()` 检查（`queryTokenRef.current === token`）
+  永远不成立，`setLoadingMeta(false)` 永远不会被调用，按钮就永远
+  卡在"查询中"。拆成 `summaryTokenRef` + `rowsTokenRef`，让两个
+  取消 token 各自独立，与 `useRequestsModuleState` 的做法对齐。
+- **`x-title` 和 `http-referer` 透传到上游** — 在
+  `gproxy-server/src/middleware/sanitize.rs` 和
+  `sdk/gproxy-routing/src/sanitize.rs` 两处 header 黑名单里都加上
+  这两项，让 OpenRouter 风格的客户端元数据不再到达可能会拒绝或
+  记录它们的上游渠道。
+
+#### 移除
+
+- **声明式的工具计费路径** — `BillingContext.tool_keys` 字段、
+  `collect_tool_keys()` 函数，以及所有按渠道的 tool-key 解析器
+  （`aistudio`/`vertex`/`google_search`、
+  `anthropic`/`web_search`、`openai`/`file_search` 等）整批删除。
+  工具计费现在完全从 `usage.tool_uses` 读取，协议无关，这些代码
+  已没有任何消费方。
+- **`models` 表上的遗留 `price_each_call` + `price_tiers_json` 列**
+  — 从 SeaORM 实体、`ModelQueryRow`、`ModelWrite`、
+  `store_query/admin`、`write_sink`、`write/event` 中全部删除。
+  定价只存在于 `pricing_json` 列里。Phase 2.3 → 2.4 过渡期间
+  刻意把旧列留在磁盘上作为 backfill 的落脚点，本版本正式退役。
+- **`update_source` 更新源配置** — TOML 字段、相关 i18n 文案、
+  admin 类型，以及 `.github/workflows/release-binary.yml` 里
+  内部更新服务器的流程全部删除。独立的 `DownloadsPage.astro`
+  也一并删除，docs 里的下载链接改为指向 GitHub Releases。
+- **孤儿前端 `ModelsModule`** — 该模块被
+  `app/modules.tsx` 的 `activeModule` switch 通过
+  `case "models"` 引入，但 `buildAdminNavItems` 从来没有为
+  `"models"` 生成导航项，入口实际不可达。Admin 的模型管理已
+  全部收敛到 provider 工作区的 Models Tab 里。
+- **`gproxy-core` 中的 `PriceTier`** — 下游消费者改用
+  `gproxy_sdk::provider::billing::ModelPriceTier`。
+
+#### 兼容性
+
+- **DB schema**：`models.pricing_json` 是一次纯加列变更，
+  SeaORM 启动时的 schema-sync 会自动完成。已有行的值为 `NULL`，
+  命中后会 fallback 到 provider 编译期内置的 `ModelPrice`。但
+  **旧的 `price_each_call` 和 `price_tiers_json` 两列已从实体中
+  移除** —— 如果你升级的是一个在这两列里仍有数据的 DB，请在切到
+  v1.0.6 之前把这些数据迁移进 `pricing_json`。通过 TOML seed
+  做干净安装的情况不受影响。
+- **工具计费金额会变**，受影响的主要是此前依赖"声明即收费"
+  机制的用户（绝大多数是 Anthropic `web_search`）。计费逻辑
+  从"声明了就收"切换到"按上游 usage 块里真实调用次数收"。
+  发布前请核对一下相关的下游看板和预期成本测试。
+- **Admin 客户端**：upsert 请求体现在携带
+  `pricing_json: string | null`。老字段 `price_each_call` /
+  `price_tiers_json` 仍作为 nullable 保留在 admin API schema 上，
+  但后端不再读取 —— 客户端请停止发送它们，改为发送
+  `pricing_json`。
+- **TOML 导出**：定价块里现在会带上 `flex` / `scale` / `priority`
+  / `tool` 相关的新字段（如果填了的话）。不含这些字段的旧 TOML
+  文件仍然可以干净地导入。
+- **自更新源硬编码为 GitHub Releases**：`update_source` 配置项
+  整块删除，部署方不能再把进程内自更新指向私有镜像或反向代理。
+  就地升级本身仍然可用，硬编码从 `LeenHawk/gproxy` 的 GitHub
+  Releases 拉取；之前依赖自定义镜像的部署需要改为带外更新
+  二进制后重启进程，或者基于补丁后的下载基址自行重新编译
+  gproxy。
+
 ## v1.0.5
 
 > **Major refactor.** Two sibling releases worth of architectural cleanup
