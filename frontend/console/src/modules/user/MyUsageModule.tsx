@@ -453,7 +453,7 @@ export function MyUsageModule({
   return (
     <div className="space-y-4">
       <Card title={t("myUsage.title")} subtitle={t("myUsage.subtitle")}>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           <div>
             <Label>{t("field.channel")}</Label>
             <SearchableSelect
@@ -514,7 +514,7 @@ export function MyUsageModule({
           </Button>
         </div>
       </Card>
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
         <MetricCard label={t("metric.count")} value={summary.count} />
         <MetricCard label={t("metric.input_tokens")} value={summary.input_tokens} />
         <MetricCard label={t("metric.output_tokens")} value={summary.output_tokens} />

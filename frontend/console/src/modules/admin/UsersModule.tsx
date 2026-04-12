@@ -222,7 +222,7 @@ export function UsersModule({
 
   return (
     <Card title={t("users.title")} subtitle={t("users.subtitle")}>
-      <div className="grid gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
         <UserListPane
           rows={rows}
           selectedUserId={selectedUserId}

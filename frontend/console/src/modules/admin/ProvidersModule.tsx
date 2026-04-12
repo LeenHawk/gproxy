@@ -633,7 +633,7 @@ export function ProvidersModule({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <ProviderList
           rows={providerRows}
           selectedProviderId={selectedProvider?.id ?? null}

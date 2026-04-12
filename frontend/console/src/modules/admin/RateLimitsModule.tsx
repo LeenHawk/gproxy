@@ -100,7 +100,7 @@ export function RateLimitsModule({
 
   return (
     <Card title={t("rateLimits.title")}>
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-2">
           {rows.map((row) => {
             const key = `${row.user_id}:${row.model_pattern}`;
@@ -138,7 +138,7 @@ export function RateLimitsModule({
             <Label>{t("common.modelPattern")}</Label>
             <Input value={form.model_pattern} onChange={(value) => setForm((current) => ({ ...current, model_pattern: value }))} />
           </div>
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-3">
             <div>
               <Label>rpm</Label>
               <Input value={form.rpm} onChange={(value) => setForm((current) => ({ ...current, rpm: value }))} />

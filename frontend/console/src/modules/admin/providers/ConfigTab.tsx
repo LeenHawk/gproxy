@@ -128,7 +128,7 @@ export function ConfigTab({
       </div>
 
       {/* Generic fields (base_url, user_agent, oauth URLs, etc.) */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         {genericFields.map((field) => (
           <div key={field.key}>
             <Label>{fieldLabel(field)}</Label>
@@ -270,7 +270,7 @@ export function ConfigTab({
                   </Button>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <Label>{labels.dispatchSourceOperation}</Label>
                     <Select
@@ -329,7 +329,7 @@ export function ConfigTab({
                 </div>
 
                 {rule.implementation === "TransformTo" ? (
-                  <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <Label>{labels.dispatchDestinationOperation}</Label>
                       <Select

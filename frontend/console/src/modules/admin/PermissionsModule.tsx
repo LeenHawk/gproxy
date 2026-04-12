@@ -85,7 +85,7 @@ export function PermissionsModule({
 
   return (
     <Card title={t("permissions.title")}>
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="space-y-2">
           {rows.map((row) => (
             <div

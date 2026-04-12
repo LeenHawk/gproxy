@@ -116,7 +116,7 @@ export function GlobalSettingsModule({
         </div>
       }
     >
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <div>
           <Label>{t("globalSettings.field.host")}</Label>
           <Input
@@ -195,7 +195,7 @@ export function GlobalSettingsModule({
       </div>
       <div className="panel-shell mt-4 space-y-3">
         <div className="text-sm font-semibold text-text">{t("globalSettings.section.logging")}</div>
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <StatusToggle
             label={t("globalSettings.flag.enableUsage")}
             checked={form.enable_usage}

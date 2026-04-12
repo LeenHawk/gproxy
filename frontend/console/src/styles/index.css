@@ -676,7 +676,8 @@ pre {
 }
 
 .toast {
-  min-width: 240px;
+  min-width: min(240px, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
   border-radius: 0.9rem;
   box-shadow: var(--shadow);
   padding: 0.8rem 0.95rem;
@@ -733,7 +734,7 @@ pre {
     padding: 0.95rem;
   }
 
-  .btn {
+  .toolbar-shell .btn {
     justify-content: center;
     width: 100%;
   }

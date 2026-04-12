@@ -207,7 +207,7 @@ export function ModelsTab({
   ];
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+    <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
       <Card
         title={labels.title}
         action={
@@ -402,7 +402,7 @@ export function ModelsTab({
       {/* Suffix variant dialog */}
       {suffixDialogOpen && selected ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           onClick={closeSuffixDialog}
         >
           <div
