@@ -312,7 +312,10 @@ pub async fn pull_models(
         })?;
     let protocol = channel_to_model_list_protocol(&channel);
 
-    // Execute live model list request via the engine
+    // Execute live model list request via the engine.
+    // Pass an empty HeaderMap — the admin request headers (Authorization,
+    // Content-Length, Host, etc.) would leak to the upstream and break it.
+    // The engine/channel finalize_request adds the provider's own auth headers.
     let result = state
         .engine()
         .execute(ExecuteRequest {
@@ -320,7 +323,7 @@ pub async fn pull_models(
             operation: OperationFamily::ModelList,
             protocol,
             body: build_live_model_list_request_body(protocol),
-            headers: headers.clone(),
+            headers: HeaderMap::new(),
             model: None,
             forced_credential_index: None,
             response_model_override: None,
@@ -329,9 +332,16 @@ pub async fn pull_models(
         .map_err(|e| HttpError::internal(format!("engine execute failed: {e}")))?;
 
     if !(200..=299).contains(&result.status) {
+        // Include the upstream response body so admins can see what went wrong.
+        let body_preview = match &result.body {
+            ExecuteBody::Full(bytes) => {
+                String::from_utf8_lossy(bytes).chars().take(500).collect::<String>()
+            }
+            ExecuteBody::Stream(_) => "<streaming>".to_string(),
+        };
         return Err(HttpError::internal(format!(
-            "provider '{}' model list failed with HTTP {}",
-            provider_name, result.status
+            "provider '{}' model list failed with HTTP {}: {}",
+            provider_name, result.status, body_preview
         )));
     }
 
