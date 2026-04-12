@@ -253,8 +253,7 @@ pub fn estimate_billing(
         if count <= 0 {
             continue;
         }
-        let Some(unit_price) = tool_call_price_for_key(exact_model, default_model, tool_key)
-        else {
+        let Some(unit_price) = tool_call_price_for_key(exact_model, default_model, tool_key) else {
             continue;
         };
         let amount = (count as f64) * unit_price;

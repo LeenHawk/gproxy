@@ -167,10 +167,9 @@ fn claude_tool_uses(usage: &serde_json::Value) -> std::collections::BTreeMap<Str
     if let Some(n) = server_tool_use
         .get("web_search_requests")
         .and_then(|v| v.as_i64())
+        && n > 0
     {
-        if n > 0 {
-            out.insert("web_search".to_string(), n);
-        }
+        out.insert("web_search".to_string(), n);
     }
     out
 }

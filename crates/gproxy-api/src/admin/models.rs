@@ -135,7 +135,7 @@ pub async fn upsert_model(
     let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = payload
         .pricing_json
         .as_deref()
-        .map(|raw| serde_json::from_str(raw))
+        .map(serde_json::from_str)
         .transpose()
         .map_err(|e| HttpError::bad_request(format!("invalid pricing_json: {e}")))?
         .map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
@@ -206,7 +206,7 @@ pub async fn batch_upsert_models(
         .map(|item| {
             item.pricing_json
                 .as_deref()
-                .map(|raw| serde_json::from_str(raw))
+                .map(serde_json::from_str)
                 .transpose()
                 .map_err(|e| {
                     HttpError::bad_request(format!(
@@ -594,8 +594,7 @@ mod tests {
             priority_price_tiers: Vec::new(),
             tool_call_prices,
         };
-        let pricing_json_str =
-            crate::bootstrap::model_price_to_storage_json(&model_price).unwrap();
+        let pricing_json_str = crate::bootstrap::model_price_to_storage_json(&model_price).unwrap();
 
         state
             .storage()
