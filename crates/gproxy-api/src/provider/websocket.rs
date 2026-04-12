@@ -891,14 +891,11 @@ async fn start_http_request(
     let operation = OperationFamily::StreamGenerateContent;
     let protocol = ProtocolKind::OpenAiResponse;
 
-    let billing_context = ctx
-        .state
-        .engine()
-        .build_billing_context(
-            &ctx.provider_name,
-            Some(&effective_model),
-            &http_request_body,
-        );
+    let billing_context = ctx.state.engine().build_billing_context(
+        &ctx.provider_name,
+        Some(&effective_model),
+        &http_request_body,
+    );
 
     let result = ctx
         .state

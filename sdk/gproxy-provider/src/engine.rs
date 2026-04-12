@@ -560,10 +560,7 @@ impl GproxyEngine {
     }
 
     /// Get the rewrite rules for a named provider.
-    pub fn rewrite_rules(
-        &self,
-        provider: &str,
-    ) -> Vec<crate::utils::rewrite::RewriteRule> {
+    pub fn rewrite_rules(&self, provider: &str) -> Vec<crate::utils::rewrite::RewriteRule> {
         self.store
             .get_runtime(provider)
             .map(|rt| rt.rewrite_rules())

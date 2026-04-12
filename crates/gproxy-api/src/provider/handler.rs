@@ -82,20 +82,20 @@ pub async fn proxy(
 
     // Check alias resolution (after rewrite_rules)
     let resolved_alias = request.extensions().get::<ResolvedAlias>().cloned();
-    let (effective_provider, effective_model, alias_model_name) =
-        if let Some(alias) = &resolved_alias
-            && alias.provider_name.is_some()
-        {
-            let effective = alias.model_id.clone().or(model.clone());
-            let alias_name = model.clone();
-            (
-                alias.provider_name.clone().unwrap_or(provider_name.clone()),
-                effective,
-                alias_name,
-            )
-        } else {
-            (provider_name.clone(), model.clone(), None)
-        };
+    let (effective_provider, effective_model, alias_model_name) = if let Some(alias) =
+        &resolved_alias
+        && alias.provider_name.is_some()
+    {
+        let effective = alias.model_id.clone().or(model.clone());
+        let alias_name = model.clone();
+        (
+            alias.provider_name.clone().unwrap_or(provider_name.clone()),
+            effective,
+            alias_name,
+        )
+    } else {
+        (provider_name.clone(), model.clone(), None)
+    };
 
     let protocol = resolve_file_operation_protocol(
         &state,
@@ -230,9 +230,11 @@ pub async fn proxy(
     // to the real model name so admins can set custom per-alias pricing.
     let (billing_context, precomputed_cost) = {
         let alias_ctx = alias_model_name.as_ref().map(|alias| {
-            state
-                .engine()
-                .build_billing_context(&effective_provider, Some(alias.as_str()), &req_body)
+            state.engine().build_billing_context(
+                &effective_provider,
+                Some(alias.as_str()),
+                &req_body,
+            )
         });
         let alias_cost = result.usage.as_ref().and_then(|usage| {
             let ctx = alias_ctx.as_ref()?.as_ref()?;
@@ -708,9 +710,10 @@ pub async fn proxy_unscoped_files(
 
     // Record usage via storage write channel
     if let Some(ref usage) = result.usage {
-        let billing_context = state
-            .engine()
-            .build_billing_context(&target_provider, None, &req_body);
+        let billing_context =
+            state
+                .engine()
+                .build_billing_context(&target_provider, None, &req_body);
         let precomputed_cost = {
             let ctx = billing_context.as_ref();
             ctx.and_then(|ctx| {
@@ -1378,16 +1381,14 @@ fn inject_scoped_model_list_aliases(
     let originals: Vec<serde_json::Value> = arr.clone();
     let find_by_id = |target_id: &str| -> Option<&serde_json::Value> {
         originals.iter().find(|m| {
-            m.get(id_key)
-                .and_then(|i| i.as_str())
-                .is_some_and(|id| {
-                    if id_key == "name" {
-                        // Gemini: name is "models/model_id"
-                        id == format!("models/{target_id}")
-                    } else {
-                        id == target_id
-                    }
-                })
+            m.get(id_key).and_then(|i| i.as_str()).is_some_and(|id| {
+                if id_key == "name" {
+                    // Gemini: name is "models/model_id"
+                    id == format!("models/{target_id}")
+                } else {
+                    id == target_id
+                }
+            })
         })
     };
 
@@ -1404,8 +1405,7 @@ fn inject_scoped_model_list_aliases(
         if id_key == "name" {
             alias_entry["name"] = serde_json::Value::String(format!("models/{alias_name}"));
             if alias_entry.get("baseModelId").is_some() {
-                alias_entry["baseModelId"] =
-                    serde_json::Value::String(alias_name.to_string());
+                alias_entry["baseModelId"] = serde_json::Value::String(alias_name.to_string());
             }
         } else {
             alias_entry[id_key] = serde_json::Value::String(alias_name.to_string());

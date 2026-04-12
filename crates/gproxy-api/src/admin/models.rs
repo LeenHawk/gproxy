@@ -4,7 +4,9 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
-use gproxy_server::{AppState, MemoryModel, ModelAliasTarget, OperationFamily, ProtocolKind, PriceTier};
+use gproxy_server::{
+    AppState, MemoryModel, ModelAliasTarget, OperationFamily, PriceTier, ProtocolKind,
+};
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
 use std::collections::HashMap;
@@ -384,9 +386,7 @@ fn extract_model_ids(body: &[u8], protocol: ProtocolKind) -> Vec<String> {
                         arr.iter()
                             .filter_map(|m| {
                                 m.get("name").and_then(|v| v.as_str()).map(|name| {
-                                    name.strip_prefix("models/")
-                                        .unwrap_or(name)
-                                        .to_string()
+                                    name.strip_prefix("models/").unwrap_or(name).to_string()
                                 })
                             })
                             .collect()
