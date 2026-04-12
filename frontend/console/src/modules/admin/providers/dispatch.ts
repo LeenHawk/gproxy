@@ -171,9 +171,24 @@ const LOCAL_COUNT = [
   local("count_tokens", "openai"), local("count_tokens", "claude"), local("count_tokens", "gemini"),
 ];
 
-// Per-protocol model_list/model_get: all served from local models table by
-// default. Admins can pull from upstream via /admin/models/pull instead of
-// hitting upstream on every request.
+// Per-protocol model_list/model_get: passthrough on native, transform others
+// (used by the -like preset templates)
+const OPENAI_MODEL_RULES = [
+  pass("model_list", "openai"), xform("model_list", "claude", "model_list", "openai"), xform("model_list", "gemini", "model_list", "openai"),
+  pass("model_get", "openai"), xform("model_get", "claude", "model_get", "openai"), xform("model_get", "gemini", "model_get", "openai"),
+];
+const CLAUDE_MODEL_RULES = [
+  pass("model_list", "claude"), xform("model_list", "openai", "model_list", "claude"), xform("model_list", "gemini", "model_list", "claude"),
+  pass("model_get", "claude"), xform("model_get", "openai", "model_get", "claude"), xform("model_get", "gemini", "model_get", "claude"),
+];
+const GEMINI_MODEL_RULES = [
+  pass("model_list", "gemini"), xform("model_list", "claude", "model_list", "gemini"), xform("model_list", "openai", "model_list", "gemini"),
+  pass("model_get", "gemini"), xform("model_get", "claude", "model_get", "gemini"), xform("model_get", "openai", "model_get", "gemini"),
+];
+
+// Local dispatch for model_list/model_get — used by the -only preset templates.
+// Admins pull models from upstream via /admin/models/pull once, then requests
+// hit the local models table instead of upstream on every call.
 const LOCAL_MODEL_RULES = [
   local("model_list", "openai"), local("model_list", "claude"), local("model_list", "gemini"),
   local("model_get", "openai"), local("model_get", "claude"), local("model_get", "gemini"),
@@ -185,7 +200,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "openai-like",
     label: "OpenAI-like",
     rules: [
-      ...LOCAL_MODEL_RULES,
+      ...OPENAI_MODEL_RULES,
       pass("count_tokens", "openai"), xform("count_tokens", "claude", "count_tokens", "openai"), xform("count_tokens", "gemini", "count_tokens", "openai"),
       pass("generate_content", "openai_response"), pass("generate_content", "openai_chat_completions"),
       xform("generate_content", "claude", "generate_content", "openai_response"),
@@ -207,7 +222,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "anthropic-like",
     label: "Anthropic-like",
     rules: [
-      ...LOCAL_MODEL_RULES,
+      ...CLAUDE_MODEL_RULES,
       pass("count_tokens", "claude"), xform("count_tokens", "openai", "count_tokens", "claude"), xform("count_tokens", "gemini", "count_tokens", "claude"),
       pass("generate_content", "claude"), pass("generate_content", "openai_chat_completions"),
       xform("generate_content", "openai_response", "generate_content", "claude"),
@@ -226,7 +241,7 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
     key: "gemini-like",
     label: "Gemini-like",
     rules: [
-      ...LOCAL_MODEL_RULES,
+      ...GEMINI_MODEL_RULES,
       pass("count_tokens", "gemini"), xform("count_tokens", "claude", "count_tokens", "gemini"), xform("count_tokens", "openai", "count_tokens", "gemini"),
       pass("generate_content", "gemini"), xform("generate_content", "claude", "generate_content", "gemini"),
       pass("generate_content", "openai_chat_completions"), xform("generate_content", "openai_response", "generate_content", "gemini"),

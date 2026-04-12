@@ -165,6 +165,49 @@ pub async fn proxy(
         .await);
     }
 
+    // Local dispatch short-circuit for model_list / model_get: when the
+    // provider's dispatch rule for this (operation, protocol) is Local,
+    // serve the response from the local models table without hitting upstream.
+    if matches!(
+        operation,
+        OperationFamily::ModelList | OperationFamily::ModelGet
+    ) && state
+        .engine()
+        .is_local_dispatch(&effective_provider, operation, protocol)
+    {
+        let resp_body = match operation {
+            OperationFamily::ModelList => {
+                build_local_model_list_body(&state, user_key.user_id, &effective_provider, protocol)
+            }
+            OperationFamily::ModelGet => {
+                let Some(model_id) = effective_model.as_deref() else {
+                    return Err(HttpError::bad_request("missing model in model_get request"));
+                };
+                match build_local_model_get_body(
+                    &state,
+                    user_key.user_id,
+                    &effective_provider,
+                    model_id,
+                    protocol,
+                ) {
+                    Some(body) => body,
+                    None => return Err(HttpError::not_found("model not found in local table")),
+                }
+            }
+            _ => unreachable!(),
+        };
+        return Ok(respond_with_local_json(
+            LocalJsonResponseContext {
+                start,
+                trace_id,
+                req_method: &req_method,
+                req_path: &req_path,
+            },
+            resp_body,
+        )
+        .await);
+    }
+
     let forced_credential_index = file_plan
         .as_ref()
         .and_then(FileOperationPlan::forced_credential_index);
@@ -449,6 +492,34 @@ pub async fn proxy_unscoped(
         return Err(HttpError::too_many_requests(
             "rate limit exceeded".to_string(),
         ));
+    }
+
+    // Local dispatch short-circuit for model_get: serve from the local
+    // models table. (model_list is handled earlier as an early return.)
+    if operation == OperationFamily::ModelGet
+        && state
+            .engine()
+            .is_local_dispatch(&target_provider, operation, protocol)
+    {
+        let Some(body) = build_local_model_get_body(
+            &state,
+            user_key.user_id,
+            &target_provider,
+            &target_model,
+            protocol,
+        ) else {
+            return Err(HttpError::not_found("model not found in local table"));
+        };
+        return Ok(respond_with_local_json(
+            LocalJsonResponseContext {
+                start,
+                trace_id,
+                req_method: &req_method,
+                req_path: &req_path,
+            },
+            body,
+        )
+        .await);
     }
 
     let result = match state
@@ -1028,6 +1099,37 @@ async fn build_openai_unscoped_model_list_body(
     let mut last_error = None;
 
     for provider in providers {
+        // If the provider's dispatch for ModelList is Local, serve from the
+        // local models table instead of calling upstream.
+        if state.engine().is_local_dispatch(
+            &provider.provider_name,
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+        ) {
+            let Some(provider_id) = state.provider_id_for_name(&provider.provider_name) else {
+                continue;
+            };
+            for m in state.models().iter() {
+                if m.provider_id != provider_id || !m.enabled || m.alias_of.is_some() {
+                    continue;
+                }
+                if !state.check_model_permission(user_id, &provider.provider_name, &m.model_id) {
+                    continue;
+                }
+                let prefixed = prefixed_model_id(&provider.provider_name, &m.model_id);
+                models.insert(
+                    prefixed.clone(),
+                    gproxy_sdk::protocol::openai::types::OpenAiModel {
+                        id: prefixed,
+                        object: gproxy_sdk::protocol::openai::types::OpenAiModelObject::Model,
+                        created: 0,
+                        owned_by: provider.provider_name.clone(),
+                    },
+                );
+            }
+            success_count += 1;
+            continue;
+        }
         match execute_live_model_list(
             state,
             &provider.provider_name,
@@ -1111,6 +1213,40 @@ async fn build_claude_unscoped_model_list_body(
     let mut last_error = None;
 
     for provider in providers {
+        // Local dispatch: serve from local models table.
+        if state.engine().is_local_dispatch(
+            &provider.provider_name,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+        ) {
+            let Some(provider_id) = state.provider_id_for_name(&provider.provider_name) else {
+                continue;
+            };
+            for m in state.models().iter() {
+                if m.provider_id != provider_id || !m.enabled || m.alias_of.is_some() {
+                    continue;
+                }
+                if !state.check_model_permission(user_id, &provider.provider_name, &m.model_id) {
+                    continue;
+                }
+                let prefixed = prefixed_model_id(&provider.provider_name, &m.model_id);
+                let display_name = m.display_name.clone().unwrap_or_else(|| m.model_id.clone());
+                models.insert(
+                    prefixed.clone(),
+                    gproxy_sdk::protocol::claude::types::BetaModelInfo {
+                        id: prefixed,
+                        created_at: time::OffsetDateTime::from_unix_timestamp(0).unwrap(),
+                        display_name,
+                        max_input_tokens: None,
+                        max_tokens: None,
+                        capabilities: None,
+                        type_: gproxy_sdk::protocol::claude::types::BetaModelType::Model,
+                    },
+                );
+            }
+            success_count += 1;
+            continue;
+        }
         match execute_live_model_list(
             state,
             &provider.provider_name,
@@ -1201,6 +1337,47 @@ async fn build_gemini_unscoped_model_list_body(
     let mut last_error = None;
 
     for provider in providers {
+        // Local dispatch: serve from local models table.
+        if state.engine().is_local_dispatch(
+            &provider.provider_name,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+        ) {
+            let Some(provider_id) = state.provider_id_for_name(&provider.provider_name) else {
+                continue;
+            };
+            for m in state.models().iter() {
+                if m.provider_id != provider_id || !m.enabled || m.alias_of.is_some() {
+                    continue;
+                }
+                if !state.check_model_permission(user_id, &provider.provider_name, &m.model_id) {
+                    continue;
+                }
+                let prefixed = prefixed_model_id(&provider.provider_name, &m.model_id);
+                let gemini_name = format!("models/{}", prefixed);
+                let display_name = m.display_name.clone().unwrap_or_else(|| m.model_id.clone());
+                models.insert(
+                    gemini_name.clone(),
+                    gproxy_sdk::protocol::gemini::types::GeminiModelInfo {
+                        name: gemini_name,
+                        base_model_id: Some(prefixed),
+                        version: None,
+                        display_name: Some(display_name),
+                        description: None,
+                        input_token_limit: None,
+                        output_token_limit: None,
+                        supported_generation_methods: None,
+                        thinking: None,
+                        temperature: None,
+                        max_temperature: None,
+                        top_p: None,
+                        top_k: None,
+                    },
+                );
+            }
+            success_count += 1;
+            continue;
+        }
         match execute_live_model_list(
             state,
             &provider.provider_name,
@@ -1385,6 +1562,137 @@ fn inject_gemini_alias_entries(
 
 /// Inject model alias entries into a scoped (single-provider) model_list
 /// response. Works on raw JSON bytes and handles all protocol formats.
+/// Build a model_list response body from the local `models` table for the
+/// given provider. Used when dispatch is Local.
+///
+/// Returns all enabled models (both real and aliases) that the user has
+/// permission to access.
+fn build_local_model_list_body(
+    state: &AppState,
+    user_id: i64,
+    provider_name: &str,
+    protocol: ProtocolKind,
+) -> Vec<u8> {
+    let Some(provider_id) = state.provider_id_for_name(provider_name) else {
+        return empty_model_list_body(protocol);
+    };
+    let all_models = state.models();
+    let relevant: Vec<_> = all_models
+        .iter()
+        .filter(|m| m.provider_id == provider_id && m.enabled)
+        .filter(|m| state.check_model_permission(user_id, provider_name, &m.model_id))
+        .collect();
+
+    let data: Vec<serde_json::Value> = relevant
+        .iter()
+        .map(|m| local_model_to_json(m, provider_name, protocol))
+        .collect();
+
+    let body = match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => serde_json::json!({
+            "models": data
+        }),
+        ProtocolKind::Claude => {
+            let first_id = data
+                .first()
+                .and_then(|m| m.get("id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let last_id = data
+                .last()
+                .and_then(|m| m.get("id"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            serde_json::json!({
+                "data": data,
+                "first_id": first_id,
+                "last_id": last_id,
+                "has_more": false
+            })
+        }
+        _ => serde_json::json!({
+            "object": "list",
+            "data": data
+        }),
+    };
+
+    serde_json::to_vec(&body).unwrap_or_else(|_| empty_model_list_body(protocol))
+}
+
+/// Build a model_get response body from the local `models` table. Returns
+/// None if the model doesn't exist or the user lacks permission.
+fn build_local_model_get_body(
+    state: &AppState,
+    user_id: i64,
+    provider_name: &str,
+    model_id: &str,
+    protocol: ProtocolKind,
+) -> Option<Vec<u8>> {
+    let provider_id = state.provider_id_for_name(provider_name)?;
+    let all_models = state.models();
+    let model = all_models
+        .iter()
+        .find(|m| m.provider_id == provider_id && m.model_id == model_id && m.enabled)?;
+    if !state.check_model_permission(user_id, provider_name, model_id) {
+        return None;
+    }
+    let json = local_model_to_json(model, provider_name, protocol);
+    serde_json::to_vec(&json).ok()
+}
+
+/// Convert a `MemoryModel` into a protocol-specific JSON object.
+fn local_model_to_json(
+    model: &gproxy_core::MemoryModel,
+    provider_name: &str,
+    protocol: ProtocolKind,
+) -> serde_json::Value {
+    let display_name = model
+        .display_name
+        .clone()
+        .unwrap_or_else(|| model.model_id.clone());
+    match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => serde_json::json!({
+            "name": format!("models/{}", model.model_id),
+            "displayName": display_name,
+            "baseModelId": model.model_id,
+        }),
+        ProtocolKind::Claude => serde_json::json!({
+            "id": model.model_id,
+            "type": "model",
+            "display_name": display_name,
+            "created_at": "2024-01-01T00:00:00Z",
+        }),
+        _ => serde_json::json!({
+            "id": model.model_id,
+            "object": "model",
+            "created": 0,
+            "owned_by": provider_name,
+        }),
+    }
+}
+
+/// Build an empty model_list response body for the given protocol.
+fn empty_model_list_body(protocol: ProtocolKind) -> Vec<u8> {
+    let body = match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => serde_json::json!({
+            "models": []
+        }),
+        ProtocolKind::Claude => serde_json::json!({
+            "data": [],
+            "first_id": "",
+            "last_id": "",
+            "has_more": false
+        }),
+        _ => serde_json::json!({
+            "object": "list",
+            "data": []
+        }),
+    };
+    serde_json::to_vec(&body).unwrap_or_default()
+}
+
 fn inject_scoped_model_list_aliases(
     state: &AppState,
     user_id: i64,

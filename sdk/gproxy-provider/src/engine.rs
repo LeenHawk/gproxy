@@ -567,6 +567,24 @@ impl GproxyEngine {
             .unwrap_or_default()
     }
 
+    /// Check whether the dispatch rule for this (provider, operation, protocol)
+    /// resolves to the `Local` implementation.
+    pub fn is_local_dispatch(
+        &self,
+        provider: &str,
+        operation: OperationFamily,
+        protocol: ProtocolKind,
+    ) -> bool {
+        let Some(runtime) = self.store.get_runtime(provider) else {
+            return false;
+        };
+        let key = crate::dispatch::RouteKey::new(operation, protocol);
+        matches!(
+            runtime.dispatch_table().resolve(&key),
+            Some(crate::dispatch::RouteImplementation::Local)
+        )
+    }
+
     /// Bootstrap a credential on upsert — runs any channel-specific IO
     /// that should happen once, right before the credential lands in
     /// the DB. Currently only `claudecode` has a non-trivial
