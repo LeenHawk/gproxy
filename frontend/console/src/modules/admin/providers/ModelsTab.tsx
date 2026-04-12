@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Button, Card, Input, Label, Select } from "../../../components/ui";
 import type { MemoryModelRow } from "../../../lib/types/admin";
 import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
@@ -21,6 +22,19 @@ export type ModelFormState = {
 };
 
 export type ModelsTabFilter = "all" | "real" | "aliases";
+
+export type ModelsBatchProps = {
+  batchMode: boolean;
+  selectedCount: number;
+  pending: boolean;
+  isSelected: (id: number) => boolean;
+  onEnter: () => void;
+  onExit: () => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+  onDelete: () => void;
+  onToggleRow: (id: number) => void;
+};
 
 type ModelsTabLabels = {
   title: string;
@@ -72,6 +86,7 @@ export function ModelsTab({
   onAddSuffixVariant,
   providerChannel,
   labels,
+  batch,
 }: {
   rows: MemoryModelRow[];
   selectedId: number | null;
@@ -94,6 +109,7 @@ export function ModelsTab({
   /// Current provider's channel — used to pick a default suffix protocol.
   providerChannel?: string;
   labels: ModelsTabLabels;
+  batch: ModelsBatchProps;
 }) {
   const selected = rows.find((row) => row.id === selectedId) ?? null;
   const [filter, setFilter] = useState<ModelsTabFilter>("all");
@@ -220,16 +236,28 @@ export function ModelsTab({
         }
       >
         <div className="space-y-3">
-          <div className="flex flex-wrap gap-1">
-            {filterButtons.map((btn) => (
-              <Button
-                key={btn.value}
-                variant={filter === btn.value ? "primary" : "neutral"}
-                onClick={() => setFilter(btn.value)}
-              >
-                {btn.label}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap gap-1">
+              {filterButtons.map((btn) => (
+                <Button
+                  key={btn.value}
+                  variant={filter === btn.value ? "primary" : "neutral"}
+                  onClick={() => setFilter(btn.value)}
+                >
+                  {btn.label}
+                </Button>
+              ))}
+            </div>
+            <BatchActionBar
+              batchMode={batch.batchMode}
+              selectedCount={batch.selectedCount}
+              pending={batch.pending}
+              onEnter={batch.onEnter}
+              onExit={batch.onExit}
+              onSelectAll={batch.onSelectAll}
+              onClear={batch.onClear}
+              onDelete={batch.onDelete}
+            />
           </div>
           <div className="max-h-128 overflow-y-auto space-y-2 pr-1">
             {filteredRows.length === 0 ? (
@@ -245,9 +273,23 @@ export function ModelsTab({
                   key={row.id}
                   type="button"
                   className={`nav-item w-full ${row.id === selectedId ? "nav-item-active" : ""}`}
-                  onClick={() => onSelect(row)}
+                  onClick={() => {
+                    if (batch.batchMode) {
+                      batch.onToggleRow(row.id);
+                    } else {
+                      onSelect(row);
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-2">
+                    {batch.batchMode ? (
+                      <input
+                        type="checkbox"
+                        checked={batch.isSelected(row.id)}
+                        onChange={() => batch.onToggleRow(row.id)}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    ) : null}
                     <div className="font-semibold">{row.model_id}</div>
                     {isAlias ? (
                       <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">

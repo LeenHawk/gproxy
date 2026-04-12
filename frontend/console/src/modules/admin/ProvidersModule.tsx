@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
 import { Button } from "../../components/ui";
+import { useBatchSelection } from "../../components/useBatchSelection";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import { parseRequiredI64 } from "../../lib/form";
@@ -426,6 +427,29 @@ export function ProvidersModule({
       notify("error", error instanceof Error ? error.message : String(error));
     }
   };
+
+  const modelsBatch = useBatchSelection<MemoryModelRow, number>({
+    rows: providerModelRows,
+    getKey: (row) => row.id,
+    onBatchDelete: async (ids) => {
+      await apiVoid("/admin/models/batch-delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(ids),
+      });
+    },
+    onSuccess: (count) => {
+      notify("success", t("batch.deleted", { count }));
+      if (selectedModelId != null && modelsBatch.selectedKeys.has(selectedModelId)) {
+        beginCreateModel();
+      }
+      void reloadModels();
+    },
+    onError: (err) => {
+      notify("error", err instanceof Error ? err.message : String(err));
+    },
+    confirmMessage: (count) => t("batch.confirm", { count }),
+  });
 
   const reloadModels = async () => {
     const models = await apiJson<MemoryModelRow[]>("/admin/models/query", {
@@ -856,6 +880,18 @@ export function ProvidersModule({
                   jsonParseError: t("models.pricing.jsonParseError"),
                   jsonTextareaLabel: t("models.pricing.jsonTextareaLabel"),
                 },
+              }}
+              batch={{
+                batchMode: modelsBatch.batchMode,
+                selectedCount: modelsBatch.selectedCount,
+                pending: modelsBatch.pending,
+                isSelected: modelsBatch.isSelected,
+                onEnter: modelsBatch.enterBatch,
+                onExit: modelsBatch.exitBatch,
+                onSelectAll: modelsBatch.selectAll,
+                onClear: modelsBatch.clear,
+                onDelete: () => void modelsBatch.deleteSelected(),
+                onToggleRow: modelsBatch.toggle,
               }}
             />
           ) : null}
