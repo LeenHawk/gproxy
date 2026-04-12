@@ -32,7 +32,7 @@ stores it and sends it on subsequent requests as
   [Permissions, Rate Limits & Quotas](/guides/permissions/)).
 - **Observability** — usage dashboards, upstream / downstream request
   logs (when enabled), and health history.
-- **Settings** — global proxy settings, logging toggles, update source,
+- **Settings** — global proxy settings, logging toggles, self-update,
   and TOML rewrite-rule / sanitization editors.
 
 ## Rebuilding the console

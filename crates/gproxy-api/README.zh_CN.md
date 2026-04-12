@@ -320,7 +320,6 @@ type GlobalSettings = {
   port: number;
   proxy?: string | null;
   spoof_emulation: string;
-  update_source: string;
   enable_usage: boolean;
   enable_upstream_log: boolean;
   enable_upstream_log_body: boolean;
@@ -819,7 +818,6 @@ type GproxyToml = {
     port: number;
     proxy?: string | null;
     spoof_emulation: string;
-    update_source: string;
     enable_usage: boolean;
     enable_upstream_log: boolean;
     enable_upstream_log_body: boolean;
@@ -891,7 +889,6 @@ type UpdateCheckResponse = {
   latest_version?: string | null;
   update_available: boolean;
   download_url?: string | null;
-  update_source: string;
 };
 
 type UpdateParams = {

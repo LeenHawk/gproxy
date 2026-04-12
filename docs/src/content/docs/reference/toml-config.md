@@ -27,7 +27,6 @@ host = "0.0.0.0"
 port = 8787
 proxy = "http://127.0.0.1:7890"
 spoof_emulation = "chrome_136"
-update_source = "github"
 enable_usage = true
 enable_upstream_log = false
 enable_upstream_log_body = false
@@ -126,7 +125,6 @@ falls back to the matching environment variable or built-in default.
 | `host`, `port` | Listen address and port. |
 | `proxy` | Upstream HTTP proxy used when calling LLM providers. |
 | `spoof_emulation` | TLS fingerprint emulation name. |
-| `update_source` | Where self-update checks look for new releases (e.g. `github`). |
 | `enable_usage` | Turns on usage accounting. |
 | `enable_upstream_log` / `enable_upstream_log_body` | Capture upstream envelope / body. |
 | `enable_downstream_log` / `enable_downstream_log_body` | Capture downstream envelope / body. |

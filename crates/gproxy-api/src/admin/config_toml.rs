@@ -43,8 +43,6 @@ pub struct GlobalSettingsToml {
     pub proxy: Option<String>,
     #[serde(default = "default_spoof")]
     pub spoof_emulation: String,
-    #[serde(default = "default_update_source")]
-    pub update_source: String,
     #[serde(default = "default_true")]
     pub enable_usage: bool,
     #[serde(default = "default_false")]
@@ -62,9 +60,6 @@ pub struct GlobalSettingsToml {
 
 fn default_spoof() -> String {
     "chrome_136".to_string()
-}
-fn default_update_source() -> String {
-    "github".to_string()
 }
 fn default_true() -> bool {
     true
@@ -196,7 +191,6 @@ pub async fn export_toml(
         port: config.port,
         proxy: config.proxy.clone(),
         spoof_emulation: config.spoof_emulation.clone(),
-        update_source: config.update_source.clone(),
         enable_usage: config.enable_usage,
         enable_upstream_log: config.enable_upstream_log,
         enable_upstream_log_body: config.enable_upstream_log_body,

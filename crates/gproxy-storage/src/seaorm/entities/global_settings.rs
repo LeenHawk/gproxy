@@ -11,7 +11,6 @@ pub struct Model {
     pub port: i32,
     pub proxy: Option<String>,
     pub spoof_emulation: Option<String>,
-    pub update_source: Option<String>,
     pub dsn: String,
     pub data_dir: String,
     pub enable_usage: bool,

@@ -25,7 +25,6 @@ impl SeaOrmStorage {
             port: row.port,
             proxy: row.proxy,
             spoof_emulation: row.spoof_emulation,
-            update_source: row.update_source,
             dsn: row.dsn,
             data_dir: row.data_dir,
             enable_usage: row.enable_usage,

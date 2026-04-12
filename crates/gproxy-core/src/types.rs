@@ -100,8 +100,6 @@ pub struct GlobalConfig {
     pub proxy: Option<String>,
     #[serde(default = "default_spoof_emulation")]
     pub spoof_emulation: String,
-    #[serde(default = "default_update_source")]
-    pub update_source: String,
     #[serde(default = "default_true")]
     pub enable_usage: bool,
     #[serde(default = "default_false")]
@@ -124,7 +122,6 @@ impl Default for GlobalConfig {
             port: default_port(),
             proxy: None,
             spoof_emulation: default_spoof_emulation(),
-            update_source: default_update_source(),
             enable_usage: true,
             enable_upstream_log: false,
             enable_upstream_log_body: false,
@@ -144,9 +141,6 @@ fn default_port() -> u16 {
 }
 fn default_spoof_emulation() -> String {
     "chrome_136".to_string()
-}
-fn default_update_source() -> String {
-    "github".to_string()
 }
 fn default_true() -> bool {
     true

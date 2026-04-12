@@ -203,11 +203,6 @@ export default defineConfig({
 						},
 					],
 				},
-				{
-					label: 'Downloads',
-					translations: { 'zh-CN': '下载' },
-					link: '/downloads/',
-				},
 			],
 		}),
 	],

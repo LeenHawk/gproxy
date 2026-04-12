@@ -1,12 +1,12 @@
 //! Self-update: check for new version, download, verify signature, replace binary, restart.
 //!
-//! Update sources follow a uniform URL pattern:
-//!   `{base_url}/{tag}/gproxy-{platform}-{arch}.zip`
-//!   `{base_url}/{tag}/gproxy-{platform}-{arch}.zip.sha256`
-//!   `{base_url}/{tag}/gproxy-{platform}-{arch}.zip.sha256.sig`
+//! Update assets follow a uniform URL pattern on GitHub releases:
+//!   `{GITHUB_DOWNLOAD_BASE}/{tag}/gproxy-{platform}-{arch}.zip`
+//!   `{GITHUB_DOWNLOAD_BASE}/{tag}/gproxy-{platform}-{arch}.zip.sha256`
+//!   `{GITHUB_DOWNLOAD_BASE}/{tag}/gproxy-{platform}-{arch}.zip.sha256.sig`
 //!
-//! The base URL is determined by `update_source` in GlobalConfig.
-//! Default (compile-time): `GPROXY_DOWNLOAD_BASE` env var, fallback to GitHub releases URL.
+//! GitHub is the only supported source; the latest release is discovered via
+//! the GitHub Releases API.
 
 use std::io::Read as _;
 use std::sync::Arc;
@@ -28,17 +28,16 @@ use crate::error::HttpError;
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Built-in update sources.
+/// GitHub release download base.
 const GITHUB_DOWNLOAD_BASE: &str = "https://github.com/LeenHawk/gproxy/releases/download";
-const WEB_DOWNLOAD_BASE: &str = "https://download-gproxy.leenhawk.com";
 
 /// Ed25519 public key for verifying update signatures (base64-encoded).
 ///
 /// Design note:
 /// Self-compiled builds may intentionally omit this key so operators can point a
-/// custom build at an official update source without rebuilding again just to
+/// custom build at the official release stream without rebuilding again just to
 /// embed the official signing key. In that mode, self-update falls back to
-/// checksum-only verification against the configured source.
+/// checksum-only verification against GitHub.
 ///
 /// Deployments that require signed updates must compile with
 /// `GPROXY_UPDATE_SIGN_PUBLIC_KEY_B64` set.
@@ -82,7 +81,6 @@ pub struct UpdateCheckResponse {
     pub latest_version: Option<String>,
     pub update_available: bool,
     pub download_url: Option<String>,
-    pub update_source: String,
 }
 
 #[derive(Serialize)]
@@ -100,30 +98,12 @@ pub struct UpdateParams {
 }
 
 // ---------------------------------------------------------------------------
-// Version manifest — fetched from {base_url}/latest.json
+// Version manifest — discovered via GitHub Releases API
 // ---------------------------------------------------------------------------
 
-#[derive(Deserialize)]
 struct VersionManifest {
     version: String,
-    #[serde(default)]
-    tag: Option<String>,
-}
-
-/// Resolve the download base URL from `update_source` config.
-///
-/// Built-in values:
-/// - `"github"` (default) → GitHub Releases
-/// - `"web"` → dl.gproxy.leenhawk.com
-/// - Any other value is treated as a custom base URL.
-fn resolve_download_base(state: &AppState) -> String {
-    let config = state.config();
-    let source = config.update_source.trim();
-    match source {
-        "" | "default" | "github" => GITHUB_DOWNLOAD_BASE.to_string(),
-        "web" => WEB_DOWNLOAD_BASE.to_string(),
-        custom => custom.to_string(),
-    }
+    tag: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -136,13 +116,8 @@ pub async fn check_update(
 ) -> Result<Json<UpdateCheckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    let base_url = resolve_download_base(&state);
-
-    let (latest_version, tag) = match fetch_latest_manifest(&state).await {
-        Ok(m) => {
-            let tag = m.tag.unwrap_or_else(|| format!("v{}", m.version));
-            (Some(m.version), Some(tag))
-        }
+    let (latest_version, tag) = match fetch_github_manifest().await {
+        Ok(m) => (Some(m.version), Some(m.tag)),
         Err(e) => {
             tracing::warn!(error = %e, "failed to fetch update manifest");
             (None, None)
@@ -156,7 +131,7 @@ pub async fn check_update(
     let download_url = tag.map(|t| {
         format!(
             "{}/{}/{}",
-            base_url.trim_end_matches('/'),
+            GITHUB_DOWNLOAD_BASE.trim_end_matches('/'),
             t,
             asset_filename()
         )
@@ -167,7 +142,6 @@ pub async fn check_update(
         latest_version,
         update_available,
         download_url,
-        update_source: base_url,
     }))
 }
 
@@ -182,13 +156,11 @@ pub async fn perform_update(
 ) -> Result<Json<UpdatePerformResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    let base_url = resolve_download_base(&state);
-
     // Determine tag: explicit param, or fetch latest manifest
     let tag = if let Some(t) = params.tag {
         t
     } else {
-        let manifest = fetch_latest_manifest(&state)
+        let manifest = fetch_github_manifest()
             .await
             .map_err(|e| HttpError::internal(format!("failed to check for updates: {e}")))?;
         if !is_newer_version(CURRENT_VERSION, &manifest.version) {
@@ -199,12 +171,10 @@ pub async fn perform_update(
                 message: "already up to date".to_string(),
             }));
         }
-        manifest
-            .tag
-            .unwrap_or_else(|| format!("v{}", manifest.version))
+        manifest.tag
     };
 
-    let base = base_url.trim_end_matches('/');
+    let base = GITHUB_DOWNLOAD_BASE.trim_end_matches('/');
     let asset = asset_filename();
     let zip_url = format!("{}/{}/{}", base, tag, asset);
     let sha_url = format!("{}.sha256", zip_url);
@@ -240,9 +210,9 @@ pub async fn perform_update(
         tracing::info!("Ed25519 signature verified");
     } else {
         // Intentional fallback for self-compiled builds without an embedded
-        // signing key. This keeps the update path usable when switching to an
-        // official source later, but integrity then depends on the checksum
-        // file and trust in the configured update host.
+        // signing key. This keeps the update path usable against the official
+        // release stream, but integrity then depends on the checksum file and
+        // trust in GitHub.
         tracing::warn!("no signing public key compiled in, skipping signature verification");
     }
 
@@ -279,17 +249,6 @@ pub async fn perform_update(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async fn fetch_latest_manifest(state: &AppState) -> Result<VersionManifest, String> {
-    let source = state.config().update_source.trim().to_string();
-    if matches!(source.as_str(), "" | "default" | "github") {
-        fetch_github_manifest().await
-    } else {
-        let base_url = resolve_download_base(state);
-        let url = format!("{}/latest.json", base_url.trim_end_matches('/'));
-        fetch_manifest(&url).await
-    }
-}
-
 async fn fetch_github_manifest() -> Result<VersionManifest, String> {
     let api_url = "https://api.github.com/repos/LeenHawk/gproxy/releases/latest";
     let resp = wreq::Client::new()
@@ -319,21 +278,8 @@ async fn fetch_github_manifest() -> Result<VersionManifest, String> {
         .to_string();
     Ok(VersionManifest {
         version,
-        tag: Some(release.tag_name),
+        tag: release.tag_name,
     })
-}
-
-async fn fetch_manifest(url: &str) -> Result<VersionManifest, String> {
-    let resp = wreq::get(url)
-        .send()
-        .await
-        .map_err(|e| format!("HTTP request failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
-    resp.json::<VersionManifest>()
-        .await
-        .map_err(|e| format!("JSON parse failed: {e}"))
 }
 
 async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {

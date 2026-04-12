@@ -157,6 +157,70 @@ pub(crate) async fn ensure_default_models_in_storage(
     Ok(existing)
 }
 
+/// One-shot migration: for every model row where `pricing_json` is NULL but
+/// the legacy `price_each_call` / `price_tiers_json` columns have data,
+/// synthesize a `ModelPrice`, write it back into `pricing_json`, and leave
+/// the legacy columns alone. Idempotent on subsequent boots — rows that
+/// already have `pricing_json` are skipped.
+pub(crate) async fn backfill_legacy_pricing_json(
+    state: &AppState,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use gproxy_sdk::provider::billing::{ModelPrice, ModelPriceTier};
+    let storage = state.storage();
+    let rows = storage
+        .list_models(&gproxy_storage::ModelQuery::default())
+        .await?;
+    let mut migrated = 0usize;
+    for row in rows {
+        if row.pricing_json.is_some() {
+            continue;
+        }
+        if row.price_each_call.is_none() && row.price_tiers_json.is_none() {
+            continue;
+        }
+        let price_tiers: Vec<ModelPriceTier> = row
+            .price_tiers_json
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok())
+            .unwrap_or_default();
+        let mp = ModelPrice {
+            model_id: String::new(),
+            display_name: None,
+            price_each_call: row.price_each_call,
+            price_tiers,
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: None,
+            priority_price_tiers: Vec::new(),
+            tool_call_prices: std::collections::BTreeMap::new(),
+        };
+        let pricing_json = model_price_to_storage_json(&mp)?;
+        storage
+            .upsert_model(gproxy_storage::ModelWrite {
+                id: row.id,
+                provider_id: row.provider_id,
+                model_id: row.model_id,
+                display_name: row.display_name,
+                enabled: row.enabled,
+                price_each_call: None,
+                price_tiers_json: None,
+                pricing_json: Some(pricing_json),
+                alias_of: row.alias_of,
+            })
+            .await?;
+        migrated += 1;
+    }
+    if migrated > 0 {
+        tracing::info!(
+            migrated,
+            "backfilled legacy pricing columns into models.pricing_json"
+        );
+    }
+    Ok(())
+}
+
 pub fn config_has_enabled_admin_with_key(config: &GproxyToml) -> bool {
     config
         .users
@@ -500,6 +564,10 @@ pub async fn reload_from_db(
 ) -> Result<ReloadCounts, Box<dyn std::error::Error + Send + Sync>> {
     let storage = state.storage();
 
+    // One-shot migration: any row still using the legacy pricing columns
+    // gets converted to pricing_json before we read the model list below.
+    backfill_legacy_pricing_json(state).await?;
+
     // Phase 1: read and build everything from the DB without mutating memory.
     let replacement_config = storage
         .get_global_settings()
@@ -509,7 +577,6 @@ pub async fn reload_from_db(
             port: settings.port as u16,
             proxy: settings.proxy,
             spoof_emulation: settings.spoof_emulation.unwrap_or_default(),
-            update_source: settings.update_source.unwrap_or_default(),
             enable_usage: settings.enable_usage,
             enable_upstream_log: settings.enable_upstream_log,
             enable_upstream_log_body: settings.enable_upstream_log_body,
@@ -824,7 +891,6 @@ pub async fn seed_from_toml_with_bootstrap(
             port: gs.port,
             proxy: gs.proxy.clone(),
             spoof_emulation: gs.spoof_emulation.clone(),
-            update_source: gs.update_source.clone(),
             enable_usage: gs.enable_usage,
             enable_upstream_log: gs.enable_upstream_log,
             enable_upstream_log_body: gs.enable_upstream_log_body,
@@ -840,7 +906,6 @@ pub async fn seed_from_toml_with_bootstrap(
                 port: gc.port,
                 proxy: gc.proxy.clone(),
                 spoof_emulation: gc.spoof_emulation.clone(),
-                update_source: gc.update_source.clone(),
                 enable_usage: gc.enable_usage,
                 enable_upstream_log: gc.enable_upstream_log,
                 enable_upstream_log_body: gc.enable_upstream_log_body,
@@ -860,7 +925,6 @@ pub async fn seed_from_toml_with_bootstrap(
                 port: cfg.port,
                 proxy: cfg.proxy.clone(),
                 spoof_emulation: cfg.spoof_emulation.clone(),
-                update_source: cfg.update_source.clone(),
                 enable_usage: cfg.enable_usage,
                 enable_upstream_log: cfg.enable_upstream_log,
                 enable_upstream_log_body: cfg.enable_upstream_log_body,
@@ -1245,7 +1309,6 @@ pub async fn seed_defaults(
             port: cfg.port,
             proxy: cfg.proxy.clone(),
             spoof_emulation: cfg.spoof_emulation.clone(),
-            update_source: cfg.update_source.clone(),
             enable_usage: cfg.enable_usage,
             enable_upstream_log: cfg.enable_upstream_log,
             enable_upstream_log_body: cfg.enable_upstream_log_body,
@@ -1388,7 +1451,6 @@ mod tests {
                 port: 8787,
                 proxy: Some("http://db-proxy".to_string()),
                 spoof_emulation: "chrome_136".to_string(),
-                update_source: "github".to_string(),
                 enable_usage: false,
                 enable_upstream_log: true,
                 enable_upstream_log_body: true,

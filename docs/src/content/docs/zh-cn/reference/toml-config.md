@@ -22,7 +22,6 @@ host = "0.0.0.0"
 port = 8787
 proxy = "http://127.0.0.1:7890"
 spoof_emulation = "chrome_136"
-update_source = "github"
 enable_usage = true
 enable_upstream_log = false
 enable_upstream_log_body = false
@@ -119,7 +118,6 @@ provider_name = "openai-main"
 | `host`、`port` | 监听地址和端口。 |
 | `proxy` | 调用上游时使用的 HTTP 代理。 |
 | `spoof_emulation` | TLS 指纹伪装名。 |
-| `update_source` | 自升级检查使用的来源 (如 `github`)。 |
 | `enable_usage` | 是否开启用量记账。 |
 | `enable_upstream_log` / `enable_upstream_log_body` | 是否捕获上游信封 / body。 |
 | `enable_downstream_log` / `enable_downstream_log_body` | 是否捕获下游信封 / body。 |

@@ -7,11 +7,8 @@ import { authHeaders } from "../../lib/auth";
 import type { GlobalSettings, UpdatePerformResponse } from "../../lib/types/admin";
 import {
   normalizeUpdateChannel,
-  normalizeUpdateSourceMode,
-  resolveUpdateSourceValue,
   resolveUpdateTag,
   type UpdateChannel,
-  type UpdateSourceMode,
 } from "./global-settings";
 
 const SPOOF_EMULATION_OPTIONS = [
@@ -38,8 +35,6 @@ export function GlobalSettingsModule({
   const { t } = useI18n();
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
   const [form, setForm] = useState<GlobalSettings | null>(null);
-  const [updateSourceMode, setUpdateSourceMode] = useState<UpdateSourceMode>("github");
-  const [customUpdateSource, setCustomUpdateSource] = useState("");
   const [updateChannel, setUpdateChannel] = useState<UpdateChannel>("release");
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -52,9 +47,6 @@ export function GlobalSettingsModule({
         headers: authHeaders(sessionToken, false),
       });
       setForm(next);
-      const nextMode = normalizeUpdateSourceMode(next.update_source);
-      setUpdateSourceMode(nextMode);
-      setCustomUpdateSource(nextMode === "custom" ? next.update_source : "");
     } finally {
       setRefreshing(false);
     }
@@ -70,10 +62,7 @@ export function GlobalSettingsModule({
       await apiJson("/admin/global-settings/upsert", {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          ...form,
-          update_source: resolveUpdateSourceValue(updateSourceMode, customUpdateSource),
-        }),
+        body: JSON.stringify(form),
       });
       notify("success", t("globalSettings.saved"));
     } catch (error) {
@@ -150,18 +139,6 @@ export function GlobalSettingsModule({
           />
         </div>
         <div>
-          <Label>{t("globalSettings.field.updateSource")}</Label>
-          <Select
-            value={updateSourceMode}
-            onChange={(value) => setUpdateSourceMode(value as UpdateSourceMode)}
-            options={[
-              { value: "github", label: t("globalSettings.updateSource.github") },
-              { value: "web", label: t("globalSettings.updateSource.web") },
-              { value: "custom", label: t("globalSettings.updateSource.custom") },
-            ]}
-          />
-        </div>
-        <div>
           <Label>{t("globalSettings.field.updateChannel")}</Label>
           <Select
             value={updateChannel}
@@ -172,12 +149,6 @@ export function GlobalSettingsModule({
             ]}
           />
         </div>
-        {updateSourceMode === "custom" ? (
-          <div className="lg:col-span-2">
-            <Label>{t("globalSettings.field.customUpdateSource")}</Label>
-            <Input value={customUpdateSource} onChange={setCustomUpdateSource} />
-          </div>
-        ) : null}
         <div>
           <Label>{t("globalSettings.field.dsn")}</Label>
           <Input
