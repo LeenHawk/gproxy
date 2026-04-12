@@ -1,6 +1,6 @@
 ---
-title: 价格与工具计费
-description: GPROXY 如何给一个请求计价 —— token 成本、billing mode 变体、工具调用计费，以及 admin 的编辑是怎样进入 billing engine 的。
+title: 价格
+description: GPROXY 如何给一个请求计价 —— token 成本、billing mode 变体，以及 admin 的编辑是怎样进入 billing engine 的。
 ---
 
 GPROXY 处理的每个请求都会在响应阶段被计价，结果写入 `usages.cost` 列。本
@@ -30,10 +30,7 @@ billing engine 的。
   ],
   "flex_price_tiers": [],
   "scale_price_tiers": [],
-  "priority_price_tiers": [],
-  "tool_call_prices": {
-    "web_search": 0.01
-  }
+  "priority_price_tiers": []
 }
 ```
 
@@ -50,8 +47,6 @@ billing engine 的。
   的覆盖。
 - `priority_price_each_call` / `priority_price_tiers` —— OpenAI
   `service_tier: "priority"` 和 Anthropic `speed: "fast"` 的覆盖。
-- `tool_call_prices{}` —— 按工具名查的每次调用固定 USD 费用。目前只对
-  Claude 的 `web_search` 真正起作用（见下面的[工具计费](#工具计费)）。
 
 `model_id` 和 `display_name` 存在 `models` 表各自独立的列里，**不会**写进
 JSON blob；它们在读取时会被重新盖到解析后的 `ModelPrice` 上。
@@ -120,54 +115,6 @@ tier 的选中使用的是 `effective_input_tokens(usage)`，即
 `input + cache_read + cache_creation + cache_creation_5min + cache_creation_1h`
 的总和。
 
-## 工具计费
-
-GPROXY 按**上游响应里报告的实际调用次数**给服务端工具调用计费，而不是看
-客户端在请求体里声明了什么工具。
-
-对 `tool_call_prices` 里的匹配条目，公式是：
-
-```
-amount = usage.tool_uses[tool_key] × unit_price
-```
-
-其中 `usage.tool_uses` 由 `sdk/gproxy-provider/src/usage.rs` 里的 usage
-extractor 填充。
-
-**目前已接入的字段：**
-
-| Channel           | 数据源                                                             | 工具 key           |
-|-------------------|--------------------------------------------------------------------|--------------------|
-| `anthropic`       | `usage.server_tool_use.web_search_requests`                        | `web_search`       |
-| `claudecode`      | 同上（`message_delta` 事件也会累计）                               | `web_search`       |
-| `openai` (Responses API) | `output[].type == "web_search_call"` 的条目计数              | `web_search`       |
-| `openai` (Responses API) | `output[].type == "file_search_call"` 的条目计数             | `file_search`      |
-| `openai` (Responses API) | `output[].type == "code_interpreter_call"` 的条目计数        | `code_interpreter` |
-| `openai` (ChatCompletions) | `choices[0].message.annotations[type=url_citation]`（见下方注意） | `web_search`     |
-| `aistudio` / `vertex` / `geminicli` | `candidates[].groundingMetadata.webSearchQueries[]` 长度   | `google_search`    |
-| `aistudio` / `vertex` / `geminicli` | `candidates[].urlContextMetadata.urlMetadata[]` 长度       | `url_context`      |
-| `aistudio` / `vertex` / `geminicli` | `candidates[].content.parts[].executableCode` 条目计数     | `code_execution`   |
-
-**ChatCompletions 注意事项：** OpenAI 的 ChatCompletions API 并不在响应体
-里暴露 `web_search_preview` 的精确 per-query 次数。唯一的服务端工具信号
-是 `url_citation` 注解 —— 这是**按 URL** 发出的，一次搜索查询可能产生
-多个引用。GPROXY 在看到任何 `url_citation` 时只发 `{ web_search: 1 }` —— 多
-查询场景会低估（但绝不会超收）。需要精确工具计费的用户应该使用 Responses
-API，它会把每次工具调用当作独立的 `output[]` 条目上报。
-
-**Gemini 流式注意事项：** grounding / URL context / code execution 元数据
-通常只在最终的流式 chunk（带完整 `candidates[]`）里出现。如果上游响应形状
-将来在多个 chunk 里分别报告 grounding metadata，调用方的累加合并会导致
-超计数 —— 当前把它当作一个 best-effort 的信号。
-
-**目前 NOT 接入的：**
-
-- Gemini 的 `google_maps` 和 `retrieval` 工具。Gemini 的 grounding
-  metadata 在当前响应形状里没有暴露这两个的调用次数。
-
-在 `tool_call_prices` 里配置了但从没被调用的工具，计费为 0。被调用但没
-有匹配 `tool_call_prices` 条目的工具，计费也为 0。
-
 ## 价格匹配：精确 → `default` 回退
 
 价格查找在 `model_id` 上做严格的字符串匹配：
@@ -195,9 +142,6 @@ API，它会把每次工具调用当作独立的 `output[]` 条目上报。
   `push_pricing_to_engine: provider not registered in engine store` 这个
   warn。有就说明 admin 的写已经到 DB，但引擎的 provider store 里没有匹
   配的条目 —— 通常是 model 创建之后 provider 被重命名了。
-- **工具被调用但没扣钱** —— 确认该 channel 真的会往
-  `usage.tool_uses` 里写数据（目前只有 Anthropic 的 `web_search`），并且
-  `pricing_json` 里配了 `tool_call_prices[tool_key]`。
 - **选错了 tier** —— tier selector 用的是 `input_tokens + cache_* tokens`
   的总和，不是单独的 `input_tokens`。一个大部分 prompt 都命中了 cache 的
   请求也可能跨过 tier 边界，即便实际计费的 input 很小。
