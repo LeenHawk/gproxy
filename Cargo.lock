@@ -1968,6 +1968,7 @@ dependencies = [
  "tokio-tungstenite 0.29.0",
  "toml",
  "tower",
+ "tracing",
  "url",
  "uuid",
  "wreq",

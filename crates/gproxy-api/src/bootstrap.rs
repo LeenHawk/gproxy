@@ -130,8 +130,8 @@ pub(crate) async fn ensure_default_models_in_storage(
                     model_id: price.model_id,
                     display_name: price.display_name,
                     enabled: true,
-                    price_each_call: None,      // legacy, unused post-Phase 2
-                    price_tiers_json: None,     // legacy, unused post-Phase 2
+                    price_each_call: None,  // legacy, unused post-Phase 2
+                    price_tiers_json: None, // legacy, unused post-Phase 2
                     pricing_json,
                     alias_of: None,
                 })
@@ -1022,12 +1022,16 @@ pub async fn seed_from_toml_with_bootstrap(
         })
         .collect();
     for m in &explicit_models {
-        let pricing_json = m.pricing.as_ref().map(|mp| {
-            let mut storable = mp.clone();
-            storable.model_id = String::new();
-            storable.display_name = None;
-            serde_json::to_string(&storable).ok()
-        }).flatten();
+        let pricing_json = m
+            .pricing
+            .as_ref()
+            .map(|mp| {
+                let mut storable = mp.clone();
+                storable.model_id = String::new();
+                storable.display_name = None;
+                serde_json::to_string(&storable).ok()
+            })
+            .flatten();
         state
             .storage()
             .upsert_model(gproxy_storage::ModelWrite {
@@ -1036,8 +1040,8 @@ pub async fn seed_from_toml_with_bootstrap(
                 model_id: m.model_id.clone(),
                 display_name: m.display_name.clone(),
                 enabled: m.enabled,
-                price_each_call: None,      // legacy, unused post-Phase 2
-                price_tiers_json: None,     // legacy, unused post-Phase 2
+                price_each_call: None,  // legacy, unused post-Phase 2
+                price_tiers_json: None, // legacy, unused post-Phase 2
                 pricing_json,
                 alias_of: None,
             })
