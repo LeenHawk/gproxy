@@ -554,7 +554,6 @@ mod tests {
         let ctx = BillingContext {
             model_id: model_id.to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
         let usage = Usage::default();
         let result = state
@@ -568,10 +567,9 @@ mod tests {
         );
     }
 
-    /// Task 2.6 — verify admin-overridden `tool_call_prices` reach the billing
-    /// engine. In Phase 1 tool charging is still declaration-based (reads
-    /// `BillingContext.tool_keys`), so the test exercises that path. Phase 3
-    /// will switch to usage-count-based charging and update this test.
+    /// Task 2.6 / 3.3 — verify admin-overridden `tool_call_prices` reach the
+    /// billing engine and fire per actual invocation count from
+    /// `usage.tool_uses` (the Phase 3 behavior).
     #[tokio::test]
     async fn admin_tool_call_price_override_affects_billing() {
         let state = build_test_state_for_pricing().await;
@@ -628,18 +626,19 @@ mod tests {
         let ctx = BillingContext {
             model_id: model_id.to_string(),
             mode: BillingMode::Default,
-            // Declaration-based tool billing: the request body carried a
-            // web_search tool, so Phase 1 charges the flat fee.
-            tool_keys: vec!["web_search".to_string()],
         };
-        let usage = Usage::default();
+        // Phase 3 semantics: charge per actual server_tool_use count. The
+        // provider reported 2 web_search invocations; at 0.05 each the
+        // expected cost is 0.10.
+        let mut usage = Usage::default();
+        usage.tool_uses.insert("web_search".to_string(), 2);
         let result = state
             .engine()
             .estimate_billing(provider_name, &ctx, &usage)
             .expect("estimate_billing must return Some");
         assert!(
-            (result.total_cost - 0.05).abs() < 1e-9,
-            "expected tool_call_prices.web_search = 0.05, got {}",
+            (result.total_cost - 0.10).abs() < 1e-9,
+            "expected 2 × 0.05 = 0.10, got {}",
             result.total_cost
         );
     }

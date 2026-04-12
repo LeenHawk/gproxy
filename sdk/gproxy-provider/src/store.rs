@@ -1472,7 +1472,6 @@ mod tests {
         let ctx = crate::billing::BillingContext {
             model_id: "stub-model".into(),
             mode: crate::billing::BillingMode::Default,
-            tool_keys: Vec::new(),
         };
         let usage = crate::engine::Usage::default();
 

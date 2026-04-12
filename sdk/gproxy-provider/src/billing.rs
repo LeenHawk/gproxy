@@ -19,8 +19,6 @@ pub struct BillingContext {
     pub model_id: String,
     #[serde(default)]
     pub mode: BillingMode,
-    #[serde(default)]
-    pub tool_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,15 +115,7 @@ pub fn build_billing_context_from_parts(
     let model_id = model?.to_string();
     let body_json = serde_json::from_slice::<serde_json::Value>(body).ok();
     let mode = detect_billing_mode(channel_id, body_json.as_ref());
-    let tool_keys = body_json
-        .as_ref()
-        .map(|body_json| collect_tool_keys(channel_id, body_json))
-        .unwrap_or_default();
-    Some(BillingContext {
-        model_id,
-        mode,
-        tool_keys,
-    })
+    Some(BillingContext { model_id, mode })
 }
 
 fn split_model_prices<'a>(
@@ -255,30 +245,42 @@ pub fn estimate_billing(
         );
     }
 
-    for tool_key in &context.tool_keys {
-        if let Some(price) = exact_model
-            .and_then(|model| model.tool_call_prices.get(tool_key))
-            .copied()
-            .or_else(|| {
-                default_model
-                    .and_then(|model| model.tool_call_prices.get(tool_key))
-                    .copied()
-            })
-        {
-            total_cost += price;
-            line_items.push(BillingLineItem {
-                kind: format!("tool:{tool_key}"),
-                units: Some(1),
-                unit_price: price,
-                amount: price,
-            });
+    // Tool invocation charges are driven by actual counts in usage.tool_uses,
+    // not by what the client declared in the request body. A tool that was
+    // declared but never invoked bills nothing; a tool invoked N times bills
+    // N × unit_price.
+    for (tool_key, &count) in &usage.tool_uses {
+        if count <= 0 {
+            continue;
         }
+        let Some(unit_price) = tool_call_price_for_key(exact_model, default_model, tool_key)
+        else {
+            continue;
+        };
+        let amount = (count as f64) * unit_price;
+        total_cost += amount;
+        line_items.push(BillingLineItem {
+            kind: format!("tool:{tool_key}"),
+            units: Some(count),
+            unit_price,
+            amount,
+        });
     }
 
     Some(BillingResult {
         total_cost,
         line_items,
     })
+}
+
+fn tool_call_price_for_key(
+    exact_model: Option<&ModelPrice>,
+    default_model: Option<&ModelPrice>,
+    tool_key: &str,
+) -> Option<f64> {
+    exact_model
+        .and_then(|m| m.tool_call_prices.get(tool_key).copied())
+        .or_else(|| default_model.and_then(|m| m.tool_call_prices.get(tool_key).copied()))
 }
 
 pub fn estimate_cost(
@@ -351,75 +353,6 @@ fn detect_billing_mode(channel_id: &str, body_json: Option<&serde_json::Value>) 
     }
 }
 
-fn collect_tool_keys(channel_id: &str, body_json: &serde_json::Value) -> Vec<String> {
-    let mut tool_keys = Vec::new();
-    let Some(tools) = body_json.get("tools").and_then(serde_json::Value::as_array) else {
-        return tool_keys;
-    };
-
-    for tool in tools {
-        match channel_id {
-            "aistudio" | "vertex" | "vertexexpress" | "geminicli" | "antigravity" => {
-                if tool.get("google_search").is_some() {
-                    tool_keys.push("google_search".to_string());
-                }
-                if tool.get("google_search_retrieval").is_some() {
-                    tool_keys.push("google_search_retrieval".to_string());
-                }
-                if tool.get("googleMaps").is_some() || tool.get("google_maps").is_some() {
-                    tool_keys.push("google_maps".to_string());
-                }
-                if tool.get("code_execution").is_some() {
-                    tool_keys.push("code_execution".to_string());
-                }
-                if tool.get("url_context").is_some() {
-                    tool_keys.push("url_context".to_string());
-                }
-            }
-            "anthropic" | "claudecode" => {
-                if let Some(tool_type) = tool.get("type").and_then(serde_json::Value::as_str) {
-                    if tool_type.starts_with("web_search") {
-                        tool_keys.push("web_search".to_string());
-                    } else if tool_type.starts_with("web_fetch") {
-                        tool_keys.push("web_fetch".to_string());
-                    } else if tool_type.starts_with("code_execution") {
-                        tool_keys.push("code_execution".to_string());
-                    } else if tool_type.starts_with("text_editor") {
-                        tool_keys.push("text_editor".to_string());
-                    } else if tool_type == "bash" {
-                        tool_keys.push("bash".to_string());
-                    } else {
-                        tool_keys.push(tool_type.to_string());
-                    }
-                }
-            }
-            _ => {
-                if let Some(tool_type) = tool.get("type").and_then(serde_json::Value::as_str) {
-                    if tool_type.starts_with("web_search_preview") {
-                        tool_keys.push("web_search_preview".to_string());
-                    } else if tool_type.starts_with("web_search") {
-                        tool_keys.push("web_search".to_string());
-                    } else if tool_type.starts_with("web_fetch") {
-                        tool_keys.push("web_fetch".to_string());
-                    } else if tool_type.starts_with("code_execution") {
-                        tool_keys.push("code_execution".to_string());
-                    } else if tool_type == "file_search" {
-                        tool_keys.push("file_search".to_string());
-                    } else if tool_type == "code_interpreter" {
-                        tool_keys.push("code_interpreter".to_string());
-                    } else {
-                        tool_keys.push(tool_type.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    tool_keys.sort();
-    tool_keys.dedup();
-    tool_keys
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,7 +386,7 @@ mod tests {
             ]
             "#,
         );
-        let usage = Usage {
+        let mut usage = Usage {
             input_tokens: Some(1000),
             output_tokens: Some(500),
             cache_read_input_tokens: Some(200),
@@ -462,10 +395,10 @@ mod tests {
             cache_creation_input_tokens_1h: None,
             tool_uses: Default::default(),
         };
+        usage.tool_uses.insert("web_search".to_string(), 1);
         let context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: vec!["web_search".to_string()],
         };
 
         let cost = estimate_cost(&prices, &context, &usage).unwrap();
@@ -473,10 +406,10 @@ mod tests {
         let priority_context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Priority,
-            tool_keys: Vec::new(),
         };
+        // Same usage → priority-mode tiers (10.0 in) + tool charge (0.01).
         let priority_cost = estimate_cost(&prices, &priority_context, &usage).unwrap();
-        assert!((priority_cost - 0.51).abs() < 1e-9);
+        assert!((priority_cost - 0.52).abs() < 1e-9);
     }
 
     #[test]
@@ -499,7 +432,6 @@ mod tests {
         let context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(1.5));
@@ -524,7 +456,6 @@ mod tests {
         let context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.25));
@@ -564,7 +495,6 @@ mod tests {
         let context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.502));
@@ -604,7 +534,6 @@ mod tests {
         let context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Priority,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(1.01));
@@ -628,11 +557,11 @@ mod tests {
             ]
             "#,
         );
-        let usage = Usage::default();
+        let mut usage = Usage::default();
+        usage.tool_uses.insert("web_search".to_string(), 1);
         let context = BillingContext {
             model_id: "test-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: vec!["web_search".to_string()],
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.51));
@@ -654,7 +583,6 @@ mod tests {
         let context = BillingContext {
             model_id: "missing-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.25));
@@ -690,7 +618,6 @@ mod tests {
         let context = BillingContext {
             model_id: "missing-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.002));
@@ -726,7 +653,6 @@ mod tests {
         let context = BillingContext {
             model_id: "missing-model".to_string(),
             mode: BillingMode::Priority,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.91));
@@ -748,9 +674,59 @@ mod tests {
         let context = BillingContext {
             model_id: "missing-model".to_string(),
             mode: BillingMode::Default,
-            tool_keys: Vec::new(),
         };
 
         assert_eq!(estimate_cost(&prices, &context, &usage), None);
+    }
+
+    #[test]
+    fn tool_calls_billed_by_usage_count() {
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "test-model",
+                "tool_call_prices": { "web_search": 0.01 },
+                "price_tiers": []
+              }
+            ]
+            "#,
+        );
+        let mut usage = Usage::default();
+        usage.tool_uses.insert("web_search".into(), 3);
+        let context = BillingContext {
+            model_id: "test-model".into(),
+            mode: BillingMode::Default,
+        };
+        let cost = estimate_cost(&prices, &context, &usage).unwrap();
+        assert!(
+            (cost - 0.03).abs() < 1e-9,
+            "expected 3 × 0.01 = 0.03, got {cost}"
+        );
+    }
+
+    #[test]
+    fn tool_calls_not_billed_when_usage_tool_uses_empty() {
+        // A tool that's configured in pricing but never invoked bills 0 —
+        // this is the Phase 3 behavior change. Previously the test would
+        // have charged the flat fee based on BillingContext.tool_keys.
+        let prices = parse_model_prices_json(
+            r#"
+            [
+              {
+                "model_id": "test-model",
+                "tool_call_prices": { "web_search": 0.01 },
+                "price_tiers": []
+              }
+            ]
+            "#,
+        );
+        let usage = Usage::default(); // tool_uses empty
+        let context = BillingContext {
+            model_id: "test-model".into(),
+            mode: BillingMode::Default,
+        };
+        // Model is found but nothing is billable: total_cost is 0.0.
+        assert_eq!(estimate_cost(&prices, &context, &usage), Some(0.0));
     }
 }
