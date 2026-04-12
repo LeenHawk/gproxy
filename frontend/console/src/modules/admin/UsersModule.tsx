@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useI18n } from "../../app/i18n";
 import { Card } from "../../components/ui";
+import { useBatchSelection } from "../../components/useBatchSelection";
 import { apiJson, apiVoid } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import type { GenerateUserKeyResponse, MemoryUserKeyRow, MemoryUserQuotaRow, MemoryUserRow } from "../../lib/types/admin";
@@ -123,6 +124,49 @@ export function UsersModule({
     }
   };
 
+  const usersBatch = useBatchSelection<MemoryUserRow, number>({
+    rows,
+    getKey: (row) => row.id,
+    onBatchDelete: async (ids) => {
+      await apiVoid("/admin/users/batch-delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(ids),
+      });
+    },
+    onSuccess: (count) => {
+      notify("success", t("batch.deleted", { count }));
+      if (selectedUserId != null && usersBatch.selectedKeys.has(selectedUserId)) {
+        setSelectedUserId(null);
+      }
+      void loadUsers();
+    },
+    onError: (err) => {
+      notify("error", err instanceof Error ? err.message : String(err));
+    },
+    confirmMessage: (count) => t("batch.confirm", { count }),
+  });
+
+  const userKeysBatch = useBatchSelection<MemoryUserKeyRow, number>({
+    rows: keyRows,
+    getKey: (row) => row.id,
+    onBatchDelete: async (ids) => {
+      await apiVoid("/admin/user-keys/batch-delete", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(ids),
+      });
+    },
+    onSuccess: (count) => {
+      notify("success", t("batch.deleted", { count }));
+      void loadUserKeys(selectedUserId);
+    },
+    onError: (err) => {
+      notify("error", err instanceof Error ? err.message : String(err));
+    },
+    confirmMessage: (count) => t("batch.confirm", { count }),
+  });
+
   const editUser = (row: MemoryUserRow) => {
     setForm({
       id: String(row.id),
@@ -241,6 +285,18 @@ export function UsersModule({
           onEditUser={editUser}
           onToggleUserEnabled={(row) => void toggleUserEnabled(row)}
           onRemoveUser={(id) => void deleteUser(id)}
+          batch={{
+            batchMode: usersBatch.batchMode,
+            selectedCount: usersBatch.selectedCount,
+            pending: usersBatch.pending,
+            isSelected: usersBatch.isSelected,
+            onEnter: usersBatch.enterBatch,
+            onExit: usersBatch.exitBatch,
+            onSelectAll: usersBatch.selectAll,
+            onClear: usersBatch.clear,
+            onDelete: () => void usersBatch.deleteSelected(),
+            onToggleRow: usersBatch.toggle,
+          }}
         />
         <UserKeysPane
           selectedUser={selectedUser}
@@ -255,6 +311,18 @@ export function UsersModule({
           onToggleKeyEnabled={(row) => void toggleUserKeyEnabled(row)}
           onDeleteKey={(id) => void deleteUserKey(id)}
           notify={notify}
+          batch={{
+            batchMode: userKeysBatch.batchMode,
+            selectedCount: userKeysBatch.selectedCount,
+            pending: userKeysBatch.pending,
+            isSelected: userKeysBatch.isSelected,
+            onEnter: userKeysBatch.enterBatch,
+            onExit: userKeysBatch.exitBatch,
+            onSelectAll: userKeysBatch.selectAll,
+            onClear: userKeysBatch.clear,
+            onDelete: () => void userKeysBatch.deleteSelected(),
+            onToggleRow: userKeysBatch.toggle,
+          }}
         />
       </div>
     </Card>

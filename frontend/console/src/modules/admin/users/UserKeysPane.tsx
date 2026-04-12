@@ -1,7 +1,21 @@
 import { useI18n } from "../../../app/i18n";
+import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Badge, Button, Input, Label } from "../../../components/ui";
 import { copyText } from "../../../lib/clipboard";
 import type { MemoryUserKeyRow, MemoryUserQuotaRow, MemoryUserRow } from "../../../lib/types/admin";
+
+export type UserKeysBatchProps = {
+  batchMode: boolean;
+  selectedCount: number;
+  pending: boolean;
+  isSelected: (id: number) => boolean;
+  onEnter: () => void;
+  onExit: () => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+  onDelete: () => void;
+  onToggleRow: (id: number) => void;
+};
 
 export function UserKeysPane({
   selectedUser,
@@ -16,6 +30,7 @@ export function UserKeysPane({
   onToggleKeyEnabled,
   onDeleteKey,
   notify,
+  batch,
 }: {
   selectedUser: MemoryUserRow | null;
   selectedUserQuota: MemoryUserQuotaRow | null;
@@ -29,6 +44,7 @@ export function UserKeysPane({
   onToggleKeyEnabled: (row: MemoryUserKeyRow) => void;
   onDeleteKey: (id: number) => void;
   notify: (kind: "success" | "error" | "info", message: string) => void;
+  batch: UserKeysBatchProps;
 }) {
   const { t } = useI18n();
   const quota = selectedUserQuota ?? {
@@ -62,7 +78,17 @@ export function UserKeysPane({
               : t("users.selectUser")}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <BatchActionBar
+            batchMode={batch.batchMode}
+            selectedCount={batch.selectedCount}
+            pending={batch.pending}
+            onEnter={batch.onEnter}
+            onExit={batch.onExit}
+            onSelectAll={batch.onSelectAll}
+            onClear={batch.onClear}
+            onDelete={batch.onDelete}
+          />
           <Button disabled={!selectedUser} onClick={onGenerateKey}>
             {t("users.generateKey")}
           </Button>
@@ -104,29 +130,41 @@ export function UserKeysPane({
         {keyRows.map((row) => (
           <div key={row.id} className="record-item">
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-semibold text-text">#{row.id}</div>
-                  <button
-                    type="button"
-                    className="badge-button"
-                    onClick={() => onToggleKeyEnabled(row)}
-                  >
-                    <Badge variant={row.enabled ? "success" : "danger"}>
-                      {row.enabled ? t("common.enabled") : t("common.disabled")}
-                    </Badge>
-                  </button>
+              <div className="flex items-start gap-2">
+                {batch.batchMode ? (
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={batch.isSelected(row.id)}
+                    onChange={() => batch.onToggleRow(row.id)}
+                  />
+                ) : null}
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="font-semibold text-text">#{row.id}</div>
+                    <button
+                      type="button"
+                      className="badge-button"
+                      onClick={() => onToggleKeyEnabled(row)}
+                    >
+                      <Badge variant={row.enabled ? "success" : "danger"}>
+                        {row.enabled ? t("common.enabled") : t("common.disabled")}
+                      </Badge>
+                    </button>
+                  </div>
+                  <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
                 </div>
-                <div className="mt-1 font-mono text-xs text-muted">{row.api_key}</div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="neutral" onClick={() => void copyKey(row.api_key)}>
-                  {t("common.copy")}
-                </Button>
-                <Button variant="danger" onClick={() => onDeleteKey(row.id)}>
-                  {t("common.delete")}
-                </Button>
-              </div>
+              {batch.batchMode ? null : (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="neutral" onClick={() => void copyKey(row.api_key)}>
+                    {t("common.copy")}
+                  </Button>
+                  <Button variant="danger" onClick={() => onDeleteKey(row.id)}>
+                    {t("common.delete")}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         ))}
