@@ -61,6 +61,19 @@ fn synthetic_credential_id(provider_id: i64, index: usize) -> i64 {
     provider_id * 1000 + index as i64
 }
 
+/// Serialize a `ModelPrice` for storage in `models.pricing_json`. Strips
+/// `model_id` and `display_name` first because those values live in their own
+/// columns and should not be duplicated in the blob — they are restamped on
+/// read by `model_rows_to_memory_models`.
+pub(crate) fn model_price_to_storage_json(
+    price: &gproxy_sdk::provider::billing::ModelPrice,
+) -> Result<String, serde_json::Error> {
+    let mut storable = price.clone();
+    storable.model_id = String::new();
+    storable.display_name = None;
+    serde_json::to_string(&storable)
+}
+
 pub(crate) fn model_rows_to_memory_models(
     models: &[gproxy_storage::ModelQueryRow],
 ) -> Vec<MemoryModel> {
@@ -115,13 +128,7 @@ pub(crate) async fn ensure_default_models_in_storage(
             }
             existing_keys.insert(key);
 
-            // Serialize the full ModelPrice into pricing_json. Clear model_id and
-            // display_name before serialization to avoid duplicating data that
-            // lives in its own columns.
-            let mut storable = price.clone();
-            storable.model_id = String::new();
-            storable.display_name = None;
-            let pricing_json = Some(serde_json::to_string(&storable)?);
+            let pricing_json = Some(model_price_to_storage_json(&price)?);
 
             storage
                 .upsert_model(gproxy_storage::ModelWrite {
@@ -1025,13 +1032,8 @@ pub async fn seed_from_toml_with_bootstrap(
         let pricing_json = m
             .pricing
             .as_ref()
-            .map(|mp| {
-                let mut storable = mp.clone();
-                storable.model_id = String::new();
-                storable.display_name = None;
-                serde_json::to_string(&storable).ok()
-            })
-            .flatten();
+            .map(model_price_to_storage_json)
+            .transpose()?;
         state
             .storage()
             .upsert_model(gproxy_storage::ModelWrite {

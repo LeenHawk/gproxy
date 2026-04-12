@@ -86,6 +86,16 @@ pub struct ProviderToml {
     pub credentials: Vec<serde_json::Value>,
 }
 
+/// Partial representation of a model row for TOML import/export.
+///
+/// **Lossy roundtrip warning:** this shape only carries default-mode pricing
+/// (`price_each_call` + `price_tiers`). Mode variants
+/// (`flex_*`, `scale_*`, `priority_*`) and `tool_call_prices` live in
+/// `models.pricing_json` in the DB and are NOT exported to TOML, nor can they
+/// be configured via TOML import. Use the admin HTTP API / console to manage
+/// those. See `docs/superpowers/plans/2026-04-12-pricing-and-tool-billing-fix.md`
+/// "Out of Scope" for the follow-up that will extend TOML to cover the full
+/// `ModelPrice` shape.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ModelToml {
     pub provider_name: String,

@@ -97,11 +97,17 @@ pub async fn query_models(
             display_name: m.display_name.clone(),
             enabled: m.enabled,
             pricing_json: m.pricing.as_ref().and_then(|mp| {
-                // Strip model_id / display_name before serializing, matching DB shape.
-                let mut clone = mp.clone();
-                clone.model_id = String::new();
-                clone.display_name = None;
-                serde_json::to_string(&clone).ok()
+                match crate::bootstrap::model_price_to_storage_json(mp) {
+                    Ok(s) => Some(s),
+                    Err(err) => {
+                        tracing::warn!(
+                            model_id = %m.model_id,
+                            error = %err,
+                            "failed to serialize ModelPrice for query_models response"
+                        );
+                        None
+                    }
+                }
             }),
             alias_of: m.alias_of,
         })
@@ -191,18 +197,34 @@ pub async fn batch_upsert_models(
     Json(items): Json<Vec<gproxy_storage::ModelWrite>>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    for item in &items {
-        let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = item
-            .pricing_json
-            .as_deref()
-            .map(|raw| serde_json::from_str(raw))
-            .transpose()
-            .map_err(|e| HttpError::bad_request(format!("invalid pricing_json: {e}")))?
-            .map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
-                mp.model_id = item.model_id.clone();
-                mp.display_name = item.display_name.clone();
-                mp
-            });
+
+    // Pre-pass: validate every item's pricing_json before writing any of
+    // them. Rejecting a batch halfway would leave the DB in a partial
+    // state that's annoying to reason about.
+    let parsed: Vec<Option<gproxy_sdk::provider::billing::ModelPrice>> = items
+        .iter()
+        .map(|item| {
+            item.pricing_json
+                .as_deref()
+                .map(|raw| serde_json::from_str(raw))
+                .transpose()
+                .map_err(|e| {
+                    HttpError::bad_request(format!(
+                        "invalid pricing_json for model {}: {e}",
+                        item.model_id
+                    ))
+                })
+                .map(|parsed_opt| {
+                    parsed_opt.map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
+                        mp.model_id = item.model_id.clone();
+                        mp.display_name = item.display_name.clone();
+                        mp
+                    })
+                })
+        })
+        .collect::<Result<_, _>>()?;
+
+    for (item, pricing) in items.iter().zip(parsed.into_iter()) {
         state.storage().upsert_model(item.clone()).await?;
         state.upsert_model_in_memory(MemoryModel {
             id: item.id,
