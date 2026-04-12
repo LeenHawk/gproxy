@@ -1,5 +1,326 @@
 # Release Notes
 
+## v1.0.5
+
+> **Major refactor.** Two sibling releases worth of architectural cleanup
+> condensed into one tag: the suffix system is deleted, the `models` and
+> `model_aliases` DB tables are merged, rewrite-rule/billing ownership
+> moves from the engine into the handler, and request-time model
+> resolution finally makes `permission → rewrite → alias → execute`
+> the single canonical order. No automated migration is shipped — old
+> `model_aliases` rows are re-imported into the unified `models` table on
+> startup when a TOML seed is present, otherwise re-enter them from the
+> console once v1.0.5 is running.
+
+### English
+
+#### Added
+
+- **Model aliases injected into `model_list` / `model_get` responses** — aliases
+  are now first-class entries: they appear in the OpenAI / Claude / Gemini
+  model-list responses (both scoped and unscoped) alongside real models,
+  `GET /v1/models/{alias}` resolves to the alias, and non-stream responses
+  have their `"model"` field rewritten to the alias name the client sent
+  (streaming chunks are rewritten per chunk in the engine).
+- **Suffix-aware alias resolution** — an alias like `gpt4-fast` is resolved
+  by trying an exact match first, then stripping any known suffix from the
+  tail, looking up the base alias, and re-appending the suffix before
+  forwarding to the upstream model. *(Subsequently removed along with the
+  whole suffix system, but the alias+suffix combo kept working via
+  channel-level rewrite rules until then.)*
+- **Unified model table** — `model_aliases` is merged into `models` with a
+  new `alias_of: Option<i64>` column. A row with `alias_of = NULL` is a
+  real model; a row with `alias_of = Some(id)` is an alias pointing at
+  another row's id in the same table. The alias lookup structure
+  (`HashMap<String, ModelAliasTarget>`) is unchanged — it is simply
+  rebuilt from the unified `models` snapshot at startup / reload.
+- **`POST /admin/models/pull`** — admin endpoint that fetches a provider's
+  live model list from upstream and returns the model ids. The console
+  uses this to populate the local `models` table via a new "Pull Models"
+  button in the provider workspace's Models tab. Pulled models are
+  imported as real entries (`alias_of = NULL`) with no pricing, which the
+  admin can then edit.
+- **Model List / Local dispatch for `model_list` / `model_get`** — the
+  `*-only` dispatch template presets (chat-completions-only, response-only,
+  claude-only, gemini-only) default model_list and model_get to the
+  `Local` dispatch implementation. Requests served locally never hit
+  upstream; the handler builds the protocol-specific response body
+  directly from the `models` table. `GproxyEngine::is_local_dispatch(...)`
+  lets handlers decide before calling `engine.execute`.
+- **Local merge for non-Local dispatch** — for `*-like` / pass-through
+  dispatch, the proxy still calls upstream for `model_list`, but the
+  response is merged with the local `models` table before being returned:
+  local real models that aren't in the upstream response get appended,
+  then aliases mirror their target entry. `model_get` checks the local
+  table first and returns the local entry if present, otherwise falls
+  through to upstream. This works across OpenAI / Claude / Gemini
+  protocols, scoped and unscoped.
+- **Alias-level pricing fallback** — billing now tries to price a request
+  against the alias name first and falls back to the resolved real model
+  name if no alias-level pricing exists. Admins can set a custom
+  `price_each_call` / `price_tiers_json` on an alias row to override the
+  real model's pricing for that alias only.
+- **Provider workspace: dedicated Rewrite Rules tab** — rewrite rules
+  moved out of the Config tab's settings JSON editor into their own
+  provider-workspace tab (`/providers/:name` → "Rewrite Rules"). The
+  editor is a two-column list + detail layout: the left column shows all
+  rules with a scrollbar (max ~10 visible), the right column shows path /
+  action / JSON value / filter (model glob + operation / protocol chips)
+  for the selected rule. Data still lives in `provider.settings_json`.
+- **Provider workspace: unified "Models" tab** — the separate "Models"
+  (pricing) and "Model Aliases" tabs are merged into a single "Models"
+  tab that lists both real models and aliases in the same scrollable
+  list. Alias rows are shown with an "alias" badge and a `→ target`
+  indicator, and three filter buttons (All / Real only / Aliases only)
+  control what is visible. The edit form has an `alias_of` dropdown for
+  picking an alias target, and the pull-models flow is embedded in the
+  same tab.
+- **Pricing-by-alias in the billing pipeline** — the engine now exposes
+  `build_billing_context` / `estimate_billing` as public methods, and the
+  handler builds the billing context in the handler layer with the
+  alias name visible so per-alias pricing takes effect.
+
+#### Changed
+
+- **Request pipeline ordering**: `permission check (original model name)
+  → rewrite_rules (original model name) → alias resolve → engine.execute
+  → billing`. Permission is checked against the name the client sent
+  (before any alias rewrite), so admins must explicitly whitelist each
+  alias — aliases do not silently inherit their target's permissions.
+- **Rewrite rules moved out of the engine** into the handler layer. The
+  engine no longer applies `rewrite_rules`; instead the handler calls
+  `state.engine().rewrite_rules(provider)` and applies them to the
+  request body itself, using the **original** model name for
+  `model_pattern` matching so patterns like `gpt4-fast` can match before
+  the name is rewritten by alias resolution.
+- **Billing moved out of the engine** into the handler layer. The engine
+  no longer computes cost / `billing_context` / `billing` on its
+  `ExecuteResult`; those fields are gone. Handlers now call
+  `engine.build_billing_context(...)` and `engine.estimate_billing(...)`
+  directly after the upstream call returns, which is also what makes
+  pricing-by-alias possible.
+- **Provider proxy responses** rewrite the `"model"` field to the alias
+  name the client sent, using the engine's new `response_model_override`
+  field on `ExecuteRequest`. The suffix rewrite (when still present) was
+  skipped when the alias override was about to overwrite the same field,
+  avoiding a redundant JSON parse / serialize per request.
+- **`model_alias_middleware` simplified** — the middleware now does a
+  single exact alias lookup and drops the `ResolvedAlias.suffix` field;
+  all suffix+alias combo handling has been removed along with the suffix
+  system.
+
+#### Fixed
+
+- **`/admin/models/pull` returning HTTP 500** — the endpoint was cloning
+  the admin request's headers (including `Authorization: Bearer
+  <admin-token>`, `Content-Length`, `Host`) and forwarding them to the
+  upstream, which either corrupted the body length or overrode the
+  channel-supplied credentials. Pull now passes an empty `HeaderMap` so
+  the channel's `finalize_request` is the only source of upstream
+  headers. Error messages include the first 500 characters of the
+  upstream response body so failures are debuggable.
+- **Pull-models button was unreachable** — the button lived in the
+  standalone `ModelAliasesModule` route, but the sidebar never linked to
+  that route. Moved it into the provider-workspace Aliases tab (and
+  eventually into the unified Models tab), where it actually renders.
+- **Models tab scrolling** — the provider-workspace Models tab now has a
+  `max-h-128` scrollable list so long model lists stay usable.
+- **`custom` channel: `mask_table`** — the `mask_table` field was
+  removed from the backend long ago, but the frontend custom-channel
+  form still rendered a dead JSON editor. Removed from
+  `channel-forms.ts`.
+
+#### Removed
+
+- **Suffix system** — the entire `sdk/gproxy-provider/src/suffix.rs`
+  module (801 lines) is deleted, along with the `enable_suffix` field
+  and `ChannelSettings::enable_suffix` / `ProviderRuntime::enable_suffix`
+  methods on all 14 channels. Response / streaming suffix rewriting,
+  suffix-based model-list expansion, the suffix groups, and all
+  `match_suffix_groups` / `strip_model_suffix_in_body` /
+  `rewrite_model_suffix_in_body` / `expand_model_list_with_suffixes` /
+  `rewrite_model_get_suffix_in_body` helpers — gone. The same feature
+  (`gpt4` vs `gpt4-fast` etc.) is now expressed as separate alias rows
+  with channel-level rewrite rules.
+- **`/admin/model-aliases/*` endpoints and `model_aliases` DB table** —
+  deleted. All model and alias CRUD runs through `/admin/models/*`.
+  `ModelQueryParams` gains an `alias_of_filter: "only_aliases" |
+  "only_real" | null` to let the console restrict a query to one kind.
+- **Standalone `ModelAliasesModule` route** — the orphaned
+  `model-aliases` route and module are gone. The Models tab inside the
+  provider workspace is the only place model rows are managed.
+
+#### Compatibility
+
+- **DB schema**: adding `alias_of` to `models` is a pure column add and
+  is picked up automatically by the SeaORM schema-sync step on startup.
+  The old `model_aliases` table is **not** dropped — if you upgrade
+  against an existing v1.0.4 database the old rows stay in place but
+  become dead weight; re-enter any aliases you want to keep via the
+  console's Models tab after upgrading. A clean install via TOML seed
+  seeds the new unified table directly.
+- **Admin HTTP clients**: any client that was calling
+  `/admin/model-aliases/*` must be updated to use `/admin/models/*`.
+  Upsert payloads now carry an `alias_of: i64 | null` field; omit it
+  (or pass `null`) for a real model.
+- **Dispatch templates**: the `*-only` presets default to `Local`
+  dispatch for `model_list` / `model_get`. Existing providers that were
+  created before v1.0.5 keep whatever dispatch they had persisted in
+  `provider.dispatch_json`; only newly created providers (or providers
+  that explicitly re-apply a preset) get the new Local defaults. Pull
+  models via the new button so the local `models` table has something
+  to serve before clients hit those routes, or the response will be an
+  empty list.
+- **Suffix model names** (e.g. `gpt-4o-fast`, `claude-3-opus-thinking-high`)
+  no longer work out of the box. Re-express them as explicit alias rows
+  with per-channel rewrite rules that inject the relevant parameters
+  into the request body.
+
+### 中文
+
+#### 新增
+
+- **model_list / model_get 响应中注入模型别名** —
+  别名现在是一等条目：它们会出现在 OpenAI / Claude / Gemini
+  模型列表响应中（scoped 与 unscoped 同时适用），
+  `GET /v1/models/{alias}` 会解析到该别名，非流式响应的
+  `"model"` 字段会被改写为客户端发送的别名（流式响应由 engine
+  在每个 chunk 中改写）。
+- **Suffix-aware 的别名解析** — 形如 `gpt4-fast` 的别名会先尝试
+  精确匹配，若未命中则从尾部剥离已知后缀、查找基础别名，再把后缀
+  追加回解析后的真实模型名。*(该机制后来随整个 suffix 系统一并
+  移除，改由渠道级 rewrite_rules 表达相同效果。)*
+- **统一的 `models` 表** — 原先的 `model_aliases` 表合并进
+  `models`，新增 `alias_of: Option<i64>` 列。`alias_of = NULL`
+  代表真实模型，`alias_of = Some(id)` 代表别名、指向同表中另一行的
+  id。内存中的别名查找结构（`HashMap<String, ModelAliasTarget>`）
+  保持不变，只是数据来源改为在启动 / reload 时由统一的 `models`
+  快照重新构建。
+- **`POST /admin/models/pull`** — 新的 admin 接口，从上游拉取
+  某个 provider 的实时模型列表并返回 model id。控制台用它在
+  provider 工作区的 Models tab 里通过"拉取模型"按钮把结果导入
+  本地 `models` 表。导入的模型默认是真实条目（`alias_of = NULL`）、
+  不带价格，管理员可以再编辑补全。
+- **`*-only` 调度模板下的 Local model_list / model_get** —
+  `*-only` 预设模板（chat-completions-only、response-only、
+  claude-only、gemini-only）把 `model_list` 与 `model_get` 默认
+  调度改为 `Local`。被 Local 命中的请求完全不打上游，handler
+  直接从 `models` 表按协议格式拼响应。新增
+  `GproxyEngine::is_local_dispatch(...)` 让 handler 在调用
+  `engine.execute` 之前就能判断。
+- **非 Local 调度下的本地合并** — `*-like` / 直通调度下的
+  `model_list` 仍然会打上游，但响应会与本地 `models` 表合并后再返
+  回：上游响应中不存在的本地真实模型会被追加进来，随后别名条目
+  再镜像它们的目标。`model_get` 则先查本地表，命中就直接返回本
+  地条目，未命中再透传上游。OpenAI / Claude / Gemini 三种协议、
+  scoped / unscoped 两种路径都生效。
+- **按别名定价回退** — 计费先尝试用别名名查价格，若没有别名级
+  定价再回退到真实模型名。管理员可以在别名行上单独设置
+  `price_each_call` / `price_tiers_json` 来覆写真实模型的价格。
+- **Provider 工作区：独立的"参数改写规则"Tab** — rewrite_rules
+  从 Config Tab 的 settings JSON 编辑器里搬出来，独立成一个
+  provider 工作区 Tab（`/providers/:name` → "参数改写规则"）。
+  采用列表 + 详情的两栏布局：左列是所有规则（带滚动条，默认最多
+  显示约 10 条），右列是选中规则的 path / action / JSON 值 /
+  过滤条件（模型 glob + operation / protocol chip）。数据仍然
+  落在 `provider.settings_json` 里。
+- **Provider 工作区：统一的 Models Tab** — 原先的 "Models"
+  （价格）和 "Model Aliases" 两个 Tab 合并为单一的 "Models" Tab，
+  在同一个可滚动列表里同时展示真实模型和别名。别名条目显示
+  "alias" 标签和 `→ 真实模型` 指示器，顶部有三个过滤按钮（全部
+  / 仅真实模型 / 仅别名）。编辑表单新增 `alias_of` 下拉框用于
+  选择别名指向的目标，拉取模型的流程也嵌入到同一个 Tab。
+- **计费管线支持按别名计价** — engine 现在把
+  `build_billing_context` / `estimate_billing` 暴露为公开方法，
+  handler 在 handler 层构造带有别名名的 billing context，让
+  按别名定价真正生效。
+
+#### 变更
+
+- **请求管线顺序**：`权限检查（原始 model 名）→
+  rewrite_rules（原始 model 名）→ 别名解析 → engine.execute →
+  计费`。权限按客户端发送的名字检查（在任何别名改写之前），所以
+  管理员必须为每个别名单独授权——别名不会默默继承其指向模型的
+  权限。
+- **Rewrite rules 移出 engine**，改由 handler 执行。engine 不再
+  应用 `rewrite_rules`；handler 调用
+  `state.engine().rewrite_rules(provider)` 然后自己把规则作用到
+  请求体上，`model_pattern` 用**原始** model 名匹配，这样
+  `gpt4-fast` 这样的 pattern 可以在名字被别名解析改写之前就命中。
+- **计费移出 engine**，改由 handler 执行。engine 不再在
+  `ExecuteResult` 上计算 `cost` / `billing_context` / `billing`，
+  这些字段被移除。handler 现在在上游返回后直接调用
+  `engine.build_billing_context(...)` 和
+  `engine.estimate_billing(...)`，这也是实现按别名计价的前提。
+- **代理响应** 会用 `ExecuteRequest.response_model_override` 把
+  `"model"` 字段改写成客户端发送的别名。suffix 改写（在尚未移除
+  之前）在别名即将覆盖同一字段时会被跳过，避免每个请求多一次
+  无谓的 JSON 解析/序列化。
+- **`model_alias_middleware` 简化** — 中间件现在只做一次精确
+  别名查找，并且 `ResolvedAlias.suffix` 字段被移除；所有
+  suffix+alias 组合处理逻辑随着 suffix 系统一起被删掉。
+
+#### 修复
+
+- **`/admin/models/pull` 返回 500** — 接口把 admin 请求的
+  headers（包括 `Authorization: Bearer <admin-token>`、
+  `Content-Length`、`Host`）原样 clone 后转发给上游，结果要么
+  破坏 body 长度、要么覆盖掉 channel 本应注入的凭证。现在 pull
+  只传一个空的 `HeaderMap`，让 channel 的 `finalize_request` 作
+  为上游 headers 的唯一来源。错误消息也会带上游响应体的前 500
+  个字符，方便排查。
+- **拉取模型按钮不可达** — 按钮原先挂在独立的
+  `ModelAliasesModule` 路由下，但侧边栏从未链接过该路由。现在
+  按钮被挪到 provider 工作区的 Aliases Tab（最终合并到统一
+  Models Tab）里，真正可见。
+- **Models Tab 滚动** — provider 工作区的 Models Tab 列表现在
+  带 `max-h-128` 的滚动容器，长模型列表也能正常使用。
+- **`custom` 渠道：`mask_table`** — `mask_table` 字段早就从后端
+  移除了，但前端 custom 渠道表单里仍然渲染了一个死掉的 JSON 编
+  辑器。已从 `channel-forms.ts` 删除。
+
+#### 移除
+
+- **Suffix 系统** — 整个 `sdk/gproxy-provider/src/suffix.rs`
+  模块（801 行）被删除，14 个 channel 上的 `enable_suffix` 字段
+  和 `ChannelSettings::enable_suffix` /
+  `ProviderRuntime::enable_suffix` 方法一并移除。响应/流式的
+  suffix 改写、model_list 的 suffix 展开、suffix group 定义，
+  以及 `match_suffix_groups` / `strip_model_suffix_in_body` /
+  `rewrite_model_suffix_in_body` / `expand_model_list_with_suffixes`
+  / `rewrite_model_get_suffix_in_body` 等辅助函数全部删除。
+  同样的效果（`gpt4` 与 `gpt4-fast` 等）现在通过独立的别名行
+  配合渠道级 rewrite_rules 表达。
+- **`/admin/model-aliases/*` 端点和 `model_aliases` 表** — 删除。
+  所有模型和别名的增删改查都走 `/admin/models/*`。`ModelQueryParams`
+  新增 `alias_of_filter: "only_aliases" | "only_real" | null`
+  供控制台按类型过滤。
+- **独立的 `ModelAliasesModule` 路由** — 孤儿
+  `model-aliases` 路由和模块已删除。provider 工作区里的 Models
+  Tab 是管理模型行的唯一入口。
+
+#### 兼容性
+
+- **DB schema**：往 `models` 表加 `alias_of` 列是一次纯加列变更，
+  启动时的 SeaORM schema-sync 会自动完成。旧的 `model_aliases`
+  表**不会**被自动删除 —— 如果你是在已有 v1.0.4 数据库上升级，
+  旧行会留在原位但变成死数据，想保留的别名请在升级后从控制台的
+  Models Tab 重新录入。通过 TOML seed 做干净安装时，新的统一表
+  会被直接 seed。
+- **Admin HTTP 客户端**：调用 `/admin/model-aliases/*` 的客户端
+  必须迁移到 `/admin/models/*`。Upsert 请求体现在携带
+  `alias_of: i64 | null` 字段；真实模型填 `null` 或省略即可。
+- **调度模板**：`*-only` 预设把 `model_list` / `model_get` 默认
+  改为 `Local` 调度。升级前已经存在的 provider 仍然保留它们
+  `provider.dispatch_json` 里持久化的调度规则；只有新建 provider
+  （或显式重新应用预设的 provider）才会命中 Local 默认值。命中
+  Local 之前请先用新按钮拉取模型，否则本地 `models` 表没数据，
+  客户端拿到的会是空列表。
+- **Suffix 风格的模型名**（例如 `gpt-4o-fast`、
+  `claude-3-opus-thinking-high`）开箱即用的支持没了。请把它们改
+  写成显式的别名行 + 渠道级 rewrite_rules，由规则把相应参数注入
+  请求体。
+
 ## v1.0.4
 
 ### English
