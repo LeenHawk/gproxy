@@ -179,7 +179,6 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
-      { key: "mask_table", label: "mask_table", type: "json", optional: true },
     ],
   },
 };
