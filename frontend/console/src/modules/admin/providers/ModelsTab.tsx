@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { Button, Card, Input, Label, Select, TextArea } from "../../../components/ui";
+import { Button, Card, Input, Label, Select } from "../../../components/ui";
 import type { MemoryModelRow } from "../../../lib/types/admin";
+import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
 import {
   SUFFIX_GROUPS_BY_PROTOCOL,
   SUFFIX_PROTOCOL_LABELS,
@@ -54,6 +55,7 @@ type ModelsTabLabels = {
   suffixNone: string;
   suffixPreview: string;
   suffixConfirm: string;
+  pricingEditor: PricingEditorLabels;
 };
 
 export function ModelsTab({
@@ -368,10 +370,10 @@ export function ModelsTab({
             ) : null}
             <div>
               <Label>{labels.pricingJson}</Label>
-              <TextArea
+              <PricingEditor
                 value={form.pricing_json}
                 onChange={(value) => onChangeForm({ pricing_json: value })}
-                rows={12}
+                labels={labels.pricingEditor}
               />
               <p className="mt-1 text-xs text-muted">{labels.pricingJsonHint}</p>
             </div>
