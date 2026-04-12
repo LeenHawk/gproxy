@@ -457,6 +457,94 @@ export function ProvidersModule({
     }
   };
 
+  /// Create an alias row for a suffix variant (model_id + suffix pointing at
+  /// the base model) and append matching rewrite rules to the provider's
+  /// settings_json, all scoped to the new alias name via model_pattern.
+  const addSuffixVariant = async (
+    base: MemoryModelRow,
+    suffix: string,
+    actions: Array<{ path: string; value: unknown }>,
+  ) => {
+    if (!selectedProvider) return;
+    const aliasName = `${base.model_id}${suffix}`;
+    try {
+      // 1. Create the alias row (check duplicate first).
+      const existing = allModelRows.find(
+        (m) =>
+          m.provider_id === selectedProvider.id &&
+          m.model_id === aliasName &&
+          m.alias_of != null,
+      );
+      if (!existing) {
+        const maxId = allModelRows.reduce((max, row) => Math.max(max, row.id), 0);
+        const aliasPayload: ModelWrite = {
+          id: maxId + 1,
+          provider_id: selectedProvider.id,
+          model_id: aliasName,
+          display_name: null,
+          enabled: true,
+          price_each_call: null,
+          price_tiers_json: null,
+          alias_of: base.id,
+        };
+        await apiJson("/admin/models/upsert", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(aliasPayload),
+        });
+      }
+
+      // 2. Append rewrite rules to the provider's settings_json, scoped by
+      // model_pattern to the new alias name.
+      const existingRulesRaw = providerForm.settings.rewrite_rules ?? "[]";
+      let existingRules: unknown[] = [];
+      try {
+        const parsed = JSON.parse(existingRulesRaw);
+        if (Array.isArray(parsed)) existingRules = parsed;
+      } catch {
+        existingRules = [];
+      }
+      const newRules = actions.map((a) => ({
+        path: a.path,
+        action: { type: "Set", value: a.value },
+        filter: { model_pattern: aliasName },
+      }));
+      const mergedRulesJson = JSON.stringify([...existingRules, ...newRules]);
+
+      // Update provider with the merged rewrite_rules.
+      const payload: ProviderWrite = {
+        id: parseRequiredI64(providerForm.id, "id"),
+        name: providerForm.name.trim(),
+        channel: providerForm.channel.trim(),
+        settings_json: JSON.stringify(
+          buildChannelSettingsJson(providerForm.channel, {
+            ...providerForm.settings,
+            rewrite_rules: mergedRulesJson,
+          }),
+        ),
+        dispatch_json: JSON.stringify(buildDispatchDocument(providerForm.dispatchRules)),
+      };
+      await apiJson("/admin/providers/upsert", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      // Reflect the new rewrite rules in local form state.
+      updateProviderForm({
+        settings: {
+          ...providerForm.settings,
+          rewrite_rules: mergedRulesJson,
+        },
+      });
+
+      notify("success", t("models.suffixDialog.created", { name: aliasName }));
+      await reloadModels();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : String(error));
+    }
+  };
+
   const updateStatus = async (
     row: { provider: string; index: number },
     status: "healthy" | "dead",
@@ -679,6 +767,10 @@ export function ProvidersModule({
               onDelete={(id) => void deleteModel(id)}
               onPull={pullModels}
               onImport={(models) => void importPulledModels(models)}
+              onAddSuffixVariant={(base, suffix, actions) =>
+                void addSuffixVariant(base, suffix, actions)
+              }
+              providerChannel={providerForm.channel}
               labels={{
                 title: t("models.title"),
                 empty: t("common.noData"),
@@ -705,6 +797,13 @@ export function ProvidersModule({
                 pullImport: t("models.pull.importSelected"),
                 pullSelectAll: t("models.pull.selectAll"),
                 pullDeselectAll: t("models.pull.deselectAll"),
+                addSuffixVariant: t("models.suffixVariant"),
+                suffixDialogTitle: t("models.suffixDialog.title"),
+                suffixDialogHint: t("models.suffixDialog.hint"),
+                suffixProtocol: t("models.suffixDialog.protocol"),
+                suffixNone: t("models.suffixDialog.none"),
+                suffixPreview: t("models.suffixDialog.preview"),
+                suffixConfirm: t("models.suffixDialog.confirm"),
               }}
             />
           ) : null}
@@ -713,6 +812,7 @@ export function ProvidersModule({
               form={providerForm}
               onChange={updateProviderForm}
               onSave={() => void saveProvider()}
+              modelNames={providerModelRows.map((r) => r.model_id)}
             />
           ) : null}
           {activeTab === "oauth" ? (

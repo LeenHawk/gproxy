@@ -107,11 +107,15 @@ export function Input({
   onChange,
   placeholder,
   type = "text",
+  onFocus,
+  onBlur,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: "text" | "password";
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   return (
     <input
@@ -120,6 +124,8 @@ export function Input({
       type={type}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
+      onFocus={onFocus}
+      onBlur={onBlur}
     />
   );
 }

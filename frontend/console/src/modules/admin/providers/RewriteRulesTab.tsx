@@ -49,13 +49,18 @@ export function RewriteRulesTab({
   form,
   onChange,
   onSave,
+  modelNames,
 }: {
   form: ProviderFormState;
   onChange: (patch: Partial<ProviderFormState>) => void;
   onSave: () => void;
+  /// Known model names (including aliases) for the current provider, used to
+  /// populate the model_pattern autocomplete dropdown.
+  modelNames?: string[];
 }) {
   const { t } = useI18n();
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [patternFocused, setPatternFocused] = useState(false);
 
   const rules = useMemo(
     () => parseRewriteRules(form.settings.rewrite_rules ?? "[]"),
@@ -205,22 +210,63 @@ export function RewriteRulesTab({
                 <label className="text-[11px] text-muted">
                   {t("providers.rewrite.model_pattern")}
                 </label>
-                <Input
-                  value={selected.filter?.model_pattern ?? ""}
-                  onChange={(v) => {
-                    const current = selected.filter ?? {};
-                    const next: RewriteFilter = {
-                      ...current,
-                      model_pattern: v || undefined,
-                    };
-                    if (!next.model_pattern && !next.operations && !next.protocols) {
-                      updateFilter(selectedIdx, undefined);
-                    } else {
-                      updateFilter(selectedIdx, next);
-                    }
-                  }}
-                  placeholder="gpt-4*, claude-*"
-                />
+                <div className="relative">
+                  <Input
+                    value={selected.filter?.model_pattern ?? ""}
+                    onChange={(v) => {
+                      const current = selected.filter ?? {};
+                      const next: RewriteFilter = {
+                        ...current,
+                        model_pattern: v || undefined,
+                      };
+                      if (!next.model_pattern && !next.operations && !next.protocols) {
+                        updateFilter(selectedIdx, undefined);
+                      } else {
+                        updateFilter(selectedIdx, next);
+                      }
+                    }}
+                    onFocus={() => setPatternFocused(true)}
+                    onBlur={() => {
+                      // Delay so a click on a dropdown item can still register.
+                      setTimeout(() => setPatternFocused(false), 150);
+                    }}
+                    placeholder="gpt-4*, claude-*"
+                  />
+                  {patternFocused && modelNames && modelNames.length > 0 ? (() => {
+                    const pattern = (selected.filter?.model_pattern ?? "").toLowerCase();
+                    const matches = modelNames
+                      .filter((name) =>
+                        pattern === "" ? true : name.toLowerCase().includes(pattern),
+                      )
+                      .slice(0, 20);
+                    if (matches.length === 0) return null;
+                    return (
+                      <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded border border-border bg-panel shadow-lg">
+                        {matches.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            className="block w-full text-left px-2 py-1 text-xs hover:bg-panel-muted"
+                            onMouseDown={(e) => {
+                              // Prevent blur before onClick fires.
+                              e.preventDefault();
+                            }}
+                            onClick={() => {
+                              const current = selected.filter ?? {};
+                              updateFilter(selectedIdx, {
+                                ...current,
+                                model_pattern: name,
+                              });
+                              setPatternFocused(false);
+                            }}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })() : null}
+                </div>
               </div>
               <div>
                 <label className="text-[11px] text-muted">
