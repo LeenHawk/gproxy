@@ -1,6 +1,6 @@
 ---
-title: Pricing & Tool Billing
-description: How GPROXY prices a request — token costs, mode variants, tool call billing, and how admin edits reach the billing engine.
+title: Pricing
+description: How GPROXY prices a request — token costs, mode variants, and how admin edits reach the billing engine.
 ---
 
 Every request GPROXY handles is priced at response time and the result is
@@ -31,10 +31,7 @@ pricing for a given `(provider_id, model_id)` row. It mirrors the
   ],
   "flex_price_tiers": [],
   "scale_price_tiers": [],
-  "priority_price_tiers": [],
-  "tool_call_prices": {
-    "web_search": 0.01
-  }
+  "priority_price_tiers": []
 }
 ```
 
@@ -51,9 +48,6 @@ Fields:
   `service_tier: "scale"`.
 - `priority_price_each_call` / `priority_price_tiers` — override for
   OpenAI `service_tier: "priority"` and Anthropic `speed: "fast"`.
-- `tool_call_prices{}` — flat USD fee per invocation, keyed by tool name.
-  Currently populated for Claude `web_search` (see
-  [Tool billing](#tool-billing) below).
 
 `model_id` and `display_name` live in their own columns on the `models`
 table and are **not** stored inside the JSON blob; they are stamped back
@@ -126,60 +120,6 @@ Summed across `input_tokens`, `output_tokens`, `cache_read_input_tokens`,
 The tier is selected by `effective_input_tokens(usage)` which is
 `input + cache_read + cache_creation + cache_creation_5min + cache_creation_1h`.
 
-## Tool billing
-
-GPROXY bills server-side tool calls based on **actual invocation counts
-reported by the upstream response**, not on whether the client declared
-the tool in the request body.
-
-For a matching entry in `tool_call_prices`, the formula is:
-
-```
-amount = usage.tool_uses[tool_key] × unit_price
-```
-
-Where `usage.tool_uses` is populated by the usage extractor in
-[`sdk/gproxy-provider/src/usage.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/usage.rs).
-
-**What is populated today:**
-
-| Channel           | Source                                                        | Tool key         |
-|-------------------|---------------------------------------------------------------|------------------|
-| `anthropic`       | `usage.server_tool_use.web_search_requests`                   | `web_search`     |
-| `claudecode`      | (same as anthropic; `message_delta` events counted)           | `web_search`     |
-| `openai` (Responses API) | count of `output[].type == "web_search_call"`          | `web_search`     |
-| `openai` (Responses API) | count of `output[].type == "file_search_call"`         | `file_search`    |
-| `openai` (Responses API) | count of `output[].type == "code_interpreter_call"`    | `code_interpreter` |
-| `openai` (ChatCompletions) | `choices[0].message.annotations[type=url_citation]` (see caveat) | `web_search` |
-| `aistudio` / `vertex` / `geminicli` | `candidates[].groundingMetadata.webSearchQueries[]` length | `google_search`  |
-| `aistudio` / `vertex` / `geminicli` | `candidates[].urlContextMetadata.urlMetadata[]` length | `url_context`    |
-| `aistudio` / `vertex` / `geminicli` | count of `candidates[].content.parts[].executableCode` items | `code_execution` |
-
-**ChatCompletions caveat:** OpenAI's ChatCompletions API does not expose a
-precise per-query count for `web_search_preview` in the response body. The
-only server-side tool signal is `url_citation` annotations, which are
-**per-URL** — one search query can produce multiple citations. GPROXY
-conservatively emits `{ web_search: 1 }` when any `url_citation` is
-present, so a multi-query response is undercounted (never overcharged).
-Users who need precise tool billing should use the Responses API, which
-reports each tool invocation as a separate `output[]` item.
-
-**Gemini streaming caveat:** grounding / URL context / code execution
-metadata typically only appears on the final streaming chunk with the
-complete `candidates[]`. If a future upstream shape emits grounding
-metadata on multiple chunks, the caller's additive merge would
-overcount — this is currently a best-effort signal.
-
-**Still not populated:**
-
-- Gemini `google_maps` and `retrieval` tools. Gemini's grounding metadata
-  doesn't expose an invocation count for either in the current response
-  shape.
-
-A tool that appears in `tool_call_prices` but is never invoked bills
-nothing. A tool that's invoked without a matching `tool_call_prices`
-entry bills nothing.
-
 ## Price matching: exact → `default` fallback
 
 Price lookup is strict string matching on `model_id`:
@@ -210,10 +150,6 @@ explicit `ALTER TABLE`.
   that warn means the admin mutation went to the DB but the engine's
   provider store has no matching entry, usually because the provider
   was renamed after the model was created.
-- **Tool was invoked but not billed** — confirm the provider channel
-  actually populates `usage.tool_uses` (currently only Anthropic
-  `web_search`) and that `tool_call_prices[tool_key]` is set in
-  `pricing_json`.
 - **Wrong tier selected** — the tier selector uses the sum of
   `input_tokens + cache_* tokens`, not `input_tokens` alone. A request
   with mostly cached prompt tokens can cross a tier boundary even
