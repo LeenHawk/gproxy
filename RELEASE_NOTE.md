@@ -7,13 +7,9 @@
 > `pricing_json` column on the `models` table, the provider store holds
 > an `ArcSwap<Vec<ModelPrice>>` that bootstrap and every admin mutation
 > push into, and the console grows a structured editor that covers all
-> four billing modes plus `tool_call_prices`. Tool-call billing also
-> switches from declaration-based flat fees to per-invocation counts
-> extracted from upstream usage blocks across all four protocols — this
-> is a behavior change for anyone who was paying a flat fee for
-> declaring `web_search` and friends. The docs site is rewritten as a
-> full bilingual Starlight site (25 pages × 2 locales) including a new
-> pricing reference page.
+> four billing modes. The docs site is rewritten as a full bilingual
+> Starlight site (25 pages × 2 locales) including a new pricing
+> reference page.
 
 ### English
 
@@ -21,8 +17,8 @@
 
 - **`models.pricing_json` column** — nullable `TEXT` column on the
   `models` entity holding the full `ModelPrice` JSON blob: all four
-  billing modes (`default` / `flex` / `scale` / `priority`) and
-  `tool_call_prices` in one place. Threaded through `ModelQueryRow`,
+  billing modes (`default` / `flex` / `scale` / `priority`) in one
+  place. Threaded through `ModelQueryRow`,
   `ModelWrite`, `store_query/admin`, and `write_sink`. `MemoryModel` now
   carries a single `Option<ModelPrice>` deserialized from the column on
   load and re-serialized on admin upsert, so the complete pricing shape
@@ -38,55 +34,24 @@
   changes the model set. **This fixes a long-standing bug** where admin
   edits to `price_each_call` / `price_tiers_json` were persisted to the
   DB but the billing engine kept reading the compiled-in slice forever.
-- **Tool-call billing by actual invocation count** — `Usage` gains
-  `tool_uses: BTreeMap<String, i64>`, populated from upstream response
-  usage blocks. `estimate_billing` now iterates `usage.tool_uses` and
-  charges `unit_price × count` per tool. A tool that's declared in the
-  request body but never invoked bills nothing; a tool invoked three
-  times bills `3 × unit_price`.
-- **Tool-use extractors for all four protocols**
-  - *Claude*: `usage.server_tool_use.web_search_requests` →
-    `tool_uses["web_search"]`, for both non-streaming and `message_delta`
-    streaming.
-  - *OpenAI Responses*: counts `output[].type ==
-    web_search_call | file_search_call | code_interpreter_call` for
-    non-streaming; emits `{ <tool>: 1 }` on each
-    `response.output_item.done` event for streaming (the spec-compliant
-    `response.completed` carries an empty `output[]`). `merge_usage` sums
-    `tool_uses` additively so per-item emits accumulate into the final
-    count.
-  - *OpenAI ChatCompletions*: detects
-    `choices[].message.annotations` / `.delta.annotations` with
-    `type == "url_citation"` and conservatively emits
-    `{ web_search: 1 }` if any are present. ChatCompletions doesn't
-    expose per-query counts, so this underestimates multi-query
-    responses but never overcharges (documented in the pricing
-    reference).
-  - *Gemini*: `candidates[].groundingMetadata.webSearchQueries[]`
-    length → `google_search`;
-    `candidates[].urlContextMetadata.urlMetadata[]` length →
-    `url_context`; `candidates[].content.parts[]` with `executableCode`
-    → `code_execution`.
 - **Structured pricing editor in `ModelsTab`** — the lone
   `pricing_json` textarea is replaced with a `PricingEditor` component
   that toggles between "Structured" and "JSON" views. Structured view
   provides: a single `price_each_call` USD input; an add/remove
   `price_tiers` table with 7 per-tier fields (`input_tokens_up_to`
-  plus the six per-token unit prices); collapsible `<details>`
+  plus the six per-token unit prices); and collapsible `<details>`
   sections for `flex` / `scale` / `priority`, each with its own
   `price_each_call` and tiers table and auto-expanded when the model
-  already has pricing in that mode; and a `tool_call_prices` table of
-  key/value rows keyed by tool name (`web_search`, etc.). All numeric
-  fields are held as strings in form state so users can type freely.
+  already has pricing in that mode. All numeric fields are held as
+  strings in form state so users can type freely.
 - **TOML import/export round-trips full `ModelPrice`** — `ModelToml`
-  gains five new fields (`flex_price_each_call` / `flex_price_tiers`,
+  gains six new fields (`flex_price_each_call` / `flex_price_tiers`,
   `scale_price_each_call` / `scale_price_tiers`,
-  `priority_price_each_call` / `priority_price_tiers`, and
-  `tool_call_prices: BTreeMap<String, f64>`). All ten pricing fields
-  use `#[serde(default, skip_serializing_if = ...)]` so minimal models
-  still produce compact TOML. Previously the shape only carried
-  default-mode tiers, so admin-edited priority pricing and tool
-  overrides were silently dropped on export.
+  `priority_price_each_call` / `priority_price_tiers`). All nine
+  pricing fields use `#[serde(default, skip_serializing_if = ...)]` so
+  minimal models still produce compact TOML. Previously the shape only
+  carried default-mode tiers, so admin-edited priority pricing was
+  silently dropped on export.
 - **Bilingual Starlight documentation site** — the placeholder docs
   template is replaced with a comprehensive site covering the whole
   gproxy stack. 25 pages per locale (English + 简体中文), all validated
@@ -100,20 +65,14 @@
   graceful shutdown, Rust SDK), and Deployment (release build, Docker).
   Root READMEs rewritten as project overviews pointing at the docs
   site.
-- **Pricing & tool-billing reference page** — new
+- **Pricing reference page** — new
   `reference/pricing.md` in both English and Chinese covers the
   `ModelPrice` JSON shape, the per-1M-token formula, billing mode
-  selection, tool-call invocation counting, exact-then-default price
-  matching, and debugging checklist for when a price doesn't apply.
-  Linked from `guides/models.md` and from the Starlight sidebar.
-- **Unit tests for the new pricing and usage paths** —
-  `tool_calls_billed_by_usage_count` (3 × 0.01 = 0.03),
-  `tool_calls_not_billed_when_usage_tool_uses_empty` (`Some(0.0)`),
-  three Claude extractor tests (non-streaming `web_search` count,
-  `message_delta` streaming, empty map when `server_tool_use` is
-  absent), an `admin_tool_call_price_override_affects_billing`
-  end-to-end test, and an `unknown-provider` branch assertion on
-  `set_model_pricing`.
+  selection, exact-then-default price matching, and debugging checklist
+  for when a price doesn't apply. Linked from `guides/models.md` and
+  from the Starlight sidebar.
+- **Unit tests for the new pricing and usage paths** — an
+  `unknown-provider` branch assertion on `set_model_pricing`.
 - **Batch delete mode across 5 admin tables** — the Users, User Keys,
   My Keys, Models, and Rewrite Rules lists gain a reusable "batch"
   toggle. Activating it swaps per-row delete buttons for checkboxes and
@@ -132,15 +91,6 @@
 
 #### Changed
 
-- **Tool billing behaviour change** — billing no longer reads
-  `BillingContext.tool_keys` (what the client declared in the request
-  body). Users who were relying on the old declaration-based flat fee
-  for Anthropic `web_search` will see different bills:
-  - *Before*: declaring `web_search` in the request `tools` array
-    charged a flat `0.01` per request, regardless of actual invocation.
-  - *After*: cost = `usage.server_tool_use.web_search_requests × 0.01`.
-    A request that declares but never invokes `web_search` pays `0`;
-    a request that invokes it three times pays `0.03`.
 - **`ModelsTab` model-pricing field** — replaced `price_each_call` +
   `price_tiers_json` text inputs with the new structured
   `PricingEditor` / JSON textarea toggle. `MemoryModelRow` and
@@ -189,13 +139,6 @@
 
 #### Removed
 
-- **Declaration-based tool billing path** — `BillingContext.tool_keys`
-  field, `collect_tool_keys()` free function, and all the per-channel
-  tool-key parsers
-  (`aistudio`/`vertex`/`google_search`,
-  `anthropic`/`web_search`, `openai`/`file_search`, etc.) are deleted.
-  Tool billing reads from `usage.tool_uses`, which is channel-agnostic,
-  so this code had no remaining consumer.
 - **Legacy `price_each_call` + `price_tiers_json` columns on `models`**
   — the two columns are removed from the SeaORM entity,
   `ModelQueryRow`, `ModelWrite`, `store_query/admin`, `write_sink`, and
@@ -225,19 +168,14 @@
   has data in those columns, migrate them into `pricing_json` **before**
   pointing v1.0.6 at the DB. A clean install via TOML seed is not
   affected.
-- **Tool billing amounts change** for anyone who was paying a flat
-  declaration-based fee (primarily Anthropic `web_search` users).
-  Bills shift from "any request that declares the tool" to "per actual
-  invocation reported in the upstream usage block". Audit downstream
-  dashboards / expected-cost tests before rolling out.
 - **Admin clients**: upsert payloads now carry `pricing_json: string |
   null`. Legacy `price_each_call` / `price_tiers_json` fields remain
   on the admin API as nullable for schema compatibility, but the
   backend no longer reads them — clients should stop sending them and
   send `pricing_json` instead.
 - **TOML exports**: pricing blocks now include the extra flex / scale
-  / priority / tool fields when set. Existing TOML files without
-  those fields continue to import cleanly.
+  / priority fields when set. Existing TOML files without those fields
+  continue to import cleanly.
 - **Self-update source is now hardcoded to GitHub Releases** — the
   `update_source` configuration is gone, so deployments can no
   longer point the in-process self-updater at a private mirror or
@@ -252,7 +190,7 @@
 
 - **`models.pricing_json` 列** — 在 `models` 实体上新增可空的 `TEXT`
   列，存放完整的 `ModelPrice` JSON：四种计费模式（`default` / `flex`
-  / `scale` / `priority`）以及 `tool_call_prices` 全部放在一个字段
+  / `scale` / `priority`）全部放在一个字段
   里。变更贯穿 `ModelQueryRow` / `ModelWrite` / `store_query/admin`
   / `write_sink`。`MemoryModel` 改为携带一个 `Option<ModelPrice>`，
   在加载时从新列反序列化、在 admin upsert 时重新序列化，使得完整的
@@ -267,50 +205,23 @@
   admin handler 都会再推一次。**这修复了一个长期存在的 bug**：
   admin 对 `price_each_call` / `price_tiers_json` 的编辑明明写进
   了 DB，billing engine 却一直在读编译期嵌入的 `&'static` 切片。
-- **按真实调用次数计费的工具计费** — `Usage` 新增
-  `tool_uses: BTreeMap<String, i64>`，由 provider 响应的 usage 块
-  填充。`estimate_billing` 现在遍历 `usage.tool_uses`，按
-  `unit_price × count` 收费。请求体里声明但从未被调用的工具计 0；
-  被调用三次的工具计 `3 × unit_price`。
-- **四种协议的 tool_use 提取器**
-  - *Claude*：`usage.server_tool_use.web_search_requests` 映射到
-    `tool_uses["web_search"]`，非流式和 `message_delta` 流式都覆盖。
-  - *OpenAI Responses*：非流式数 `output[].type ==
-    web_search_call | file_search_call | code_interpreter_call` 的
-    条目；流式按 `response.output_item.done` 事件逐条发
-    `{ <tool>: 1 }`（spec 里 `response.completed` 的 `output[]`
-    是空的）。`merge_usage` 现在对 `tool_uses` 做加法合并，逐条发
-    的计数会累加成最终值。
-  - *OpenAI ChatCompletions*：检测
-    `choices[].message.annotations` / `.delta.annotations` 里
-    `type == "url_citation"` 的条目，只要出现就保守地记一次
-    `{ web_search: 1 }`。ChatCompletions 不暴露精确的 per-query
-    次数，所以该策略会低估多 query 响应，但永远不会多收费 —
-    pricing 文档里明确说明了这一点。
-  - *Gemini*：`candidates[].groundingMetadata.webSearchQueries[]`
-    长度 → `google_search`；
-    `candidates[].urlContextMetadata.urlMetadata[]` 长度 →
-    `url_context`；`candidates[].content.parts[]` 中带
-    `executableCode` 的 part → `code_execution`。
 - **`ModelsTab` 的结构化定价编辑器** — 把原先孤零零的
   `pricing_json` textarea 替换成 `PricingEditor` 组件，提供
   "结构化" 与 "JSON" 两种视图切换。结构化视图包含：单个
   `price_each_call` USD 输入框；可增删的 `price_tiers` 表格（每条
-  7 个字段 —— `input_tokens_up_to` 加六个 per-token 单价）；
+  7 个字段 —— `input_tokens_up_to` 加六个 per-token 单价）；以及
   `flex` / `scale` / `priority` 三个可折叠 `<details>` 段落，各自
   维护独立的 `price_each_call` 与 tiers 表格，对应模式已有定价时
-  自动展开；以及 `tool_call_prices` 的 key/value 行表格，以工具名
-  （`web_search` 等）为键。所有数值字段在表单状态里以字符串存储，
-  允许用户自由输入。
+  自动展开。所有数值字段在表单状态里以字符串存储，允许用户自由
+  输入。
 - **TOML 导入 / 导出完整来回 `ModelPrice`** — `ModelToml` 新增
-  5 个字段（`flex_price_each_call` / `flex_price_tiers`、
+  6 个字段（`flex_price_each_call` / `flex_price_tiers`、
   `scale_price_each_call` / `scale_price_tiers`、
-  `priority_price_each_call` / `priority_price_tiers`、
-  `tool_call_prices: BTreeMap<String, f64>`）。全部 10 个定价字段
-  都使用 `#[serde(default, skip_serializing_if = ...)]`，最小化的
-  model 仍然生成紧凑的 TOML。此前结构只承载 default 模式的 tiers，
-  所以 admin 编辑的 priority 定价和 tool 覆写在 TOML 导出时会被
-  悄悄丢掉。
+  `priority_price_each_call` / `priority_price_tiers`）。全部 9 个
+  定价字段都使用 `#[serde(default, skip_serializing_if = ...)]`，
+  最小化的 model 仍然生成紧凑的 TOML。此前结构只承载 default 模式
+  的 tiers，所以 admin 编辑的 priority 定价在 TOML 导出时会被悄悄
+  丢掉。
 - **双语 Starlight 文档站** — 占位的 docs 模板替换为覆盖整个 gproxy
   技术栈的完整站点。每个语言 25 页（English + 简体中文），全部依据
   源代码核对、不是从 README 里推断。章节包括：Introduction、
@@ -323,18 +234,13 @@
   table、database backends、graceful shutdown、Rust SDK）、
   Deployment（release build、Docker）。根 README 重写为项目总览，
   链接回 docs 站。
-- **定价与工具计费参考页** — 新增
+- **定价参考页** — 新增
   `reference/pricing.md`（中英双语），涵盖 `ModelPrice` JSON
-  结构、per-1M-token 公式、计费模式选择、工具调用计数、
-  精确匹配→默认 fallback，以及当定价没生效时的排查清单。
-  从 `guides/models.md` 和 Starlight 侧边栏均有入口。
-- **针对新定价 / usage 路径的单测** —
-  `tool_calls_billed_by_usage_count`（3 × 0.01 = 0.03）、
-  `tool_calls_not_billed_when_usage_tool_uses_empty`（`Some(0.0)`）、
-  三个 Claude 提取器测试（非流式 `web_search` 计数、
-  `message_delta` 流式、`server_tool_use` 缺失时返回空 map）、
-  一个 `admin_tool_call_price_override_affects_billing` 端到端测
-  试，以及 `set_model_pricing` 对未知 provider 的 false 断言。
+  结构、per-1M-token 公式、计费模式选择、精确匹配→默认 fallback，
+  以及当定价没生效时的排查清单。从 `guides/models.md` 和 Starlight
+  侧边栏均有入口。
+- **针对新定价路径的单测** — `set_model_pricing` 对未知 provider
+  的 false 断言。
 - **5 张管理表的批量删除模式** — Users、User Keys、My Keys、Models、
   Rewrite Rules 共享同一套「批量」开关。开启后逐行删除按钮变成复选
   框，顶部出现 `[全选] [清空] [删除 N 项] [退出]` 操作条。确认走
@@ -350,14 +256,6 @@
 
 #### 变更
 
-- **工具计费行为变更** — 计费不再读取
-  `BillingContext.tool_keys`（客户端在请求体里声明的工具）。原先
-  依赖声明即收费的用户（主要是 Anthropic `web_search`）会看到
-  账单变化：
-  - *此前*：请求的 `tools` 数组里出现 `web_search` 就按 `0.01`
-    一次收，无论是否真的调用。
-  - *此后*：费用 = `usage.server_tool_use.web_search_requests
-    × 0.01`。声明但没调用计 0；调用了三次按 `0.03` 计。
 - **`ModelsTab` 的定价字段** — `price_each_call` + `price_tiers_json`
   两个文本输入框被替换为新的 `PricingEditor` / JSON textarea 切换
   组件。`MemoryModelRow` 与 `ModelWrite` 的 TS 类型改为暴露
@@ -400,12 +298,6 @@
 
 #### 移除
 
-- **声明式的工具计费路径** — `BillingContext.tool_keys` 字段、
-  `collect_tool_keys()` 函数，以及所有按渠道的 tool-key 解析器
-  （`aistudio`/`vertex`/`google_search`、
-  `anthropic`/`web_search`、`openai`/`file_search` 等）整批删除。
-  工具计费现在完全从 `usage.tool_uses` 读取，协议无关，这些代码
-  已没有任何消费方。
 - **`models` 表上的遗留 `price_each_call` + `price_tiers_json` 列**
   — 从 SeaORM 实体、`ModelQueryRow`、`ModelWrite`、
   `store_query/admin`、`write_sink`、`write/event` 中全部删除。
@@ -432,17 +324,13 @@
   移除** —— 如果你升级的是一个在这两列里仍有数据的 DB，请在切到
   v1.0.6 之前把这些数据迁移进 `pricing_json`。通过 TOML seed
   做干净安装的情况不受影响。
-- **工具计费金额会变**，受影响的主要是此前依赖"声明即收费"
-  机制的用户（绝大多数是 Anthropic `web_search`）。计费逻辑
-  从"声明了就收"切换到"按上游 usage 块里真实调用次数收"。
-  发布前请核对一下相关的下游看板和预期成本测试。
 - **Admin 客户端**：upsert 请求体现在携带
   `pricing_json: string | null`。老字段 `price_each_call` /
   `price_tiers_json` 仍作为 nullable 保留在 admin API schema 上，
   但后端不再读取 —— 客户端请停止发送它们，改为发送
   `pricing_json`。
 - **TOML 导出**：定价块里现在会带上 `flex` / `scale` / `priority`
-  / `tool` 相关的新字段（如果填了的话）。不含这些字段的旧 TOML
+  相关的新字段（如果填了的话）。不含这些字段的旧 TOML
   文件仍然可以干净地导入。
 - **自更新源硬编码为 GitHub Releases**：`update_source` 配置项
   整块删除，部署方不能再把进程内自更新指向私有镜像或反向代理。
