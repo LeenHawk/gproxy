@@ -666,6 +666,9 @@ impl AppState {
     /// Rebuild the pricing slice for a single provider from the current
     /// in-memory model snapshot and push it into the billing engine. Call
     /// after any mutation that changes a provider's model set or pricing.
+    ///
+    /// Best-effort: last-writer-wins semantics, no locking. Callers are
+    /// responsible for serialising concurrent admin mutations.
     pub fn push_pricing_to_engine(&self, provider_name: &str) {
         let provider_id = match self.provider_id_for_name(provider_name) {
             Some(id) => id,
@@ -677,7 +680,12 @@ impl AppState {
             .filter(|m| m.provider_id == provider_id)
             .map(memory_model_to_model_price)
             .collect();
-        self.engine().set_model_pricing(provider_name, prices);
+        if !self.engine().set_model_pricing(provider_name, prices) {
+            tracing::warn!(
+                provider = provider_name,
+                "push_pricing_to_engine: provider not registered in engine store; pricing push no-op"
+            );
+        }
     }
 
     // --- User permissions ---

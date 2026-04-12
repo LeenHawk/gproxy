@@ -7,6 +7,7 @@ use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
 use gproxy_server::{AppState, MemoryModel, OperationFamily, PriceTier, ProtocolKind};
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 /// Resolve a single provider_id to its name via storage query.
@@ -193,7 +194,6 @@ pub async fn batch_upsert_models(
             alias_of: item.alias_of,
         });
     }
-    use std::collections::BTreeSet;
     let touched_providers: BTreeSet<i64> = items.iter().map(|i| i.provider_id).collect();
     for pid in touched_providers {
         let name = resolve_provider_name(&state, pid).await?;
@@ -208,7 +208,6 @@ pub async fn batch_delete_models(
     Json(ids): Json<Vec<i64>>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    use std::collections::BTreeSet;
     // Collect provider_ids before deleting from memory.
     let touched_providers: BTreeSet<i64> = {
         let models = state.models();
@@ -397,7 +396,10 @@ mod tests {
     use gproxy_sdk::provider::billing::{BillingContext, BillingMode};
     use gproxy_sdk::provider::engine::Usage;
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig, MemoryModel};
-    use gproxy_storage::{SeaOrmStorage, repository::{ModelRepository, UserRepository}};
+    use gproxy_storage::{
+        SeaOrmStorage,
+        repository::{ModelRepository, UserRepository},
+    };
 
     async fn build_test_state_for_pricing() -> Arc<AppState> {
         let storage = Arc::new(
