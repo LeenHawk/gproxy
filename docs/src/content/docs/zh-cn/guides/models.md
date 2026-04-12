@@ -80,3 +80,6 @@ enabled = true
 记账时会**先按别名名**查询价格，未命中时再回落到解析出的真实模型名。
 这意味着管理员可以为同一个真实模型在不同别名上设置不同价格 —— 比如给
 `premium-gpt4` 别名加价，同时让 `chat-default` 维持成本价。
+
+完整的 `ModelPrice` 形状、billing mode 的选择、以及工具调用的次数计费逻
+辑，见[价格与工具计费](../reference/pricing)。
