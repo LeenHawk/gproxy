@@ -901,6 +901,7 @@ export function ProvidersModule({
               onChange={updateProviderForm}
               onSave={() => void saveProvider()}
               modelNames={providerModelRows.map((r) => r.model_id)}
+              notify={notify}
             />
           ) : null}
           {activeTab === "oauth" ? (

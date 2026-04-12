@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 
 import { useI18n } from "../../../app/i18n";
+import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Button, Card, Input, Select, TextArea } from "../../../components/ui";
+import { useBatchSelection } from "../../../components/useBatchSelection";
 import {
   parseRewriteRules,
   type RewriteFilter,
@@ -83,6 +85,7 @@ export function RewriteRulesTab({
   onChange,
   onSave,
   modelNames,
+  notify,
 }: {
   form: ProviderFormState;
   onChange: (patch: Partial<ProviderFormState>) => void;
@@ -90,6 +93,7 @@ export function RewriteRulesTab({
   /// Known model names (including aliases) for the current provider, used to
   /// populate the model_pattern autocomplete dropdown.
   modelNames?: string[];
+  notify: (kind: "success" | "error" | "info", message: string) => void;
 }) {
   const { t } = useI18n();
   // `selectedIdx = null` means no existing rule is selected.
@@ -110,6 +114,25 @@ export function RewriteRulesTab({
       settings: { ...form.settings, rewrite_rules: JSON.stringify(next) },
     });
   };
+
+  const batch = useBatchSelection<RewriteRule, string>({
+    rows: rules,
+    getKey: (_row, idx) => String(idx),
+    onBatchDelete: async (keys) => {
+      const keySet = new Set(keys);
+      const next = rules.filter((_, idx) => !keySet.has(String(idx)));
+      commit(next);
+      setSelectedIdx(null);
+      setDraft(null);
+    },
+    onSuccess: (count) => {
+      notify("success", t("batch.deleted", { count }));
+    },
+    onError: (err) => {
+      notify("error", err instanceof Error ? err.message : String(err));
+    },
+    confirmMessage: (count) => t("batch.confirm", { count }),
+  });
 
   const beginCreate = () => {
     setDraft({ ...EMPTY_RULE });
@@ -206,9 +229,21 @@ export function RewriteRulesTab({
       <Card
         title={t("providers.rewrite.title")}
         action={
-          <Button variant="neutral" onClick={beginCreate}>
-            + {t("providers.rewrite.add")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <BatchActionBar
+              batchMode={batch.batchMode}
+              selectedCount={batch.selectedCount}
+              pending={batch.pending}
+              onEnter={batch.enterBatch}
+              onExit={batch.exitBatch}
+              onSelectAll={batch.selectAll}
+              onClear={batch.clear}
+              onDelete={() => void batch.deleteSelected()}
+            />
+            <Button variant="neutral" onClick={beginCreate}>
+              + {t("providers.rewrite.add")}
+            </Button>
+          </div>
         }
       >
         <div className="max-h-128 overflow-y-auto space-y-2 pr-1">
@@ -229,11 +264,25 @@ export function RewriteRulesTab({
                   !isDraft && idx === selectedIdx ? "nav-item-active" : ""
                 }`}
                 onClick={() => {
+                  if (batch.batchMode) {
+                    batch.toggle(String(idx));
+                    return;
+                  }
                   setDraft(null);
                   setSelectedIdx(idx);
                 }}
               >
-                <div className="font-semibold truncate">{title}</div>
+                <div className="flex items-center gap-2">
+                  {batch.batchMode ? (
+                    <input
+                      type="checkbox"
+                      checked={batch.isSelected(String(idx))}
+                      onChange={() => batch.toggle(String(idx))}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  ) : null}
+                  <div className="font-semibold truncate">{title}</div>
+                </div>
                 <div className="text-xs text-muted truncate">{subtitle}</div>
               </button>
             );
