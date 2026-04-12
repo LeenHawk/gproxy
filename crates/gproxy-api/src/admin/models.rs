@@ -567,4 +567,80 @@ mod tests {
             result.total_cost
         );
     }
+
+    /// Task 2.6 — verify admin-overridden `tool_call_prices` reach the billing
+    /// engine. In Phase 1 tool charging is still declaration-based (reads
+    /// `BillingContext.tool_keys`), so the test exercises that path. Phase 3
+    /// will switch to usage-count-based charging and update this test.
+    #[tokio::test]
+    async fn admin_tool_call_price_override_affects_billing() {
+        let state = build_test_state_for_pricing().await;
+        let provider_name = "openai-test";
+        let provider_id = state
+            .provider_id_for_name(provider_name)
+            .expect("provider registered");
+        let model_id = "gpt-tool-pricing-test-9998";
+
+        let mut tool_call_prices = std::collections::BTreeMap::new();
+        tool_call_prices.insert("web_search".to_string(), 0.05);
+        let model_price = gproxy_sdk::provider::billing::ModelPrice {
+            model_id: model_id.to_string(),
+            display_name: None,
+            price_each_call: None,
+            price_tiers: Vec::new(),
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: None,
+            priority_price_tiers: Vec::new(),
+            tool_call_prices,
+        };
+        let pricing_json_str =
+            crate::bootstrap::model_price_to_storage_json(&model_price).unwrap();
+
+        state
+            .storage()
+            .upsert_model(gproxy_storage::ModelWrite {
+                id: 99998,
+                provider_id,
+                model_id: model_id.to_string(),
+                display_name: None,
+                enabled: true,
+                price_each_call: None,
+                price_tiers_json: None,
+                pricing_json: Some(pricing_json_str),
+                alias_of: None,
+            })
+            .await
+            .expect("upsert model in storage");
+        state.upsert_model_in_memory(MemoryModel {
+            id: 99998,
+            provider_id,
+            model_id: model_id.to_string(),
+            display_name: None,
+            enabled: true,
+            pricing: Some(model_price),
+            alias_of: None,
+        });
+        state.push_pricing_to_engine(provider_name);
+
+        let ctx = BillingContext {
+            model_id: model_id.to_string(),
+            mode: BillingMode::Default,
+            // Declaration-based tool billing: the request body carried a
+            // web_search tool, so Phase 1 charges the flat fee.
+            tool_keys: vec!["web_search".to_string()],
+        };
+        let usage = Usage::default();
+        let result = state
+            .engine()
+            .estimate_billing(provider_name, &ctx, &usage)
+            .expect("estimate_billing must return Some");
+        assert!(
+            (result.total_cost - 0.05).abs() < 1e-9,
+            "expected tool_call_prices.web_search = 0.05, got {}",
+            result.total_cost
+        );
+    }
 }
