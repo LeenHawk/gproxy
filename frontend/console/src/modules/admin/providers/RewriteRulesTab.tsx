@@ -45,6 +45,11 @@ function parseActionValue(input: string): unknown {
   }
 }
 
+const EMPTY_RULE: RewriteRule = {
+  path: "",
+  action: { type: "Set", value: null },
+};
+
 export function RewriteRulesTab({
   form,
   onChange,
@@ -59,7 +64,12 @@ export function RewriteRulesTab({
   modelNames?: string[];
 }) {
   const { t } = useI18n();
+  // `selectedIdx = null` means no existing rule is selected.
+  // `draft != null` means we're editing a new rule that hasn't been committed
+  // to the list yet (like the Models / Credentials tabs, the new entry only
+  // appears in the list after Save).
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [draft, setDraft] = useState<RewriteRule | null>(null);
   const [patternFocused, setPatternFocused] = useState(false);
 
   const rules = useMemo(
@@ -73,10 +83,9 @@ export function RewriteRulesTab({
     });
   };
 
-  const add = () => {
-    const next = [...rules, { path: "", action: { type: "Set" as const, value: null } }];
-    commit(next);
-    setSelectedIdx(next.length - 1);
+  const beginCreate = () => {
+    setDraft({ ...EMPTY_RULE });
+    setSelectedIdx(null);
   };
 
   const remove = (idx: number) => {
@@ -85,36 +94,52 @@ export function RewriteRulesTab({
     else if (selectedIdx != null && selectedIdx > idx) setSelectedIdx(selectedIdx - 1);
   };
 
-  const updateRule = (idx: number, patch: Partial<RewriteRule>) => {
+  /// Current rule being edited (either draft or an existing one).
+  const editing: RewriteRule | null =
+    draft ?? (selectedIdx != null ? rules[selectedIdx] ?? null : null);
+  const isDraft = draft != null;
+
+  /// Patch the current rule. If editing a draft, mutate local draft state;
+  /// otherwise patch the persisted rule in-place (auto-saves to form state).
+  const updateEditing = (patch: (rule: RewriteRule) => RewriteRule) => {
+    if (isDraft && draft) {
+      setDraft(patch(draft));
+      return;
+    }
+    if (selectedIdx == null) return;
     const next = [...rules];
-    next[idx] = { ...next[idx], ...patch };
+    next[selectedIdx] = patch(next[selectedIdx]);
     commit(next);
   };
 
-  const updateActionType = (idx: number, type: "Set" | "Remove") => {
-    const rule = rules[idx];
-    const action = type === "Remove" ? { type: "Remove" as const } : { type: "Set" as const, value: null };
-    updateRule(idx, { ...rule, action });
-  };
+  const updatePath = (path: string) => updateEditing((r) => ({ ...r, path }));
 
-  const updateActionValue = (idx: number, raw: string) => {
-    updateRule(idx, { action: { type: "Set" as const, value: parseActionValue(raw) } });
-  };
+  const updateActionType = (type: "Set" | "Remove") =>
+    updateEditing((r) => ({
+      ...r,
+      action:
+        type === "Remove"
+          ? { type: "Remove" as const }
+          : { type: "Set" as const, value: null },
+    }));
 
-  const updateFilter = (idx: number, filter: RewriteFilter | undefined) => {
-    const next = [...rules];
-    next[idx] = { ...next[idx] };
-    if (filter) next[idx].filter = filter;
-    else delete next[idx].filter;
-    commit(next);
-  };
+  const updateActionValue = (raw: string) =>
+    updateEditing((r) => ({
+      ...r,
+      action: { type: "Set" as const, value: parseActionValue(raw) },
+    }));
 
-  const toggleFilterChip = (
-    idx: number,
-    dimension: "operations" | "protocols",
-    val: string,
-  ) => {
-    const current = rules[idx].filter ?? {};
+  const updateFilter = (filter: RewriteFilter | undefined) =>
+    updateEditing((r) => {
+      const next = { ...r };
+      if (filter) next.filter = filter;
+      else delete next.filter;
+      return next;
+    });
+
+  const toggleFilterChip = (dimension: "operations" | "protocols", val: string) => {
+    if (!editing) return;
+    const current = editing.filter ?? {};
     const arr = current[dimension] ?? [];
     const nextArr = arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
     const nextFilter: RewriteFilter = {
@@ -122,20 +147,38 @@ export function RewriteRulesTab({
       [dimension]: nextArr.length > 0 ? nextArr : undefined,
     };
     if (!nextFilter.model_pattern && !nextFilter.operations && !nextFilter.protocols) {
-      updateFilter(idx, undefined);
+      updateFilter(undefined);
     } else {
-      updateFilter(idx, nextFilter);
+      updateFilter(nextFilter);
     }
   };
 
-  const selected = selectedIdx != null ? rules[selectedIdx] : null;
+  /// Save: if editing a draft, commit it to the list first, then save provider.
+  /// If editing an existing rule, just save provider.
+  const save = () => {
+    if (isDraft && draft) {
+      const next = [...rules, draft];
+      commit(next);
+      // After this render cycle, `rules` will include the new entry and we
+      // want the list to highlight it. Use a timeout so the commit propagates
+      // through the parent and our `rules` memo re-runs with the new array.
+      const newIdx = next.length - 1;
+      setDraft(null);
+      setSelectedIdx(newIdx);
+    }
+    onSave();
+  };
+
+  const cancelDraft = () => {
+    setDraft(null);
+  };
 
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <Card
         title={t("providers.rewrite.title")}
         action={
-          <Button variant="neutral" onClick={add}>
+          <Button variant="neutral" onClick={beginCreate}>
             + {t("providers.rewrite.add")}
           </Button>
         }
@@ -154,8 +197,13 @@ export function RewriteRulesTab({
               <button
                 key={idx}
                 type="button"
-                className={`nav-item w-full ${idx === selectedIdx ? "nav-item-active" : ""}`}
-                onClick={() => setSelectedIdx(idx)}
+                className={`nav-item w-full ${
+                  !isDraft && idx === selectedIdx ? "nav-item-active" : ""
+                }`}
+                onClick={() => {
+                  setDraft(null);
+                  setSelectedIdx(idx);
+                }}
               >
                 <div className="font-semibold truncate">{title}</div>
                 <div className="text-xs text-muted truncate">{subtitle}</div>
@@ -164,8 +212,8 @@ export function RewriteRulesTab({
           })}
         </div>
       </Card>
-      <Card title={selected ? t("providers.rewrite.title") : t("common.noSelection")}>
-        {selected && selectedIdx != null ? (
+      <Card title={editing ? t("providers.rewrite.title") : t("common.noSelection")}>
+        {editing ? (
           <div className="space-y-4">
             <p className="text-xs text-muted">{t("providers.rewrite.hint")}</p>
             <div>
@@ -173,30 +221,30 @@ export function RewriteRulesTab({
                 {t("providers.rewrite.path_placeholder")}
               </label>
               <Input
-                value={selected.path}
-                onChange={(v) => updateRule(selectedIdx, { path: v })}
+                value={editing.path}
+                onChange={updatePath}
                 placeholder={t("providers.rewrite.path_placeholder")}
               />
             </div>
             <div>
               <label className="text-xs text-muted">Action</label>
               <Select
-                value={selected.action.type}
-                onChange={(v) => updateActionType(selectedIdx, v as "Set" | "Remove")}
+                value={editing.action.type}
+                onChange={(v) => updateActionType(v as "Set" | "Remove")}
                 options={[
                   { value: "Set", label: "Set" },
                   { value: "Remove", label: "Remove" },
                 ]}
               />
             </div>
-            {selected.action.type === "Set" ? (
+            {editing.action.type === "Set" ? (
               <div>
                 <label className="text-xs text-muted">
                   {t("providers.rewrite.value_placeholder")}
                 </label>
                 <TextArea
-                  value={serializeActionValue(selected.action.value)}
-                  onChange={(v) => updateActionValue(selectedIdx, v)}
+                  value={serializeActionValue(editing.action.value)}
+                  onChange={updateActionValue}
                   rows={4}
                   placeholder={t("providers.rewrite.value_placeholder")}
                 />
@@ -212,60 +260,64 @@ export function RewriteRulesTab({
                 </label>
                 <div className="relative">
                   <Input
-                    value={selected.filter?.model_pattern ?? ""}
+                    value={editing.filter?.model_pattern ?? ""}
                     onChange={(v) => {
-                      const current = selected.filter ?? {};
+                      const current = editing.filter ?? {};
                       const next: RewriteFilter = {
                         ...current,
                         model_pattern: v || undefined,
                       };
                       if (!next.model_pattern && !next.operations && !next.protocols) {
-                        updateFilter(selectedIdx, undefined);
+                        updateFilter(undefined);
                       } else {
-                        updateFilter(selectedIdx, next);
+                        updateFilter(next);
                       }
                     }}
                     onFocus={() => setPatternFocused(true)}
                     onBlur={() => {
-                      // Delay so a click on a dropdown item can still register.
                       setTimeout(() => setPatternFocused(false), 150);
                     }}
                     placeholder="gpt-4*, claude-*"
                   />
-                  {patternFocused && modelNames && modelNames.length > 0 ? (() => {
-                    const pattern = (selected.filter?.model_pattern ?? "").toLowerCase();
-                    const matches = modelNames
-                      .filter((name) =>
-                        pattern === "" ? true : name.toLowerCase().includes(pattern),
-                      )
-                      .slice(0, 20);
-                    if (matches.length === 0) return null;
-                    return (
-                      <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded border border-border bg-panel shadow-lg">
-                        {matches.map((name) => (
-                          <button
-                            key={name}
-                            type="button"
-                            className="block w-full text-left px-2 py-1 text-xs hover:bg-panel-muted"
-                            onMouseDown={(e) => {
-                              // Prevent blur before onClick fires.
-                              e.preventDefault();
-                            }}
-                            onClick={() => {
-                              const current = selected.filter ?? {};
-                              updateFilter(selectedIdx, {
-                                ...current,
-                                model_pattern: name,
-                              });
-                              setPatternFocused(false);
-                            }}
+                  {patternFocused && modelNames && modelNames.length > 0
+                    ? (() => {
+                        const pattern = (editing.filter?.model_pattern ?? "").toLowerCase();
+                        const matches = modelNames
+                          .filter((name) =>
+                            pattern === "" ? true : name.toLowerCase().includes(pattern),
+                          )
+                          .slice(0, 20);
+                        if (matches.length === 0) return null;
+                        return (
+                          <div
+                            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded border border-border shadow-lg"
+                            style={{ background: "var(--bg-base)" }}
                           >
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })() : null}
+                            {matches.map((name) => (
+                              <button
+                                key={name}
+                                type="button"
+                                className="block w-full text-left px-2 py-1 text-xs hover:opacity-80"
+                                style={{ background: "var(--bg-base)" }}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                }}
+                                onClick={() => {
+                                  const current = editing.filter ?? {};
+                                  updateFilter({
+                                    ...current,
+                                    model_pattern: name,
+                                  });
+                                  setPatternFocused(false);
+                                }}
+                              >
+                                {name}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()
+                    : null}
                 </div>
               </div>
               <div>
@@ -278,9 +330,9 @@ export function RewriteRulesTab({
                       key={op}
                       type="button"
                       className={`btn rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
-                        selected.filter?.operations?.includes(op) ? "btn-primary" : "btn-neutral"
+                        editing.filter?.operations?.includes(op) ? "btn-primary" : "btn-neutral"
                       }`}
-                      onClick={() => toggleFilterChip(selectedIdx, "operations", op)}
+                      onClick={() => toggleFilterChip("operations", op)}
                     >
                       {op}
                     </button>
@@ -297,9 +349,9 @@ export function RewriteRulesTab({
                       key={proto}
                       type="button"
                       className={`btn rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
-                        selected.filter?.protocols?.includes(proto) ? "btn-primary" : "btn-neutral"
+                        editing.filter?.protocols?.includes(proto) ? "btn-primary" : "btn-neutral"
                       }`}
-                      onClick={() => toggleFilterChip(selectedIdx, "protocols", proto)}
+                      onClick={() => toggleFilterChip("protocols", proto)}
                     >
                       {proto}
                     </button>
@@ -309,10 +361,16 @@ export function RewriteRulesTab({
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={onSave}>{t("common.save")}</Button>
-              <Button variant="danger" onClick={() => remove(selectedIdx)}>
-                {t("common.delete")}
-              </Button>
+              <Button onClick={save}>{t("common.save")}</Button>
+              {isDraft ? (
+                <Button variant="neutral" onClick={cancelDraft}>
+                  {t("common.cancel")}
+                </Button>
+              ) : selectedIdx != null ? (
+                <Button variant="danger" onClick={() => remove(selectedIdx)}>
+                  {t("common.delete")}
+                </Button>
+              ) : null}
             </div>
           </div>
         ) : (
