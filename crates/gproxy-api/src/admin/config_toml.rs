@@ -84,7 +84,7 @@ pub struct ProviderToml {
 /// TOML representation of a model row. Covers the full
 /// `gproxy_sdk::provider::billing::ModelPrice` shape so that
 /// import/export round-trips preserve every billing mode
-/// (`default` / `flex` / `scale` / `priority`) and `tool_call_prices`.
+/// (`default` / `flex` / `scale` / `priority`).
 ///
 /// All pricing fields are optional; empty collections and `None` values
 /// are omitted from the serialized output.
@@ -112,8 +112,6 @@ pub struct ModelToml {
     pub priority_price_each_call: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub priority_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub tool_call_prices: std::collections::BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -266,7 +264,6 @@ pub async fn export_toml(
                 priority_price_tiers: pricing
                     .map(|p| p.priority_price_tiers.clone())
                     .unwrap_or_default(),
-                tool_call_prices: Default::default(),
             }
         })
         .collect();
@@ -469,12 +466,6 @@ mod tests {
                 price_cache_creation_input_tokens_5min: None,
                 price_cache_creation_input_tokens_1h: None,
             }],
-            tool_call_prices: {
-                let mut m = std::collections::BTreeMap::new();
-                m.insert("web_search".to_string(), 0.01);
-                m.insert("file_search".to_string(), 0.0025);
-                m
-            },
         };
 
         let serialized = toml::to_string(&original).expect("serialize model toml");
@@ -490,14 +481,6 @@ mod tests {
         assert_eq!(parsed.priority_price_each_call, Some(0.01));
         assert_eq!(parsed.priority_price_tiers.len(), 1);
         assert_eq!(parsed.priority_price_tiers[0].price_input_tokens, Some(6.0));
-        assert_eq!(
-            parsed.tool_call_prices.get("web_search").copied(),
-            Some(0.01)
-        );
-        assert_eq!(
-            parsed.tool_call_prices.get("file_search").copied(),
-            Some(0.0025)
-        );
     }
 
     #[test]
@@ -517,13 +500,11 @@ mod tests {
             scale_price_tiers: Vec::new(),
             priority_price_each_call: None,
             priority_price_tiers: Vec::new(),
-            tool_call_prices: std::collections::BTreeMap::new(),
         };
         let serialized = toml::to_string(&minimal).expect("serialize");
         assert!(!serialized.contains("price_tiers"));
         assert!(!serialized.contains("flex_price"));
         assert!(!serialized.contains("scale_price"));
         assert!(!serialized.contains("priority_price"));
-        assert!(!serialized.contains("tool_call_prices"));
     }
 }
