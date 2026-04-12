@@ -45,6 +45,34 @@ function parseActionValue(input: string): unknown {
   }
 }
 
+type ValueType = "string" | "number" | "boolean" | "null" | "array" | "object";
+
+function detectValueType(value: unknown): ValueType {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  if (Array.isArray(value)) return "array";
+  return "object";
+}
+
+function defaultValueForType(type: ValueType): unknown {
+  switch (type) {
+    case "string":
+      return "";
+    case "number":
+      return 0;
+    case "boolean":
+      return true;
+    case "null":
+      return null;
+    case "array":
+      return [];
+    case "object":
+      return {};
+  }
+}
+
 const EMPTY_RULE: RewriteRule = {
   path: "",
   action: { type: "Set", value: null },
@@ -191,8 +219,8 @@ export function RewriteRulesTab({
             const title = rule.path.trim() || t("providers.rewrite.empty_path");
             const subtitle =
               rule.action.type === "Remove"
-                ? "Remove"
-                : `Set · ${serializeActionValue(rule.action.value).slice(0, 40)}`;
+                ? t("providers.rewrite.action.remove")
+                : `${t("providers.rewrite.action.set")} · ${serializeActionValue(rule.action.value).slice(0, 40)}`;
             return (
               <button
                 key={idx}
@@ -227,28 +255,106 @@ export function RewriteRulesTab({
               />
             </div>
             <div>
-              <label className="text-xs text-muted">Action</label>
+              <label className="text-xs text-muted">{t("providers.rewrite.action")}</label>
               <Select
                 value={editing.action.type}
                 onChange={(v) => updateActionType(v as "Set" | "Remove")}
                 options={[
-                  { value: "Set", label: "Set" },
-                  { value: "Remove", label: "Remove" },
+                  { value: "Set", label: t("providers.rewrite.action.set") },
+                  { value: "Remove", label: t("providers.rewrite.action.remove") },
                 ]}
               />
             </div>
             {editing.action.type === "Set" ? (
-              <div>
-                <label className="text-xs text-muted">
-                  {t("providers.rewrite.value_placeholder")}
-                </label>
-                <TextArea
-                  value={serializeActionValue(editing.action.value)}
-                  onChange={updateActionValue}
-                  rows={4}
-                  placeholder={t("providers.rewrite.value_placeholder")}
-                />
-              </div>
+              <>
+                {(() => {
+                  const valueType = detectValueType(editing.action.value);
+                  return (
+                    <>
+                      <div>
+                        <label className="text-xs text-muted">
+                          {t("providers.rewrite.value_type")}
+                        </label>
+                        <Select
+                          value={valueType}
+                          onChange={(v) => {
+                            const next = v as ValueType;
+                            updateEditing((r) => ({
+                              ...r,
+                              action: { type: "Set" as const, value: defaultValueForType(next) },
+                            }));
+                          }}
+                          options={[
+                            { value: "string", label: t("providers.rewrite.value_type.string") },
+                            { value: "number", label: t("providers.rewrite.value_type.number") },
+                            { value: "boolean", label: t("providers.rewrite.value_type.boolean") },
+                            { value: "null", label: t("providers.rewrite.value_type.null") },
+                            { value: "array", label: t("providers.rewrite.value_type.array") },
+                            { value: "object", label: t("providers.rewrite.value_type.object") },
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted">{t("providers.rewrite.value")}</label>
+                        {valueType === "string" ? (
+                          <Input
+                            value={typeof editing.action.value === "string" ? editing.action.value : ""}
+                            onChange={(v) =>
+                              updateEditing((r) => ({
+                                ...r,
+                                action: { type: "Set" as const, value: v },
+                              }))
+                            }
+                          />
+                        ) : valueType === "number" ? (
+                          <Input
+                            value={
+                              typeof editing.action.value === "number"
+                                ? String(editing.action.value)
+                                : ""
+                            }
+                            onChange={(raw) => {
+                              const n = Number(raw);
+                              updateEditing((r) => ({
+                                ...r,
+                                action: {
+                                  type: "Set" as const,
+                                  value: Number.isFinite(n) ? n : 0,
+                                },
+                              }));
+                            }}
+                          />
+                        ) : valueType === "boolean" ? (
+                          <Select
+                            value={editing.action.value === true ? "true" : "false"}
+                            onChange={(v) =>
+                              updateEditing((r) => ({
+                                ...r,
+                                action: { type: "Set" as const, value: v === "true" },
+                              }))
+                            }
+                            options={[
+                              { value: "true", label: t("providers.rewrite.value_bool.true") },
+                              { value: "false", label: t("providers.rewrite.value_bool.false") },
+                            ]}
+                          />
+                        ) : valueType === "null" ? (
+                          <p className="text-xs text-muted">
+                            {t("providers.rewrite.value_null_hint")}
+                          </p>
+                        ) : (
+                          <TextArea
+                            value={serializeActionValue(editing.action.value)}
+                            onChange={updateActionValue}
+                            rows={4}
+                            placeholder={t("providers.rewrite.value_json_placeholder")}
+                          />
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
             ) : null}
 
             {/* Filter */}
