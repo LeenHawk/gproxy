@@ -285,12 +285,16 @@ pub(crate) trait ProviderRuntime: Send + Sync {
         client: &'a wreq::Client,
         params: &'a HashMap<String, String>,
     ) -> BoxFuture<'a, Result<Option<(Value, Value)>, UpstreamError>>;
+
+    /// Replace the model pricing for this provider. Used by admin upsert
+    /// and bootstrap to propagate DB-backed prices into the billing engine.
+    fn set_model_pricing(&self, prices: Vec<crate::billing::ModelPrice>);
 }
 
 struct ProviderInstance<C: Channel> {
     name: String,
     channel: C,
-    model_pricing: &'static [crate::billing::ModelPrice],
+    model_pricing: arc_swap::ArcSwap<Vec<crate::billing::ModelPrice>>,
     settings: ArcSwap<C::Settings>,
     credentials: ArcSwap<Vec<C::Credential>>,
     health: Mutex<Vec<C::Health>>,
@@ -309,9 +313,10 @@ impl<C: Channel> ProviderInstance<C> {
         dispatch_override: Option<DispatchTable>,
     ) -> Self {
         let (credential_values, health_values): (Vec<_>, Vec<_>) = credentials.into_iter().unzip();
+        let initial_pricing = channel.model_pricing().to_vec();
         Self {
             name,
-            model_pricing: channel.model_pricing(),
+            model_pricing: arc_swap::ArcSwap::from_pointee(initial_pricing),
             dispatch_table: dispatch_override.unwrap_or_else(|| channel.dispatch_table()),
             channel,
             settings: ArcSwap::from_pointee(settings),
@@ -434,7 +439,8 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         context: &crate::billing::BillingContext,
         usage: &crate::engine::Usage,
     ) -> Option<crate::billing::BillingResult> {
-        crate::billing::estimate_billing(self.model_pricing, context, usage)
+        let snapshot = self.model_pricing.load();
+        crate::billing::estimate_billing(snapshot.as_slice(), context, usage)
     }
 
     fn handle_local(
@@ -898,6 +904,10 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                 .transpose()
         })
     }
+
+    fn set_model_pricing(&self, prices: Vec<crate::billing::ModelPrice>) {
+        self.model_pricing.store(std::sync::Arc::new(prices));
+    }
 }
 
 #[derive(Default)]
@@ -1303,6 +1313,22 @@ impl ProviderStore {
             .and_then(|provider| provider.estimate_billing(context, usage))
     }
 
+    /// Replace model pricing for a single provider. Returns `false` if the
+    /// provider is not registered.
+    pub fn set_model_pricing(
+        &self,
+        provider_name: &str,
+        prices: Vec<crate::billing::ModelPrice>,
+    ) -> bool {
+        match self.get_runtime(provider_name) {
+            Some(runtime) => {
+                runtime.set_model_pricing(prices);
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Build a [`BillingContext`] for a provider using the model name and
     /// raw request body.  Delegates to the provider's channel-specific
     /// billing-mode detection without requiring an engine-internal
@@ -1424,6 +1450,77 @@ mod tests {
     use super::ProviderStore;
     use crate::channels::codex::{CodexChannel, CodexSettings};
     use crate::health::ModelCooldownHealth;
+
+    #[tokio::test]
+    async fn set_model_pricing_updates_billing() {
+        // Build a store with the Codex channel (any channel works; pricing will be overridden).
+        let store = ProviderStore::builder()
+            .add_provider(
+                "demo",
+                CodexChannel,
+                CodexSettings::default(),
+                vec![(
+                    crate::channels::codex::CodexCredential {
+                        access_token: "token-1".to_string(),
+                        ..Default::default()
+                    },
+                    ModelCooldownHealth::default(),
+                )],
+            )
+            .build();
+
+        let ctx = crate::billing::BillingContext {
+            model_id: "stub-model".into(),
+            mode: crate::billing::BillingMode::Default,
+            tool_keys: Vec::new(),
+        };
+        let usage = crate::engine::Usage::default();
+
+        // Seed the initial price to $1.00 via set_model_pricing itself.
+        let initial_prices = vec![crate::billing::ModelPrice {
+            model_id: "stub-model".into(),
+            display_name: None,
+            price_each_call: Some(1.00),
+            price_tiers: Vec::new(),
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: None,
+            priority_price_tiers: Vec::new(),
+            tool_call_prices: std::collections::BTreeMap::new(),
+        }];
+        assert!(store.set_model_pricing("demo", initial_prices));
+
+        // Sanity: billing reflects the built-in price.
+        let before = store
+            .estimate_billing("demo", &ctx, &usage)
+            .unwrap()
+            .total_cost;
+        assert!((before - 1.00).abs() < 1e-9);
+
+        // Override: admin sets price to $2.50.
+        let new_prices = vec![crate::billing::ModelPrice {
+            model_id: "stub-model".into(),
+            display_name: None,
+            price_each_call: Some(2.50),
+            price_tiers: Vec::new(),
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: None,
+            priority_price_tiers: Vec::new(),
+            tool_call_prices: std::collections::BTreeMap::new(),
+        }];
+        assert!(store.set_model_pricing("demo", new_prices));
+
+        let after = store
+            .estimate_billing("demo", &ctx, &usage)
+            .unwrap()
+            .total_cost;
+        assert!((after - 2.50).abs() < 1e-9);
+    }
 
     #[test]
     fn prepare_quota_request_uses_selected_credential_index() {
