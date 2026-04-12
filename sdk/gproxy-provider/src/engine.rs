@@ -631,6 +631,18 @@ impl GproxyEngine {
         self.store.estimate_billing(provider_name, context, usage)
     }
 
+    /// Replace model pricing for a provider. Used by the host application
+    /// to push DB-backed pricing into the billing engine after admin edits.
+    ///
+    /// Returns `false` if the provider is not registered.
+    pub fn set_model_pricing(
+        &self,
+        provider_name: &str,
+        prices: Vec<crate::billing::ModelPrice>,
+    ) -> bool {
+        self.store.set_model_pricing(provider_name, prices)
+    }
+
     /// Build a [`BillingContext`] for a provider from the model name and
     /// raw request body, without requiring an engine-internal
     /// [`PreparedRequest`].
