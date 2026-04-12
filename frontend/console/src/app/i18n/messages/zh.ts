@@ -72,8 +72,6 @@ export const zhMessages: Record<string, string> = {
   "common.modelId": "模型 ID",
   "common.modelPattern": "模型匹配",
   "common.displayName": "显示名称",
-  "common.priceEachCall": "单次价格",
-  "common.priceTiersJson": "价格阶梯 JSON",
   "common.status": "状态",
   "common.timestamp": "时间戳",
   "common.quota": "额度",
@@ -377,6 +375,9 @@ export const zhMessages: Record<string, string> = {
   "models.aliasOf": "别名指向",
   "models.aliasOf.none": "无(真实模型)",
   "models.aliasBadge": "别名",
+  "models.pricingJson": "价格 JSON",
+  "models.pricingJson.hint":
+    "完整序列化的 ModelPrice JSON，覆盖 default/flex/scale/priority 阶梯和 tool_call_prices。留空则使用 provider 的内置价格。",
   "models.filter.all": "全部",
   "models.filter.real": "仅真实模型",
   "models.filter.aliases": "仅别名",

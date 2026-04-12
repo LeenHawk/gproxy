@@ -15,8 +15,7 @@ export type ModelFormState = {
   model_id: string;
   display_name: string;
   enabled: boolean;
-  price_each_call: string;
-  price_tiers_json: string;
+  pricing_json: string;
   alias_of: string;
 };
 
@@ -32,8 +31,8 @@ type ModelsTabLabels = {
   modelId: string;
   displayName: string;
   enabled: string;
-  priceEachCall: string;
-  priceTiersJson: string;
+  pricingJson: string;
+  pricingJsonHint: string;
   aliasOf: string;
   aliasOfNone: string;
   aliasBadge: string;
@@ -368,19 +367,13 @@ export function ModelsTab({
               <p className="text-xs text-muted">{labels.priceOverrideHint}</p>
             ) : null}
             <div>
-              <Label>{labels.priceEachCall}</Label>
-              <Input
-                value={form.price_each_call}
-                onChange={(value) => onChangeForm({ price_each_call: value })}
-              />
-            </div>
-            <div>
-              <Label>{labels.priceTiersJson}</Label>
+              <Label>{labels.pricingJson}</Label>
               <TextArea
-                value={form.price_tiers_json}
-                onChange={(value) => onChangeForm({ price_tiers_json: value })}
-                rows={8}
+                value={form.pricing_json}
+                onChange={(value) => onChangeForm({ pricing_json: value })}
+                rows={12}
               />
+              <p className="mt-1 text-xs text-muted">{labels.pricingJsonHint}</p>
             </div>
             <div className="flex gap-2">
               <Button onClick={onSave}>{labels.save}</Button>

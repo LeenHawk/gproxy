@@ -15,9 +15,9 @@ describe("provider resources helpers", () => {
     expect(
       filterModelsForProvider(
         [
-          { id: 1, provider_id: 10, model_id: "a", enabled: true, price_tiers: [], alias_of: null },
-          { id: 2, provider_id: 20, model_id: "b", enabled: true, price_tiers: [], alias_of: null },
-          { id: 3, provider_id: 20, model_id: "alias-b", enabled: true, price_tiers: [], alias_of: 2 },
+          { id: 1, provider_id: 10, model_id: "a", enabled: true, pricing_json: null, alias_of: null },
+          { id: 2, provider_id: 20, model_id: "b", enabled: true, pricing_json: null, alias_of: null },
+          { id: 3, provider_id: 20, model_id: "alias-b", enabled: true, pricing_json: null, alias_of: 2 },
         ] as never,
         20,
       ).map((row) => row.id),

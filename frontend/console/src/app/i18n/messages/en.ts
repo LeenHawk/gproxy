@@ -72,8 +72,6 @@ export const enMessages: Record<string, string> = {
   "common.modelId": "Model ID",
   "common.modelPattern": "Model Pattern",
   "common.displayName": "Display Name",
-  "common.priceEachCall": "Price Each Call",
-  "common.priceTiersJson": "Price Tiers JSON",
   "common.status": "Status",
   "common.timestamp": "Timestamp",
   "common.quota": "Quota",
@@ -377,6 +375,9 @@ export const enMessages: Record<string, string> = {
   "models.aliasOf": "Alias of",
   "models.aliasOf.none": "None (real model)",
   "models.aliasBadge": "Alias",
+  "models.pricingJson": "Pricing JSON",
+  "models.pricingJson.hint":
+    "Full serialized ModelPrice blob covering default/flex/scale/priority tiers and tool_call_prices. Leave empty to use the provider's built-in pricing.",
   "models.filter.all": "All",
   "models.filter.real": "Real only",
   "models.filter.aliases": "Aliases only",

@@ -25,8 +25,7 @@ export function ModelsModule({
     model_id: "",
     display_name: "",
     enabled: true,
-    price_each_call: "",
-    price_tiers_json: "[]",
+    pricing_json: "",
   });
 
   const selected = rows.find((row) => row.id === selectedId) ?? null;
@@ -43,8 +42,7 @@ export function ModelsModule({
       model_id: "",
       display_name: "",
       enabled: true,
-      price_each_call: "",
-      price_tiers_json: "[]",
+      pricing_json: "",
     });
   };
 
@@ -77,14 +75,29 @@ export function ModelsModule({
 
   const save = async () => {
     try {
+      let pricing_json: string | null = null;
+      const trimmed = form.pricing_json.trim();
+      if (trimmed) {
+        try {
+          JSON.parse(trimmed);
+        } catch (e) {
+          notify(
+            "error",
+            `Invalid pricing JSON: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return;
+        }
+        pricing_json = trimmed;
+      }
       const payload: ModelWrite = {
         id: parseRequiredI64(form.id, "id"),
         provider_id: parseRequiredI64(form.provider_id, "provider_id"),
         model_id: form.model_id.trim(),
         display_name: form.display_name.trim() || null,
         enabled: form.enabled,
-        price_each_call: form.price_each_call.trim() ? Number(form.price_each_call) : null,
-        price_tiers_json: form.price_tiers_json,
+        price_each_call: null,
+        price_tiers_json: null,
+        pricing_json,
       };
       await apiJson("/admin/models/upsert", {
         method: "POST",
@@ -128,8 +141,15 @@ export function ModelsModule({
                   model_id: row.model_id,
                   display_name: row.display_name ?? "",
                   enabled: row.enabled,
-                  price_each_call: row.price_each_call?.toString() ?? "",
-                  price_tiers_json: JSON.stringify(row.price_tiers, null, 2),
+                  pricing_json: row.pricing_json
+                    ? (() => {
+                        try {
+                          return JSON.stringify(JSON.parse(row.pricing_json), null, 2);
+                        } catch {
+                          return row.pricing_json;
+                        }
+                      })()
+                    : "",
                 });
               }}
             >
@@ -163,12 +183,13 @@ export function ModelsModule({
             {t("common.enabled")}
           </label>
           <div>
-            <Label>{t("common.priceEachCall")}</Label>
-            <Input value={form.price_each_call} onChange={(value) => setForm((current) => ({ ...current, price_each_call: value }))} />
-          </div>
-          <div>
-            <Label>{t("common.priceTiersJson")}</Label>
-            <TextArea value={form.price_tiers_json} onChange={(value) => setForm((current) => ({ ...current, price_tiers_json: value }))} rows={8} />
+            <Label>{t("models.pricingJson")}</Label>
+            <TextArea
+              value={form.pricing_json}
+              onChange={(value) => setForm((current) => ({ ...current, pricing_json: value }))}
+              rows={12}
+            />
+            <p className="mt-1 text-xs text-muted">{t("models.pricingJson.hint")}</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={() => void save()}>{t("common.save")}</Button>

@@ -1,4 +1,4 @@
-import type { PriceTier, Scope, UsageQuery, UsageQueryRow } from "./shared";
+import type { Scope, UsageQuery, UsageQueryRow } from "./shared";
 
 export type ReloadResponse = {
   ok: true;
@@ -137,8 +137,10 @@ export type MemoryModelRow = {
   model_id: string;
   display_name?: string | null;
   enabled: boolean;
-  price_each_call?: number | null;
-  price_tiers: PriceTier[];
+  /// Full serialized ModelPrice JSON blob (same shape as `models.pricing_json`).
+  /// Covers every billing mode (default / flex / scale / priority) plus
+  /// `tool_call_prices`. `null` on rows with no pricing configured.
+  pricing_json?: string | null;
   alias_of?: number | null;
 };
 
@@ -148,8 +150,15 @@ export type ModelWrite = {
   model_id: string;
   display_name?: string | null;
   enabled: boolean;
+  /// Legacy column, left nullable for schema compatibility only. The admin
+  /// API no longer reads it — use `pricing_json` instead.
   price_each_call?: number | null;
+  /// Legacy column, left nullable for schema compatibility only. The admin
+  /// API no longer reads it — use `pricing_json` instead.
   price_tiers_json?: string | null;
+  /// Authoritative serialized ModelPrice blob. Must be valid JSON matching
+  /// the `ModelPrice` struct shape in `sdk/gproxy-provider/src/billing.rs`.
+  pricing_json?: string | null;
   alias_of?: number | null;
 };
 

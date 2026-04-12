@@ -82,8 +82,7 @@ export function ProvidersModule({
     model_id: "",
     display_name: "",
     enabled: true,
-    price_each_call: "",
-    price_tiers_json: "[]",
+    pricing_json: "",
     alias_of: "",
   });
 
@@ -117,8 +116,7 @@ export function ProvidersModule({
       model_id: "",
       display_name: "",
       enabled: true,
-      price_each_call: "",
-      price_tiers_json: "[]",
+      pricing_json: "",
       alias_of: "",
     });
   };
@@ -364,14 +362,31 @@ export function ProvidersModule({
     }
     try {
       const aliasOf = modelForm.alias_of.trim() ? Number(modelForm.alias_of) : null;
+      // Validate pricing JSON before sending — catches user typos before the
+      // round-trip and keeps error messages local.
+      let pricing_json: string | null = null;
+      const trimmed = modelForm.pricing_json.trim();
+      if (trimmed) {
+        try {
+          JSON.parse(trimmed);
+        } catch (e) {
+          notify(
+            "error",
+            `Invalid pricing JSON: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return;
+        }
+        pricing_json = trimmed;
+      }
       const payload: ModelWrite = {
         id: parseRequiredI64(modelForm.id, "id"),
         provider_id: selectedProvider.id,
         model_id: modelForm.model_id.trim(),
         display_name: modelForm.display_name.trim() || null,
         enabled: modelForm.enabled,
-        price_each_call: modelForm.price_each_call.trim() ? Number(modelForm.price_each_call) : null,
-        price_tiers_json: modelForm.price_tiers_json,
+        price_each_call: null,
+        price_tiers_json: null,
+        pricing_json,
         alias_of: aliasOf,
       };
       await apiJson("/admin/models/upsert", {
@@ -443,6 +458,7 @@ export function ProvidersModule({
         enabled: true,
         price_each_call: null,
         price_tiers_json: null,
+        pricing_json: null,
         alias_of: null,
       }));
       await apiJson("/admin/models/batch-upsert", {
@@ -485,6 +501,7 @@ export function ProvidersModule({
           enabled: true,
           price_each_call: null,
           price_tiers_json: null,
+          pricing_json: null,
           alias_of: base.id,
         };
         await apiJson("/admin/models/upsert", {
@@ -756,8 +773,15 @@ export function ProvidersModule({
                   model_id: row.model_id,
                   display_name: row.display_name ?? "",
                   enabled: row.enabled,
-                  price_each_call: row.price_each_call?.toString() ?? "",
-                  price_tiers_json: JSON.stringify(row.price_tiers, null, 2),
+                  pricing_json: row.pricing_json
+                    ? (() => {
+                        try {
+                          return JSON.stringify(JSON.parse(row.pricing_json), null, 2);
+                        } catch {
+                          return row.pricing_json;
+                        }
+                      })()
+                    : "",
                   alias_of: row.alias_of != null ? String(row.alias_of) : "",
                 });
               }}
@@ -781,8 +805,8 @@ export function ProvidersModule({
                 modelId: t("common.modelId"),
                 displayName: t("common.displayName"),
                 enabled: t("common.enabled"),
-                priceEachCall: t("common.priceEachCall"),
-                priceTiersJson: t("common.priceTiersJson"),
+                pricingJson: t("models.pricingJson"),
+                pricingJsonHint: t("models.pricingJson.hint"),
                 aliasOf: t("models.aliasOf"),
                 aliasOfNone: t("models.aliasOf.none"),
                 aliasBadge: t("models.aliasBadge"),
