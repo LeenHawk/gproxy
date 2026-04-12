@@ -144,8 +144,7 @@ fn routing_service_resolves_alias() {
             model_id: "gpt-4-turbo".into(),
             display_name: None,
             enabled: true,
-            price_each_call: None,
-            price_tiers: Vec::new(),
+            pricing: None,
             alias_of: None,
         },
         MemoryModel {
@@ -154,8 +153,7 @@ fn routing_service_resolves_alias() {
             model_id: "gpt4".into(),
             display_name: None,
             enabled: true,
-            price_each_call: None,
-            price_tiers: Vec::new(),
+            pricing: None,
             alias_of: Some(1),
         },
     ]);

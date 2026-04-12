@@ -7,7 +7,7 @@ use gproxy_sdk::provider::dispatch::DispatchTableDocument;
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
     AppState, FilePermissionEntry, GlobalConfig, MemoryClaudeFile, MemoryModel, MemoryUser,
-    MemoryUserCredentialFile, MemoryUserKey, PermissionEntry, PriceTier, RateLimitRule,
+    MemoryUserCredentialFile, MemoryUserKey, PermissionEntry, RateLimitRule,
 };
 use gproxy_storage::repository::{
     CredentialRepository, ModelRepository, PermissionRepository, ProviderRepository,
@@ -67,19 +67,22 @@ pub(crate) fn model_rows_to_memory_models(
     models
         .iter()
         .map(|model| {
-            let price_tiers: Vec<PriceTier> = model
-                .price_tiers_json
+            let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = model
+                .pricing_json
                 .as_deref()
                 .and_then(|json| serde_json::from_str(json).ok())
-                .unwrap_or_default();
+                .map(|mut parsed: gproxy_sdk::provider::billing::ModelPrice| {
+                    parsed.model_id = model.model_id.clone();
+                    parsed.display_name = model.display_name.clone();
+                    parsed
+                });
             MemoryModel {
                 id: model.id,
                 provider_id: model.provider_id,
                 model_id: model.model_id.clone(),
                 display_name: model.display_name.clone(),
                 enabled: model.enabled,
-                price_each_call: model.price_each_call,
-                price_tiers,
+                pricing,
                 alias_of: model.alias_of,
             }
         })
@@ -111,6 +114,15 @@ pub(crate) async fn ensure_default_models_in_storage(
                 continue;
             }
             existing_keys.insert(key);
+
+            // Serialize the full ModelPrice into pricing_json. Clear model_id and
+            // display_name before serialization to avoid duplicating data that
+            // lives in its own columns.
+            let mut storable = price.clone();
+            storable.model_id = String::new();
+            storable.display_name = None;
+            let pricing_json = Some(serde_json::to_string(&storable)?);
+
             storage
                 .upsert_model(gproxy_storage::ModelWrite {
                     id: next_id,
@@ -118,13 +130,9 @@ pub(crate) async fn ensure_default_models_in_storage(
                     model_id: price.model_id,
                     display_name: price.display_name,
                     enabled: true,
-                    price_each_call: price.price_each_call,
-                    price_tiers_json: if price.price_tiers.is_empty() {
-                        None
-                    } else {
-                        Some(serde_json::to_string(&price.price_tiers)?)
-                    },
-                    pricing_json: None,
+                    price_each_call: None,      // legacy, unused post-Phase 2
+                    price_tiers_json: None,     // legacy, unused post-Phase 2
+                    pricing_json,
                     alias_of: None,
                 })
                 .await?;
@@ -985,19 +993,41 @@ pub async fn seed_from_toml_with_bootstrap(
                 .get(&m.provider_name)
                 .copied()
                 .unwrap_or(0);
+            let pricing = if m.price_each_call.is_some() || !m.price_tiers.is_empty() {
+                Some(gproxy_sdk::provider::billing::ModelPrice {
+                    model_id: m.model_id.clone(),
+                    display_name: m.display_name.clone(),
+                    price_each_call: m.price_each_call,
+                    price_tiers: m.price_tiers.clone(),
+                    flex_price_each_call: None,
+                    flex_price_tiers: Vec::new(),
+                    scale_price_each_call: None,
+                    scale_price_tiers: Vec::new(),
+                    priority_price_each_call: None,
+                    priority_price_tiers: Vec::new(),
+                    tool_call_prices: std::collections::BTreeMap::new(),
+                })
+            } else {
+                None
+            };
             MemoryModel {
                 id: persisted_models.iter().map(|row| row.id).max().unwrap_or(0) + i as i64 + 1,
                 provider_id,
                 model_id: m.model_id.clone(),
                 display_name: m.display_name.clone(),
                 enabled: m.enabled,
-                price_each_call: m.price_each_call,
-                price_tiers: m.price_tiers.clone(),
+                pricing,
                 alias_of: None,
             }
         })
         .collect();
     for m in &explicit_models {
+        let pricing_json = m.pricing.as_ref().map(|mp| {
+            let mut storable = mp.clone();
+            storable.model_id = String::new();
+            storable.display_name = None;
+            serde_json::to_string(&storable).ok()
+        }).flatten();
         state
             .storage()
             .upsert_model(gproxy_storage::ModelWrite {
@@ -1006,13 +1036,9 @@ pub async fn seed_from_toml_with_bootstrap(
                 model_id: m.model_id.clone(),
                 display_name: m.display_name.clone(),
                 enabled: m.enabled,
-                price_each_call: m.price_each_call,
-                price_tiers_json: if m.price_tiers.is_empty() {
-                    None
-                } else {
-                    serde_json::to_string(&m.price_tiers).ok()
-                },
-                pricing_json: None,
+                price_each_call: None,      // legacy, unused post-Phase 2
+                price_tiers_json: None,     // legacy, unused post-Phase 2
+                pricing_json,
                 alias_of: None,
             })
             .await?;

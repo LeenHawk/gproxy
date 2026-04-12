@@ -4,7 +4,7 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use serde::{Deserialize, Serialize};
 
-use gproxy_server::{AppState, PriceTier};
+use gproxy_server::AppState;
 
 use crate::auth::authorize_admin;
 use crate::error::HttpError;
@@ -97,7 +97,7 @@ pub struct ModelToml {
     #[serde(default)]
     pub price_each_call: Option<f64>,
     #[serde(default)]
-    pub price_tiers: Vec<PriceTier>,
+    pub price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -235,8 +235,12 @@ pub async fn export_toml(
             model_id: m.model_id.clone(),
             display_name: m.display_name.clone(),
             enabled: m.enabled,
-            price_each_call: m.price_each_call,
-            price_tiers: m.price_tiers.clone(),
+            price_each_call: m.pricing.as_ref().and_then(|p| p.price_each_call),
+            price_tiers: m
+                .pricing
+                .as_ref()
+                .map(|p| p.price_tiers.clone())
+                .unwrap_or_default(),
         })
         .collect();
 

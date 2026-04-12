@@ -15,7 +15,7 @@ use crate::middleware::rate_limit::{
     RateLimitCounters, RateLimitRejection, RateLimitRule, find_matching_rule,
 };
 use crate::principal::{MemoryUser, MemoryUserKey};
-pub use gproxy_core::{MemoryClaudeFile, MemoryModel, MemoryUserCredentialFile, PriceTier};
+pub use gproxy_core::{MemoryClaudeFile, MemoryModel, MemoryUserCredentialFile};
 
 // Re-export middleware types
 pub use crate::middleware::model_alias::ModelAliasTarget as ModelAliasTargetExport;
@@ -678,7 +678,7 @@ impl AppState {
         let prices: Vec<gproxy_sdk::provider::billing::ModelPrice> = models
             .iter()
             .filter(|m| m.provider_id == provider_id)
-            .map(memory_model_to_model_price)
+            .filter_map(|m| m.pricing.clone())
             .collect();
         if !self.engine().set_model_pricing(provider_name, prices) {
             tracing::warn!(
@@ -901,39 +901,6 @@ impl Default for AppStateBuilder {
     }
 }
 
-fn memory_model_to_model_price(
-    model: &crate::MemoryModel,
-) -> gproxy_sdk::provider::billing::ModelPrice {
-    use gproxy_sdk::provider::billing::{ModelPrice, ModelPriceTier};
-    let price_tiers: Vec<ModelPriceTier> = model
-        .price_tiers
-        .iter()
-        .map(|tier| ModelPriceTier {
-            input_tokens_up_to: tier.input_tokens_up_to,
-            price_input_tokens: tier.price_input_tokens,
-            price_output_tokens: tier.price_output_tokens,
-            price_cache_read_input_tokens: tier.price_cache_read_input_tokens,
-            price_cache_creation_input_tokens: tier.price_cache_creation_input_tokens,
-            price_cache_creation_input_tokens_5min: tier.price_cache_creation_input_tokens_5min,
-            price_cache_creation_input_tokens_1h: tier.price_cache_creation_input_tokens_1h,
-        })
-        .collect();
-    ModelPrice {
-        model_id: model.model_id.clone(),
-        display_name: model.display_name.clone(),
-        price_each_call: model.price_each_call,
-        price_tiers,
-        // Phase 2 populates these from the new pricing_json column.
-        flex_price_each_call: None,
-        flex_price_tiers: Vec::new(),
-        scale_price_each_call: None,
-        scale_price_tiers: Vec::new(),
-        priority_price_each_call: None,
-        priority_price_tiers: Vec::new(),
-        tool_call_prices: std::collections::BTreeMap::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -999,8 +966,7 @@ mod tests {
                 model_id: "claude-3-5-sonnet".to_string(),
                 display_name: Some("Claude 3.5 Sonnet".to_string()),
                 enabled: true,
-                price_each_call: None,
-                price_tiers: Vec::new(),
+                pricing: None,
                 alias_of: None,
             },
             MemoryModel {
@@ -1009,8 +975,7 @@ mod tests {
                 model_id: "sonnet".to_string(),
                 display_name: None,
                 enabled: true,
-                price_each_call: None,
-                price_tiers: Vec::new(),
+                pricing: None,
                 alias_of: Some(100),
             },
         ]);

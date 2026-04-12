@@ -23,19 +23,6 @@ pub struct MemoryUserKey {
     pub enabled: bool,
 }
 
-/// A price tier based on input token thresholds.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PriceTier {
-    /// Upper bound of input_tokens for this tier (exclusive).
-    pub input_tokens_up_to: i64,
-    pub price_input_tokens: Option<f64>,
-    pub price_output_tokens: Option<f64>,
-    pub price_cache_read_input_tokens: Option<f64>,
-    pub price_cache_creation_input_tokens: Option<f64>,
-    pub price_cache_creation_input_tokens_5min: Option<f64>,
-    pub price_cache_creation_input_tokens_1h: Option<f64>,
-}
-
 /// In-memory model record (from models table).
 #[derive(Debug, Clone)]
 pub struct MemoryModel {
@@ -44,8 +31,7 @@ pub struct MemoryModel {
     pub model_id: String,
     pub display_name: Option<String>,
     pub enabled: bool,
-    pub price_each_call: Option<f64>,
-    pub price_tiers: Vec<PriceTier>,
+    pub pricing: Option<gproxy_sdk::provider::billing::ModelPrice>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
     pub alias_of: Option<i64>,
 }

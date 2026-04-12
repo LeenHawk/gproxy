@@ -4,7 +4,7 @@ pub mod middleware;
 pub mod principal;
 
 pub use app_state::{
-    AppState, AppStateBuilder, MemoryClaudeFile, MemoryModel, MemoryUserCredentialFile, PriceTier,
+    AppState, AppStateBuilder, MemoryClaudeFile, MemoryModel, MemoryUserCredentialFile,
 };
 pub use config::GlobalConfig;
 pub use middleware::classify::Classification;

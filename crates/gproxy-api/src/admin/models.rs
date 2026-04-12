@@ -4,7 +4,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
-use gproxy_server::{AppState, MemoryModel, OperationFamily, PriceTier, ProtocolKind};
+use gproxy_server::{AppState, MemoryModel, OperationFamily, ProtocolKind};
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
 use std::collections::BTreeSet;
@@ -32,8 +32,8 @@ pub struct MemoryModelRow {
     pub model_id: String,
     pub display_name: Option<String>,
     pub enabled: bool,
-    pub price_each_call: Option<f64>,
-    pub price_tiers: Vec<PriceTier>,
+    /// Full serialized ModelPrice JSON (matches `models.pricing_json`).
+    pub pricing_json: Option<String>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
     pub alias_of: Option<i64>,
 }
@@ -96,8 +96,13 @@ pub async fn query_models(
             model_id: m.model_id.clone(),
             display_name: m.display_name.clone(),
             enabled: m.enabled,
-            price_each_call: m.price_each_call,
-            price_tiers: m.price_tiers.clone(),
+            pricing_json: m.pricing.as_ref().and_then(|mp| {
+                // Strip model_id / display_name before serializing, matching DB shape.
+                let mut clone = mp.clone();
+                clone.model_id = String::new();
+                clone.display_name = None;
+                serde_json::to_string(&clone).ok()
+            }),
             alias_of: m.alias_of,
         })
         .collect();
@@ -119,25 +124,35 @@ pub async fn upsert_model(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
+    // Validate pricing_json up front so we reject malformed input before
+    // writing to the DB.
+    let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = payload
+        .pricing_json
+        .as_deref()
+        .map(|raw| serde_json::from_str(raw))
+        .transpose()
+        .map_err(|e| HttpError::bad_request(format!("invalid pricing_json: {e}")))?
+        .map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
+            mp.model_id = payload.model_id.clone();
+            mp.display_name = payload.display_name.clone();
+            mp
+        });
+
     state.storage().upsert_model(payload.clone()).await?;
 
-    let price_tiers: Vec<PriceTier> = payload
-        .price_tiers_json
-        .as_deref()
-        .and_then(|s| serde_json::from_str(s).ok())
-        .unwrap_or_default();
     state.upsert_model_in_memory(MemoryModel {
         id: payload.id,
         provider_id: payload.provider_id,
         model_id: payload.model_id.clone(),
         display_name: payload.display_name.clone(),
         enabled: payload.enabled,
-        price_each_call: payload.price_each_call,
-        price_tiers,
+        pricing,
         alias_of: payload.alias_of,
     });
+
     let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
     state.push_pricing_to_engine(&provider_name);
+
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -177,20 +192,25 @@ pub async fn batch_upsert_models(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for item in &items {
-        state.storage().upsert_model(item.clone()).await?;
-        let price_tiers: Vec<PriceTier> = item
-            .price_tiers_json
+        let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = item
+            .pricing_json
             .as_deref()
-            .and_then(|s| serde_json::from_str(s).ok())
-            .unwrap_or_default();
+            .map(|raw| serde_json::from_str(raw))
+            .transpose()
+            .map_err(|e| HttpError::bad_request(format!("invalid pricing_json: {e}")))?
+            .map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
+                mp.model_id = item.model_id.clone();
+                mp.display_name = item.display_name.clone();
+                mp
+            });
+        state.storage().upsert_model(item.clone()).await?;
         state.upsert_model_in_memory(MemoryModel {
             id: item.id,
             provider_id: item.provider_id,
             model_id: item.model_id.clone(),
             display_name: item.display_name.clone(),
             enabled: item.enabled,
-            price_each_call: item.price_each_call,
-            price_tiers,
+            pricing,
             alias_of: item.alias_of,
         });
     }
@@ -468,6 +488,21 @@ mod tests {
         let model_id = "gpt-custom-pricing-test-9999";
 
         // Insert the model row into storage and in-memory state, then push pricing.
+        let model_price = gproxy_sdk::provider::billing::ModelPrice {
+            model_id: model_id.to_string(),
+            display_name: None,
+            price_each_call: Some(999.0),
+            price_tiers: Vec::new(),
+            flex_price_each_call: None,
+            flex_price_tiers: Vec::new(),
+            scale_price_each_call: None,
+            scale_price_tiers: Vec::new(),
+            priority_price_each_call: None,
+            priority_price_tiers: Vec::new(),
+            tool_call_prices: std::collections::BTreeMap::new(),
+        };
+        let pricing_json_str = serde_json::to_string(&model_price).unwrap();
+
         state
             .storage()
             .upsert_model(gproxy_storage::ModelWrite {
@@ -476,9 +511,9 @@ mod tests {
                 model_id: model_id.to_string(),
                 display_name: None,
                 enabled: true,
-                price_each_call: Some(999.0),
+                price_each_call: None,
                 price_tiers_json: None,
-                pricing_json: None,
+                pricing_json: Some(pricing_json_str),
                 alias_of: None,
             })
             .await
@@ -489,8 +524,7 @@ mod tests {
             model_id: model_id.to_string(),
             display_name: None,
             enabled: true,
-            price_each_call: Some(999.0),
-            price_tiers: Vec::new(),
+            pricing: Some(model_price),
             alias_of: None,
         });
         state.push_pricing_to_engine(provider_name);
