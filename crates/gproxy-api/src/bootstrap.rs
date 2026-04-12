@@ -7,7 +7,7 @@ use gproxy_sdk::provider::dispatch::DispatchTableDocument;
 use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
     AppState, FilePermissionEntry, GlobalConfig, MemoryClaudeFile, MemoryModel, MemoryUser,
-    MemoryUserCredentialFile, MemoryUserKey, ModelAliasTarget, PermissionEntry, PriceTier,
+    MemoryUserCredentialFile, MemoryUserKey, PermissionEntry, PriceTier,
     RateLimitRule,
 };
 use gproxy_storage::repository::{
@@ -81,6 +81,7 @@ pub(crate) fn model_rows_to_memory_models(
                 enabled: model.enabled,
                 price_each_call: model.price_each_call,
                 price_tiers,
+                alias_of: model.alias_of,
             }
         })
         .collect()
@@ -124,6 +125,7 @@ pub(crate) async fn ensure_default_models_in_storage(
                     } else {
                         Some(serde_json::to_string(&price.price_tiers)?)
                     },
+                    alias_of: None,
                 })
                 .await?;
             next_id += 1;
@@ -518,9 +520,6 @@ pub async fn reload_from_db(
     let models = storage
         .list_models(&gproxy_storage::ModelQuery::default())
         .await?;
-    let aliases = storage
-        .list_model_aliases(&gproxy_storage::ModelAliasQuery::default())
-        .await?;
     let perms = storage
         .list_user_model_permissions(&gproxy_storage::UserModelPermissionQuery::default())
         .await?;
@@ -665,29 +664,6 @@ pub async fn reload_from_db(
     let model_count = models.len();
     let memory_models: Vec<MemoryModel> = model_rows_to_memory_models(&models);
 
-    let alias_count = aliases.len();
-    let provider_name_by_id: HashMap<i64, String> = providers
-        .iter()
-        .map(|provider| (provider.id, provider.name.clone()))
-        .collect();
-    let alias_map: HashMap<String, ModelAliasTarget> = aliases
-        .into_iter()
-        .filter(|alias| alias.enabled)
-        .map(|alias| {
-            let provider_name = provider_name_by_id
-                .get(&alias.provider_id)
-                .cloned()
-                .unwrap_or_else(|| alias.provider_id.to_string());
-            (
-                alias.alias,
-                ModelAliasTarget {
-                    provider_name,
-                    model_id: alias.model_id,
-                },
-            )
-        })
-        .collect();
-
     let perm_count = perms.len();
     let mut perm_map: HashMap<i64, Vec<PermissionEntry>> = HashMap::new();
     for permission in perms {
@@ -785,7 +761,6 @@ pub async fn reload_from_db(
     state.replace_users(memory_users);
     state.replace_keys(memory_keys);
     state.replace_models(memory_models);
-    state.replace_model_aliases(alias_map);
     state.replace_user_permissions(perm_map);
     state.replace_user_file_permissions(file_permission_map);
     state.replace_user_rate_limits(limit_map);
@@ -800,7 +775,7 @@ pub async fn reload_from_db(
         models: model_count,
         user_files: user_file_count,
         claude_files: claude_file_count,
-        aliases: alias_count,
+        aliases: 0,
         permissions: perm_count,
         file_permissions: file_permission_count,
         rate_limits: limit_count,
@@ -1014,6 +989,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 enabled: m.enabled,
                 price_each_call: m.price_each_call,
                 price_tiers: m.price_tiers.clone(),
+                alias_of: None,
             }
         })
         .collect();
@@ -1032,6 +1008,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 } else {
                     serde_json::to_string(&m.price_tiers).ok()
                 },
+                alias_of: None,
             })
             .await?;
     }
@@ -1041,8 +1018,8 @@ pub async fn seed_from_toml_with_bootstrap(
         .await?;
     state.replace_models(model_rows_to_memory_models(&all_models));
 
-    // 5. Model aliases → memory + DB
-    let mut alias_map = HashMap::new();
+    // 5. Model aliases → upsert into models table with alias_of set
+    let current_max_id = all_models.iter().map(|r| r.id).max().unwrap_or(0);
     for (i, a) in config.model_aliases.iter().enumerate() {
         if !a.enabled {
             continue;
@@ -1052,25 +1029,32 @@ pub async fn seed_from_toml_with_bootstrap(
             .get(&a.provider_name)
             .copied()
             .unwrap_or(0);
+        // Find the target model by model_id + provider_id in the loaded models
+        let alias_of = all_models
+            .iter()
+            .find(|m| m.model_id == a.model_id && m.provider_id == provider_id)
+            .map(|m| m.id);
+        let alias_model_id = current_max_id + i as i64 + 1;
         state
             .storage()
-            .upsert_model_alias(gproxy_storage::ModelAliasWrite {
-                id: i as i64 + 1,
-                alias: a.alias.clone(),
+            .upsert_model(gproxy_storage::ModelWrite {
+                id: alias_model_id,
                 provider_id,
-                model_id: a.model_id.clone(),
+                model_id: a.alias.clone(),
+                display_name: None,
                 enabled: true,
+                price_each_call: None,
+                price_tiers_json: None,
+                alias_of,
             })
             .await?;
-        alias_map.insert(
-            a.alias.clone(),
-            ModelAliasTarget {
-                provider_name: a.provider_name.clone(),
-                model_id: a.model_id.clone(),
-            },
-        );
     }
-    state.replace_model_aliases(alias_map);
+    // Reload models including any alias rows we just inserted
+    let all_models = state
+        .storage()
+        .list_models(&gproxy_storage::ModelQuery::default())
+        .await?;
+    state.replace_models(model_rows_to_memory_models(&all_models));
 
     // 6. Permissions, file permissions, rate limits, quotas → memory + DB
     let users_snapshot = state.users_snapshot();

@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use gproxy_core::{
-    FileService, IdentityService, MemoryUser, MemoryUserCredentialFile, MemoryUserKey,
-    ModelAliasTarget, PermissionEntry, PolicyService, RoutingService,
+    FileService, IdentityService, MemoryModel, MemoryUser, MemoryUserCredentialFile, MemoryUserKey,
+    PermissionEntry, PolicyService, RoutingService,
 };
 
 #[test]
@@ -131,15 +131,34 @@ fn policy_service_suffix_wildcard() {
 #[test]
 fn routing_service_resolves_alias() {
     let svc = RoutingService::new();
-    let mut aliases = HashMap::new();
-    aliases.insert(
-        "gpt4".into(),
-        ModelAliasTarget {
-            provider_name: "openai".into(),
+    // Set up provider names so reverse lookup works
+    let mut names = HashMap::new();
+    names.insert("openai".into(), 1i64);
+    svc.replace_provider_names(names);
+
+    // Add a real model and an alias model pointing to it
+    svc.replace_models(vec![
+        MemoryModel {
+            id: 1,
+            provider_id: 1,
             model_id: "gpt-4-turbo".into(),
+            display_name: None,
+            enabled: true,
+            price_each_call: None,
+            price_tiers: Vec::new(),
+            alias_of: None,
         },
-    );
-    svc.replace_model_aliases(aliases);
+        MemoryModel {
+            id: 2,
+            provider_id: 1,
+            model_id: "gpt4".into(),
+            display_name: None,
+            enabled: true,
+            price_each_call: None,
+            price_tiers: Vec::new(),
+            alias_of: Some(1),
+        },
+    ]);
 
     let result = svc.resolve_model_alias("gpt4");
     assert!(result.is_some());

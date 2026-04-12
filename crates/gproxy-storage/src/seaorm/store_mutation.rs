@@ -225,27 +225,6 @@ impl SeaOrmStorage {
         Ok(result.last_insert_id)
     }
 
-    pub async fn create_model_alias(
-        &self,
-        alias: &str,
-        provider_id: i64,
-        model_id: &str,
-        enabled: bool,
-    ) -> Result<i64, DbErr> {
-        let now = OffsetDateTime::now_utc();
-        let model = model_aliases::ActiveModel {
-            alias: Set(alias.to_string()),
-            provider_id: Set(provider_id),
-            model_id: Set(model_id.to_string()),
-            enabled: Set(enabled),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        };
-        let result = model_aliases::Entity::insert(model).exec(&self.db).await?;
-        Ok(result.last_insert_id)
-    }
-
     pub async fn create_user_model_permission(
         &self,
         user_id: i64,

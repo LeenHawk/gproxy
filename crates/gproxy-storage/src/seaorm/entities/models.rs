@@ -21,6 +21,9 @@ pub struct Model {
     /// JSON array of price tiers: `[{"input_tokens_up_to":200000,"price_input_tokens":3.0,...}]`
     #[sea_orm(column_type = "Text", nullable)]
     pub price_tiers_json: Option<String>,
+    /// NULL = real model, Some(id) = alias pointing to another model's id.
+    #[sea_orm(nullable)]
+    pub alias_of: Option<i64>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "Cascade")]

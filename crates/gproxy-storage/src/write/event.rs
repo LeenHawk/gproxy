@@ -148,15 +148,9 @@ pub struct ModelWrite {
     pub price_each_call: Option<f64>,
     #[serde(default)]
     pub price_tiers_json: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelAliasWrite {
-    pub id: i64,
-    pub alias: String,
-    pub provider_id: i64,
-    pub model_id: String,
-    pub enabled: bool,
+    /// NULL = real model, Some(id) = alias pointing to another model's id.
+    #[serde(default)]
+    pub alias_of: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,8 +239,6 @@ pub enum StorageWriteEvent {
     DeleteUserKey { id: i64 },
     UpsertModel(ModelWrite),
     DeleteModel { id: i64 },
-    UpsertModelAlias(ModelAliasWrite),
-    DeleteModelAlias { id: i64 },
     UpsertUserModelPermission(UserModelPermissionWrite),
     DeleteUserModelPermission { id: i64 },
     UpsertUserFilePermission(UserFilePermissionWrite),
@@ -277,8 +269,6 @@ pub struct StorageWriteBatch {
     pub user_keys_delete: HashSet<i64>,
     pub models_upsert: HashMap<i64, ModelWrite>,
     pub models_delete: HashSet<i64>,
-    pub model_aliases_upsert: HashMap<i64, ModelAliasWrite>,
-    pub model_aliases_delete: HashSet<i64>,
     pub user_model_permissions_upsert: HashMap<i64, UserModelPermissionWrite>,
     pub user_model_permissions_delete: HashSet<i64>,
     pub user_file_permissions_upsert: HashMap<i64, UserFilePermissionWrite>,
@@ -356,14 +346,6 @@ impl StorageWriteBatch {
             StorageWriteEvent::DeleteModel { id } => {
                 self.models_upsert.remove(&id);
                 self.models_delete.insert(id);
-            }
-            StorageWriteEvent::UpsertModelAlias(value) => {
-                self.model_aliases_delete.remove(&value.id);
-                self.model_aliases_upsert.insert(value.id, value);
-            }
-            StorageWriteEvent::DeleteModelAlias { id } => {
-                self.model_aliases_upsert.remove(&id);
-                self.model_aliases_delete.insert(id);
             }
             StorageWriteEvent::UpsertUserModelPermission(value) => {
                 self.user_model_permissions_delete.remove(&value.id);

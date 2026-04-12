@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
 use gproxy_server::{
-    AppState, MemoryModel, ModelAliasTarget, OperationFamily, PriceTier, ProtocolKind,
+    AppState, MemoryModel, OperationFamily, PriceTier, ProtocolKind,
 };
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
@@ -34,21 +34,6 @@ async fn resolve_provider_names(state: &AppState) -> Result<HashMap<i64, String>
         .await
         .map_err(|e| HttpError::internal(e.to_string()))?;
     Ok(providers.into_iter().map(|p| (p.id, p.name)).collect())
-}
-
-async fn resolve_model_alias_id(state: &AppState, alias: &str) -> Result<i64, HttpError> {
-    let rows = state
-        .storage()
-        .list_model_aliases(&gproxy_storage::ModelAliasQuery {
-            alias: Scope::Eq(alias.to_string()),
-            ..Default::default()
-        })
-        .await
-        .map_err(|e| HttpError::internal(e.to_string()))?;
-    rows.into_iter()
-        .next()
-        .map(|row| row.id)
-        .ok_or_else(|| HttpError::not_found("model alias not found"))
 }
 
 /// Response row for query_models (from in-memory data, no timestamps).
@@ -141,6 +126,7 @@ pub async fn upsert_model(
         enabled: payload.enabled,
         price_each_call: payload.price_each_call,
         price_tiers,
+        alias_of: payload.alias_of,
     });
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -178,45 +164,76 @@ pub async fn query_model_aliases(
 ) -> Result<Json<Vec<MemoryModelAliasRow>>, HttpError> {
     authorize_admin(&headers, &state)?;
     let provider_names = resolve_provider_names(&state).await?;
-    let aliases = state
-        .storage()
-        .list_model_aliases(&gproxy_storage::ModelAliasQuery::default())
-        .await
-        .map_err(|e| HttpError::internal(e.to_string()))?;
-    let rows: Vec<MemoryModelAliasRow> = aliases
+    let models = state.models();
+    let rows: Vec<MemoryModelAliasRow> = models
         .iter()
-        .map(|row| MemoryModelAliasRow {
-            id: row.id,
-            alias: row.alias.clone(),
-            provider_name: provider_names
-                .get(&row.provider_id)
-                .cloned()
-                .unwrap_or_else(|| row.provider_id.to_string()),
-            model_id: row.model_id.clone(),
+        .filter(|m| m.alias_of.is_some())
+        .filter_map(|m| {
+            // Find the target model to get its model_id
+            let target_id = m.alias_of?;
+            let target = models.iter().find(|t| t.id == target_id)?;
+            Some(MemoryModelAliasRow {
+                id: m.id,
+                alias: m.model_id.clone(),
+                provider_name: provider_names
+                    .get(&target.provider_id)
+                    .cloned()
+                    .unwrap_or_else(|| target.provider_id.to_string()),
+                model_id: target.model_id.clone(),
+            })
         })
         .collect();
     Ok(Json(rows))
 }
 
+/// Payload for upserting a model alias (now stored as a model row with alias_of).
+#[derive(serde::Deserialize, Clone)]
+pub struct UpsertModelAliasPayload {
+    pub id: i64,
+    pub alias: String,
+    pub provider_id: i64,
+    pub model_id: String,
+    pub enabled: bool,
+}
+
 pub async fn upsert_model_alias(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(payload): Json<gproxy_storage::ModelAliasWrite>,
+    Json(payload): Json<UpsertModelAliasPayload>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    // Resolve provider_id → provider_name from storage
-    let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
+    // Find the target model by provider_id + model_id
+    let models = state.models();
+    let target = models
+        .iter()
+        .find(|m| m.provider_id == payload.provider_id && m.model_id == payload.model_id && m.alias_of.is_none());
+    let alias_of = target.map(|t| t.id);
 
-    state.storage().upsert_model_alias(payload.clone()).await?;
+    state
+        .storage()
+        .upsert_model(gproxy_storage::ModelWrite {
+            id: payload.id,
+            provider_id: payload.provider_id,
+            model_id: payload.alias.clone(),
+            display_name: None,
+            enabled: payload.enabled,
+            price_each_call: None,
+            price_tiers_json: None,
+            alias_of,
+        })
+        .await?;
 
-    state.upsert_model_alias_in_memory(
-        payload.alias.clone(),
-        ModelAliasTarget {
-            provider_name,
-            model_id: payload.model_id.clone(),
-        },
-    );
+    state.upsert_model_in_memory(MemoryModel {
+        id: payload.id,
+        provider_id: payload.provider_id,
+        model_id: payload.alias,
+        display_name: None,
+        enabled: payload.enabled,
+        price_each_call: None,
+        price_tiers: Vec::new(),
+        alias_of,
+    });
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -231,11 +248,17 @@ pub async fn delete_model_alias(
     Json(payload): Json<DeleteModelAliasPayload>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
-    let id = resolve_model_alias_id(&state, &payload.alias).await?;
 
-    state.storage().delete_model_alias(id).await?;
+    // Find the alias model by model_id (alias name) with alias_of set
+    let models = state.models();
+    let alias_model = models
+        .iter()
+        .find(|m| m.model_id == payload.alias && m.alias_of.is_some())
+        .ok_or_else(|| HttpError::not_found("model alias not found"))?;
+    let id = alias_model.id;
 
-    state.remove_model_alias_from_memory(&payload.alias);
+    state.storage().delete_model(id).await?;
+    state.remove_model_from_memory(id);
     Ok(Json(AckResponse { ok: true, id: None }))
 }
 
@@ -260,6 +283,7 @@ pub async fn batch_upsert_models(
             enabled: item.enabled,
             price_each_call: item.price_each_call,
             price_tiers,
+            alias_of: item.alias_of,
         });
     }
     Ok(Json(AckResponse { ok: true, id: None }))
@@ -281,26 +305,41 @@ pub async fn batch_delete_models(
 pub async fn batch_upsert_model_aliases(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(items): Json<Vec<gproxy_storage::ModelAliasWrite>>,
+    Json(items): Json<Vec<UpsertModelAliasPayload>>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    // Build provider_id -> name map for all referenced providers
-    let provider_name_map = resolve_provider_names(&state).await?;
-
     for item in items {
-        state.storage().upsert_model_alias(item.clone()).await?;
-        let provider_name = provider_name_map
-            .get(&item.provider_id)
-            .cloned()
-            .unwrap_or_else(|| item.provider_id.to_string());
-        state.upsert_model_alias_in_memory(
-            item.alias.clone(),
-            ModelAliasTarget {
-                provider_name,
-                model_id: item.model_id.clone(),
-            },
-        );
+        let models = state.models();
+        let target = models
+            .iter()
+            .find(|m| m.provider_id == item.provider_id && m.model_id == item.model_id && m.alias_of.is_none());
+        let alias_of = target.map(|t| t.id);
+
+        state
+            .storage()
+            .upsert_model(gproxy_storage::ModelWrite {
+                id: item.id,
+                provider_id: item.provider_id,
+                model_id: item.alias.clone(),
+                display_name: None,
+                enabled: item.enabled,
+                price_each_call: None,
+                price_tiers_json: None,
+                alias_of,
+            })
+            .await?;
+
+        state.upsert_model_in_memory(MemoryModel {
+            id: item.id,
+            provider_id: item.provider_id,
+            model_id: item.alias,
+            display_name: None,
+            enabled: item.enabled,
+            price_each_call: None,
+            price_tiers: Vec::new(),
+            alias_of,
+        });
     }
     Ok(Json(AckResponse { ok: true, id: None }))
 }
@@ -312,9 +351,14 @@ pub async fn batch_delete_model_aliases(
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
     for p in payloads {
-        let id = resolve_model_alias_id(&state, &p.alias).await?;
-        state.storage().delete_model_alias(id).await?;
-        state.remove_model_alias_from_memory(&p.alias);
+        let models = state.models();
+        let alias_model = models
+            .iter()
+            .find(|m| m.model_id == p.alias && m.alias_of.is_some())
+            .ok_or_else(|| HttpError::not_found("model alias not found"))?;
+        let id = alias_model.id;
+        state.storage().delete_model(id).await?;
+        state.remove_model_from_memory(id);
     }
     Ok(Json(AckResponse { ok: true, id: None }))
 }

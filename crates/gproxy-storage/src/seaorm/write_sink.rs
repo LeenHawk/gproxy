@@ -64,12 +64,6 @@ impl SeaOrmStorage {
                 .exec(&txn)
                 .await?;
         }
-        if !batch.model_aliases_delete.is_empty() {
-            model_aliases::Entity::delete_many()
-                .filter(model_aliases::Column::Id.is_in(batch.model_aliases_delete))
-                .exec(&txn)
-                .await?;
-        }
         if !batch.user_model_permissions_delete.is_empty() {
             user_model_permissions::Entity::delete_many()
                 .filter(
@@ -461,6 +455,7 @@ impl SeaOrmStorage {
                         enabled: Set(m.enabled),
                         price_each_call: Set(m.price_each_call),
                         price_tiers_json: Set(m.price_tiers_json.clone()),
+                        alias_of: Set(m.alias_of),
                         created_at: Set(now),
                         updated_at: Set(now),
                     }
@@ -476,45 +471,8 @@ impl SeaOrmStorage {
                             models::Column::Enabled,
                             models::Column::PriceEachCall,
                             models::Column::PriceTiersJson,
+                            models::Column::AliasOf,
                             models::Column::UpdatedAt,
-                        ])
-                        .to_owned(),
-                )
-                .exec(&txn)
-                .await?;
-        }
-
-        // Model aliases
-        for chunk in batch
-            .model_aliases_upsert
-            .values()
-            .collect::<Vec<_>>()
-            .chunks(UPSERT_CHUNK_SIZE)
-        {
-            let items: Vec<model_aliases::ActiveModel> = chunk
-                .iter()
-                .map(|a| {
-                    let now = OffsetDateTime::now_utc();
-                    model_aliases::ActiveModel {
-                        id: Set(a.id),
-                        alias: Set(a.alias.clone()),
-                        provider_id: Set(a.provider_id),
-                        model_id: Set(a.model_id.clone()),
-                        enabled: Set(a.enabled),
-                        created_at: Set(now),
-                        updated_at: Set(now),
-                    }
-                })
-                .collect();
-            model_aliases::Entity::insert_many(items)
-                .on_conflict(
-                    OnConflict::column(model_aliases::Column::Id)
-                        .update_columns([
-                            model_aliases::Column::Alias,
-                            model_aliases::Column::ProviderId,
-                            model_aliases::Column::ModelId,
-                            model_aliases::Column::Enabled,
-                            model_aliases::Column::UpdatedAt,
                         ])
                         .to_owned(),
                 )

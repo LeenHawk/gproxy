@@ -226,6 +226,7 @@ pub async fn export_toml(
     };
     let models: Vec<ModelToml> = memory_models
         .iter()
+        .filter(|m| m.alias_of.is_none())
         .map(|m| ModelToml {
             provider_name: provider_id_to_name
                 .get(&m.provider_id)
@@ -239,15 +240,22 @@ pub async fn export_toml(
         })
         .collect();
 
-    // Model aliases
-    let alias_snapshot = state.model_aliases_snapshot();
-    let model_aliases: Vec<ModelAliasToml> = alias_snapshot
+    // Model aliases — derived from models with alias_of set
+    let model_aliases: Vec<ModelAliasToml> = memory_models
         .iter()
-        .map(|(alias, target)| ModelAliasToml {
-            alias: alias.clone(),
-            provider_name: target.provider_name.clone(),
-            model_id: target.model_id.clone(),
-            enabled: true,
+        .filter(|m| m.alias_of.is_some())
+        .filter_map(|m| {
+            let target_id = m.alias_of?;
+            let target = memory_models.iter().find(|t| t.id == target_id)?;
+            Some(ModelAliasToml {
+                alias: m.model_id.clone(),
+                provider_name: provider_id_to_name
+                    .get(&target.provider_id)
+                    .cloned()
+                    .unwrap_or_else(|| target.provider_id.to_string()),
+                model_id: target.model_id.clone(),
+                enabled: m.enabled,
+            })
         })
         .collect();
 

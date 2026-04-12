@@ -319,45 +319,7 @@ impl SeaOrmStorage {
                 enabled: r.enabled,
                 price_each_call: r.price_each_call,
                 price_tiers_json: r.price_tiers_json,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
-            })
-            .collect())
-    }
-
-    // -----------------------------------------------------------------------
-    // Model aliases
-    // -----------------------------------------------------------------------
-
-    pub async fn list_model_aliases(
-        &self,
-        query: &ModelAliasQuery,
-    ) -> Result<Vec<ModelAliasQueryRow>, DbErr> {
-        let mut select = model_aliases::Entity::find();
-        if let Scope::Eq(ref v) = query.id {
-            select = select.filter(model_aliases::Column::Id.eq(*v));
-        }
-        if let Scope::Eq(ref v) = query.alias {
-            select = select.filter(model_aliases::Column::Alias.eq(v.clone()));
-        }
-        if let Scope::Eq(ref v) = query.provider_id {
-            select = select.filter(model_aliases::Column::ProviderId.eq(*v));
-        }
-        if let Scope::Eq(ref v) = query.enabled {
-            select = select.filter(model_aliases::Column::Enabled.eq(*v));
-        }
-        if let Some(limit) = query.limit {
-            select = select.limit(limit);
-        }
-        let rows = select.all(&self.db).await?;
-        Ok(rows
-            .into_iter()
-            .map(|r| ModelAliasQueryRow {
-                id: r.id,
-                alias: r.alias,
-                provider_id: r.provider_id,
-                model_id: r.model_id,
-                enabled: r.enabled,
+                alias_of: r.alias_of,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
             })

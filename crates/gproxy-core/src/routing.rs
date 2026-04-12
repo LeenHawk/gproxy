@@ -10,7 +10,8 @@ use crate::types::{MemoryModel, ModelAliasTarget};
 /// Manages model registry, alias resolution, and provider index mappings.
 pub struct RoutingService {
     models: ArcSwap<Vec<MemoryModel>>,
-    model_aliases: ArcSwap<HashMap<String, ModelAliasTarget>>,
+    /// Maps model_id / alias name -> model id for fast lookup.
+    model_index: ArcSwap<HashMap<String, i64>>,
     provider_names: ArcSwap<HashMap<String, i64>>,
     provider_channels: ArcSwap<HashMap<String, String>>,
     provider_credentials: ArcSwap<HashMap<String, Vec<i64>>>,
@@ -23,7 +24,7 @@ impl RoutingService {
     pub fn new() -> Self {
         Self {
             models: ArcSwap::from(Arc::new(Vec::new())),
-            model_aliases: ArcSwap::from(Arc::new(HashMap::new())),
+            model_index: ArcSwap::from(Arc::new(HashMap::new())),
             provider_names: ArcSwap::from(Arc::new(HashMap::new())),
             provider_channels: ArcSwap::from(Arc::new(HashMap::new())),
             provider_credentials: ArcSwap::from(Arc::new(HashMap::new())),
@@ -32,8 +33,36 @@ impl RoutingService {
     }
 
     /// Resolve a model alias to its target (provider_name, model_id).
+    ///
+    /// Looks up the name in the model_index, finds the model in memory,
+    /// and if it has `alias_of`, follows to the real model.
     pub fn resolve_model_alias(&self, alias: &str) -> Option<ModelAliasTarget> {
-        self.model_aliases.load().get(alias).cloned()
+        let index = self.model_index.load();
+        let model_id = index.get(alias)?;
+        let models = self.models.load();
+        let model = models.iter().find(|m| m.id == *model_id)?;
+
+        // If this model is an alias, follow to the real model
+        if let Some(target_id) = model.alias_of {
+            let target = models.iter().find(|m| m.id == target_id)?;
+            let provider_name = self.provider_name_for_id(target.provider_id)?;
+            Some(ModelAliasTarget {
+                provider_name,
+                model_id: target.model_id.clone(),
+            })
+        } else {
+            // Not an alias — return None (same as old behavior: only aliases resolve)
+            None
+        }
+    }
+
+    /// Get provider name by DB id (reverse lookup).
+    pub fn provider_name_for_id(&self, provider_id: i64) -> Option<String> {
+        self.provider_names
+            .load()
+            .iter()
+            .find(|&(_, &id)| id == provider_id)
+            .map(|(name, _)| name.clone())
     }
 
     /// Find an enabled model by model_id.
@@ -86,22 +115,26 @@ impl RoutingService {
 
     // -- Bulk replace (bootstrap / reload) --
 
-    /// Replace all models atomically.
+    /// Replace all models atomically and rebuild the model_index.
     pub fn replace_models(&self, models: Vec<MemoryModel>) {
+        let index = Self::build_model_index(&models);
         self.models.store(Arc::new(models));
+        self.model_index.store(Arc::new(index));
     }
 
     /// Replace all model aliases atomically.
-    pub fn replace_model_aliases(&self, aliases: HashMap<String, ModelAliasTarget>) {
-        self.model_aliases.store(Arc::new(aliases));
+    /// No-op: aliases are now part of the models vec, resolved via model_index.
+    #[deprecated(note = "aliases unified into models table; will be removed")]
+    pub fn replace_model_aliases(&self, _aliases: HashMap<String, ModelAliasTarget>) {
+        // No-op: aliases are now part of the models vec.
     }
 
-    /// Replace all provider name → id mappings.
+    /// Replace all provider name -> id mappings.
     pub fn replace_provider_names(&self, names: HashMap<String, i64>) {
         self.provider_names.store(Arc::new(names));
     }
 
-    /// Replace all provider name → channel type mappings.
+    /// Replace all provider name -> channel type mappings.
     pub fn replace_provider_channels(&self, channels: HashMap<String, String>) {
         self.provider_channels.store(Arc::new(channels));
     }
@@ -113,7 +146,7 @@ impl RoutingService {
 
     // -- Single-item CRUD --
 
-    /// Upsert a provider name → id mapping.
+    /// Upsert a provider name -> id mapping.
     pub fn upsert_provider_name(&self, name: String, provider_id: i64) {
         let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let mut names = (*self.provider_names.load_full()).clone();
@@ -159,6 +192,16 @@ impl RoutingService {
         let mut map = (*self.provider_credentials.load_full()).clone();
         map.entry(name.to_string()).or_default().push(credential_id);
         self.provider_credentials.store(Arc::new(map));
+    }
+
+    // -- Internal helpers --
+
+    /// Build a lookup index: model_id -> model.id for all models.
+    fn build_model_index(models: &[MemoryModel]) -> HashMap<String, i64> {
+        models
+            .iter()
+            .map(|m| (m.model_id.clone(), m.id))
+            .collect()
     }
 }
 

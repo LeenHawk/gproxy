@@ -64,15 +64,6 @@ pub trait ModelRepository: Send + Sync {
 
     /// Deletes a model record by id.
     fn delete_model(&self, id: i64) -> impl Future<Output = Result<(), DbErr>> + Send;
-
-    /// Creates or updates a model alias record.
-    fn upsert_model_alias(
-        &self,
-        alias: ModelAliasWrite,
-    ) -> impl Future<Output = Result<(), DbErr>> + Send;
-
-    /// Deletes a model alias record by id.
-    fn delete_model_alias(&self, id: i64) -> impl Future<Output = Result<(), DbErr>> + Send;
 }
 
 /// Persists permission aggregate root writes.

@@ -95,17 +95,6 @@ impl ModelRepository for SeaOrmStorage {
     fn delete_model(&self, id: i64) -> impl Future<Output = Result<(), DbErr>> + Send {
         self.apply_write_event(StorageWriteEvent::DeleteModel { id })
     }
-
-    fn upsert_model_alias(
-        &self,
-        alias: ModelAliasWrite,
-    ) -> impl Future<Output = Result<(), DbErr>> + Send {
-        self.apply_write_event(StorageWriteEvent::UpsertModelAlias(alias))
-    }
-
-    fn delete_model_alias(&self, id: i64) -> impl Future<Output = Result<(), DbErr>> + Send {
-        self.apply_write_event(StorageWriteEvent::DeleteModelAlias { id })
-    }
 }
 
 impl PermissionRepository for SeaOrmStorage {

@@ -1283,20 +1283,28 @@ fn inject_openai_alias_entries(
     user_id: i64,
     models: &mut HashMap<String, gproxy_sdk::protocol::openai::types::OpenAiModel>,
 ) {
-    let aliases = state.model_aliases_snapshot();
-    for (alias_name, target) in aliases.iter() {
-        if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
+    let all_models = state.models();
+    for alias_model in all_models.iter().filter(|m| m.alias_of.is_some() && m.enabled) {
+        let Some(target_id) = alias_model.alias_of else {
+            continue;
+        };
+        let Some(target) = all_models.iter().find(|m| m.id == target_id) else {
+            continue;
+        };
+        let Some(provider_name) = state.routing.provider_name_for_id(target.provider_id) else {
+            continue;
+        };
+        if !state.check_model_permission(user_id, &provider_name, &target.model_id) {
             continue;
         }
-        let prefixed_target = prefixed_model_id(&target.provider_name, &target.model_id);
+        let prefixed_target = prefixed_model_id(&provider_name, &target.model_id);
         let Some(base_model) = models.get(&prefixed_target).cloned() else {
             continue;
         };
-        // Insert base alias entry.
         let mut alias_entry = base_model;
-        alias_entry.id = alias_name.clone();
-        alias_entry.owned_by = target.provider_name.clone();
-        models.insert(alias_name.clone(), alias_entry);
+        alias_entry.id = alias_model.model_id.clone();
+        alias_entry.owned_by = provider_name;
+        models.insert(alias_model.model_id.clone(), alias_entry);
     }
 }
 
@@ -1306,18 +1314,27 @@ fn inject_claude_alias_entries(
     user_id: i64,
     models: &mut HashMap<String, gproxy_sdk::protocol::claude::types::BetaModelInfo>,
 ) {
-    let aliases = state.model_aliases_snapshot();
-    for (alias_name, target) in aliases.iter() {
-        if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
+    let all_models = state.models();
+    for alias_model in all_models.iter().filter(|m| m.alias_of.is_some() && m.enabled) {
+        let Some(target_id) = alias_model.alias_of else {
+            continue;
+        };
+        let Some(target) = all_models.iter().find(|m| m.id == target_id) else {
+            continue;
+        };
+        let Some(provider_name) = state.routing.provider_name_for_id(target.provider_id) else {
+            continue;
+        };
+        if !state.check_model_permission(user_id, &provider_name, &target.model_id) {
             continue;
         }
-        let prefixed_target = prefixed_model_id(&target.provider_name, &target.model_id);
+        let prefixed_target = prefixed_model_id(&provider_name, &target.model_id);
         let Some(base_model) = models.get(&prefixed_target).cloned() else {
             continue;
         };
         let mut alias_entry = base_model;
-        alias_entry.id = alias_name.clone();
-        models.insert(alias_name.clone(), alias_entry);
+        alias_entry.id = alias_model.model_id.clone();
+        models.insert(alias_model.model_id.clone(), alias_entry);
     }
 }
 
@@ -1327,20 +1344,29 @@ fn inject_gemini_alias_entries(
     user_id: i64,
     models: &mut HashMap<String, gproxy_sdk::protocol::gemini::types::GeminiModelInfo>,
 ) {
-    let aliases = state.model_aliases_snapshot();
-    for (alias_name, target) in aliases.iter() {
-        if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
+    let all_models = state.models();
+    for alias_model in all_models.iter().filter(|m| m.alias_of.is_some() && m.enabled) {
+        let Some(target_id) = alias_model.alias_of else {
+            continue;
+        };
+        let Some(target) = all_models.iter().find(|m| m.id == target_id) else {
+            continue;
+        };
+        let Some(provider_name) = state.routing.provider_name_for_id(target.provider_id) else {
+            continue;
+        };
+        if !state.check_model_permission(user_id, &provider_name, &target.model_id) {
             continue;
         }
-        let prefixed_target = prefixed_model_id(&target.provider_name, &target.model_id);
+        let prefixed_target = prefixed_model_id(&provider_name, &target.model_id);
         let prefixed_gemini_key = format!("models/{prefixed_target}");
         let Some(base_model) = models.get(&prefixed_gemini_key).cloned() else {
             continue;
         };
-        let alias_key = format!("models/{alias_name}");
+        let alias_key = format!("models/{}", alias_model.model_id);
         let mut alias_entry = base_model;
         alias_entry.name = alias_key.clone();
-        alias_entry.base_model_id = Some(alias_name.clone());
+        alias_entry.base_model_id = Some(alias_model.model_id.clone());
         models.insert(alias_key, alias_entry);
     }
 }
@@ -1354,11 +1380,23 @@ fn inject_scoped_model_list_aliases(
     protocol: ProtocolKind,
     body: &mut Vec<u8>,
 ) {
-    let aliases = state.model_aliases_snapshot();
-    // Only aliases targeting this provider.
-    let relevant: Vec<_> = aliases
+    let all_models = state.models();
+    // Build alias → target pairs for this provider
+    let relevant: Vec<(String, String)> = all_models
         .iter()
-        .filter(|(_, t)| t.provider_name == provider_name)
+        .filter(|m| m.alias_of.is_some() && m.enabled)
+        .filter_map(|m| {
+            let target_id = m.alias_of?;
+            let target = all_models.iter().find(|t| t.id == target_id)?;
+            let target_provider = state.routing.provider_name_for_id(target.provider_id)?;
+            if target_provider != provider_name {
+                return None;
+            }
+            if !state.check_model_permission(user_id, &target_provider, &target.model_id) {
+                return None;
+            }
+            Some((m.model_id.clone(), target.model_id.clone()))
+        })
         .collect();
     if relevant.is_empty() {
         return;
@@ -1392,12 +1430,9 @@ fn inject_scoped_model_list_aliases(
         })
     };
 
-    for (alias_name, target) in &relevant {
-        if !state.check_model_permission(user_id, &target.provider_name, &target.model_id) {
-            continue;
-        }
+    for (alias_name, target_model_id) in &relevant {
         // Find the base model in the response array.
-        let Some(base) = find_by_id(&target.model_id) else {
+        let Some(base) = find_by_id(target_model_id) else {
             continue;
         };
         // Inject alias entry.

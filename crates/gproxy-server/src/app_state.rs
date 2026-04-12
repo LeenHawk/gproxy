@@ -26,7 +26,6 @@ pub use crate::middleware::rate_limit::{
 };
 
 struct RoutingMirror {
-    model_aliases: ArcSwap<HashMap<String, ModelAliasTarget>>,
     provider_names: ArcSwap<HashMap<String, i64>>,
     provider_channels: ArcSwap<HashMap<String, String>>,
     provider_credentials: ArcSwap<HashMap<String, Vec<i64>>>,
@@ -35,7 +34,6 @@ struct RoutingMirror {
 impl RoutingMirror {
     fn new() -> Self {
         Self {
-            model_aliases: ArcSwap::from_pointee(HashMap::new()),
             provider_names: ArcSwap::from_pointee(HashMap::new()),
             provider_channels: ArcSwap::from_pointee(HashMap::new()),
             provider_credentials: ArcSwap::from_pointee(HashMap::new()),
@@ -150,11 +148,6 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn store_model_aliases(&self, aliases: HashMap<String, ModelAliasTarget>) {
-        self.routing.replace_model_aliases(aliases.clone());
-        self.routing_mirror.model_aliases.store(Arc::new(aliases));
-    }
-
     fn store_provider_names(&self, names: HashMap<String, i64>) {
         self.routing.replace_provider_names(names.clone());
         self.routing_mirror.provider_names.store(Arc::new(names));
@@ -495,10 +488,6 @@ impl AppState {
         self.routing.replace_models(models);
     }
 
-    pub fn replace_model_aliases(&self, aliases: HashMap<String, ModelAliasTarget>) {
-        self.store_model_aliases(aliases);
-    }
-
     pub fn replace_provider_names(&self, names: HashMap<String, i64>) {
         self.store_provider_names(names);
     }
@@ -672,24 +661,6 @@ impl AppState {
         let mut models = (*self.routing.models_snapshot()).clone();
         models.retain(|model| model.id != model_id);
         self.routing.replace_models(models);
-    }
-
-    // --- Model aliases ---
-
-    pub fn model_aliases_snapshot(&self) -> Arc<HashMap<String, ModelAliasTarget>> {
-        self.routing_mirror.model_aliases.load_full()
-    }
-
-    pub fn upsert_model_alias_in_memory(&self, alias: String, target: ModelAliasTarget) {
-        let mut aliases = (*self.routing_mirror.model_aliases.load_full()).clone();
-        aliases.insert(alias, target);
-        self.store_model_aliases(aliases);
-    }
-
-    pub fn remove_model_alias_from_memory(&self, alias: &str) {
-        let mut aliases = (*self.routing_mirror.model_aliases.load_full()).clone();
-        aliases.remove(alias);
-        self.store_model_aliases(aliases);
     }
 
     // --- User permissions ---
@@ -963,22 +934,28 @@ mod tests {
     async fn app_state_methods_delegate_to_domain_services() {
         let state = build_test_state().await;
 
-        state.replace_models(vec![MemoryModel {
-            id: 100,
-            provider_id: 42,
-            model_id: "claude-3-5-sonnet".to_string(),
-            display_name: Some("Claude 3.5 Sonnet".to_string()),
-            enabled: true,
-            price_each_call: None,
-            price_tiers: Vec::new(),
-        }]);
-        state.replace_model_aliases(HashMap::from([(
-            "sonnet".to_string(),
-            ModelAliasTarget {
-                provider_name: "anthropic".to_string(),
+        state.replace_models(vec![
+            MemoryModel {
+                id: 100,
+                provider_id: 42,
                 model_id: "claude-3-5-sonnet".to_string(),
+                display_name: Some("Claude 3.5 Sonnet".to_string()),
+                enabled: true,
+                price_each_call: None,
+                price_tiers: Vec::new(),
+                alias_of: None,
             },
-        )]));
+            MemoryModel {
+                id: 101,
+                provider_id: 42,
+                model_id: "sonnet".to_string(),
+                display_name: None,
+                enabled: true,
+                price_each_call: None,
+                price_tiers: Vec::new(),
+                alias_of: Some(100),
+            },
+        ]);
         state.replace_provider_names(HashMap::from([("anthropic".to_string(), 42)]));
         state.replace_provider_channels(HashMap::from([(
             "anthropic".to_string(),
