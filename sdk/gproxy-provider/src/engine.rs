@@ -166,6 +166,55 @@ fn build_execute_error(
     }
 }
 
+/// Build an `ExecuteError` for the pre-upstream transform-request failure
+/// path. The request never reached the wire, so there's no real URL,
+/// headers, or response — we synthesize a placeholder meta whose only
+/// meaningful field is `request_body`. Respects `enable_upstream_log_body`
+/// so the body isn't recorded when body logging is disabled.
+///
+/// Without this helper, transform failures (e.g. a malformed `tools[]`
+/// entry that fails to deserialize into `ResponseTool`) bubbled up as
+/// `ExecuteError { meta: None, .. }`, causing `record_execute_error_logs`
+/// in the API handler to write a row with `request_body = NULL` — which
+/// left operators with no way to see *which* JSON failed to parse.
+fn build_transform_error(
+    error: UpstreamError,
+    original_body: Vec<u8>,
+    method: String,
+    start: std::time::Instant,
+    enable_upstream_log: bool,
+    enable_upstream_log_body: bool,
+) -> ExecuteError {
+    let meta = if enable_upstream_log {
+        Some(UpstreamRequestMeta {
+            method,
+            // No URL: we never picked a credential or built a request.
+            // Keep the empty string so existing log-row schemas that
+            // store `url` as NOT NULL still accept the row.
+            url: String::new(),
+            request_headers: Vec::new(),
+            request_body: if enable_upstream_log_body {
+                Some(original_body)
+            } else {
+                None
+            },
+            response_status: None,
+            response_headers: Vec::new(),
+            response_body: None,
+            model: None,
+            latency_ms: start.elapsed().as_millis() as u64,
+            credential_index: None,
+        })
+    } else {
+        None
+    };
+    ExecuteError {
+        error,
+        meta,
+        credential_index: None,
+    }
+}
+
 pub type ExecuteBodyStream = Pin<Box<dyn Stream<Item = Result<Bytes, UpstreamError>> + Send>>;
 
 pub enum ExecuteBody {
@@ -972,7 +1021,8 @@ impl GproxyEngine {
         // Transform request if needed
         let body = if needs_transform {
             tracing::debug!(dst_op = %dst_op, dst_proto = %dst_proto, "transforming request");
-            crate::transform_dispatch::transform_request(
+            let original_body = request.body.clone();
+            match crate::transform_dispatch::transform_request(
                 request.operation,
                 request.protocol,
                 if force_stream_aggregation {
@@ -982,7 +1032,28 @@ impl GproxyEngine {
                 },
                 dst_proto,
                 request.body,
-            )?
+            ) {
+                Ok(b) => b,
+                Err(e) => {
+                    // Preserve the original downstream body so
+                    // `record_execute_error_logs` can write it to the
+                    // upstream-request log; otherwise operators get a 500
+                    // with no way to see *which* JSON failed to parse.
+                    tracing::warn!(
+                        error = %e,
+                        body_len = original_body.len(),
+                        "transform_request failed; capturing downstream body for log"
+                    );
+                    return Err(build_transform_error(
+                        e,
+                        original_body,
+                        operation_http_method(dst_op).to_string(),
+                        start,
+                        self.enable_upstream_log,
+                        self.enable_upstream_log_body,
+                    ));
+                }
+            }
         } else {
             request.body
         };
@@ -1228,13 +1299,31 @@ impl GproxyEngine {
         };
 
         let body = if needs_transform {
-            crate::transform_dispatch::transform_request(
+            let original_body = request.body.clone();
+            match crate::transform_dispatch::transform_request(
                 request.operation,
                 request.protocol,
                 dst_op,
                 dst_proto,
                 request.body,
-            )?
+            ) {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        body_len = original_body.len(),
+                        "transform_request failed (stream); capturing downstream body for log"
+                    );
+                    return Err(build_transform_error(
+                        e,
+                        original_body,
+                        operation_http_method(dst_op).to_string(),
+                        start,
+                        self.enable_upstream_log,
+                        self.enable_upstream_log_body,
+                    ));
+                }
+            }
         } else {
             request.body
         };
