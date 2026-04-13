@@ -55,9 +55,13 @@ chmod +x gproxy
 
 ## Docker
 
-仓库中提供参考 Dockerfile [`Dockerfile.action`](https://github.com/LeenHawk/gproxy/blob/main/Dockerfile.action)。
-完整的容器部署示例 (挂载数据目录、传入环境变量等) 见
-[Docker 部署](/zh-cn/deployment/docker/)。
+直接拉 GitHub Container Registry 上的官方镜像即可，不用自己构建：
+
+```bash
+docker pull ghcr.io/leenhawk/gproxy:latest
+```
+
+完整的容器部署示例 (可用 tag、带数据卷和环境变量的 `docker run` 命令、`docker-compose` 片段) 见 [Docker 部署](/zh-cn/deployment/docker/)。
 
 ## 下一步
 

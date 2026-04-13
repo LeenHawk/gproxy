@@ -55,10 +55,7 @@ strip target/release/gproxy
 
 ## CI 建议
 
-- 缓存 `~/.cargo` 与 `target/` 目录 —— 工作空间依赖很多，冷构建最耗时的就是
-  重新下载。
+- 缓存 `~/.cargo` 与 `target/` 目录 —— 工作空间依赖很多，冷构建最耗时的就是重新下载。
 - 同样缓存 pnpm store 下的 `frontend/console/node_modules`。
-- 在 PR 上跑 `cargo test -p gproxy` 和 `pnpm test` (如已配置)；`release`
-  构建留给 tag 触发的流水线。
-- 打 tag 时可从 `RELEASE_NOTE.md` 生成发布说明，并把 strip 过的二进制作为
-  构建产物附加上去。
+- 在 PR 上跑 `cargo test -p gproxy` 和 `pnpm test` (如已配置)；`release` 构建留给 tag 触发的流水线。
+- 打 tag 时可从 `RELEASE_NOTE.md` 生成发布说明，并把 strip 过的二进制作为构建产物附加上去。

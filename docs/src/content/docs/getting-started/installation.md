@@ -60,9 +60,13 @@ chmod +x gproxy
 
 ## Docker
 
-A reference Docker image is built via [`Dockerfile.action`](https://github.com/LeenHawk/gproxy/blob/main/Dockerfile.action).
-See the [Docker deployment guide](/deployment/docker/) for a complete example,
-including mounting a data directory and passing environment variables.
+Pull the official image from GitHub Container Registry — no local build needed:
+
+```bash
+docker pull ghcr.io/leenhawk/gproxy:latest
+```
+
+See the [Docker deployment guide](/deployment/docker/) for available tags, a complete `docker run` example with data volume and environment variables, and a `docker-compose` snippet.
 
 ## Next steps
 
