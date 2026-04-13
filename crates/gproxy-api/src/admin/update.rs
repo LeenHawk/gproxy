@@ -116,7 +116,8 @@ pub async fn check_update(
 ) -> Result<Json<UpdateCheckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    let (latest_version, tag) = match fetch_github_manifest().await {
+    let client = state.engine().client().clone();
+    let (latest_version, tag) = match fetch_github_manifest(&client).await {
         Ok(m) => (Some(m.version), Some(m.tag)),
         Err(e) => {
             tracing::warn!(error = %e, "failed to fetch update manifest");
@@ -156,11 +157,13 @@ pub async fn perform_update(
 ) -> Result<Json<UpdatePerformResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
+    let client = state.engine().client().clone();
+
     // Determine tag: explicit param, or fetch latest manifest
     let tag = if let Some(t) = params.tag {
         t
     } else {
-        let manifest = fetch_github_manifest()
+        let manifest = fetch_github_manifest(&client)
             .await
             .map_err(|e| HttpError::internal(format!("failed to check for updates: {e}")))?;
         if !is_newer_version(CURRENT_VERSION, &manifest.version) {
@@ -183,12 +186,12 @@ pub async fn perform_update(
     tracing::info!(version = %tag, url = %zip_url, "downloading update");
 
     // Download zip
-    let zip_bytes = download_bytes(&zip_url)
+    let zip_bytes = download_bytes(&client, &zip_url)
         .await
         .map_err(|e| HttpError::internal(format!("download failed: {e}")))?;
 
     // Verify SHA256
-    let sha_content = download_text(&sha_url)
+    let sha_content = download_text(&client, &sha_url)
         .await
         .map_err(|e| HttpError::internal(format!("SHA256 checksum download failed: {e}")))?;
     let actual_sha = hex_sha256(&zip_bytes);
@@ -202,7 +205,7 @@ pub async fn perform_update(
 
     // Verify Ed25519 signature
     if let Some(pub_key_b64) = UPDATE_SIGNING_PUBLIC_KEY_B64 {
-        let sig_bytes = download_bytes(&sig_url)
+        let sig_bytes = download_bytes(&client, &sig_url)
             .await
             .map_err(|e| HttpError::internal(format!("signature download failed: {e}")))?;
         verify_ed25519(pub_key_b64, sha_content.as_bytes(), &sig_bytes)
@@ -249,9 +252,9 @@ pub async fn perform_update(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async fn fetch_github_manifest() -> Result<VersionManifest, String> {
+async fn fetch_github_manifest(client: &wreq::Client) -> Result<VersionManifest, String> {
     let api_url = "https://api.github.com/repos/LeenHawk/gproxy/releases/latest";
-    let resp = wreq::Client::new()
+    let resp = client
         .get(api_url)
         .header("Accept", "application/vnd.github+json")
         .header("User-Agent", "gproxy-updater")
@@ -282,8 +285,10 @@ async fn fetch_github_manifest() -> Result<VersionManifest, String> {
     })
 }
 
-async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
-    let resp = wreq::get(url)
+async fn download_bytes(client: &wreq::Client, url: &str) -> Result<Vec<u8>, String> {
+    let resp = client
+        .get(url)
+        .header("User-Agent", "gproxy-updater")
         .send()
         .await
         .map_err(|e| format!("download failed: {e}"))?;
@@ -296,8 +301,10 @@ async fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("read body failed: {e}"))
 }
 
-async fn download_text(url: &str) -> Result<String, String> {
-    let resp = wreq::get(url)
+async fn download_text(client: &wreq::Client, url: &str) -> Result<String, String> {
+    let resp = client
+        .get(url)
+        .header("User-Agent", "gproxy-updater")
         .send()
         .await
         .map_err(|e| format!("download failed: {e}"))?;

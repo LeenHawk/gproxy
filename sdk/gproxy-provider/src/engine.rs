@@ -342,6 +342,20 @@ pub struct GproxyEngineBuilder {
     enable_upstream_log_body: bool,
 }
 
+/// Build the default HTTP client used by the engine.
+///
+/// Centralizes the global client policy so that every code path — initial
+/// build, runtime reconfigure, and fallback after a failed builder — ends
+/// up with a client that follows redirects. Without this, `wreq`'s default
+/// `redirect::Policy::none()` causes any GitHub release download (which
+/// always 302s to the CDN) to surface as a bare "HTTP 302 Found" error.
+fn default_http_client() -> wreq::Client {
+    wreq::Client::builder()
+        .redirect(wreq::redirect::Policy::limited(10))
+        .build()
+        .unwrap_or_default()
+}
+
 impl GproxyEngineBuilder {
     pub fn new() -> Self {
         Self {
@@ -405,7 +419,9 @@ impl GproxyEngineBuilder {
     /// Constructs both the normal client (with optional proxy) and the
     /// spoof client (with browser TLS impersonation + optional proxy).
     pub fn configure_clients(self, proxy: Option<&str>, emulation: Option<&str>) -> Self {
-        let mut client_builder = wreq::Client::builder().http1_only();
+        let mut client_builder = wreq::Client::builder()
+            .http1_only()
+            .redirect(wreq::redirect::Policy::limited(10));
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
@@ -416,12 +432,15 @@ impl GproxyEngineBuilder {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(error = %e, "failed to build http client, falling back to default");
-                wreq::Client::default()
+                default_http_client()
             }
         };
 
         let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
-        let mut spoof_builder = wreq::Client::builder().emulation(emu).http1_only();
+        let mut spoof_builder = wreq::Client::builder()
+            .emulation(emu)
+            .http1_only()
+            .redirect(wreq::redirect::Policy::limited(10));
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
@@ -432,7 +451,7 @@ impl GproxyEngineBuilder {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(error = %e, "failed to build spoof client, falling back to default");
-                wreq::Client::default()
+                default_http_client()
             }
         };
 
@@ -462,7 +481,7 @@ impl GproxyEngineBuilder {
             store: self
                 .store
                 .unwrap_or_else(|| Arc::new(self.store_builder.build())),
-            client: self.client.unwrap_or_default(),
+            client: self.client.unwrap_or_else(default_http_client),
             spoof_client: self.spoof_client,
             enable_usage: self.enable_usage,
             enable_upstream_log: self.enable_upstream_log,
@@ -543,10 +562,21 @@ impl GproxyEngine {
         GproxyEngineBuilder::new()
     }
 
+    /// Shared HTTP client used for upstream provider traffic.
+    ///
+    /// Exposed so that auxiliary admin code paths (e.g. self-update) can
+    /// reuse the same proxy / TLS / redirect configuration that was set up
+    /// at engine build time, instead of constructing a fresh default client
+    /// that ignores those settings.
+    pub fn client(&self) -> &wreq::Client {
+        &self.client
+    }
+
     /// Rebuild the HTTP clients with a new proxy and/or spoof emulation,
     /// returning a new engine that shares the same provider store.
     pub fn with_new_clients(&self, proxy: Option<&str>, emulation: Option<&str>) -> GproxyEngine {
-        let mut client_builder = wreq::Client::builder();
+        let mut client_builder =
+            wreq::Client::builder().redirect(wreq::redirect::Policy::limited(10));
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
@@ -557,12 +587,14 @@ impl GproxyEngine {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(error = %e, "failed to build http client in with_new_clients");
-                wreq::Client::default()
+                default_http_client()
             }
         };
 
         let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
-        let mut spoof_builder = wreq::Client::builder().emulation(emu);
+        let mut spoof_builder = wreq::Client::builder()
+            .emulation(emu)
+            .redirect(wreq::redirect::Policy::limited(10));
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
             && let Ok(p) = wreq::Proxy::all(proxy_url)
