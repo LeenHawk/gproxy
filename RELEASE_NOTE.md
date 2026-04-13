@@ -1,5 +1,233 @@
 # Release Notes
 
+## v1.0.7
+
+> **Self-update is unbroken, failing transforms finally tell you which
+> request broke them, and the docs site deploys itself.** The headline
+> fix centralizes wreq client policy in the engine so every HTTP path
+> (including self-update) follows redirects — GitHub asset downloads
+> stop failing on their 302 to the CDN. Pre-upstream transform errors
+> now capture the original downstream request body in the upstream
+> log, so operators actually see *which* JSON failed to parse. The
+> release pipeline grows a Cloudflare Pages deploy job for the docs
+> site, and the Docker deployment page is rewritten around the
+> official `ghcr.io/leenhawk/gproxy` image.
+
+### English
+
+#### Fixed
+
+- **Self-update failing with `download failed: HTTP 302 Found`** —
+  GitHub serves every `/releases/download/...` asset as a 302 to the
+  CDN host, but `wreq`'s default redirect policy is
+  `redirect::Policy::none()`, so `wreq::get(url)` in
+  `crates/gproxy-api/src/admin/update.rs` returned the redirect
+  response verbatim and `download_bytes` / `download_text` rejected
+  it at the `status().is_success()` check. The update path never
+  touched the engine client either, so the fresh per-call default
+  client inherited none of the runtime configuration.
+- **Pre-upstream transform failures lost the request body in logs**
+  — when `transform_dispatch::transform_request` failed before we
+  ever sent anything upstream (e.g. a malformed `tools[]` entry
+  failing to deserialize into `ResponseTool`), the error bubbled up
+  as `ExecuteError { meta: None, .. }` and
+  `record_execute_error_logs` wrote an upstream-log row with
+  `request_body = NULL`, leaving operators a 500 with no way to see
+  which JSON actually failed. `GproxyEngine::execute` and
+  `execute_stream` now catch the transform error, clone the
+  original downstream body beforehand, and synthesize an
+  `UpstreamRequestMeta` via the new `build_transform_error` helper
+  so the offending body lands in the log. URL / headers /
+  response fields stay empty because the request never hit the
+  wire; `enable_upstream_log` / `enable_upstream_log_body` are still
+  honored.
+
+#### Changed
+
+- **Single source of truth for HTTP client policy** — new
+  `default_http_client()` helper in
+  `sdk/gproxy-provider/src/engine.rs` centralizes the global wreq
+  client policy (`redirect::Policy::limited(10)`). Every build path
+  now routes through it:
+  - `GproxyEngineBuilder::build()` uses it as the default fallback
+    (was `self.client.unwrap_or_default()`), so bare
+    `GproxyEngine::builder().build()` — used by tests and several
+    admin-only bootstrap paths — no longer produces a client that
+    drops redirects.
+  - `configure_clients` and `with_new_clients` set `.redirect(...)`
+    on both the normal and spoof-emulation builders, and their
+    `Err` fallbacks route through `default_http_client()` instead
+    of `wreq::Client::default()`.
+  This also closes a latent footgun: if `configure_clients` ever
+  failed to build (bad proxy URL, TLS init error), the process used
+  to silently fall back to a fully-unconfigured default client.
+  The fallback now at least keeps the redirect policy.
+- **`update.rs` reuses the engine's HTTP client** — `check_update`
+  and `perform_update` grab `state.engine().client().clone()` and
+  pass it through to `fetch_github_manifest`, `download_bytes`, and
+  `download_text`. The three helpers no longer call `wreq::get(url)`
+  / `wreq::Client::new()` at all. Practical upshot: self-update
+  traffic now inherits the operator's configured upstream proxy,
+  TLS settings, and whatever else the engine is built with —
+  previously it silently bypassed all of them.
+- **Docker deployment guide rewritten around the official image**
+  — `docs/src/content/docs/deployment/docker.md` (and the Chinese
+  mirror) now leads with `docker pull ghcr.io/leenhawk/gproxy:latest`
+  instead of "build `Dockerfile.action` locally," and documents the
+  full tag matrix (`latest` / `vX.Y.Z` / `staging` × glibc / musl,
+  plus per-arch suffixes). The installation pages cross-reference
+  the new guidance so new users don't start by building an image
+  they don't need to.
+
+#### Added
+
+- **`GproxyEngine::client()` getter** — public accessor exposing
+  the shared `&wreq::Client`, so auxiliary admin code paths can
+  reuse the engine's configured client instead of constructing
+  their own. The spoof client stays private; the normal client is
+  the right choice for anything that is not upstream provider
+  traffic.
+- **`build_transform_error` helper** in
+  `sdk/gproxy-provider/src/engine.rs` — synthesizes an
+  `UpstreamRequestMeta` for the pre-upstream transform failure path
+  so operators get the downstream request body in the upstream log
+  even when we never reached a credential or a URL.
+- **Cloudflare Pages docs deploy job** — the
+  `.github/workflows/release-binary.yml` pipeline gains a
+  `deploy-docs-cloudflare` job that runs on default-branch pushes
+  and on releases: pnpm-installs, builds `docs/`, then ships the
+  result to Cloudflare Pages via `cloudflare/wrangler-action@v3`
+  using the `cloudflare` environment's
+  `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` /
+  `CLOUDFLARE_PROJECT_ID` secrets. The docs site at
+  `https://gproxy.leenhawk.com` now updates automatically with every
+  merge.
+- **`sea-orm-migration` workspace dependency** — declared in
+  `[workspace.dependencies]` in preparation for an upcoming
+  managed-migration pass. No crate pulls it in yet, so this has no
+  runtime effect in v1.0.7.
+
+#### Compatibility
+
+- **No DB, API, or config changes.** `settings.toml`,
+  `global_settings`, and the admin API schema are all untouched.
+  This is a drop-in upgrade from v1.0.6 — just swap the binary.
+- **Engine builder defaults shift.** `GproxyEngine::builder().build()`
+  now yields a client that follows up to 10 redirects, where v1.0.6
+  and earlier yielded a client that followed zero. SDK consumers
+  that were relying on the old behavior (e.g. intentionally
+  capturing 3xx responses as terminal) must explicitly pass their
+  own `wreq::Client` via `http_client(...)` /
+  `configure_clients(...)`.
+- **Transform-failure log rows now include `request_body`** where
+  they previously had `NULL`. `url` / `request_headers` /
+  `response_*` on those rows are still empty strings / empty
+  arrays / NULL — the request never hit the wire, so there's
+  nothing real to record. Dashboards that were filtering transform
+  failures by `url = ''` will still work; ones that were filtering
+  by `request_body IS NULL` will need to check for the actual error
+  message instead.
+
+### 简体中文
+
+#### 修复
+
+- **自更新报 `download failed: HTTP 302 Found`** — GitHub
+  的 `/releases/download/...` 资源永远是 302 到 CDN 域名的，
+  但 `wreq` 的默认重定向策略是 `redirect::Policy::none()`，所以
+  `crates/gproxy-api/src/admin/update.rs` 里 `wreq::get(url)`
+  拿到的是 302 本身，`download_bytes` / `download_text` 在
+  `status().is_success()` 这一步就直接拒绝。更新路径根本没
+  接触到 engine 的 client，所以每次新建的默认 client 也继承不到
+  任何运行时配置。
+- **上游前的 transform 失败在日志里丢了 request body** —
+  当 `transform_dispatch::transform_request` 在真正发请求之前
+  就失败（例如 `tools[]` 里有一个字段无法反序列化成
+  `ResponseTool`），错误会以 `ExecuteError { meta: None, .. }`
+  冒上来，`record_execute_error_logs` 写出的 upstream log 行
+  `request_body = NULL`，运维只能看到一个 500 但看不到到底是
+  哪段 JSON 解析不动。`GproxyEngine::execute` 和 `execute_stream`
+  现在会捕获这个 transform 错误，提前克隆原始 downstream body，
+  再通过新加的 `build_transform_error` helper 合成一个
+  `UpstreamRequestMeta`，让出问题的 body 能落进日志。URL /
+  headers / response 相关字段留空，因为请求根本没发上游；
+  `enable_upstream_log` / `enable_upstream_log_body` 仍然生效。
+
+#### 变更
+
+- **HTTP client 策略统一到一个入口** —
+  `sdk/gproxy-provider/src/engine.rs` 新增 `default_http_client()`
+  helper，把全局 wreq client 策略（`redirect::Policy::limited(10)`）
+  收敛到一个地方。所有构建路径现在都走它：
+  - `GproxyEngineBuilder::build()` 的默认兜底从
+    `self.client.unwrap_or_default()` 改成
+    `unwrap_or_else(default_http_client)`，裸的
+    `GproxyEngine::builder().build()` —— 测试和若干 admin-only
+    bootstrap 路径都在用 —— 不会再构造出一个不跟随重定向的 client。
+  - `configure_clients` 和 `with_new_clients` 给普通 client 和
+    spoof client 的 builder 都加了 `.redirect(...)`，而且它们的
+    `Err` 兜底分支也从 `wreq::Client::default()` 切到
+    `default_http_client()`。
+  顺带堵了一个潜在陷阱：如果 `configure_clients` 构建失败（代理
+  URL 有问题、TLS 初始化失败之类），之前会静默退回到一个完全
+  未配置的默认 client。现在至少兜底 client 仍然会跟随重定向。
+- **`update.rs` 改为复用 engine 的 HTTP client** —
+  `check_update` 和 `perform_update` 取
+  `state.engine().client().clone()` 传给 `fetch_github_manifest`、
+  `download_bytes` 和 `download_text`，三个 helper 都不再调用
+  `wreq::get(url)` / `wreq::Client::new()`。实际效果：自更新流量
+  现在会经过运维配置的上游代理、TLS 设置以及 engine 上的其它
+  配置 —— 此前是悄悄绕过了所有这些配置。
+- **Docker 部署文档改为以官方镜像为中心** —
+  `docs/src/content/docs/deployment/docker.md`（以及中文镜像）
+  现在首推 `docker pull ghcr.io/leenhawk/gproxy:latest`，而不是
+  「本地构建 `Dockerfile.action`」，并补齐了完整的 tag 矩阵
+  （`latest` / `vX.Y.Z` / `staging` × glibc / musl，以及各自的
+  per-arch 后缀）。安装页也相应调整，避免新用户上来就去构建
+  一个他们根本不需要构建的镜像。
+
+#### 新增
+
+- **`GproxyEngine::client()` getter** —
+  公开访问器，暴露共享的 `&wreq::Client`，方便 admin 辅助
+  代码路径复用 engine 已配置好的 client，而不是各自再建一个。
+  spoof client 仍然保持私有；非上游 provider 流量应该用这个
+  普通 client。
+- **`build_transform_error` helper** —
+  `sdk/gproxy-provider/src/engine.rs` 新增，专门给上游前的
+  transform 失败路径合成 `UpstreamRequestMeta`，让运维在根本
+  还没选到 credential、没拿到 URL 的时候，也能在 upstream log 里
+  看到 downstream 原始 body。
+- **Cloudflare Pages 文档部署 Job** —
+  `.github/workflows/release-binary.yml` 新增 `deploy-docs-cloudflare`
+  job：在默认分支推送和 release 事件上触发，pnpm install
+  → 构建 `docs/` → 通过 `cloudflare/wrangler-action@v3` 推到
+  Cloudflare Pages，使用 `cloudflare` environment 下的
+  `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` /
+  `CLOUDFLARE_PROJECT_ID` 三个 secret。从此
+  `https://gproxy.leenhawk.com` 每次合并都会自动更新。
+- **`sea-orm-migration` workspace 依赖** —
+  在 `[workspace.dependencies]` 中声明，为后续引入受管迁移做
+  铺垫。v1.0.7 里还没有 crate 实际引用它，运行时没有任何
+  影响。
+
+#### 兼容性
+
+- **不涉及 DB、API、配置变更。** `settings.toml`、
+  `global_settings` 和 admin API schema 全部原封不动，v1.0.6
+  可以直接替换二进制升级到 v1.0.7。
+- **Engine builder 默认行为变了。** `GproxyEngine::builder().build()`
+  现在会构造一个跟随最多 10 次重定向的 client，v1.0.6 及更早版本
+  是不跟随。依赖旧行为（比如故意把 3xx 当终止响应抓取）的 SDK
+  下游使用者，需要通过 `http_client(...)` /
+  `configure_clients(...)` 显式传入自己的 `wreq::Client`。
+- **Transform 失败的日志行现在会带 `request_body`**，而之前
+  是 `NULL`。这些行的 `url` / `request_headers` / `response_*`
+  仍然是空字符串 / 空数组 / NULL —— 请求根本没发上游，没有
+  真实内容可记。按 `url = ''` 筛 transform 失败的 dashboard
+  仍然可用；按 `request_body IS NULL` 筛的则需要改成按实际
+  错误信息判断。
+
 ## v1.0.6
 
 > **Pricing is now fully admin-editable, end to end.** Model prices move

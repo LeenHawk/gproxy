@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1852,7 +1852,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1863,7 +1863,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-provider"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1894,7 +1894,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "bytes",
  "chrono",
@@ -1920,7 +1920,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-routing"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "gproxy-protocol",
  "http",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "gproxy-protocol",
  "gproxy-provider",
@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -2591,9 +2591,9 @@ checksum = "2c4a545a15244c7d945065b5d392b2d2d7f21526fba56ce51467b06ed445e8f7"
 
 [[package]]
 name = "libc"
-version = "0.2.184"
+version = "0.2.185"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48f5d2a454e16a5ea0f4ced81bd44e4cfc7bd3a507b61887c99fd3538b28e4af"
+checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
 
 [[package]]
 name = "libloading"
@@ -3626,9 +3626,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.37"
+version = "0.23.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "758025cb5fccfd3bc2fd74708fd4682be41d99e5dff73c377c0646c6012c73a4"
+checksum = "69f9466fb2c14ea04357e91413efb882e2a6d4a406e625449bc0a5d360d53a21"
 dependencies = [
  "aws-lc-rs",
  "log",
