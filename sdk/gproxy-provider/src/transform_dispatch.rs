@@ -1295,6 +1295,70 @@ where
 
 pub type StreamChunkNormalizer = Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>;
 
+/// Convert an upstream error body (non-2xx response body) from the
+/// upstream protocol's error schema to the client's expected error
+/// schema, falling back to the raw bytes on any failure.
+///
+/// Each protocol uses a different error shape:
+/// - Claude: `{"type":"error","error":{"type":"...","message":"..."}}`
+/// - OpenAI: `{"error":{"message":"...","type":"...","code":"..."}}`
+/// - Gemini: `{"error":{"code":N,"message":"...","status":"..."}}`
+///
+/// An OpenAI-speaking client that receives a Claude error body cannot
+/// parse it, so we route error bodies through the same `transform_response`
+/// pipeline that success bodies use. The `BodyEnvelope::from_body_bytes`
+/// macro tries both the success and error variants, so if the upstream
+/// error conforms to the declared error schema, it's converted via the
+/// existing `TryFrom<SrcResponse> for DstResponse` impls (which handle
+/// the `Error { .. }` variant separately).
+///
+/// If the upstream error schema doesn't match the declared `error_body`
+/// type (e.g. codex returning `{"detail":{"code":"..."}}` which is not
+/// `OpenAiApiErrorResponse`), `from_body_bytes` fails and the whole
+/// transform errors out — in which case this helper forwards the raw
+/// upstream bytes so the client at least sees what the upstream sent.
+///
+/// For streaming operations, the operation family is substituted with
+/// `GenerateContent` before dispatch. Error bodies share the same schema
+/// regardless of whether the request was streaming, but `transform_response`
+/// only declares arms for non-stream ops.
+pub fn convert_error_body_or_raw(
+    src_operation: OperationFamily,
+    src_protocol: ProtocolKind,
+    dst_operation: OperationFamily,
+    dst_protocol: ProtocolKind,
+    body: Vec<u8>,
+) -> Vec<u8> {
+    let op_for_error = |op: OperationFamily| match op {
+        OperationFamily::StreamGenerateContent => OperationFamily::GenerateContent,
+        other => other,
+    };
+    let src_op = op_for_error(src_operation);
+    let dst_op = op_for_error(dst_operation);
+
+    // Passthrough (src == dst): no conversion needed, the error is
+    // already in the client's expected format.
+    if src_op == dst_op && src_protocol == dst_protocol {
+        return body;
+    }
+
+    match transform_response(src_op, src_protocol, dst_op, dst_protocol, body.clone()) {
+        Ok(converted) => converted,
+        Err(err) => {
+            tracing::debug!(
+                error = %err,
+                src_op = %src_operation,
+                src_proto = %src_protocol,
+                dst_op = %dst_operation,
+                dst_proto = %dst_protocol,
+                body_len = body.len(),
+                "error body did not match declared schema; forwarding raw upstream bytes"
+            );
+            body
+        }
+    }
+}
+
 pub struct StreamResponseTransformer {
     decoder: StreamChunkDecoder,
     inner: Box<dyn StreamChunkTransform>,
@@ -2576,7 +2640,7 @@ mod tests {
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
     use serde_json::{Value, json};
 
-    use super::{transform_request, transform_response};
+    use super::{convert_error_body_or_raw, transform_request, transform_response};
 
     #[test]
     fn transform_request_supports_openai_chat_to_openai_response() {
@@ -2759,5 +2823,87 @@ mod tests {
             "serialized response leaked the internal wrapper envelope"
         );
         assert!(json.get("content").is_some(), "missing content field");
+    }
+
+    /// When upstream Claude returns a standard Claude error body
+    /// (`{"type":"error","error":{...}}`), an OpenAI chat completions
+    /// client must see the error in OpenAI's `{"error":{...}}` shape —
+    /// not the raw Claude JSON, which an OpenAI SDK can't parse.
+    #[test]
+    fn convert_error_body_claude_to_openai_chat_rewrites_schema() {
+        let claude_error = br#"{
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "prompt is too long: 1057153 tokens > 1000000 maximum"
+            },
+            "request_id": "req_011Ca1mHSW1W47w6LbmKQNWf"
+        }"#
+        .to_vec();
+
+        let converted = convert_error_body_or_raw(
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            claude_error.clone(),
+        );
+
+        let json: Value =
+            serde_json::from_slice(&converted).expect("converted body should be valid JSON");
+        // OpenAI error shape: top-level `error.message`, `error.type`.
+        let error_obj = json
+            .get("error")
+            .expect("OpenAI error body must have top-level `error` field");
+        assert_eq!(
+            error_obj.get("message").and_then(Value::as_str),
+            Some("prompt is too long: 1057153 tokens > 1000000 maximum"),
+            "error message must survive the schema conversion"
+        );
+        assert!(
+            json.get("type").and_then(Value::as_str) != Some("error"),
+            "converted body must not still be in Claude's top-level `type:error` shape"
+        );
+    }
+
+    /// When upstream returns an error body in a shape that doesn't match
+    /// any declared `error_body` schema (e.g. codex's
+    /// `{"detail":{"code":"deactivated_workspace"}}`), the helper must
+    /// fall back to forwarding the raw upstream bytes so the error
+    /// information isn't lost.
+    #[test]
+    fn convert_error_body_falls_back_to_raw_on_schema_mismatch() {
+        let codex_error = br#"{"detail":{"code":"deactivated_workspace"}}"#.to_vec();
+
+        let result = convert_error_body_or_raw(
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            codex_error.clone(),
+        );
+
+        assert_eq!(
+            result, codex_error,
+            "fallback must return the raw bytes verbatim"
+        );
+    }
+
+    /// Passthrough routes (same src/dst protocol, same op) should leave
+    /// error bodies unchanged — conversion is unnecessary and would
+    /// only add latency.
+    #[test]
+    fn convert_error_body_passthrough_returns_unchanged() {
+        let claude_error = br#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#.to_vec();
+
+        let result = convert_error_body_or_raw(
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            claude_error.clone(),
+        );
+
+        assert_eq!(result, claude_error);
     }
 }

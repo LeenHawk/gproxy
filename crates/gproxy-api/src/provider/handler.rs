@@ -382,6 +382,7 @@ pub async fn proxy(
                 trace_id,
                 provider_name: effective_provider.clone(),
                 meta: result.meta.clone(),
+                raw_capture: result.stream_raw_capture.clone(),
             };
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
@@ -656,6 +657,7 @@ pub async fn proxy_unscoped(
                 trace_id,
                 provider_name: target_provider.clone(),
                 meta: result.meta.clone(),
+                raw_capture: result.stream_raw_capture.clone(),
             };
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
@@ -2289,6 +2291,12 @@ struct StreamUpstreamLogContext {
     trace_id: i64,
     provider_name: String,
     meta: Option<UpstreamRequestMeta>,
+    /// Shared buffer that the engine's stream wrapper tees raw upstream
+    /// bytes into as the stream is consumed. The handler reads it after
+    /// the stream drains and copies the contents into `meta.response_body`.
+    /// `None` when upstream body logging is disabled, or when the route
+    /// doesn't pass bytes through a raw-capture tee.
+    raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
 }
 
 /// Shared context for usage recording, avoids passing 8+ args.
@@ -2414,18 +2422,11 @@ fn stream_with_usage_tracking(
 
     try_stream! {
         let mut decoder = UsageChunkDecoder::new(ctx.protocol);
-        let mut accumulated_body: Vec<u8> = Vec::new();
-        let config = ctx.state.config();
-        let capture_body = upstream_log.is_some() && config.enable_upstream_log_body;
-        drop(config);
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
             for json_chunk in decoder.push_chunk(&chunk) {
                 recorder.observe_json_chunk(&json_chunk);
-            }
-            if capture_body {
-                accumulated_body.extend_from_slice(&chunk);
             }
             yield chunk;
         }
@@ -2438,16 +2439,30 @@ fn stream_with_usage_tracking(
             record_stream_usage(&ctx, usage).await;
         }
 
-        // Record deferred upstream log with accumulated body.
+        // Record deferred upstream log. The raw upstream body is read
+        // from the engine's `stream_raw_capture` buffer, which was
+        // populated in-place as the stream drained (before any
+        // transformer touched the chunks). This gives the upstream log
+        // the same pre-transform wire bytes that the non-stream path
+        // stores via `raw_response_body_for_log`, regardless of whether
+        // the route is a cross-protocol transform or passthrough.
         if let Some(ul) = upstream_log
-            && let Some(mut meta) = ul.meta {
-                let config = ctx.state.config();
-                if config.enable_upstream_log_body && !accumulated_body.is_empty() {
-                    meta.response_body = Some(accumulated_body);
+            && let Some(mut meta) = ul.meta
+        {
+            let config = ctx.state.config();
+            if config.enable_upstream_log_body
+                && let Some(cap) = ul.raw_capture
+                && let Ok(mut buf) = cap.lock()
+            {
+                let captured = std::mem::take(&mut *buf);
+                if !captured.is_empty() {
+                    meta.response_body = Some(captured);
                 }
-                record_upstream_log(&ctx.state, ul.trace_id, &ul.provider_name, Some(&meta))
-                    .await;
             }
+            drop(config);
+            record_upstream_log(&ctx.state, ul.trace_id, &ul.provider_name, Some(&meta))
+                .await;
+        }
     }
 }
 

@@ -79,6 +79,15 @@ pub struct ExecuteResult {
     pub meta: Option<UpstreamRequestMeta>,
     pub credential_updates: Vec<CredentialUpdate>,
     pub credential_index: usize,
+    /// For streaming executions: shared buffer into which the stream
+    /// wrapper tees the **raw upstream bytes** as the stream is consumed.
+    /// The handler reads this after draining the stream to populate
+    /// `upstream_requests.response_body` with pre-transform bytes — which
+    /// matches what non-stream executions store via `raw_response_body_for_log`.
+    ///
+    /// Populated only for stream executions with
+    /// `enable_upstream_log && enable_upstream_log_body`. `None` otherwise.
+    pub stream_raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
 }
 
 /// Engine execution error bundled with optional upstream-request log
@@ -1037,6 +1046,7 @@ impl GproxyEngine {
                     meta: None,
                     credential_updates: Vec::new(),
                     credential_index: 0,
+                    stream_raw_capture: None,
                 });
             }
             crate::dispatch::RouteImplementation::Unsupported => {
@@ -1185,15 +1195,15 @@ impl GproxyEngine {
 
         // 3. Transform response if needed (cross-protocol).
         //
-        // Only transform on 2xx success bodies. Upstream error bodies
-        // (e.g. codex returning `{"detail":{"code":"deactivated_workspace"}}`
-        // on HTTP 402) are in a provider-specific error schema that the
-        // destination-protocol wrapper enum can't parse. Attempting to
-        // transform them produces
-        // `"body does not match success or error variant of ..."` and
-        // loses the upstream error information. Instead, forward the raw
-        // error body through to the client — the upstream HTTP status
-        // propagates via `response.status` below.
+        // Only transform success bodies (2xx) through the full response
+        // transform. Upstream error bodies (non-2xx) can still be in the
+        // declared per-protocol error schema, in which case we route them
+        // through `convert_error_body_or_raw` so an OpenAI-speaking client
+        // sees an OpenAI error shape even when the upstream replied in
+        // Claude's error schema. If the upstream error doesn't match any
+        // declared error variant (e.g. codex's provider-specific
+        // `{"detail":{"code":"deactivated_workspace"}}`), the helper falls
+        // back to forwarding raw bytes so the error information isn't lost.
         //
         // Additionally: when `force_stream_aggregation` maps to the same
         // source protocol (e.g. codex `(GenerateContent, OpenAiResponse)`
@@ -1202,9 +1212,11 @@ impl GproxyEngine {
         // client's target shape. Running a further protocol transform
         // with `src == dst` has no matching arm and would error out, so
         // skip it.
-        let needs_response_transform = needs_transform
-            && (200..=299).contains(&response.status)
-            && !(request.protocol == dst_proto && response_transform_dst_op == request.operation);
+        let is_success_status = (200..=299).contains(&response.status);
+        let same_protocol_aggregation =
+            request.protocol == dst_proto && response_transform_dst_op == request.operation;
+        let needs_response_transform =
+            needs_transform && is_success_status && !same_protocol_aggregation;
         let mut response_body = if needs_response_transform {
             tracing::debug!("transforming response");
             crate::transform_dispatch::transform_response(
@@ -1214,6 +1226,14 @@ impl GproxyEngine {
                 dst_proto,
                 normalized_nonstream_body,
             )?
+        } else if needs_transform && !is_success_status && !same_protocol_aggregation {
+            crate::transform_dispatch::convert_error_body_or_raw(
+                request.operation,
+                request.protocol,
+                response_transform_dst_op,
+                dst_proto,
+                normalized_nonstream_body,
+            )
         } else {
             normalized_nonstream_body
         };
@@ -1269,6 +1289,7 @@ impl GproxyEngine {
             meta,
             credential_updates,
             credential_index: used_credential_index,
+            stream_raw_capture: None,
         })
     }
 
@@ -1320,6 +1341,7 @@ impl GproxyEngine {
                     meta: None,
                     credential_updates: Vec::new(),
                     credential_index: 0,
+                    stream_raw_capture: None,
                 });
             }
             crate::dispatch::RouteImplementation::Unsupported => {
@@ -1421,6 +1443,102 @@ impl GproxyEngine {
         let used_credential_index = provider_result.credential_index;
         let attempt_meta = provider_result.attempt_meta;
 
+        // Non-2xx upstream on a transform route: buffer the upstream
+        // error body fully, attempt cross-protocol error conversion, and
+        // fall back to raw on schema mismatch. Return a single-chunk
+        // stream of the (possibly converted) body.
+        //
+        // Error responses on streaming endpoints are always small complete
+        // JSON bodies (not true SSE streams), so buffering is cheap.
+        // Without this early return, the inline per-chunk transformer would
+        // fail to parse the error body (since it's not SSE), yield no
+        // output, and emit only a synthetic `[DONE]` marker — the client
+        // would never see the actual error.
+        if needs_transform && !(200..=299).contains(&response.status) {
+            let mut upstream = response.body;
+            let mut error_bytes: Vec<u8> = Vec::new();
+            while let Some(chunk) = upstream.next().await {
+                match chunk {
+                    Ok(bytes) => error_bytes.extend_from_slice(&bytes),
+                    Err(e) => {
+                        return Err(build_execute_error(
+                            e,
+                            None,
+                            request.model.clone(),
+                            start,
+                            self.enable_upstream_log,
+                            self.enable_upstream_log_body,
+                        ));
+                    }
+                }
+            }
+
+            let raw_error_bytes = error_bytes.clone();
+            let converted = crate::transform_dispatch::convert_error_body_or_raw(
+                request.operation,
+                request.protocol,
+                dst_op,
+                dst_proto,
+                error_bytes,
+            );
+
+            // Seed the raw-capture buffer with the pre-conversion upstream
+            // bytes so the handler's upstream-request log records what
+            // actually came over the wire — matching the non-stream path's
+            // `raw_response_body_for_log`.
+            let raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>> =
+                if self.enable_upstream_log && self.enable_upstream_log_body {
+                    Some(Arc::new(std::sync::Mutex::new(raw_error_bytes)))
+                } else {
+                    None
+                };
+
+            let meta = if self.enable_upstream_log {
+                let request_body_for_log = if self.enable_upstream_log_body {
+                    attempt_meta.request_body
+                } else {
+                    None
+                };
+                Some(UpstreamRequestMeta {
+                    method: attempt_meta.method,
+                    url: attempt_meta.url,
+                    request_headers: attempt_meta.request_headers,
+                    request_body: request_body_for_log,
+                    response_status: Some(response.status),
+                    response_headers: response
+                        .headers
+                        .iter()
+                        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                        .collect(),
+                    // `response_body` is populated by the handler from
+                    // `stream_raw_capture` after the (single-chunk) stream
+                    // drains. Leaving it None here keeps the stream and
+                    // non-stream paths consistent.
+                    response_body: None,
+                    model: request.model.clone(),
+                    latency_ms: start.elapsed().as_millis() as u64,
+                    credential_index: Some(used_credential_index),
+                })
+            } else {
+                None
+            };
+
+            let single_chunk: ExecuteBodyStream = Box::pin(futures_util::stream::once(
+                async move { Ok::<_, UpstreamError>(Bytes::from(converted)) },
+            ));
+
+            return Ok(ExecuteResult {
+                status: response.status,
+                headers: response.headers,
+                body: ExecuteBody::Stream(single_chunk),
+                usage: None,
+                meta,
+                credential_updates,
+                credential_index: used_credential_index,
+                stream_raw_capture: raw_capture,
+            });
+        }
+
         let meta = if self.enable_upstream_log {
             let request_body_for_log = if self.enable_upstream_log_body {
                 attempt_meta.request_body
@@ -1450,8 +1568,26 @@ impl GproxyEngine {
             None
         };
 
-        let body = if needs_transform {
-            let transformer = crate::transform_dispatch::create_stream_response_transformer(
+        // Non-2xx is handled by the early-return error-body path above,
+        // so here `response.status` is guaranteed to be in the 2xx range.
+        // A stream transformer is only needed when the route is a
+        // cross-protocol TransformTo.
+        let needs_response_transform = needs_transform;
+
+        // Shared buffer the stream wrapper tees raw upstream chunks into
+        // before they pass through any transformer. The handler reads it
+        // after the stream drains and writes it to `meta.response_body` —
+        // matching what the non-stream path stores via
+        // `raw_response_body_for_log` (pre-transform, pre-normalize bytes).
+        let raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>> =
+            if self.enable_upstream_log && self.enable_upstream_log_body {
+                Some(Arc::new(std::sync::Mutex::new(Vec::new())))
+            } else {
+                None
+            };
+
+        let transformer = if needs_response_transform {
+            Some(crate::transform_dispatch::create_stream_response_transformer(
                 request.operation,
                 request.protocol,
                 dst_op,
@@ -1467,63 +1603,26 @@ impl GproxyEngine {
                             .unwrap_or(body)
                     })
                 }),
-            )?;
-
-            let mut upstream = response.body;
-            let model_override = request.response_model_override.clone();
-            // Helper that pins the try_stream's Ok type so the macro can
-            // infer its error type from the `?` uses below. Without this,
-            // the outer fn's new `ExecuteError` return type confuses
-            // inference and the macro can't deduce `Result<Bytes, _>`.
-            fn typed_stream(
-                s: impl Stream<Item = Result<Bytes, UpstreamError>> + Send + 'static,
-            ) -> ExecuteBodyStream {
-                Box::pin(s)
-            }
-            let stream = typed_stream(try_stream! {
-                let mut transformer = transformer;
-                while let Some(chunk) = upstream.next().await {
-                    let chunk = chunk?;
-                    let mut out = transformer.push_chunk(&chunk)?;
-                    if let Some(ref alias) = model_override {
-                        rewrite_model_field_in_body(&mut out, alias);
-                    }
-                    if !out.is_empty() {
-                        yield Bytes::from(out);
-                    }
-                }
-
-                let mut tail = transformer.finish()?;
-                if let Some(ref alias) = model_override {
-                    rewrite_model_field_in_body(&mut tail, alias);
-                }
-                if !tail.is_empty() {
-                    yield Bytes::from(tail);
-                }
-            });
-            ExecuteBody::Stream(stream)
-        } else if request.response_model_override.is_some() {
-            // Passthrough with alias rewriting
-            let model_override = request.response_model_override.clone();
-            let mut upstream = response.body;
-            fn typed_stream(
-                s: impl Stream<Item = Result<Bytes, UpstreamError>> + Send + 'static,
-            ) -> ExecuteBodyStream {
-                Box::pin(s)
-            }
-            let stream = typed_stream(try_stream! {
-                while let Some(chunk) = upstream.next().await {
-                    let chunk = chunk?;
-                    let mut buf = chunk.to_vec();
-                    if let Some(ref alias) = model_override {
-                        rewrite_model_field_in_body(&mut buf, alias);
-                    }
-                    yield Bytes::from(buf);
-                }
-            });
-            ExecuteBody::Stream(stream)
+            )?)
         } else {
+            None
+        };
+
+        let model_override = request.response_model_override.clone();
+
+        // Fast path: nothing to do per-chunk, hand the raw stream through.
+        let body = if transformer.is_none()
+            && raw_capture.is_none()
+            && model_override.is_none()
+        {
             ExecuteBody::Stream(response.body)
+        } else {
+            ExecuteBody::Stream(wrap_upstream_response_stream(
+                response.body,
+                transformer,
+                raw_capture.clone(),
+                model_override,
+            ))
         };
 
         Ok(ExecuteResult {
@@ -1534,8 +1633,87 @@ impl GproxyEngine {
             meta,
             credential_updates,
             credential_index: used_credential_index,
+            stream_raw_capture: raw_capture,
         })
     }
+}
+
+/// Wrap an upstream response stream with:
+/// 1. A raw-bytes tee into `raw_capture` (populated before the transformer
+///    sees the chunk, so the captured buffer exactly matches what came
+///    over the wire — mirroring `raw_response_body_for_log` in the
+///    non-stream path).
+/// 2. An optional per-chunk transformer for cross-protocol response
+///    conversions. Only set on 2xx responses; `None` on error statuses and
+///    on passthrough routes.
+/// 3. Optional `"model"` field rewriting for alias support.
+///
+/// When `transformer` is `None`, chunks are yielded raw (passthrough).
+/// This is the path taken for passthrough routes, and for non-2xx upstream
+/// responses where cross-protocol transformation would strip the real
+/// error body.
+fn wrap_upstream_response_stream(
+    mut upstream: crate::response::UpstreamBodyStream,
+    transformer: Option<crate::transform_dispatch::StreamResponseTransformer>,
+    raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
+    model_override: Option<String>,
+) -> ExecuteBodyStream {
+    // Helper pins the try_stream's Ok type so the macro can infer its
+    // error type from the `?` uses below — without it, rustc can't
+    // deduce `Result<Bytes, _>` from the containing function's return
+    // type.
+    fn typed_stream(
+        s: impl Stream<Item = Result<Bytes, UpstreamError>> + Send + 'static,
+    ) -> ExecuteBodyStream {
+        Box::pin(s)
+    }
+
+    typed_stream(try_stream! {
+        let mut transformer = transformer;
+        while let Some(chunk) = upstream.next().await {
+            let chunk = chunk?;
+
+            // Tee raw upstream bytes into the capture buffer before the
+            // transformer touches them, so the captured buffer is always
+            // the pre-transform upstream wire bytes.
+            if let Some(ref cap) = raw_capture
+                && let Ok(mut buf) = cap.lock()
+            {
+                buf.extend_from_slice(&chunk);
+            }
+
+            match transformer.as_mut() {
+                Some(t) => {
+                    let mut out = t.push_chunk(&chunk)?;
+                    if let Some(ref alias) = model_override {
+                        rewrite_model_field_in_body(&mut out, alias);
+                    }
+                    if !out.is_empty() {
+                        yield Bytes::from(out);
+                    }
+                }
+                None => {
+                    if let Some(ref alias) = model_override {
+                        let mut buf = chunk.to_vec();
+                        rewrite_model_field_in_body(&mut buf, alias);
+                        yield Bytes::from(buf);
+                    } else {
+                        yield chunk;
+                    }
+                }
+            }
+        }
+
+        if let Some(mut t) = transformer {
+            let mut tail = t.finish()?;
+            if let Some(ref alias) = model_override {
+                rewrite_model_field_in_body(&mut tail, alias);
+            }
+            if !tail.is_empty() {
+                yield Bytes::from(tail);
+            }
+        }
+    })
 }
 
 fn snapshot_request_meta(
@@ -1785,10 +1963,25 @@ fn inject_stream_flag(dst_op: OperationFamily, dst_proto: ProtocolKind, body: Ve
 }
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use bytes::Bytes;
+    use futures_util::StreamExt;
     use serde_json::json;
 
-    use super::{is_stream_aggregation_route, validate_credential_json};
+    use super::{
+        is_stream_aggregation_route, validate_credential_json, wrap_upstream_response_stream,
+    };
+    use crate::response::{UpstreamBodyStream, UpstreamError};
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
+
+    fn mock_upstream_stream(chunks: Vec<&'static [u8]>) -> UpstreamBodyStream {
+        let items: Vec<Result<Bytes, UpstreamError>> = chunks
+            .into_iter()
+            .map(|c| Ok(Bytes::from_static(c)))
+            .collect();
+        Box::pin(futures_util::stream::iter(items))
+    }
 
     #[test]
     fn validate_credential_json_accepts_valid_openai_credential() {
@@ -1821,5 +2014,54 @@ mod tests {
             ProtocolKind::OpenAiResponse,
             ProtocolKind::OpenAiResponse,
         ));
+    }
+
+    /// Passthrough path with raw capture enabled: every upstream chunk
+    /// must be teed into the capture buffer AND yielded to the client
+    /// verbatim. This replaces the old handler-side `accumulated_body`
+    /// logic that extended a buffer from the yielded chunks.
+    #[tokio::test]
+    async fn wrap_response_stream_tees_raw_bytes_in_passthrough_mode() {
+        let raw_capture = Arc::new(Mutex::new(Vec::new()));
+        let upstream = mock_upstream_stream(vec![b"hello ", b"world"]);
+
+        let mut stream =
+            wrap_upstream_response_stream(upstream, None, Some(raw_capture.clone()), None);
+
+        let mut client_bytes = Vec::new();
+        while let Some(item) = stream.next().await {
+            let chunk = item.expect("stream error");
+            client_bytes.extend_from_slice(&chunk);
+        }
+
+        assert_eq!(
+            client_bytes, b"hello world",
+            "passthrough must forward the upstream bytes verbatim"
+        );
+        assert_eq!(
+            raw_capture.lock().unwrap().as_slice(),
+            b"hello world",
+            "raw capture must contain pre-transform upstream bytes"
+        );
+    }
+
+    /// When no transformer and no capture buffer and no alias override
+    /// are set, `execute_stream_inner` takes a fast path and skips this
+    /// wrapper entirely. But if the caller invokes this helper with all
+    /// options `None`, it should still behave as a pure passthrough.
+    #[tokio::test]
+    async fn wrap_response_stream_pure_passthrough_yields_chunks_unchanged() {
+        let upstream = mock_upstream_stream(vec![b"chunk-a", b"chunk-b"]);
+
+        let mut stream = wrap_upstream_response_stream(upstream, None, None, None);
+
+        let mut chunks = Vec::new();
+        while let Some(item) = stream.next().await {
+            chunks.push(item.expect("stream error"));
+        }
+
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].as_ref(), b"chunk-a");
+        assert_eq!(chunks[1].as_ref(), b"chunk-b");
     }
 }
