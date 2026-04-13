@@ -421,6 +421,7 @@ export const enMessages: Record<string, string> = {
   "models.suffixDialog.confirm": "Create",
   "models.suffixDialog.created": "Created suffix variant {name}",
   "field.enable_magic_cache": "Enable Auto Cache",
+  "field.max_retries_on_429": "Max Retries on 429 (per credential)",
   "permissions.saved": "Permission saved",
   "permissions.deleted": "Permission deleted",
   "filePermissions.saved": "File permission saved",

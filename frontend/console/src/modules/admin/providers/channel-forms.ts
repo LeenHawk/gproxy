@@ -36,6 +36,7 @@ export const ALL_CHANNEL_IDS = [
 /// Common settings fields appended to every channel so sanitize_rules
 /// is always configurable regardless of channel type.
 const COMMON_SETTINGS_FIELDS: ChannelField[] = [
+  { key: "max_retries_on_429", label: "max_retries_on_429", type: "integer", optional: true },
   { key: "sanitize_rules", label: "sanitize_rules", type: "json", optional: true },
   { key: "rewrite_rules", label: "rewrite_rules", type: "json", optional: true },
 ];
