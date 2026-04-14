@@ -1023,32 +1023,31 @@ fn resolve_unscoped_model_list_protocol(req_path: &str, classified: ProtocolKind
 /// Apply provider-level rewrite_rules in the handler layer (before engine).
 /// Uses the original model name for pattern matching so alias-based patterns
 /// like `*-fast` can match before the model name is replaced by alias resolution.
+///
+/// Goes through `gproxy_channel::executor::apply_outgoing_rules` — the
+/// single in-tree invocation point for the raw `apply_sanitize_rules` /
+/// `apply_rewrite_rules` pure functions (spec success criterion #7).
 fn apply_handler_rewrite_rules(
     state: &AppState,
     provider_name: &str,
     model: Option<&str>,
     operation: OperationFamily,
     protocol: ProtocolKind,
-    mut body: Vec<u8>,
+    body: Vec<u8>,
 ) -> Vec<u8> {
     let rules = state.engine().rewrite_rules(provider_name);
     if rules.is_empty() {
         return body;
     }
-    let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&body) else {
-        return body;
+    let mut request = gproxy_sdk::channel::PreparedRequest {
+        method: http::Method::POST,
+        route: gproxy_sdk::channel::dispatch::RouteKey::new(operation, protocol),
+        model: model.map(String::from),
+        body,
+        headers: http::HeaderMap::new(),
     };
-    gproxy_sdk::channel::utils::rewrite::apply_rewrite_rules(
-        &mut body_json,
-        &rules,
-        model,
-        operation,
-        protocol,
-    );
-    if let Ok(patched) = serde_json::to_vec(&body_json) {
-        body = patched;
-    }
-    body
+    gproxy_sdk::channel::executor::apply_outgoing_rules(&mut request, &[], &rules);
+    request.body
 }
 
 fn prefixed_model_id(provider_name: &str, model_id: &str) -> String {

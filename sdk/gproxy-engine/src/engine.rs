@@ -1102,22 +1102,16 @@ impl GproxyEngine {
 
         let mut prepared = provider.finalize_request(prepared)?;
 
-        // Sanitize request body text after finalize_request so channel-
-        // specific normalization has already run. Dispatches to the correct
-        // protocol walker based on the destination protocol.
-        let rules = provider.sanitize_rules();
-        if !rules.is_empty()
-            && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body)
-        {
-            gproxy_channel::utils::sanitize::apply_sanitize_rules(
-                &mut body_json,
-                prepared.route.protocol,
-                &rules,
-            );
-            if let Ok(patched) = serde_json::to_vec(&body_json) {
-                prepared.body = patched;
-            }
-        }
+        // Apply the channel's sanitize + rewrite rules in one body pass.
+        // `apply_outgoing_rules` is gproxy-channel's single in-tree
+        // invocation point for `apply_sanitize_rules` / `apply_rewrite_rules`,
+        // so the engine doesn't touch those directly (spec §Channel
+        // settings, success criterion #7).
+        gproxy_channel::executor::apply_outgoing_rules(
+            &mut prepared,
+            &provider.sanitize_rules(),
+            &[],
+        );
 
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
 
@@ -1384,22 +1378,16 @@ impl GproxyEngine {
 
         let mut prepared = provider.finalize_request(prepared)?;
 
-        // Sanitize request body text after finalize_request so channel-
-        // specific normalization has already run. Dispatches to the correct
-        // protocol walker based on the destination protocol.
-        let rules = provider.sanitize_rules();
-        if !rules.is_empty()
-            && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body)
-        {
-            gproxy_channel::utils::sanitize::apply_sanitize_rules(
-                &mut body_json,
-                prepared.route.protocol,
-                &rules,
-            );
-            if let Ok(patched) = serde_json::to_vec(&body_json) {
-                prepared.body = patched;
-            }
-        }
+        // Apply the channel's sanitize + rewrite rules in one body pass.
+        // `apply_outgoing_rules` is gproxy-channel's single in-tree
+        // invocation point for `apply_sanitize_rules` / `apply_rewrite_rules`,
+        // so the engine doesn't touch those directly (spec §Channel
+        // settings, success criterion #7).
+        gproxy_channel::executor::apply_outgoing_rules(
+            &mut prepared,
+            &provider.sanitize_rules(),
+            &[],
+        );
 
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
 
