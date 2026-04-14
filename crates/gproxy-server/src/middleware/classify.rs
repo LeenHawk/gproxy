@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use http_body_util::BodyExt;
 
-pub use gproxy_routing::classify::{
+pub use gproxy_engine::routing::classify::{
     Classification, classify_route, extract_model_from_uri_path, normalize_path,
 };
 

@@ -1970,6 +1970,8 @@ dependencies = [
 name = "gproxy-sdk"
 version = "1.0.8"
 dependencies = [
+ "gproxy-channel",
+ "gproxy-engine",
  "gproxy-protocol",
  "gproxy-provider",
  "gproxy-routing",
@@ -1987,9 +1989,10 @@ dependencies = [
  "dashmap",
  "ed25519-dalek",
  "futures-util",
+ "gproxy-channel",
  "gproxy-core",
+ "gproxy-engine",
  "gproxy-protocol",
- "gproxy-routing",
  "gproxy-sdk",
  "gproxy-storage",
  "http",

@@ -2,7 +2,7 @@ use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::Response;
 
-pub use gproxy_routing::model_extraction::extract_model;
+pub use gproxy_engine::routing::model_extraction::extract_model;
 
 use crate::middleware::classify::{BufferedBodyBytes, Classification};
 

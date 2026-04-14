@@ -4,7 +4,7 @@ use axum::extract::{Request, State};
 use axum::middleware::Next;
 use axum::response::Response;
 pub use gproxy_core::{FilePermissionEntry, PermissionEntry};
-pub use gproxy_routing::permission::pattern_matches;
+pub use gproxy_engine::routing::permission::pattern_matches;
 
 use crate::app_state::AppState;
 
