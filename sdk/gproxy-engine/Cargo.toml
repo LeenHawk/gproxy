@@ -13,7 +13,12 @@ categories = ["api-bindings", "asynchronous", "web-programming"]
 
 [features]
 default = ["all-channels"]
-all-channels = ["gproxy-channel/all-channels"]
+all-channels = [
+    "gproxy-channel/all-channels",
+    "openai", "anthropic", "aistudio", "vertexexpress",
+    "vertex", "geminicli", "claudecode", "codex",
+    "antigravity", "nvidia", "deepseek", "groq", "openrouter", "custom"
+]
 openai = ["gproxy-channel/openai"]
 anthropic = ["gproxy-channel/anthropic"]
 aistudio = ["gproxy-channel/aistudio"]

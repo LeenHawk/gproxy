@@ -274,20 +274,34 @@ pub struct ProviderConfig {
 pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billing::ModelPrice>> {
     use gproxy_channel::channels::*;
 
-    let prices = match channel {
+    let prices: &[gproxy_channel::billing::ModelPrice] = match channel {
+        #[cfg(feature = "openai")]
         "openai" => openai::OpenAiChannel.model_pricing(),
+        #[cfg(feature = "anthropic")]
         "anthropic" => anthropic::AnthropicChannel.model_pricing(),
+        #[cfg(feature = "claudecode")]
         "claudecode" => claudecode::ClaudeCodeChannel.model_pricing(),
+        #[cfg(feature = "codex")]
         "codex" => codex::CodexChannel.model_pricing(),
+        #[cfg(feature = "vertex")]
         "vertex" => vertex::VertexChannel.model_pricing(),
+        #[cfg(feature = "vertexexpress")]
         "vertexexpress" => vertexexpress::VertexExpressChannel.model_pricing(),
+        #[cfg(feature = "aistudio")]
         "aistudio" => aistudio::AiStudioChannel.model_pricing(),
+        #[cfg(feature = "geminicli")]
         "geminicli" => geminicli::GeminiCliChannel.model_pricing(),
+        #[cfg(feature = "antigravity")]
         "antigravity" => antigravity::AntigravityChannel.model_pricing(),
+        #[cfg(feature = "nvidia")]
         "nvidia" => nvidia::NvidiaChannel.model_pricing(),
+        #[cfg(feature = "deepseek")]
         "deepseek" => deepseek::DeepSeekChannel.model_pricing(),
+        #[cfg(feature = "groq")]
         "groq" => groq::GroqChannel.model_pricing(),
+        #[cfg(feature = "openrouter")]
         "openrouter" => openrouter::OpenRouterChannel.model_pricing(),
+        #[cfg(feature = "custom")]
         "custom" => custom::CustomChannel.model_pricing(),
         _ => return None,
     };
@@ -295,7 +309,7 @@ pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billin
 }
 
 /// Validate that a JSON credential matches the schema for a channel.
-pub fn validate_credential_json(channel: &str, credential: &Value) -> Result<(), UpstreamError> {
+pub fn validate_credential_json(channel: &str, #[allow(unused_variables)] credential: &Value) -> Result<(), UpstreamError> {
     macro_rules! validate {
         ($ty:ty) => {
             serde_json::from_value::<$ty>(credential.clone())
@@ -311,19 +325,33 @@ pub fn validate_credential_json(channel: &str, credential: &Value) -> Result<(),
     use gproxy_channel::channels::*;
 
     match channel {
+        #[cfg(feature = "openai")]
         "openai" => validate!(openai::OpenAiCredential),
+        #[cfg(feature = "anthropic")]
         "anthropic" => validate!(anthropic::AnthropicCredential),
+        #[cfg(feature = "claudecode")]
         "claudecode" => validate!(claudecode::ClaudeCodeCredential),
+        #[cfg(feature = "codex")]
         "codex" => validate!(codex::CodexCredential),
+        #[cfg(feature = "vertex")]
         "vertex" => validate!(vertex::VertexCredential),
+        #[cfg(feature = "vertexexpress")]
         "vertexexpress" => validate!(vertexexpress::VertexExpressCredential),
+        #[cfg(feature = "aistudio")]
         "aistudio" => validate!(aistudio::AiStudioCredential),
+        #[cfg(feature = "geminicli")]
         "geminicli" => validate!(geminicli::GeminiCliCredential),
+        #[cfg(feature = "antigravity")]
         "antigravity" => validate!(antigravity::AntigravityCredential),
+        #[cfg(feature = "nvidia")]
         "nvidia" => validate!(nvidia::NvidiaCredential),
+        #[cfg(feature = "deepseek")]
         "deepseek" => validate!(deepseek::DeepSeekCredential),
+        #[cfg(feature = "groq")]
         "groq" => validate!(groq::GroqCredential),
+        #[cfg(feature = "openrouter")]
         "openrouter" => validate!(openrouter::OpenRouterCredential),
+        #[cfg(feature = "custom")]
         "custom" => validate!(custom::CustomCredential),
         _ => Err(UpstreamError::Channel(format!(
             "unknown channel: {channel}"
@@ -533,19 +561,33 @@ impl GproxyEngineBuilder {
         use gproxy_channel::channels::*;
 
         match config.channel.as_str() {
+            #[cfg(feature = "openai")]
             "openai" => add!(self, openai::OpenAiChannel, config),
+            #[cfg(feature = "anthropic")]
             "anthropic" => add!(self, anthropic::AnthropicChannel, config),
+            #[cfg(feature = "claudecode")]
             "claudecode" => add!(self, claudecode::ClaudeCodeChannel, config),
+            #[cfg(feature = "codex")]
             "codex" => add!(self, codex::CodexChannel, config),
+            #[cfg(feature = "vertex")]
             "vertex" => add!(self, vertex::VertexChannel, config),
+            #[cfg(feature = "vertexexpress")]
             "vertexexpress" => add!(self, vertexexpress::VertexExpressChannel, config),
+            #[cfg(feature = "aistudio")]
             "aistudio" => add!(self, aistudio::AiStudioChannel, config),
+            #[cfg(feature = "geminicli")]
             "geminicli" => add!(self, geminicli::GeminiCliChannel, config),
+            #[cfg(feature = "antigravity")]
             "antigravity" => add!(self, antigravity::AntigravityChannel, config),
+            #[cfg(feature = "nvidia")]
             "nvidia" => add!(self, nvidia::NvidiaChannel, config),
+            #[cfg(feature = "deepseek")]
             "deepseek" => add!(self, deepseek::DeepSeekChannel, config),
+            #[cfg(feature = "groq")]
             "groq" => add!(self, groq::GroqChannel, config),
+            #[cfg(feature = "openrouter")]
             "openrouter" => add!(self, openrouter::OpenRouterChannel, config),
+            #[cfg(feature = "custom")]
             "custom" => add!(self, custom::CustomChannel, config),
             _ => Err(UpstreamError::Channel(format!(
                 "unknown channel: {}",
@@ -691,10 +733,11 @@ impl GproxyEngine {
     pub async fn bootstrap_credential_on_upsert(
         &self,
         channel: &str,
-        credential_json: &Value,
+        #[allow(unused_variables)] credential_json: &Value,
     ) -> Result<(Option<Value>, Vec<UpstreamRequestMeta>), (UpstreamError, Vec<UpstreamRequestMeta>)>
     {
         match channel {
+            #[cfg(feature = "claudecode")]
             "claudecode" => {
                 gproxy_channel::channels::claudecode::bootstrap_credential_from_cookie(
                     &self.client,
@@ -703,6 +746,7 @@ impl GproxyEngine {
                 )
                 .await
             }
+            #[cfg(feature = "vertex")]
             "vertex" => {
                 gproxy_channel::channels::vertex::bootstrap_vertex_token(
                     &self.client,

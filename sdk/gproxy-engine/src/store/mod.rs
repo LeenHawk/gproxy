@@ -168,19 +168,33 @@ impl ProviderStore {
         use gproxy_channel::channels::*;
 
         match config.channel.as_str() {
+            #[cfg(feature = "openai")]
             "openai" => add!(self, openai::OpenAiChannel, config),
+            #[cfg(feature = "anthropic")]
             "anthropic" => add!(self, anthropic::AnthropicChannel, config),
+            #[cfg(feature = "claudecode")]
             "claudecode" => add!(self, claudecode::ClaudeCodeChannel, config),
+            #[cfg(feature = "codex")]
             "codex" => add!(self, codex::CodexChannel, config),
+            #[cfg(feature = "vertex")]
             "vertex" => add!(self, vertex::VertexChannel, config),
+            #[cfg(feature = "vertexexpress")]
             "vertexexpress" => add!(self, vertexexpress::VertexExpressChannel, config),
+            #[cfg(feature = "aistudio")]
             "aistudio" => add!(self, aistudio::AiStudioChannel, config),
+            #[cfg(feature = "geminicli")]
             "geminicli" => add!(self, geminicli::GeminiCliChannel, config),
+            #[cfg(feature = "antigravity")]
             "antigravity" => add!(self, antigravity::AntigravityChannel, config),
+            #[cfg(feature = "nvidia")]
             "nvidia" => add!(self, nvidia::NvidiaChannel, config),
+            #[cfg(feature = "deepseek")]
             "deepseek" => add!(self, deepseek::DeepSeekChannel, config),
+            #[cfg(feature = "groq")]
             "groq" => add!(self, groq::GroqChannel, config),
+            #[cfg(feature = "openrouter")]
             "openrouter" => add!(self, openrouter::OpenRouterChannel, config),
+            #[cfg(feature = "custom")]
             "custom" => add!(self, custom::CustomChannel, config),
             _ => Err(UpstreamError::Channel(format!(
                 "unknown channel: {}",
