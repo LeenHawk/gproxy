@@ -372,7 +372,7 @@ fn vertexexpress_local_transform(
     if protocol == ProtocolKind::Gemini {
         return Ok(gemini_body);
     }
-    crate::transform_dispatch::transform_response(
+    gproxy_protocol::transform::dispatch::transform_response(
         operation,
         protocol,
         operation,

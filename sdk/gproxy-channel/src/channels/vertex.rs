@@ -225,8 +225,8 @@ pub async fn bootstrap_vertex_token(
     client: &wreq::Client,
     credential_json: &Value,
 ) -> Result<
-    (Option<Value>, Vec<crate::engine::UpstreamRequestMeta>),
-    (UpstreamError, Vec<crate::engine::UpstreamRequestMeta>),
+    (Option<Value>, Vec<crate::meta::UpstreamRequestMeta>),
+    (UpstreamError, Vec<crate::meta::UpstreamRequestMeta>),
 > {
     let cred: VertexCredential = serde_json::from_value(credential_json.clone()).map_err(|e| {
         (

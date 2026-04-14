@@ -1,6 +1,15 @@
 use gproxy_protocol::kinds::ProtocolKind;
 
-use crate::engine::Usage;
+/// Token usage extracted from upstream response.
+#[derive(Debug, Clone, Default)]
+pub struct Usage {
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub cache_read_input_tokens: Option<i64>,
+    pub cache_creation_input_tokens: Option<i64>,
+    pub cache_creation_input_tokens_5min: Option<i64>,
+    pub cache_creation_input_tokens_1h: Option<i64>,
+}
 
 /// Extract usage from a non-streaming response body based on the upstream protocol.
 pub fn extract_usage(protocol: ProtocolKind, body: &[u8]) -> Option<Usage> {

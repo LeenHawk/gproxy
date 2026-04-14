@@ -239,7 +239,7 @@ impl Channel for AnthropicChannel {
 
         // File operations: don't force Content-Type to application/json
         // (multipart upload carries its own Content-Type via request.headers).
-        if !crate::engine::is_file_operation(request.route.operation) {
+        if !crate::file_operation::is_file_operation(request.route.operation) {
             builder = builder.header("Content-Type", "application/json");
         }
 
@@ -265,7 +265,7 @@ impl Channel for AnthropicChannel {
         // `anthropic-beta` header without clobbering any value the
         // client or an earlier layer already set, then skip JSON body
         // normalization.
-        if crate::engine::is_file_operation(request.route.operation) {
+        if crate::file_operation::is_file_operation(request.route.operation) {
             crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
                 &mut request.headers,
                 &["files-api-2025-04-14"],

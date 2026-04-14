@@ -1836,6 +1836,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-channel"
+version = "1.0.8"
+dependencies = [
+ "async-stream",
+ "base64 0.22.1",
+ "bytes",
+ "dashmap",
+ "futures-util",
+ "getrandom 0.4.2",
+ "gproxy-protocol",
+ "http",
+ "inventory",
+ "jsonwebtoken",
+ "rand 0.10.1",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tiktoken-rs",
+ "tokenizers",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+ "wreq",
+ "wreq-util",
+]
+
+[[package]]
 name = "gproxy-core"
 version = "1.0.8"
 dependencies = [
@@ -1873,6 +1903,7 @@ dependencies = [
  "dashmap",
  "futures-util",
  "getrandom 0.4.2",
+ "gproxy-channel",
  "gproxy-protocol",
  "http",
  "inventory",

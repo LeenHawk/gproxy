@@ -1,4 +1,4 @@
-use crate::engine::UpstreamRequestMeta;
+use crate::meta::UpstreamRequestMeta;
 use crate::response::UpstreamError;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};

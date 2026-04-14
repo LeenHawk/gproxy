@@ -238,33 +238,16 @@ pub enum ExecuteBody {
 }
 
 /// Token usage extracted from upstream response.
-#[derive(Debug, Clone, Default)]
-pub struct Usage {
-    pub input_tokens: Option<i64>,
-    pub output_tokens: Option<i64>,
-    pub cache_read_input_tokens: Option<i64>,
-    pub cache_creation_input_tokens: Option<i64>,
-    pub cache_creation_input_tokens_5min: Option<i64>,
-    pub cache_creation_input_tokens_1h: Option<i64>,
-}
+///
+/// Re-exported from `gproxy-channel` for backward compatibility. The
+/// canonical definition lives in [`gproxy_channel::usage::Usage`].
+pub use gproxy_channel::Usage;
 
 /// Metadata about the upstream request for logging/storage.
-#[derive(Debug, Clone)]
-pub struct UpstreamRequestMeta {
-    pub method: String,
-    pub url: String,
-    pub request_headers: Vec<(String, String)>,
-    pub request_body: Option<Vec<u8>>,
-    pub response_status: Option<u16>,
-    pub response_headers: Vec<(String, String)>,
-    /// Raw upstream response body, captured before any cross-protocol
-    /// transform or stream aggregation. Populated only when the engine is
-    /// built with `enable_upstream_log_body = true`; otherwise `None`.
-    pub response_body: Option<Vec<u8>>,
-    pub model: Option<String>,
-    pub latency_ms: u64,
-    pub credential_index: Option<usize>,
-}
+///
+/// Re-exported from `gproxy-channel` for backward compatibility. The
+/// canonical definition lives in [`gproxy_channel::meta::UpstreamRequestMeta`].
+pub use gproxy_channel::UpstreamRequestMeta;
 
 /// The main SDK entry point. Consumes the current provider store snapshot and an HTTP client.
 pub struct GproxyEngine {
@@ -1861,21 +1844,9 @@ fn rewrite_model_id_in_body(body: &mut Vec<u8>, new_id: &str, protocol: Protocol
 }
 
 /// Returns true when the operation is one of the Files API endpoints.
-pub fn is_file_operation(operation: OperationFamily) -> bool {
-    matches!(
-        operation,
-        OperationFamily::FileUpload
-            | OperationFamily::FileList
-            | OperationFamily::FileContent
-            | OperationFamily::FileGet
-            | OperationFamily::FileDelete
-    )
-}
-
-/// Returns true when the prepared request path belongs to a Files API endpoint.
-pub fn is_file_operation_path(path: &str) -> bool {
-    path.starts_with("/v1/files")
-}
+///
+/// Re-exported from `gproxy-channel` for backward compatibility.
+pub use gproxy_channel::{is_file_operation, is_file_operation_path};
 
 /// Determine the WS path for a given destination operation.
 /// Returns `None` if the destination is not a WS-capable operation.

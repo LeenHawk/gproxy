@@ -569,8 +569,8 @@ pub async fn bootstrap_credential_from_cookie(
     spoof_client: Option<&wreq::Client>,
     credential_json: &Value,
 ) -> Result<
-    (Option<Value>, Vec<crate::engine::UpstreamRequestMeta>),
-    (UpstreamError, Vec<crate::engine::UpstreamRequestMeta>),
+    (Option<Value>, Vec<crate::meta::UpstreamRequestMeta>),
+    (UpstreamError, Vec<crate::meta::UpstreamRequestMeta>),
 > {
     let mut credential: ClaudeCodeCredential = serde_json::from_value(credential_json.clone())
         .map_err(|e| {
@@ -875,7 +875,7 @@ impl Channel for ClaudeCodeChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let is_file_op = crate::engine::is_file_operation(request.route.operation);
+        let is_file_op = crate::file_operation::is_file_operation(request.route.operation);
 
         // For file operations, pass body through as-is (may be multipart or empty).
         // For normal operations, parse JSON to inject metadata.
@@ -952,7 +952,7 @@ impl Channel for ClaudeCodeChannel {
         // tokens are present in the `anthropic-beta` header (preserving
         // any values already set by the client or an earlier layer),
         // and skip JSON body normalization.
-        if crate::engine::is_file_operation(request.route.operation) {
+        if crate::file_operation::is_file_operation(request.route.operation) {
             crate::utils::anthropic_beta::ensure_anthropic_beta_tokens(
                 &mut request.headers,
                 &[CLAUDECODE_OAUTH_BETA, "files-api-2025-04-14"],

@@ -1,65 +1,65 @@
-//! LLM channel/provider engine with multi-channel support.
+//! Multi-channel LLM provider engine (L2 layer of the gproxy SDK).
 //!
-//! This crate provides a trait-based architecture for routing LLM API requests
-//! to upstream providers (OpenAI, Anthropic, Gemini, etc.) with automatic
-//! credential rotation, health tracking, and retry logic.
+//! This crate hosts the multi-channel orchestration: [`GproxyEngine`],
+//! [`ProviderStore`], retry / credential affinity, the dispatch consumer
+//! that walks each channel's [`gproxy_channel::DispatchTable`], and the
+//! backend traits for distributed rate-limit / quota / affinity state.
 //!
-//! # Adding a new channel
-//!
-//! 1. Create a struct implementing [`Channel`]
-//! 2. Implement [`ChannelSettings`] and [`ChannelCredential`] for your config/auth types
-//! 3. Implement [`CredentialHealth`] for your health tracking shape
-//! 4. Call `inventory::submit!` to register the channel
-//!
-//! That's it — no other files need to change.
+//! Single-channel primitives (the [`gproxy_channel::Channel`] trait,
+//! credentials, request / response types, individual channel
+//! implementations, health trackers, billing price types, token counting,
+//! dispatch-table types) live in `gproxy-channel`. This crate re-exports
+//! those so that existing `gproxy_provider::*` paths keep resolving while
+//! the workspace completes the SDK layer refactor.
 
 mod affinity;
 
 /// Backend abstractions and in-memory implementations.
 pub mod backend;
-pub mod billing;
-pub mod channel;
-pub mod channels;
-pub mod count_tokens;
-pub mod dispatch;
 pub mod engine;
-pub mod health;
-pub mod http_client;
-pub mod provider;
-pub mod registry;
-pub mod request;
-pub mod response;
 pub mod retry;
 pub mod store;
 pub mod transform_dispatch;
-pub mod usage;
-pub mod utils;
 
 pub use backend::memory::{InMemoryAffinity, InMemoryQuota, InMemoryRateLimit};
 pub use backend::traits::{AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend};
 pub use backend::types::{
     BackendError, QuotaBalance, QuotaError, QuotaExhausted, RateLimitExceeded, RateLimitWindow,
 };
-pub use billing::{ModelPrice, ModelPriceTier};
-pub use channel::{Channel, ChannelCredential, ChannelSettings, OAuthFlow};
-pub use dispatch::{
-    DispatchRuleDocument, DispatchTable, DispatchTableDocument, DispatchTableError,
-    RouteImplementation, RouteKey,
-};
 pub use engine::{
-    ExecuteBody, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig, Usage,
+    ExecuteBody, ExecuteError, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig,
     built_in_model_prices,
-};
-pub use health::CredentialHealth;
-pub use provider::ProviderDefinition;
-pub use registry::{ChannelRegistration, ChannelRegistry};
-pub use request::PreparedRequest;
-pub use response::{
-    ResponseClassification, RetryableUpstreamResponse, UpstreamError, UpstreamResponse,
-    UpstreamStreamingResponse,
 };
 pub use store::{
     CredentialHealthSnapshot, CredentialSnapshot, CredentialUpdate, EngineEvent, EngineEventSource,
     OAuthFinishResult, ProviderMutator, ProviderRegistry, ProviderSnapshot, ProviderStore,
     ProviderStoreBuilder,
 };
+
+// Re-export the single-channel layer so existing `gproxy_provider::*`
+// paths keep working during the migration.
+pub use gproxy_channel::{
+    Channel, ChannelCredential, ChannelRegistration, ChannelRegistry, ChannelSettings,
+    CredentialHealth, DispatchRuleDocument, DispatchTable, DispatchTableDocument,
+    DispatchTableError, FailedUpstreamAttempt, ModelCooldownHealth, ModelPrice, ModelPriceTier,
+    OAuthFlow, PreparedRequest, ProviderDefinition, ResponseClassification,
+    RetryableUpstreamResponse, RouteImplementation, RouteKey, UpstreamBodyStream, UpstreamError,
+    UpstreamRequestMeta, UpstreamResponse, UpstreamStreamingResponse, Usage,
+    is_file_operation, is_file_operation_path,
+};
+
+// Backward-compat module aliases so that `use gproxy_provider::channel::Channel`
+// (and friends) keep resolving to the moved gproxy-channel types.
+pub use gproxy_channel::billing;
+pub use gproxy_channel::channel;
+pub use gproxy_channel::channels;
+pub use gproxy_channel::count_tokens;
+pub use gproxy_channel::dispatch;
+pub use gproxy_channel::health;
+pub use gproxy_channel::http_client;
+pub use gproxy_channel::provider;
+pub use gproxy_channel::registry;
+pub use gproxy_channel::request;
+pub use gproxy_channel::response;
+pub use gproxy_channel::usage;
+pub use gproxy_channel::utils;

@@ -1,4 +1,4 @@
-use crate::engine::Usage;
+use crate::usage::Usage;
 use crate::response::UpstreamError;
 use gproxy_protocol::kinds::ProtocolKind;
 
