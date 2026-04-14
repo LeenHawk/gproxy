@@ -1,5 +1,33 @@
 # Release Notes
 
+## v1.0.10
+
+> Two focused fixes from the v1.0.9 fallout: claudecode OAuth refresh was broken against Anthropic's token endpoint and left credentials permanently dead, and the sanitize middleware was leaking `anthropic-version` through so every upstream request carried a duplicated header.
+
+### English
+
+#### Fixed
+
+- **claudecode OAuth refresh actually works again.** The v1.0.9 gproxy-channel refactor routed `refresh_credential`'s `refresh_token` path through the generic `oauth2_refresh::refresh_oauth2_token` helper, which posts `grant_type=refresh_token&refresh_token=...` (no `client_id`, no anthropic headers) to `https://console.anthropic.com/v1/oauth/token`. Anthropic's token endpoint rejects that shape with `invalid_request_error: Invalid request format`, so any credential with a `refresh_token` but no cookie fallback was stuck dead forever — the 401 → refresh → retry loop would fail every time. Replaced with `exchange_tokens_with_refresh_token` in `claudecode_cookie.rs`, which posts the CLI-matching shape to `{api_base}/v1/oauth/token` (form body with `client_id=9d1c250a-...` and headers `anthropic-version: 2023-06-01` / `anthropic-beta: oauth-2025-04-20` / `user-agent: claude-cli/...`).
+- **Pre-flight credential refresh.** Added `Channel::needs_refresh` as a new trait hook (default `false`). claudecode overrides it to return `true` when `access_token` is empty, `expires_at_ms` is already past, or expiry is within a 60s skew window. The retry loop now calls `refresh_credential` up-front for such credentials and proceeds with the fresh token, skipping the otherwise-guaranteed 401 round-trip. Errors from the pre-flight are logged and swallowed — the existing AuthDead path still catches anything that slips through.
+- **`anthropic-version` no longer duplicated on upstream requests.** The request sanitize middleware's `HEADER_DENYLIST` was already stripping `authorization` / `user-agent` / `content-type` / etc. from the downstream request before the channel forwarding loop ran — but `anthropic-version` was missing from the list. Since `http::request::Builder::header` *appends* rather than replaces, the client-forwarded copy ended up alongside the channel's own value, producing `anthropic-version: 2023-06-01` twice on the wire. Added to the denylist.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.9. No DB migration, no HTTP API change, no config change. SDK consumers are unaffected — no public types or module paths moved.
+
+### 简体中文
+
+#### 修复
+
+- **claudecode OAuth refresh 重新可用.** v1.0.9 的 gproxy-channel 重构把 `refresh_credential` 的 `refresh_token` 路径切到通用的 `oauth2_refresh::refresh_oauth2_token` helper,它往 `https://console.anthropic.com/v1/oauth/token` POST `grant_type=refresh_token&refresh_token=...`(没有 `client_id`,没有 anthropic header),Anthropic 的 token 端点会返回 `invalid_request_error: Invalid request format` 直接拒绝,所以只有 `refresh_token` 没有 cookie 兜底的 credential 永远死透 —— 401 → refresh → retry 循环每次都失败。换成 `claudecode_cookie.rs` 里新增的 `exchange_tokens_with_refresh_token`,按 CLI 的请求 shape 打到 `{api_base}/v1/oauth/token`(form body 带 `client_id=9d1c250a-...`,header 带 `anthropic-version: 2023-06-01` / `anthropic-beta: oauth-2025-04-20` / `user-agent: claude-cli/...`)。
+- **Credential 的 pre-flight refresh.** 新增 `Channel::needs_refresh` trait 方法(默认 `false`)。claudecode 覆盖实现:`access_token` 为空、`expires_at_ms` 已经过期、或 60 秒内即将过期时返回 `true`。retry 循环检测到后先调用 `refresh_credential` 刷新一次再发请求,省掉那次必然 401 的 round-trip。pre-flight 报错只记日志不中断,现有的 AuthDead 回退路径继续兜底。
+- **`anthropic-version` 不再在上游请求中重复.** 请求 sanitize 中间件的 `HEADER_DENYLIST` 之前已经在进 channel 转发循环之前抹掉了 `authorization` / `user-agent` / `content-type` 等,但漏了 `anthropic-version`。由于 `http::request::Builder::header` 是 *追加* 而不是替换,客户端发来的那份会和 channel 自己设的那份一起出现,上游就看到两份 `anthropic-version: 2023-06-01`。已加进 denylist。
+
+#### 兼容性
+
+- **从 v1.0.9 直接升级**。不涉及 DB 迁移、HTTP API 变更或配置变更。SDK 使用者不受影响 —— 没有任何公开类型或模块路径移动。
+
 ## v1.0.9
 
 > The SDK splits into four publishable crates — `gproxy-protocol`, `gproxy-channel`, `gproxy-engine`, `gproxy-sdk` — with real per-channel feature pruning, a standalone `execute_once` single-request client for single-provider use, and no DB / API / config changes for binary operators.
