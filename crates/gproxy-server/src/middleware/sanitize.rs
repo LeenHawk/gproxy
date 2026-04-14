@@ -30,6 +30,11 @@ const HEADER_DENYLIST: &[&str] = &[
     "accept-encoding",
     "accept-language",
     "content-type",
+    // Anthropic API version — the claudecode/anthropic channels set
+    // this authoritatively, and `http::Builder::header` appends rather
+    // than replaces, so letting the client's copy through produces a
+    // duplicated `anthropic-version` on the wire.
+    "anthropic-version",
 ];
 
 /// Sensitive query parameters to strip.
