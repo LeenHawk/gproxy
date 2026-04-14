@@ -309,7 +309,10 @@ pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billin
 }
 
 /// Validate that a JSON credential matches the schema for a channel.
-pub fn validate_credential_json(channel: &str, #[allow(unused_variables)] credential: &Value) -> Result<(), UpstreamError> {
+pub fn validate_credential_json(
+    channel: &str,
+    #[allow(unused_variables)] credential: &Value,
+) -> Result<(), UpstreamError> {
     macro_rules! validate {
         ($ty:ty) => {
             serde_json::from_value::<$ty>(credential.clone())
