@@ -78,7 +78,13 @@ export function GlobalSettingsModule({
         headers,
         body: JSON.stringify({ tag: resolveUpdateTag(updateChannel) }),
       });
-      notify("success", result.message || `${result.old_version} -> ${result.new_version}`);
+      notify(
+        "success",
+        t("globalSettings.update.restarting", {
+          old: result.old_version,
+          new: result.new_version,
+        }),
+      );
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     } finally {
@@ -99,7 +105,7 @@ export function GlobalSettingsModule({
             {refreshing ? t("common.loading") : t("common.refresh")}
           </Button>
           <Button variant="danger" onClick={() => void performUpdate()} disabled={updating}>
-            {updating ? t("common.loading") : t("common.update")}
+            {updating ? t("common.updating") : t("common.update")}
           </Button>
           <Button onClick={() => void save()}>{t("common.save")}</Button>
         </div>
