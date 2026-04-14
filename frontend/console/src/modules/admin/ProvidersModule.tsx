@@ -833,7 +833,6 @@ export function ProvidersModule({
                 modelId: t("common.modelId"),
                 displayName: t("common.displayName"),
                 enabled: t("common.enabled"),
-                pricingJson: t("models.pricingJson"),
                 pricingJsonHint: t("models.pricingJson.hint"),
                 aliasOf: t("models.aliasOf"),
                 aliasOfNone: t("models.aliasOf.none"),
@@ -857,8 +856,7 @@ export function ProvidersModule({
                 suffixPreview: t("models.suffixDialog.preview"),
                 suffixConfirm: t("models.suffixDialog.confirm"),
                 pricingEditor: {
-                  modeStructured: t("models.pricing.mode.structured"),
-                  modeJson: t("models.pricing.mode.json"),
+                  sectionTitle: t("models.pricingJson"),
                   priceEachCall: t("models.pricing.priceEachCall"),
                   priceTiers: t("models.pricing.priceTiers"),
                   flexPriceEachCall: t("models.pricing.flexPriceEachCall"),
@@ -877,8 +875,6 @@ export function ProvidersModule({
                   tierPriceCacheCreation5min: t("models.pricing.tier.priceCacheCreation5min"),
                   tierPriceCacheCreation1h: t("models.pricing.tier.priceCacheCreation1h"),
                   emptyHint: t("models.pricing.emptyHint"),
-                  jsonParseError: t("models.pricing.jsonParseError"),
-                  jsonTextareaLabel: t("models.pricing.jsonTextareaLabel"),
                 },
               }}
               batch={{

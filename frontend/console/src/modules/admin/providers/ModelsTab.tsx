@@ -46,7 +46,6 @@ type ModelsTabLabels = {
   modelId: string;
   displayName: string;
   enabled: string;
-  pricingJson: string;
   pricingJsonHint: string;
   aliasOf: string;
   aliasOfNone: string;
@@ -411,7 +410,6 @@ export function ModelsTab({
               <p className="text-xs text-muted">{labels.priceOverrideHint}</p>
             ) : null}
             <div>
-              <Label>{labels.pricingJson}</Label>
               <PricingEditor
                 value={form.pricing_json}
                 onChange={(value) => onChangeForm({ pricing_json: value })}

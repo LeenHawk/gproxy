@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { Button, Input, Label, TextArea } from "../../../components/ui";
+import { Button, Input, Label } from "../../../components/ui";
 
 /// Matches `gproxy_sdk::provider::billing::ModelPriceTier`, with all numeric
 /// fields held as strings so the form can represent an intermediate "" state
@@ -132,8 +132,7 @@ function formToJson(form: PricingForm): string {
 }
 
 export type PricingEditorLabels = {
-  modeStructured: string;
-  modeJson: string;
+  sectionTitle: string;
   priceEachCall: string;
   priceTiers: string;
   flexPriceEachCall: string;
@@ -152,8 +151,6 @@ export type PricingEditorLabels = {
   tierPriceCacheCreation5min: string;
   tierPriceCacheCreation1h: string;
   emptyHint: string;
-  jsonParseError: string;
-  jsonTextareaLabel: string;
 };
 
 export function PricingEditor({
@@ -166,12 +163,10 @@ export function PricingEditor({
   labels: PricingEditorLabels;
 }) {
   const initialForm = useMemo(() => parseJsonToForm(value), [value]);
-  const parsable = initialForm !== null;
-  const [mode, setMode] = useState<"structured" | "json">(
-    parsable ? "structured" : "json",
-  );
   const [form, setForm] = useState<PricingForm>(initialForm ?? EMPTY_FORM);
   const [lastParsedFrom, setLastParsedFrom] = useState(value);
+  // Default open when the model already has pricing data, collapsed when empty.
+  const [open, setOpen] = useState(() => value.trim().length > 0);
 
   // Sync structured state when an outside change to `value` happens
   // (e.g. the parent reloaded a different model row).
@@ -180,9 +175,6 @@ export function PricingEditor({
     const parsed = parseJsonToForm(value);
     if (parsed !== null) {
       setForm(parsed);
-      setMode("structured");
-    } else {
-      setMode("json");
     }
     setLastParsedFrom(value);
   }, [value, lastParsedFrom]);
@@ -235,107 +227,68 @@ export function PricingEditor({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs">
-        <button
-          type="button"
-          className={`px-2 py-1 rounded border ${mode === "structured" ? "bg-panel-muted border-border" : "border-transparent text-muted"}`}
-          onClick={() => {
-            if (mode !== "structured") {
-              const parsed = parseJsonToForm(value);
-              if (parsed !== null) {
-                setForm(parsed);
-                setLastParsedFrom(value);
-                setMode("structured");
-              }
-            }
-          }}
-          disabled={!parsable && mode === "json"}
-        >
-          {labels.modeStructured}
-        </button>
-        <button
-          type="button"
-          className={`px-2 py-1 rounded border ${mode === "json" ? "bg-panel-muted border-border" : "border-transparent text-muted"}`}
-          onClick={() => setMode("json")}
-        >
-          {labels.modeJson}
-        </button>
-        {!parsable ? (
-          <span className="text-danger">{labels.jsonParseError}</span>
-        ) : null}
-      </div>
-
-      {mode === "json" ? (
+    <details
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="rounded border border-border"
+    >
+      <summary className="cursor-pointer px-2 py-1.5 text-xs font-semibold text-muted hover:bg-panel-muted">
+        {labels.sectionTitle}
+      </summary>
+      <div className="space-y-4 p-3 text-sm">
         <div>
-          <Label>{labels.jsonTextareaLabel}</Label>
-          <TextArea
-            value={value}
-            onChange={(next) => {
-              onChange(next);
-              setLastParsedFrom(next);
-              const parsed = parseJsonToForm(next);
-              if (parsed !== null) setForm(parsed);
-            }}
-            rows={12}
+          <Label>{labels.priceEachCall}</Label>
+          <Input
+            value={form.price_each_call}
+            onChange={(v) => commit({ ...form, price_each_call: v })}
+            placeholder="0.0"
           />
         </div>
-      ) : (
-        <div className="space-y-4 text-sm">
-          <div>
-            <Label>{labels.priceEachCall}</Label>
-            <Input
-              value={form.price_each_call}
-              onChange={(v) => commit({ ...form, price_each_call: v })}
-              placeholder="0.0"
-            />
-          </div>
 
-          <TierSection
-            label={labels.priceTiers}
-            tiers={form.price_tiers}
-            labels={labels}
-            onUpdate={(i, f, v) => updateTier("price_tiers", i, f, v)}
-            onAdd={() => addTier("price_tiers")}
-            onRemove={(i) => removeTier("price_tiers", i)}
-          />
+        <TierSection
+          label={labels.priceTiers}
+          tiers={form.price_tiers}
+          labels={labels}
+          onUpdate={(i, f, v) => updateTier("price_tiers", i, f, v)}
+          onAdd={() => addTier("price_tiers")}
+          onRemove={(i) => removeTier("price_tiers", i)}
+        />
 
-          <EachCallAndTiers
-            label={labels.flexPriceEachCall}
-            tiersLabel={labels.flexPriceTiers}
-            eachCall={form.flex_price_each_call}
-            onEachCallChange={(v) => commit({ ...form, flex_price_each_call: v })}
-            tiers={form.flex_price_tiers}
-            labels={labels}
-            onUpdate={(i, f, v) => updateTier("flex_price_tiers", i, f, v)}
-            onAdd={() => addTier("flex_price_tiers")}
-            onRemove={(i) => removeTier("flex_price_tiers", i)}
-          />
-          <EachCallAndTiers
-            label={labels.scalePriceEachCall}
-            tiersLabel={labels.scalePriceTiers}
-            eachCall={form.scale_price_each_call}
-            onEachCallChange={(v) => commit({ ...form, scale_price_each_call: v })}
-            tiers={form.scale_price_tiers}
-            labels={labels}
-            onUpdate={(i, f, v) => updateTier("scale_price_tiers", i, f, v)}
-            onAdd={() => addTier("scale_price_tiers")}
-            onRemove={(i) => removeTier("scale_price_tiers", i)}
-          />
-          <EachCallAndTiers
-            label={labels.priorityPriceEachCall}
-            tiersLabel={labels.priorityPriceTiers}
-            eachCall={form.priority_price_each_call}
-            onEachCallChange={(v) => commit({ ...form, priority_price_each_call: v })}
-            tiers={form.priority_price_tiers}
-            labels={labels}
-            onUpdate={(i, f, v) => updateTier("priority_price_tiers", i, f, v)}
-            onAdd={() => addTier("priority_price_tiers")}
-            onRemove={(i) => removeTier("priority_price_tiers", i)}
-          />
-        </div>
-      )}
-    </div>
+        <EachCallAndTiers
+          label={labels.flexPriceEachCall}
+          tiersLabel={labels.flexPriceTiers}
+          eachCall={form.flex_price_each_call}
+          onEachCallChange={(v) => commit({ ...form, flex_price_each_call: v })}
+          tiers={form.flex_price_tiers}
+          labels={labels}
+          onUpdate={(i, f, v) => updateTier("flex_price_tiers", i, f, v)}
+          onAdd={() => addTier("flex_price_tiers")}
+          onRemove={(i) => removeTier("flex_price_tiers", i)}
+        />
+        <EachCallAndTiers
+          label={labels.scalePriceEachCall}
+          tiersLabel={labels.scalePriceTiers}
+          eachCall={form.scale_price_each_call}
+          onEachCallChange={(v) => commit({ ...form, scale_price_each_call: v })}
+          tiers={form.scale_price_tiers}
+          labels={labels}
+          onUpdate={(i, f, v) => updateTier("scale_price_tiers", i, f, v)}
+          onAdd={() => addTier("scale_price_tiers")}
+          onRemove={(i) => removeTier("scale_price_tiers", i)}
+        />
+        <EachCallAndTiers
+          label={labels.priorityPriceEachCall}
+          tiersLabel={labels.priorityPriceTiers}
+          eachCall={form.priority_price_each_call}
+          onEachCallChange={(v) => commit({ ...form, priority_price_each_call: v })}
+          tiers={form.priority_price_tiers}
+          labels={labels}
+          onUpdate={(i, f, v) => updateTier("priority_price_tiers", i, f, v)}
+          onAdd={() => addTier("priority_price_tiers")}
+          onRemove={(i) => removeTier("priority_price_tiers", i)}
+        />
+      </div>
+    </details>
   );
 }
 
