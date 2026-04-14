@@ -7,12 +7,12 @@
 //!     `top_p`, and `top_k` unconditionally.
 //!   - Other models: if `temperature` is present, remove `top_p` only.
 
-use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use gproxy_channel::channel::Channel;
 use gproxy_channel::channels::anthropic::{AnthropicChannel, AnthropicSettings};
 use gproxy_channel::channels::claudecode::{ClaudeCodeChannel, ClaudeCodeSettings};
 use gproxy_channel::dispatch::RouteKey;
 use gproxy_channel::request::PreparedRequest;
+use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use http::{HeaderMap, Method};
 use serde_json::Value;
 

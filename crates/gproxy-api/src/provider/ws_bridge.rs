@@ -1,7 +1,7 @@
 //! WebSocket protocol bridge: transparent or cross-protocol duplex relay with usage tracking.
 
-use gproxy_sdk::engine::engine::Usage;
 use gproxy_sdk::channel::response::UpstreamError;
+use gproxy_sdk::engine::engine::Usage;
 
 // ---------------------------------------------------------------------------
 // WsProtocolBridge trait

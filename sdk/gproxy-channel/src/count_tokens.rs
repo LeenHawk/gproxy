@@ -1,5 +1,5 @@
-use crate::usage::Usage;
 use crate::response::UpstreamError;
+use crate::usage::Usage;
 use gproxy_protocol::kinds::ProtocolKind;
 
 use std::sync::{Arc, OnceLock};

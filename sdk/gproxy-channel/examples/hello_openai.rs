@@ -69,9 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("classification = {:?}", outcome.classification);
     println!(
         "body (first 500 bytes) = {}",
-        String::from_utf8_lossy(
-            &outcome.response.body[..outcome.response.body.len().min(500)],
-        )
+        String::from_utf8_lossy(&outcome.response.body[..outcome.response.body.len().min(500)],)
     );
 
     match outcome.classification {

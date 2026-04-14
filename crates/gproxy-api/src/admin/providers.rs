@@ -8,8 +8,8 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::channel::dispatch::DispatchTableDocument;
-use gproxy_sdk::engine::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_sdk::channel::registry::ChannelRegistry;
+use gproxy_sdk::engine::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::AppState;
 use gproxy_storage::repository::ProviderRepository;
 use gproxy_storage::{CredentialQuery, ProviderQuery, ProviderQueryRow, Scope};
@@ -384,8 +384,8 @@ mod tests {
     use std::sync::Arc;
 
     use axum::{Json, extract::State, http::HeaderMap};
-    use gproxy_sdk::protocol::kinds::{OperationFamily, ProtocolKind};
     use gproxy_sdk::channel::dispatch::{RouteImplementation, RouteKey};
+    use gproxy_sdk::protocol::kinds::{OperationFamily, ProtocolKind};
     use time::OffsetDateTime;
 
     use super::{

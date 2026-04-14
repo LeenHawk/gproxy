@@ -17,12 +17,12 @@ pub mod types;
 
 pub use public_traits::{EngineEventSource, ProviderMutator, ProviderRegistry};
 pub use types::{
-    CredentialHealthSnapshot, CredentialSnapshot, CredentialUpdate, EngineEvent,
-    OAuthFinishResult, ProviderSnapshot,
+    CredentialHealthSnapshot, CredentialSnapshot, CredentialUpdate, EngineEvent, OAuthFinishResult,
+    ProviderSnapshot,
 };
 
-pub(crate) use runtime::ProviderRuntime;
 use runtime::ProviderInstance;
+pub(crate) use runtime::ProviderRuntime;
 
 pub(crate) type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
@@ -138,9 +138,14 @@ impl ProviderStore {
                 } = $cfg;
                 let dispatch = match dispatch {
                     Some(document) => Some(
-                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(|e| {
-                            UpstreamError::Channel(format!("invalid dispatch for '{}': {e}", name))
-                        })?,
+                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(
+                            |e| {
+                                UpstreamError::Channel(format!(
+                                    "invalid dispatch for '{}': {e}",
+                                    name
+                                ))
+                            },
+                        )?,
                     ),
                     None => None,
                 };
@@ -459,7 +464,11 @@ impl ProviderStore {
         body: &[u8],
     ) -> Option<gproxy_channel::billing::BillingContext> {
         let provider = self.get_runtime(provider_name)?;
-        gproxy_channel::billing::build_billing_context_from_parts(provider.channel_id(), model, body)
+        gproxy_channel::billing::build_billing_context_from_parts(
+            provider.channel_id(),
+            model,
+            body,
+        )
     }
 
     pub(crate) fn get_runtime(&self, name: &str) -> Option<Arc<dyn ProviderRuntime>> {

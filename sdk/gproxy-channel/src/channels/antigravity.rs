@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::channel::{
-    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult, OAuthFlow,
+    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult,
+    OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};

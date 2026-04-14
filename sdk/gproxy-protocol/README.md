@@ -1,3 +1,69 @@
+# gproxy-protocol
+
+[![crates.io](https://img.shields.io/crates/v/gproxy-protocol.svg)](https://crates.io/crates/gproxy-protocol)
+[![docs.rs](https://docs.rs/gproxy-protocol/badge.svg)](https://docs.rs/gproxy-protocol)
+[![license](https://img.shields.io/crates/l/gproxy-protocol.svg)](https://github.com/LeenHawk/gproxy)
+
+Wire-format types and cross-protocol transforms for the three major LLM APIs —
+Anthropic Claude, OpenAI (ChatCompletions + Responses), and Google Gemini.
+Zero HTTP dependencies, pure `serde` data + typed converters.
+
+> **L0 layer** of the [gproxy SDK](https://github.com/LeenHawk/gproxy). Use
+> this crate directly when all you want is (de)serialization and
+> cross-protocol translation; use [`gproxy-channel`] when you also need an
+> HTTP client, and [`gproxy-sdk`] when you want everything wired up.
+
+| Crate | Layer | What it covers |
+|---|---|---|
+| `gproxy-protocol` (this crate) | L0 | Wire types + `TryFrom` transforms + stream framing + runtime dispatcher |
+| [`gproxy-channel`] | L1 | `Channel` trait, 14 concrete channels, `execute_once` single-request client |
+| [`gproxy-engine`] | L2 | `GproxyEngine`, provider store, retry, affinity, routing helpers |
+| [`gproxy-sdk`] | facade | Re-exports the three layers under canonical names |
+
+[`gproxy-channel`]: https://crates.io/crates/gproxy-channel
+[`gproxy-engine`]:  https://crates.io/crates/gproxy-engine
+[`gproxy-sdk`]:     https://crates.io/crates/gproxy-sdk
+
+## Quick start
+
+Typed cross-protocol conversion via `TryFrom`:
+
+```rust
+use gproxy_protocol::claude::create_message::request::ClaudeCreateMessageRequest;
+use gproxy_protocol::openai::create_chat_completions::request::OpenAiChatCompletionsRequest;
+
+fn claude_to_openai(
+    req: ClaudeCreateMessageRequest,
+) -> Result<OpenAiChatCompletionsRequest, gproxy_protocol::transform::TransformError> {
+    OpenAiChatCompletionsRequest::try_from(req)
+}
+```
+
+Or runtime-keyed dispatch when source / destination only come from config:
+
+```rust
+use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
+use gproxy_protocol::transform::dispatch::transform_request;
+
+let out: Vec<u8> = transform_request(
+    OperationFamily::GenerateContent, ProtocolKind::Claude,
+    OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion,
+    body_bytes,
+)?;
+```
+
+SSE → NDJSON framing rewriter for gateway passthrough:
+
+```rust
+use gproxy_protocol::stream::SseToNdjsonRewriter;
+
+let mut rewriter = SseToNdjsonRewriter::default();
+let out = rewriter.push_chunk(b"data: {\"text\":\"hi\"}\n\n");
+assert_eq!(out, b"{\"text\":\"hi\"}\n");
+```
+
+---
+
 # gproxy-protocol / gproxy-protocol
 
 [中文](#中文) | [English](#english)

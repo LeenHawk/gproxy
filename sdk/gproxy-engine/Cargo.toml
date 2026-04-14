@@ -3,9 +3,13 @@ name = "gproxy-engine"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Multi-channel LLM orchestration engine for gproxy: GproxyEngine, ProviderStore, retry/affinity, backend traits, and routing helpers."
+license.workspace = true
+description = "Multi-channel LLM orchestration engine: GproxyEngine, ProviderStore, retry + credential affinity, dispatch consumer, pluggable rate-limit / quota / affinity backends, and framework-independent routing helpers. L2 layer of the gproxy SDK."
 homepage.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["llm", "proxy", "gateway", "routing", "failover"]
+categories = ["api-bindings", "asynchronous", "web-programming"]
 
 [features]
 default = ["all-channels"]

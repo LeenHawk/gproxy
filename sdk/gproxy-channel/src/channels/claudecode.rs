@@ -8,7 +8,8 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::channel::{
-    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult, OAuthFlow,
+    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult,
+    OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};

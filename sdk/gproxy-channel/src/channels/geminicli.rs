@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::channel::{
-    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult, OAuthFlow,
+    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult,
+    OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
@@ -296,7 +297,6 @@ pub struct GeminiCliSettings {
 
     /// Explicit user-agent override.  When set, this takes precedence over the
     /// dynamic UA template built from the component fields below.
-
 
     #[serde(default = "default_geminicli_api_version")]
     pub api_version: String,

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::usage::Usage;
 use crate::request::PreparedRequest;
+use crate::usage::Usage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum BillingMode {

@@ -226,11 +226,8 @@ pub async fn send_attempt_stream<C: Channel>(
         }
         RetryableUpstreamResponse::Buffered(buffered) => {
             let normalized_body = channel.normalize_response(request, buffered.body);
-            let classification = channel.classify_response(
-                buffered.status,
-                &buffered.headers,
-                &normalized_body,
-            );
+            let classification =
+                channel.classify_response(buffered.status, &buffered.headers, &normalized_body);
             Ok(SendAttemptStreamOutcome::Buffered(ExecuteOnceResult {
                 response: UpstreamResponse {
                     status: buffered.status,

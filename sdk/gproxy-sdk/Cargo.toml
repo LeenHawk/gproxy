@@ -3,9 +3,13 @@ name = "gproxy-sdk"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "SDK for building LLM proxy applications with multi-channel support. Facade over gproxy-protocol / gproxy-channel / gproxy-engine."
+license.workspace = true
+description = "Layered SDK for building multi-channel LLM proxy / gateway applications in Rust. Facade over gproxy-protocol (L0), gproxy-channel (L1), and gproxy-engine (L2)."
 homepage.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["llm", "proxy", "gateway", "openai", "anthropic"]
+categories = ["api-bindings", "asynchronous", "web-programming"]
 
 [features]
 default = ["all-channels"]

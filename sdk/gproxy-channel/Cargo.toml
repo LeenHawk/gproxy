@@ -3,9 +3,13 @@ name = "gproxy-channel"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Single-channel access layer for gproxy: Channel trait + concrete channels (OpenAI, Anthropic, Gemini, etc.) + thin execute_once executor."
+license.workspace = true
+description = "Single-channel LLM client layer: Channel trait, 14 concrete channels (OpenAI, Anthropic, Gemini, Vertex, ...), credential/request/response types, and the execute_once single-attempt pipeline. L1 layer of the gproxy SDK."
 homepage.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["llm", "openai", "anthropic", "api-client", "proxy"]
+categories = ["api-bindings", "asynchronous", "web-programming::http-client"]
 
 [features]
 default = ["all-channels"]

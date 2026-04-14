@@ -260,9 +260,7 @@ impl RequestDescriptor
     }
 }
 
-impl RequestDescriptor
-    for crate::openai::create_response::request::OpenAiCreateResponseRequest
-{
+impl RequestDescriptor for crate::openai::create_response::request::OpenAiCreateResponseRequest {
     type Body = crate::openai::create_response::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -277,9 +275,7 @@ impl RequestDescriptor
     }
 }
 
-impl RequestDescriptor
-    for crate::claude::create_message::request::ClaudeCreateMessageRequest
-{
+impl RequestDescriptor for crate::claude::create_message::request::ClaudeCreateMessageRequest {
     type Body = crate::claude::create_message::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -294,9 +290,7 @@ impl RequestDescriptor
     }
 }
 
-impl RequestDescriptor
-    for crate::gemini::generate_content::request::GeminiGenerateContentRequest
-{
+impl RequestDescriptor for crate::gemini::generate_content::request::GeminiGenerateContentRequest {
     type Body = crate::gemini::generate_content::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -311,7 +305,9 @@ impl RequestDescriptor
     }
 }
 
-impl RequestDescriptor for crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest {
+impl RequestDescriptor
+    for crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest
+{
     type Body = crate::gemini::stream_generate_content::request::RequestBody;
 
     fn from_body(body: Self::Body) -> Self {
@@ -443,437 +439,621 @@ pub fn transform_request(
         // =====================================================================
 
         // === Claude source → OpenAI targets ===
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // === Claude source → Gemini targets ===
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+        >(&body),
 
         // === OpenAI ChatCompletions source → Claude ===
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
 
         // === OpenAI ChatCompletions source → Gemini ===
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+        >(&body),
 
         // === OpenAI ChatCompletions source → OpenAI Response ===
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // === OpenAI Response source → OpenAI ChatCompletions ===
         //
         // Used by channels like deepseek that only expose the chat
         // completions surface but advertise the OpenAI Response protocol
         // to clients, so the dispatch table transforms on the way in.
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
 
         // === OpenAI Response source → Claude ===
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
 
         // === OpenAI Response source → Gemini ===
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+        >(&body),
 
         // === Gemini source → Claude ===
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
 
         // === Gemini source → OpenAI ChatCompletions ===
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor::<
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor::<
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
 
         // === Gemini source → OpenAI Response ===
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor::<
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor::<
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // =====================================================================
         // stream_generate_content (request transforms only)
         // =====================================================================
 
         // --- Claude source ---
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_request_descriptor_ref::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson) => {
-            transform_request_descriptor_ref::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor_ref::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Claude, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor_ref::<
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor_ref::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::GeminiNDJson,
+        ) => transform_request_descriptor_ref::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor_ref::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor_ref::<
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // --- Gemini source ---
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor::<
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor::<
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor::<
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor::<
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::GeminiNDJson,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor::<
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::GeminiNDJson,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor::<
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor::<
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::GeminiNDJson,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor::<
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // --- OpenAI ChatCompletions source ---
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::GeminiNDJson,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
         // Stream mirror of the non-stream arm above: deepseek and friends
         // advertise OpenAI Response streaming to clients but only speak
         // chat-completions upstream.
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
+        >(&body),
 
         // --- OpenAI Response source ---
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::Claude) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-            >(&body)
-        }
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::StreamGenerateContent, ProtocolKind::GeminiNDJson) => {
-            transform_request_descriptor_ref::<
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-                crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+        >(&body),
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::GeminiNDJson,
+        ) => transform_request_descriptor_ref::<
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+            crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
+        >(&body),
 
         // =====================================================================
         // count_tokens
         // =====================================================================
 
         // --- Claude source ---
-        (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::claude::count_tokens::request::ClaudeCountTokensRequest,
-                crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-            >(&body)
-        }
-        (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::claude::count_tokens::request::ClaudeCountTokensRequest,
-                crate::openai::count_tokens::request::OpenAiCountTokensRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::claude::count_tokens::request::ClaudeCountTokensRequest,
+            crate::gemini::count_tokens::request::GeminiCountTokensRequest,
+        >(&body),
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::claude::count_tokens::request::ClaudeCountTokensRequest,
+            crate::openai::count_tokens::request::OpenAiCountTokensRequest,
+        >(&body),
 
         // --- OpenAI source ---
-        (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::openai::count_tokens::request::OpenAiCountTokensRequest,
-                crate::claude::count_tokens::request::ClaudeCountTokensRequest,
-            >(&body)
-        }
-        (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::openai::count_tokens::request::OpenAiCountTokensRequest,
-                crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::openai::count_tokens::request::OpenAiCountTokensRequest,
+            crate::claude::count_tokens::request::ClaudeCountTokensRequest,
+        >(&body),
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::openai::count_tokens::request::OpenAiCountTokensRequest,
+            crate::gemini::count_tokens::request::GeminiCountTokensRequest,
+        >(&body),
 
         // --- Gemini source ---
-        (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-                crate::claude::count_tokens::request::ClaudeCountTokensRequest,
-            >(&body)
-        }
-        (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-                crate::openai::count_tokens::request::OpenAiCountTokensRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::gemini::count_tokens::request::GeminiCountTokensRequest,
+            crate::claude::count_tokens::request::ClaudeCountTokensRequest,
+        >(&body),
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::gemini::count_tokens::request::GeminiCountTokensRequest,
+            crate::openai::count_tokens::request::OpenAiCountTokensRequest,
+        >(&body),
 
         // =====================================================================
         // model_get
         // =====================================================================
 
         // --- Claude source ---
-        (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::claude::model_get::request::ClaudeModelGetRequest,
-                crate::gemini::model_get::request::GeminiModelGetRequest,
-            >(&body)
-        }
-        (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::claude::model_get::request::ClaudeModelGetRequest,
-                crate::openai::model_get::request::OpenAiModelGetRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::claude::model_get::request::ClaudeModelGetRequest,
+            crate::gemini::model_get::request::GeminiModelGetRequest,
+        >(&body),
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::claude::model_get::request::ClaudeModelGetRequest,
+            crate::openai::model_get::request::OpenAiModelGetRequest,
+        >(&body),
 
         // --- OpenAI source ---
-        (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::openai::model_get::request::OpenAiModelGetRequest,
-                crate::claude::model_get::request::ClaudeModelGetRequest,
-            >(&body)
-        }
-        (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::openai::model_get::request::OpenAiModelGetRequest,
-                crate::gemini::model_get::request::GeminiModelGetRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::openai::model_get::request::OpenAiModelGetRequest,
+            crate::claude::model_get::request::ClaudeModelGetRequest,
+        >(&body),
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::openai::model_get::request::OpenAiModelGetRequest,
+            crate::gemini::model_get::request::GeminiModelGetRequest,
+        >(&body),
 
         // --- Gemini source ---
-        (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::gemini::model_get::request::GeminiModelGetRequest,
-                crate::claude::model_get::request::ClaudeModelGetRequest,
-            >(&body)
-        }
-        (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::gemini::model_get::request::GeminiModelGetRequest,
-                crate::openai::model_get::request::OpenAiModelGetRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::gemini::model_get::request::GeminiModelGetRequest,
+            crate::claude::model_get::request::ClaudeModelGetRequest,
+        >(&body),
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::gemini::model_get::request::GeminiModelGetRequest,
+            crate::openai::model_get::request::OpenAiModelGetRequest,
+        >(&body),
 
         // =====================================================================
         // model_list
         // =====================================================================
 
         // --- Claude source ---
-        (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::claude::model_list::request::ClaudeModelListRequest,
-                crate::gemini::model_list::request::GeminiModelListRequest,
-            >(&body)
-        }
-        (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::claude::model_list::request::ClaudeModelListRequest,
-                crate::openai::model_list::request::OpenAiModelListRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::claude::model_list::request::ClaudeModelListRequest,
+            crate::gemini::model_list::request::GeminiModelListRequest,
+        >(&body),
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::claude::model_list::request::ClaudeModelListRequest,
+            crate::openai::model_list::request::OpenAiModelListRequest,
+        >(&body),
 
         // --- OpenAI source ---
-        (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::openai::model_list::request::OpenAiModelListRequest,
-                crate::claude::model_list::request::ClaudeModelListRequest,
-            >(&body)
-        }
-        (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::openai::model_list::request::OpenAiModelListRequest,
-                crate::gemini::model_list::request::GeminiModelListRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::openai::model_list::request::OpenAiModelListRequest,
+            crate::claude::model_list::request::ClaudeModelListRequest,
+        >(&body),
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::openai::model_list::request::OpenAiModelListRequest,
+            crate::gemini::model_list::request::GeminiModelListRequest,
+        >(&body),
 
         // --- Gemini source ---
-        (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_request_descriptor::<
-                crate::gemini::model_list::request::GeminiModelListRequest,
-                crate::claude::model_list::request::ClaudeModelListRequest,
-            >(&body)
-        }
-        (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::gemini::model_list::request::GeminiModelListRequest,
-                crate::openai::model_list::request::OpenAiModelListRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+        ) => transform_request_descriptor::<
+            crate::gemini::model_list::request::GeminiModelListRequest,
+            crate::claude::model_list::request::ClaudeModelListRequest,
+        >(&body),
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::gemini::model_list::request::GeminiModelListRequest,
+            crate::openai::model_list::request::OpenAiModelListRequest,
+        >(&body),
 
         // =====================================================================
         // embeddings
         // =====================================================================
-
-        (OperationFamily::Embedding, ProtocolKind::OpenAi, OperationFamily::Embedding, ProtocolKind::Gemini) => {
-            transform_request_descriptor::<
-                crate::openai::embeddings::request::OpenAiEmbeddingsRequest,
-                crate::gemini::embeddings::request::GeminiEmbedContentRequest,
-            >(&body)
-        }
-        (OperationFamily::Embedding, ProtocolKind::Gemini, OperationFamily::Embedding, ProtocolKind::OpenAi) => {
-            transform_request_descriptor::<
-                crate::gemini::embeddings::request::GeminiEmbedContentRequest,
-                crate::openai::embeddings::request::OpenAiEmbeddingsRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::Embedding,
+            ProtocolKind::OpenAi,
+            OperationFamily::Embedding,
+            ProtocolKind::Gemini,
+        ) => transform_request_descriptor::<
+            crate::openai::embeddings::request::OpenAiEmbeddingsRequest,
+            crate::gemini::embeddings::request::GeminiEmbedContentRequest,
+        >(&body),
+        (
+            OperationFamily::Embedding,
+            ProtocolKind::Gemini,
+            OperationFamily::Embedding,
+            ProtocolKind::OpenAi,
+        ) => transform_request_descriptor::<
+            crate::gemini::embeddings::request::GeminiEmbedContentRequest,
+            crate::openai::embeddings::request::OpenAiEmbeddingsRequest,
+        >(&body),
 
         // =====================================================================
         // create_image
         // =====================================================================
+        (
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        )
+        | (
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_json::<
+            crate::openai::create_image::request::OpenAiCreateImageRequest,
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+        >(&body),
 
-        (OperationFamily::CreateImage, ProtocolKind::OpenAi, OperationFamily::GenerateContent, ProtocolKind::Gemini)
-        | (OperationFamily::CreateImage, ProtocolKind::OpenAi, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
-                crate::openai::create_image::request::OpenAiCreateImageRequest,
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-            >(&body)
-        }
-
-        (OperationFamily::CreateImage, ProtocolKind::OpenAi, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse)
-        | (OperationFamily::CreateImage, ProtocolKind::OpenAi, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
-                crate::openai::create_image::request::OpenAiCreateImageRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        )
+        | (
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_json::<
+            crate::openai::create_image::request::OpenAiCreateImageRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // =====================================================================
         // create_image_edit
         // =====================================================================
+        (
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        )
+        | (
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_json::<
+            crate::openai::create_image_edit::request::OpenAiCreateImageEditRequest,
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+        >(&body),
 
-        (OperationFamily::CreateImageEdit, ProtocolKind::OpenAi, OperationFamily::GenerateContent, ProtocolKind::Gemini)
-        | (OperationFamily::CreateImageEdit, ProtocolKind::OpenAi, OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
-                crate::openai::create_image_edit::request::OpenAiCreateImageEditRequest,
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-            >(&body)
-        }
-
-        (OperationFamily::CreateImageEdit, ProtocolKind::OpenAi, OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse)
-        | (OperationFamily::CreateImageEdit, ProtocolKind::OpenAi, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_json::<
-                crate::openai::create_image_edit::request::OpenAiCreateImageEditRequest,
-                crate::openai::create_response::request::OpenAiCreateResponseRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+        )
+        | (
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_json::<
+            crate::openai::create_image_edit::request::OpenAiCreateImageEditRequest,
+            crate::openai::create_response::request::OpenAiCreateResponseRequest,
+        >(&body),
 
         // =====================================================================
         // compact
         // =====================================================================
-
-        (OperationFamily::Compact, ProtocolKind::OpenAi, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_json::<
-                crate::openai::compact_response::request::OpenAiCompactRequest,
-                crate::claude::create_message::request::ClaudeCreateMessageRequest,
-            >(&body)
-        }
-        (OperationFamily::Compact, ProtocolKind::OpenAi, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_json::<
-                crate::openai::compact_response::request::OpenAiCompactRequest,
-                crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-            >(&body)
-        }
+        (
+            OperationFamily::Compact,
+            ProtocolKind::OpenAi,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_json::<
+            crate::openai::compact_response::request::OpenAiCompactRequest,
+            crate::claude::create_message::request::ClaudeCreateMessageRequest,
+        >(&body),
+        (
+            OperationFamily::Compact,
+            ProtocolKind::OpenAi,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_json::<
+            crate::openai::compact_response::request::OpenAiCompactRequest,
+            crate::gemini::generate_content::request::GeminiGenerateContentRequest,
+        >(&body),
 
         _ => Err(TransformError::new(format!(
             "no request transform for ({}, {}) -> ({}, {})",
@@ -912,317 +1092,447 @@ pub fn transform_response(
         // =====================================================================
 
         // Gemini response → Claude
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+        >(&body),
         // OpenAI ChatCompletions response → Claude
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+        >(&body),
         // OpenAI Response response → Claude
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+        >(&body),
 
         // Claude response → Gemini
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+        >(&body),
         // OpenAI ChatCompletions response → Gemini
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+        >(&body),
         // OpenAI Response response → Gemini
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+        >(&body),
 
         // Claude response → OpenAI ChatCompletions
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_response_json::<
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-                crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_response_json::<
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+            crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+        >(&body),
         // Gemini response → OpenAI ChatCompletions
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_response_json::<
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-                crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_response_json::<
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+            crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+        >(&body),
         // OpenAI Response response → OpenAI ChatCompletions
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion) => {
-            transform_response_json::<
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-                crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+        ) => transform_response_json::<
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+            crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+        >(&body),
         // OpenAI ChatCompletions response → OpenAI Response
         //
         // Mirror of the arm above, used when the client is speaking
         // OpenAI Response but the upstream only returns chat completions
         // (deepseek, groq, nvidia, etc.).
-        (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_response_json::<
-                crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiChatCompletion,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_response_json::<
+            crate::openai::create_chat_completions::response::OpenAiChatCompletionsResponse,
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+        >(&body),
 
         // Claude response → OpenAI Response
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_response_json::<
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_response_json::<
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+        >(&body),
         // Gemini response → OpenAI Response
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse) => {
-            transform_response_json::<
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+        ) => transform_response_json::<
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+        >(&body),
 
         // =====================================================================
         // count_tokens responses
         // =====================================================================
 
         // Gemini response → Claude
-        (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::gemini::count_tokens::response::GeminiCountTokensResponse,
-                crate::claude::count_tokens::response::ClaudeCountTokensResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::gemini::count_tokens::response::GeminiCountTokensResponse,
+            crate::claude::count_tokens::response::ClaudeCountTokensResponse,
+        >(&body),
         // OpenAI response → Claude
-        (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::openai::count_tokens::response::OpenAiCountTokensResponse,
-                crate::claude::count_tokens::response::ClaudeCountTokensResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::openai::count_tokens::response::OpenAiCountTokensResponse,
+            crate::claude::count_tokens::response::ClaudeCountTokensResponse,
+        >(&body),
 
         // Claude response → OpenAI
-        (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::claude::count_tokens::response::ClaudeCountTokensResponse,
-                crate::openai::count_tokens::response::OpenAiCountTokensResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::claude::count_tokens::response::ClaudeCountTokensResponse,
+            crate::openai::count_tokens::response::OpenAiCountTokensResponse,
+        >(&body),
         // Gemini response → OpenAI
-        (OperationFamily::CountToken, ProtocolKind::Gemini, OperationFamily::CountToken, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::count_tokens::response::GeminiCountTokensResponse,
-                crate::openai::count_tokens::response::OpenAiCountTokensResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::count_tokens::response::GeminiCountTokensResponse,
+            crate::openai::count_tokens::response::OpenAiCountTokensResponse,
+        >(&body),
 
         // Claude response → Gemini
-        (OperationFamily::CountToken, ProtocolKind::Claude, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::claude::count_tokens::response::ClaudeCountTokensResponse,
-                crate::gemini::count_tokens::response::GeminiCountTokensResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::Claude,
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::claude::count_tokens::response::ClaudeCountTokensResponse,
+            crate::gemini::count_tokens::response::GeminiCountTokensResponse,
+        >(&body),
         // OpenAI response → Gemini
-        (OperationFamily::CountToken, ProtocolKind::OpenAi, OperationFamily::CountToken, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::openai::count_tokens::response::OpenAiCountTokensResponse,
-                crate::gemini::count_tokens::response::GeminiCountTokensResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::CountToken,
+            ProtocolKind::OpenAi,
+            OperationFamily::CountToken,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::openai::count_tokens::response::OpenAiCountTokensResponse,
+            crate::gemini::count_tokens::response::GeminiCountTokensResponse,
+        >(&body),
 
         // =====================================================================
         // model_get responses
         // =====================================================================
 
         // Gemini response → Claude
-        (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::gemini::model_get::response::GeminiModelGetResponse,
-                crate::claude::model_get::response::ClaudeModelGetResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::gemini::model_get::response::GeminiModelGetResponse,
+            crate::claude::model_get::response::ClaudeModelGetResponse,
+        >(&body),
         // OpenAI response → Claude
-        (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::openai::model_get::response::OpenAiModelGetResponse,
-                crate::claude::model_get::response::ClaudeModelGetResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::openai::model_get::response::OpenAiModelGetResponse,
+            crate::claude::model_get::response::ClaudeModelGetResponse,
+        >(&body),
 
         // Claude response → OpenAI
-        (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::claude::model_get::response::ClaudeModelGetResponse,
-                crate::openai::model_get::response::OpenAiModelGetResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::claude::model_get::response::ClaudeModelGetResponse,
+            crate::openai::model_get::response::OpenAiModelGetResponse,
+        >(&body),
         // Gemini response → OpenAI
-        (OperationFamily::ModelGet, ProtocolKind::Gemini, OperationFamily::ModelGet, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::model_get::response::GeminiModelGetResponse,
-                crate::openai::model_get::response::OpenAiModelGetResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::model_get::response::GeminiModelGetResponse,
+            crate::openai::model_get::response::OpenAiModelGetResponse,
+        >(&body),
 
         // Claude response → Gemini
-        (OperationFamily::ModelGet, ProtocolKind::Claude, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::claude::model_get::response::ClaudeModelGetResponse,
-                crate::gemini::model_get::response::GeminiModelGetResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::Claude,
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::claude::model_get::response::ClaudeModelGetResponse,
+            crate::gemini::model_get::response::GeminiModelGetResponse,
+        >(&body),
         // OpenAI response → Gemini
-        (OperationFamily::ModelGet, ProtocolKind::OpenAi, OperationFamily::ModelGet, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::openai::model_get::response::OpenAiModelGetResponse,
-                crate::gemini::model_get::response::GeminiModelGetResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelGet,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelGet,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::openai::model_get::response::OpenAiModelGetResponse,
+            crate::gemini::model_get::response::GeminiModelGetResponse,
+        >(&body),
 
         // =====================================================================
         // model_list responses
         // =====================================================================
 
         // Gemini response → Claude
-        (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::gemini::model_list::response::GeminiModelListResponse,
-                crate::claude::model_list::response::ClaudeModelListResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::gemini::model_list::response::GeminiModelListResponse,
+            crate::claude::model_list::response::ClaudeModelListResponse,
+        >(&body),
         // OpenAI response → Claude
-        (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Claude) => {
-            transform_response_json::<
-                crate::openai::model_list::response::OpenAiModelListResponse,
-                crate::claude::model_list::response::ClaudeModelListResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+        ) => transform_response_json::<
+            crate::openai::model_list::response::OpenAiModelListResponse,
+            crate::claude::model_list::response::ClaudeModelListResponse,
+        >(&body),
 
         // Claude response → OpenAI
-        (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::claude::model_list::response::ClaudeModelListResponse,
-                crate::openai::model_list::response::OpenAiModelListResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::claude::model_list::response::ClaudeModelListResponse,
+            crate::openai::model_list::response::OpenAiModelListResponse,
+        >(&body),
         // Gemini response → OpenAI
-        (OperationFamily::ModelList, ProtocolKind::Gemini, OperationFamily::ModelList, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::model_list::response::GeminiModelListResponse,
-                crate::openai::model_list::response::OpenAiModelListResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::model_list::response::GeminiModelListResponse,
+            crate::openai::model_list::response::OpenAiModelListResponse,
+        >(&body),
 
         // Claude response → Gemini
-        (OperationFamily::ModelList, ProtocolKind::Claude, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::claude::model_list::response::ClaudeModelListResponse,
-                crate::gemini::model_list::response::GeminiModelListResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::claude::model_list::response::ClaudeModelListResponse,
+            crate::gemini::model_list::response::GeminiModelListResponse,
+        >(&body),
         // OpenAI response → Gemini
-        (OperationFamily::ModelList, ProtocolKind::OpenAi, OperationFamily::ModelList, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::openai::model_list::response::OpenAiModelListResponse,
-                crate::gemini::model_list::response::GeminiModelListResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::ModelList,
+            ProtocolKind::OpenAi,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::openai::model_list::response::OpenAiModelListResponse,
+            crate::gemini::model_list::response::GeminiModelListResponse,
+        >(&body),
 
         // =====================================================================
         // embeddings responses
         // =====================================================================
-
-        (OperationFamily::Embedding, ProtocolKind::Gemini, OperationFamily::Embedding, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::embeddings::response::GeminiEmbedContentResponse,
-                crate::openai::embeddings::response::OpenAiEmbeddingsResponse,
-            >(&body)
-        }
-        (OperationFamily::Embedding, ProtocolKind::OpenAi, OperationFamily::Embedding, ProtocolKind::Gemini) => {
-            transform_response_json::<
-                crate::openai::embeddings::response::OpenAiEmbeddingsResponse,
-                crate::gemini::embeddings::response::GeminiEmbedContentResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::Embedding,
+            ProtocolKind::Gemini,
+            OperationFamily::Embedding,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::embeddings::response::GeminiEmbedContentResponse,
+            crate::openai::embeddings::response::OpenAiEmbeddingsResponse,
+        >(&body),
+        (
+            OperationFamily::Embedding,
+            ProtocolKind::OpenAi,
+            OperationFamily::Embedding,
+            ProtocolKind::Gemini,
+        ) => transform_response_json::<
+            crate::openai::embeddings::response::OpenAiEmbeddingsResponse,
+            crate::gemini::embeddings::response::GeminiEmbedContentResponse,
+        >(&body),
 
         // =====================================================================
         // create_image responses
         // =====================================================================
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+        )
+        | (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+            crate::openai::create_image::response::OpenAiCreateImageResponse,
+        >(&body),
 
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImage, ProtocolKind::OpenAi)
-        | (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImage, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-                crate::openai::create_image::response::OpenAiCreateImageResponse,
-            >(&body)
-        }
-
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImage, ProtocolKind::OpenAi)
-        | (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImage, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-                crate::openai::create_image::response::OpenAiCreateImageResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+        )
+        | (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+            crate::openai::create_image::response::OpenAiCreateImageResponse,
+        >(&body),
 
         // =====================================================================
         // create_image_edit responses
         // =====================================================================
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+        )
+        | (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+            crate::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
+        >(&body),
 
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi)
-        | (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-                crate::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
-            >(&body)
-        }
-
-        (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi)
-        | (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse, OperationFamily::CreateImageEdit, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::openai::create_response::response::OpenAiCreateResponseResponse,
-                crate::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+        )
+        | (
+            OperationFamily::GenerateContent,
+            ProtocolKind::OpenAiResponse,
+            OperationFamily::CreateImageEdit,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::openai::create_response::response::OpenAiCreateResponseResponse,
+            crate::openai::create_image_edit::response::OpenAiCreateImageEditResponse,
+        >(&body),
 
         // =====================================================================
         // compact responses
         // =====================================================================
-
-        (OperationFamily::GenerateContent, ProtocolKind::Claude, OperationFamily::Compact, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::claude::create_message::response::ClaudeCreateMessageResponse,
-                crate::openai::compact_response::response::OpenAiCompactResponse,
-            >(&body)
-        }
-        (OperationFamily::GenerateContent, ProtocolKind::Gemini, OperationFamily::Compact, ProtocolKind::OpenAi) => {
-            transform_response_json::<
-                crate::gemini::generate_content::response::GeminiGenerateContentResponse,
-                crate::openai::compact_response::response::OpenAiCompactResponse,
-            >(&body)
-        }
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::Compact,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::claude::create_message::response::ClaudeCreateMessageResponse,
+            crate::openai::compact_response::response::OpenAiCompactResponse,
+        >(&body),
+        (
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            OperationFamily::Compact,
+            ProtocolKind::OpenAi,
+        ) => transform_response_json::<
+            crate::gemini::generate_content::response::GeminiGenerateContentResponse,
+            crate::openai::compact_response::response::OpenAiCompactResponse,
+        >(&body),
 
         _ => Err(TransformError::new(format!(
             "no response transform from upstream ({}, {}) to client ({}, {})",
@@ -1281,8 +1591,7 @@ where
     let src_body: Src::Body = serde_json::from_slice(body)
         .map_err(|e| TransformError::new(format!("request deserialize: {}", e)))?;
     let src = Src::from_body(src_body);
-    let dst =
-        Dst::try_from(src).map_err(|e| TransformError::new(format!("transform: {}", e)))?;
+    let dst = Dst::try_from(src).map_err(|e| TransformError::new(format!("transform: {}", e)))?;
 
     serde_json::to_vec(&dst.into_body())
         .map_err(|e| TransformError::new(format!("response serialize: {}", e)))
@@ -1297,8 +1606,7 @@ where
     let src_body: Src::Body = serde_json::from_slice(body)
         .map_err(|e| TransformError::new(format!("request deserialize: {}", e)))?;
     let src = Src::from_body(src_body);
-    let dst =
-        Dst::try_from(&src).map_err(|e| TransformError::new(format!("transform: {}", e)))?;
+    let dst = Dst::try_from(&src).map_err(|e| TransformError::new(format!("transform: {}", e)))?;
 
     serde_json::to_vec(&dst.into_body())
         .map_err(|e| TransformError::new(format!("response serialize: {}", e)))
@@ -1391,7 +1699,10 @@ impl StreamResponseTransformer {
         Ok(out)
     }
 
-    fn process_json_chunks(&mut self, json_chunks: Vec<Vec<u8>>) -> Result<Vec<u8>, TransformError> {
+    fn process_json_chunks(
+        &mut self,
+        json_chunks: Vec<Vec<u8>>,
+    ) -> Result<Vec<u8>, TransformError> {
         let mut out = Vec::new();
         for chunk in json_chunks {
             let chunk = if let Some(normalizer) = &self.normalizer {
@@ -1459,9 +1770,7 @@ impl StreamChunkDecoder {
             ProtocolKind::Claude
             | ProtocolKind::OpenAiChatCompletion
             | ProtocolKind::OpenAiResponse
-            | ProtocolKind::Gemini => Ok(Self::Sse(
-                crate::stream::SseToNdjsonRewriter::default(),
-            )),
+            | ProtocolKind::Gemini => Ok(Self::Sse(crate::stream::SseToNdjsonRewriter::default())),
             ProtocolKind::GeminiNDJson => Ok(Self::Ndjson(Vec::new())),
             _ => Err(TransformError::new(format!(
                 "unsupported stream input protocol: {protocol}"
@@ -1533,9 +1842,8 @@ impl StreamChunkEncoder {
         out: &mut Vec<u8>,
     ) -> Result<(), TransformError> {
         for event in events {
-            let json = serde_json::to_vec(event).map_err(|e| {
-                TransformError::new(format!("stream chunk serialize failed: {e}"))
-            })?;
+            let json = serde_json::to_vec(event)
+                .map_err(|e| TransformError::new(format!("stream chunk serialize failed: {e}")))?;
             match self {
                 Self::Sse { .. } => {
                     out.extend_from_slice(b"data: ");
@@ -1683,9 +1991,7 @@ impl
     fn on_input(
         &mut self,
         input: crate::claude::create_message::stream::ClaudeStreamEvent,
-        out: &mut Vec<
-            crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-        >,
+        out: &mut Vec<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
         self.0
             .on_event(input, out)
@@ -1694,9 +2000,7 @@ impl
 
     fn finish(
         &mut self,
-        out: &mut Vec<
-            crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-        >,
+        out: &mut Vec<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
         self.0.finish(out);
         Ok(())
@@ -1717,9 +2021,7 @@ impl
     fn on_input(
         &mut self,
         input: crate::gemini::generate_content::response::ResponseBody,
-        out: &mut Vec<
-            crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-        >,
+        out: &mut Vec<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
         self.0.on_chunk(input, out);
         Ok(())
@@ -1727,9 +2029,7 @@ impl
 
     fn finish(
         &mut self,
-        out: &mut Vec<
-            crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-        >,
+        out: &mut Vec<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
         self.0.finish(out);
         Ok(())
@@ -1902,9 +2202,7 @@ impl
     fn on_input(
         &mut self,
         input: crate::openai::create_response::stream::ResponseStreamEvent,
-        out: &mut Vec<
-            crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-        >,
+        out: &mut Vec<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
         self.0
             .on_stream_event(input, out)
@@ -1913,9 +2211,7 @@ impl
 
     fn finish(
         &mut self,
-        out: &mut Vec<
-            crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-        >,
+        out: &mut Vec<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
         self.0
             .finish(out)
@@ -2023,8 +2319,7 @@ impl
             if is_finished {
                 out.push(ImageGenerationStreamEvent::Completed {
                     b64_json: img.b64_json.clone(),
-                    background:
-                        crate::openai::create_image::types::OpenAiImageBackground::Auto,
+                    background: crate::openai::create_image::types::OpenAiImageBackground::Auto,
                     created_at: 0,
                     output_format: img.output_format.clone(),
                     quality: crate::openai::create_image::types::OpenAiImageQuality::Auto,
@@ -2036,8 +2331,7 @@ impl
                 self.partial_count += 1;
                 out.push(ImageGenerationStreamEvent::PartialImage {
                     b64_json: img.b64_json.clone(),
-                    background:
-                        crate::openai::create_image::types::OpenAiImageBackground::Auto,
+                    background: crate::openai::create_image::types::OpenAiImageBackground::Auto,
                     created_at: 0,
                     output_format: img.output_format.clone(),
                     partial_image_index: index,
@@ -2112,9 +2406,7 @@ pub fn create_stream_response_transformer(
         ) => build_stream_transform::<
             crate::openai::create_chat_completions::stream::ChatCompletionChunk,
             crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-            IdentityConverter<
-                crate::openai::create_chat_completions::stream::ChatCompletionChunk,
-            >,
+            IdentityConverter<crate::openai::create_chat_completions::stream::ChatCompletionChunk>,
         >(
             src_protocol,
             dst_protocol,
@@ -2129,9 +2421,7 @@ pub fn create_stream_response_transformer(
         ) => build_stream_transform::<
             crate::openai::create_response::stream::ResponseStreamEvent,
             crate::openai::create_response::stream::ResponseStreamEvent,
-            IdentityConverter<
-                crate::openai::create_response::stream::ResponseStreamEvent,
-            >,
+            IdentityConverter<crate::openai::create_response::stream::ResponseStreamEvent>,
         >(
             src_protocol,
             dst_protocol,
@@ -2633,10 +2923,8 @@ pub fn stream_to_nonstream(
                 );
             }
 
-            let body = crate::transform::gemini::stream_to_nonstream::finalize_body(
-                merged,
-                candidate_map,
-            );
+            let body =
+                crate::transform::gemini::stream_to_nonstream::finalize_body(merged, candidate_map);
 
             serde_json::to_vec(&body).map_err(|e| TransformError::new(format!("serialize: {e}")))
         }

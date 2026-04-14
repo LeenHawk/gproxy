@@ -10,12 +10,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::Instrument;
 
+use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
 use gproxy_channel::Channel;
 use gproxy_channel::dispatch::RouteKey;
 use gproxy_channel::health::ModelCooldownHealth;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::UpstreamError;
-use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
 
 fn is_stream_aggregation_route(
     src_operation: OperationFamily,
@@ -51,7 +51,8 @@ fn aggregate_stream_body(protocol: ProtocolKind, body: &[u8]) -> Result<Vec<u8>,
         .map(|line| line.as_bytes().to_vec())
         .collect();
     let chunk_refs: Vec<&[u8]> = owned_chunks.iter().map(Vec::as_slice).collect();
-    gproxy_protocol::transform::dispatch::stream_to_nonstream(protocol, &chunk_refs).map_err(Into::into)
+    gproxy_protocol::transform::dispatch::stream_to_nonstream(protocol, &chunk_refs)
+        .map_err(Into::into)
 }
 
 /// Execution request passed to the engine.
@@ -503,9 +504,14 @@ impl GproxyEngineBuilder {
                 } = $cfg;
                 let dispatch = match dispatch {
                     Some(document) => Some(
-                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(|e| {
-                            UpstreamError::Channel(format!("invalid dispatch for '{}': {e}", name))
-                        })?,
+                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(
+                            |e| {
+                                UpstreamError::Channel(format!(
+                                    "invalid dispatch for '{}': {e}",
+                                    name
+                                ))
+                            },
+                        )?,
                     ),
                     None => None,
                 };
@@ -639,7 +645,10 @@ impl GproxyEngine {
     }
 
     /// Get the rewrite rules for a named provider.
-    pub fn rewrite_rules(&self, provider: &str) -> Vec<gproxy_channel::utils::rewrite::RewriteRule> {
+    pub fn rewrite_rules(
+        &self,
+        provider: &str,
+    ) -> Vec<gproxy_channel::utils::rewrite::RewriteRule> {
         self.store
             .get_runtime(provider)
             .map(|rt| rt.rewrite_rules())
@@ -695,7 +704,11 @@ impl GproxyEngine {
                 .await
             }
             "vertex" => {
-                gproxy_channel::channels::vertex::bootstrap_vertex_token(&self.client, credential_json).await
+                gproxy_channel::channels::vertex::bootstrap_vertex_token(
+                    &self.client,
+                    credential_json,
+                )
+                .await
             }
             _ => Ok((None, Vec::new())),
         }
@@ -938,7 +951,8 @@ impl GproxyEngine {
             let start = std::time::Instant::now();
             let mut meta = snapshot_request_meta(&http_request, credential_index);
 
-            let response = gproxy_channel::http_client::send_request(&self.client, http_request).await?;
+            let response =
+                gproxy_channel::http_client::send_request(&self.client, http_request).await?;
 
             if matches!(response.status, 401 | 403) {
                 tracing::warn!(
@@ -960,7 +974,8 @@ impl GproxyEngine {
                     meta = snapshot_request_meta(&retry_request, credential_index);
 
                     let retry_response =
-                        gproxy_channel::http_client::send_request(&self.client, retry_request).await?;
+                        gproxy_channel::http_client::send_request(&self.client, retry_request)
+                            .await?;
                     fill_response_meta(&mut meta, &retry_response, retry_start);
                     return Ok((Some(retry_response), updates, Some(meta)));
                 }

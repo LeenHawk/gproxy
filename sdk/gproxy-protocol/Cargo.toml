@@ -3,9 +3,13 @@ name = "gproxy-protocol"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Wire format types for OpenAI, Anthropic, and Gemini LLM APIs."
+license.workspace = true
+description = "Wire-format types and cross-protocol transforms for Claude, OpenAI, and Gemini LLM APIs. L0 layer of the gproxy SDK."
 homepage.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["llm", "openai", "anthropic", "gemini", "claude"]
+categories = ["api-bindings", "data-structures", "encoding"]
 
 [dependencies]
 base64 = { workspace = true }

@@ -2414,9 +2414,8 @@ fn stream_with_usage_tracking(
     ctx: UsageRecordContext,
     upstream_log: Option<StreamUpstreamLogContext>,
     mut stream: gproxy_sdk::engine::engine::ExecuteBodyStream,
-) -> impl futures_util::Stream<
-    Item = Result<bytes::Bytes, gproxy_sdk::channel::response::UpstreamError>,
-> + Send {
+) -> impl futures_util::Stream<Item = Result<bytes::Bytes, gproxy_sdk::channel::response::UpstreamError>>
++ Send {
     let recorder = StreamUsageRecorder::new(ctx.clone());
 
     try_stream! {
