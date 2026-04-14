@@ -1859,6 +1859,7 @@ dependencies = [
  "serde",
  "serde_json",
  "time",
+ "tracing",
 ]
 
 [[package]]

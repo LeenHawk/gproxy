@@ -74,3 +74,9 @@ pub enum UpstreamError {
     #[error("channel error: {0}")]
     Channel(String),
 }
+
+impl From<gproxy_protocol::transform::TransformError> for UpstreamError {
+    fn from(err: gproxy_protocol::transform::TransformError) -> Self {
+        UpstreamError::Channel(err.to_string())
+    }
+}

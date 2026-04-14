@@ -51,7 +51,7 @@ fn aggregate_stream_body(protocol: ProtocolKind, body: &[u8]) -> Result<Vec<u8>,
         .map(|line| line.as_bytes().to_vec())
         .collect();
     let chunk_refs: Vec<&[u8]> = owned_chunks.iter().map(Vec::as_slice).collect();
-    crate::transform_dispatch::stream_to_nonstream(protocol, &chunk_refs)
+    crate::transform_dispatch::stream_to_nonstream(protocol, &chunk_refs).map_err(Into::into)
 }
 
 /// Execution request passed to the engine.
@@ -115,6 +115,12 @@ impl ExecuteError {
 impl From<UpstreamError> for ExecuteError {
     fn from(error: UpstreamError) -> Self {
         Self::bare(error)
+    }
+}
+
+impl From<gproxy_protocol::transform::TransformError> for ExecuteError {
+    fn from(error: gproxy_protocol::transform::TransformError) -> Self {
+        Self::bare(UpstreamError::from(error))
     }
 }
 
@@ -1087,7 +1093,7 @@ impl GproxyEngine {
                         "transform_request failed; capturing downstream body for log"
                     );
                     return Err(build_transform_error(
-                        e,
+                        e.into(),
                         original_body,
                         operation_http_method(dst_op).to_string(),
                         start,
@@ -1369,7 +1375,7 @@ impl GproxyEngine {
                         "transform_request failed (stream); capturing downstream body for log"
                     );
                     return Err(build_transform_error(
-                        e,
+                        e.into(),
                         original_body,
                         operation_http_method(dst_op).to_string(),
                         start,

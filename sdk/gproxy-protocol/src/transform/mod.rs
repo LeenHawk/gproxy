@@ -79,6 +79,7 @@
 //! downgraded features during conversion.
 
 pub mod claude;
+pub mod dispatch;
 pub mod gemini;
 pub mod openai;
 pub mod utils;
