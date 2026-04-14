@@ -237,6 +237,7 @@ export function ConfigTab({
         {/* Template chips */}
         <div>
             <div className="mb-1.5 text-xs text-muted">{t("providers.dispatch.templates")}</div>
+            <p className="mb-2 text-[11px] text-muted">{t("providers.dispatch.templatesHint")}</p>
             <div className="flex flex-wrap gap-1.5">
               {DISPATCH_TEMPLATES.map((tmpl) => {
                 const active = isDispatchTemplateMatch(tmpl, form.dispatchRules);
