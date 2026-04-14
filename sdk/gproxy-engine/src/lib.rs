@@ -6,9 +6,9 @@
 //! routing helpers (classify, permission, rate_limit, provider_prefix,
 //! model_alias, model_extraction, header sanitize).
 //!
-//! The single-channel layer (`Channel` trait + concrete channels + credentials
-//! + request/response types) lives in `gproxy-channel`. Wire-format types and
-//! protocol transforms live in `gproxy-protocol`.
+//! The single-channel layer (`Channel` trait + concrete channels +
+//! credentials + request/response types) lives in `gproxy-channel`.
+//! Wire-format types and protocol transforms live in `gproxy-protocol`.
 
 mod affinity;
 
