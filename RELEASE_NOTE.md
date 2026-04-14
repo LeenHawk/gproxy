@@ -1,5 +1,97 @@
 # Release Notes
 
+## v1.0.9
+
+> The SDK splits into four publishable crates — `gproxy-protocol`, `gproxy-channel`, `gproxy-engine`, `gproxy-sdk` — with real per-channel feature pruning, a standalone `execute_once` single-request client for single-provider use, and no DB / API / config changes for binary operators.
+
+### English
+
+#### Added
+
+- **Four publishable SDK crates** — `gproxy-protocol` (L0 wire types + transforms), `gproxy-channel` (L1 `Channel` trait, 14 concrete channels, credentials, `execute_once` pipeline), `gproxy-engine` (L2 `GproxyEngine`, provider store, retry, affinity, routing helpers), and `gproxy-sdk` (facade re-exporting all three). Every SDK crate now carries complete crates.io metadata (license, readme, keywords, categories) and a per-crate README with a common layering table.
+- **`execute_once` / `execute_once_stream`** in `gproxy_channel::executor` — a complete single-request pipeline (finalize → sanitize → rewrite → prepare_request → HTTP send → normalize → classify) you can drive with just `gproxy-channel` as a dependency. Comes with lower-level `prepare_for_send` / `send_attempt` / `send_attempt_stream` helpers for users who want to write their own retry loop.
+- **`apply_outgoing_rules` helper** — the single in-tree invocation point for `apply_sanitize_rules` + `apply_rewrite_rules`. Engine, API handler, and L1 executor all funnel through one body-mutation helper instead of each re-implementing the JSON round-trip.
+- **`CommonChannelSettings`** (`#[serde(flatten)]`) — every channel now embeds one common struct holding `user_agent`, `max_retries_on_429`, `sanitize_rules`, `rewrite_rules` instead of each of the 14 channels copy-pasting the same four fields and trait method overrides. TOML / JSON wire format is unchanged.
+- **Runtime transform dispatcher as public L0 API** — `gproxy_protocol::transform::dispatch::{transform_request, transform_response, create_stream_response_transformer, nonstream_to_stream, stream_to_nonstream, convert_error_body_or_raw}`. External users who only want protocol conversion can now depend on `gproxy-protocol` alone and get everything without pulling `wreq` or `tokio`.
+- **`hello_openai` example** in `sdk/gproxy-channel/examples/` — a minimal single-file demo of `execute_once` that runs against real OpenAI with `OPENAI_API_KEY`. Compiles under `--no-default-features --features openai` as a smoke test that single-channel use really only pulls one channel.
+- **Integration test for `execute_once`** — spins up a local `axum` mock server, points `OpenAiSettings::base_url` at it, runs the full L1 pipeline, and asserts on both request side (Bearer token, body) and response side (status, classification, JSON).
+- **Optional `label` field on provider** — free-text display name shown in the console alongside the internal provider name.
+
+#### Changed
+
+- **`TransformError` now carries `Cow<'static, str>` messages** so the runtime dispatcher can produce dynamically-built errors (`format!("no stream aggregation for protocol: {protocol}")`) without allocating a new `TransformError` variant. Existing `TransformError::not_implemented("literal")` call sites keep working; new `TransformError::new(impl Into<String>)` constructor handles the dynamic case.
+- **`store.rs` split** — the 1564-line `gproxy-engine/src/store.rs` is now `store/{mod,public_traits,runtime,types}.rs` so the main `ProviderStore` orchestrator, the internal `ProviderRuntime` trait + `ProviderInstance<C>` generic implementation, the public traits, and the value types each live in their own file.
+- **Lock-step SDK versioning** — all four SDK crates follow `workspace.package.version`; `release.sh`'s `cargo set-version` bump propagates to every `[package]` inherit plus the four `workspace.dependencies.gproxy-*.version` entries at once. The release strategy + manual publish recipe is documented inline in the root `Cargo.toml`.
+
+#### Fixed
+
+- **Per-channel feature flags now actually prune** — the `openai`, `anthropic`, … channel feature flags on `gproxy-channel`, `gproxy-engine`, and `gproxy-sdk` were declared in v1.0.8 but non-functional. `cargo build --no-default-features --features openai` compiled all 14 channels anyway, because (a) the upstream `gproxy-channel` dep didn't opt out of default-features, so the default `all-channels` came in regardless; (b) `gproxy-engine`'s `all-channels` feature only forwarded to `gproxy-channel/all-channels` and didn't enable its own per-channel features, so the `#[cfg(feature = "…")]` gates would have been false even if they existed; and (c) the gates didn't exist on engine's hardcoded match arms in `built_in_model_prices`, `validate_credential_json`, `GproxyEngineBuilder::add_provider_json`, `ProviderStore::add_provider_json`, and `bootstrap_credential_on_upsert`. All three fixed in this release, and `cargo build -p gproxy-sdk --no-default-features --features openai` now genuinely compiles only the single requested channel.
+- **Pricing editor in the console** collapses into a single triangle disclosure — the nested editor no longer cascades open by accident.
+- **Dispatch template description** now clarifies that it describes the upstream protocol, not the downstream-client shape.
+- **Claude Code OAuth beta badge** drops the misleading "always" suffix; the badge just shows the beta name now.
+- **Self-update button** and its success toast are now localized.
+- **Doc-comment clippy lint** (`doc_lazy_continuation`) on `gproxy-engine` crate doc no longer fails `cargo clippy -- -D warnings`.
+
+#### Removed
+
+- **`gproxy-provider` crate** — the old aggregator that mixed single-channel access with the multi-channel engine. Its content is now split between `gproxy-channel` (L1) and `gproxy-engine` (L2).
+- **`gproxy-routing` crate** — merged into `gproxy-engine::routing` (`classify`, `permission`, `rate_limit`, `provider_prefix`, `model_alias`, `model_extraction`, `headers` / former `sanitize.rs`).
+- **Deprecated `gproxy_sdk::provider` / `gproxy_sdk::routing` module aliases** — use `gproxy_sdk::channel::*`, `gproxy_sdk::engine::*`, `gproxy_sdk::engine::routing::*` instead.
+- **Unused `ProviderDefinition` type** — dead code with no consumers.
+- **`gproxy-engine::transform_dispatch` passthrough** — engine now calls `gproxy_protocol::transform::dispatch::*` directly; the 14-line re-export file is gone.
+
+#### Compatibility
+
+- **Binary / server operators**: drop-in upgrade from v1.0.8. No DB migration, no HTTP API change, no admin client change, no config change.
+- **SDK library consumers**: breaking change. `gproxy_sdk::provider::*` and `gproxy_sdk::routing::*` paths no longer exist. Migrate every import site to `gproxy_sdk::channel::*`, `gproxy_sdk::engine::*`, `gproxy_sdk::engine::routing::*` (for the former routing helpers), or `gproxy_sdk::protocol::transform::dispatch::*` (for the runtime transform dispatcher). All in-tree downstream consumers have already been migrated.
+- **Direct `gproxy-provider` / `gproxy-routing` dependencies** in downstream `Cargo.toml` must be replaced with `gproxy-channel` + `gproxy-engine`, or just `gproxy-sdk` if you want the facade.
+- **14 channel `Settings` structs** gained a `common: CommonChannelSettings` field flattened via serde, so existing TOML / JSON configs deserialize unchanged.
+- **crates.io publishing**: The four SDK crates are metadata-complete and packaged (verified via `cargo publish --dry-run` on `gproxy-protocol` and `cargo package --list` on the downstream three). Actual publish has NOT happened yet — this release is local to the repo. When you publish, the dependency order is `gproxy-protocol → gproxy-channel → gproxy-engine → gproxy-sdk` with ~30 s between each step for the registry index to catch up.
+
+### 简体中文
+
+#### 新增
+
+- **四个可发布的 SDK crate** — `gproxy-protocol`(L0 wire 类型 + 协议转换)、`gproxy-channel`(L1 `Channel` trait、14 个具体 channel、credentials、`execute_once` 流水线)、`gproxy-engine`(L2 `GproxyEngine`、provider store、retry、affinity、路由 helper),以及 `gproxy-sdk`(facade,重导出上述三个)。每个 crate 都带齐 crates.io 元数据(license、readme、keywords、categories)和独立 README,README 顶部有统一的分层对照表。
+- **`execute_once` / `execute_once_stream`**(在 `gproxy_channel::executor`)—— 单次请求完整流水线(finalize → sanitize → rewrite → prepare_request → HTTP send → normalize → classify),只依赖 `gproxy-channel` 就能跑。还附带 `prepare_for_send` / `send_attempt` / `send_attempt_stream` 低阶 helper,供需要自己写 retry 循环的用户使用。
+- **`apply_outgoing_rules` helper** —— `apply_sanitize_rules` + `apply_rewrite_rules` 在仓库内的唯一调用点。engine、API handler 和 L1 executor 全部通过一个 body 变换 helper 走,不再各自重复 JSON 反序列化 / 变换 / 序列化三部曲。
+- **`CommonChannelSettings`**(`#[serde(flatten)]`)—— 14 个 channel 的 `Settings` struct 现在统一 embed 一个 common struct,里面装 `user_agent`、`max_retries_on_429`、`sanitize_rules`、`rewrite_rules`,不再各自 copy-paste 同样的四个字段和四个 trait 方法。TOML / JSON 线格式不变。
+- **运行时协议分发作为 L0 公开 API** —— `gproxy_protocol::transform::dispatch::{transform_request, transform_response, create_stream_response_transformer, nonstream_to_stream, stream_to_nonstream, convert_error_body_or_raw}`。只想做协议转换的外部用户现在只依赖 `gproxy-protocol` 就够了,不会被 `wreq`、`tokio` 拖进来。
+- **`hello_openai` 示例**(`sdk/gproxy-channel/examples/`)—— 用 `OPENAI_API_KEY` 打真实 OpenAI 的单文件 demo。用 `--no-default-features --features openai` 编译就能作为"单渠道场景真的只拖一家"的 smoke test。
+- **`execute_once` 集成测试** —— 起本地 `axum` mock 服务,把 `OpenAiSettings::base_url` 指过去,跑完整 L1 流水线,从请求侧(Bearer token、body)和响应侧(status、classification、JSON)双向断言。
+- **provider 新增可选 `label` 字段** —— 控制台里显示的自由文本名称,与内部 provider 名称并列。
+
+#### 变更
+
+- **`TransformError` 消息改为 `Cow<'static, str>`**,让运行时 dispatcher 能动态构造错误(`format!("no stream aggregation for protocol: {protocol}")`),不用为此新增 `TransformError` 变体。旧的 `TransformError::not_implemented("literal")` 调用位照旧工作;新的 `TransformError::new(impl Into<String>)` 构造器负责动态场景。
+- **`store.rs` 拆分** —— 原本 1564 行的 `gproxy-engine/src/store.rs` 拆成 `store/{mod,public_traits,runtime,types}.rs`,主 `ProviderStore` 编排层、内部 `ProviderRuntime` trait + `ProviderInstance<C>` 泛型实现、公开 trait、值类型各自独立成文件。
+- **SDK 锁步版本** —— 四个 SDK crate 统一跟随 `workspace.package.version`;`release.sh` 里的 `cargo set-version` 会把 bump 一次性同步到所有 `[package] version.workspace = true` 继承位,以及 `workspace.dependencies.gproxy-*.version` 四条内部依赖版本。发版策略和手动发布 recipe 写在根 `Cargo.toml` 顶部的注释块里。
+
+#### 修复
+
+- **per-channel feature flag 真正裁剪** —— v1.0.8 里 `openai`、`anthropic`、... 这些渠道 feature 虽然在 `gproxy-channel`、`gproxy-engine`、`gproxy-sdk` 三处都声明了,但形同虚设,`cargo build --no-default-features --features openai` 仍然会编译全部 14 家。根因三条:(a) 上游 `gproxy-channel` 依赖没有关 `default-features`,所以 `all-channels` 默认还是全进来;(b) `gproxy-engine` 的 `all-channels` 只转发到 `gproxy-channel/all-channels`,没启用自己的 per-channel 子 feature,所以即便代码里有 `#[cfg(feature = "...")]` 也为假;(c) engine 里的 `built_in_model_prices`、`validate_credential_json`、`GproxyEngineBuilder::add_provider_json`、`ProviderStore::add_provider_json`、`bootstrap_credential_on_upsert` 的 match 本来就没写 `#[cfg]` gate。三条在本次一并修掉,`cargo build -p gproxy-sdk --no-default-features --features openai` 现在真的只编译单独那一家 channel。
+- **控制台定价编辑器** 收敛为单个三角折叠 —— 嵌套编辑器不再意外级联展开。
+- **调度模板描述** 明确说的是上游协议,不是下游客户端 shape。
+- **Claude Code OAuth beta 徽章** 去掉误导性的 "always" 后缀,只显示 beta 名。
+- **自更新按钮** 和成功 toast 加上中文。
+- **`gproxy-engine` crate 文档的 clippy 警告**(`doc_lazy_continuation`)已消除,`cargo clippy -- -D warnings` 不再失败。
+
+#### 移除
+
+- **`gproxy-provider` crate** —— 之前把单渠道访问和多渠道引擎混在一起的聚合 crate。内容分到 `gproxy-channel`(L1)和 `gproxy-engine`(L2)。
+- **`gproxy-routing` crate** —— 合并进 `gproxy-engine::routing`(`classify`、`permission`、`rate_limit`、`provider_prefix`、`model_alias`、`model_extraction`、`headers`/原 `sanitize.rs`)。
+- **已弃用的 `gproxy_sdk::provider` / `gproxy_sdk::routing` 模块别名** —— 请改用 `gproxy_sdk::channel::*`、`gproxy_sdk::engine::*`、`gproxy_sdk::engine::routing::*`。
+- **没人使用的 `ProviderDefinition` 类型** —— 死代码,没有任何消费者。
+- **`gproxy-engine::transform_dispatch` 透传文件** —— engine 直接调 `gproxy_protocol::transform::dispatch::*`,那个 14 行 re-export 文件删了。
+
+#### 兼容性
+
+- **二进制 / 服务器运维**:可以从 v1.0.8 直接替换二进制升级,不涉及 DB / HTTP API / admin 客户端 / 配置的任何变更。
+- **SDK 库使用者**:breaking change。`gproxy_sdk::provider::*` 和 `gproxy_sdk::routing::*` 路径不复存在。所有 import 必须迁移到 `gproxy_sdk::channel::*`、`gproxy_sdk::engine::*`、`gproxy_sdk::engine::routing::*`(旧的 routing helper),或 `gproxy_sdk::protocol::transform::dispatch::*`(运行时协议分发)。仓库内所有下游消费者都已经迁移完毕。
+- **直接依赖 `gproxy-provider` / `gproxy-routing`** 的下游 `Cargo.toml` 必须改成依赖 `gproxy-channel` + `gproxy-engine`,或者依赖 `gproxy-sdk` facade。
+- **14 个 channel 的 `Settings` struct** 新增一个由 serde flatten 的 `common: CommonChannelSettings` 字段,旧的 TOML / JSON 配置反序列化完全不变。
+- **crates.io 发布**:四个 SDK crate 的元数据和打包都已就绪(已通过 `gproxy-protocol` 的 `cargo publish --dry-run` 和下游三个的 `cargo package --list` 本地验证)。**实际发布还没有发生** —— 本次发版只在本地仓库。真正 publish 时的依赖顺序是 `gproxy-protocol → gproxy-channel → gproxy-engine → gproxy-sdk`,每步之间 sleep ~30 秒等 registry index 更新。
+
 ## v1.0.8
 
 > Cross-protocol error bodies finally reach clients in the right shape, OpenAI Responses requests with orphaned tool results stop breaking Claude, and streaming upstream logs record the actual upstream bytes.
