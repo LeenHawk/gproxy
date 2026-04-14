@@ -9,85 +9,23 @@ repository.workspace = true
 
 [features]
 default = ["all-channels"]
-all-channels = [
-    "gproxy-channel/all-channels",
-    "gproxy-engine/all-channels",
-    "gproxy-provider/all-channels",
-]
-openai = [
-    "gproxy-channel/openai",
-    "gproxy-engine/openai",
-    "gproxy-provider/openai",
-]
-anthropic = [
-    "gproxy-channel/anthropic",
-    "gproxy-engine/anthropic",
-    "gproxy-provider/anthropic",
-]
-aistudio = [
-    "gproxy-channel/aistudio",
-    "gproxy-engine/aistudio",
-    "gproxy-provider/aistudio",
-]
-vertexexpress = [
-    "gproxy-channel/vertexexpress",
-    "gproxy-engine/vertexexpress",
-    "gproxy-provider/vertexexpress",
-]
-vertex = [
-    "gproxy-channel/vertex",
-    "gproxy-engine/vertex",
-    "gproxy-provider/vertex",
-]
-geminicli = [
-    "gproxy-channel/geminicli",
-    "gproxy-engine/geminicli",
-    "gproxy-provider/geminicli",
-]
-claudecode = [
-    "gproxy-channel/claudecode",
-    "gproxy-engine/claudecode",
-    "gproxy-provider/claudecode",
-]
-codex = [
-    "gproxy-channel/codex",
-    "gproxy-engine/codex",
-    "gproxy-provider/codex",
-]
-antigravity = [
-    "gproxy-channel/antigravity",
-    "gproxy-engine/antigravity",
-    "gproxy-provider/antigravity",
-]
-nvidia = [
-    "gproxy-channel/nvidia",
-    "gproxy-engine/nvidia",
-    "gproxy-provider/nvidia",
-]
-deepseek = [
-    "gproxy-channel/deepseek",
-    "gproxy-engine/deepseek",
-    "gproxy-provider/deepseek",
-]
-groq = [
-    "gproxy-channel/groq",
-    "gproxy-engine/groq",
-    "gproxy-provider/groq",
-]
-openrouter = [
-    "gproxy-channel/openrouter",
-    "gproxy-engine/openrouter",
-    "gproxy-provider/openrouter",
-]
-custom = [
-    "gproxy-channel/custom",
-    "gproxy-engine/custom",
-    "gproxy-provider/custom",
-]
+all-channels = ["gproxy-channel/all-channels", "gproxy-engine/all-channels"]
+openai = ["gproxy-channel/openai", "gproxy-engine/openai"]
+anthropic = ["gproxy-channel/anthropic", "gproxy-engine/anthropic"]
+aistudio = ["gproxy-channel/aistudio", "gproxy-engine/aistudio"]
+vertexexpress = ["gproxy-channel/vertexexpress", "gproxy-engine/vertexexpress"]
+vertex = ["gproxy-channel/vertex", "gproxy-engine/vertex"]
+geminicli = ["gproxy-channel/geminicli", "gproxy-engine/geminicli"]
+claudecode = ["gproxy-channel/claudecode", "gproxy-engine/claudecode"]
+codex = ["gproxy-channel/codex", "gproxy-engine/codex"]
+antigravity = ["gproxy-channel/antigravity", "gproxy-engine/antigravity"]
+nvidia = ["gproxy-channel/nvidia", "gproxy-engine/nvidia"]
+deepseek = ["gproxy-channel/deepseek", "gproxy-engine/deepseek"]
+groq = ["gproxy-channel/groq", "gproxy-engine/groq"]
+openrouter = ["gproxy-channel/openrouter", "gproxy-engine/openrouter"]
+custom = ["gproxy-channel/custom", "gproxy-engine/custom"]
 
 [dependencies]
 gproxy-protocol = { workspace = true }
 gproxy-channel = { workspace = true }
 gproxy-engine = { workspace = true }
-gproxy-provider = { workspace = true }
-gproxy-routing = { workspace = true }

@@ -1920,14 +1920,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gproxy-provider"
-version = "1.0.8"
-dependencies = [
- "gproxy-channel",
- "gproxy-engine",
-]
-
-[[package]]
 name = "gproxy-recorder"
 version = "1.0.8"
 dependencies = [
@@ -1954,27 +1946,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "gproxy-routing"
-version = "1.0.8"
-dependencies = [
- "gproxy-protocol",
- "http",
- "regex",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
 name = "gproxy-sdk"
 version = "1.0.8"
 dependencies = [
  "gproxy-channel",
  "gproxy-engine",
  "gproxy-protocol",
- "gproxy-provider",
- "gproxy-routing",
 ]
 
 [[package]]
