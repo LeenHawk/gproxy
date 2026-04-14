@@ -51,7 +51,7 @@ fn aggregate_stream_body(protocol: ProtocolKind, body: &[u8]) -> Result<Vec<u8>,
         .map(|line| line.as_bytes().to_vec())
         .collect();
     let chunk_refs: Vec<&[u8]> = owned_chunks.iter().map(Vec::as_slice).collect();
-    crate::transform_dispatch::stream_to_nonstream(protocol, &chunk_refs).map_err(Into::into)
+    gproxy_protocol::transform::dispatch::stream_to_nonstream(protocol, &chunk_refs).map_err(Into::into)
 }
 
 /// Execution request passed to the engine.
@@ -1053,7 +1053,7 @@ impl GproxyEngine {
         let body = if needs_transform {
             tracing::debug!(dst_op = %dst_op, dst_proto = %dst_proto, "transforming request");
             let original_body = request.body.clone();
-            match crate::transform_dispatch::transform_request(
+            match gproxy_protocol::transform::dispatch::transform_request(
                 request.operation,
                 request.protocol,
                 if force_stream_aggregation {
@@ -1208,7 +1208,7 @@ impl GproxyEngine {
             needs_transform && is_success_status && !same_protocol_aggregation;
         let mut response_body = if needs_response_transform {
             tracing::debug!("transforming response");
-            crate::transform_dispatch::transform_response(
+            gproxy_protocol::transform::dispatch::transform_response(
                 request.operation,
                 request.protocol,
                 response_transform_dst_op,
@@ -1216,7 +1216,7 @@ impl GproxyEngine {
                 normalized_nonstream_body,
             )?
         } else if needs_transform && !is_success_status && !same_protocol_aggregation {
-            crate::transform_dispatch::convert_error_body_or_raw(
+            gproxy_protocol::transform::dispatch::convert_error_body_or_raw(
                 request.operation,
                 request.protocol,
                 response_transform_dst_op,
@@ -1343,7 +1343,7 @@ impl GproxyEngine {
 
         let body = if needs_transform {
             let original_body = request.body.clone();
-            match crate::transform_dispatch::transform_request(
+            match gproxy_protocol::transform::dispatch::transform_request(
                 request.operation,
                 request.protocol,
                 dst_op,
@@ -1463,7 +1463,7 @@ impl GproxyEngine {
             }
 
             let raw_error_bytes = error_bytes.clone();
-            let converted = crate::transform_dispatch::convert_error_body_or_raw(
+            let converted = gproxy_protocol::transform::dispatch::convert_error_body_or_raw(
                 request.operation,
                 request.protocol,
                 dst_op,
@@ -1578,7 +1578,7 @@ impl GproxyEngine {
 
         let transformer = if needs_response_transform {
             Some(
-                crate::transform_dispatch::create_stream_response_transformer(
+                gproxy_protocol::transform::dispatch::create_stream_response_transformer(
                     request.operation,
                     request.protocol,
                     dst_op,
@@ -1643,7 +1643,7 @@ impl GproxyEngine {
 /// error body.
 fn wrap_upstream_response_stream(
     mut upstream: gproxy_channel::response::UpstreamBodyStream,
-    transformer: Option<crate::transform_dispatch::StreamResponseTransformer>,
+    transformer: Option<gproxy_protocol::transform::dispatch::StreamResponseTransformer>,
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
     model_override: Option<String>,
 ) -> ExecuteBodyStream {

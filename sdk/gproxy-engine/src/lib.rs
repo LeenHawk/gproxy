@@ -18,7 +18,6 @@ pub mod engine;
 pub mod retry;
 pub mod routing;
 pub mod store;
-pub mod transform_dispatch;
 
 pub use backend::memory::{InMemoryAffinity, InMemoryQuota, InMemoryRateLimit};
 pub use backend::traits::{AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend};
