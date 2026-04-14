@@ -282,85 +282,24 @@ pub struct PullModelsResponse {
     pub models: Vec<String>,
 }
 
-/// Determine the protocol to use for model_list based on channel name.
-fn channel_to_model_list_protocol(channel: &str) -> ProtocolKind {
-    match channel {
-        "anthropic" | "claudecode" => ProtocolKind::Claude,
-        "vertex" | "vertexexpress" | "aistudio" | "geminicli" => ProtocolKind::Gemini,
-        _ => ProtocolKind::OpenAi,
-    }
-}
-
-/// Build the request body for a live model_list call (mirrors handler.rs logic).
-fn build_live_model_list_request_body(protocol: ProtocolKind) -> Vec<u8> {
-    match protocol {
-        ProtocolKind::Claude => serde_json::to_vec(&serde_json::json!({
-            "query": { "limit": 1000 }
-        }))
-        .unwrap_or_default(),
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            serde_json::to_vec(&serde_json::json!({
-                "query": { "pageSize": 1000 }
-            }))
-            .unwrap_or_default()
-        }
-        _ => Vec::new(),
-    }
-}
-
-/// Extract model IDs from the response body, adapting to the protocol's format.
-fn extract_model_ids(body: &[u8], protocol: ProtocolKind) -> Vec<String> {
-    match protocol {
-        ProtocolKind::Claude => {
-            // Claude: { "data": [{ "id": "..." }, ...] }
-            if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) {
-                resp.get("data")
-                    .and_then(|d| d.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            }
-        }
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            // Gemini: { "models": [{ "name": "models/gemini-pro", ... }] }
-            if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) {
-                resp.get("models")
-                    .and_then(|d| d.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|m| {
-                                m.get("name").and_then(|v| v.as_str()).map(|name| {
-                                    name.strip_prefix("models/").unwrap_or(name).to_string()
-                                })
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            }
-        }
-        _ => {
-            // OpenAI: { "data": [{ "id": "gpt-4o", ... }] }
-            if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) {
-                resp.get("data")
-                    .and_then(|d| d.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(String::from))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            }
-        }
-    }
+/// Extract model IDs from an OpenAI-format model list response:
+/// `{ "data": [{ "id": "..." }, ...] }`.
+///
+/// `/admin/models/pull` always issues the upstream call with `ProtocolKind::OpenAi`,
+/// so every channel's dispatch table (passthrough, xform, or local) delivers a
+/// response in this shape — no per-protocol parsing needed.
+fn extract_openai_model_ids(body: &[u8]) -> Vec<String> {
+    let Ok(resp) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return Vec::new();
+    };
+    resp.get("data")
+        .and_then(|d| d.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 pub async fn pull_models(
@@ -370,31 +309,26 @@ pub async fn pull_models(
 ) -> Result<Json<PullModelsResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
 
-    // Resolve provider_id -> provider_name
+    // Resolve provider_id -> provider_name (engine.execute takes a name).
     let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
 
-    // Determine protocol from channel
-    let channel = state
-        .provider_channel_for_name(&provider_name)
-        .ok_or_else(|| {
-            HttpError::internal(format!(
-                "provider '{}' has no channel configured",
-                provider_name
-            ))
-        })?;
-    let protocol = channel_to_model_list_protocol(&channel);
-
-    // Execute live model list request via the engine.
-    // Pass an empty HeaderMap — the admin request headers (Authorization,
-    // Content-Length, Host, etc.) would leak to the upstream and break it.
-    // The engine/channel finalize_request adds the provider's own auth headers.
+    // Always request with OpenAI protocol. Every channel in the codebase
+    // registers (ModelList, OpenAi) in its dispatch table — as Passthrough
+    // (openai/anthropic/aistudio/vertex/groq/...), Xform (claudecode/geminicli/
+    // antigravity convert to their native protocol), or Local (vertexexpress
+    // serves a baked catalogue). So the response is always OpenAI-shaped, and
+    // we don't need to infer the protocol from the channel name.
+    //
+    // Headers are empty on purpose — the admin request's Authorization /
+    // Content-Length / Host would leak to the upstream and break it. The
+    // channel's finalize_request adds the provider's own auth headers.
     let result = state
         .engine()
         .execute(ExecuteRequest {
             provider: provider_name.clone(),
             operation: OperationFamily::ModelList,
-            protocol,
-            body: build_live_model_list_request_body(protocol),
+            protocol: ProtocolKind::OpenAi,
+            body: Vec::new(),
             headers: HeaderMap::new(),
             model: None,
             forced_credential_index: None,
@@ -424,7 +358,7 @@ pub async fn pull_models(
         ));
     };
 
-    let mut models = extract_model_ids(&body, protocol);
+    let mut models = extract_openai_model_ids(&body);
     models.sort();
     models.dedup();
 
