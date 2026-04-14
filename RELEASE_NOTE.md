@@ -1,5 +1,357 @@
 # Release Notes
 
+## v1.0.8
+
+> **Cross-protocol error bodies finally make it to the client in the
+> right schema, orphaned `tool_result` messages stop breaking Claude
+> requests, and streaming upstream logs now store the actual wire
+> bytes.** The headline fix: when a Claude/Gemini/OpenAI upstream
+> returns a non-2xx error body, the engine now converts it to the
+> client's declared error shape (e.g. Claude `{"type":"error",...}` →
+> OpenAI `{"error":{...}}`) instead of handing the raw JSON to an SDK
+> that can't parse it — with a raw-bytes fallback when the upstream
+> shape doesn't match any declared schema. Streaming error responses
+> finally reach the client too, after a buffer-and-convert fast path
+> replaces the broken SSE transformer that used to swallow the error
+> body and emit only `[DONE]`. On the transform side, a new
+> `push_message_block` utility centralizes Claude message-building
+> invariants across every `*→Claude` converter, fixing an OpenAI
+> Responses-API bug where `previous_response_id` + fresh
+> `function_call_output` produced orphaned `tool_result` blocks and
+> Claude returned a 400. The console picks up a per-channel
+> `max_retries_on_429` field and a one-click TOML download on the
+> config export page.
+
+### English
+
+#### Fixed
+
+- **Non-2xx upstream errors reached clients in the wrong protocol
+  schema** — each provider uses a different error shape (Claude
+  `{"type":"error","error":{...}}`, OpenAI `{"error":{...}}`, Gemini
+  `{"error":{"code":N,...}}`), and before this release the engine only
+  ran `transform_response` on 2xx bodies. An OpenAI-speaking client
+  that hit a Claude 400 got the raw Claude JSON back, which the SDK
+  couldn't parse, so dashboards saw a generic "invalid response" on
+  what was really a simple upstream 400 (e.g. `prompt is too long`).
+  `sdk/gproxy-provider/src/engine.rs` and
+  `sdk/gproxy-provider/src/transform_dispatch.rs` now route error
+  bodies through the new `convert_error_body_or_raw` helper, which
+  tries the declared error variant via `BodyEnvelope::from_body_bytes`
+  and falls back to raw upstream bytes on schema mismatch (e.g. codex
+  returning `{"detail":{"code":"deactivated_workspace"}}`, which isn't
+  any declared error schema). Claude-error-to-OpenAI-error conversion
+  is covered by a new integration test.
+- **Streaming endpoints swallowed upstream error bodies** — on a
+  cross-protocol transform route (e.g. client speaks
+  OpenAI-chat-completions, upstream is Claude), a non-2xx upstream
+  response was fed to the inline per-chunk SSE transformer, which
+  couldn't parse the JSON error body as an SSE frame, yielded nothing,
+  and emitted only a synthetic `[DONE]`. The client saw an empty
+  success stream instead of the actual 4xx/5xx error. `execute_stream`
+  now detects `!is_success` upstream early, buffers the full error
+  body (which is always a small complete JSON, not a real SSE
+  stream), runs it through `convert_error_body_or_raw`, and returns
+  a single-chunk `ExecuteBody::Stream` with the converted bytes. The
+  raw pre-conversion upstream bytes are still captured for the
+  upstream log so operators can see what actually came over the wire.
+- **Orphaned `tool_result` blocks caused Claude 400 on OpenAI
+  Responses-API requests** — Claude's API requires "each `tool_result`
+  block must have a corresponding `tool_use` block in the previous
+  message," but the OpenAI Responses API lets clients send only
+  `function_call_output` items when using `previous_response_id`
+  (the `tool_use` side lives in the prior turn, which the client is
+  referencing by id instead of resending). The legacy `*→Claude`
+  transforms built messages by blindly pushing blocks, so these
+  requests ended up with a leading `user`/`tool_result` message and
+  no matching `assistant`/`tool_use` — Claude returned 400 every
+  time. The new `push_message_block` helper (see Added) synthesizes
+  a placeholder `tool_use` block with the matching `id` whenever it
+  detects an orphaned `tool_result`, so the request now satisfies
+  Claude's pairing rule and goes through.
+- **Adjacent same-role messages from multi-block transforms** — the
+  per-transform `push_block_message` helpers produced two separate
+  `user` messages for two consecutive `tool_result` pushes (and
+  similarly for assistant blocks), which Claude's API rejects as
+  malformed. `push_message_block` now merges consecutive blocks for
+  the same role into a single `BetaMessageContent::Blocks` message,
+  so every `*→Claude` transform produces a well-formed message list
+  by construction.
+- **Streaming upstream logs stored post-transform bytes instead of
+  pre-transform wire bytes** — the handler's old
+  `accumulated_body: Vec<u8>` collected chunks as they were *yielded
+  downstream*, so for cross-protocol routes the `response_body`
+  column in `upstream_requests` held the converted (OpenAI/Gemini/…)
+  bytes, not what Claude/OpenAI-upstream actually sent. This diverged
+  from the non-stream path, which stores the pre-transform bytes via
+  `raw_response_body_for_log`. A new stream wrapper
+  (`wrap_upstream_response_stream`) now tees upstream bytes into an
+  `Arc<Mutex<Vec<u8>>>` capture buffer *before* they reach the
+  transformer, and the handler reads it after the stream drains.
+  Stream and non-stream paths are now byte-for-byte consistent in
+  the upstream log.
+
+#### Changed
+
+- **Passthrough streaming fast path** — when a stream route has no
+  transformer, no `raw_capture`, and no `response_model_override`, the
+  engine now hands `response.body` through to the client unwrapped
+  instead of going through a per-chunk `try_stream!` loop. This
+  reclaims the passthrough latency that was lost when `accumulated_body`
+  was added. The wrapper is only spliced in when at least one of raw
+  capture, transform, or alias rewriting is active.
+- **`rand 0.9.4` / `rand_core 0.10.1`** — minor dependency bumps.
+  Picks up upstream API cleanups; no gproxy code changes required.
+
+#### Added
+
+- **`convert_error_body_or_raw(src_op, src_proto, dst_op, dst_proto,
+  body)`** in `sdk/gproxy-provider/src/transform_dispatch.rs` —
+  converts an upstream non-2xx body from the upstream protocol's
+  error schema to the client's expected error schema via
+  `transform_response`, substituting `GenerateContent` for streaming
+  ops (error bodies share the non-stream schema). Passthrough routes
+  (same src/dst protocol and op) skip conversion entirely. On schema
+  mismatch the helper logs at debug level with the full
+  `src_op`/`src_proto`/`dst_op`/`dst_proto` context and returns the
+  raw bytes so no error information is lost. Three unit tests cover
+  Claude→OpenAI rewriting, codex-shape fallback, and the passthrough
+  case.
+- **`ExecuteResult.stream_raw_capture: Option<Arc<Mutex<Vec<u8>>>>`**
+  — new field on the SDK result type, populated by
+  `execute_stream` when `enable_upstream_log &&
+  enable_upstream_log_body` and the route actually sees a raw-capture
+  tee. The handler reads the buffer after the stream drains and
+  copies it into `meta.response_body`, so
+  `upstream_requests.response_body` contains the pre-transform wire
+  bytes that correspond to what the non-stream path already stored.
+  `None` on passthrough-with-logging-off routes and on the error-body
+  fast path's re-use (which seeds the buffer with pre-conversion
+  bytes itself).
+- **`wrap_upstream_response_stream`** in
+  `sdk/gproxy-provider/src/engine.rs` — single stream-combinator that
+  applies, in order: raw-byte tee into `raw_capture`, optional
+  per-chunk `StreamResponseTransformer`, and optional model-alias
+  rewriting. Replaces the previous two inlined `try_stream!` loops
+  (one for transform + alias, one for alias-only) with a unified
+  helper whose behaviour is covered by two unit tests
+  (`wrap_response_stream_tees_raw_bytes_in_passthrough_mode`,
+  `wrap_response_stream_pure_passthrough_yields_chunks_unchanged`).
+- **`push_message_block(messages, role, block)`** in
+  `sdk/gproxy-protocol/src/transform/claude/utils.rs` — central
+  utility for building Claude `messages` lists from any non-Claude
+  source. Maintains two invariants:
+  1. Consecutive blocks for the same role are merged into one
+     `BetaMessageContent::Blocks` message (no adjacent same-role
+     messages).
+  2. Whenever a `tool_result` block is appended to a `user` message,
+     the immediately-preceding assistant message is checked for a
+     matching `tool_use` block; if none exists, a placeholder
+     `tool_use` (named `tool_use_placeholder`) is synthesized in the
+     assistant slot — either by promoting an existing assistant
+     message's content into blocks and appending, or by inserting a
+     new assistant message before the trailing user one.
+  Exported from `transform::claude::utils` and re-exported from
+  `transform::utils` so non-Claude callers don't need a cross-module
+  dependency. Every `*→Claude` request transform (`gemini`,
+  `openai_chat_completions`, `openai_response`, `openai_compact`,
+  `openai_count_tokens`) is migrated to call it instead of pushing
+  messages directly. Covered by 9 unit tests, including the exact
+  orphaned-tool_result shape reported in production.
+- **Per-channel `max_retries_on_429` setting in ConfigTab** — every
+  channel's structured editor now exposes an optional integer input
+  bound to the backend's per-credential 429-without-`retry-after`
+  retry cap (backend default: 3). Empty input is omitted from the
+  settings JSON so the backend default still applies. i18n strings
+  added in both locales (`field.max_retries_on_429`).
+- **TOML download button on the config export page** — `ConfigExport`
+  module grows a neutral `Download` button alongside the existing
+  `Export`. Clicking it ships the current export as
+  `gproxy-config-<ISO-timestamp>.toml` via a `Blob` + `<a>`-click. If
+  the user hasn't clicked `Export` yet, `Download` fetches the TOML
+  first and then triggers the file save. New i18n key:
+  `common.download`.
+
+#### Compatibility
+
+- **No DB, API, or config changes.** `settings.toml`,
+  `global_settings`, and the admin API schema are all untouched.
+  This is a drop-in upgrade from v1.0.7 — just swap the binary.
+- **Upstream-request log `response_body` semantics change for
+  streaming routes.** Previously, streaming cross-protocol routes
+  stored the *post-transform* bytes (what the client saw). They now
+  store the *pre-transform upstream wire bytes* (what the upstream
+  actually sent), matching the non-stream path. Dashboards that
+  were parsing `response_body` as the client-protocol shape on
+  streaming rows need to switch to parsing it as the upstream
+  protocol's shape. Operators who were relying on this to debug
+  what the upstream sent benefit without doing anything.
+- **Upstream-error log rows now include `response_body` for cross-
+  protocol routes.** Previously the body was often empty on error
+  rows because the SSE transformer dropped it. Dashboards that
+  filtered error rows by `response_body = ''` will see fewer matches.
+- **`ExecuteResult` gains `stream_raw_capture`.** SDK consumers that
+  pattern-match `ExecuteResult { .. }` or construct it by name must
+  add the new field. Existing users of `ExecuteResult::body` / `meta`
+  / `usage` / etc. are unaffected.
+- **Orphaned `tool_result` requests now succeed where they used to
+  400.** Callers that were filtering their traffic *because* Claude
+  rejected these will see traffic resume. The placeholder
+  `tool_use` blocks synthesised by `push_message_block` are named
+  `tool_use_placeholder` with an empty `input` object; downstream
+  log analysis that wants to distinguish "real upstream tool_use"
+  from "placeholder injected by gproxy" can filter on that name.
+
+### 简体中文
+
+#### 修复
+
+- **非 2xx 上游错误体抵达客户端时协议不对** —
+  各家 provider 的错误体 shape 都不一样（Claude
+  `{"type":"error","error":{...}}`，OpenAI `{"error":{...}}`，Gemini
+  `{"error":{"code":N,...}}`），而 v1.0.7 之前 engine 只对 2xx body 走
+  `transform_response`。一个 OpenAI-chat-completions 的客户端打到
+  Claude 上游，遇到 400 会拿到原始 Claude JSON，SDK 完全解析不了，
+  日志里看到的就是一个笼统的「invalid response」，但实际上只是
+  `prompt is too long` 这种上游 400。`sdk/gproxy-provider/src/engine.rs`
+  和 `sdk/gproxy-provider/src/transform_dispatch.rs` 现在把错误体
+  路由到新加的 `convert_error_body_or_raw` helper：它先尝试通过
+  `BodyEnvelope::from_body_bytes` 走声明的 error 变体，如果 shape 对
+  不上（比如 codex 回的 `{"detail":{"code":"deactivated_workspace"}}`
+  不匹配任何声明的 error 模式），就回退到原始上游字节，保证
+  错误信息不会丢。Claude-error→OpenAI-error 的转换有集成测试覆盖。
+- **流式端点把上游错误体吞掉了** — 跨协议 transform 路由
+  （例如客户端说 OpenAI-chat-completions、上游是 Claude）上，
+  非 2xx 上游响应会被送进 per-chunk SSE transformer，而它根本
+  没法把 JSON 错误体当作 SSE 帧解析，于是产不出任何输出，
+  最后只合成一个 `[DONE]`，客户端看到的是一条空的成功流，
+  而不是真实的 4xx/5xx 错误。`execute_stream` 现在会提前检测
+  `!is_success` 的上游响应，把整个错误体缓冲起来（错误体永远是
+  一小段完整 JSON，不是真正的 SSE 流），跑一遍
+  `convert_error_body_or_raw`，再以单 chunk 的形式返回一个
+  `ExecuteBody::Stream`。转换前的原始上游字节仍然会被抓给
+  upstream log，让运维能看到线上实际传过来什么。
+- **孤立的 `tool_result` 块让 OpenAI Responses API 请求被 Claude 打回
+  400** — Claude 的 API 要求「每个 `tool_result` 块都必须在上一条
+  消息里有对应的 `tool_use` 块」，但 OpenAI Responses API 允许
+  客户端在使用 `previous_response_id` 时只发 `function_call_output`
+  条目（对应的 `tool_use` 是在上一轮，用 id 引用而不是重发）。老的
+  `*→Claude` transform 只是一味地 push block，结果就出现一条开头
+  就是 `user`/`tool_result`、却没有匹配的 `assistant`/`tool_use` 的
+  消息 —— Claude 每次都直接 400。新加的 `push_message_block`
+  helper（见「新增」）在检测到孤立 `tool_result` 时，会合成一个
+  带匹配 `id` 的占位 `tool_use` block，请求从此能满足 Claude 的
+  配对规则顺利通过。
+- **多块 transform 产生相邻的同角色消息** — 之前各 transform 的
+  `push_block_message` helper 在连续两次 push `tool_result` 时会
+  产生两条独立的 `user` 消息（assistant 块同理），Claude 的 API
+  会把这种结构判为非法。`push_message_block` 会自动把同角色的
+  连续块合并进同一条 `BetaMessageContent::Blocks` 消息，从结构
+  上保证每个 `*→Claude` transform 产出的消息列表是合法的。
+- **流式 upstream log 存的是 transform 后的字节，不是上游真实字节** —
+  handler 以前的 `accumulated_body: Vec<u8>` 是在 *chunk 往下游发出去
+  时* 拼起来的，所以跨协议路由上 `upstream_requests.response_body`
+  存的其实是转换后（OpenAI/Gemini/…）的字节，而不是 Claude 或
+  OpenAI 上游真正发的内容。这和非流式路径通过
+  `raw_response_body_for_log` 存的 pre-transform 字节不一致。
+  新的 stream wrapper（`wrap_upstream_response_stream`）会在
+  transformer *碰到 chunk 之前*，先把上游字节 tee 进一个
+  `Arc<Mutex<Vec<u8>>>` 的抓取缓冲里，handler 在流结束后把它读出来。
+  从此流式和非流式路径在 upstream log 上逐字节一致。
+
+#### 变更
+
+- **流式 passthrough 快路径** — 当一个流路由既没有 transformer，
+  又没有 `raw_capture`，也没有 `response_model_override` 时，engine
+  现在直接把 `response.body` 原样透给客户端，而不再穿过一个
+  per-chunk 的 `try_stream!` 循环。这把当初为了加
+  `accumulated_body` 而损失的 passthrough 延迟找了回来。wrapper
+  只在抓取、转换、别名改写这三件事至少有一件开启时才会被接进来。
+- **`rand 0.9.4` / `rand_core 0.10.1`** —
+  次要的依赖升级，吃掉上游 API 清理，gproxy 侧没有代码改动。
+
+#### 新增
+
+- **`convert_error_body_or_raw(src_op, src_proto, dst_op, dst_proto,
+  body)`** —— 在 `sdk/gproxy-provider/src/transform_dispatch.rs` 里，
+  把上游非 2xx body 从上游协议的 error 模式转换到客户端声明的 error
+  模式，流式 op 会被替换成对应的 `GenerateContent`（错误体和非流式
+  共享同一套 schema）。passthrough 路由（src 和 dst 的 protocol + op
+  全相同）直接跳过转换。shape 对不上时会在 debug 级别打出完整的
+  `src_op` / `src_proto` / `dst_op` / `dst_proto` 上下文并返回原始
+  字节，保证错误信息不丢。三条单测覆盖 Claude→OpenAI 改写、
+  codex-shape 回退和 passthrough 三种场景。
+- **`ExecuteResult.stream_raw_capture: Option<Arc<Mutex<Vec<u8>>>>`** ——
+  SDK 结果类型新增字段，只在 `enable_upstream_log &&
+  enable_upstream_log_body` 并且路由确实走了 raw-capture tee 的时候
+  由 `execute_stream` 填充。handler 在流结束后读这个 buffer 并
+  塞进 `meta.response_body`，让 `upstream_requests.response_body` 存的
+  是和非流式路径一致的 pre-transform 字节。不开 upstream log 的
+  passthrough 路由以及错误体快路径（它自己给 buffer 种好了转换前
+  字节）上这个字段都是 `None`。
+- **`wrap_upstream_response_stream`** ——
+  `sdk/gproxy-provider/src/engine.rs` 里新的单入口 stream combinator，
+  按顺序执行：原始字节 tee 进 `raw_capture`、可选的
+  per-chunk `StreamResponseTransformer`、可选的模型别名改写。
+  替代之前两处内联的 `try_stream!` 循环（一处负责 transform+alias、
+  一处只负责 alias），行为有两条单测覆盖
+  （`wrap_response_stream_tees_raw_bytes_in_passthrough_mode`、
+  `wrap_response_stream_pure_passthrough_yields_chunks_unchanged`）。
+- **`push_message_block(messages, role, block)`** ——
+  `sdk/gproxy-protocol/src/transform/claude/utils.rs` 里新加的
+  Claude messages 构建中枢。从任何非 Claude 源构建消息时都应该走它。
+  它维护两条不变量：
+  1. 同角色的连续 block 合并进同一条
+     `BetaMessageContent::Blocks`，不允许出现相邻的同角色消息。
+  2. 每次往 `user` 消息追加 `tool_result` block 时，检查紧挨着的
+     前一条 assistant 消息里有没有匹配的 `tool_use`；如果没有，就
+     在 assistant 槽位上合成一个占位 `tool_use`（名字叫
+     `tool_use_placeholder`）—— 要么把已有 assistant 消息的内容
+     提升为 blocks 再 append，要么在尾部 user 消息之前插入一条
+     新的 assistant 消息。
+  从 `transform::claude::utils` 导出，同时在 `transform::utils` 里
+  re-export，非 Claude 的 caller 不需要跨模块依赖 `claude` 子模块。
+  每一个 `*→Claude` 的 request transform（`gemini`、
+  `openai_chat_completions`、`openai_response`、`openai_compact`、
+  `openai_count_tokens`）都已经改为调用它，而不是直接 push 消息。
+  配了 9 条单测，包括线上报过的那条孤立 `tool_result` 的精确
+  还原用例。
+- **ConfigTab 每 channel 的 `max_retries_on_429` 设置** —
+  每个 channel 的结构化编辑器都多了一个可选整数输入，绑定到
+  后端的「每凭证 429-without-`retry-after` 重试上限」（后端默认 3）。
+  留空时不会写进 settings JSON，让后端默认值生效。
+  两种语言都加了 i18n key（`field.max_retries_on_429`）。
+- **配置导出页的 TOML 下载按钮** — `ConfigExport` 模块在原本的
+  `Export` 按钮旁边多了一个 neutral 风格的 `Download` 按钮。
+  点击会把当前导出内容通过 `Blob` + `<a>`-click 保存成
+  `gproxy-config-<ISO-timestamp>.toml`。如果用户还没点过 `Export`，
+  `Download` 会先去拉 TOML 再触发文件保存。新 i18n key：
+  `common.download`。
+
+#### 兼容性
+
+- **不涉及 DB、API、配置变更。** `settings.toml`、
+  `global_settings`、admin API schema 全部原封不动，v1.0.7 可以
+  直接替换二进制升级到 v1.0.8。
+- **流式路由的 `response_body` 语义变了。** 之前流式跨协议路由
+  存的是 *transform 之后* 的字节（客户端看到的那份），现在存的是
+  *transform 之前* 的上游原始字节（上游实际发的那份），和非流式
+  路径一致。之前按客户端协议 shape 解析流式行 `response_body`
+  的看板需要改成按上游协议解析。靠这份字段排查上游实际回了
+  什么的运维什么都不用改，直接获益。
+- **跨协议路由的 upstream 错误日志行现在会带 `response_body`。**
+  之前这些行经常是空的，因为 SSE transformer 把 body 吞掉了。
+  按 `response_body = ''` 筛错误行的看板会看到匹配减少。
+- **`ExecuteResult` 新增 `stream_raw_capture` 字段。** SDK 下游
+  如果用 `ExecuteResult { .. }` 模式匹配或按名构造这个结构体，
+  需要把新字段加上。只读 `body` / `meta` / `usage` 之类的消费者
+  不受影响。
+- **孤立 `tool_result` 请求从此能通。** 之前因为 Claude 把这种
+  请求判 400 而在上游侧屏蔽流量的 caller，会看到这部分流量恢复。
+  `push_message_block` 合成的占位 `tool_use` 块名字统一是
+  `tool_use_placeholder`，`input` 是空对象；需要区分「上游真实
+  tool_use」和「gproxy 注入的占位」的日志分析，可以按这个名字过滤。
+
 ## v1.0.7
 
 > **Self-update is unbroken, failing transforms finally tell you which
