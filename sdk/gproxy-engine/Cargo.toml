@@ -1,0 +1,49 @@
+[package]
+name = "gproxy-engine"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Multi-channel LLM orchestration engine for gproxy: GproxyEngine, ProviderStore, retry/affinity, backend traits, and routing helpers."
+homepage.workspace = true
+repository.workspace = true
+
+[features]
+default = ["all-channels"]
+all-channels = ["gproxy-channel/all-channels"]
+openai = ["gproxy-channel/openai"]
+anthropic = ["gproxy-channel/anthropic"]
+aistudio = ["gproxy-channel/aistudio"]
+vertexexpress = ["gproxy-channel/vertexexpress"]
+vertex = ["gproxy-channel/vertex"]
+geminicli = ["gproxy-channel/geminicli"]
+claudecode = ["gproxy-channel/claudecode"]
+codex = ["gproxy-channel/codex"]
+antigravity = ["gproxy-channel/antigravity"]
+nvidia = ["gproxy-channel/nvidia"]
+deepseek = ["gproxy-channel/deepseek"]
+groq = ["gproxy-channel/groq"]
+openrouter = ["gproxy-channel/openrouter"]
+custom = ["gproxy-channel/custom"]
+
+[dependencies]
+gproxy-protocol = { workspace = true }
+gproxy-channel = { workspace = true }
+async-stream = { workspace = true }
+arc-swap = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+dashmap = { workspace = true }
+futures-util = { workspace = true }
+http = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+uuid = { workspace = true }
+wreq = { workspace = true }
+wreq-util = { workspace = true }

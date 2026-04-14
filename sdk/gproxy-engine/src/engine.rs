@@ -10,11 +10,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::Instrument;
 
-use crate::Channel;
-use crate::dispatch::RouteKey;
-use crate::health::ModelCooldownHealth;
-use crate::request::PreparedRequest;
-use crate::response::UpstreamError;
+use gproxy_channel::Channel;
+use gproxy_channel::dispatch::RouteKey;
+use gproxy_channel::health::ModelCooldownHealth;
+use gproxy_channel::request::PreparedRequest;
+use gproxy_channel::response::UpstreamError;
 use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
 
 fn is_stream_aggregation_route(
@@ -143,7 +143,7 @@ impl std::error::Error for ExecuteError {
 /// caller never writes them to the DB.
 fn build_execute_error(
     error: UpstreamError,
-    failed_attempt: Option<crate::response::FailedUpstreamAttempt>,
+    failed_attempt: Option<gproxy_channel::response::FailedUpstreamAttempt>,
     model: Option<String>,
     start: std::time::Instant,
     enable_upstream_log: bool,
@@ -267,11 +267,11 @@ pub struct ProviderConfig {
     pub settings_json: serde_json::Value,
     pub credentials: Vec<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dispatch: Option<crate::dispatch::DispatchTableDocument>,
+    pub dispatch: Option<gproxy_channel::dispatch::DispatchTableDocument>,
 }
 
-pub fn built_in_model_prices(channel: &str) -> Option<Vec<crate::billing::ModelPrice>> {
-    use crate::channels::*;
+pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billing::ModelPrice>> {
+    use gproxy_channel::channels::*;
 
     let prices = match channel {
         "openai" => openai::OpenAiChannel.model_pricing(),
@@ -307,7 +307,7 @@ pub fn validate_credential_json(channel: &str, credential: &Value) -> Result<(),
         };
     }
 
-    use crate::channels::*;
+    use gproxy_channel::channels::*;
 
     match channel {
         "openai" => validate!(openai::OpenAiCredential),
@@ -372,7 +372,7 @@ impl GproxyEngineBuilder {
         self
     }
 
-    pub fn add_provider<C: crate::Channel>(
+    pub fn add_provider<C: gproxy_channel::Channel>(
         self,
         name: impl Into<String>,
         channel: C,
@@ -382,13 +382,13 @@ impl GproxyEngineBuilder {
         self.add_provider_with_dispatch(name, channel, settings, credentials, None)
     }
 
-    pub fn add_provider_with_dispatch<C: crate::Channel>(
+    pub fn add_provider_with_dispatch<C: gproxy_channel::Channel>(
         mut self,
         name: impl Into<String>,
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
-        dispatch_override: Option<crate::dispatch::DispatchTable>,
+        dispatch_override: Option<gproxy_channel::dispatch::DispatchTable>,
     ) -> Self {
         self.store_builder = self.store_builder.add_provider_with_dispatch(
             name,
@@ -503,7 +503,7 @@ impl GproxyEngineBuilder {
                 } = $cfg;
                 let dispatch = match dispatch {
                     Some(document) => Some(
-                        crate::dispatch::DispatchTable::from_document(document).map_err(|e| {
+                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(|e| {
                             UpstreamError::Channel(format!("invalid dispatch for '{}': {e}", name))
                         })?,
                     ),
@@ -524,7 +524,7 @@ impl GproxyEngineBuilder {
             }};
         }
 
-        use crate::channels::*;
+        use gproxy_channel::channels::*;
 
         match config.channel.as_str() {
             "openai" => add!(self, openai::OpenAiChannel, config),
@@ -639,7 +639,7 @@ impl GproxyEngine {
     }
 
     /// Get the rewrite rules for a named provider.
-    pub fn rewrite_rules(&self, provider: &str) -> Vec<crate::utils::rewrite::RewriteRule> {
+    pub fn rewrite_rules(&self, provider: &str) -> Vec<gproxy_channel::utils::rewrite::RewriteRule> {
         self.store
             .get_runtime(provider)
             .map(|rt| rt.rewrite_rules())
@@ -657,10 +657,10 @@ impl GproxyEngine {
         let Some(runtime) = self.store.get_runtime(provider) else {
             return false;
         };
-        let key = crate::dispatch::RouteKey::new(operation, protocol);
+        let key = gproxy_channel::dispatch::RouteKey::new(operation, protocol);
         matches!(
             runtime.dispatch_table().resolve(&key),
-            Some(crate::dispatch::RouteImplementation::Local)
+            Some(gproxy_channel::dispatch::RouteImplementation::Local)
         )
     }
 
@@ -687,7 +687,7 @@ impl GproxyEngine {
     {
         match channel {
             "claudecode" => {
-                crate::channels::claudecode::bootstrap_credential_from_cookie(
+                gproxy_channel::channels::claudecode::bootstrap_credential_from_cookie(
                     &self.client,
                     self.spoof_client.as_ref(),
                     credential_json,
@@ -695,7 +695,7 @@ impl GproxyEngine {
                 .await
             }
             "vertex" => {
-                crate::channels::vertex::bootstrap_vertex_token(&self.client, credential_json).await
+                gproxy_channel::channels::vertex::bootstrap_vertex_token(&self.client, credential_json).await
             }
             _ => Ok((None, Vec::new())),
         }
@@ -704,9 +704,9 @@ impl GproxyEngine {
     pub fn estimate_billing(
         &self,
         provider_name: &str,
-        context: &crate::billing::BillingContext,
+        context: &gproxy_channel::billing::BillingContext,
         usage: &Usage,
-    ) -> Option<crate::billing::BillingResult> {
+    ) -> Option<gproxy_channel::billing::BillingResult> {
         self.store.estimate_billing(provider_name, context, usage)
     }
 
@@ -717,7 +717,7 @@ impl GproxyEngine {
     pub fn set_model_pricing(
         &self,
         provider_name: &str,
-        prices: Vec<crate::billing::ModelPrice>,
+        prices: Vec<gproxy_channel::billing::ModelPrice>,
     ) -> bool {
         self.store.set_model_pricing(provider_name, prices)
     }
@@ -730,7 +730,7 @@ impl GproxyEngine {
         provider_name: &str,
         model: Option<&str>,
         body: &[u8],
-    ) -> Option<crate::billing::BillingContext> {
+    ) -> Option<gproxy_channel::billing::BillingContext> {
         self.store.build_billing_context(provider_name, model, body)
     }
 
@@ -755,13 +755,13 @@ impl GproxyEngine {
             })?;
 
             // Check dispatch table to determine WS routing strategy
-            let route_key = crate::dispatch::RouteKey::new(operation, protocol);
+            let route_key = gproxy_channel::dispatch::RouteKey::new(operation, protocol);
             let (ws_path, ws_model, src_protocol, dst_protocol) =
                 match provider.dispatch_table().resolve(&route_key) {
-                    Some(crate::dispatch::RouteImplementation::Passthrough) => {
+                    Some(gproxy_channel::dispatch::RouteImplementation::Passthrough) => {
                         (path.to_string(), model, protocol, protocol)
                     }
-                    Some(crate::dispatch::RouteImplementation::TransformTo { destination }) => {
+                    Some(gproxy_channel::dispatch::RouteImplementation::TransformTo { destination }) => {
                         // Check if destination is also a WS operation
                         let dst_op = &destination.operation;
                         let dst_proto = &destination.protocol;
@@ -881,7 +881,7 @@ impl GproxyEngine {
         &self,
         provider_name: &str,
         params: std::collections::HashMap<String, String>,
-    ) -> Result<Option<crate::channel::OAuthFlow>, UpstreamError> {
+    ) -> Result<Option<gproxy_channel::channel::OAuthFlow>, UpstreamError> {
         let span = tracing::info_span!("engine.oauth_start", provider = provider_name);
         async {
             self.store
@@ -920,7 +920,7 @@ impl GproxyEngine {
         credential_index: Option<usize>,
     ) -> Result<
         (
-            Option<crate::response::UpstreamResponse>,
+            Option<gproxy_channel::response::UpstreamResponse>,
             Vec<CredentialUpdate>,
             Option<UpstreamRequestMeta>,
         ),
@@ -938,7 +938,7 @@ impl GproxyEngine {
             let start = std::time::Instant::now();
             let mut meta = snapshot_request_meta(&http_request, credential_index);
 
-            let response = crate::http_client::send_request(&self.client, http_request).await?;
+            let response = gproxy_channel::http_client::send_request(&self.client, http_request).await?;
 
             if matches!(response.status, 401 | 403) {
                 tracing::warn!(
@@ -960,7 +960,7 @@ impl GproxyEngine {
                     meta = snapshot_request_meta(&retry_request, credential_index);
 
                     let retry_response =
-                        crate::http_client::send_request(&self.client, retry_request).await?;
+                        gproxy_channel::http_client::send_request(&self.client, retry_request).await?;
                     fill_response_meta(&mut meta, &retry_response, retry_start);
                     return Ok((Some(retry_response), updates, Some(meta)));
                 }
@@ -1001,7 +1001,7 @@ impl GproxyEngine {
         let start = std::time::Instant::now();
 
         // Dispatch table lookup
-        let src_key = crate::dispatch::RouteKey::new(request.operation, request.protocol);
+        let src_key = gproxy_channel::dispatch::RouteKey::new(request.operation, request.protocol);
         let route = provider
             .dispatch_table()
             .resolve(&src_key)
@@ -1015,13 +1015,13 @@ impl GproxyEngine {
             .clone();
 
         let (dst_op, dst_proto, needs_transform) = match &route {
-            crate::dispatch::RouteImplementation::Passthrough => {
+            gproxy_channel::dispatch::RouteImplementation::Passthrough => {
                 (request.operation, request.protocol, false)
             }
-            crate::dispatch::RouteImplementation::TransformTo { destination } => {
+            gproxy_channel::dispatch::RouteImplementation::TransformTo { destination } => {
                 (destination.operation, destination.protocol, true)
             }
-            crate::dispatch::RouteImplementation::Local => {
+            gproxy_channel::dispatch::RouteImplementation::Local => {
                 let body = provider
                     .handle_local(request.operation, request.protocol, &request.body)
                     .unwrap_or_else(|| {
@@ -1038,7 +1038,7 @@ impl GproxyEngine {
                     stream_raw_capture: None,
                 });
             }
-            crate::dispatch::RouteImplementation::Unsupported => {
+            gproxy_channel::dispatch::RouteImplementation::Unsupported => {
                 return Err(ExecuteError::bare(UpstreamError::Channel(format!(
                     "unsupported: ({}, {})",
                     request.operation, request.protocol
@@ -1109,7 +1109,7 @@ impl GproxyEngine {
         if !rules.is_empty()
             && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body)
         {
-            crate::utils::sanitize::apply_sanitize_rules(
+            gproxy_channel::utils::sanitize::apply_sanitize_rules(
                 &mut body_json,
                 prepared.route.protocol,
                 &rules,
@@ -1177,7 +1177,7 @@ impl GproxyEngine {
 
         // 2. Extract usage from normalized upstream body (before protocol transform)
         let usage = if self.enable_usage {
-            crate::usage::extract_usage(dst_proto, &normalized_nonstream_body)
+            gproxy_channel::usage::extract_usage(dst_proto, &normalized_nonstream_body)
         } else {
             None
         };
@@ -1296,7 +1296,7 @@ impl GproxyEngine {
 
         let start = std::time::Instant::now();
 
-        let src_key = crate::dispatch::RouteKey::new(request.operation, request.protocol);
+        let src_key = gproxy_channel::dispatch::RouteKey::new(request.operation, request.protocol);
         let route = provider
             .dispatch_table()
             .resolve(&src_key)
@@ -1310,13 +1310,13 @@ impl GproxyEngine {
             .clone();
 
         let (dst_op, dst_proto, needs_transform) = match &route {
-            crate::dispatch::RouteImplementation::Passthrough => {
+            gproxy_channel::dispatch::RouteImplementation::Passthrough => {
                 (request.operation, request.protocol, false)
             }
-            crate::dispatch::RouteImplementation::TransformTo { destination } => {
+            gproxy_channel::dispatch::RouteImplementation::TransformTo { destination } => {
                 (destination.operation, destination.protocol, true)
             }
-            crate::dispatch::RouteImplementation::Local => {
+            gproxy_channel::dispatch::RouteImplementation::Local => {
                 let body = provider
                     .handle_local(request.operation, request.protocol, &request.body)
                     .unwrap_or_else(|| {
@@ -1333,7 +1333,7 @@ impl GproxyEngine {
                     stream_raw_capture: None,
                 });
             }
-            crate::dispatch::RouteImplementation::Unsupported => {
+            gproxy_channel::dispatch::RouteImplementation::Unsupported => {
                 return Err(ExecuteError::bare(UpstreamError::Channel(format!(
                     "unsupported: ({}, {})",
                     request.operation, request.protocol
@@ -1391,7 +1391,7 @@ impl GproxyEngine {
         if !rules.is_empty()
             && let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&prepared.body)
         {
-            crate::utils::sanitize::apply_sanitize_rules(
+            gproxy_channel::utils::sanitize::apply_sanitize_rules(
                 &mut body_json,
                 prepared.route.protocol,
                 &rules,
@@ -1642,7 +1642,7 @@ impl GproxyEngine {
 /// responses where cross-protocol transformation would strip the real
 /// error body.
 fn wrap_upstream_response_stream(
-    mut upstream: crate::response::UpstreamBodyStream,
+    mut upstream: gproxy_channel::response::UpstreamBodyStream,
     transformer: Option<crate::transform_dispatch::StreamResponseTransformer>,
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
     model_override: Option<String>,
@@ -1729,7 +1729,7 @@ fn snapshot_request_meta(
 
 fn fill_response_meta(
     meta: &mut UpstreamRequestMeta,
-    response: &crate::response::UpstreamResponse,
+    response: &gproxy_channel::response::UpstreamResponse,
     start: std::time::Instant,
 ) {
     meta.response_status = Some(response.status);
@@ -1949,7 +1949,7 @@ mod tests {
     use super::{
         is_stream_aggregation_route, validate_credential_json, wrap_upstream_response_stream,
     };
-    use crate::response::{UpstreamBodyStream, UpstreamError};
+    use gproxy_channel::response::{UpstreamBodyStream, UpstreamError};
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
     fn mock_upstream_stream(chunks: Vec<&'static [u8]>) -> UpstreamBodyStream {

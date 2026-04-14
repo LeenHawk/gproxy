@@ -1,55 +1,43 @@
-//! Multi-channel LLM provider engine (L2 layer of the gproxy SDK).
+//! **Deprecated aggregator crate** — prefer [`gproxy_channel`] and
+//! [`gproxy_engine`] directly.
 //!
-//! This crate hosts the multi-channel orchestration: [`GproxyEngine`],
-//! [`ProviderStore`], retry / credential affinity, the dispatch consumer
-//! that walks each channel's [`gproxy_channel::DispatchTable`], and the
-//! backend traits for distributed rate-limit / quota / affinity state.
+//! This crate used to own the single-channel layer (Channel trait, concrete
+//! channels, request/response types) and the multi-channel engine
+//! (GproxyEngine, ProviderStore, retry, affinity, backend traits). As of the
+//! SDK layer refactor the content has split into `gproxy-channel` (L1, single
+//! channel) and `gproxy-engine` (L2, multi-channel orchestration). This
+//! crate keeps working as a pure re-export aggregator so existing
+//! `gproxy_provider::*` paths in downstream code and in the `gproxy-sdk`
+//! facade continue to resolve.
 //!
-//! Single-channel primitives (the [`gproxy_channel::Channel`] trait,
-//! credentials, request / response types, individual channel
-//! implementations, health trackers, billing price types, token counting,
-//! dispatch-table types) live in `gproxy-channel`. This crate re-exports
-//! those so that existing `gproxy_provider::*` paths keep resolving while
-//! the workspace completes the SDK layer refactor.
+//! New code should import from `gproxy-channel` / `gproxy-engine`.
+//!
+//! This crate will be removed entirely in a follow-up commit once every
+//! consumer has migrated.
 
-mod affinity;
-
-/// Backend abstractions and in-memory implementations.
-pub mod backend;
-pub mod engine;
-pub mod retry;
-pub mod store;
-pub mod transform_dispatch;
-
-pub use backend::memory::{InMemoryAffinity, InMemoryQuota, InMemoryRateLimit};
-pub use backend::traits::{AffinityBackend, QuotaBackend, QuotaHold, RateLimitBackend};
-pub use backend::types::{
-    BackendError, QuotaBalance, QuotaError, QuotaExhausted, RateLimitExceeded, RateLimitWindow,
+pub use gproxy_channel::*;
+pub use gproxy_engine::{
+    AffinityBackend, BackendError, ExecuteBody, ExecuteError, ExecuteRequest, ExecuteResult,
+    GproxyEngine, InMemoryAffinity, InMemoryQuota, InMemoryRateLimit, ProviderConfig,
+    QuotaBackend, QuotaBalance, QuotaError, QuotaExhausted, QuotaHold, RateLimitBackend,
+    RateLimitExceeded, RateLimitWindow, built_in_model_prices,
 };
-pub use engine::{
-    ExecuteBody, ExecuteError, ExecuteRequest, ExecuteResult, GproxyEngine, ProviderConfig,
-    built_in_model_prices,
-};
-pub use store::{
+pub use gproxy_engine::{
     CredentialHealthSnapshot, CredentialSnapshot, CredentialUpdate, EngineEvent, EngineEventSource,
     OAuthFinishResult, ProviderMutator, ProviderRegistry, ProviderSnapshot, ProviderStore,
     ProviderStoreBuilder,
 };
 
-// Re-export the single-channel layer so existing `gproxy_provider::*`
-// paths keep working during the migration.
-pub use gproxy_channel::{
-    Channel, ChannelCredential, ChannelRegistration, ChannelRegistry, ChannelSettings,
-    CredentialHealth, DispatchRuleDocument, DispatchTable, DispatchTableDocument,
-    DispatchTableError, FailedUpstreamAttempt, ModelCooldownHealth, ModelPrice, ModelPriceTier,
-    OAuthFlow, PreparedRequest, ProviderDefinition, ResponseClassification,
-    RetryableUpstreamResponse, RouteImplementation, RouteKey, UpstreamBodyStream, UpstreamError,
-    UpstreamRequestMeta, UpstreamResponse, UpstreamStreamingResponse, Usage,
-    is_file_operation, is_file_operation_path,
-};
+// Backward-compat module aliases so existing `use gproxy_provider::engine::*`,
+// `use gproxy_provider::store::*`, etc. keep resolving after the split.
+pub use gproxy_engine::backend;
+pub use gproxy_engine::engine;
+pub use gproxy_engine::retry;
+pub use gproxy_engine::store;
+pub use gproxy_engine::transform_dispatch;
 
-// Backward-compat module aliases so that `use gproxy_provider::channel::Channel`
-// (and friends) keep resolving to the moved gproxy-channel types.
+// Re-export the gproxy-channel module aliases that used to live under
+// `gproxy_provider::*`.
 pub use gproxy_channel::billing;
 pub use gproxy_channel::channel;
 pub use gproxy_channel::channels;

@@ -3,9 +3,9 @@
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use gproxy_provider::backend::memory::{InMemoryQuota, InMemoryQuotaHold, InMemoryRateLimit};
-use gproxy_provider::backend::traits::{QuotaBackend, QuotaHold, RateLimitBackend};
-use gproxy_provider::backend::types::{QuotaExhausted, RateLimitExceeded, RateLimitWindow};
+use gproxy_engine::backend::memory::{InMemoryQuota, InMemoryQuotaHold, InMemoryRateLimit};
+use gproxy_engine::backend::traits::{QuotaBackend, QuotaHold, RateLimitBackend};
+use gproxy_engine::backend::types::{QuotaExhausted, RateLimitExceeded, RateLimitWindow};
 
 // ---------------------------------------------------------------------------
 // Sync helpers — InMemory futures are always Ready, so we can poll them once.

@@ -4,7 +4,7 @@
 //! SDK layer refactor Step 1 (spec:
 //! docs/superpowers/specs/2026-04-13-sdk-layer-refactor-design.md). This
 //! module is kept as a re-export so that existing call sites in
-//! `crate::engine`, `crate::retry`, `crate::store`, `crate::channels::*`
+//! `crate::engine`, `crate::retry`, `crate::store`, `gproxy_channel::channels::*`
 //! continue to resolve `crate::transform_dispatch::*` paths without change.
 //!
 //! It will be deleted entirely once `gproxy-provider` is dissolved in a

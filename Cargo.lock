@@ -1881,6 +1881,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "gproxy-engine"
+version = "1.0.8"
+dependencies = [
+ "arc-swap",
+ "async-stream",
+ "base64 0.22.1",
+ "bytes",
+ "dashmap",
+ "futures-util",
+ "gproxy-channel",
+ "gproxy-protocol",
+ "http",
+ "rand 0.10.1",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+ "wreq",
+ "wreq-util",
+]
+
+[[package]]
 name = "gproxy-protocol"
 version = "1.0.8"
 dependencies = [
@@ -1896,32 +1923,8 @@ dependencies = [
 name = "gproxy-provider"
 version = "1.0.8"
 dependencies = [
- "arc-swap",
- "async-stream",
- "base64 0.22.1",
- "bytes",
- "dashmap",
- "futures-util",
- "getrandom 0.4.2",
  "gproxy-channel",
- "gproxy-protocol",
- "http",
- "inventory",
- "jsonwebtoken",
- "rand 0.10.1",
- "regex",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "thiserror 2.0.18",
- "tiktoken-rs",
- "tokenizers",
- "tokio",
- "tracing",
- "url",
- "uuid",
- "wreq",
- "wreq-util",
+ "gproxy-engine",
 ]
 
 [[package]]

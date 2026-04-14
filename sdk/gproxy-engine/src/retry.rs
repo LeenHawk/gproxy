@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::affinity::{CacheAffinityHint, CacheAffinityPool};
-use crate::channel::Channel;
-use crate::health::CredentialHealth;
-use crate::request::PreparedRequest;
-use crate::response::{
+use gproxy_channel::channel::Channel;
+use gproxy_channel::health::CredentialHealth;
+use gproxy_channel::request::PreparedRequest;
+use gproxy_channel::response::{
     ResponseClassification, RetryableUpstreamResponse, UpstreamError, UpstreamResponse,
     UpstreamStreamingResponse,
 };
@@ -108,7 +108,7 @@ pub struct RetryResult<T> {
 /// and response body from the final attempt.
 pub struct RetryFailure {
     pub error: UpstreamError,
-    pub last_attempt: Option<crate::response::FailedUpstreamAttempt>,
+    pub last_attempt: Option<gproxy_channel::response::FailedUpstreamAttempt>,
 }
 
 impl RetryFailure {
@@ -245,7 +245,7 @@ where
     // `RetryFailure.last_attempt` so the error-path logger can persist the
     // real upstream URL / headers / body / response body instead of a
     // placeholder row.
-    let mut last_failed_attempt: Option<crate::response::FailedUpstreamAttempt> = None;
+    let mut last_failed_attempt: Option<gproxy_channel::response::FailedUpstreamAttempt> = None;
 
     while !remaining.is_empty() {
         let (remaining_idx, matched_affinity_idx) =
@@ -269,7 +269,7 @@ where
                 Ok(req) => req,
                 Err(e) => {
                     tracing::warn!(credential = idx, error = %e, "failed to prepare request");
-                    last_failed_attempt = Some(crate::response::FailedUpstreamAttempt {
+                    last_failed_attempt = Some(gproxy_channel::response::FailedUpstreamAttempt {
                         credential_index: Some(idx),
                         ..Default::default()
                     });
@@ -307,7 +307,7 @@ where
                 Ok(resp) => resp,
                 Err(e) => {
                     tracing::warn!(credential = idx, %method, %uri, error = %e, "upstream request failed");
-                    last_failed_attempt = Some(crate::response::FailedUpstreamAttempt {
+                    last_failed_attempt = Some(gproxy_channel::response::FailedUpstreamAttempt {
                         method: attempt_meta.method.clone(),
                         url: attempt_meta.url.clone(),
                         request_headers: attempt_meta.request_headers.clone(),
@@ -358,7 +358,7 @@ where
             // further mutation of `response`. Cheap on the failure path
             // (a few hundred bytes typically); skipped entirely on Success
             // because that branch returns before this value is consumed.
-            let make_failed_attempt = || crate::response::FailedUpstreamAttempt {
+            let make_failed_attempt = || gproxy_channel::response::FailedUpstreamAttempt {
                 method: attempt_meta.method.clone(),
                 url: attempt_meta.url.clone(),
                 request_headers: attempt_meta.request_headers.clone(),
@@ -469,7 +469,7 @@ where
                                     // Overwrite with the post-refresh attempt
                                     // so the log reflects the final state.
                                     last_failed_attempt =
-                                        Some(crate::response::FailedUpstreamAttempt {
+                                        Some(gproxy_channel::response::FailedUpstreamAttempt {
                                             method: refresh_meta.method.clone(),
                                             url: refresh_meta.url.clone(),
                                             request_headers: refresh_meta.request_headers.clone(),

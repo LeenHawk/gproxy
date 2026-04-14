@@ -1,6 +1,6 @@
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
-use gproxy_provider::channel::Channel;
-use gproxy_provider::channels::{
+use gproxy_channel::channel::Channel;
+use gproxy_channel::channels::{
     deepseek::DeepSeekChannel, groq::GroqChannel, openrouter::OpenRouterChannel,
 };
 use serde_json::Value;

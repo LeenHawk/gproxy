@@ -3,52 +3,28 @@ name = "gproxy-provider"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "LLM channel/provider engine with multi-channel support."
+description = "Deprecated aggregator crate — re-exports gproxy-channel (L1) and gproxy-engine (L2). New code should depend on those directly."
 homepage.workspace = true
 repository.workspace = true
 
 [features]
 default = ["all-channels"]
-all-channels = ["gproxy-channel/all-channels"]
-openai = ["gproxy-channel/openai"]
-anthropic = ["gproxy-channel/anthropic"]
-aistudio = ["gproxy-channel/aistudio"]
-vertexexpress = ["gproxy-channel/vertexexpress"]
-vertex = ["gproxy-channel/vertex"]
-geminicli = ["gproxy-channel/geminicli"]
-claudecode = ["gproxy-channel/claudecode"]
-codex = ["gproxy-channel/codex"]
-antigravity = ["gproxy-channel/antigravity"]
-nvidia = ["gproxy-channel/nvidia"]
-deepseek = ["gproxy-channel/deepseek"]
-groq = ["gproxy-channel/groq"]
-openrouter = ["gproxy-channel/openrouter"]
-custom = ["gproxy-channel/custom"]
+all-channels = ["gproxy-channel/all-channels", "gproxy-engine/all-channels"]
+openai = ["gproxy-channel/openai", "gproxy-engine/openai"]
+anthropic = ["gproxy-channel/anthropic", "gproxy-engine/anthropic"]
+aistudio = ["gproxy-channel/aistudio", "gproxy-engine/aistudio"]
+vertexexpress = ["gproxy-channel/vertexexpress", "gproxy-engine/vertexexpress"]
+vertex = ["gproxy-channel/vertex", "gproxy-engine/vertex"]
+geminicli = ["gproxy-channel/geminicli", "gproxy-engine/geminicli"]
+claudecode = ["gproxy-channel/claudecode", "gproxy-engine/claudecode"]
+codex = ["gproxy-channel/codex", "gproxy-engine/codex"]
+antigravity = ["gproxy-channel/antigravity", "gproxy-engine/antigravity"]
+nvidia = ["gproxy-channel/nvidia", "gproxy-engine/nvidia"]
+deepseek = ["gproxy-channel/deepseek", "gproxy-engine/deepseek"]
+groq = ["gproxy-channel/groq", "gproxy-engine/groq"]
+openrouter = ["gproxy-channel/openrouter", "gproxy-engine/openrouter"]
+custom = ["gproxy-channel/custom", "gproxy-engine/custom"]
 
 [dependencies]
-gproxy-protocol = { workspace = true }
 gproxy-channel = { workspace = true }
-async-stream = { workspace = true }
-arc-swap = { workspace = true }
-base64 = { workspace = true }
-bytes = { workspace = true }
-dashmap = { workspace = true }
-futures-util = { workspace = true }
-getrandom = { workspace = true }
-http = { workspace = true }
-inventory = { workspace = true }
-jsonwebtoken = { workspace = true }
-rand = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-sha2 = { workspace = true }
-thiserror = { workspace = true }
-tiktoken-rs = { workspace = true }
-tokenizers = { workspace = true }
-tokio = { workspace = true }
-tracing = { workspace = true }
-url = { workspace = true }
-uuid = { workspace = true }
-wreq = { workspace = true }
-wreq-util = { workspace = true }
-regex = { workspace = true }
+gproxy-engine = { workspace = true }

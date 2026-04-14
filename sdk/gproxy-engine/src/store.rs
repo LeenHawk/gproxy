@@ -15,14 +15,14 @@ use tokio::sync::broadcast;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 use crate::affinity::{CacheAffinityHint, CacheAffinityPool, DEFAULT_CACHE_AFFINITY_MAX_KEYS};
-use crate::channel::{
+use gproxy_channel::channel::{
     Channel, ChannelCredential, ChannelSettings, OAuthCredentialResult, OAuthFlow,
 };
-use crate::dispatch::DispatchTable;
-use crate::dispatch::RouteKey;
-use crate::health::CredentialHealth;
-use crate::request::PreparedRequest;
-use crate::response::{UpstreamError, UpstreamResponse, UpstreamStreamingResponse};
+use gproxy_channel::dispatch::DispatchTable;
+use gproxy_channel::dispatch::RouteKey;
+use gproxy_channel::health::CredentialHealth;
+use gproxy_channel::request::PreparedRequest;
+use gproxy_channel::response::{UpstreamError, UpstreamResponse, UpstreamStreamingResponse};
 use crate::retry::{RetryContext, retry_with_credentials, retry_with_credentials_stream};
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -149,7 +149,7 @@ pub(crate) struct ProviderExecuteStreamResult {
 /// of a placeholder.
 pub(crate) struct ExecutionOutcome<T> {
     pub inner: Result<T, UpstreamError>,
-    pub failed_attempt: Option<crate::response::FailedUpstreamAttempt>,
+    pub failed_attempt: Option<gproxy_channel::response::FailedUpstreamAttempt>,
 }
 
 impl<T> ExecutionOutcome<T> {
@@ -162,7 +162,7 @@ impl<T> ExecutionOutcome<T> {
 
     fn err(
         error: UpstreamError,
-        failed_attempt: Option<crate::response::FailedUpstreamAttempt>,
+        failed_attempt: Option<gproxy_channel::response::FailedUpstreamAttempt>,
     ) -> Self {
         Self {
             inner: Err(error),
@@ -176,9 +176,9 @@ pub(crate) trait ProviderRuntime: Send + Sync {
     fn channel_id(&self) -> &str;
     fn estimate_billing(
         &self,
-        context: &crate::billing::BillingContext,
+        context: &gproxy_channel::billing::BillingContext,
         usage: &crate::engine::Usage,
-    ) -> Option<crate::billing::BillingResult>;
+    ) -> Option<gproxy_channel::billing::BillingResult>;
 
     fn handle_local(
         &self,
@@ -191,9 +191,9 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8>;
 
-    fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule>;
+    fn sanitize_rules(&self) -> Vec<gproxy_channel::utils::sanitize::SanitizeRule>;
 
-    fn rewrite_rules(&self) -> Vec<crate::utils::rewrite::RewriteRule>;
+    fn rewrite_rules(&self) -> Vec<gproxy_channel::utils::rewrite::RewriteRule>;
 
     /// Build WS-ready (url, headers) pairs for each credential.
     fn prepare_ws_auth(
@@ -288,13 +288,13 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     /// Replace the model pricing for this provider. Used by admin upsert
     /// and bootstrap to propagate DB-backed prices into the billing engine.
-    fn set_model_pricing(&self, prices: Vec<crate::billing::ModelPrice>);
+    fn set_model_pricing(&self, prices: Vec<gproxy_channel::billing::ModelPrice>);
 }
 
 struct ProviderInstance<C: Channel> {
     name: String,
     channel: C,
-    model_pricing: arc_swap::ArcSwap<Vec<crate::billing::ModelPrice>>,
+    model_pricing: arc_swap::ArcSwap<Vec<gproxy_channel::billing::ModelPrice>>,
     settings: ArcSwap<C::Settings>,
     credentials: ArcSwap<Vec<C::Credential>>,
     health: Mutex<Vec<C::Health>>,
@@ -436,11 +436,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
 
     fn estimate_billing(
         &self,
-        context: &crate::billing::BillingContext,
+        context: &gproxy_channel::billing::BillingContext,
         usage: &crate::engine::Usage,
-    ) -> Option<crate::billing::BillingResult> {
+    ) -> Option<gproxy_channel::billing::BillingResult> {
         let snapshot = self.model_pricing.load();
-        crate::billing::estimate_billing(snapshot.as_slice(), context, usage)
+        gproxy_channel::billing::estimate_billing(snapshot.as_slice(), context, usage)
     }
 
     fn handle_local(
@@ -461,11 +461,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         self.channel.normalize_response(request, body)
     }
 
-    fn sanitize_rules(&self) -> Vec<crate::utils::sanitize::SanitizeRule> {
+    fn sanitize_rules(&self) -> Vec<gproxy_channel::utils::sanitize::SanitizeRule> {
         self.settings.load().sanitize_rules().to_vec()
     }
 
-    fn rewrite_rules(&self) -> Vec<crate::utils::rewrite::RewriteRule> {
+    fn rewrite_rules(&self) -> Vec<gproxy_channel::utils::rewrite::RewriteRule> {
         self.settings.load().rewrite_rules().to_vec()
     }
 
@@ -544,7 +544,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                 },
                 |c, req| {
                     let c = c.clone();
-                    async move { crate::http_client::send_request(&c, req).await }
+                    async move { gproxy_channel::http_client::send_request(&c, req).await }
                 },
             )
             .await;
@@ -599,7 +599,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                 },
                 |c, req| {
                     let c = c.clone();
-                    async move { crate::http_client::send_request_stream(&c, req).await }
+                    async move { gproxy_channel::http_client::send_request_stream(&c, req).await }
                 },
             )
             .await;
@@ -905,7 +905,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         })
     }
 
-    fn set_model_pricing(&self, prices: Vec<crate::billing::ModelPrice>) {
+    fn set_model_pricing(&self, prices: Vec<gproxy_channel::billing::ModelPrice>) {
         self.model_pricing.store(std::sync::Arc::new(prices));
     }
 }
@@ -1019,7 +1019,7 @@ impl ProviderStore {
                 } = $cfg;
                 let dispatch = match dispatch {
                     Some(document) => Some(
-                        crate::dispatch::DispatchTable::from_document(document).map_err(|e| {
+                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(|e| {
                             UpstreamError::Channel(format!("invalid dispatch for '{}': {e}", name))
                         })?,
                     ),
@@ -1033,7 +1033,7 @@ impl ProviderStore {
                     .filter_map(|c| {
                         serde_json::from_value(c)
                             .ok()
-                            .map(|c| (c, crate::health::ModelCooldownHealth::default()))
+                            .map(|c| (c, gproxy_channel::health::ModelCooldownHealth::default()))
                     })
                     .collect();
                 $self.add_provider_with_dispatch(&name, $ch, settings, creds, dispatch);
@@ -1041,7 +1041,7 @@ impl ProviderStore {
             }};
         }
 
-        use crate::channels::*;
+        use gproxy_channel::channels::*;
 
         match config.channel.as_str() {
             "openai" => add!(self, openai::OpenAiChannel, config),
@@ -1306,9 +1306,9 @@ impl ProviderStore {
     pub fn estimate_billing(
         &self,
         provider_name: &str,
-        context: &crate::billing::BillingContext,
+        context: &gproxy_channel::billing::BillingContext,
         usage: &crate::engine::Usage,
-    ) -> Option<crate::billing::BillingResult> {
+    ) -> Option<gproxy_channel::billing::BillingResult> {
         self.get_runtime(provider_name)
             .and_then(|provider| provider.estimate_billing(context, usage))
     }
@@ -1318,7 +1318,7 @@ impl ProviderStore {
     pub fn set_model_pricing(
         &self,
         provider_name: &str,
-        prices: Vec<crate::billing::ModelPrice>,
+        prices: Vec<gproxy_channel::billing::ModelPrice>,
     ) -> bool {
         match self.get_runtime(provider_name) {
             Some(runtime) => {
@@ -1338,9 +1338,9 @@ impl ProviderStore {
         provider_name: &str,
         model: Option<&str>,
         body: &[u8],
-    ) -> Option<crate::billing::BillingContext> {
+    ) -> Option<gproxy_channel::billing::BillingContext> {
         let provider = self.get_runtime(provider_name)?;
-        crate::billing::build_billing_context_from_parts(provider.channel_id(), model, body)
+        gproxy_channel::billing::build_billing_context_from_parts(provider.channel_id(), model, body)
     }
 
     pub(crate) fn get_runtime(&self, name: &str) -> Option<Arc<dyn ProviderRuntime>> {
@@ -1448,8 +1448,8 @@ impl EngineEventSource for ProviderStore {
 #[cfg(test)]
 mod tests {
     use super::ProviderStore;
-    use crate::channels::codex::{CodexChannel, CodexSettings};
-    use crate::health::ModelCooldownHealth;
+    use gproxy_channel::channels::codex::{CodexChannel, CodexSettings};
+    use gproxy_channel::health::ModelCooldownHealth;
 
     #[test]
     fn set_model_pricing_updates_billing() {
@@ -1460,7 +1460,7 @@ mod tests {
                 CodexChannel,
                 CodexSettings::default(),
                 vec![(
-                    crate::channels::codex::CodexCredential {
+                    gproxy_channel::channels::codex::CodexCredential {
                         access_token: "token-1".to_string(),
                         ..Default::default()
                     },
@@ -1469,14 +1469,14 @@ mod tests {
             )
             .build();
 
-        let ctx = crate::billing::BillingContext {
+        let ctx = gproxy_channel::billing::BillingContext {
             model_id: "stub-model".into(),
-            mode: crate::billing::BillingMode::Default,
+            mode: gproxy_channel::billing::BillingMode::Default,
         };
         let usage = crate::engine::Usage::default();
 
         // Seed the initial price to $1.00 via set_model_pricing itself.
-        let initial_prices = vec![crate::billing::ModelPrice {
+        let initial_prices = vec![gproxy_channel::billing::ModelPrice {
             model_id: "stub-model".into(),
             display_name: None,
             price_each_call: Some(1.00),
@@ -1498,7 +1498,7 @@ mod tests {
         assert!((before - 1.00).abs() < 1e-9);
 
         // Override: admin sets price to $2.50.
-        let new_prices = vec![crate::billing::ModelPrice {
+        let new_prices = vec![gproxy_channel::billing::ModelPrice {
             model_id: "stub-model".into(),
             display_name: None,
             price_each_call: Some(2.50),
@@ -1531,14 +1531,14 @@ mod tests {
                 CodexSettings::default(),
                 vec![
                     (
-                        crate::channels::codex::CodexCredential {
+                        gproxy_channel::channels::codex::CodexCredential {
                             access_token: "token-1".to_string(),
                             ..Default::default()
                         },
                         ModelCooldownHealth::default(),
                     ),
                     (
-                        crate::channels::codex::CodexCredential {
+                        gproxy_channel::channels::codex::CodexCredential {
                             access_token: "token-2".to_string(),
                             ..Default::default()
                         },

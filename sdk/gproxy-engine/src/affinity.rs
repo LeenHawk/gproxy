@@ -6,7 +6,7 @@ use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use serde_json::{Value, json};
 use sha2::{Digest as _, Sha256};
 
-use crate::request::PreparedRequest;
+use gproxy_channel::request::PreparedRequest;
 
 pub const DEFAULT_CACHE_AFFINITY_MAX_KEYS: usize = 4096;
 const DEFAULT_CACHE_AFFINITY_TTL_MS: u64 = 5 * 60 * 1000;

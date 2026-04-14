@@ -1,15 +1,15 @@
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
-use gproxy_provider::channel::Channel;
-use gproxy_provider::channels::{
+use gproxy_channel::channel::Channel;
+use gproxy_channel::channels::{
     aistudio::AiStudioChannel, anthropic::AnthropicChannel, antigravity::AntigravityChannel,
     claudecode::ClaudeCodeChannel, codex::CodexChannel, deepseek::DeepSeekChannel,
     geminicli::GeminiCliChannel, groq::GroqChannel, nvidia::NvidiaChannel,
     openrouter::OpenRouterChannel, vertex::VertexChannel, vertexexpress::VertexExpressChannel,
 };
-use gproxy_provider::dispatch::{RouteImplementation, RouteKey};
+use gproxy_channel::dispatch::{RouteImplementation, RouteKey};
 
 fn assert_passthrough(
-    table: &gproxy_provider::DispatchTable,
+    table: &gproxy_channel::DispatchTable,
     operation: OperationFamily,
     protocol: ProtocolKind,
 ) {
@@ -20,7 +20,7 @@ fn assert_passthrough(
 }
 
 fn assert_transform_to(
-    table: &gproxy_provider::DispatchTable,
+    table: &gproxy_channel::DispatchTable,
     src_operation: OperationFamily,
     src_protocol: ProtocolKind,
     dst_operation: OperationFamily,
@@ -37,7 +37,7 @@ fn assert_transform_to(
 }
 
 fn assert_local(
-    table: &gproxy_provider::DispatchTable,
+    table: &gproxy_channel::DispatchTable,
     operation: OperationFamily,
     protocol: ProtocolKind,
 ) {
