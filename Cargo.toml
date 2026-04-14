@@ -13,6 +13,31 @@ members = [
   "apps/gproxy-recorder",
 ]
 
+# Release strategy for the SDK crates on crates.io:
+#
+# The four public SDK crates — gproxy-protocol, gproxy-channel,
+# gproxy-engine, gproxy-sdk — follow **lock-step versioning** against
+# `workspace.package.version` below. Bumping that single field bumps
+# all four, which matches the way they reference each other via
+# `{ workspace = true }` in each crate's `[dependencies]` section and
+# avoids the per-crate bookkeeping that independent versioning would
+# require.
+#
+# Tooling: use `cargo release` (or `release-plz` once we opt in) to
+# automate the workspace-wide bump + publish sequence. Publish order
+# respects the dependency DAG:
+#   1. gproxy-protocol   (no internal deps)
+#   2. gproxy-channel    (depends on gproxy-protocol)
+#   3. gproxy-engine     (depends on gproxy-protocol + gproxy-channel)
+#   4. gproxy-sdk        (facade, depends on all three)
+#
+# The app-side crates (gproxy-core, gproxy-storage, gproxy-api,
+# gproxy-server, apps/gproxy, apps/gproxy-recorder) are private
+# (`publish = false` or not listed in crates.io) and inherit the same
+# workspace version purely for convenience — they are not published.
+#
+# This resolves Open Question §7 from the SDK layer refactor spec
+# (docs/superpowers/specs/2026-04-13-sdk-layer-refactor-design.md).
 [workspace.package]
 version = "1.0.8"
 edition = "2024"
