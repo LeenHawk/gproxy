@@ -19,7 +19,6 @@ use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
 use crate::utils::claude_cache_control as cache_control;
 use crate::utils::claude_sampling;
-use crate::utils::oauth2_refresh;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use tracing::Instrument;
 
@@ -1067,6 +1066,23 @@ impl Channel for ClaudeCodeChannel {
         Ok(Some(req))
     }
 
+    fn needs_refresh(&self, credential: &Self::Credential) -> bool {
+        if credential.access_token.trim().is_empty() {
+            return true;
+        }
+        // Refresh when within a 60s skew window of `expires_at_ms`.
+        // `expires_at_ms == 0` means "unknown" and is treated as valid
+        // (the normal 401 → refresh path still covers stale tokens).
+        if credential.expires_at_ms == 0 {
+            return false;
+        }
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        credential.expires_at_ms <= now_ms.saturating_add(60_000)
+    }
+
     fn refresh_credential<'a>(
         &'a self,
         client: &'a wreq::Client,
@@ -1075,28 +1091,35 @@ impl Channel for ClaudeCodeChannel {
         let client = client.clone();
         let span = tracing::info_span!("refresh_credential", channel = "claudecode");
         async move {
-            // Path 1: Standard OAuth refresh with refresh_token
+            // Path 1: Anthropic OAuth `refresh_token` grant.
+            //
+            // We do NOT use the generic `oauth2_refresh::refresh_oauth2_token`
+            // helper here — Anthropic's `/v1/oauth/token` endpoint rejects
+            // refresh requests that omit `client_id` or the
+            // `anthropic-version` / `anthropic-beta` / CLI `user-agent`
+            // headers with `invalid_request_error: Invalid request format`.
+            // See `exchange_tokens_with_refresh_token` for the required
+            // shape. A credential with only a `refresh_token` (no cookie)
+            // would otherwise silently stay dead forever.
             if !credential.refresh_token.is_empty() {
-                match oauth2_refresh::refresh_oauth2_token(
+                match crate::utils::claudecode_cookie::exchange_tokens_with_refresh_token(
                     &client,
-                    "https://console.anthropic.com/v1/oauth/token",
-                    "",
-                    "",
+                    &default_claudecode_base_url(),
                     &credential.refresh_token,
+                    &mut Vec::new(),
                 )
                 .await
                 {
-                    Ok(result) => {
-                        credential.access_token = result.access_token;
-                        credential.expires_at_ms = result.expires_at_ms;
-                        if let Some(rt) = result.refresh_token {
-                            credential.refresh_token = rt;
-                        }
-                        tracing::info!("credential refreshed via token");
+                    Ok(tokens) => {
+                        apply_cookie_exchange_tokens(credential, tokens);
+                        tracing::info!("credential refreshed via refresh_token grant");
                         return Ok(true);
                     }
-                    Err(_) if credential.cookie.as_ref().is_some_and(|c| !c.is_empty()) => {
-                        tracing::info!("token refresh failed, falling back to cookie");
+                    Err(e) if credential.cookie.as_ref().is_some_and(|c| !c.is_empty()) => {
+                        tracing::info!(
+                            error = %e,
+                            "refresh_token grant failed, falling back to cookie"
+                        );
                         // Fall through to cookie path
                     }
                     Err(e) => return Err(e),

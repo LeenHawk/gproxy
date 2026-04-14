@@ -252,6 +252,38 @@ where
             pick_candidate_index(&remaining, affinity_hint, affinity_pool);
         let idx = remaining.remove(remaining_idx);
         tracing::info!(credential = idx, "trying credential");
+
+        // Pre-flight refresh: if the channel knows this credential is
+        // already expired (or empty), refresh it now instead of burning
+        // a round-trip on a request that will come back 401 and refresh
+        // anyway. Errors here are swallowed — the normal AuthDead path
+        // below will surface a useful error from the actual request
+        // attempt if the refresh failed for a real reason.
+        {
+            let (credential, _) = &mut credentials[idx];
+            if channel.needs_refresh(credential) {
+                tracing::info!(credential = idx, "pre-flight credential refresh");
+                match channel.refresh_credential(http_client, credential).await {
+                    Ok(true) => {
+                        tracing::info!(credential = idx, "pre-flight refresh succeeded");
+                    }
+                    Ok(false) => {
+                        tracing::warn!(
+                            credential = idx,
+                            "pre-flight refresh not available, sending optimistically"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            credential = idx,
+                            error = %e,
+                            "pre-flight refresh failed, sending optimistically"
+                        );
+                    }
+                }
+            }
+        }
+
         let mut attempts = 0u32;
 
         loop {

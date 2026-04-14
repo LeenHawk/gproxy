@@ -108,6 +108,21 @@ pub trait Channel: Send + Sync + 'static {
         http::HeaderMap::new()
     }
 
+    /// Whether a credential is known-stale and should be refreshed
+    /// **before** the next request goes out, instead of waiting for the
+    /// upstream 401 → refresh → retry round-trip.
+    ///
+    /// Channels that track absolute token expiry (e.g. claudecode's
+    /// `expires_at_ms`) override this to return `true` when the token
+    /// is empty, already past the expiry, or within a small skew
+    /// window — the retry loop then calls `refresh_credential`
+    /// pre-flight.
+    ///
+    /// Default: `false` (always send optimistically, react to 401).
+    fn needs_refresh(&self, _credential: &Self::Credential) -> bool {
+        false
+    }
+
     /// Attempt to refresh a credential after an auth failure (401/403).
     /// Called when upstream returns AuthDead. Returns `true` if the credential
     /// was updated and the request should be retried once more.

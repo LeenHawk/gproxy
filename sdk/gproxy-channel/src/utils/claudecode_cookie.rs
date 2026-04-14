@@ -216,6 +216,106 @@ pub(crate) async fn exchange_tokens_with_cookie(
     Ok(tokens)
 }
 
+/// Exchange a `refresh_token` for a new `access_token` using Anthropic's
+/// `/v1/oauth/token` endpoint with the `refresh_token` grant type.
+///
+/// This exists instead of `oauth2_refresh::refresh_oauth2_token` because
+/// Anthropic's token endpoint requires a very specific shape that the
+/// generic OAuth2 helper does not provide:
+///
+/// - `client_id` must be present in the form body (the generic helper
+///   only includes it when a non-empty `client_id` is passed in, and
+///   the claudecode call sites historically passed `""`).
+/// - The `anthropic-version`, `anthropic-beta: oauth-2025-04-20`,
+///   `accept`, and `user-agent: claude-cli/...` headers must all be
+///   set — without them Anthropic returns
+///   `invalid_request_error: Invalid request format` and refresh
+///   silently fails, leaving credentials stuck at a dead/empty
+///   `access_token` until an operator manually re-adds the cookie.
+///
+/// Returns the same `CookieTokenResponse` shape as the cookie exchange
+/// path so `apply_cookie_exchange_tokens` can consume either.
+pub(crate) async fn exchange_tokens_with_refresh_token(
+    client: &wreq::Client,
+    api_base_url: &str,
+    refresh_token: &str,
+    tracked: &mut Vec<UpstreamRequestMeta>,
+) -> Result<CookieTokenResponse, UpstreamError> {
+    let api_base = api_base_url.trim_end_matches('/');
+    let token_url = format!("{api_base}/v1/oauth/token");
+    let body = format!(
+        "grant_type=refresh_token&client_id={}&refresh_token={}",
+        urlencoding(CLIENT_ID),
+        urlencoding(refresh_token),
+    );
+
+    let start = std::time::Instant::now();
+    let response = client
+        .post(&token_url)
+        .header("anthropic-version", API_VERSION)
+        .header("anthropic-beta", OAUTH_BETA)
+        .header("content-type", "application/x-www-form-urlencoded")
+        .header("accept", "application/json, text/plain, */*")
+        .header("user-agent", USER_AGENT)
+        .body(body.clone())
+        .send()
+        .await
+        .map_err(|e| UpstreamError::Http(e.to_string()))?;
+
+    let status = response.status().as_u16();
+    let resp_headers = response.headers().clone();
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| UpstreamError::Http(e.to_string()))?;
+    track_exchange(
+        tracked,
+        ExchangeInfo {
+            method: "POST",
+            url: &token_url,
+            request_body: Some(body.into_bytes()),
+            status,
+            response_headers: &resp_headers,
+            response_body: &bytes,
+            start,
+        },
+    );
+
+    if !(200..300).contains(&status) {
+        return Err(UpstreamError::Channel(format!(
+            "refresh_token grant status {status}: {}",
+            String::from_utf8_lossy(&bytes[..bytes.len().min(400)])
+        )));
+    }
+
+    let tokens: CookieTokenResponse = serde_json::from_slice(&bytes).map_err(|e| {
+        UpstreamError::Channel(format!(
+            "refresh_token response parse error: {e}: body preview: {}",
+            String::from_utf8_lossy(&bytes[..bytes.len().min(400)])
+        ))
+    })?;
+
+    if let Some(error) = &tokens.error {
+        return Err(UpstreamError::Channel(format!(
+            "refresh_token grant error: {error}"
+        )));
+    }
+
+    if tokens
+        .access_token
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
+    {
+        return Err(UpstreamError::Channel(
+            "refresh_token grant response missing access_token".to_string(),
+        ));
+    }
+
+    Ok(tokens)
+}
+
 struct OrgInfo {
     uuid: String,
     rate_limit_tier: Option<String>,
