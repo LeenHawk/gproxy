@@ -31,6 +31,31 @@ members = [
 #   3. gproxy-engine     (depends on gproxy-protocol + gproxy-channel)
 #   4. gproxy-sdk        (facade, depends on all three)
 #
+# Manual publish recipe (until the tooling is wired in):
+#
+#   cargo publish -p gproxy-protocol
+#   sleep 30                            # let the registry index update
+#   cargo publish -p gproxy-channel
+#   sleep 30
+#   cargo publish -p gproxy-engine
+#   sleep 30
+#   cargo publish -p gproxy-sdk
+#
+# Pre-flight verification:
+#
+#   cargo publish -p gproxy-protocol --dry-run    # works standalone
+#   cargo package -p gproxy-channel --list        # lists what would ship
+#   cargo package -p gproxy-engine --list
+#   cargo package -p gproxy-sdk --list
+#
+# Note: `cargo publish --dry-run` for gproxy-channel / -engine / -sdk
+# will FAIL with "no matching package named `gproxy-protocol` found"
+# until gproxy-protocol is actually published, because cargo strips
+# the `path` from the published manifest and tries to resolve the dep
+# through the registry. Use `cargo package --list` to verify the
+# tarball contents locally; the full registry-side verification only
+# becomes possible after the upstream crate has landed on crates.io.
+#
 # The app-side crates (gproxy-core, gproxy-storage, gproxy-api,
 # gproxy-server, apps/gproxy, apps/gproxy-recorder) are private
 # (`publish = false` or not listed in crates.io) and inherit the same
