@@ -379,6 +379,7 @@ fn vertexexpress_local_transform(
         ProtocolKind::Gemini,
         gemini_body,
     )
+    .map_err(Into::into)
 }
 
 fn vertexexpress_local_model_list(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
