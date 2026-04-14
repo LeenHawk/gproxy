@@ -10,6 +10,13 @@ repository.workspace = true
 readme = "README.md"
 keywords = ["llm", "openai", "anthropic", "api-client", "proxy"]
 categories = ["api-bindings", "asynchronous", "web-programming::http-client"]
+# Vendored upstream reference material (gemini-cli, codex-rs, and other
+# third-party sources) lives under `src/channels/upstream_docs/` for
+# research / documentation purposes. None of it is compiled into the
+# crate — it's purely reference material — and together it weighs
+# ~564 MB, which would blow past the crates.io 10 MB package size limit.
+# Exclude it from the published tarball.
+exclude = ["src/channels/upstream_docs/**"]
 
 [features]
 default = ["all-channels"]
