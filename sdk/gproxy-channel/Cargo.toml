@@ -54,3 +54,7 @@ url = { workspace = true }
 uuid = { workspace = true }
 wreq = { workspace = true }
 wreq-util = { workspace = true }
+
+[dev-dependencies]
+# Needed by integration tests that spin up a local mock upstream.
+axum = { workspace = true }

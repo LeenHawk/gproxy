@@ -1840,6 +1840,7 @@ name = "gproxy-channel"
 version = "1.0.8"
 dependencies = [
  "async-stream",
+ "axum",
  "base64 0.22.1",
  "bytes",
  "dashmap",
