@@ -50,6 +50,7 @@ export const zhMessages: Record<string, string> = {
   "common.refresh": "刷新",
   "common.query": "查询",
   "common.export": "导出",
+  "common.download": "下载",
   "common.check": "检查",
   "common.performUpdate": "执行更新",
   "common.update": "更新",

@@ -50,6 +50,7 @@ export const enMessages: Record<string, string> = {
   "common.refresh": "Refresh",
   "common.query": "Query",
   "common.export": "Export",
+  "common.download": "Download",
   "common.check": "Check",
   "common.performUpdate": "Perform Update",
   "common.update": "Update",
