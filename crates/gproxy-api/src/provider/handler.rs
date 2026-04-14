@@ -8,7 +8,7 @@ use axum::http::{HeaderValue, StatusCode, header::CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt;
 
-use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest, UpstreamRequestMeta, Usage};
+use gproxy_sdk::engine::engine::{ExecuteBody, ExecuteRequest, UpstreamRequestMeta, Usage};
 use gproxy_server::middleware::classify::{BufferedBodyBytes, Classification};
 use gproxy_server::middleware::model_alias::ResolvedAlias;
 use gproxy_server::middleware::request_model::ExtractedModel;
@@ -1038,7 +1038,7 @@ fn apply_handler_rewrite_rules(
     let Ok(mut body_json) = serde_json::from_slice::<serde_json::Value>(&body) else {
         return body;
     };
-    gproxy_sdk::provider::utils::rewrite::apply_rewrite_rules(
+    gproxy_sdk::channel::utils::rewrite::apply_rewrite_rules(
         &mut body_json,
         &rules,
         model,
@@ -1095,7 +1095,7 @@ async fn execute_live_model_list(
     provider_name: &str,
     protocol: ProtocolKind,
     headers: &http::HeaderMap,
-) -> Result<gproxy_sdk::provider::engine::ExecuteResult, HttpError> {
+) -> Result<gproxy_sdk::engine::engine::ExecuteResult, HttpError> {
     state
         .engine()
         .execute(ExecuteRequest {
@@ -2309,7 +2309,7 @@ pub(crate) struct UsageRecordContext {
     pub credential_index: Option<usize>,
     pub precomputed_cost: Option<f64>,
     pub model: Option<String>,
-    pub billing_context: Option<gproxy_sdk::provider::billing::BillingContext>,
+    pub billing_context: Option<gproxy_sdk::channel::billing::BillingContext>,
     pub operation: OperationFamily,
     pub protocol: ProtocolKind,
     pub downstream_trace_id: Option<i64>,
@@ -2414,9 +2414,9 @@ async fn persist_usage_write_now(
 fn stream_with_usage_tracking(
     ctx: UsageRecordContext,
     upstream_log: Option<StreamUpstreamLogContext>,
-    mut stream: gproxy_sdk::provider::engine::ExecuteBodyStream,
+    mut stream: gproxy_sdk::engine::engine::ExecuteBodyStream,
 ) -> impl futures_util::Stream<
-    Item = Result<bytes::Bytes, gproxy_sdk::provider::response::UpstreamError>,
+    Item = Result<bytes::Bytes, gproxy_sdk::channel::response::UpstreamError>,
 > + Send {
     let recorder = StreamUsageRecorder::new(ctx.clone());
 
@@ -2497,7 +2497,7 @@ impl StreamUsageRecorder {
         }
 
         if let Some(usage) =
-            gproxy_sdk::provider::usage::extract_stream_usage(self.ctx.protocol, json_chunk)
+            gproxy_sdk::channel::usage::extract_stream_usage(self.ctx.protocol, json_chunk)
         {
             merge_usage(&mut state.partial_usage, &usage);
             state.last_usage = Some(usage);
@@ -2545,7 +2545,7 @@ impl StreamUsageRecorder {
         if let Some(model) = self.ctx.model.as_deref()
             && !state.partial_output.is_empty()
         {
-            let estimated = gproxy_sdk::provider::count_tokens::estimate_partial_usage(
+            let estimated = gproxy_sdk::channel::count_tokens::estimate_partial_usage(
                 usage.input_tokens,
                 &state.partial_output,
                 model,
@@ -3316,7 +3316,7 @@ mod tests {
     use axum::routing::post;
     use axum::{Json, Router};
     use bytes::Bytes;
-    use gproxy_sdk::provider::engine::{GproxyEngine, ProviderConfig, Usage};
+    use gproxy_sdk::engine::engine::{GproxyEngine, ProviderConfig, Usage};
     use gproxy_server::middleware::classify::{BufferedBodyBytes, Classification};
     use gproxy_server::middleware::request_model::ExtractedModel;
     use gproxy_server::{

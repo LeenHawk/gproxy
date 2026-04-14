@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 
 use super::ShutdownRx;
-use gproxy_sdk::provider::store::EngineEvent;
+use gproxy_sdk::engine::store::EngineEvent;
 use gproxy_server::AppState;
 use gproxy_storage::{CredentialStatusWrite, StorageWriteEvent};
 

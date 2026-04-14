@@ -74,16 +74,16 @@ impl From<sea_orm::DbErr> for HttpError {
     }
 }
 
-impl From<gproxy_sdk::provider::response::UpstreamError> for HttpError {
-    fn from(err: gproxy_sdk::provider::response::UpstreamError) -> Self {
+impl From<gproxy_sdk::channel::response::UpstreamError> for HttpError {
+    fn from(err: gproxy_sdk::channel::response::UpstreamError) -> Self {
         // Log full error details internally, return generic message to client
         tracing::error!(error = %err, "upstream provider error");
         Self::internal("upstream provider error")
     }
 }
 
-impl From<gproxy_sdk::provider::engine::ExecuteError> for HttpError {
-    fn from(err: gproxy_sdk::provider::engine::ExecuteError) -> Self {
+impl From<gproxy_sdk::engine::engine::ExecuteError> for HttpError {
+    fn from(err: gproxy_sdk::engine::engine::ExecuteError) -> Self {
         // `ExecuteError` wraps an `UpstreamError` with optional attempt
         // diagnostics; the diagnostics are meant for the DB log, not the
         // client response, so the HTTP conversion just forwards the

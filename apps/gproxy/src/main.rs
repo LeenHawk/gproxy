@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
 use gproxy_api::admin::config_toml::GproxyToml;
-use gproxy_sdk::provider::engine::GproxyEngineBuilder;
+use gproxy_sdk::engine::engine::GproxyEngineBuilder;
 use gproxy_server::{AppStateBuilder, GlobalConfig};
 use gproxy_storage::{SeaOrmStorage, StorageWriteEvent};
 

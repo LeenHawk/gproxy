@@ -5,7 +5,7 @@ use arc_swap::ArcSwap;
 use dashmap::DashMap;
 
 use gproxy_core::{ConfigService, FileService, IdentityService, PolicyService, RoutingService};
-use gproxy_sdk::provider::engine::GproxyEngine;
+use gproxy_sdk::engine::engine::GproxyEngine;
 use gproxy_storage::SeaOrmStorage;
 
 use crate::config::GlobalConfig;
@@ -702,7 +702,7 @@ impl AppState {
             None => return,
         };
         let models = self.routing.models_snapshot();
-        let prices: Vec<gproxy_sdk::provider::billing::ModelPrice> = models
+        let prices: Vec<gproxy_sdk::channel::billing::ModelPrice> = models
             .iter()
             .filter(|m| m.provider_id == provider_id)
             .filter_map(|m| m.pricing.clone())

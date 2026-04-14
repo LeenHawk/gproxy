@@ -108,7 +108,7 @@ async fn flush(state: &AppState, buffer: &mut Vec<UsageWrite>) {
 mod tests {
     use std::sync::Arc;
 
-    use gproxy_sdk::provider::engine::GproxyEngine;
+    use gproxy_sdk::engine::engine::GproxyEngine;
     use gproxy_server::{AppStateBuilder, GlobalConfig};
     use gproxy_storage::{SeaOrmStorage, UsageQuery, UsageWrite, repository::UserRepository};
 

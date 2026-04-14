@@ -31,7 +31,7 @@ pub struct MemoryModel {
     pub model_id: String,
     pub display_name: Option<String>,
     pub enabled: bool,
-    pub pricing: Option<gproxy_sdk::provider::billing::ModelPrice>,
+    pub pricing: Option<gproxy_sdk::channel::billing::ModelPrice>,
     /// NULL = real model, Some(id) = alias pointing to another model's id.
     pub alias_of: Option<i64>,
 }

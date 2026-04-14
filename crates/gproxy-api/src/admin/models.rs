@@ -3,7 +3,7 @@ use crate::error::{AckResponse, HttpError};
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use gproxy_sdk::provider::engine::{ExecuteBody, ExecuteRequest};
+use gproxy_sdk::engine::engine::{ExecuteBody, ExecuteRequest};
 use gproxy_server::{AppState, MemoryModel, OperationFamily, ProtocolKind};
 use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
@@ -132,13 +132,13 @@ pub async fn upsert_model(
 
     // Validate pricing_json up front so we reject malformed input before
     // writing to the DB.
-    let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = payload
+    let pricing: Option<gproxy_sdk::channel::billing::ModelPrice> = payload
         .pricing_json
         .as_deref()
         .map(serde_json::from_str)
         .transpose()
         .map_err(|e| HttpError::bad_request(format!("invalid pricing_json: {e}")))?
-        .map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
+        .map(|mut mp: gproxy_sdk::channel::billing::ModelPrice| {
             mp.model_id = payload.model_id.clone();
             mp.display_name = payload.display_name.clone();
             mp
@@ -201,7 +201,7 @@ pub async fn batch_upsert_models(
     // Pre-pass: validate every item's pricing_json before writing any of
     // them. Rejecting a batch halfway would leave the DB in a partial
     // state that's annoying to reason about.
-    let parsed: Vec<Option<gproxy_sdk::provider::billing::ModelPrice>> = items
+    let parsed: Vec<Option<gproxy_sdk::channel::billing::ModelPrice>> = items
         .iter()
         .map(|item| {
             item.pricing_json
@@ -215,7 +215,7 @@ pub async fn batch_upsert_models(
                     ))
                 })
                 .map(|parsed_opt| {
-                    parsed_opt.map(|mut mp: gproxy_sdk::provider::billing::ModelPrice| {
+                    parsed_opt.map(|mut mp: gproxy_sdk::channel::billing::ModelPrice| {
                         mp.model_id = item.model_id.clone();
                         mp.display_name = item.display_name.clone();
                         mp
@@ -435,8 +435,8 @@ pub async fn pull_models(
 mod tests {
     use std::sync::Arc;
 
-    use gproxy_sdk::provider::billing::{BillingContext, BillingMode};
-    use gproxy_sdk::provider::engine::Usage;
+    use gproxy_sdk::channel::billing::{BillingContext, BillingMode};
+    use gproxy_sdk::engine::engine::Usage;
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig, MemoryModel};
     use gproxy_storage::{
         SeaOrmStorage,
@@ -484,7 +484,7 @@ mod tests {
 
         let state = Arc::new(
             AppStateBuilder::new()
-                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
                 .storage(storage)
                 .config(GlobalConfig {
                     dsn: "sqlite::memory:".to_string(),
@@ -510,7 +510,7 @@ mod tests {
         let model_id = "gpt-custom-pricing-test-9999";
 
         // Insert the model row into storage and in-memory state, then push pricing.
-        let model_price = gproxy_sdk::provider::billing::ModelPrice {
+        let model_price = gproxy_sdk::channel::billing::ModelPrice {
             model_id: model_id.to_string(),
             display_name: None,
             price_each_call: Some(999.0),

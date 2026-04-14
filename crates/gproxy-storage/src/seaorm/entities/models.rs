@@ -17,7 +17,7 @@ pub struct Model {
     pub model_id: String,
     pub display_name: Option<String>,
     pub enabled: bool,
-    /// Full serialized `gproxy_sdk::provider::billing::ModelPrice` (minus
+    /// Full serialized `gproxy_sdk::channel::billing::ModelPrice` (minus
     /// `model_id` / `display_name` which live in their own columns).
     /// Covers every billing mode (default / flex / scale / priority).
     /// `NULL` means "no custom pricing" — the row falls through to the

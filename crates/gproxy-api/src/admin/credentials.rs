@@ -102,7 +102,7 @@ fn validate_credential_payload(
     provider: &ProviderQueryRow,
     credential: &serde_json::Value,
 ) -> Result<(), HttpError> {
-    gproxy_sdk::provider::engine::validate_credential_json(&provider.channel, credential).map_err(
+    gproxy_sdk::engine::engine::validate_credential_json(&provider.channel, credential).map_err(
         |err| {
             HttpError::bad_request(format!(
                 "invalid credential for provider '{}': {err}",
@@ -268,7 +268,7 @@ pub async fn query_credential_statuses(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(query): Json<HealthQueryParams>,
-) -> Result<Json<Vec<gproxy_sdk::provider::store::CredentialHealthSnapshot>>, HttpError> {
+) -> Result<Json<Vec<gproxy_sdk::engine::store::CredentialHealthSnapshot>>, HttpError> {
     authorize_admin(&headers, &state)?;
     let provider_name = match &query.provider_name {
         Scope::Eq(v) => Some(v.as_str()),
@@ -397,7 +397,7 @@ mod tests {
 
         let state = Arc::new(
             AppStateBuilder::new()
-                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
                 .storage(storage)
                 .config(GlobalConfig {
                     dsn: "sqlite::memory:".to_string(),

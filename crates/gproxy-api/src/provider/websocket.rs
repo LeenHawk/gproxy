@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 
 use gproxy_sdk::protocol::openai::create_response::request::OpenAiCreateResponseRequest;
 use gproxy_sdk::protocol::openai::create_response::websocket::types::OpenAiCreateResponseWebSocketClientMessage;
-use gproxy_sdk::provider::engine::{
+use gproxy_sdk::engine::engine::{
     ExecuteBody, ExecuteRequest, UpstreamWebSocket, WsConnectionResult, WsMessage, WsUpstreamMeta,
 };
 use gproxy_server::{AppState, OperationFamily, ProtocolKind};
@@ -544,7 +544,7 @@ async fn run_ws_bridge_with_protocol(
 
     // Per-model usage segments: when the model changes, we snapshot the
     // accumulated usage for the old model and start fresh for the new one.
-    let mut usage_segments: Vec<(Option<String>, gproxy_sdk::provider::engine::Usage)> = Vec::new();
+    let mut usage_segments: Vec<(Option<String>, gproxy_sdk::engine::engine::Usage)> = Vec::new();
 
     // Collect WS messages for logging (only if downstream log + body enabled)
     let collect_body = {
@@ -781,7 +781,7 @@ async fn run_http_sse_fallback(
 
     // Active stream from a previous request (if any)
     let mut active_stream: Option<(
-        gproxy_sdk::provider::engine::ExecuteBodyStream,
+        gproxy_sdk::engine::engine::ExecuteBodyStream,
         gproxy_sdk::protocol::stream::SseToNdjsonRewriter,
     )> = None;
 
@@ -874,7 +874,7 @@ async fn start_http_request(
     model_session: &mut OpenAiWsModelSession,
 ) -> Result<
     Option<(
-        gproxy_sdk::provider::engine::ExecuteBodyStream,
+        gproxy_sdk::engine::engine::ExecuteBodyStream,
         gproxy_sdk::protocol::stream::SseToNdjsonRewriter,
     )>,
     Box<dyn std::error::Error + Send + Sync>,

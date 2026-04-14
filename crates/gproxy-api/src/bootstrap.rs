@@ -3,8 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Error as IoError;
 
-use gproxy_sdk::provider::dispatch::DispatchTableDocument;
-use gproxy_sdk::provider::engine::{GproxyEngineBuilder, ProviderConfig};
+use gproxy_sdk::channel::dispatch::DispatchTableDocument;
+use gproxy_sdk::engine::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
     AppState, FilePermissionEntry, GlobalConfig, MemoryClaudeFile, MemoryModel, MemoryUser,
     MemoryUserCredentialFile, MemoryUserKey, PermissionEntry, RateLimitRule,
@@ -67,7 +67,7 @@ fn synthetic_credential_id(provider_id: i64, index: usize) -> i64 {
 /// columns and should not be duplicated in the blob — they are restamped on
 /// read by `model_rows_to_memory_models`.
 pub(crate) fn model_price_to_storage_json(
-    price: &gproxy_sdk::provider::billing::ModelPrice,
+    price: &gproxy_sdk::channel::billing::ModelPrice,
 ) -> Result<String, serde_json::Error> {
     let mut storable = price.clone();
     storable.model_id = String::new();
@@ -81,11 +81,11 @@ pub(crate) fn model_rows_to_memory_models(
     models
         .iter()
         .map(|model| {
-            let pricing: Option<gproxy_sdk::provider::billing::ModelPrice> = model
+            let pricing: Option<gproxy_sdk::channel::billing::ModelPrice> = model
                 .pricing_json
                 .as_deref()
                 .and_then(|json| serde_json::from_str(json).ok())
-                .map(|mut parsed: gproxy_sdk::provider::billing::ModelPrice| {
+                .map(|mut parsed: gproxy_sdk::channel::billing::ModelPrice| {
                     parsed.model_id = model.model_id.clone();
                     parsed.display_name = model.display_name.clone();
                     parsed
@@ -119,7 +119,7 @@ pub(crate) async fn ensure_default_models_in_storage(
     let mut inserted = false;
 
     for (provider_id, channel) in providers {
-        let Some(prices) = gproxy_sdk::provider::built_in_model_prices(channel) else {
+        let Some(prices) = gproxy_sdk::engine::built_in_model_prices(channel) else {
             continue;
         };
         for price in prices.into_iter().filter(|row| row.model_id != "default") {
@@ -369,7 +369,7 @@ fn collect_valid_toml_provider_credentials(
         .enumerate()
         .filter_map(|(credential_index, credential)| {
             let credential_id = synthetic_credential_id(provider_id, credential_index);
-            match gproxy_sdk::provider::engine::validate_credential_json(channel, credential) {
+            match gproxy_sdk::engine::engine::validate_credential_json(channel, credential) {
                 Ok(()) => Some((credential_id, credential.clone())),
                 Err(err) => {
                     tracing::warn!(
@@ -393,7 +393,7 @@ pub(crate) fn collect_valid_db_provider_credentials(
     credentials
         .iter()
         .filter_map(|credential| {
-            match gproxy_sdk::provider::engine::validate_credential_json(
+            match gproxy_sdk::engine::engine::validate_credential_json(
                 channel,
                 &credential.secret_json,
             ) {
@@ -1014,7 +1014,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 || m.priority_price_each_call.is_some()
                 || !m.priority_price_tiers.is_empty();
             let pricing = if has_any_pricing {
-                Some(gproxy_sdk::provider::billing::ModelPrice {
+                Some(gproxy_sdk::channel::billing::ModelPrice {
                     model_id: m.model_id.clone(),
                     display_name: m.display_name.clone(),
                     price_each_call: m.price_each_call,
@@ -1376,7 +1376,7 @@ mod tests {
         storage.sync().await.expect("sync schema");
 
         let state = AppStateBuilder::new()
-            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
             .storage(storage.clone())
             .config(GlobalConfig {
                 dsn: "sqlite::memory:".to_string(),
@@ -1460,7 +1460,7 @@ mod tests {
         storage.sync().await.expect("sync schema");
 
         let state = AppStateBuilder::new()
-            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
             .storage(storage.clone())
             .config(GlobalConfig {
                 dsn: "sqlite::memory:".to_string(),
@@ -1510,7 +1510,7 @@ mod tests {
         storage.sync().await.expect("sync schema");
 
         let state = AppStateBuilder::new()
-            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
             .storage(storage.clone())
             .config(GlobalConfig {
                 dsn: "sqlite://data/gproxy.db?mode=rwc".to_string(),
@@ -1633,7 +1633,7 @@ enabled = true
 
         let state = Arc::new(
             AppStateBuilder::new()
-                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
                 .storage(storage.clone())
                 .config(GlobalConfig {
                     dsn: "sqlite::memory:".to_string(),

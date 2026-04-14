@@ -84,7 +84,7 @@ pub struct ProviderToml {
 }
 
 /// TOML representation of a model row. Covers the full
-/// `gproxy_sdk::provider::billing::ModelPrice` shape so that
+/// `gproxy_sdk::channel::billing::ModelPrice` shape so that
 /// import/export round-trips preserve every billing mode
 /// (`default` / `flex` / `scale` / `priority`).
 ///
@@ -101,19 +101,19 @@ pub struct ModelToml {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub price_each_call: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    pub price_tiers: Vec<gproxy_sdk::channel::billing::ModelPriceTier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flex_price_each_call: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub flex_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    pub flex_price_tiers: Vec<gproxy_sdk::channel::billing::ModelPriceTier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scale_price_each_call: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub scale_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    pub scale_price_tiers: Vec<gproxy_sdk::channel::billing::ModelPriceTier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub priority_price_each_call: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub priority_price_tiers: Vec<gproxy_sdk::provider::billing::ModelPriceTier>,
+    pub priority_price_tiers: Vec<gproxy_sdk::channel::billing::ModelPriceTier>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -407,7 +407,7 @@ pub async fn export_toml(
 #[cfg(test)]
 mod tests {
     use super::{ModelToml, UserKeyToml, UserToml};
-    use gproxy_sdk::provider::billing::ModelPriceTier;
+    use gproxy_sdk::channel::billing::ModelPriceTier;
 
     #[test]
     fn user_toml_round_trips_argon2_hashes() {

@@ -197,7 +197,7 @@ mod tests {
 
         let state = Arc::new(
             AppStateBuilder::new()
-                .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+                .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
                 .storage(storage)
                 .config(GlobalConfig {
                     dsn: "sqlite::memory:".to_string(),

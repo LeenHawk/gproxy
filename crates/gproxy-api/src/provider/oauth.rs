@@ -6,8 +6,8 @@ use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 
-use gproxy_sdk::provider::engine::UpstreamRequestMeta;
-use gproxy_sdk::provider::store::{CredentialSnapshot, CredentialUpdate};
+use gproxy_sdk::engine::engine::UpstreamRequestMeta;
+use gproxy_sdk::engine::store::{CredentialSnapshot, CredentialUpdate};
 use gproxy_server::AppState;
 use gproxy_storage::repository::CredentialRepository;
 use gproxy_storage::{CredentialWrite, ProviderQuery, Scope};
@@ -328,7 +328,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use gproxy_sdk::provider::store::CredentialSnapshot;
+    use gproxy_sdk::engine::store::CredentialSnapshot;
     use gproxy_server::{AppStateBuilder, GlobalConfig};
     use gproxy_storage::{CredentialQuery, SeaOrmStorage};
 
@@ -371,7 +371,7 @@ mod tests {
             .expect("seed provider");
 
         let state = AppStateBuilder::new()
-            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
             .storage(storage.clone())
             .config(GlobalConfig {
                 dsn: "sqlite::memory:".to_string(),
@@ -415,7 +415,7 @@ mod tests {
                 .expect("in-memory sqlite storage"),
         );
         let state = AppStateBuilder::new()
-            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
             .storage(storage)
             .config(GlobalConfig {
                 dsn: "sqlite::memory:".to_string(),
@@ -442,7 +442,7 @@ mod tests {
                 .expect("in-memory sqlite storage"),
         );
         let state = AppStateBuilder::new()
-            .engine(gproxy_sdk::provider::engine::GproxyEngine::builder().build())
+            .engine(gproxy_sdk::engine::engine::GproxyEngine::builder().build())
             .storage(storage)
             .config(GlobalConfig {
                 dsn: "sqlite::memory:".to_string(),
