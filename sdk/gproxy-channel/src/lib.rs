@@ -44,7 +44,10 @@ pub use dispatch::{
     DispatchRuleDocument, DispatchTable, DispatchTableDocument, DispatchTableError,
     RouteImplementation, RouteKey,
 };
-pub use executor::{execute_once, execute_once_stream};
+pub use executor::{
+    ExecuteOnceResult, SendAttemptStreamOutcome, execute_once, execute_once_stream,
+    prepare_for_send, send_attempt, send_attempt_stream,
+};
 pub use file_operation::{is_file_operation, is_file_operation_path};
 pub use health::{CredentialHealth, ModelCooldownHealth};
 pub use meta::UpstreamRequestMeta;
