@@ -1523,9 +1523,10 @@ impl GproxyEngine {
                 None
             };
 
-            let single_chunk: ExecuteBodyStream = Box::pin(futures_util::stream::once(
-                async move { Ok::<_, UpstreamError>(Bytes::from(converted)) },
-            ));
+            let single_chunk: ExecuteBodyStream =
+                Box::pin(futures_util::stream::once(async move {
+                    Ok::<_, UpstreamError>(Bytes::from(converted))
+                }));
 
             return Ok(ExecuteResult {
                 status: response.status,
@@ -1587,23 +1588,25 @@ impl GproxyEngine {
             };
 
         let transformer = if needs_response_transform {
-            Some(crate::transform_dispatch::create_stream_response_transformer(
-                request.operation,
-                request.protocol,
-                dst_op,
-                dst_proto,
-                Some({
-                    let store = self.store.clone();
-                    let provider_name = request.provider.clone();
-                    let prepared = prepared.clone();
-                    Arc::new(move |body: Vec<u8>| {
-                        store
-                            .get_runtime(&provider_name)
-                            .map(|runtime| runtime.normalize_response(&prepared, body.clone()))
-                            .unwrap_or(body)
-                    })
-                }),
-            )?)
+            Some(
+                crate::transform_dispatch::create_stream_response_transformer(
+                    request.operation,
+                    request.protocol,
+                    dst_op,
+                    dst_proto,
+                    Some({
+                        let store = self.store.clone();
+                        let provider_name = request.provider.clone();
+                        let prepared = prepared.clone();
+                        Arc::new(move |body: Vec<u8>| {
+                            store
+                                .get_runtime(&provider_name)
+                                .map(|runtime| runtime.normalize_response(&prepared, body.clone()))
+                                .unwrap_or(body)
+                        })
+                    }),
+                )?,
+            )
         } else {
             None
         };
@@ -1611,10 +1614,7 @@ impl GproxyEngine {
         let model_override = request.response_model_override.clone();
 
         // Fast path: nothing to do per-chunk, hand the raw stream through.
-        let body = if transformer.is_none()
-            && raw_capture.is_none()
-            && model_override.is_none()
-        {
+        let body = if transformer.is_none() && raw_capture.is_none() && model_override.is_none() {
             ExecuteBody::Stream(response.body)
         } else {
             ExecuteBody::Stream(wrap_upstream_response_stream(

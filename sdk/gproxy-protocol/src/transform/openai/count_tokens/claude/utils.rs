@@ -106,6 +106,13 @@ impl ClaudeToolUseIdMapper {
     }
 }
 
+// `push_message_block` is the shared Claude-message-builder helper used by
+// every transform that emits Claude `messages`. It is defined in
+// `transform::utils` so that the gemini and openai transform sub-trees can
+// both reach it without cross-module dependencies. Re-exported here so the
+// existing openai-side call sites can keep importing it from this module.
+pub use crate::transform::utils::push_message_block;
+
 fn text_block(text: String) -> ct::BetaContentBlockParam {
     ct::BetaContentBlockParam::Text(ct::BetaTextBlockParam {
         text,

@@ -2894,7 +2894,9 @@ mod tests {
     /// only add latency.
     #[test]
     fn convert_error_body_passthrough_returns_unchanged() {
-        let claude_error = br#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#.to_vec();
+        let claude_error =
+            br#"{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#
+                .to_vec();
 
         let result = convert_error_body_or_raw(
             OperationFamily::StreamGenerateContent,

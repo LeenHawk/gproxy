@@ -7,7 +7,7 @@ use crate::openai::count_tokens::types as ot;
 use crate::transform::openai::count_tokens::claude::utils::{
     ClaudeToolUseIdMapper, mcp_allowed_tools_to_configs, openai_mcp_tool_to_server,
     openai_message_content_to_claude, openai_reasoning_to_claude, openai_role_to_claude,
-    openai_tool_choice_to_claude, parallel_disable, tool_from_function,
+    openai_tool_choice_to_claude, parallel_disable, push_message_block, tool_from_function,
 };
 use crate::transform::openai::count_tokens::utils::{
     openai_function_call_output_content_to_text, openai_input_to_items,
@@ -53,40 +53,38 @@ impl TryFrom<OpenAiCountTokensRequest> for ClaudeCountTokensRequest {
                     let tool_use_id = tool_use_ids.tool_use_id(tool_call.call_id);
                     let input = serde_json::from_str::<ct::JsonObject>(&tool_call.arguments)
                         .unwrap_or_default();
-                    messages.push(ct::BetaMessageParam {
-                        content: ct::BetaMessageContent::Blocks(vec![
-                            ct::BetaContentBlockParam::ToolUse(ct::BetaToolUseBlockParam {
-                                id: tool_use_id,
-                                input,
-                                name: tool_call.name,
-                                type_: ct::BetaToolUseBlockType::ToolUse,
-                                cache_control: None,
-                                caller: None,
-                            }),
-                        ]),
-                        role: ct::BetaMessageRole::Assistant,
-                    });
+                    push_message_block(
+                        &mut messages,
+                        ct::BetaMessageRole::Assistant,
+                        ct::BetaContentBlockParam::ToolUse(ct::BetaToolUseBlockParam {
+                            id: tool_use_id,
+                            input,
+                            name: tool_call.name,
+                            type_: ct::BetaToolUseBlockType::ToolUse,
+                            cache_control: None,
+                            caller: None,
+                        }),
+                    );
                 }
                 ot::ResponseInputItem::FunctionCallOutput(tool_result) => {
                     let tool_use_id = tool_use_ids.tool_use_id(tool_result.call_id);
                     let output_text =
                         openai_function_call_output_content_to_text(&tool_result.output);
-                    messages.push(ct::BetaMessageParam {
-                        content: ct::BetaMessageContent::Blocks(vec![
-                            ct::BetaContentBlockParam::ToolResult(ct::BetaToolResultBlockParam {
-                                tool_use_id,
-                                type_: ct::BetaToolResultBlockType::ToolResult,
-                                cache_control: None,
-                                content: if output_text.is_empty() {
-                                    None
-                                } else {
-                                    Some(ct::BetaToolResultBlockParamContent::Text(output_text))
-                                },
-                                is_error: None,
-                            }),
-                        ]),
-                        role: ct::BetaMessageRole::User,
-                    });
+                    push_message_block(
+                        &mut messages,
+                        ct::BetaMessageRole::User,
+                        ct::BetaContentBlockParam::ToolResult(ct::BetaToolResultBlockParam {
+                            tool_use_id,
+                            type_: ct::BetaToolResultBlockType::ToolResult,
+                            cache_control: None,
+                            content: if output_text.is_empty() {
+                                None
+                            } else {
+                                Some(ct::BetaToolResultBlockParamContent::Text(output_text))
+                            },
+                            is_error: None,
+                        }),
+                    );
                 }
                 ot::ResponseInputItem::ReasoningItem(reasoning) => {
                     let thinking = openai_reasoning_summary_to_text(&reasoning.summary);

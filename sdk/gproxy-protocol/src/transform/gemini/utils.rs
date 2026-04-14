@@ -2,15 +2,16 @@ use crate::claude::count_tokens::types::{
     BetaBase64ImageSource, BetaBase64SourceType, BetaCodeExecutionTool20250825,
     BetaCodeExecutionTool20250825Type, BetaCodeExecutionToolName, BetaComputerToolName,
     BetaContentBlockParam, BetaImageBlockParam, BetaImageBlockType, BetaImageMediaType,
-    BetaImageSource, BetaJsonOutputFormat, BetaJsonOutputFormatType, BetaMessageContent,
-    BetaMessageParam, BetaMessageRole, BetaOutputConfig, BetaOutputEffort, BetaSystemPrompt,
-    BetaTextBlockParam, BetaTextBlockType, BetaThinkingBlockParam, BetaThinkingBlockType,
-    BetaThinkingConfigAdaptive, BetaThinkingConfigAdaptiveType, BetaThinkingConfigDisabled,
-    BetaThinkingConfigDisabledType, BetaThinkingConfigEnabled, BetaThinkingConfigEnabledType,
-    BetaThinkingConfigParam, BetaTool, BetaToolChoice, BetaToolChoiceAny, BetaToolChoiceAnyType,
-    BetaToolChoiceAuto, BetaToolChoiceAutoType, BetaToolChoiceNone, BetaToolChoiceNoneType,
-    BetaToolChoiceTool, BetaToolChoiceToolType, BetaToolCommonFields, BetaToolComputerUse20251124,
+    BetaImageSource, BetaJsonOutputFormat, BetaJsonOutputFormatType, BetaMessageParam,
+    BetaMessageRole, BetaOutputConfig, BetaOutputEffort, BetaSystemPrompt, BetaTextBlockParam,
+    BetaTextBlockType, BetaThinkingBlockParam, BetaThinkingBlockType, BetaThinkingConfigAdaptive,
+    BetaThinkingConfigAdaptiveType, BetaThinkingConfigDisabled, BetaThinkingConfigDisabledType,
+    BetaThinkingConfigEnabled, BetaThinkingConfigEnabledType, BetaThinkingConfigParam, BetaTool,
+    BetaToolChoice, BetaToolChoiceAny, BetaToolChoiceAnyType, BetaToolChoiceAuto,
+    BetaToolChoiceAutoType, BetaToolChoiceNone, BetaToolChoiceNoneType, BetaToolChoiceTool,
+    BetaToolChoiceToolType, BetaToolCommonFields, BetaToolComputerUse20251124,
     BetaToolComputerUse20251124Type, BetaToolInputSchema, BetaToolInputSchemaType,
+    BetaToolResultBlockParam, BetaToolResultBlockParamContent, BetaToolResultBlockType,
     BetaToolSearchToolBm25_20251119, BetaToolSearchToolBm25Name, BetaToolSearchToolBm25Type,
     BetaToolUnion, BetaToolUseBlockParam, BetaToolUseBlockType, BetaWebFetchTool20250910,
     BetaWebFetchTool20250910Type, BetaWebFetchToolName, BetaWebSearchTool20250305,
@@ -22,6 +23,7 @@ use crate::gemini::count_tokens::types::{
 };
 use crate::openai::count_tokens::types::ResponseReasoningEffort;
 use crate::openai::create_chat_completions::types::ChatCompletionReasoningEffort;
+use crate::transform::utils::push_message_block;
 
 pub fn strip_models_prefix(value: &str) -> String {
     value.strip_prefix("models/").unwrap_or(value).to_string()
@@ -50,40 +52,86 @@ pub fn gemini_contents_to_claude_messages(contents: Vec<GeminiContent>) -> Vec<B
             GeminiContentRole::Model => BetaMessageRole::Assistant,
         };
 
-        let mut blocks = Vec::new();
         for (index, part) in content.parts.into_iter().enumerate() {
             if let Some(text) = part.text
                 && !text.is_empty()
             {
                 if part.thought.unwrap_or(false) {
-                    blocks.push(BetaContentBlockParam::Thinking(BetaThinkingBlockParam {
-                        signature: part
-                            .thought_signature
-                            .unwrap_or_else(|| format!("thought_{index}")),
-                        thinking: text,
-                        type_: BetaThinkingBlockType::Thinking,
-                    }));
+                    push_message_block(
+                        &mut messages,
+                        role.clone(),
+                        BetaContentBlockParam::Thinking(BetaThinkingBlockParam {
+                            signature: part
+                                .thought_signature
+                                .unwrap_or_else(|| format!("thought_{index}")),
+                            thinking: text,
+                            type_: BetaThinkingBlockType::Thinking,
+                        }),
+                    );
                 } else {
-                    blocks.push(BetaContentBlockParam::Text(BetaTextBlockParam {
-                        text,
-                        type_: BetaTextBlockType::Text,
-                        cache_control: None,
-                        citations: None,
-                    }));
+                    push_message_block(
+                        &mut messages,
+                        role.clone(),
+                        BetaContentBlockParam::Text(BetaTextBlockParam {
+                            text,
+                            type_: BetaTextBlockType::Text,
+                            cache_control: None,
+                            citations: None,
+                        }),
+                    );
                 }
             }
 
             if let Some(function_call) = part.function_call {
-                blocks.push(BetaContentBlockParam::ToolUse(BetaToolUseBlockParam {
-                    id: function_call
-                        .id
-                        .unwrap_or_else(|| format!("tool_use_{index}")),
-                    input: function_call.args.unwrap_or_default(),
-                    name: function_call.name,
-                    type_: BetaToolUseBlockType::ToolUse,
-                    cache_control: None,
-                    caller: None,
-                }));
+                push_message_block(
+                    &mut messages,
+                    role.clone(),
+                    BetaContentBlockParam::ToolUse(BetaToolUseBlockParam {
+                        id: function_call
+                            .id
+                            .unwrap_or_else(|| format!("tool_use_{index}")),
+                        input: function_call.args.unwrap_or_default(),
+                        name: function_call.name,
+                        type_: BetaToolUseBlockType::ToolUse,
+                        cache_control: None,
+                        caller: None,
+                    }),
+                );
+            }
+
+            if let Some(function_response) = part.function_response {
+                // Gemini's function_response carries the result for an
+                // earlier function_call. Emit it as a Claude tool_result so
+                // the assistant can see what the tool returned.
+                // `push_message_block` handles the pairing rule by
+                // synthesising a placeholder tool_use when the matching
+                // function_call is not present in the same request — this
+                // happens when a client only sends the new tool outputs
+                // and relies on server-side history reconstruction we
+                // don't have access to.
+                let tool_use_id = function_response
+                    .id
+                    .unwrap_or_else(|| format!("tool_use_{index}"));
+                let response_text = if function_response.response.is_empty() {
+                    String::new()
+                } else {
+                    serde_json::to_string(&function_response.response).unwrap_or_default()
+                };
+                push_message_block(
+                    &mut messages,
+                    BetaMessageRole::User,
+                    BetaContentBlockParam::ToolResult(BetaToolResultBlockParam {
+                        tool_use_id,
+                        type_: BetaToolResultBlockType::ToolResult,
+                        cache_control: None,
+                        content: if response_text.is_empty() {
+                            None
+                        } else {
+                            Some(BetaToolResultBlockParamContent::Text(response_text))
+                        },
+                        is_error: None,
+                    }),
+                );
             }
 
             if let Some(inline_data) = part.inline_data {
@@ -96,25 +144,33 @@ pub fn gemini_contents_to_claude_messages(contents: Vec<GeminiContent>) -> Vec<B
                 };
 
                 if let Some(media_type) = image_media_type {
-                    blocks.push(BetaContentBlockParam::Image(BetaImageBlockParam {
-                        source: BetaImageSource::Base64(BetaBase64ImageSource {
-                            data: inline_data.data,
-                            media_type,
-                            type_: BetaBase64SourceType::Base64,
+                    push_message_block(
+                        &mut messages,
+                        role.clone(),
+                        BetaContentBlockParam::Image(BetaImageBlockParam {
+                            source: BetaImageSource::Base64(BetaBase64ImageSource {
+                                data: inline_data.data,
+                                media_type,
+                                type_: BetaBase64SourceType::Base64,
+                            }),
+                            type_: BetaImageBlockType::Image,
+                            cache_control: None,
                         }),
-                        type_: BetaImageBlockType::Image,
-                        cache_control: None,
-                    }));
+                    );
                 } else {
-                    blocks.push(BetaContentBlockParam::Text(BetaTextBlockParam {
-                        text: format!(
-                            "inline_data({}): {}",
-                            inline_data.mime_type, inline_data.data
-                        ),
-                        type_: BetaTextBlockType::Text,
-                        cache_control: None,
-                        citations: None,
-                    }));
+                    push_message_block(
+                        &mut messages,
+                        role.clone(),
+                        BetaContentBlockParam::Text(BetaTextBlockParam {
+                            text: format!(
+                                "inline_data({}): {}",
+                                inline_data.mime_type, inline_data.data
+                            ),
+                            type_: BetaTextBlockType::Text,
+                            cache_control: None,
+                            citations: None,
+                        }),
+                    );
                 }
             }
 
@@ -125,21 +181,18 @@ pub fn gemini_contents_to_claude_messages(contents: Vec<GeminiContent>) -> Vec<B
                     file_data.file_uri
                 };
                 if !text.is_empty() {
-                    blocks.push(BetaContentBlockParam::Text(BetaTextBlockParam {
-                        text,
-                        type_: BetaTextBlockType::Text,
-                        cache_control: None,
-                        citations: None,
-                    }));
+                    push_message_block(
+                        &mut messages,
+                        role.clone(),
+                        BetaContentBlockParam::Text(BetaTextBlockParam {
+                            text,
+                            type_: BetaTextBlockType::Text,
+                            cache_control: None,
+                            citations: None,
+                        }),
+                    );
                 }
             }
-        }
-
-        if !blocks.is_empty() {
-            messages.push(BetaMessageParam {
-                content: BetaMessageContent::Blocks(blocks),
-                role,
-            });
         }
     }
     messages

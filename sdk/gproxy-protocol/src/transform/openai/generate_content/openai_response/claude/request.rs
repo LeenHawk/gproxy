@@ -11,8 +11,8 @@ use crate::openai::create_response::types::{ResponseContextManagementType, Respo
 use crate::transform::openai::count_tokens::claude::utils::{
     ClaudeToolUseIdMapper, mcp_allowed_tools_to_configs, openai_mcp_tool_to_server,
     openai_message_content_to_claude, openai_reasoning_to_claude, openai_role_to_claude,
-    openai_tool_choice_to_claude, parallel_disable, response_input_contents_to_tool_result_content,
-    tool_from_function,
+    openai_tool_choice_to_claude, parallel_disable, push_message_block,
+    response_input_contents_to_tool_result_content, tool_from_function,
 };
 use crate::transform::openai::count_tokens::utils::{
     openai_input_to_items, openai_reasoning_summary_to_text,
@@ -32,10 +32,7 @@ fn push_block_message(
     role: ct::BetaMessageRole,
     block: ct::BetaContentBlockParam,
 ) {
-    messages.push(ct::BetaMessageParam {
-        content: ct::BetaMessageContent::Blocks(vec![block]),
-        role,
-    });
+    push_message_block(messages, role, block);
 }
 
 fn web_search_tool_use_id(
