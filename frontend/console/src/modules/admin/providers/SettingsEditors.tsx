@@ -293,7 +293,7 @@ export function BetaHeadersEditor({
         <>
           {isClaudeCode ? (
             <span className="badge badge-accent text-[10px]">
-              {CLAUDECODE_OAUTH_BETA} always
+              {CLAUDECODE_OAUTH_BETA}
             </span>
           ) : null}
           <button
