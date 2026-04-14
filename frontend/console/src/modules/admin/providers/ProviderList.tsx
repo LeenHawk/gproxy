@@ -36,19 +36,24 @@ export function ProviderList({
     >
       <div className="space-y-2">
         {rows.length === 0 ? <p className="text-sm text-muted">{emptyLabel}</p> : null}
-        {rows.map((row) => (
-          <button
-            key={row.id}
-            type="button"
-            className={`nav-item w-full ${selectedProviderId === row.id ? "nav-item-active" : ""}`}
-            onClick={() => onSelect(row)}
-          >
-            <div className="font-semibold">{row.name}</div>
-            <div className="text-xs text-muted">
-              #{row.id} · {row.channel} · {row.credential_count} creds
-            </div>
-          </button>
-        ))}
+        {rows.map((row) => {
+          const displayName = row.label?.trim() || row.name;
+          const showTechnicalName = displayName !== row.name;
+          return (
+            <button
+              key={row.id}
+              type="button"
+              className={`nav-item w-full ${selectedProviderId === row.id ? "nav-item-active" : ""}`}
+              onClick={() => onSelect(row)}
+            >
+              <div className="font-semibold">{displayName}</div>
+              <div className="text-xs text-muted">
+                #{row.id} · {showTechnicalName ? `${row.name} · ` : ""}
+                {row.channel} · {row.credential_count} creds
+              </div>
+            </button>
+          );
+        })}
       </div>
     </Card>
   );

@@ -75,6 +75,8 @@ fn default_data_dir() -> String {
 pub struct ProviderToml {
     pub name: String,
     pub channel: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     #[serde(default)]
     pub settings: serde_json::Value,
     #[serde(default)]
@@ -221,6 +223,7 @@ pub async fn export_toml(
         providers.push(ProviderToml {
             name: p.name.clone(),
             channel: p.channel.clone(),
+            label: state.provider_label_for_name(&p.name),
             settings: p.settings.clone(),
             credentials: creds.into_iter().map(|c| c.credential).collect(),
         });

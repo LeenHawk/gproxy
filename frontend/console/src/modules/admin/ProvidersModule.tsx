@@ -241,6 +241,7 @@ export function ProvidersModule({
         id: parseRequiredI64(providerForm.id, "id"),
         name: providerForm.name.trim(),
         channel: providerForm.channel.trim(),
+        label: providerForm.label.trim() || null,
         settings_json: JSON.stringify(
           buildChannelSettingsJson(providerForm.channel, providerForm.settings),
         ),
@@ -557,6 +558,7 @@ export function ProvidersModule({
         id: parseRequiredI64(providerForm.id, "id"),
         name: providerForm.name.trim(),
         channel: providerForm.channel.trim(),
+        label: providerForm.label.trim() || null,
         settings_json: JSON.stringify(
           buildChannelSettingsJson(providerForm.channel, {
             ...providerForm.settings,
@@ -714,6 +716,8 @@ export function ProvidersModule({
               labels={{
                 subtitle: t("providers.subtitle"),
                 name: t("providers.form.name"),
+                label: t("providers.form.label"),
+                labelPlaceholder: t("providers.form.labelPlaceholder"),
                 channel: t("providers.form.channel"),
                 dispatchRules: t("providers.form.dispatchRules"),
                 dispatchHint: t("providers.form.dispatchHint"),

@@ -50,6 +50,8 @@ export function ConfigTab({
   labels: {
     subtitle: string;
     name: string;
+    label: string;
+    labelPlaceholder: string;
     channel: string;
     dispatchRules: string;
     dispatchHint: string;
@@ -115,6 +117,14 @@ export function ConfigTab({
       <div>
         <Label>{labels.name}</Label>
         <Input value={form.name} onChange={(value) => onChange({ name: value })} />
+      </div>
+      <div className="mt-4">
+        <Label>{labels.label}</Label>
+        <Input
+          value={form.label}
+          onChange={(value) => onChange({ label: value })}
+          placeholder={labels.labelPlaceholder}
+        />
       </div>
       <div className="mt-4">
         <Label>{labels.channel}</Label>

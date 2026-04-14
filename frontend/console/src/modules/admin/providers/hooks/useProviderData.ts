@@ -18,6 +18,7 @@ function formFromProvider(row: ProviderRow): ProviderFormState {
   return {
     id: String(row.id),
     name: row.name,
+    label: row.label ?? "",
     channel: row.channel,
     settings: settingsValuesFromJson(row.channel, row.settings_json),
     dispatchRules: dispatchDraftsFromDocument(row.dispatch_json),
@@ -28,6 +29,7 @@ function emptyForm(nextId: number): ProviderFormState {
   return {
     id: String(nextId),
     name: "",
+    label: "",
     channel: "openai",
     settings: defaultSettingsForChannel("openai"),
     dispatchRules: [createDispatchRuleDraft()],

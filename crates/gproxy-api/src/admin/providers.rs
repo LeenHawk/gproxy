@@ -93,11 +93,13 @@ async fn sync_provider_runtime(
         store.remove_provider(old_name);
         state.remove_provider_name_from_memory(old_name);
         state.remove_provider_channel_from_memory(old_name);
+        state.remove_provider_label_from_memory(old_name);
         state.remove_provider_credentials_from_memory(old_name);
     }
 
     state.upsert_provider_name_in_memory(payload.name.clone(), payload.id);
     state.upsert_provider_channel_in_memory(payload.name.clone(), payload.channel.clone());
+    state.upsert_provider_label_in_memory(payload.name.clone(), payload.label.clone());
     let dispatch = parse_dispatch_document_json(&payload.dispatch_json)?;
 
     store.remove_provider(&payload.name);
@@ -215,6 +217,8 @@ pub struct ProviderRow {
     pub id: i64,
     pub name: String,
     pub channel: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub settings_json: serde_json::Value,
     pub dispatch_json: serde_json::Value,
     pub credential_count: usize,
@@ -272,8 +276,9 @@ pub async fn query_providers(
                 .unwrap_or_else(|| serde_json::json!({ "rules": [] }));
             Ok(ProviderRow {
                 id: provider_id,
-                name: s.name,
+                name: s.name.clone(),
                 channel: s.channel,
+                label: state.provider_label_for_name(&s.name),
                 settings_json: s.settings,
                 dispatch_json,
                 credential_count: s.credential_count,
@@ -328,6 +333,7 @@ pub async fn delete_provider(
     state.engine().store().remove_provider(&payload.name);
     state.remove_provider_name_from_memory(&payload.name);
     state.remove_provider_channel_from_memory(&payload.name);
+    state.remove_provider_label_from_memory(&payload.name);
     state.remove_provider_credentials_from_memory(&payload.name);
     state.remove_file_permissions_for_provider(provider_id);
     state.remove_user_files_for_provider(provider_id);
@@ -365,6 +371,7 @@ pub async fn batch_delete_providers(
         state.engine().store().remove_provider(name);
         state.remove_provider_name_from_memory(name);
         state.remove_provider_channel_from_memory(name);
+        state.remove_provider_label_from_memory(name);
         state.remove_provider_credentials_from_memory(name);
         state.remove_file_permissions_for_provider(provider_id);
         state.remove_user_files_for_provider(provider_id);
@@ -454,6 +461,7 @@ mod tests {
             id: 1,
             name: "demo".to_string(),
             channel: "openai".to_string(),
+            label: None,
             settings_json: serde_json::json!({}),
             dispatch_json: serde_json::json!({}),
             created_at: OffsetDateTime::UNIX_EPOCH,
@@ -463,6 +471,7 @@ mod tests {
             id: 1,
             name: "demo".to_string(),
             channel: "anthropic".to_string(),
+            label: None,
             settings_json: "{}".to_string(),
             dispatch_json: "{}".to_string(),
         };
@@ -477,6 +486,7 @@ mod tests {
             id: 1,
             name: "demo".to_string(),
             channel: "openai".to_string(),
+            label: None,
             settings_json: serde_json::json!({}),
             dispatch_json: serde_json::json!({}),
             created_at: OffsetDateTime::UNIX_EPOCH,
@@ -486,6 +496,7 @@ mod tests {
             id: 1,
             name: "demo-renamed".to_string(),
             channel: "openai".to_string(),
+            label: None,
             settings_json: "{}".to_string(),
             dispatch_json: "{}".to_string(),
         };
@@ -553,6 +564,7 @@ mod tests {
                 id: 1,
                 name: "demo".to_string(),
                 channel: "openai".to_string(),
+                label: None,
                 settings_json: "{\"base_url\":\"https://api.openai.com\"}".to_string(),
                 dispatch_json: serde_json::json!({
                     "rules": [

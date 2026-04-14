@@ -145,6 +145,7 @@ impl SeaOrmStorage {
                         id: Set(p.id),
                         name: Set(p.name.clone()),
                         channel: Set(p.channel.clone()),
+                        label: Set(p.label.clone()),
                         settings_json: Set(settings),
                         dispatch_json: Set(dispatch),
                         created_at: Set(now),
@@ -158,6 +159,7 @@ impl SeaOrmStorage {
                         .update_columns([
                             providers::Column::Name,
                             providers::Column::Channel,
+                            providers::Column::Label,
                             providers::Column::SettingsJson,
                             providers::Column::DispatchJson,
                             providers::Column::UpdatedAt,

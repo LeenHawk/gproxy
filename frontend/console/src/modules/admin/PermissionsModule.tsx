@@ -116,7 +116,7 @@ export function PermissionsModule({
           </div>
           <div>
             <Label>{t("common.provider")}</Label>
-            <Select value={form.provider_id} onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))} options={[{ value: "", label: t("common.allProviders") }, ...providers.map((provider) => ({ value: String(provider.id), label: provider.name }))]} />
+            <Select value={form.provider_id} onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))} options={[{ value: "", label: t("common.allProviders") }, ...providers.map((provider) => ({ value: String(provider.id), label: provider.label?.trim() || provider.name }))]} />
           </div>
           <div>
             <Label>{t("common.modelPattern")}</Label>

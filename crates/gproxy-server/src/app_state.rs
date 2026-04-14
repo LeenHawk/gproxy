@@ -28,6 +28,7 @@ pub use crate::middleware::rate_limit::{
 struct RoutingMirror {
     provider_names: ArcSwap<HashMap<String, i64>>,
     provider_channels: ArcSwap<HashMap<String, String>>,
+    provider_labels: ArcSwap<HashMap<String, Option<String>>>,
     provider_credentials: ArcSwap<HashMap<String, Vec<i64>>>,
 }
 
@@ -36,6 +37,7 @@ impl RoutingMirror {
         Self {
             provider_names: ArcSwap::from_pointee(HashMap::new()),
             provider_channels: ArcSwap::from_pointee(HashMap::new()),
+            provider_labels: ArcSwap::from_pointee(HashMap::new()),
             provider_credentials: ArcSwap::from_pointee(HashMap::new()),
         }
     }
@@ -158,6 +160,11 @@ impl AppState {
         self.routing_mirror
             .provider_channels
             .store(Arc::new(channels));
+    }
+
+    fn store_provider_labels(&self, labels: HashMap<String, Option<String>>) {
+        self.routing.replace_provider_labels(labels.clone());
+        self.routing_mirror.provider_labels.store(Arc::new(labels));
     }
 
     fn store_provider_credentials(&self, map: HashMap<String, Vec<i64>>) {
@@ -391,6 +398,10 @@ impl AppState {
         self.routing.provider_channel_for_name(provider_name)
     }
 
+    pub fn provider_label_for_name(&self, provider_name: &str) -> Option<String> {
+        self.routing.provider_label_for_name(provider_name)
+    }
+
     pub fn credential_id_for_index(&self, provider_name: &str, index: usize) -> Option<i64> {
         self.routing.credential_id_for_index(provider_name, index)
     }
@@ -496,6 +507,10 @@ impl AppState {
         self.store_provider_channels(channels);
     }
 
+    pub fn replace_provider_labels(&self, labels: HashMap<String, Option<String>>) {
+        self.store_provider_labels(labels);
+    }
+
     pub fn upsert_provider_name_in_memory(&self, name: String, provider_id: i64) {
         let mut names = (*self.routing_mirror.provider_names.load_full()).clone();
         names.insert(name, provider_id);
@@ -508,6 +523,12 @@ impl AppState {
         self.store_provider_channels(channels);
     }
 
+    pub fn upsert_provider_label_in_memory(&self, name: String, label: Option<String>) {
+        let mut labels = (*self.routing_mirror.provider_labels.load_full()).clone();
+        labels.insert(name, label);
+        self.store_provider_labels(labels);
+    }
+
     pub fn remove_provider_name_from_memory(&self, name: &str) {
         let mut names = (*self.routing_mirror.provider_names.load_full()).clone();
         names.remove(name);
@@ -518,6 +539,12 @@ impl AppState {
         let mut channels = (*self.routing_mirror.provider_channels.load_full()).clone();
         channels.remove(name);
         self.store_provider_channels(channels);
+    }
+
+    pub fn remove_provider_label_from_memory(&self, name: &str) {
+        let mut labels = (*self.routing_mirror.provider_labels.load_full()).clone();
+        labels.remove(name);
+        self.store_provider_labels(labels);
     }
 
     pub fn replace_provider_credentials(&self, map: HashMap<String, Vec<i64>>) {

@@ -3379,6 +3379,7 @@ mod tests {
                 id: 42,
                 name: "test".to_string(),
                 channel: "custom".to_string(),
+                label: None,
                 settings_json: json!({
                     "base_url": base_url,
                     "auth_scheme": "bearer"

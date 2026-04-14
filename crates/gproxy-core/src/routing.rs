@@ -14,6 +14,9 @@ pub struct RoutingService {
     model_index: ArcSwap<HashMap<String, i64>>,
     provider_names: ArcSwap<HashMap<String, i64>>,
     provider_channels: ArcSwap<HashMap<String, String>>,
+    /// Maps provider name -> optional display label. Missing entries
+    /// (or `Some(None)`) mean the UI falls back to the raw name.
+    provider_labels: ArcSwap<HashMap<String, Option<String>>>,
     provider_credentials: ArcSwap<HashMap<String, Vec<i64>>>,
     /// Serializes single-item write operations to prevent lost updates.
     write_lock: Mutex<()>,
@@ -27,6 +30,7 @@ impl RoutingService {
             model_index: ArcSwap::from(Arc::new(HashMap::new())),
             provider_names: ArcSwap::from(Arc::new(HashMap::new())),
             provider_channels: ArcSwap::from(Arc::new(HashMap::new())),
+            provider_labels: ArcSwap::from(Arc::new(HashMap::new())),
             provider_credentials: ArcSwap::from(Arc::new(HashMap::new())),
             write_lock: Mutex::new(()),
         }
@@ -84,6 +88,13 @@ impl RoutingService {
         self.provider_channels.load().get(name).cloned()
     }
 
+    /// Get provider display label by name. Returns `None` if no label is
+    /// set (or the provider is unknown); callers should fall back to the
+    /// raw name.
+    pub fn provider_label_for_name(&self, name: &str) -> Option<String> {
+        self.provider_labels.load().get(name).cloned().flatten()
+    }
+
     /// Get credential DB id by provider name and index.
     pub fn credential_id_for_index(&self, provider_name: &str, index: usize) -> Option<i64> {
         self.provider_credentials
@@ -139,6 +150,11 @@ impl RoutingService {
         self.provider_channels.store(Arc::new(channels));
     }
 
+    /// Replace all provider name -> display label mappings.
+    pub fn replace_provider_labels(&self, labels: HashMap<String, Option<String>>) {
+        self.provider_labels.store(Arc::new(labels));
+    }
+
     /// Replace all provider credential ID mappings.
     pub fn replace_provider_credentials(&self, map: HashMap<String, Vec<i64>>) {
         self.provider_credentials.store(Arc::new(map));
@@ -176,6 +192,22 @@ impl RoutingService {
         let mut channels = (*self.provider_channels.load_full()).clone();
         channels.remove(name);
         self.provider_channels.store(Arc::new(channels));
+    }
+
+    /// Upsert a provider display label.
+    pub fn upsert_provider_label(&self, name: String, label: Option<String>) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut labels = (*self.provider_labels.load_full()).clone();
+        labels.insert(name, label);
+        self.provider_labels.store(Arc::new(labels));
+    }
+
+    /// Remove a provider display label mapping.
+    pub fn remove_provider_label(&self, name: &str) {
+        let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
+        let mut labels = (*self.provider_labels.load_full()).clone();
+        labels.remove(name);
+        self.provider_labels.store(Arc::new(labels));
     }
 
     /// Replace credential IDs for a single provider.

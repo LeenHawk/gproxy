@@ -16,6 +16,8 @@ pub struct ProviderQueryRow {
     pub id: i64,
     pub name: String,
     pub channel: String,
+    #[serde(default)]
+    pub label: Option<String>,
     pub settings_json: Value,
     pub dispatch_json: Value,
     pub created_at: OffsetDateTime,

@@ -61,6 +61,7 @@ impl SeaOrmStorage {
                 id: r.id,
                 name: r.name,
                 channel: r.channel,
+                label: r.label,
                 settings_json: r.settings_json,
                 dispatch_json: r.dispatch_json,
                 created_at: r.created_at,

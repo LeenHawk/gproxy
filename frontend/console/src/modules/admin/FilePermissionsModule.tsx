@@ -109,7 +109,7 @@ export function FilePermissionsModule({
           </div>
           <div>
             <Label>{t("common.provider")}</Label>
-            <Select value={form.provider_id} onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))} options={providers.map((provider) => ({ value: String(provider.id), label: provider.name }))} />
+            <Select value={form.provider_id} onChange={(value) => setForm((current) => ({ ...current, provider_id: value }))} options={providers.map((provider) => ({ value: String(provider.id), label: provider.label?.trim() || provider.name }))} />
           </div>
           <div className="flex gap-2">
             <Button onClick={() => void save()}>{t("common.save")}</Button>

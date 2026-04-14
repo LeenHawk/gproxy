@@ -10,6 +10,10 @@ pub struct Model {
     #[sea_orm(unique_key = "provider_name")]
     pub name: String,
     pub channel: String,
+    /// Optional human-readable display name shown in the admin console.
+    /// `None` means the UI falls back to `name`.
+    #[sea_orm(column_type = "Text", nullable)]
+    pub label: Option<String>,
     pub settings_json: Json,
     pub dispatch_json: Json,
     pub created_at: OffsetDateTime,

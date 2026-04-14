@@ -5,6 +5,7 @@ export type ProviderWorkspaceTab = "config" | "credentials" | "models" | "rewrit
 export type ProviderFormState = {
   id: string;
   name: string;
+  label: string;
   channel: string;
   settings: Record<string, string>;
   dispatchRules: DispatchRuleDraft[];

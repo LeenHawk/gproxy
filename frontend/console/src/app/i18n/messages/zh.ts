@@ -117,6 +117,8 @@ export const zhMessages: Record<string, string> = {
   "providers.tab.usage": "用量",
   "providers.form.id": "ID",
   "providers.form.name": "名称",
+  "providers.form.label": "显示名称",
+  "providers.form.labelPlaceholder": "列表里展示的友好名称(可选)",
   "providers.form.channel": "渠道",
   "providers.form.dispatchJson": "Dispatch JSON",
   "providers.form.dispatchRules": "分发表",

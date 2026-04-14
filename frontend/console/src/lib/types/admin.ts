@@ -62,6 +62,7 @@ export type ProviderRow = {
   id: number;
   name: string;
   channel: string;
+  label?: string | null;
   settings_json: Record<string, unknown>;
   dispatch_json: DispatchTableDocument | null;
   credential_count: number;
@@ -71,6 +72,7 @@ export type ProviderWrite = {
   id: number;
   name: string;
   channel: string;
+  label?: string | null;
   settings_json: string;
   dispatch_json: string;
 };

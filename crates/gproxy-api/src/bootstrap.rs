@@ -49,6 +49,7 @@ struct SeedProviderRuntimeState {
     provider_configs: Vec<ProviderConfig>,
     provider_name_to_id: HashMap<String, i64>,
     provider_channel_map: HashMap<String, String>,
+    provider_label_map: HashMap<String, Option<String>>,
     provider_credentials: HashMap<String, Vec<i64>>,
     credential_positions: HashMap<i64, (String, usize)>,
 }
@@ -415,6 +416,7 @@ fn build_seed_provider_runtime_state(providers: &[ProviderToml]) -> SeedProvider
     let mut provider_configs = Vec::new();
     let mut provider_name_to_id = HashMap::new();
     let mut provider_channel_map = HashMap::new();
+    let mut provider_label_map = HashMap::new();
     let mut provider_credentials = HashMap::new();
     let mut credential_positions = HashMap::new();
 
@@ -438,6 +440,7 @@ fn build_seed_provider_runtime_state(providers: &[ProviderToml]) -> SeedProvider
             dispatch: None,
         });
         provider_channel_map.insert(provider.name.clone(), provider.channel.clone());
+        provider_label_map.insert(provider.name.clone(), provider.label.clone());
 
         let credential_ids: Vec<i64> = valid_credentials
             .iter()
@@ -453,6 +456,7 @@ fn build_seed_provider_runtime_state(providers: &[ProviderToml]) -> SeedProvider
         provider_configs,
         provider_name_to_id,
         provider_channel_map,
+        provider_label_map,
         provider_credentials,
         credential_positions,
     }
@@ -648,6 +652,10 @@ pub async fn reload_from_db(
         .iter()
         .map(|provider| (provider.name.clone(), provider.channel.clone()))
         .collect();
+    let provider_label_map: HashMap<String, Option<String>> = providers
+        .iter()
+        .map(|provider| (provider.name.clone(), provider.label.clone()))
+        .collect();
 
     let user_count = users.len();
     let memory_users: Vec<MemoryUser> = users
@@ -770,6 +778,7 @@ pub async fn reload_from_db(
     state.replace_provider_credentials(provider_credentials);
     state.replace_provider_names(provider_name_map);
     state.replace_provider_channels(provider_channel_map);
+    state.replace_provider_labels(provider_label_map);
     state.replace_users(memory_users);
     state.replace_keys(memory_keys);
     state.replace_models(memory_models);
@@ -883,6 +892,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 id: provider_id,
                 name: p.name.clone(),
                 channel: p.channel.clone(),
+                label: p.label.clone(),
                 settings_json: serde_json::to_string(&p.settings).unwrap_or_default(),
                 dispatch_json: String::new(),
             })
@@ -924,6 +934,7 @@ pub async fn seed_from_toml_with_bootstrap(
 
     state.replace_provider_names(provider_runtime.provider_name_to_id.clone());
     state.replace_provider_channels(provider_runtime.provider_channel_map);
+    state.replace_provider_labels(provider_runtime.provider_label_map);
     state.replace_provider_credentials(provider_runtime.provider_credentials);
 
     // 3. Users → memory + DB
@@ -1278,12 +1289,14 @@ mod tests {
             ProviderToml {
                 name: "first".to_string(),
                 channel: "anthropic".to_string(),
+                label: None,
                 settings: json!({"region": "us"}),
                 credentials: vec![json!({"api_key": "key-1"})],
             },
             ProviderToml {
                 name: "second".to_string(),
                 channel: "claudecode".to_string(),
+                label: Some("Second (EU)".to_string()),
                 settings: json!({"region": "eu"}),
                 credentials: vec![
                     json!({"access_token": "key-2"}),
@@ -1306,6 +1319,12 @@ mod tests {
         assert_eq!(
             state.provider_channel_map.get("second").map(String::as_str),
             Some("claudecode")
+        );
+
+        assert_eq!(state.provider_label_map.get("first"), Some(&None));
+        assert_eq!(
+            state.provider_label_map.get("second"),
+            Some(&Some("Second (EU)".to_string()))
         );
 
         assert_eq!(state.provider_credentials.get("first"), Some(&vec![1000]));
@@ -1332,6 +1351,7 @@ mod tests {
         let state = build_seed_provider_runtime_state(&[ProviderToml {
             name: "openai".to_string(),
             channel: "openai".to_string(),
+            label: None,
             settings: json!({}),
             credentials: vec![json!({"api_key": "sk-good"}), json!({"token": "bad"})],
         }]);

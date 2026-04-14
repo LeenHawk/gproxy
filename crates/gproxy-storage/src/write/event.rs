@@ -27,6 +27,8 @@ pub struct ProviderWrite {
     pub id: i64,
     pub name: String,
     pub channel: String,
+    #[serde(default)]
+    pub label: Option<String>,
     pub settings_json: String,
     pub dispatch_json: String,
 }
