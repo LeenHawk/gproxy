@@ -31,7 +31,6 @@ pub mod file_operation;
 pub mod health;
 pub mod http_client;
 pub mod meta;
-pub mod provider;
 pub mod registry;
 pub mod request;
 pub mod response;
@@ -45,13 +44,12 @@ pub use dispatch::{
     RouteImplementation, RouteKey,
 };
 pub use executor::{
-    ExecuteOnceResult, SendAttemptStreamOutcome, execute_once, execute_once_stream,
-    prepare_for_send, send_attempt, send_attempt_stream,
+    ExecuteOnceResult, SendAttemptStreamOutcome, apply_outgoing_rules, execute_once,
+    execute_once_stream, prepare_for_send, send_attempt, send_attempt_stream,
 };
 pub use file_operation::{is_file_operation, is_file_operation_path};
 pub use health::{CredentialHealth, ModelCooldownHealth};
 pub use meta::UpstreamRequestMeta;
-pub use provider::ProviderDefinition;
 pub use registry::{ChannelRegistration, ChannelRegistry};
 pub use request::PreparedRequest;
 pub use response::{
