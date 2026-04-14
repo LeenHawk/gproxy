@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::channel::{
-    Channel, ChannelCredential, ChannelSettings, OAuthCredentialResult, OAuthFlow,
+    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult, OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
@@ -257,10 +257,6 @@ pub struct ClaudeCodeSettings {
     /// Defaults to `https://claude.ai`.
     #[serde(default = "default_claudecode_claude_ai_base_url")]
     pub claude_ai_base_url: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_retries_on_429: Option<u32>,
     #[serde(default)]
     pub enable_magic_cache: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -279,27 +275,19 @@ pub struct ClaudeCodeSettings {
     /// Regex-based text sanitization rules applied to `system` and
     /// `messages[*].content` before forwarding upstream. See
     /// `utils::sanitize::SanitizeRule` for format.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rewrite_rules: Vec<crate::utils::rewrite::RewriteRule>,
+    /// Common fields shared with every other channel: user_agent,
+    /// max_retries_on_429, sanitize_rules, rewrite_rules. Flattened
+    /// so the TOML / JSON wire format is unchanged.
+    #[serde(flatten)]
+    pub common: CommonChannelSettings,
 }
 
 impl ChannelSettings for ClaudeCodeSettings {
     fn base_url(&self) -> &str {
         &self.base_url
     }
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent.as_deref()
-    }
-    fn max_retries_on_429(&self) -> u32 {
-        self.max_retries_on_429.unwrap_or(3)
-    }
-    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
-        &self.sanitize_rules
-    }
-    fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
-        &self.rewrite_rules
+    fn common(&self) -> Option<&CommonChannelSettings> {
+        Some(&self.common)
     }
 }
 

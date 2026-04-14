@@ -39,7 +39,7 @@ pub mod usage;
 pub mod utils;
 
 pub use billing::{ModelPrice, ModelPriceTier};
-pub use channel::{Channel, ChannelCredential, ChannelSettings, OAuthFlow};
+pub use channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthFlow};
 pub use dispatch::{
     DispatchRuleDocument, DispatchTable, DispatchTableDocument, DispatchTableError,
     RouteImplementation, RouteKey,

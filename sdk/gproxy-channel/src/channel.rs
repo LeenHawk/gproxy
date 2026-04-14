@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -153,17 +153,78 @@ pub trait Channel: Send + Sync + 'static {
     }
 }
 
+/// Common fields shared by every `ChannelSettings` implementation.
+///
+/// Every concrete channel needs to configure the same four things:
+/// a request user-agent override, a 429-retry cap, a set of regex
+/// sanitize rules, and a set of JSON-path rewrite rules. Historically
+/// each of the 14 channels declared those four fields inline in its own
+/// `XxxSettings` struct and wrote four identical `ChannelSettings` trait
+/// method overrides — ~100 lines of boilerplate duplicated across the
+/// crate.
+///
+/// `CommonChannelSettings` is the single home for those fields.
+/// Channels embed it via `#[serde(flatten)]` so the TOML / JSON wire
+/// format is unchanged from before the split, and implement the new
+/// [`ChannelSettings::common`] hook to return a reference. The default
+/// impls of `user_agent` / `max_retries_on_429` / `sanitize_rules` /
+/// `rewrite_rules` then delegate to it automatically.
+///
+/// `base_url` is **not** part of this struct because every channel has
+/// a different default URL and needs its own `#[serde(default = "...")]`
+/// hook — it stays on the outer per-channel struct.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CommonChannelSettings {
+    /// Override the User-Agent header. `None` = use wreq's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+
+    /// Max retries per credential on 429 responses that omit
+    /// `retry-after`. `None` = use the trait default (currently 3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_retries_on_429: Option<u32>,
+
+    /// Regex-based body-text sanitization rules applied after
+    /// `finalize_request`. See [`crate::utils::sanitize`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
+
+    /// JSON-path body rewrite rules applied after sanitize. See
+    /// [`crate::utils::rewrite`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rewrite_rules: Vec<crate::utils::rewrite::RewriteRule>,
+}
+
 /// Channel configuration (base URL, user agent, retry, etc.).
 pub trait ChannelSettings:
     Send + Sync + Clone + Default + Serialize + DeserializeOwned + 'static
 {
     fn base_url(&self) -> &str;
-    fn user_agent(&self) -> Option<&str> {
+
+    /// Return the embedded [`CommonChannelSettings`] block, if any.
+    ///
+    /// Channels that use the `#[serde(flatten)] pub common:
+    /// CommonChannelSettings` pattern override this to return
+    /// `Some(&self.common)`, and the trait's default impls of
+    /// [`user_agent`], [`max_retries_on_429`], [`sanitize_rules`], and
+    /// [`rewrite_rules`] delegate to it automatically.
+    ///
+    /// Channels that pre-date the `CommonChannelSettings` refactor (or
+    /// that want per-field custom behaviour) can leave this at its
+    /// default `None` return and keep overriding individual getters
+    /// directly.
+    fn common(&self) -> Option<&CommonChannelSettings> {
         None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        self.common().and_then(|c| c.user_agent.as_deref())
     }
     /// Max retries per credential on 429 without retry-after header.
     fn max_retries_on_429(&self) -> u32 {
-        3
+        self.common()
+            .and_then(|c| c.max_retries_on_429)
+            .unwrap_or(3)
     }
     /// Enable cache affinity for this channel.
     /// When true, credentials are selected randomly and then pinned via the
@@ -178,12 +239,16 @@ pub trait ChannelSettings:
     /// `finalize_request` and dispatches to the correct protocol
     /// walker based on the destination protocol.
     fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
-        &[]
+        self.common()
+            .map(|c| c.sanitize_rules.as_slice())
+            .unwrap_or(&[])
     }
     /// JSON-path rewrite rules applied to the request body before
     /// `finalize_request`. Rules are executed in declaration order.
     fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
-        &[]
+        self.common()
+            .map(|c| c.rewrite_rules.as_slice())
+            .unwrap_or(&[])
     }
 }
 

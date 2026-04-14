@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::channel::{
-    Channel, ChannelCredential, ChannelSettings, OAuthCredentialResult, OAuthFlow,
+    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthCredentialResult, OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
@@ -191,14 +191,11 @@ pub struct CodexSettings {
     pub base_url: String,
     /// Explicit override for the entire User-Agent header.
     /// When set, this takes priority over the computed Codex UA string.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_retries_on_429: Option<u32>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rewrite_rules: Vec<crate::utils::rewrite::RewriteRule>,
+    /// Common fields shared with every other channel: user_agent,
+    /// max_retries_on_429, sanitize_rules, rewrite_rules. Flattened
+    /// so the TOML / JSON wire format is unchanged.
+    #[serde(flatten)]
+    pub common: CommonChannelSettings,
 }
 
 fn default_codex_base_url() -> String {
@@ -226,7 +223,7 @@ impl CodexSettings {
 
     /// Return the effective User-Agent: explicit override wins, otherwise computed.
     fn effective_user_agent(&self) -> String {
-        match &self.user_agent {
+        match &self.common.user_agent {
             Some(ua) => ua.clone(),
             None => self.computed_user_agent(),
         }
@@ -440,17 +437,8 @@ impl ChannelSettings for CodexSettings {
     fn base_url(&self) -> &str {
         &self.base_url
     }
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent.as_deref()
-    }
-    fn max_retries_on_429(&self) -> u32 {
-        self.max_retries_on_429.unwrap_or(3)
-    }
-    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
-        &self.sanitize_rules
-    }
-    fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
-        &self.rewrite_rules
+    fn common(&self) -> Option<&CommonChannelSettings> {
+        Some(&self.common)
     }
 }
 

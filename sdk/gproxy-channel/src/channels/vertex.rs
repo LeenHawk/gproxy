@@ -5,7 +5,7 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::channel::{Channel, ChannelCredential, ChannelSettings};
+use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
 use crate::health::ModelCooldownHealth;
@@ -35,16 +35,13 @@ pub struct VertexChannel;
 pub struct VertexSettings {
     #[serde(default = "default_vertex_base_url")]
     pub base_url: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_retries_on_429: Option<u32>,
     #[serde(default = "default_vertex_location")]
     pub location: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rewrite_rules: Vec<crate::utils::rewrite::RewriteRule>,
+    /// Common fields shared with every other channel: user_agent,
+    /// max_retries_on_429, sanitize_rules, rewrite_rules. Flattened
+    /// so the TOML / JSON wire format is unchanged.
+    #[serde(flatten)]
+    pub common: CommonChannelSettings,
 }
 
 fn default_vertex_base_url() -> String {
@@ -59,17 +56,8 @@ impl ChannelSettings for VertexSettings {
     fn base_url(&self) -> &str {
         &self.base_url
     }
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent.as_deref()
-    }
-    fn max_retries_on_429(&self) -> u32 {
-        self.max_retries_on_429.unwrap_or(3)
-    }
-    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
-        &self.sanitize_rules
-    }
-    fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
-        &self.rewrite_rules
+    fn common(&self) -> Option<&CommonChannelSettings> {
+        Some(&self.common)
     }
 }
 

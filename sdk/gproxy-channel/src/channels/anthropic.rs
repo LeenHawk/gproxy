@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::channel::{Channel, ChannelCredential, ChannelSettings};
+use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
 use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
 use crate::health::ModelCooldownHealth;
@@ -21,10 +21,6 @@ pub struct AnthropicChannel;
 pub struct AnthropicSettings {
     #[serde(default = "default_anthropic_base_url")]
     pub base_url: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_agent: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_retries_on_429: Option<u32>,
     /// Enable magic string -> cache_control conversion (e.g. <|CACHE_5M|> in text)
     #[serde(default)]
     pub enable_magic_cache: bool,
@@ -37,15 +33,13 @@ pub struct AnthropicSettings {
     /// without requiring clients to set the header themselves.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_beta_headers: Vec<String>,
-    /// Regex-based text sanitization rules applied to `system` and
-    /// `messages[*].content` fields before forwarding upstream. Each
-    /// rule has a `pattern` (regex with `\b` word boundaries recommended)
-    /// and a `replacement` string. Rules are applied in order — put
-    /// longer phrases first, shorter single-word patterns last.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sanitize_rules: Vec<crate::utils::sanitize::SanitizeRule>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rewrite_rules: Vec<crate::utils::rewrite::RewriteRule>,
+    /// Common fields shared with every other channel: user_agent,
+    /// max_retries_on_429, sanitize_rules (regex-based text scrubbing),
+    /// rewrite_rules (JSON-path rewrites). Flattened so the TOML / JSON
+    /// wire format is unchanged from before the CommonChannelSettings
+    /// refactor.
+    #[serde(flatten)]
+    pub common: CommonChannelSettings,
 }
 
 fn default_anthropic_base_url() -> String {
@@ -63,17 +57,8 @@ impl ChannelSettings for AnthropicSettings {
     fn base_url(&self) -> &str {
         &self.base_url
     }
-    fn user_agent(&self) -> Option<&str> {
-        self.user_agent.as_deref()
-    }
-    fn max_retries_on_429(&self) -> u32 {
-        self.max_retries_on_429.unwrap_or(3)
-    }
-    fn sanitize_rules(&self) -> &[crate::utils::sanitize::SanitizeRule] {
-        &self.sanitize_rules
-    }
-    fn rewrite_rules(&self) -> &[crate::utils::rewrite::RewriteRule] {
-        &self.rewrite_rules
+    fn common(&self) -> Option<&CommonChannelSettings> {
+        Some(&self.common)
     }
 }
 
