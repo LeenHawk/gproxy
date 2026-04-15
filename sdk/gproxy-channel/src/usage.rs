@@ -128,7 +128,10 @@ fn extract_openai_response_event_usage(chunk: &[u8]) -> Option<Usage> {
     Some(Usage {
         input_tokens: usage.get("input_tokens").and_then(|v| v.as_i64()),
         output_tokens: usage.get("output_tokens").and_then(|v| v.as_i64()),
-        cache_read_input_tokens: None,
+        cache_read_input_tokens: usage
+            .get("input_tokens_details")
+            .and_then(|d| d.get("cached_tokens"))
+            .and_then(|v| v.as_i64()),
         cache_creation_input_tokens: None,
         cache_creation_input_tokens_5min: None,
         cache_creation_input_tokens_1h: None,
@@ -167,4 +170,35 @@ fn extract_claude_event_usage(chunk: &[u8]) -> Option<Usage> {
             .and_then(|c| c.get("ephemeral_1h_input_tokens"))
             .and_then(|v| v.as_i64()),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_openai_response_event_usage_reads_cached_tokens() {
+        let chunk = serde_json::json!({
+            "type": "response.completed",
+            "response": {
+                "usage": {
+                    "input_tokens": 41104,
+                    "output_tokens": 476,
+                    "input_tokens_details": {
+                        "cached_tokens": 32000
+                    }
+                }
+            }
+        });
+
+        let usage = extract_stream_usage(
+            ProtocolKind::OpenAiResponse,
+            serde_json::to_string(&chunk).expect("serialize chunk").as_bytes(),
+        )
+        .expect("usage");
+
+        assert_eq!(usage.input_tokens, Some(41104));
+        assert_eq!(usage.output_tokens, Some(476));
+        assert_eq!(usage.cache_read_input_tokens, Some(32000));
+    }
 }

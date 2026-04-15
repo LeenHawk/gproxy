@@ -733,7 +733,7 @@ impl Channel for CodexChannel {
                 if headers
                     .get("x-codex-credits-has-credits")
                     .and_then(|v| v.to_str().ok())
-                    == Some("false")
+                    .is_some_and(|value| value.eq_ignore_ascii_case("false"))
                 {
                     return ResponseClassification::AuthDead;
                 }
@@ -1074,5 +1074,20 @@ mod tests {
 
         assert_eq!(body_json.get("stream").and_then(Value::as_bool), Some(true));
         assert_eq!(body_json.get("store").and_then(Value::as_bool), Some(false));
+    }
+
+    #[test]
+    fn classify_response_treats_false_credits_header_case_insensitively() {
+        let channel = CodexChannel;
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            "x-codex-credits-has-credits",
+            http::HeaderValue::from_static("False"),
+        );
+
+        assert_eq!(
+            channel.classify_response(429, &headers, b""),
+            ResponseClassification::AuthDead
+        );
     }
 }
