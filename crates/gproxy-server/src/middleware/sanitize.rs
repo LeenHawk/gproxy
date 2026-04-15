@@ -22,6 +22,8 @@ const HEADER_DENYLIST: &[&str] = &[
     "x-forwarded-for",
     "x-forwarded-host",
     "x-forwarded-proto",
+    // Cloudflare edge metadata — leaks client geo/IP and proxy topology
+    "cdn-loop",
     // Client identity — upstream provider should see its own defaults
     "user-agent",
     "x-title",
@@ -45,6 +47,13 @@ fn is_browser_context_header(name: &str) -> bool {
     lower.starts_with("sec-fetch-") || lower.starts_with("sec-ch-ua")
 }
 
+/// Any `cf-*` header is Cloudflare-injected edge metadata (cf-ray,
+/// cf-connecting-ip, cf-ipcountry, cf-visitor, cf-ew-via, cf-cert-*, …).
+/// None of these should leak to upstream providers.
+fn is_cloudflare_header(name: &str) -> bool {
+    name.to_ascii_lowercase().starts_with("cf-")
+}
+
 /// Axum middleware: strip auth headers, browser context headers, and
 /// sensitive query params before forwarding to the upstream provider.
 pub async fn sanitize_middleware(mut request: Request, next: Next) -> Response {
@@ -57,6 +66,7 @@ pub async fn sanitize_middleware(mut request: Request, next: Next) -> Response {
                 .iter()
                 .any(|denied| s.eq_ignore_ascii_case(denied))
                 || is_browser_context_header(s)
+                || is_cloudflare_header(s)
         })
         .cloned()
         .collect();
