@@ -196,6 +196,8 @@ pub async fn send_attempt<C: Channel>(
             status: raw.status,
             headers: raw.headers,
             body: normalized_body,
+            initial_latency_ms: raw.initial_latency_ms,
+            total_latency_ms: raw.total_latency_ms,
         },
         classification,
     })
@@ -233,6 +235,8 @@ pub async fn send_attempt_stream<C: Channel>(
                     status: buffered.status,
                     headers: buffered.headers,
                     body: normalized_body,
+                    initial_latency_ms: buffered.initial_latency_ms,
+                    total_latency_ms: buffered.total_latency_ms,
                 },
                 classification,
             }))

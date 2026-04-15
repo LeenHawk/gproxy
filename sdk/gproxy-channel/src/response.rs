@@ -9,6 +9,12 @@ pub struct UpstreamResponse {
     pub status: u16,
     pub headers: http::HeaderMap,
     pub body: Vec<u8>,
+    /// Time from `send_request` entry until `client.execute().await` returned
+    /// with response headers. Represents upstream TTFB for this attempt only.
+    pub initial_latency_ms: u64,
+    /// Time from `send_request` entry until the body was fully read.
+    /// Equal to or greater than `initial_latency_ms`.
+    pub total_latency_ms: u64,
 }
 
 pub type UpstreamBodyStream = Pin<Box<dyn Stream<Item = Result<Bytes, UpstreamError>> + Send>>;
@@ -18,6 +24,14 @@ pub struct UpstreamStreamingResponse {
     pub status: u16,
     pub headers: http::HeaderMap,
     pub body: UpstreamBodyStream,
+    /// TTFB, measured identically to `UpstreamResponse::initial_latency_ms`.
+    pub initial_latency_ms: u64,
+    /// Base instant for computing total latency. The stream consumer calls
+    /// `stream_start.elapsed()` after draining the body. Callers that
+    /// reconstruct this struct from an already-buffered response (see
+    /// `retry::wrap_buffered`) back-date this instant so `elapsed()` still
+    /// yields the correct upstream total.
+    pub stream_start: std::time::Instant,
 }
 
 /// Transport-level response used by retry logic.
