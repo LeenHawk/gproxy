@@ -13,6 +13,7 @@ import {
   buildAdminNavItems,
   buildUserNavItems,
   defaultModule,
+  moduleIdsFor,
   renderActiveModule,
   type UserRole,
 } from "./modules";
@@ -25,6 +26,20 @@ type LoginResponse = {
   expires_in_secs: number;
   is_admin: boolean;
 };
+
+// Reads the current URL hash and returns a module id valid for this role,
+// falling back to the role default. Normalises the hash in the URL when it
+// points at an unknown / forbidden module so what we render matches the URL.
+function resolveModuleFromHash(role: UserRole): string {
+  const fallback = defaultModule(role);
+  if (typeof window === "undefined") return fallback;
+  const raw = window.location.hash.replace(/^#/, "");
+  if (!raw) return fallback;
+  if (moduleIdsFor(role).includes(raw)) return raw;
+  const { pathname, search } = window.location;
+  window.history.replaceState(null, "", `${pathname}${search}`);
+  return fallback;
+}
 
 function AppFrame() {
   const { locale, setLocale, t } = useI18n();
@@ -47,9 +62,29 @@ function AppFrame() {
       const restoredRole: UserRole = restored.isAdmin ? "admin" : "user";
       setSession(restored);
       setRole(restoredRole);
-      setActiveModule(defaultModule(restoredRole));
+      setActiveModule(resolveModuleFromHash(restoredRole));
     }
     setRestoringSession(false);
+  }, []);
+
+  useEffect(() => {
+    if (!role) return;
+    const onHashChange = () => {
+      setActiveModule(resolveModuleFromHash(role));
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [role]);
+
+  const onModuleChange = useCallback((id: string) => {
+    setActiveModule(id);
+    if (typeof window === "undefined") return;
+    const current = window.location.hash.replace(/^#/, "");
+    if (current !== id) {
+      // Push a history entry so the browser back button steps through
+      // previously visited modules within this session.
+      window.location.hash = id;
+    }
   }, []);
 
   useEffect(() => {
@@ -123,7 +158,7 @@ function AppFrame() {
         const nextRole: UserRole = body.is_admin ? "admin" : "user";
         setSession(nextSession);
         setRole(nextRole);
-        setActiveModule(defaultModule(nextRole));
+        setActiveModule(resolveModuleFromHash(nextRole));
         notify("success", t("app.loginAs", { role: t(`app.role.${nextRole}`) }));
       } finally {
         setLoginLoading(false);
@@ -137,6 +172,10 @@ function AppFrame() {
     setSession(null);
     setRole(null);
     setActiveModule("");
+    if (typeof window !== "undefined" && window.location.hash) {
+      const { pathname, search } = window.location;
+      window.history.replaceState(null, "", `${pathname}${search}`);
+    }
     notify("info", t("app.loggedOut"));
   }, [notify, t]);
 
@@ -210,7 +249,7 @@ function AppFrame() {
         </div>
       </header>
       <main className="layout-shell">
-        <Nav items={navItems} active={activeModule} onChange={setActiveModule} />
+        <Nav items={navItems} active={activeModule} onChange={onModuleChange} />
         <section className="content-shell">{content}</section>
       </main>
       <Toast toast={toast} />

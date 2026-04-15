@@ -20,6 +20,16 @@ export function defaultModule(role: UserRole) {
   return role === "admin" ? "providers" : "my-quota";
 }
 
+// Single source of truth for valid module ids per role. Derived from the nav
+// builders so adding a module automatically makes its id routable.
+const STUB_TRANSLATE: TranslateFn = (key) => key;
+
+export function moduleIdsFor(role: UserRole): string[] {
+  const items =
+    role === "admin" ? buildAdminNavItems(STUB_TRANSLATE) : buildUserNavItems(STUB_TRANSLATE);
+  return items.map((item) => item.id);
+}
+
 export function buildAdminNavItems(t: TranslateFn): NavItem[] {
   const access = t("app.nav.group.access");
   const operations = t("app.nav.group.operations");

@@ -11,10 +11,10 @@ pub struct ConsoleAssets;
 
 pub fn router() -> Router {
     Router::new()
-        // Root path: bounce visitors straight into the SPA's login view.
+        // Root path: bounce visitors straight into the SPA.
         // The SPA is a single-page app served entirely under /console, so a
         // 308 here makes the bare hostname Just Work in a browser.
-        .route("/", get(|| async { Redirect::permanent("/console/login") }))
+        .route("/", get(|| async { Redirect::permanent("/console") }))
         .route("/console", get(console_index))
         .route("/console/", get(console_index))
         .route("/console/{*path}", get(console_path))
