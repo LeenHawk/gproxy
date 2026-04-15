@@ -10,24 +10,18 @@ use crate::response::{ResponseClassification, UpstreamError};
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// Custom channel — a universal transparent proxy for any OpenAI/Claude/Gemini
-/// compatible API endpoint. Forwards requests as-is with configurable auth.
+/// compatible API endpoint. Forwards requests as-is; auth headers are picked
+/// automatically based on the dispatch route's target protocol.
 pub struct CustomChannel;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CustomSettings {
     pub base_url: String,
-    /// Authentication scheme: "bearer" (default), "x-api-key", "query-key".
-    #[serde(default = "default_auth_scheme")]
-    pub auth_scheme: String,
     /// Common fields shared with every other channel: user_agent,
     /// max_retries_on_429, sanitize_rules, rewrite_rules. Flattened
     /// so the TOML / JSON wire format is unchanged.
     #[serde(flatten)]
     pub common: CommonChannelSettings,
-}
-
-fn default_auth_scheme() -> String {
-    "bearer".to_string()
 }
 
 impl ChannelSettings for CustomSettings {
@@ -110,58 +104,32 @@ impl Channel for CustomChannel {
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         let path = custom_request_path(request)?;
-
-        // Protocol-aware auth selection. When the dispatch route targets
-        // Claude or Gemini, use the protocol's conventional auth headers
-        // regardless of `settings.auth_scheme` — Anthropic only accepts
-        // `x-api-key` + `anthropic-version`, and Google only accepts
-        // `x-goog-api-key`, so `bearer` / `query-key` would always fail.
-        // `settings.auth_scheme` still applies to the OpenAI family, which
-        // is where custom channels typically need to pick between bearer,
-        // x-api-key, or the Google-style query string.
-        let proto = request.route.protocol;
-        let is_claude = matches!(proto, ProtocolKind::Claude);
-        let is_gemini = matches!(proto, ProtocolKind::Gemini | ProtocolKind::GeminiNDJson);
-        let use_query_key =
-            !is_claude && !is_gemini && settings.auth_scheme.as_str() == "query-key";
-
-        let url = if use_query_key {
-            let sep = if path.contains('?') { "&" } else { "?" };
-            format!(
-                "{}{}{}key={}",
-                settings.base_url(),
-                path,
-                sep,
-                credential.api_key
-            )
-        } else {
-            format!("{}{}", settings.base_url(), path)
-        };
+        let url = format!("{}{}", settings.base_url(), path);
 
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
             .header("Content-Type", "application/json");
 
-        if is_claude {
-            builder = builder
-                .header("x-api-key", &credential.api_key)
-                .header("anthropic-version", "2023-06-01");
-        } else if is_gemini {
-            builder = builder.header("x-goog-api-key", &credential.api_key);
-        } else {
-            match settings.auth_scheme.as_str() {
-                "x-api-key" => {
-                    builder = builder.header("x-api-key", &credential.api_key);
-                }
-                "query-key" => {
-                    // Already in URL
-                }
-                _ => {
-                    // Default: Bearer
-                    builder = builder
-                        .header("Authorization", format!("Bearer {}", credential.api_key));
-                }
+        // Auth is driven entirely by the dispatch route's target protocol.
+        // Custom channels are universal transparent proxies, so the caller's
+        // chosen route already encodes which upstream flavour we're talking
+        // to: Anthropic rejects anything that isn't `x-api-key +
+        // anthropic-version`, Google rejects anything that isn't
+        // `x-goog-api-key`, and OpenAI-family endpoints want the classic
+        // Bearer header.
+        match request.route.protocol {
+            ProtocolKind::Claude => {
+                builder = builder
+                    .header("x-api-key", &credential.api_key)
+                    .header("anthropic-version", "2023-06-01");
+            }
+            ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+                builder = builder.header("x-goog-api-key", &credential.api_key);
+            }
+            _ => {
+                builder = builder
+                    .header("Authorization", format!("Bearer {}", credential.api_key));
             }
         }
 

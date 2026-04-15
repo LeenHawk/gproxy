@@ -3380,7 +3380,6 @@ mod tests {
                 label: None,
                 settings_json: json!({
                     "base_url": base_url,
-                    "auth_scheme": "bearer"
                 })
                 .to_string(),
                 dispatch_json: "".to_string(),
@@ -3413,7 +3412,6 @@ mod tests {
                 channel: "custom".to_string(),
                 settings_json: json!({
                     "base_url": base_url,
-                    "auth_scheme": "bearer"
                 }),
                 credentials: vec![json!({
                     "api_key": "sk-upstream"
