@@ -21,6 +21,7 @@
 - **`model_list` body shim dropped.** `build_live_model_list_request_body` built `{"query":{"limit":1000}}` as the request body for live model listing, under the misconception that this would propagate pagination params. It did not — Claude/Gemini `QueryParameters` are URL query params, not JSON body fields; the transformer for xform routes silently dropped the `query` key; and stricter upstream proxies echoed the opaque blob downstream, confusing operators. Replaced with `b"{}".to_vec()`.
 - **`cache_creation` extracted from `iterations` in `message_delta`.** The Claude API nests the `cache_creation` object (with `ephemeral_5m/1h_input_tokens`) inside `usage.iterations[0]` in `message_delta` events, not directly under `usage`. Now falls back to `iterations[0].cache_creation` when `usage.cache_creation` is absent.
 - **ClaudeCodeChannel session ID management.** Improved session ID lifecycle and caching to prevent stale session references.
+- **Channel-managed request headers no longer duplicate caller-supplied values.** Provider-auth, content-type, user-agent, and other channel-owned headers are now written as final replacements so proxied requests do not carry duplicate `Authorization` / `User-Agent` / `Content-Type`-style entries when the caller already sent them.
 - **Codex cached token usage preserved.** Token usage from cached responses is no longer silently dropped.
 - **Console i18n.** `table.latency` translated as 延迟 (latency) instead of 耗时 (duration).
 
@@ -53,6 +54,7 @@
 - **`model_list` body shim 移除.** `build_live_model_list_request_body` 构造 `{"query":{"limit":1000}}` 作为实时模型列表请求 body,以为能传递分页参数。实际没用 —— Claude/Gemini 的 `QueryParameters` 是 URL 查询参数不是 JSON body 字段;xform route 的 transformer 悄悄丢掉 `query` key;更严格的上游代理(如 gptload → newapi)会原样回传这坨不明 blob,搞晕运维。替换为 `b"{}".to_vec()`。
 - **`message_delta` 中的 `cache_creation` 提取.** Claude API 把 `cache_creation` 对象(含 `ephemeral_5m/1h_input_tokens`)嵌套在 `message_delta` 事件的 `usage.iterations[0]` 里,而非直接放在 `usage` 下。现在 `usage.cache_creation` 缺失时回退到 `iterations[0].cache_creation`。
 - **ClaudeCodeChannel session ID 管理.** 改善了 session ID 的生命周期和缓存,防止过期 session 引用。
+- **channel 自管请求头不再和调用方重复.** provider 鉴权、content-type、user-agent 等由 channel 负责的 header 现在会在最后做覆盖写入,避免调用方已携带这些字段时,代理后的请求再出现重复的 `Authorization` / `User-Agent` / `Content-Type` 一类条目。
 - **Codex cached token usage 保留.** 缓存响应中的 token 用量不再被静默丢弃。
 - **控制台 i18n.** `table.latency` 翻译为"延迟"而非"耗时"。
 
