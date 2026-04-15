@@ -18,7 +18,7 @@ import {
   CacheBreakpointsEditor,
   PreludeTextEditor,
   SanitizeRulesEditor,
-} from "./SettingsEditors";
+} from "./settings-editors";
 
 /// Fields rendered by dedicated editors instead of generic input/textarea.
 const EDITOR_FIELDS = new Set([
