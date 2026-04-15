@@ -2,78 +2,11 @@ import { useMemo, useState } from "react";
 
 import { useI18n } from "../../../app/i18n";
 import { BatchActionBar } from "../../../components/BatchActionBar";
-import { Button, Card, Input, Select, TextArea } from "../../../components/ui";
+import { Button, Card } from "../../../components/ui";
 import { useBatchSelection } from "../../../components/useBatchSelection";
-import {
-  parseRewriteRules,
-  type RewriteFilter,
-  type RewriteRule,
-} from "./channel-constants";
+import { parseRewriteRules, type RewriteRule } from "./channel-constants";
 import type { ProviderFormState } from "./index";
-
-const REWRITE_OPERATION_OPTIONS = [
-  "generate_content",
-  "stream_generate_content",
-  "model_list",
-  "model_get",
-  "count_tokens",
-  "compact",
-  "create_image",
-  "embeddings",
-];
-
-const REWRITE_PROTOCOL_OPTIONS = [
-  "openai",
-  "claude",
-  "gemini",
-  "openai_chat_completions",
-  "gemini_ndjson",
-  "openai_response",
-];
-
-function serializeActionValue(value: unknown): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "string") return JSON.stringify(value);
-  return JSON.stringify(value, null, 2);
-}
-
-function parseActionValue(input: string): unknown {
-  const trimmed = input.trim();
-  if (trimmed === "") return null;
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return trimmed;
-  }
-}
-
-type ValueType = "string" | "number" | "boolean" | "null" | "array" | "object";
-
-function detectValueType(value: unknown): ValueType {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "string") return "string";
-  if (typeof value === "number") return "number";
-  if (typeof value === "boolean") return "boolean";
-  if (Array.isArray(value)) return "array";
-  return "object";
-}
-
-function defaultValueForType(type: ValueType): unknown {
-  switch (type) {
-    case "string":
-      return "";
-    case "number":
-      return 0;
-    case "boolean":
-      return true;
-    case "null":
-      return null;
-    case "array":
-      return [];
-    case "object":
-      return {};
-  }
-}
+import { RewriteRuleEditor, serializeActionValue } from "./RewriteRuleEditor";
 
 const EMPTY_RULE: RewriteRule = {
   path: "",
@@ -102,7 +35,6 @@ export function RewriteRulesTab({
   // appears in the list after Save).
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [draft, setDraft] = useState<RewriteRule | null>(null);
-  const [patternFocused, setPatternFocused] = useState(false);
 
   const rules = useMemo(
     () => parseRewriteRules(form.settings.rewrite_rules ?? "[]"),
@@ -152,56 +84,15 @@ export function RewriteRulesTab({
 
   /// Patch the current rule. If editing a draft, mutate local draft state;
   /// otherwise patch the persisted rule in-place (auto-saves to form state).
-  const updateEditing = (patch: (rule: RewriteRule) => RewriteRule) => {
+  const updateEditing = (patcher: (rule: RewriteRule) => RewriteRule) => {
     if (isDraft && draft) {
-      setDraft(patch(draft));
+      setDraft(patcher(draft));
       return;
     }
     if (selectedIdx == null) return;
     const next = [...rules];
-    next[selectedIdx] = patch(next[selectedIdx]);
+    next[selectedIdx] = patcher(next[selectedIdx]);
     commit(next);
-  };
-
-  const updatePath = (path: string) => updateEditing((r) => ({ ...r, path }));
-
-  const updateActionType = (type: "Set" | "Remove") =>
-    updateEditing((r) => ({
-      ...r,
-      action:
-        type === "Remove"
-          ? { type: "Remove" as const }
-          : { type: "Set" as const, value: null },
-    }));
-
-  const updateActionValue = (raw: string) =>
-    updateEditing((r) => ({
-      ...r,
-      action: { type: "Set" as const, value: parseActionValue(raw) },
-    }));
-
-  const updateFilter = (filter: RewriteFilter | undefined) =>
-    updateEditing((r) => {
-      const next = { ...r };
-      if (filter) next.filter = filter;
-      else delete next.filter;
-      return next;
-    });
-
-  const toggleFilterChip = (dimension: "operations" | "protocols", val: string) => {
-    if (!editing) return;
-    const current = editing.filter ?? {};
-    const arr = current[dimension] ?? [];
-    const nextArr = arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
-    const nextFilter: RewriteFilter = {
-      ...current,
-      [dimension]: nextArr.length > 0 ? nextArr : undefined,
-    };
-    if (!nextFilter.model_pattern && !nextFilter.operations && !nextFilter.protocols) {
-      updateFilter(undefined);
-    } else {
-      updateFilter(nextFilter);
-    }
   };
 
   /// Save: if editing a draft, commit it to the list first, then save provider.
@@ -223,6 +114,16 @@ export function RewriteRulesTab({
   const cancelDraft = () => {
     setDraft(null);
   };
+
+  const trailingActions = isDraft ? (
+    <Button variant="neutral" onClick={cancelDraft}>
+      {t("common.cancel")}
+    </Button>
+  ) : selectedIdx != null ? (
+    <Button variant="danger" onClick={() => remove(selectedIdx)}>
+      {t("common.delete")}
+    </Button>
+  ) : null;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -291,243 +192,13 @@ export function RewriteRulesTab({
       </Card>
       <Card title={editing ? t("providers.rewrite.title") : t("common.noSelection")}>
         {editing ? (
-          <div className="space-y-4">
-            <p className="text-xs text-muted">{t("providers.rewrite.hint")}</p>
-            <div>
-              <label className="text-xs text-muted">
-                {t("providers.rewrite.path_placeholder")}
-              </label>
-              <Input
-                value={editing.path}
-                onChange={updatePath}
-                placeholder={t("providers.rewrite.path_placeholder")}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted">{t("providers.rewrite.action")}</label>
-              <Select
-                value={editing.action.type}
-                onChange={(v) => updateActionType(v as "Set" | "Remove")}
-                options={[
-                  { value: "Set", label: t("providers.rewrite.action.set") },
-                  { value: "Remove", label: t("providers.rewrite.action.remove") },
-                ]}
-              />
-            </div>
-            {editing.action.type === "Set" ? (
-              <>
-                {(() => {
-                  const valueType = detectValueType(editing.action.value);
-                  return (
-                    <>
-                      <div>
-                        <label className="text-xs text-muted">
-                          {t("providers.rewrite.value_type")}
-                        </label>
-                        <Select
-                          value={valueType}
-                          onChange={(v) => {
-                            const next = v as ValueType;
-                            updateEditing((r) => ({
-                              ...r,
-                              action: { type: "Set" as const, value: defaultValueForType(next) },
-                            }));
-                          }}
-                          options={[
-                            { value: "string", label: t("providers.rewrite.value_type.string") },
-                            { value: "number", label: t("providers.rewrite.value_type.number") },
-                            { value: "boolean", label: t("providers.rewrite.value_type.boolean") },
-                            { value: "null", label: t("providers.rewrite.value_type.null") },
-                            { value: "array", label: t("providers.rewrite.value_type.array") },
-                            { value: "object", label: t("providers.rewrite.value_type.object") },
-                          ]}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted">{t("providers.rewrite.value")}</label>
-                        {valueType === "string" ? (
-                          <Input
-                            value={typeof editing.action.value === "string" ? editing.action.value : ""}
-                            onChange={(v) =>
-                              updateEditing((r) => ({
-                                ...r,
-                                action: { type: "Set" as const, value: v },
-                              }))
-                            }
-                          />
-                        ) : valueType === "number" ? (
-                          <Input
-                            value={
-                              typeof editing.action.value === "number"
-                                ? String(editing.action.value)
-                                : ""
-                            }
-                            onChange={(raw) => {
-                              const n = Number(raw);
-                              updateEditing((r) => ({
-                                ...r,
-                                action: {
-                                  type: "Set" as const,
-                                  value: Number.isFinite(n) ? n : 0,
-                                },
-                              }));
-                            }}
-                          />
-                        ) : valueType === "boolean" ? (
-                          <Select
-                            value={editing.action.value === true ? "true" : "false"}
-                            onChange={(v) =>
-                              updateEditing((r) => ({
-                                ...r,
-                                action: { type: "Set" as const, value: v === "true" },
-                              }))
-                            }
-                            options={[
-                              { value: "true", label: t("providers.rewrite.value_bool.true") },
-                              { value: "false", label: t("providers.rewrite.value_bool.false") },
-                            ]}
-                          />
-                        ) : valueType === "null" ? (
-                          <p className="text-xs text-muted">
-                            {t("providers.rewrite.value_null_hint")}
-                          </p>
-                        ) : (
-                          <TextArea
-                            value={serializeActionValue(editing.action.value)}
-                            onChange={updateActionValue}
-                            rows={4}
-                            placeholder={t("providers.rewrite.value_json_placeholder")}
-                          />
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </>
-            ) : null}
-
-            {/* Filter */}
-            <div className="space-y-2 rounded border border-border/50 bg-panel p-3">
-              <div className="text-xs font-semibold">{t("providers.rewrite.filter")}</div>
-              <div>
-                <label className="text-[11px] text-muted">
-                  {t("providers.rewrite.model_pattern")}
-                </label>
-                <div className="relative">
-                  <Input
-                    value={editing.filter?.model_pattern ?? ""}
-                    onChange={(v) => {
-                      const current = editing.filter ?? {};
-                      const next: RewriteFilter = {
-                        ...current,
-                        model_pattern: v || undefined,
-                      };
-                      if (!next.model_pattern && !next.operations && !next.protocols) {
-                        updateFilter(undefined);
-                      } else {
-                        updateFilter(next);
-                      }
-                    }}
-                    onFocus={() => setPatternFocused(true)}
-                    onBlur={() => {
-                      setTimeout(() => setPatternFocused(false), 150);
-                    }}
-                    placeholder="gpt-4*, claude-*"
-                  />
-                  {patternFocused && modelNames && modelNames.length > 0
-                    ? (() => {
-                        const pattern = (editing.filter?.model_pattern ?? "").toLowerCase();
-                        const matches = modelNames
-                          .filter((name) =>
-                            pattern === "" ? true : name.toLowerCase().includes(pattern),
-                          )
-                          .slice(0, 20);
-                        if (matches.length === 0) return null;
-                        return (
-                          <div
-                            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded border border-border shadow-lg"
-                            style={{ background: "var(--bg-base)" }}
-                          >
-                            {matches.map((name) => (
-                              <button
-                                key={name}
-                                type="button"
-                                className="block w-full text-left px-2 py-1 text-xs hover:opacity-80"
-                                style={{ background: "var(--bg-base)" }}
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                }}
-                                onClick={() => {
-                                  const current = editing.filter ?? {};
-                                  updateFilter({
-                                    ...current,
-                                    model_pattern: name,
-                                  });
-                                  setPatternFocused(false);
-                                }}
-                              >
-                                {name}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })()
-                    : null}
-                </div>
-              </div>
-              <div>
-                <label className="text-[11px] text-muted">
-                  {t("providers.rewrite.operations")}
-                </label>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {REWRITE_OPERATION_OPTIONS.map((op) => (
-                    <button
-                      key={op}
-                      type="button"
-                      className={`btn rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
-                        editing.filter?.operations?.includes(op) ? "btn-primary" : "btn-neutral"
-                      }`}
-                      onClick={() => toggleFilterChip("operations", op)}
-                    >
-                      {op}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-[11px] text-muted">
-                  {t("providers.rewrite.protocols")}
-                </label>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {REWRITE_PROTOCOL_OPTIONS.map((proto) => (
-                    <button
-                      key={proto}
-                      type="button"
-                      className={`btn rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${
-                        editing.filter?.protocols?.includes(proto) ? "btn-primary" : "btn-neutral"
-                      }`}
-                      onClick={() => toggleFilterChip("protocols", proto)}
-                    >
-                      {proto}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={save}>{t("common.save")}</Button>
-              {isDraft ? (
-                <Button variant="neutral" onClick={cancelDraft}>
-                  {t("common.cancel")}
-                </Button>
-              ) : selectedIdx != null ? (
-                <Button variant="danger" onClick={() => remove(selectedIdx)}>
-                  {t("common.delete")}
-                </Button>
-              ) : null}
-            </div>
-          </div>
+          <RewriteRuleEditor
+            editing={editing}
+            modelNames={modelNames}
+            onUpdateEditing={updateEditing}
+            onSave={save}
+            trailingActions={trailingActions}
+          />
         ) : (
           <p className="text-sm text-muted">{t("providers.rewrite.selectPrompt")}</p>
         )}
