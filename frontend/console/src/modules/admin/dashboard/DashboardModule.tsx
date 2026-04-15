@@ -167,12 +167,9 @@ export function DashboardModule({
         error={state.credentialHealth.error}
         labels={{
           title: t("dashboard.table.credentialHealth"),
-          provider: t("common.provider"),
-          index: t("dashboard.table.index"),
-          status: t("common.status"),
-          available: t("dashboard.table.available"),
-          yes: t("dashboard.bool.yes"),
-          no: t("dashboard.bool.no"),
+          healthy: t("dashboard.health.healthy"),
+          cooldown: t("dashboard.health.cooldown"),
+          dead: t("dashboard.health.dead"),
         }}
       />
     </div>
