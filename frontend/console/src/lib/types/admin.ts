@@ -359,6 +359,68 @@ export type DownstreamRequestQueryRow = {
   created_at: string;
 };
 
+export type DashboardQuery = {
+  from_unix_ms: number;
+  to_unix_ms: number;
+  bucket_seconds: number;
+};
+
+export type DashboardKpi = {
+  total_requests: number;
+  success_count: number;
+  error_4xx_count: number;
+  error_5xx_count: number;
+  total_cost: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  avg_latency_ms?: number | null;
+  max_latency_ms?: number | null;
+};
+
+export type DashboardTrafficBucket = {
+  bucket: number;
+  request_count: number;
+  cost: number;
+};
+
+export type DashboardStatusBucket = {
+  bucket: number;
+  ok: number;
+  err_4xx: number;
+  err_5xx: number;
+};
+
+export type DashboardOverview = {
+  kpi: DashboardKpi;
+  traffic: DashboardTrafficBucket[];
+  status_codes: DashboardStatusBucket[];
+};
+
+export type DashboardTopProviderRow = {
+  provider_id?: number | null;
+  channel?: string | null;
+  request_count: number;
+  total_cost: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+};
+
+export type DashboardTopProviders = {
+  rows: DashboardTopProviderRow[];
+};
+
+export type DashboardTopModelRow = {
+  model?: string | null;
+  request_count: number;
+  total_cost: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+};
+
+export type DashboardTopModels = {
+  rows: DashboardTopModelRow[];
+};
+
 /// Payload for `POST /admin/requests/{upstream,downstream}/clear`.
 /// `all: true` clears every row under the current filter set regardless of
 /// `trace_ids`. `all: false` requires a non-empty `trace_ids` list and only

@@ -7,6 +7,7 @@ use gproxy_server::AppState;
 
 pub mod config_toml;
 pub mod credentials;
+pub mod dashboard;
 pub mod file_permissions;
 pub mod health;
 pub mod models;
@@ -210,6 +211,13 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/usages/batch-delete", post(usages::batch_delete_usages))
         // Config export
         .route("/config/export-toml", post(config_toml::export_toml))
+        // Dashboard
+        .route("/dashboard/overview", post(dashboard::overview))
+        .route(
+            "/dashboard/top-providers",
+            post(dashboard::top_providers),
+        )
+        .route("/dashboard/top-models", post(dashboard::top_models))
         // Self-update
         .route("/update/check", post(update::check_update))
         .route("/update", post(update::perform_update))

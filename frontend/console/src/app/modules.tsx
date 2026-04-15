@@ -1,5 +1,6 @@
 import type { NavItem } from "../components/Nav";
 import { ConfigExportModule } from "../modules/admin/ConfigExportModule";
+import { DashboardModule } from "../modules/admin/dashboard/DashboardModule";
 import { FilePermissionsModule } from "../modules/admin/FilePermissionsModule";
 import { GlobalSettingsModule } from "../modules/admin/GlobalSettingsModule";
 import { PermissionsModule } from "../modules/admin/PermissionsModule";
@@ -17,7 +18,7 @@ export type UserRole = "admin" | "user";
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 export function defaultModule(role: UserRole) {
-  return role === "admin" ? "providers" : "my-quota";
+  return role === "admin" ? "dashboard" : "my-quota";
 }
 
 // Single source of truth for valid module ids per role. Derived from the nav
@@ -36,9 +37,7 @@ export function buildAdminNavItems(t: TranslateFn): NavItem[] {
   const account = t("app.nav.group.account");
 
   return [
-    // Providers is the admin landing page and sits on its own above the
-    // grouped sections — no Overview header since it would only wrap a
-    // single entry with the same label.
+    { id: "dashboard", label: t("app.nav.dashboard") },
     { id: "providers", label: t("app.nav.providers") },
     { id: "users", label: t("app.nav.users"), group: access },
     { id: "user-permissions", label: t("app.nav.userPermissions"), group: access },
@@ -72,6 +71,8 @@ export function renderActiveModule(
 ) {
   if (role === "admin") {
     switch (activeModule) {
+      case "dashboard":
+        return <DashboardModule sessionToken={sessionToken} notify={notify} />;
       case "providers":
         return <ProvidersModule sessionToken={sessionToken} notify={notify} />;
       case "users":

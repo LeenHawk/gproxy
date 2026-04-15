@@ -1,5 +1,6 @@
 mod common;
 mod credentials;
+mod dashboard;
 mod files;
 mod global_settings;
 mod models;
@@ -13,6 +14,7 @@ mod users;
 
 pub use common::*;
 pub use credentials::*;
+pub use dashboard::*;
 pub use files::*;
 pub use global_settings::*;
 pub use models::*;
