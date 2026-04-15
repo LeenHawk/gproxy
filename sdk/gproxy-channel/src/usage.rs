@@ -146,14 +146,12 @@ fn extract_claude_event_usage(chunk: &[u8]) -> Option<Usage> {
     }
     let usage = v.get("usage")?;
     // `cache_creation` may be directly in `usage` or nested inside `usage.iterations[0]`
-    let cache_creation = usage
-        .get("cache_creation")
-        .or_else(|| {
-            usage
-                .get("iterations")
-                .and_then(|it| it.get(0))
-                .and_then(|first| first.get("cache_creation"))
-        });
+    let cache_creation = usage.get("cache_creation").or_else(|| {
+        usage
+            .get("iterations")
+            .and_then(|it| it.get(0))
+            .and_then(|first| first.get("cache_creation"))
+    });
     Some(Usage {
         input_tokens: usage.get("input_tokens").and_then(|v| v.as_i64()),
         output_tokens: usage.get("output_tokens").and_then(|v| v.as_i64()),
@@ -193,7 +191,9 @@ mod tests {
 
         let usage = extract_stream_usage(
             ProtocolKind::OpenAiResponse,
-            serde_json::to_string(&chunk).expect("serialize chunk").as_bytes(),
+            serde_json::to_string(&chunk)
+                .expect("serialize chunk")
+                .as_bytes(),
         )
         .expect("usage");
 

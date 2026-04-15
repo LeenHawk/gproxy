@@ -213,10 +213,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/config/export-toml", post(config_toml::export_toml))
         // Dashboard
         .route("/dashboard/overview", post(dashboard::overview))
-        .route(
-            "/dashboard/top-providers",
-            post(dashboard::top_providers),
-        )
+        .route("/dashboard/top-providers", post(dashboard::top_providers))
         .route("/dashboard/top-models", post(dashboard::top_models))
         // Self-update
         .route("/update/check", post(update::check_update))

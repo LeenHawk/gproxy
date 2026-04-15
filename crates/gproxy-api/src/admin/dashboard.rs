@@ -44,19 +44,19 @@ pub async fn top_models(
 mod tests {
     use std::sync::Arc;
 
-    use axum::{extract::State, http::HeaderMap, Json};
+    use axum::{Json, extract::State, http::HeaderMap};
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig};
     use gproxy_storage::{
+        SeaOrmStorage,
         entities::{downstream_requests, providers, upstream_requests, usages},
         repository::UserRepository,
-        SeaOrmStorage,
     };
     use sea_orm::ActiveValue::{NotSet, Set};
     use sea_orm::EntityTrait;
     use serde_json::json;
     use time::{Duration, OffsetDateTime};
 
-    use super::{overview, top_providers, DashboardQuery};
+    use super::{DashboardQuery, overview, top_providers};
 
     async fn build_test_state() -> Arc<AppState> {
         let storage = Arc::new(

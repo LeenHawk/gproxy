@@ -31,11 +31,8 @@ impl SeaOrmStorage {
             p1 = param(backend, 1),
             p2 = param(backend, 2),
         );
-        let downstream_stmt = Statement::from_sql_and_values(
-            backend,
-            &downstream_sql,
-            [from.into(), to.into()],
-        );
+        let downstream_stmt =
+            Statement::from_sql_and_values(backend, &downstream_sql, [from.into(), to.into()]);
         let downstream_rows = self.db.query_all_raw(downstream_stmt).await?;
 
         let mut kpi = DashboardKpi::default();
@@ -82,11 +79,8 @@ impl SeaOrmStorage {
             p1 = param(backend, 1),
             p2 = param(backend, 2),
         );
-        let usages_stmt = Statement::from_sql_and_values(
-            backend,
-            &usages_sql,
-            [from.into(), to.into()],
-        );
+        let usages_stmt =
+            Statement::from_sql_and_values(backend, &usages_sql, [from.into(), to.into()]);
         let usage_rows = self.db.query_all_raw(usages_stmt).await?;
 
         for row in &usage_rows {
@@ -116,11 +110,8 @@ impl SeaOrmStorage {
             p1 = param(backend, 1),
             p2 = param(backend, 2),
         );
-        let latency_stmt = Statement::from_sql_and_values(
-            backend,
-            &latency_sql,
-            [from.into(), to.into()],
-        );
+        let latency_stmt =
+            Statement::from_sql_and_values(backend, &latency_sql, [from.into(), to.into()]);
         if let Some(row) = self.db.query_one_raw(latency_stmt).await? {
             kpi.avg_latency_ms = row.try_get::<Option<f64>>("", "avg_lat").unwrap_or(None);
             kpi.max_latency_ms = row.try_get::<Option<i64>>("", "max_lat").unwrap_or(None);
@@ -157,11 +148,7 @@ impl SeaOrmStorage {
             p1 = param(backend, 1),
             p2 = param(backend, 2),
         );
-        let stmt = Statement::from_sql_and_values(
-            backend,
-            &sql,
-            [from.into(), to.into()],
-        );
+        let stmt = Statement::from_sql_and_values(backend, &sql, [from.into(), to.into()]);
         let rows = self.db.query_all_raw(stmt).await?;
 
         let result = rows
@@ -202,11 +189,7 @@ impl SeaOrmStorage {
             p1 = param(backend, 1),
             p2 = param(backend, 2),
         );
-        let stmt = Statement::from_sql_and_values(
-            backend,
-            &sql,
-            [from.into(), to.into()],
-        );
+        let stmt = Statement::from_sql_and_values(backend, &sql, [from.into(), to.into()]);
         let rows = self.db.query_all_raw(stmt).await?;
 
         let result = rows
@@ -234,9 +217,7 @@ fn bucket_expression(backend: DatabaseBackend, table: &str, bucket_seconds: i64)
             )
         }
         DatabaseBackend::MySql => {
-            format!(
-                "(UNIX_TIMESTAMP({table}.at) DIV {bucket_seconds} * {bucket_seconds})"
-            )
+            format!("(UNIX_TIMESTAMP({table}.at) DIV {bucket_seconds} * {bucket_seconds})")
         }
         DatabaseBackend::Postgres => {
             format!(
@@ -434,7 +415,16 @@ mod tests {
         let openai_id = insert_provider(&storage, "openai-main", "openai").await;
         let anthropic_id = insert_provider(&storage, "claude-main", "claude").await;
 
-        insert_usage(&storage, base, Some(openai_id), Some("gpt-4o"), 1.0, 100, 20).await;
+        insert_usage(
+            &storage,
+            base,
+            Some(openai_id),
+            Some("gpt-4o"),
+            1.0,
+            100,
+            20,
+        )
+        .await;
         insert_usage(
             &storage,
             base + Duration::minutes(1),
