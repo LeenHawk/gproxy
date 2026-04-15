@@ -463,6 +463,19 @@ impl Channel for VertexChannel {
             }
             builder = builder.header(key, value);
         }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Content-Type",
+            "application/json",
+        )?;
+        if let Some(ua) = settings.user_agent() {
+            crate::utils::http_headers::replace_header(&mut builder, "User-Agent", ua)?;
+        }
 
         builder
             .body(request.body.clone())

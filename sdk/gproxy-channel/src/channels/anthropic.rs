@@ -235,6 +235,22 @@ impl Channel for AnthropicChannel {
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
         }
+        crate::utils::http_headers::replace_header(&mut builder, "x-api-key", &credential.api_key)?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "anthropic-version",
+            "2023-06-01",
+        )?;
+        if !crate::file_operation::is_file_operation(request.route.operation) {
+            crate::utils::http_headers::replace_header(
+                &mut builder,
+                "Content-Type",
+                "application/json",
+            )?;
+        }
+        if let Some(ua) = settings.user_agent() {
+            crate::utils::http_headers::replace_header(&mut builder, "User-Agent", ua)?;
+        }
 
         builder
             .body(request.body.clone())

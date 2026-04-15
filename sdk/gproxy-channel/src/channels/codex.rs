@@ -231,10 +231,6 @@ impl CodexSettings {
     }
 }
 
-fn is_codex_managed_header(name: &http::HeaderName) -> bool {
-    matches!(name.as_str(), "x-client-request-id" | "session_id")
-}
-
 fn is_codex_user_agent(request: &PreparedRequest) -> bool {
     request
         .headers
@@ -684,10 +680,42 @@ impl Channel for CodexChannel {
         // Keep conversation identity authoritative: upstream expects both
         // x-client-request-id and session_id to equal the same conversation id.
         for (key, value) in request.headers.iter() {
-            if is_codex_managed_header(key) {
-                continue;
-            }
             builder = builder.header(key, value);
+        }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Content-Type",
+            "application/json",
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "User-Agent",
+            settings.effective_user_agent(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "originator",
+            DEFAULT_CODEX_ORIGINATOR,
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-client-request-id",
+            &session_id,
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "session_id", &session_id)?;
+        if let Some(account_id) = &credential.account_id
+            && !account_id.is_empty()
+        {
+            crate::utils::http_headers::replace_header(
+                &mut builder,
+                "chatgpt-account-id",
+                account_id.as_str(),
+            )?;
         }
 
         builder

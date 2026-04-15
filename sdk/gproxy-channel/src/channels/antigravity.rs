@@ -640,12 +640,26 @@ impl Channel for AntigravityChannel {
             .header("Content-Type", "application/json")
             .header("User-Agent", &ua)
             .header("Accept-Encoding", "gzip")
-            .header("requestId", request_id)
+            .header("requestId", &request_id)
             .header("requestType", request_type);
 
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
         }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Content-Type",
+            "application/json",
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "User-Agent", &ua)?;
+        crate::utils::http_headers::replace_header(&mut builder, "Accept-Encoding", "gzip")?;
+        crate::utils::http_headers::replace_header(&mut builder, "requestId", request_id)?;
+        crate::utils::http_headers::replace_header(&mut builder, "requestType", request_type)?;
 
         builder
             .body(final_body)

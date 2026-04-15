@@ -10,6 +10,7 @@ pub mod claudecode_cookie;
 pub mod code_assist_envelope;
 #[cfg(any(feature = "antigravity", feature = "geminicli"))]
 pub mod google_quota;
+pub mod http_headers;
 pub mod oauth;
 pub mod oauth2_refresh;
 pub mod rewrite;

@@ -28,6 +28,7 @@ pub struct ClaudeCodeChannel;
 const DEFAULT_CLAUDECODE_VERSION: &str = "2.1.89";
 const DEFAULT_CLAUDECODE_ENTRYPOINT: &str = "cli";
 const DEFAULT_CLAUDECODE_USER_TYPE: &str = "external";
+const BILLING_HEADER_PREFIX: &str = "x-anthropic-billing-header:";
 const BILLING_HASH_SALT: &str = "59cf53e54c78";
 const BILLING_CCH_HEX_LEN: usize = 5;
 const BILLING_VERSION_HASH_LEN: usize = 3;
@@ -693,6 +694,10 @@ fn inject_system_attribution(body: &mut Value, attribution: &str) {
         }
         Some(val) if val.is_string() => {
             let original_text = val.as_str().unwrap().to_string();
+            if original_text.starts_with(BILLING_HEADER_PREFIX) {
+                obj.insert("system".to_string(), Value::Array(vec![attribution_block]));
+                return;
+            }
             let original_block = serde_json::json!({
                 "type": "text",
                 "text": original_text,
@@ -704,7 +709,18 @@ fn inject_system_attribution(body: &mut Value, attribution: &str) {
         }
         Some(val) if val.is_array() => {
             let arr = obj.get_mut("system").unwrap().as_array_mut().unwrap();
-            arr.insert(0, attribution_block);
+            let first_is_billing = arr.first().is_some_and(|block| {
+                block
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .or_else(|| block.as_str())
+                    .is_some_and(|text| text.starts_with(BILLING_HEADER_PREFIX))
+            });
+            if first_is_billing {
+                arr[0] = attribution_block;
+            } else {
+                arr.insert(0, attribution_block);
+            }
         }
         _ => {
             // system is some other type – overwrite with array
@@ -930,6 +946,35 @@ impl Channel for ClaudeCodeChannel {
         // beta for file ops) and Content-Type for file uploads.
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
+        }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "anthropic-version",
+            "2023-06-01",
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "x-app", "cli")?;
+        crate::utils::http_headers::replace_header(&mut builder, "User-Agent", &user_agent)?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-client-request-id",
+            &client_request_id,
+        )?;
+        if !is_file_op {
+            crate::utils::http_headers::replace_header(
+                &mut builder,
+                "X-Claude-Code-Session-Id",
+                &session_id,
+            )?;
+            crate::utils::http_headers::replace_header(
+                &mut builder,
+                "Content-Type",
+                "application/json",
+            )?;
         }
 
         builder

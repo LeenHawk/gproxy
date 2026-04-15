@@ -248,6 +248,14 @@ impl Channel for VertexExpressChannel {
             }
             builder = builder.header(key, value);
         }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Content-Type",
+            "application/json",
+        )?;
+        if let Some(ua) = settings.user_agent() {
+            crate::utils::http_headers::replace_header(&mut builder, "User-Agent", ua)?;
+        }
 
         builder
             .body(request.body.clone())

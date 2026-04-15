@@ -139,6 +139,42 @@ impl Channel for CustomChannel {
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
         }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Content-Type",
+            "application/json",
+        )?;
+        match request.route.protocol {
+            ProtocolKind::Claude => {
+                crate::utils::http_headers::replace_header(
+                    &mut builder,
+                    "x-api-key",
+                    &credential.api_key,
+                )?;
+                crate::utils::http_headers::replace_header(
+                    &mut builder,
+                    "anthropic-version",
+                    "2023-06-01",
+                )?;
+            }
+            ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+                crate::utils::http_headers::replace_header(
+                    &mut builder,
+                    "x-goog-api-key",
+                    &credential.api_key,
+                )?;
+            }
+            _ => {
+                crate::utils::http_headers::replace_header(
+                    &mut builder,
+                    "Authorization",
+                    format!("Bearer {}", credential.api_key),
+                )?;
+            }
+        }
+        if let Some(ua) = settings.user_agent() {
+            crate::utils::http_headers::replace_header(&mut builder, "User-Agent", ua)?;
+        }
 
         builder
             .body(request.body.clone())

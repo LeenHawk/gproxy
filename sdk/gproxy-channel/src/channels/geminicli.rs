@@ -642,11 +642,29 @@ impl Channel for GeminiCliChannel {
             .header("Content-Type", "application/json")
             .header("Accept-Encoding", "gzip")
             .header("User-Agent", &user_agent)
-            .header("x-goog-api-client", x_goog_api_client);
+            .header("x-goog-api-client", &x_goog_api_client);
 
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
         }
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "Accept", "application/json")?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "Content-Type",
+            "application/json",
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "Accept-Encoding", "gzip")?;
+        crate::utils::http_headers::replace_header(&mut builder, "User-Agent", &user_agent)?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-goog-api-client",
+            x_goog_api_client,
+        )?;
 
         builder
             .body(final_body)
