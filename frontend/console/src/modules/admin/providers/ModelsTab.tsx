@@ -4,13 +4,8 @@ import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Button, Card, Input, Label, Select } from "../../../components/ui";
 import type { MemoryModelRow } from "../../../lib/types/admin";
 import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
-import {
-  SUFFIX_GROUPS_BY_PROTOCOL,
-  SUFFIX_PROTOCOL_LABELS,
-  suffixProtocolForChannel,
-  type SuffixActionSetBody,
-  type SuffixProtocol,
-} from "./suffix-presets";
+import { SuffixVariantDialog } from "./SuffixVariantDialog";
+import type { SuffixActionSetBody } from "./suffix-presets";
 
 export type ModelFormState = {
   id: string;
@@ -154,48 +149,9 @@ export function ModelsTab({
   const [pulledModels, setPulledModels] = useState<string[] | null>(null);
   const [pullSelected, setPullSelected] = useState<Set<string>>(new Set());
 
-  // Suffix variant dialog state
-  const [suffixDialogOpen, setSuffixDialogOpen] = useState(false);
-  const [suffixProtocol, setSuffixProtocol] = useState<SuffixProtocol>(() =>
-    suffixProtocolForChannel(providerChannel),
-  );
-  /// Map of group key → selected suffix entry index (as string, "" = none).
-  const [suffixSelections, setSuffixSelections] = useState<Record<string, string>>({});
-
-  const openSuffixDialog = () => {
-    setSuffixProtocol(suffixProtocolForChannel(providerChannel));
-    setSuffixSelections({});
-    setSuffixDialogOpen(true);
-  };
-
-  const closeSuffixDialog = () => {
-    setSuffixDialogOpen(false);
-    setSuffixSelections({});
-  };
-
-  const suffixGroups = SUFFIX_GROUPS_BY_PROTOCOL[suffixProtocol];
-
-  const { combinedSuffix, combinedActions } = useMemo(() => {
-    let suffix = "";
-    const actions: SuffixActionSetBody[] = [];
-    for (const group of suffixGroups) {
-      const picked = suffixSelections[group.key];
-      if (!picked || picked === "") continue;
-      const entry = group.entries[Number(picked)];
-      if (!entry) continue;
-      suffix += entry.suffix;
-      actions.push(...entry.actions);
-    }
-    return { combinedSuffix: suffix, combinedActions: actions };
-  }, [suffixGroups, suffixSelections]);
-
-  const confirmSuffixVariant = () => {
-    if (!selected || selected.alias_of != null) return;
-    if (!combinedSuffix) return;
-    if (!onAddSuffixVariant) return;
-    onAddSuffixVariant(selected, combinedSuffix, combinedActions);
-    closeSuffixDialog();
-  };
+  // Suffix variant dialog: `null` means closed, otherwise holds the real model
+  // being aliased. All picker state lives inside the dialog component itself.
+  const [suffixDialogBase, setSuffixDialogBase] = useState<MemoryModelRow | null>(null);
 
   const doPull = async () => {
     if (!onPull) return;
@@ -420,7 +376,7 @@ export function ModelsTab({
             <div className="flex gap-2">
               <Button onClick={onSave}>{labels.save}</Button>
               {selected && selected.alias_of == null && onAddSuffixVariant ? (
-                <Button variant="neutral" onClick={openSuffixDialog}>
+                <Button variant="neutral" onClick={() => setSuffixDialogBase(selected)}>
                   + {labels.addSuffixVariant}
                 </Button>
               ) : null}
@@ -434,82 +390,25 @@ export function ModelsTab({
         )}
       </Card>
 
-      {/* Suffix variant dialog */}
-      {suffixDialogOpen && selected ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={closeSuffixDialog}
-        >
-          <div
-            className="card-shell w-full max-w-lg max-h-[85vh] overflow-y-auto p-6 space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold">{labels.suffixDialogTitle}</h3>
-            <p className="text-xs text-muted">
-              {labels.suffixDialogHint.replace("{model}", selected.model_id)}
-            </p>
-
-            <div>
-              <Label>{labels.suffixProtocol}</Label>
-              <Select
-                value={suffixProtocol}
-                onChange={(v) => {
-                  setSuffixProtocol(v as SuffixProtocol);
-                  setSuffixSelections({});
-                }}
-                options={(
-                  Object.keys(SUFFIX_PROTOCOL_LABELS) as SuffixProtocol[]
-                ).map((p) => ({ value: p, label: SUFFIX_PROTOCOL_LABELS[p] }))}
-              />
-            </div>
-
-            {suffixGroups.map((group) => (
-              <div key={group.key}>
-                <Label>{group.label}</Label>
-                <Select
-                  value={suffixSelections[group.key] ?? ""}
-                  onChange={(v) =>
-                    setSuffixSelections((prev) => ({ ...prev, [group.key]: v }))
-                  }
-                  options={[
-                    { value: "", label: labels.suffixNone },
-                    ...group.entries.map((e, i) => ({
-                      value: String(i),
-                      label: `${e.suffix} — ${e.label}`,
-                    })),
-                  ]}
-                />
-              </div>
-            ))}
-
-            <div className="rounded border border-border bg-panel-muted p-3 text-xs">
-              <div className="text-muted mb-1">{labels.suffixPreview}</div>
-              <div className="font-mono">
-                {combinedSuffix
-                  ? `${selected.model_id}${combinedSuffix}`
-                  : selected.model_id}
-              </div>
-              {combinedActions.length > 0 ? (
-                <div className="mt-2 space-y-1">
-                  {combinedActions.map((a, i) => (
-                    <div key={i} className="text-muted">
-                      <span className="text-text">{a.path}</span> = {JSON.stringify(a.value)}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="neutral" onClick={closeSuffixDialog}>
-                {labels.cancel}
-              </Button>
-              <Button onClick={confirmSuffixVariant} disabled={!combinedSuffix}>
-                {labels.suffixConfirm}
-              </Button>
-            </div>
-          </div>
-        </div>
+      {suffixDialogBase && onAddSuffixVariant ? (
+        <SuffixVariantDialog
+          base={suffixDialogBase}
+          providerChannel={providerChannel}
+          labels={{
+            suffixDialogTitle: labels.suffixDialogTitle,
+            suffixDialogHint: labels.suffixDialogHint,
+            suffixProtocol: labels.suffixProtocol,
+            suffixNone: labels.suffixNone,
+            suffixPreview: labels.suffixPreview,
+            suffixConfirm: labels.suffixConfirm,
+            cancel: labels.cancel,
+          }}
+          onConfirm={(base, suffix, actions) => {
+            onAddSuffixVariant(base, suffix, actions);
+            setSuffixDialogBase(null);
+          }}
+          onClose={() => setSuffixDialogBase(null)}
+        />
       ) : null}
     </div>
   );
