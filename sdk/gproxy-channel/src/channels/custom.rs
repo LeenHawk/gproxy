@@ -110,18 +110,32 @@ impl Channel for CustomChannel {
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         let path = custom_request_path(request)?;
-        let url = match settings.auth_scheme.as_str() {
-            "query-key" => {
-                let sep = if path.contains('?') { "&" } else { "?" };
-                format!(
-                    "{}{}{}key={}",
-                    settings.base_url(),
-                    path,
-                    sep,
-                    credential.api_key
-                )
-            }
-            _ => format!("{}{}", settings.base_url(), path),
+
+        // Protocol-aware auth selection. When the dispatch route targets
+        // Claude or Gemini, use the protocol's conventional auth headers
+        // regardless of `settings.auth_scheme` — Anthropic only accepts
+        // `x-api-key` + `anthropic-version`, and Google only accepts
+        // `x-goog-api-key`, so `bearer` / `query-key` would always fail.
+        // `settings.auth_scheme` still applies to the OpenAI family, which
+        // is where custom channels typically need to pick between bearer,
+        // x-api-key, or the Google-style query string.
+        let proto = request.route.protocol;
+        let is_claude = matches!(proto, ProtocolKind::Claude);
+        let is_gemini = matches!(proto, ProtocolKind::Gemini | ProtocolKind::GeminiNDJson);
+        let use_query_key =
+            !is_claude && !is_gemini && settings.auth_scheme.as_str() == "query-key";
+
+        let url = if use_query_key {
+            let sep = if path.contains('?') { "&" } else { "?" };
+            format!(
+                "{}{}{}key={}",
+                settings.base_url(),
+                path,
+                sep,
+                credential.api_key
+            )
+        } else {
+            format!("{}{}", settings.base_url(), path)
         };
 
         let mut builder = http::Request::builder()
@@ -129,16 +143,25 @@ impl Channel for CustomChannel {
             .uri(&url)
             .header("Content-Type", "application/json");
 
-        match settings.auth_scheme.as_str() {
-            "x-api-key" => {
-                builder = builder.header("x-api-key", &credential.api_key);
-            }
-            "query-key" => {
-                // Already in URL
-            }
-            _ => {
-                // Default: Bearer
-                builder = builder.header("Authorization", format!("Bearer {}", credential.api_key));
+        if is_claude {
+            builder = builder
+                .header("x-api-key", &credential.api_key)
+                .header("anthropic-version", "2023-06-01");
+        } else if is_gemini {
+            builder = builder.header("x-goog-api-key", &credential.api_key);
+        } else {
+            match settings.auth_scheme.as_str() {
+                "x-api-key" => {
+                    builder = builder.header("x-api-key", &credential.api_key);
+                }
+                "query-key" => {
+                    // Already in URL
+                }
+                _ => {
+                    // Default: Bearer
+                    builder = builder
+                        .header("Authorization", format!("Bearer {}", credential.api_key));
+                }
             }
         }
 
