@@ -527,7 +527,8 @@ fn track_exchange(tracked: &mut Vec<UpstreamRequestMeta>, info: ExchangeInfo<'_>
             .collect(),
         response_body: Some(info.response_body.to_vec()),
         model: None,
-        latency_ms: info.start.elapsed().as_millis() as u64,
+        initial_latency_ms: info.start.elapsed().as_millis() as u64,
+        total_latency_ms: info.start.elapsed().as_millis() as u64,
         credential_index: None,
     });
 }

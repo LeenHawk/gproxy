@@ -29,6 +29,10 @@ trait RetryableResult: Sized {
     /// The caller's final success type.
     type Output;
 
+    /// TTFB of this attempt. Used by the retry layer to log the initial
+    /// latency before `into_retry_action` consumes the raw response.
+    fn peek_initial_latency_ms(&self) -> u64;
+
     /// Inspect the raw response and decide whether it's an immediate success
     /// (streaming 2xx) or needs classification.
     fn into_retry_action(self) -> RetryAction<Self::Output>;
@@ -40,6 +44,10 @@ trait RetryableResult: Sized {
 
 impl RetryableResult for UpstreamResponse {
     type Output = UpstreamResponse;
+
+    fn peek_initial_latency_ms(&self) -> u64 {
+        self.initial_latency_ms
+    }
 
     fn into_retry_action(self) -> RetryAction<Self::Output> {
         RetryAction::Classifiable(self)
@@ -53,6 +61,13 @@ impl RetryableResult for UpstreamResponse {
 impl RetryableResult for RetryableUpstreamResponse {
     type Output = UpstreamStreamingResponse;
 
+    fn peek_initial_latency_ms(&self) -> u64 {
+        match self {
+            RetryableUpstreamResponse::Streaming(s) => s.initial_latency_ms,
+            RetryableUpstreamResponse::Buffered(b) => b.initial_latency_ms,
+        }
+    }
+
     fn into_retry_action(self) -> RetryAction<Self::Output> {
         match self {
             RetryableUpstreamResponse::Streaming(s) => RetryAction::ImmediateSuccess {
@@ -64,12 +79,23 @@ impl RetryableResult for RetryableUpstreamResponse {
     }
 
     fn wrap_buffered(response: UpstreamResponse) -> Self::Output {
+        // The buffered response has an authoritative `total_latency_ms`
+        // measured at the transport layer. We re-wrap it as a single-chunk
+        // stream to match the streaming API's return type, and back-date
+        // `stream_start` so the downstream consumer's
+        // `stream_start.elapsed()` reproduces that total (plus a negligible
+        // wrap-and-consume overhead).
+        let stream_start = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_millis(response.total_latency_ms))
+            .unwrap_or_else(std::time::Instant::now);
         UpstreamStreamingResponse {
             status: response.status,
             headers: response.headers,
             body: Box::pin(futures_util::stream::once(async move {
                 Ok(bytes::Bytes::from(response.body))
             })),
+            initial_latency_ms: response.initial_latency_ms,
+            stream_start,
         }
     }
 }
@@ -334,7 +360,6 @@ where
                 model = model.unwrap_or(""),
                 "sending upstream request"
             );
-            let send_start = std::time::Instant::now();
             let raw_response = match send(active_client, http_request).await {
                 Ok(resp) => resp,
                 Err(e) => {
@@ -352,7 +377,7 @@ where
                 }
             };
 
-            let latency_ms = send_start.elapsed().as_millis() as u64;
+            let initial_latency_ms = raw_response.peek_initial_latency_ms();
 
             // Determine if this is an immediate success (streaming 2xx) or needs classification
             let response = match raw_response.into_retry_action() {
@@ -360,8 +385,8 @@ where
                     tracing::info!(
                         credential = idx,
                         status,
-                        latency_ms,
-                        "upstream response received"
+                        initial_latency_ms,
+                        "upstream response received (streaming, total pending)"
                     );
                     let (_, health) = &mut credentials[idx];
                     health.record_success(model);
@@ -379,7 +404,8 @@ where
             tracing::info!(
                 credential = idx,
                 status = response.status,
-                latency_ms,
+                initial_latency_ms = response.initial_latency_ms,
+                total_latency_ms = response.total_latency_ms,
                 "upstream response received"
             );
             let classification =

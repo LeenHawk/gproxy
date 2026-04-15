@@ -19,6 +19,12 @@ pub struct UpstreamRequestMeta {
     /// built with `enable_upstream_log_body = true`; otherwise `None`.
     pub response_body: Option<Vec<u8>>,
     pub model: Option<String>,
-    pub latency_ms: u64,
+    /// TTFB for the final attempt that produced this meta: time from
+    /// sending the upstream HTTP request to receiving its response headers.
+    pub initial_latency_ms: u64,
+    /// Total latency for the final attempt: time from sending the upstream
+    /// HTTP request to the body being fully read (buffered) or the stream
+    /// being fully drained (streaming). Always `>= initial_latency_ms`.
+    pub total_latency_ms: u64,
     pub credential_index: Option<usize>,
 }

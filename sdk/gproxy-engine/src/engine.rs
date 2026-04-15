@@ -89,6 +89,12 @@ pub struct ExecuteResult {
     /// Populated only for stream executions with
     /// `enable_upstream_log && enable_upstream_log_body`. `None` otherwise.
     pub stream_raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
+    /// For streaming executions: the `Instant` at which
+    /// `gproxy_channel::http_client::send_request_stream` armed its timer
+    /// for this attempt. The handler uses it to compute `total_latency_ms`
+    /// after the stream drain loop finishes. `None` for non-streaming
+    /// executions (meta already carries both timings).
+    pub stream_started_at: Option<std::time::Instant>,
 }
 
 /// Engine execution error bundled with optional upstream-request log
@@ -146,7 +152,6 @@ fn build_execute_error(
     error: UpstreamError,
     failed_attempt: Option<gproxy_channel::response::FailedUpstreamAttempt>,
     model: Option<String>,
-    start: std::time::Instant,
     enable_upstream_log: bool,
     enable_upstream_log_body: bool,
 ) -> ExecuteError {
@@ -169,7 +174,11 @@ fn build_execute_error(
                 None
             },
             model,
-            latency_ms: start.elapsed().as_millis() as u64,
+            // Failed attempts do not carry precise per-attempt timings
+            // through FailedUpstreamAttempt. Zero marks "unknown" — the
+            // happy path has authoritative values from the transport layer.
+            initial_latency_ms: 0,
+            total_latency_ms: 0,
             credential_index,
         })
     } else {
@@ -197,7 +206,6 @@ fn build_transform_error(
     error: UpstreamError,
     original_body: Vec<u8>,
     method: String,
-    start: std::time::Instant,
     enable_upstream_log: bool,
     enable_upstream_log_body: bool,
 ) -> ExecuteError {
@@ -218,7 +226,9 @@ fn build_transform_error(
             response_headers: Vec::new(),
             response_body: None,
             model: None,
-            latency_ms: start.elapsed().as_millis() as u64,
+            // Dispatch-miss synthetic error — no upstream I/O happened.
+            initial_latency_ms: 0,
+            total_latency_ms: 0,
             credential_index: None,
         })
     } else {
@@ -1060,8 +1070,6 @@ impl GproxyEngine {
             )))
         })?;
 
-        let start = std::time::Instant::now();
-
         // Dispatch table lookup
         let src_key = gproxy_channel::dispatch::RouteKey::new(request.operation, request.protocol);
         let route = provider
@@ -1098,6 +1106,7 @@ impl GproxyEngine {
                     credential_updates: Vec::new(),
                     credential_index: 0,
                     stream_raw_capture: None,
+                    stream_started_at: None,
                 });
             }
             gproxy_channel::dispatch::RouteImplementation::Unsupported => {
@@ -1141,7 +1150,6 @@ impl GproxyEngine {
                         e.into(),
                         original_body,
                         operation_http_method(dst_op).to_string(),
-                        start,
                         self.enable_upstream_log,
                         self.enable_upstream_log_body,
                     ));
@@ -1195,7 +1203,6 @@ impl GproxyEngine {
                     error,
                     provider_outcome.failed_attempt,
                     prepared.model.clone(),
-                    start,
                     self.enable_upstream_log,
                     self.enable_upstream_log_body,
                 ));
@@ -1298,8 +1305,6 @@ impl GproxyEngine {
             }
         }
 
-        let latency_ms = start.elapsed().as_millis() as u64;
-
         let meta = if self.enable_upstream_log {
             let request_body_for_log = if self.enable_upstream_log_body {
                 attempt_meta.request_body
@@ -1319,7 +1324,8 @@ impl GproxyEngine {
                     .collect(),
                 response_body: raw_response_body_for_log,
                 model: request.model,
-                latency_ms,
+                initial_latency_ms: response.initial_latency_ms,
+                total_latency_ms: response.total_latency_ms,
                 credential_index: Some(used_credential_index),
             })
         } else {
@@ -1335,6 +1341,7 @@ impl GproxyEngine {
             credential_updates,
             credential_index: used_credential_index,
             stream_raw_capture: None,
+            stream_started_at: None,
         })
     }
 
@@ -1349,8 +1356,6 @@ impl GproxyEngine {
                 request.provider
             )))
         })?;
-
-        let start = std::time::Instant::now();
 
         let src_key = gproxy_channel::dispatch::RouteKey::new(request.operation, request.protocol);
         let route = provider
@@ -1387,6 +1392,7 @@ impl GproxyEngine {
                     credential_updates: Vec::new(),
                     credential_index: 0,
                     stream_raw_capture: None,
+                    stream_started_at: None,
                 });
             }
             gproxy_channel::dispatch::RouteImplementation::Unsupported => {
@@ -1417,7 +1423,6 @@ impl GproxyEngine {
                         e.into(),
                         original_body,
                         operation_http_method(dst_op).to_string(),
-                        start,
                         self.enable_upstream_log,
                         self.enable_upstream_log_body,
                     ));
@@ -1471,7 +1476,6 @@ impl GproxyEngine {
                     error,
                     provider_outcome.failed_attempt,
                     prepared.model.clone(),
-                    start,
                     self.enable_upstream_log,
                     self.enable_upstream_log_body,
                 ));
@@ -1504,7 +1508,6 @@ impl GproxyEngine {
                             e,
                             None,
                             request.model.clone(),
-                            start,
                             self.enable_upstream_log,
                             self.enable_upstream_log_body,
                         ));
@@ -1532,6 +1535,8 @@ impl GproxyEngine {
                     None
                 };
 
+            let stream_started_at = response.stream_start;
+
             let meta = if self.enable_upstream_log {
                 let request_body_for_log = if self.enable_upstream_log_body {
                     attempt_meta.request_body
@@ -1555,7 +1560,11 @@ impl GproxyEngine {
                     // non-stream paths consistent.
                     response_body: None,
                     model: request.model.clone(),
-                    latency_ms: start.elapsed().as_millis() as u64,
+                    initial_latency_ms: response.initial_latency_ms,
+                    // Filled by the handler's deferred-log block from
+                    // `stream_started_at.elapsed()` after the single-chunk
+                    // stream finishes draining.
+                    total_latency_ms: 0,
                     credential_index: Some(used_credential_index),
                 })
             } else {
@@ -1576,8 +1585,11 @@ impl GproxyEngine {
                 credential_updates,
                 credential_index: used_credential_index,
                 stream_raw_capture: raw_capture,
+                stream_started_at: Some(stream_started_at),
             });
         }
+
+        let stream_started_at = response.stream_start;
 
         let meta = if self.enable_upstream_log {
             let request_body_for_log = if self.enable_upstream_log_body {
@@ -1601,7 +1613,10 @@ impl GproxyEngine {
                 // forwarded to the client and not retained.
                 response_body: None,
                 model: request.model.clone(),
-                latency_ms: start.elapsed().as_millis() as u64,
+                initial_latency_ms: response.initial_latency_ms,
+                // Filled by the handler's deferred-log block from
+                // `stream_started_at.elapsed()` after the stream drains.
+                total_latency_ms: 0,
                 credential_index: Some(used_credential_index),
             })
         } else {
@@ -1673,6 +1688,7 @@ impl GproxyEngine {
             credential_updates,
             credential_index: used_credential_index,
             stream_raw_capture: raw_capture,
+            stream_started_at: Some(stream_started_at),
         })
     }
 }
@@ -1772,7 +1788,8 @@ fn snapshot_request_meta(
         response_headers: Vec::new(),
         response_body: None,
         model: None,
-        latency_ms: 0,
+        initial_latency_ms: 0,
+        total_latency_ms: 0,
         credential_index,
     }
 }
@@ -1780,7 +1797,7 @@ fn snapshot_request_meta(
 fn fill_response_meta(
     meta: &mut UpstreamRequestMeta,
     response: &gproxy_channel::response::UpstreamResponse,
-    start: std::time::Instant,
+    _start: std::time::Instant,
 ) {
     meta.response_status = Some(response.status);
     meta.response_headers = response
@@ -1789,7 +1806,8 @@ fn fill_response_meta(
         .map(|(k, v)| (k.as_str().to_string(), v.to_str().unwrap_or("").to_string()))
         .collect();
     meta.response_body = Some(response.body.clone());
-    meta.latency_ms = start.elapsed().as_millis() as u64;
+    meta.initial_latency_ms = response.initial_latency_ms;
+    meta.total_latency_ms = response.total_latency_ms;
 }
 
 fn parse_emulation(name: &str) -> wreq_util::Emulation {
