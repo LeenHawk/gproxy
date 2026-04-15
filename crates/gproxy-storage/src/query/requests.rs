@@ -35,6 +35,8 @@ pub struct UpstreamRequestQueryRow {
     pub response_status: Option<i32>,
     pub response_headers_json: Value,
     pub response_body: Option<Vec<u8>>,
+    pub initial_latency_ms: Option<i64>,
+    pub total_latency_ms: Option<i64>,
     pub created_at: OffsetDateTime,
 }
 

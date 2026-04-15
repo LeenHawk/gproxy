@@ -762,6 +762,11 @@ async fn run_ws_bridge_with_protocol(
                     response_status: Some(101),
                     response_headers_json: "[]".to_string(),
                     response_body: resp_body,
+                    // WebSocket upgrades have no request/response latency
+                    // semantics in gproxy — the connection is long-lived
+                    // and bidirectional. Zero marks "not measured".
+                    initial_latency_ms: Some(0),
+                    total_latency_ms: Some(0),
                 },
             ))
             .await;
@@ -1026,6 +1031,8 @@ async fn record_ws_upstream_log(
                 response_status: Some(meta.response_status as i32),
                 response_headers_json: "[]".to_string(),
                 response_body: None,
+                initial_latency_ms: Some(0),
+                total_latency_ms: Some(0),
             },
         ))
         .await;

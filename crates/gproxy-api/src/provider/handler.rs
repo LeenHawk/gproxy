@@ -383,6 +383,7 @@ pub async fn proxy(
                 provider_name: effective_provider.clone(),
                 meta: result.meta.clone(),
                 raw_capture: result.stream_raw_capture.clone(),
+                stream_started_at: result.stream_started_at,
             };
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
@@ -658,6 +659,7 @@ pub async fn proxy_unscoped(
                 provider_name: target_provider.clone(),
                 meta: result.meta.clone(),
                 raw_capture: result.stream_raw_capture.clone(),
+                stream_started_at: result.stream_started_at,
             };
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
@@ -2291,6 +2293,11 @@ struct StreamUpstreamLogContext {
     /// `None` when upstream body logging is disabled, or when the route
     /// doesn't pass bytes through a raw-capture tee.
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
+    /// Instant at which `gproxy_channel::http_client::send_request_stream`
+    /// armed its timer for this attempt. The deferred-log block computes
+    /// `meta.total_latency_ms = stream_started_at.elapsed()` after the
+    /// stream drain loop finishes.
+    stream_started_at: Option<std::time::Instant>,
 }
 
 /// Shared context for usage recording, avoids passing 8+ args.
@@ -2453,6 +2460,18 @@ fn stream_with_usage_tracking(
                 }
             }
             drop(config);
+
+            if let Some(started_at) = ul.stream_started_at {
+                meta.total_latency_ms = started_at.elapsed().as_millis() as u64;
+                tracing::info!(
+                    trace_id = ul.trace_id,
+                    provider = %ul.provider_name,
+                    initial_latency_ms = meta.initial_latency_ms,
+                    total_latency_ms = meta.total_latency_ms,
+                    "upstream stream finished"
+                );
+            }
+
             record_upstream_log(&ctx.state, ul.trace_id, &ul.provider_name, Some(&meta))
                 .await;
         }
@@ -3208,6 +3227,8 @@ async fn record_upstream_log(
                 } else {
                     None
                 },
+                initial_latency_ms: Some(meta.initial_latency_ms as i64),
+                total_latency_ms: Some(meta.total_latency_ms as i64),
             },
         ))
         .await;
@@ -3245,6 +3266,8 @@ async fn record_execute_error_logs(
             upstream_resp_status,
             upstream_resp_headers_json,
             upstream_resp_body,
+            upstream_initial_latency_ms,
+            upstream_total_latency_ms,
         ) = match upstream_meta {
             Some(meta) => (
                 meta.method.clone(),
@@ -3264,6 +3287,8 @@ async fn record_execute_error_logs(
                 } else {
                     None
                 },
+                meta.initial_latency_ms as i64,
+                meta.total_latency_ms as i64,
             ),
             None => (
                 method.to_string(),
@@ -3273,6 +3298,8 @@ async fn record_execute_error_logs(
                 Some(response_status),
                 "[]".to_string(),
                 None,
+                0,
+                0,
             ),
         };
 
@@ -3292,6 +3319,8 @@ async fn record_execute_error_logs(
                     response_status: upstream_resp_status,
                     response_headers_json: upstream_resp_headers_json,
                     response_body: upstream_resp_body,
+                    initial_latency_ms: Some(upstream_initial_latency_ms),
+                    total_latency_ms: Some(upstream_total_latency_ms),
                 },
             ))
             .await;

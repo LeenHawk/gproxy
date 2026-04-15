@@ -101,6 +101,8 @@ impl SeaOrmStorage {
                 response_status: r.response_status,
                 response_headers_json: r.response_headers_json,
                 response_body: if include_body { r.response_body } else { None },
+                initial_latency_ms: r.initial_latency_ms,
+                total_latency_ms: r.total_latency_ms,
                 created_at: r.created_at,
             })
             .collect())
@@ -204,6 +206,8 @@ mod tests {
             response_status: Set(Some(200)),
             response_headers_json: Set(json!({})),
             response_body: Set(None),
+            initial_latency_ms: Set(None),
+            total_latency_ms: Set(None),
             created_at: Set(OffsetDateTime::UNIX_EPOCH + Duration::seconds(1)),
         })
         .exec(storage.connection())

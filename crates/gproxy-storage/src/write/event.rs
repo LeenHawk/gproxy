@@ -109,6 +109,12 @@ pub struct UpstreamRequestWrite {
     pub response_status: Option<i32>,
     pub response_headers_json: String,
     pub response_body: Option<Vec<u8>>,
+    /// Upstream TTFB in ms for the final attempt. `None` only for rows
+    /// written before this feature existed.
+    pub initial_latency_ms: Option<i64>,
+    /// Upstream total latency in ms for the final attempt. `None` only for
+    /// rows written before this feature existed.
+    pub total_latency_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

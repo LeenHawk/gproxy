@@ -19,6 +19,8 @@ pub struct Model {
     pub response_status: Option<i32>,
     pub response_headers_json: Json,
     pub response_body: Option<Vec<u8>>,
+    pub initial_latency_ms: Option<i64>,
+    pub total_latency_ms: Option<i64>,
     pub created_at: OffsetDateTime,
     #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "SetNull")]
     pub provider: HasOne<super::providers::Entity>,

@@ -662,6 +662,8 @@ impl SeaOrmStorage {
                         response_status: Set(r.response_status),
                         response_headers_json: Set(resp_headers),
                         response_body: Set(r.response_body.clone()),
+                        initial_latency_ms: Set(r.initial_latency_ms),
+                        total_latency_ms: Set(r.total_latency_ms),
                         created_at: Set(OffsetDateTime::now_utc()),
                         ..Default::default()
                     }

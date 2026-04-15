@@ -318,6 +318,8 @@ pub(crate) async fn record_internal_upstream_log(
                 } else {
                     None
                 },
+                initial_latency_ms: Some(meta.initial_latency_ms as i64),
+                total_latency_ms: Some(meta.total_latency_ms as i64),
             },
         ))
         .await;
