@@ -32,8 +32,9 @@ const BILLING_HASH_SALT: &str = "59cf53e54c78";
 const BILLING_CCH_HEX_LEN: usize = 5;
 const BILLING_VERSION_HASH_LEN: usize = 3;
 const BILLING_VERSION_CHAR_OFFSETS: [usize; 3] = [4, 7, 20];
-const CLAUDECODE_SESSION_NAMESPACE: uuid::Uuid =
-    uuid::uuid!("f348ca5a-091f-5e75-aec7-c6d7c1b8c3d6");
+/// Session IDs rotate after this many milliseconds, approximating the median
+/// lifetime of a real `claude` CLI process (~20 minutes of active use).
+const SESSION_ID_TTL_MS: u64 = 20 * 60 * 1000;
 const CLAUDECODE_CLAUDE_AI_BASE_URL: &str = "https://claude.ai";
 const CLAUDECODE_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 const CLAUDECODE_OAUTH_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
@@ -44,6 +45,13 @@ const CLAUDECODE_API_VERSION: &str = "2023-06-01";
 const CLAUDECODE_OAUTH_STATE_TTL_MS: u64 = 600_000;
 const CLAUDECODE_TOKEN_UA: &str = "claude-cli/2.1.89 (external, cli)";
 const CLAUDECODE_PROFILE_UA: &str = "claude-code/2.1.89";
+
+/// Per-credential session ID cache.  Key = device_id, value = (session_id, created_at_ms).
+/// Follows the same static-DashMap pattern used by `claudecode_oauth_states()`.
+fn claudecode_session_cache() -> &'static DashMap<String, (String, u64)> {
+    static CACHE: OnceLock<DashMap<String, (String, u64)>> = OnceLock::new();
+    CACHE.get_or_init(DashMap::new)
+}
 
 fn claudecode_model_pricing() -> &'static [crate::billing::ModelPrice] {
     static PRICING: OnceLock<Vec<crate::billing::ModelPrice>> = OnceLock::new();
@@ -370,26 +378,46 @@ fn build_attribution(user_message: &str) -> String {
     )
 }
 
-fn request_session_id(request: &PreparedRequest, body: &Value) -> String {
+fn request_session_id(
+    request: &PreparedRequest,
+    _body: &Value,
+    credential: &ClaudeCodeCredential,
+) -> String {
+    // 1. Explicit session-id from upstream client takes priority.
+    //    NOTE: `x-client-request-id` is intentionally NOT a fallback —
+    //    it is per-request whereas session-id is process-lifetime in
+    //    real Claude Code.
     if let Some(session_id) = request
         .headers
         .get("x-claude-code-session-id")
         .or_else(|| request.headers.get("session_id"))
-        .or_else(|| request.headers.get("x-client-request-id"))
         .and_then(|value| value.to_str().ok())
         .filter(|value| !value.is_empty())
     {
         return session_id.to_owned();
     }
 
-    let route_label = format!("{}/{}", request.route.operation, request.route.protocol);
-    let session_seed = format!(
-        "{}\n{}\n{}",
-        system_fingerprint_text(body),
-        first_message_fingerprint_text(body),
-        route_label
-    );
-    Uuid::new_v5(&CLAUDECODE_SESSION_NAMESPACE, session_seed.as_bytes()).to_string()
+    // 2. Credential-keyed v4 with TTL rotation.
+    //    Real Claude Code generates one random v4 UUID at process start
+    //    and reuses it for the process lifetime.  We approximate this
+    //    with a 20-minute TTL keyed on `device_id`.
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let cache = claudecode_session_cache();
+    let key = &credential.device_id;
+
+    if let Some(entry) = cache.get(key) {
+        let (ref sid, created) = *entry;
+        if now_ms.saturating_sub(created) < SESSION_ID_TTL_MS {
+            return sid.clone();
+        }
+    }
+
+    let new_sid = Uuid::new_v4().to_string();
+    cache.insert(key.clone(), (new_sid.clone(), now_ms));
+    new_sid
 }
 
 fn truncated_sha256_hex(input: &str, hex_len: usize) -> String {
@@ -412,19 +440,6 @@ fn sampled_message_chars(user_message: &str) -> String {
         .collect()
 }
 
-fn system_fingerprint_text(body: &Value) -> String {
-    match body.get("system") {
-        Some(Value::String(text)) => text.clone(),
-        Some(Value::Array(blocks)) => blocks
-            .iter()
-            .filter_map(text_from_content_block)
-            .collect::<Vec<_>>()
-            .join(""),
-        Some(value) => serde_json::to_string(value).unwrap_or_default(),
-        None => String::new(),
-    }
-}
-
 fn text_from_content_block(block: &Value) -> Option<String> {
     if let Some(text) = block.as_str() {
         return Some(text.to_owned());
@@ -439,18 +454,6 @@ fn text_from_content_block(block: &Value) -> Option<String> {
         .get("text")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
-}
-
-fn first_message_fingerprint_text(body: &Value) -> String {
-    let Some(message) = body
-        .get("messages")
-        .and_then(Value::as_array)
-        .and_then(|messages| messages.first())
-    else {
-        return String::new();
-    };
-
-    serde_json::to_string(message).unwrap_or_default()
 }
 
 fn first_user_message_text(body: &Value) -> String {
@@ -872,7 +875,7 @@ impl Channel for ClaudeCodeChannel {
         } else {
             let mut body_json: Value = serde_json::from_slice(&request.body)
                 .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
-            let sid = request_session_id(request, &body_json);
+            let sid = request_session_id(request, &body_json, credential);
             let user_id_value = build_metadata_user_id(credential, &sid);
             inject_metadata_user_id(&mut body_json, &user_id_value);
             let b = serde_json::to_vec(&body_json)
@@ -892,7 +895,10 @@ impl Channel for ClaudeCodeChannel {
         };
 
         // -- 3. Fresh client request ID per request ---------------------
-        let client_request_id = Uuid::now_v7().to_string();
+        //    Real Claude Code uses crypto.randomUUID() (v4).  Using v7
+        //    here would expose a distinguishable version-nibble (`7xxx`
+        //    vs `4xxx`) in server-side logs.
+        let client_request_id = Uuid::new_v4().to_string();
 
         // -- 4. Assemble the HTTP request -------------------------------
         let url = format!(
