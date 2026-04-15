@@ -1073,22 +1073,6 @@ async fn collect_unscoped_authorized_models(
     Ok(providers)
 }
 
-fn build_live_model_list_request_body(protocol: ProtocolKind) -> Vec<u8> {
-    match protocol {
-        ProtocolKind::Claude => serde_json::to_vec(&serde_json::json!({
-            "query": { "limit": 1000 }
-        }))
-        .unwrap_or_default(),
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            serde_json::to_vec(&serde_json::json!({
-                "query": { "pageSize": 1000 }
-            }))
-            .unwrap_or_default()
-        }
-        _ => Vec::new(),
-    }
-}
-
 async fn execute_live_model_list(
     state: &AppState,
     provider_name: &str,
@@ -1101,7 +1085,18 @@ async fn execute_live_model_list(
             provider: provider_name.to_string(),
             operation: OperationFamily::ModelList,
             protocol,
-            body: build_live_model_list_request_body(protocol),
+            // Body is `{}` (not empty) because xform routes — e.g. a custom
+            // channel using an anthropic-like / gemini-like dispatch template,
+            // or claudecode/geminicli/antigravity's built-in xforms — will
+            // call `serde_json::from_slice::<RequestBody>(body)` in the
+            // transformer. The OpenAi / Claude / Gemini ModelList
+            // `RequestBody` are all empty structs, so `{}` parses cleanly
+            // but an empty buffer fails with EOF at line 1 column 0. For
+            // Passthrough routes the body is forwarded verbatim as the GET
+            // payload; `{}` is harmless (every upstream ignores GET bodies)
+            // and specifically does not leak the legacy `{"query":{...}}`
+            // shape that some strict proxies were echoing back downstream.
+            body: b"{}".to_vec(),
             headers: headers.clone(),
             model: None,
             forced_credential_index: None,
