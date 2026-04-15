@@ -346,6 +346,7 @@ export const enMessages: Record<string, string> = {
   "table.url": "URL",
   "table.path": "Path",
   "table.method": "Method",
+  "table.latency": "Latency",
   "table.payload": "Payload",
   "table.channel": "Channel",
   "table.model": "Model",

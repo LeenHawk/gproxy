@@ -323,6 +323,8 @@ export type UpstreamRequestQueryRow = {
   response_status?: number | null;
   response_headers_json: Record<string, unknown>;
   response_body?: number[] | null;
+  initial_latency_ms?: number | null;
+  total_latency_ms?: number | null;
   created_at: string;
 };
 

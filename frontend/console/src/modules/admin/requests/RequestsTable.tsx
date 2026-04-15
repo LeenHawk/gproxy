@@ -13,6 +13,21 @@ import type {
   TranslateFn,
 } from "./types";
 
+/// Formats a (TTFB, Total) latency pair for the upstream Requests table.
+/// Returns empty string when both are missing (legacy rows). Uses `ms`
+/// for sub-second values and `s` (one decimal) above. Missing halves
+/// render as `–`.
+function formatLatencyPair(
+  ttfb: number | null | undefined,
+  total: number | null | undefined,
+): string {
+  if (ttfb == null && total == null) return "";
+  const fmt = (ms: number) => (ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`);
+  const ttfbStr = ttfb == null ? "–" : fmt(ttfb);
+  const totalStr = total == null ? "–" : fmt(total);
+  return `${ttfbStr} / ${totalStr}`;
+}
+
 /// Renders the request rows for one kind (upstream or downstream) with a
 /// select column, cursor-aware pagination, and an expandable payload cell
 /// per row. All state lives in the caller (`useRequestsModuleState`); this
@@ -70,6 +85,7 @@ export function RequestsTable({
   const methodColumn = t("table.method");
   const payloadColumn = t("table.payload");
   const selectColumn = t("requests.clear.selectRow");
+  const latencyColumn = t("table.latency");
 
   const tableColumns =
     kind === "upstream"
@@ -81,6 +97,7 @@ export function RequestsTable({
           requestPathColumn,
           credentialIdColumn,
           methodColumn,
+          latencyColumn,
           payloadColumn,
         ]
       : [
@@ -135,6 +152,10 @@ export function RequestsTable({
               [requestPathColumn]: upstreamRow.request_url ?? "",
               [credentialIdColumn]: upstreamRow.credential_id ?? "",
               [methodColumn]: row.request_method,
+              [latencyColumn]: formatLatencyPair(
+                upstreamRow.initial_latency_ms,
+                upstreamRow.total_latency_ms,
+              ),
               [payloadColumn]: payloadCell,
             };
           }

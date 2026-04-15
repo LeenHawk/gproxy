@@ -346,6 +346,7 @@ export const zhMessages: Record<string, string> = {
   "table.url": "URL",
   "table.path": "Path",
   "table.method": "方法",
+  "table.latency": "耗时",
   "table.payload": "Payload",
   "table.channel": "渠道",
   "table.model": "模型",
