@@ -142,6 +142,15 @@ fn extract_claude_event_usage(chunk: &[u8]) -> Option<Usage> {
         return None;
     }
     let usage = v.get("usage")?;
+    // `cache_creation` may be directly in `usage` or nested inside `usage.iterations[0]`
+    let cache_creation = usage
+        .get("cache_creation")
+        .or_else(|| {
+            usage
+                .get("iterations")
+                .and_then(|it| it.get(0))
+                .and_then(|first| first.get("cache_creation"))
+        });
     Some(Usage {
         input_tokens: usage.get("input_tokens").and_then(|v| v.as_i64()),
         output_tokens: usage.get("output_tokens").and_then(|v| v.as_i64()),
@@ -151,12 +160,10 @@ fn extract_claude_event_usage(chunk: &[u8]) -> Option<Usage> {
         cache_creation_input_tokens: usage
             .get("cache_creation_input_tokens")
             .and_then(|v| v.as_i64()),
-        cache_creation_input_tokens_5min: usage
-            .get("cache_creation")
+        cache_creation_input_tokens_5min: cache_creation
             .and_then(|c| c.get("ephemeral_5m_input_tokens"))
             .and_then(|v| v.as_i64()),
-        cache_creation_input_tokens_1h: usage
-            .get("cache_creation")
+        cache_creation_input_tokens_1h: cache_creation
             .and_then(|c| c.get("ephemeral_1h_input_tokens"))
             .and_then(|v| v.as_i64()),
     })
