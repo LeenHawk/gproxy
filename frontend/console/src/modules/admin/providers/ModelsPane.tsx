@@ -360,6 +360,7 @@ export function ModelsPane({
         displayName: t("common.displayName"),
         enabled: t("common.enabled"),
         pricingJsonHint: t("models.pricingJson.hint"),
+        applyDefaultPricing: t("models.applyDefaultPricing"),
         aliasOf: t("models.aliasOf"),
         aliasOfNone: t("models.aliasOf.none"),
         aliasBadge: t("models.aliasBadge"),

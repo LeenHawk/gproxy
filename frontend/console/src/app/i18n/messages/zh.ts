@@ -419,6 +419,7 @@ export const zhMessages: Record<string, string> = {
   "models.pricingJson": "价格",
   "models.pricingJson.hint":
     "覆盖 default/flex/scale/priority 四种计费模式。留空则使用 provider 的内置价格。",
+  "models.applyDefaultPricing": "应用默认价格",
   "models.pricing.priceEachCall": "单次调用价格 (USD)",
   "models.pricing.priceTiers": "阶梯价格（每百万 tokens）",
   "models.pricing.flexPriceEachCall": "Flex：单次调用价格",

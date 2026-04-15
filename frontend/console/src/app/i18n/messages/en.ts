@@ -419,6 +419,7 @@ export const enMessages: Record<string, string> = {
   "models.pricingJson": "Pricing",
   "models.pricingJson.hint":
     "Covers default/flex/scale/priority billing modes. Leave empty to use the provider's built-in pricing.",
+  "models.applyDefaultPricing": "Apply Default Pricing",
   "models.pricing.priceEachCall": "Price each call (USD)",
   "models.pricing.priceTiers": "Price tiers (per 1M tokens)",
   "models.pricing.flexPriceEachCall": "Flex: price each call",

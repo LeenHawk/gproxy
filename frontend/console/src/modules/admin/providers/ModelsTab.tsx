@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Button, Card, Input, Label, Select } from "../../../components/ui";
+import { lookupDefaultPricing } from "../../../lib/default-model-pricing";
 import type { MemoryModelRow } from "../../../lib/types/admin";
 import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
 import { usePullModelsPanel } from "./PullModelsPanel";
@@ -43,6 +44,7 @@ type ModelsTabLabels = {
   displayName: string;
   enabled: string;
   pricingJsonHint: string;
+  applyDefaultPricing: string;
   aliasOf: string;
   aliasOfNone: string;
   aliasBadge: string;
@@ -294,6 +296,18 @@ export function ModelsTab({
                 labels={labels.pricingEditor}
               />
               <p className="mt-1 text-xs text-muted">{labels.pricingJsonHint}</p>
+              {!isAliasForm ? (
+                <Button
+                  variant="neutral"
+                  onClick={() => {
+                    const result = lookupDefaultPricing(form.model_id);
+                    if (result) onChangeForm({ pricing_json: result });
+                  }}
+                  disabled={!lookupDefaultPricing(form.model_id)}
+                >
+                  {labels.applyDefaultPricing}
+                </Button>
+              ) : null}
             </div>
             <div className="flex gap-2">
               <Button onClick={onSave}>{labels.save}</Button>
