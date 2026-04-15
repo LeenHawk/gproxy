@@ -91,8 +91,11 @@ function numOrNull(s: string): number | null {
 }
 
 function tierToJson(t: TierForm): Record<string, unknown> | null {
-  const upTo = numOrNull(t.input_tokens_up_to);
+  let upTo = numOrNull(t.input_tokens_up_to);
   if (upTo === null) return null; // tier without an upper bound is invalid
+  // i64::MAX (9223372036854775807) round-trips through JS as 9223372036854776000
+  // which exceeds i64 range. Clamp to MAX_SAFE_INTEGER — still effectively unlimited.
+  if (upTo > Number.MAX_SAFE_INTEGER) upTo = Number.MAX_SAFE_INTEGER;
   const out: Record<string, unknown> = { input_tokens_up_to: upTo };
   const fields: Array<[keyof TierForm, string]> = [
     ["price_input_tokens", "price_input_tokens"],

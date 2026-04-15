@@ -52,6 +52,7 @@ pub struct ModelPriceTier {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelPrice {
+    #[serde(default)]
     pub model_id: String,
     #[serde(default)]
     pub display_name: Option<String>,
