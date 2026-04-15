@@ -4,6 +4,7 @@ import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Button, Card, Input, Label, Select } from "../../../components/ui";
 import type { MemoryModelRow } from "../../../lib/types/admin";
 import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
+import { usePullModelsPanel } from "./PullModelsPanel";
 import { SuffixVariantDialog } from "./SuffixVariantDialog";
 import type { SuffixActionSetBody } from "./suffix-presets";
 
@@ -144,33 +145,25 @@ export function ModelsTab({
 
   const isAliasForm = form.alias_of !== "";
 
-  // Pull state
-  const [pullLoading, setPullLoading] = useState(false);
-  const [pulledModels, setPulledModels] = useState<string[] | null>(null);
-  const [pullSelected, setPullSelected] = useState<Set<string>>(new Set());
+  const pullModels = usePullModelsPanel({
+    rows,
+    onPull,
+    onImport,
+    labels: {
+      pull: labels.pull,
+      pullLoading: labels.pullLoading,
+      pullEmpty: labels.pullEmpty,
+      pullFound: labels.pullFound,
+      pullImport: labels.pullImport,
+      pullSelectAll: labels.pullSelectAll,
+      pullDeselectAll: labels.pullDeselectAll,
+      cancel: labels.cancel,
+    },
+  });
 
   // Suffix variant dialog: `null` means closed, otherwise holds the real model
   // being aliased. All picker state lives inside the dialog component itself.
   const [suffixDialogBase, setSuffixDialogBase] = useState<MemoryModelRow | null>(null);
-
-  const doPull = async () => {
-    if (!onPull) return;
-    setPullLoading(true);
-    try {
-      const models = await onPull();
-      const existing = new Set(rows.map((row) => row.model_id));
-      const newModels = models.filter((m) => !existing.has(m));
-      setPulledModels(newModels);
-      setPullSelected(new Set(newModels));
-    } finally {
-      setPullLoading(false);
-    }
-  };
-
-  const closePull = () => {
-    setPulledModels(null);
-    setPullSelected(new Set());
-  };
 
   const filterButtons: Array<{ value: ModelsTabFilter; label: string }> = [
     { value: "all", label: labels.filterAll },
@@ -180,16 +173,7 @@ export function ModelsTab({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <Card
-        title={labels.title}
-        action={
-          onPull ? (
-            <Button variant="neutral" onClick={() => void doPull()} disabled={pullLoading}>
-              {pullLoading ? labels.pullLoading : labels.pull}
-            </Button>
-          ) : undefined
-        }
-      >
+      <Card title={labels.title} action={pullModels.trigger}>
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-wrap gap-1">
@@ -269,70 +253,8 @@ export function ModelsTab({
           </Button>
         }
       >
-        {pulledModels !== null ? (
-          <div className="space-y-3">
-            {pulledModels.length === 0 ? (
-              <p className="text-sm text-muted">{labels.pullEmpty}</p>
-            ) : (
-              <>
-                <p className="text-sm">
-                  {labels.pullFound.replace("{count}", String(pulledModels.length))}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="neutral"
-                    onClick={() =>
-                      setPullSelected((prev) =>
-                        prev.size === pulledModels.length ? new Set() : new Set(pulledModels),
-                      )
-                    }
-                  >
-                    {pullSelected.size === pulledModels.length
-                      ? labels.pullDeselectAll
-                      : labels.pullSelectAll}
-                  </Button>
-                </div>
-                <div className="max-h-60 overflow-y-auto space-y-1 border border-border rounded p-2">
-                  {pulledModels.map((model) => (
-                    <label
-                      key={model}
-                      className="flex items-center gap-2 cursor-pointer text-sm py-0.5"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={pullSelected.has(model)}
-                        onChange={() =>
-                          setPullSelected((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(model)) next.delete(model);
-                            else next.add(model);
-                            return next;
-                          })
-                        }
-                      />
-                      {model}
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-            <div className="flex gap-2 justify-end">
-              <Button variant="neutral" onClick={closePull}>
-                {labels.cancel}
-              </Button>
-              {pulledModels.length > 0 ? (
-                <Button
-                  onClick={() => {
-                    if (onImport) onImport([...pullSelected]);
-                    closePull();
-                  }}
-                  disabled={pullSelected.size === 0}
-                >
-                  {labels.pullImport.replace("{count}", String(pullSelected.size))}
-                </Button>
-              ) : null}
-            </div>
-          </div>
+        {pullModels.isActive ? (
+          pullModels.panel
         ) : (
           <div className="space-y-4">
             <div>
