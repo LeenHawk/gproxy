@@ -1,5 +1,73 @@
 # Release Notes
 
+## v1.0.11
+
+> End-to-end upstream latency tracking (TTFB + total) from transport layer to DB to console, a new dashboard module with credential health / KPI / traffic charts, protocol-aware auth for custom channel dispatch routes, and a LogGuard that finally flushes request logs on panic and stream cancel.
+
+### English
+
+#### Added
+
+- **Upstream latency tracking end-to-end.** The transport layer now captures TTFB (`initial_latency_ms`) and total request duration (`total_latency_ms`) on every upstream response. The engine propagates both through `UpstreamRequestMeta`, the handler persists them as two new nullable `BIGINT` columns on the `upstream_requests` table (applied by `schema.sync()` on startup; legacy rows keep `NULL`), and the console's requests table renders them as a single "Latency" column showing `120ms / 3.4s` format — ms under 1s, seconds with one decimal above, `–` for missing halves. The old ambiguous single `latency_ms` field in the engine meta is replaced by the two explicit fields; the dead `send_start` timer in `retry.rs` is removed since each attempt's timings now come from the response directly.
+- **Dashboard module.** New `/console#dashboard` view with a `CredentialHealthPanel` (per-credential status breakdown), `KpiCards` (key performance indicators), `TrafficChart` and `StatusCodesChart` (time-series visualizations), `TopProvidersTable` and `TopModelsTable` (ranked usage). State is managed via a `useDashboardState` hook that fetches from the admin API. Includes unit tests for dashboard state helpers.
+- **Console hash-based module routing.** Root redirect now points at `/console` instead of `/console/login`. Valid `#<moduleId>` hashes (e.g. `/console#users`, `/console#requests`) open that module directly on load; Nav clicks push the matching hash so browser back/forward step through visited modules. Unknown or role-forbidden hashes are stripped from the URL so the address bar always matches what's rendered. Logout clears the hash.
+- **Cloudflare header stripping.** The sanitize middleware now strips Cloudflare-injected headers before forwarding to upstream, preventing leaked infrastructure headers on proxied requests.
+
+#### Fixed
+
+- **Request log flushed on panic and stream cancel.** The DB write is now wrapped in a `LogGuard` whose `Drop` impl spawns the record task. Three previously-silent cases now produce log entries: a panic in the middleware body, an SSE stream cancelled by client disconnect, and an SSE stream that errors mid-flight. Partial state is written with `status = None` when the response line was never observed.
+- **Custom channel protocol-aware auth headers.** The custom channel's `prepare_request` previously used `settings.auth_scheme` (default: bearer) for every route, which silently broke any dispatch that xformed into Claude or Gemini — e.g. a custom provider pointing at `api.anthropic.com` with the anthropic-like dispatch template would get a Bearer header, Anthropic returns 401, the engine marks the credential dead, and `/admin/models/pull` reports "all credentials exhausted" even with a valid `sk-ant-...` key. Now: Claude routes send `x-api-key` + `anthropic-version: 2023-06-01`, Gemini/GeminiNDJson routes send `x-goog-api-key`, OpenAI-family routes keep Bearer. The `auth_scheme` config field is dropped entirely (see Changed).
+- **`pull_models` xform body.** The admin pull_models refactor passed `body=Vec::new()` on the assumption that ModelList only flows through Passthrough or Local routes. That breaks user-defined dispatch overrides (e.g. a custom channel using the anthropic-like template, which routes through xform). The transformer calls `serde_json::from_slice::<RequestBody>(body)` and an empty buffer fails with "EOF while parsing". Sending `{}` fixes xform routes; Passthrough routes still get a valid payload that every upstream ignores.
+- **`model_list` body shim dropped.** `build_live_model_list_request_body` built `{"query":{"limit":1000}}` as the request body for live model listing, under the misconception that this would propagate pagination params. It did not — Claude/Gemini `QueryParameters` are URL query params, not JSON body fields; the transformer for xform routes silently dropped the `query` key; and stricter upstream proxies echoed the opaque blob downstream, confusing operators. Replaced with `b"{}".to_vec()`.
+- **`cache_creation` extracted from `iterations` in `message_delta`.** The Claude API nests the `cache_creation` object (with `ephemeral_5m/1h_input_tokens`) inside `usage.iterations[0]` in `message_delta` events, not directly under `usage`. Now falls back to `iterations[0].cache_creation` when `usage.cache_creation` is absent.
+- **ClaudeCodeChannel session ID management.** Improved session ID lifecycle and caching to prevent stale session references.
+- **Codex cached token usage preserved.** Token usage from cached responses is no longer silently dropped.
+- **Console i18n.** `table.latency` translated as 延迟 (latency) instead of 耗时 (duration).
+
+#### Changed
+
+- **Custom channel drops `auth_scheme` field.** The field was added in d7691681 as a configurable switch for bearer / x-api-key / query-key, but the frontend form never exposed it and no user could set it without hand-editing `settings_json`. After protocol-aware auth headers (see Fixed), `auth_scheme` had no reachable effect. `prepare_request` now picks headers purely from `request.route.protocol`. Backward compat: `CustomSettings` has no `deny_unknown_fields`, so existing rows containing `"auth_scheme": "..."` deserialize unchanged (the field is silently dropped).
+- **Admin `pull_models` unified to OpenAI protocol.** Drops the per-channel protocol mapping. Every channel already registers `(ModelList, OpenAi)` in its dispatch table — as passthrough, xform, or local — so a single OpenAi `execute` call lets the dispatch layer handle protocol conversion. Removes `channel_to_model_list_protocol`, `build_live_model_list_request_body`, and the Claude/Gemini branches of `extract_model_ids`. Net −66 lines.
+- **Console module restructuring.** `ProvidersModule.tsx` (932 → 303 lines) split into `CredentialsPane`, `ModelsPane`, and `OAuthPane` container components, each owning their own state and handlers. `SettingsEditors.tsx` split into `settings-editors/` with one file per editor. Extracted `SuffixVariantDialog`, `usePullModelsPanel` hook, and `RewriteRuleEditor` into standalone files. Dropped unused `RewriteRulesEditor` definitions. Pure restructure; no behaviour change.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.10. No HTTP API change, no config change. SDK consumers are unaffected — no public types or module paths moved.
+- **DB migration**: two nullable `BIGINT` columns (`initial_latency_ms`, `total_latency_ms`) added to `upstream_requests` via `schema.sync()` on startup. Additive only; legacy rows keep `NULL`. No manual migration step required.
+- **Custom channel `auth_scheme`**: silently ignored if present in existing `settings_json` rows — no breakage, no manual cleanup needed.
+
+### 简体中文
+
+#### 新增
+
+- **上游延迟端到端追踪.** transport 层捕获每个上游响应的 TTFB (`initial_latency_ms`) 和总耗时 (`total_latency_ms`)。engine 通过 `UpstreamRequestMeta` 透传,handler 持久化为 `upstream_requests` 表的两个新 nullable `BIGINT` 列(启动时 `schema.sync()` 自动加字段;旧行保持 `NULL`)。控制台请求表渲染为一列 "延迟",格式 `120ms / 3.4s` —— 1s 以下用 ms,1s 以上用一位小数的 s,缺值显示 `–`。engine meta 里原来含义模糊的单 `latency_ms` 字段替换为这两个明确字段;`retry.rs` 里已废弃的 `send_start` timer 删除,因为每次尝试的耗时现在直接从响应获取。
+- **Dashboard 模块.** 新增 `/console#dashboard` 视图,包含 `CredentialHealthPanel`(每 credential 状态分布)、`KpiCards`(关键性能指标)、`TrafficChart` / `StatusCodesChart`(时序可视化)、`TopProvidersTable` / `TopModelsTable`(按用量排名)。状态通过 `useDashboardState` hook 管理,从 admin API 拉取数据。附带 dashboard state helper 单测。
+- **控制台 hash 路由.** 根跳转目标从 `/console/login` 改为 `/console`。有效的 `#<moduleId>` hash(如 `/console#users`、`/console#requests`)在加载时直接打开对应模块;Nav 点击推入对应 hash,浏览器前进/后退可在已访问模块间切换。无效或角色不可访问的 hash 会从 URL 中剥离,保证地址栏与渲染始终一致。登出清空 hash。
+- **Cloudflare header 剥离.** sanitize 中间件在转发上游前剥离 Cloudflare 注入的 header,防止基础设施 header 泄漏到代理请求中。
+
+#### 修复
+
+- **panic 和流取消时刷写请求日志.** DB 写入包裹在 `LogGuard` 里,`Drop` impl 负责 spawn 写入任务。三种之前静默丢失的场景现在都产生日志:中间件 body 里 panic、客户端断开导致 SSE 流取消、SSE 流在传输中出错。未观察到响应行时,以 `status = None` 写入部分状态。
+- **Custom channel 协议感知 auth header.** custom channel 的 `prepare_request` 之前对所有 route 统一用 `settings.auth_scheme`(默认 bearer),这会静默破坏任何 xform 到 Claude 或 Gemini 的 dispatch —— 比如一个 base_url 指向 `api.anthropic.com` 并使用 anthropic-like dispatch 模板的 custom provider,Bearer header 导致 Anthropic 返回 401,engine 把 credential 标死,`/admin/models/pull` 报 "all credentials exhausted"。修复后:Claude route 发 `x-api-key` + `anthropic-version: 2023-06-01`,Gemini/GeminiNDJson route 发 `x-goog-api-key`,OpenAI 族 route 保持 Bearer。`auth_scheme` 配置字段整体删除(见变更)。
+- **`pull_models` xform body.** admin pull_models 重构传了 `body=Vec::new()`,假设 ModelList 只走 Passthrough 或 Local route。用户自定义 dispatch 覆盖(如 anthropic-like 模板走 xform)会因为空 buffer 在 `serde_json::from_slice::<RequestBody>` 处 EOF 解析失败。改发 `{}`。
+- **`model_list` body shim 移除.** `build_live_model_list_request_body` 构造 `{"query":{"limit":1000}}` 作为实时模型列表请求 body,以为能传递分页参数。实际没用 —— Claude/Gemini 的 `QueryParameters` 是 URL 查询参数不是 JSON body 字段;xform route 的 transformer 悄悄丢掉 `query` key;更严格的上游代理(如 gptload → newapi)会原样回传这坨不明 blob,搞晕运维。替换为 `b"{}".to_vec()`。
+- **`message_delta` 中的 `cache_creation` 提取.** Claude API 把 `cache_creation` 对象(含 `ephemeral_5m/1h_input_tokens`)嵌套在 `message_delta` 事件的 `usage.iterations[0]` 里,而非直接放在 `usage` 下。现在 `usage.cache_creation` 缺失时回退到 `iterations[0].cache_creation`。
+- **ClaudeCodeChannel session ID 管理.** 改善了 session ID 的生命周期和缓存,防止过期 session 引用。
+- **Codex cached token usage 保留.** 缓存响应中的 token 用量不再被静默丢弃。
+- **控制台 i18n.** `table.latency` 翻译为"延迟"而非"耗时"。
+
+#### 变更
+
+- **Custom channel 移除 `auth_scheme` 字段.** 该字段在 d7691681 加入,可配置 bearer / x-api-key / query-key,但前端表单从未暴露,用户只有手改 `settings_json` 才能设置。协议感知 auth header 修复后 `auth_scheme` 不再有可达效果。`prepare_request` 现在纯粹从 `request.route.protocol` 决定 header。向后兼容:`CustomSettings` 没有 `deny_unknown_fields`,已有的 `"auth_scheme": "..."` 行反序列化不变(字段被静默忽略)。
+- **Admin `pull_models` 统一为 OpenAI 协议.** 移除 channel→protocol 映射。每个 channel 的 dispatch 表已经注册了 `(ModelList, OpenAi)` —— passthrough、xform 或 local —— 所以一次 OpenAi `execute` 调用让 dispatch 层处理协议转换。移除 `channel_to_model_list_protocol`、`build_live_model_list_request_body` 和 `extract_model_ids` 的 Claude/Gemini 分支。净减 66 行。
+- **控制台模块重构.** `ProvidersModule.tsx`(932 → 303 行)拆分为 `CredentialsPane`、`ModelsPane`、`OAuthPane` 容器组件,各自管理自己的状态和 handler。`SettingsEditors.tsx` 拆到 `settings-editors/` 目录,每个编辑器一个文件。提取 `SuffixVariantDialog`、`usePullModelsPanel` hook、`RewriteRuleEditor` 为独立文件。删除已无人使用的 `RewriteRulesEditor` 定义。纯结构重组,无行为变更。
+
+#### 兼容性
+
+- **从 v1.0.10 直接升级**。不涉及 HTTP API 变更或配置变更。SDK 使用者不受影响 —— 没有任何公开类型或模块路径移动。
+- **DB 迁移**:`upstream_requests` 表新增两个 nullable `BIGINT` 列(`initial_latency_ms`、`total_latency_ms`),启动时 `schema.sync()` 自动执行。纯增量;旧行保持 `NULL`。无需手动迁移。
+- **Custom channel `auth_scheme`**:已有 `settings_json` 行中的该字段被静默忽略 —— 不会中断,无需手动清理。
+
 ## v1.0.10
 
 > Two focused fixes from the v1.0.9 fallout: claudecode OAuth refresh was broken against Anthropic's token endpoint and left credentials permanently dead, and the sanitize middleware was leaking `anthropic-version` through so every upstream request carried a duplicated header.
