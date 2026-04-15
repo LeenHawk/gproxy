@@ -319,6 +319,14 @@ pub async fn pull_models(
     // serves a baked catalogue). So the response is always OpenAI-shaped, and
     // we don't need to infer the protocol from the channel name.
     //
+    // Body is `{}` (not empty) because user-defined dispatch overrides — e.g.
+    // a custom channel with the frontend's anthropic-like / gemini-like
+    // template — route (ModelList, OpenAi) through `transform_request`, which
+    // calls `serde_json::from_slice::<RequestBody>(body)`. The OpenAi/Claude/
+    // Gemini ModelList `RequestBody` are all empty structs, so they parse from
+    // `{}` but fail with EOF on an empty buffer. For Passthrough channels the
+    // body is sent as the GET payload and ignored by every upstream.
+    //
     // Headers are empty on purpose — the admin request's Authorization /
     // Content-Length / Host would leak to the upstream and break it. The
     // channel's finalize_request adds the provider's own auth headers.
@@ -328,7 +336,7 @@ pub async fn pull_models(
             provider: provider_name.clone(),
             operation: OperationFamily::ModelList,
             protocol: ProtocolKind::OpenAi,
-            body: Vec::new(),
+            body: b"{}".to_vec(),
             headers: HeaderMap::new(),
             model: None,
             forced_credential_index: None,
