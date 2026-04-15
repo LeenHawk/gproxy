@@ -128,8 +128,7 @@ impl Channel for CustomChannel {
                 builder = builder.header("x-goog-api-key", &credential.api_key);
             }
             _ => {
-                builder = builder
-                    .header("Authorization", format!("Bearer {}", credential.api_key));
+                builder = builder.header("Authorization", format!("Bearer {}", credential.api_key));
             }
         }
 
