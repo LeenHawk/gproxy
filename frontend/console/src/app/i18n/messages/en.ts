@@ -153,7 +153,7 @@ export const enMessages: Record<string, string> = {
   "providers.form.name": "Name",
   "providers.form.label": "Display Label",
   "providers.form.labelPlaceholder": "Friendly name shown in lists (optional)",
-  "providers.form.channel": "Channel",
+  "providers.form.channel": "Channel Type",
   "providers.form.routingJson": "Routing JSON",
   "providers.form.routingRules": "Routing Rules",
   "providers.form.routingHint": "Each source route must be unique. Saving applies the rules to the live provider immediately.",

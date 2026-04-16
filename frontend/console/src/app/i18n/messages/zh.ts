@@ -153,7 +153,7 @@ export const zhMessages: Record<string, string> = {
   "providers.form.name": "名称",
   "providers.form.label": "显示名称",
   "providers.form.labelPlaceholder": "列表里展示的友好名称(可选)",
-  "providers.form.channel": "渠道",
+  "providers.form.channel": "渠道类型",
   "providers.form.routingJson": "Routing JSON",
   "providers.form.routingRules": "路由表",
   "providers.form.routingHint": "每个源路由只能配置一次，保存后会立刻应用到当前运行中的渠道。",
