@@ -1,5 +1,49 @@
 # Release Notes
 
+## v1.0.15
+
+> Fixes a regression in the unscoped proxy path where the `providerX/` prefix was stripped from the response's `model` field — clients that routed via `POST /v1/...` with `"model": "providerX/claude-opus-4-7"` saw `"model": "claude-opus-4-7"` come back. Also rewrites the Quick-Start guide to cover three startup forms (env var / `--config` flag / default discovery) and point at the suffix-preset alias recipe for forced-thinking variants.
+
+### English
+
+#### Added
+
+- **Quick-Start guide covers three startup forms.** Replaces the single env-var launch line with an equivalent `--config` flag form and a default-discovery form, plus a common-flag reference table. A new closing section points readers at the Models & Aliases guide for creating forced-thinking / effort variants via suffix-preset aliases. Applies to both the English and 简体中文 docs.
+
+#### Fixed
+
+- **Unscoped proxy preserves the `provider/` prefix in the response model field.** In `proxy_unscoped`, the `provider/model` resolution branch left `alias_model_override = None`, so `ExecuteRequest.response_model_override` was never set and the engine left the upstream's raw model name in the response body. Clients that sent `"model": "providerX/claude-opus-4-7"` now see the same prefixed string echoed back, matching the behavior of the alias-resolution branch on the same handler. Billing is unaffected: `build_billing_context` falls through to the real model name when the prefixed-name pricing lookup returns nothing.
+- **`claude_cache_control` clippy warnings on Rust 1.95.** Two `match` arms in `existing_cache_breakpoint_count` triggered the newly-enabled `clippy::collapsible_match` lint because they wrapped a single `if item.contains_key("cache_control")` check. Collapsed into match guards (`Some(Value::Object(item)) if item.contains_key("cache_control") => …`), keeping counting single-expression and aligned with the sibling `Value::Array(blocks) => blocks.iter().filter(...).count()` arm. No behavior change.
+
+#### Changed
+
+- **Two transform files' match statements streamlined.** Claude → OpenAI Response and OpenAI Chat → Claude response transforms use tighter match expressions (net −7 lines across 2 files). Pure readability follow-up to v1.0.14's guard-clause refactor; no behavior change.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.14. No DB migration, no HTTP API change, no config change.
+- **SDK / protocol consumers**: no protocol surface changes.
+
+### 简体中文
+
+#### 新增
+
+- **Quick-Start 文档新增三种启动方式。** 原来只展示 env-var 一种启动命令,现在并列写出 `--config` 标志式和默认发现式,并附常用标志速查表。末尾新增一节,把读者导向 Models & Aliases 指南,介绍用后缀预设别名创建 forced-thinking / effort 变体的做法。英文和简体中文文档同步更新。
+
+#### 修复
+
+- **unscoped 路由响应体保留 `provider/` 前缀。** `proxy_unscoped` 里 `provider/model` 解析分支之前把 `alias_model_override` 置为 `None`,导致 `ExecuteRequest.response_model_override` 没设,引擎也就不会把响应体里的 `model` 字段改回客户端原来发的带前缀字符串,上游的裸模型名直接透到客户端。现在该分支也把 `alias_model_override` 填成完整的 `providerX/claude-opus-4-7`,和同一 handler 上别名分支的行为对齐。计费不受影响:`build_billing_context` 按带前缀的名查不到价目,会 fallback 到真实模型名,现有价目表按真实模型名 key,一次命中。
+- **Rust 1.95 下 `claude_cache_control` 的 clippy 告警。** `existing_cache_breakpoint_count` 里两个 `match` 臂各自嵌了一层 `if item.contains_key("cache_control")`,触发新启用的 `clippy::collapsible_match`。改写成 match guard(`Some(Value::Object(item)) if item.contains_key("cache_control") => …`),计数回归单表达式,和相邻 `Value::Array(blocks) => blocks.iter().filter(...).count()` 的写法对齐,行为不变。
+
+#### 调整
+
+- **两个 transform 文件的 match 表达式再精简一轮。** Claude → OpenAI Response 和 OpenAI Chat → Claude 的响应转换用了更紧凑的 match 写法(2 文件净减 7 行)。v1.0.14 guard-clause 重构的纯可读性收尾,无行为变更。
+
+#### 兼容性
+
+- **从 v1.0.14 直接升级**。无 DB 迁移、无 HTTP API 变更、无配置变更。
+- **SDK / protocol 调用方**:无协议表面变化。
+
 ## v1.0.14
 
 > Console rewrite-rule pipeline is repaired end-to-end: the `Set` / `Remove` action tags are now emitted in the snake_case form the backend actually accepts, manually drafted rules no longer disappear on Save (stale-closure race), suffix variants auto-attach a `model`-rename rewrite so the upstream receives the real model id instead of the alias, and the Claude thinking presets now explicitly set `display: "summarized"` so the chain-of-thought stays visible in responses. Claude Opus 4.7 pricing is also shipped in the built-in `anthropic.json` table.
