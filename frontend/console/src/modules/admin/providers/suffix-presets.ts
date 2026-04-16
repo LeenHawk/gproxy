@@ -44,10 +44,10 @@ const CLAUDE_GROUPS: SuffixGroup[] = [
     label: "Thinking",
     entries: [
       { suffix: "-thinking-none", label: "thinking: disabled", actions: [{ kind: "set", path: "thinking", value: { type: "disabled" } }] },
-      { suffix: "-thinking-low", label: "thinking: low (1024 tokens)", actions: [{ kind: "set", path: "thinking", value: { type: "enabled", budget_tokens: 1024 } }] },
-      { suffix: "-thinking-medium", label: "thinking: medium (10240 tokens)", actions: [{ kind: "set", path: "thinking", value: { type: "enabled", budget_tokens: 10240 } }] },
-      { suffix: "-thinking-high", label: "thinking: high (32768 tokens)", actions: [{ kind: "set", path: "thinking", value: { type: "enabled", budget_tokens: 32768 } }] },
-      { suffix: "-thinking-adaptive", label: "thinking: adaptive", actions: [{ kind: "set", path: "thinking", value: { type: "adaptive" } }] },
+      { suffix: "-thinking-low", label: "thinking: low (1024 tokens)", actions: [{ kind: "set", path: "thinking", value: { type: "enabled", budget_tokens: 1024, display: "summarized" } }] },
+      { suffix: "-thinking-medium", label: "thinking: medium (10240 tokens)", actions: [{ kind: "set", path: "thinking", value: { type: "enabled", budget_tokens: 10240, display: "summarized" } }] },
+      { suffix: "-thinking-high", label: "thinking: high (32768 tokens)", actions: [{ kind: "set", path: "thinking", value: { type: "enabled", budget_tokens: 32768, display: "summarized" } }] },
+      { suffix: "-thinking-adaptive", label: "thinking: adaptive", actions: [{ kind: "set", path: "thinking", value: { type: "adaptive", display: "summarized" } }] },
     ],
   },
   {

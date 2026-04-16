@@ -134,15 +134,19 @@ export function ProvidersModule({
     };
   }, [headers, notify, providerForm.channel, providerForm.id, selectedProvider, setProviderForm]);
 
-  const saveProvider = async () => {
+  const saveProvider = async (rewriteRulesOverride?: string) => {
     try {
+      const settings =
+        rewriteRulesOverride !== undefined
+          ? { ...providerForm.settings, rewrite_rules: rewriteRulesOverride }
+          : providerForm.settings;
       const payload: ProviderWrite = {
         id: parseRequiredI64(providerForm.id, "id"),
         name: providerForm.name.trim(),
         channel: providerForm.channel.trim(),
         label: providerForm.label.trim() || null,
         settings_json: JSON.stringify(
-          buildChannelSettingsJson(providerForm.channel, providerForm.settings),
+          buildChannelSettingsJson(providerForm.channel, settings),
         ),
         routing_json: JSON.stringify(buildRoutingDocument(providerForm.routingRules)),
       };
@@ -283,7 +287,7 @@ export function ProvidersModule({
             <RewriteRulesTab
               form={providerForm}
               onChange={updateProviderForm}
-              onSave={() => void saveProvider()}
+              onSave={(rewriteRulesOverride) => void saveProvider(rewriteRulesOverride)}
               modelNames={providerModelRows.map((r) => r.model_id)}
               notify={notify}
             />

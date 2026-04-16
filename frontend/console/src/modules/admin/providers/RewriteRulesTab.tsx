@@ -22,7 +22,11 @@ export function RewriteRulesTab({
 }: {
   form: ProviderFormState;
   onChange: (patch: Partial<ProviderFormState>) => void;
-  onSave: () => void;
+  /// `rewriteRulesOverride`, when set, is the freshly-computed rewrite_rules
+  /// JSON. The parent uses it in place of `form.settings.rewrite_rules` to
+  /// sidestep the React stale-closure race on same-tick save after draft
+  /// commit.
+  onSave: (rewriteRulesOverride?: string) => void;
   /// Known model names (including aliases) for the current provider, used to
   /// populate the model_pattern autocomplete dropdown.
   modelNames?: string[];
@@ -100,6 +104,7 @@ export function RewriteRulesTab({
   const save = () => {
     if (isDraft && draft) {
       const next = [...rules, draft];
+      const nextJson = JSON.stringify(next);
       commit(next);
       // After this render cycle, `rules` will include the new entry and we
       // want the list to highlight it. Use a timeout so the commit propagates
@@ -107,6 +112,10 @@ export function RewriteRulesTab({
       const newIdx = next.length - 1;
       setDraft(null);
       setSelectedIdx(newIdx);
+      // Hand the fresh JSON to the parent so its saveProvider doesn't read
+      // the stale pre-commit `form.settings.rewrite_rules` from its closure.
+      onSave(nextJson);
+      return;
     }
     onSave();
   };

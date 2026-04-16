@@ -273,11 +273,21 @@ export function ModelsPane({
       } catch {
         existingRules = [];
       }
-      const newRules = actions.map((a) => ({
-        path: a.path,
-        action: { type: "set", value: a.value },
-        filter: { model_pattern: aliasName },
-      }));
+      const newRules = [
+        ...actions.map((a) => ({
+          path: a.path,
+          action: { type: "set", value: a.value },
+          filter: { model_pattern: aliasName },
+        })),
+        // Must run AFTER the suffix-parameter rules: once body.model is
+        // rewritten to the real name, filter matching that relies on the
+        // alias would no longer fire for later rules.
+        {
+          path: "model",
+          action: { type: "set", value: base.model_id },
+          filter: { model_pattern: aliasName },
+        },
+      ];
       const mergedRulesJson = JSON.stringify([...existingRules, ...newRules]);
 
       // Update provider with the merged rewrite_rules.
