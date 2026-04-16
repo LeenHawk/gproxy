@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -57,8 +57,8 @@ impl Channel for GroqChannel {
     type Credential = GroqCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
 
         // Helper: passthrough = src and dst are same
         let pass = |op: OperationFamily, proto: ProtocolKind| {
@@ -305,8 +305,8 @@ fn groq_request_path(request: &PreparedRequest) -> Result<String, UpstreamError>
     }
 }
 
-fn groq_dispatch_table() -> DispatchTable {
-    GroqChannel.dispatch_table()
+fn groq_routing_table() -> RoutingTable {
+    GroqChannel.routing_table()
 }
 
-inventory::submit! { ChannelRegistration::new(GroqChannel::ID, groq_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(GroqChannel::ID, groq_routing_table) }

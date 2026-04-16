@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -54,8 +54,8 @@ impl Channel for OpenAiChannel {
     type Credential = OpenAiCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
 
         // Helper: passthrough = src and dst are same
         let pass = |op: OperationFamily, proto: ProtocolKind| {
@@ -306,8 +306,8 @@ fn openai_request_path(request: &PreparedRequest) -> Result<String, UpstreamErro
     }
 }
 
-fn openai_dispatch_table() -> DispatchTable {
-    OpenAiChannel.dispatch_table()
+fn openai_routing_table() -> RoutingTable {
+    OpenAiChannel.routing_table()
 }
 
-inventory::submit! { ChannelRegistration::new(OpenAiChannel::ID, openai_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(OpenAiChannel::ID, openai_routing_table) }

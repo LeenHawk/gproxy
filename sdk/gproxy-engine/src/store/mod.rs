@@ -8,7 +8,7 @@ use serde_json::Value;
 use tokio::sync::broadcast;
 
 use gproxy_channel::channel::{Channel, OAuthFlow};
-use gproxy_channel::dispatch::DispatchTable;
+use gproxy_channel::routing::RoutingTable;
 use gproxy_channel::response::UpstreamError;
 
 pub mod public_traits;
@@ -46,16 +46,16 @@ impl ProviderStoreBuilder {
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
     ) -> Self {
-        self.add_provider_with_dispatch(name, channel, settings, credentials, None)
+        self.add_provider_with_routing(name, channel, settings, credentials, None)
     }
 
-    pub fn add_provider_with_dispatch<C: Channel>(
+    pub fn add_provider_with_routing<C: Channel>(
         mut self,
         name: impl Into<String>,
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
-        dispatch_override: Option<DispatchTable>,
+        routing_override: Option<RoutingTable>,
     ) -> Self {
         let name = name.into();
         let provider = Arc::new(ProviderInstance::new(
@@ -63,7 +63,7 @@ impl ProviderStoreBuilder {
             channel,
             settings,
             credentials,
-            dispatch_override,
+            routing_override,
         ));
         self.providers.insert(name, provider);
         self
@@ -99,16 +99,16 @@ impl ProviderStore {
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
     ) {
-        self.add_provider_with_dispatch(name, channel, settings, credentials, None);
+        self.add_provider_with_routing(name, channel, settings, credentials, None);
     }
 
-    pub fn add_provider_with_dispatch<C: Channel>(
+    pub fn add_provider_with_routing<C: Channel>(
         &self,
         name: impl Into<String>,
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
-        dispatch_override: Option<DispatchTable>,
+        routing_override: Option<RoutingTable>,
     ) {
         let name = name.into();
         let provider = Arc::new(ProviderInstance::new(
@@ -116,7 +116,7 @@ impl ProviderStore {
             channel,
             settings,
             credentials,
-            dispatch_override,
+            routing_override,
         ));
         self.providers.insert(name.clone(), provider);
         self.emit_event(EngineEvent::ProviderAdded { name });
@@ -133,15 +133,15 @@ impl ProviderStore {
                     name,
                     settings_json,
                     credentials,
-                    dispatch,
+                    routing,
                     ..
                 } = $cfg;
-                let dispatch = match dispatch {
+                let routing = match routing {
                     Some(document) => Some(
-                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(
+                        gproxy_channel::routing::RoutingTable::from_document(document).map_err(
                             |e| {
                                 UpstreamError::Channel(format!(
-                                    "invalid dispatch for '{}': {e}",
+                                    "invalid routing for '{}': {e}",
                                     name
                                 ))
                             },
@@ -160,7 +160,7 @@ impl ProviderStore {
                             .map(|c| (c, gproxy_channel::health::ModelCooldownHealth::default()))
                     })
                     .collect();
-                $self.add_provider_with_dispatch(&name, $ch, settings, creds, dispatch);
+                $self.add_provider_with_routing(&name, $ch, settings, creds, routing);
                 Ok(())
             }};
         }
@@ -434,11 +434,11 @@ impl ProviderStore {
         }))
     }
 
-    /// Get the dispatch table for a named provider.
-    pub fn get_dispatch_table(&self, name: &str) -> Option<DispatchTable> {
+    /// Get the routing table for a named provider.
+    pub fn get_routing_table(&self, name: &str) -> Option<RoutingTable> {
         self.providers
             .get(name)
-            .map(|entry| entry.value().dispatch_table().clone())
+            .map(|entry| entry.value().routing_table().clone())
     }
 
     pub fn estimate_billing(

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -11,7 +11,7 @@ use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// Custom channel — a universal transparent proxy for any OpenAI/Claude/Gemini
 /// compatible API endpoint. Forwards requests as-is; auth headers are picked
-/// automatically based on the dispatch route's target protocol.
+/// automatically based on the routing route's target protocol.
 pub struct CustomChannel;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -46,8 +46,8 @@ impl Channel for CustomChannel {
     type Credential = CustomCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -111,7 +111,7 @@ impl Channel for CustomChannel {
             .uri(&url)
             .header("Content-Type", "application/json");
 
-        // Auth is driven entirely by the dispatch route's target protocol.
+        // Auth is driven entirely by the routing route's target protocol.
         // Custom channels are universal transparent proxies, so the caller's
         // chosen route already encodes which upstream flavour we're talking
         // to: Anthropic rejects anything that isn't `x-api-key +
@@ -292,8 +292,8 @@ fn custom_request_path(request: &PreparedRequest) -> Result<String, UpstreamErro
     }
 }
 
-fn custom_dispatch_table() -> DispatchTable {
-    CustomChannel.dispatch_table()
+fn custom_routing_table() -> RoutingTable {
+    CustomChannel.routing_table()
 }
 
-inventory::submit! { ChannelRegistration::new(CustomChannel::ID, custom_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(CustomChannel::ID, custom_routing_table) }

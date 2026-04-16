@@ -1,23 +1,23 @@
 use std::collections::HashMap;
 
-use crate::dispatch::DispatchTable;
+use crate::routing::RoutingTable;
 
 /// Registration entry for automatic channel discovery via `inventory`.
 pub struct ChannelRegistration {
     /// Channel identifier.
     pub id: &'static str,
-    /// Factory function returning the channel's default dispatch table.
-    pub dispatch_table_fn: fn() -> DispatchTable,
+    /// Factory function returning the channel's default routing table.
+    pub routing_table_fn: fn() -> RoutingTable,
 }
 
 inventory::collect!(ChannelRegistration);
 
 impl ChannelRegistration {
     /// Create a registration for a channel type.
-    pub const fn new(id: &'static str, dispatch_table_fn: fn() -> DispatchTable) -> Self {
+    pub const fn new(id: &'static str, routing_table_fn: fn() -> RoutingTable) -> Self {
         Self {
             id,
-            dispatch_table_fn,
+            routing_table_fn,
         }
     }
 }
@@ -36,7 +36,7 @@ impl ChannelRegistry {
                 reg.id,
                 ChannelRegistration {
                     id: reg.id,
-                    dispatch_table_fn: reg.dispatch_table_fn,
+                    routing_table_fn: reg.routing_table_fn,
                 },
             );
         }
@@ -53,8 +53,8 @@ impl ChannelRegistry {
         self.channels.keys().copied()
     }
 
-    /// Get the default dispatch table for a channel.
-    pub fn dispatch_table(&self, id: &str) -> Option<DispatchTable> {
-        self.channels.get(id).map(|reg| (reg.dispatch_table_fn)())
+    /// Get the default routing table for a channel.
+    pub fn routing_table(&self, id: &str) -> Option<RoutingTable> {
+        self.channels.get(id).map(|reg| (reg.routing_table_fn)())
     }
 }

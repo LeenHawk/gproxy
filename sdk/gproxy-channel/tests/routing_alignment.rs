@@ -5,11 +5,11 @@ use gproxy_channel::channels::{
     geminicli::GeminiCliChannel, groq::GroqChannel, nvidia::NvidiaChannel,
     openrouter::OpenRouterChannel, vertex::VertexChannel, vertexexpress::VertexExpressChannel,
 };
-use gproxy_channel::dispatch::{RouteImplementation, RouteKey};
+use gproxy_channel::routing::{RouteImplementation, RouteKey};
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 fn assert_passthrough(
-    table: &gproxy_channel::DispatchTable,
+    table: &gproxy_channel::RoutingTable,
     operation: OperationFamily,
     protocol: ProtocolKind,
 ) {
@@ -20,7 +20,7 @@ fn assert_passthrough(
 }
 
 fn assert_transform_to(
-    table: &gproxy_channel::DispatchTable,
+    table: &gproxy_channel::RoutingTable,
     src_operation: OperationFamily,
     src_protocol: ProtocolKind,
     dst_operation: OperationFamily,
@@ -37,7 +37,7 @@ fn assert_transform_to(
 }
 
 fn assert_local(
-    table: &gproxy_channel::DispatchTable,
+    table: &gproxy_channel::RoutingTable,
     operation: OperationFamily,
     protocol: ProtocolKind,
 ) {
@@ -49,7 +49,7 @@ fn assert_local(
 
 #[test]
 fn anthropic_keeps_native_chat_completions() {
-    let table = AnthropicChannel.dispatch_table();
+    let table = AnthropicChannel.routing_table();
     assert_passthrough(
         &table,
         OperationFamily::GenerateContent,
@@ -66,7 +66,7 @@ fn anthropic_keeps_native_chat_completions() {
 
 #[test]
 fn claudecode_does_not_keep_native_chat_completions() {
-    let table = ClaudeCodeChannel.dispatch_table();
+    let table = ClaudeCodeChannel.routing_table();
     assert_transform_to(
         &table,
         OperationFamily::GenerateContent,
@@ -85,7 +85,7 @@ fn claudecode_does_not_keep_native_chat_completions() {
 
 #[test]
 fn deepseek_keeps_native_claude_and_rejects_responses_native() {
-    let table = DeepSeekChannel.dispatch_table();
+    let table = DeepSeekChannel.routing_table();
     assert_passthrough(
         &table,
         OperationFamily::GenerateContent,
@@ -108,8 +108,8 @@ fn deepseek_keeps_native_claude_and_rejects_responses_native() {
 #[test]
 fn aistudio_and_vertex_keep_native_chat_completions() {
     for table in [
-        AiStudioChannel.dispatch_table(),
-        VertexChannel.dispatch_table(),
+        AiStudioChannel.routing_table(),
+        VertexChannel.routing_table(),
     ] {
         assert_passthrough(
             &table,
@@ -126,7 +126,7 @@ fn aistudio_and_vertex_keep_native_chat_completions() {
 
 #[test]
 fn aistudio_websocket_maps_to_gemini_live() {
-    let table = AiStudioChannel.dispatch_table();
+    let table = AiStudioChannel.routing_table();
     assert_transform_to(
         &table,
         OperationFamily::OpenAiResponseWebSocket,
@@ -139,8 +139,8 @@ fn aistudio_websocket_maps_to_gemini_live() {
 #[test]
 fn geminicli_and_antigravity_gemini_live_use_stream_generate_content() {
     for table in [
-        GeminiCliChannel.dispatch_table(),
-        AntigravityChannel.dispatch_table(),
+        GeminiCliChannel.routing_table(),
+        AntigravityChannel.routing_table(),
     ] {
         assert_transform_to(
             &table,
@@ -154,7 +154,7 @@ fn geminicli_and_antigravity_gemini_live_use_stream_generate_content() {
 
 #[test]
 fn vertexexpress_uses_gemini_generate_for_openai_images() {
-    let table = VertexExpressChannel.dispatch_table();
+    let table = VertexExpressChannel.routing_table();
     assert_transform_to(
         &table,
         OperationFamily::CreateImage,
@@ -174,11 +174,11 @@ fn vertexexpress_uses_gemini_generate_for_openai_images() {
 #[test]
 fn codex_groq_nvidia_and_deepseek_use_local_count_tokens() {
     for table in [
-        CodexChannel.dispatch_table(),
-        GroqChannel.dispatch_table(),
-        NvidiaChannel.dispatch_table(),
-        DeepSeekChannel.dispatch_table(),
-        OpenRouterChannel.dispatch_table(),
+        CodexChannel.routing_table(),
+        GroqChannel.routing_table(),
+        NvidiaChannel.routing_table(),
+        DeepSeekChannel.routing_table(),
+        OpenRouterChannel.routing_table(),
     ] {
         assert_local(&table, OperationFamily::CountToken, ProtocolKind::OpenAi);
         assert_local(&table, OperationFamily::CountToken, ProtocolKind::Claude);

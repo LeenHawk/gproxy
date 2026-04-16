@@ -12,7 +12,7 @@ use tracing::Instrument;
 
 use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
 use gproxy_channel::Channel;
-use gproxy_channel::dispatch::RouteKey;
+use gproxy_channel::routing::RouteKey;
 use gproxy_channel::health::ModelCooldownHealth;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::UpstreamError;
@@ -278,7 +278,7 @@ pub struct ProviderConfig {
     pub settings_json: serde_json::Value,
     pub credentials: Vec<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dispatch: Option<gproxy_channel::dispatch::DispatchTableDocument>,
+    pub routing: Option<gproxy_channel::routing::RoutingTableDocument>,
 }
 
 pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billing::ModelPrice>> {
@@ -421,23 +421,23 @@ impl GproxyEngineBuilder {
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
     ) -> Self {
-        self.add_provider_with_dispatch(name, channel, settings, credentials, None)
+        self.add_provider_with_routing(name, channel, settings, credentials, None)
     }
 
-    pub fn add_provider_with_dispatch<C: gproxy_channel::Channel>(
+    pub fn add_provider_with_routing<C: gproxy_channel::Channel>(
         mut self,
         name: impl Into<String>,
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
-        dispatch_override: Option<gproxy_channel::dispatch::DispatchTable>,
+        routing_override: Option<gproxy_channel::routing::RoutingTable>,
     ) -> Self {
-        self.store_builder = self.store_builder.add_provider_with_dispatch(
+        self.store_builder = self.store_builder.add_provider_with_routing(
             name,
             channel,
             settings,
             credentials,
-            dispatch_override,
+            routing_override,
         );
         self
     }
@@ -531,7 +531,7 @@ impl GproxyEngineBuilder {
 
     /// Add a provider from serialized JSON config.
     ///
-    /// Dispatches by `channel` string to the concrete channel type.
+    /// Routes by `channel` string to the concrete channel type.
     /// Returns an error if the channel ID is unknown or JSON is invalid.
     pub fn add_provider_json(self, config: ProviderConfig) -> Result<Self, UpstreamError> {
         macro_rules! add {
@@ -540,15 +540,15 @@ impl GproxyEngineBuilder {
                     name,
                     settings_json,
                     credentials,
-                    dispatch,
+                    routing,
                     ..
                 } = $cfg;
-                let dispatch = match dispatch {
+                let routing = match routing {
                     Some(document) => Some(
-                        gproxy_channel::dispatch::DispatchTable::from_document(document).map_err(
+                        gproxy_channel::routing::RoutingTable::from_document(document).map_err(
                             |e| {
                                 UpstreamError::Channel(format!(
-                                    "invalid dispatch for '{}': {e}",
+                                    "invalid routing for '{}': {e}",
                                     name
                                 ))
                             },
@@ -567,7 +567,7 @@ impl GproxyEngineBuilder {
                             .map(|c| (c, ModelCooldownHealth::default()))
                     })
                     .collect();
-                Ok($self.add_provider_with_dispatch(&name, $ch, settings, creds, dispatch))
+                Ok($self.add_provider_with_routing(&name, $ch, settings, creds, routing))
             }};
         }
 
@@ -710,9 +710,9 @@ impl GproxyEngine {
             .unwrap_or_default()
     }
 
-    /// Check whether the dispatch rule for this (provider, operation, protocol)
+    /// Check whether the routing rule for this (provider, operation, protocol)
     /// resolves to the `Local` implementation.
-    pub fn is_local_dispatch(
+    pub fn is_local_routing(
         &self,
         provider: &str,
         operation: OperationFamily,
@@ -721,10 +721,10 @@ impl GproxyEngine {
         let Some(runtime) = self.store.get_runtime(provider) else {
             return false;
         };
-        let key = gproxy_channel::dispatch::RouteKey::new(operation, protocol);
+        let key = gproxy_channel::routing::RouteKey::new(operation, protocol);
         matches!(
-            runtime.dispatch_table().resolve(&key),
-            Some(gproxy_channel::dispatch::RouteImplementation::Local)
+            runtime.routing_table().resolve(&key),
+            Some(gproxy_channel::routing::RouteImplementation::Local)
         )
     }
 
@@ -807,7 +807,7 @@ impl GproxyEngine {
     /// Connect to an upstream WebSocket endpoint for a provider.
     ///
     /// Returns `Connected` for passthrough (same protocol), `NeedsProtocolBridge`
-    /// when the dispatch table maps to a different WS operation, or an error
+    /// when the routing table maps to a different WS operation, or an error
     /// (e.g. 426, no WS support) that the caller can use to fall back to HTTP.
     pub async fn connect_upstream_ws(
         &self,
@@ -824,14 +824,14 @@ impl GproxyEngine {
                 UpstreamError::Channel(format!("unknown provider: {provider_name}"))
             })?;
 
-            // Check dispatch table to determine WS routing strategy
-            let route_key = gproxy_channel::dispatch::RouteKey::new(operation, protocol);
+            // Check routing table to determine WS routing strategy
+            let route_key = gproxy_channel::routing::RouteKey::new(operation, protocol);
             let (ws_path, ws_model, src_protocol, dst_protocol) =
-                match provider.dispatch_table().resolve(&route_key) {
-                    Some(gproxy_channel::dispatch::RouteImplementation::Passthrough) => {
+                match provider.routing_table().resolve(&route_key) {
+                    Some(gproxy_channel::routing::RouteImplementation::Passthrough) => {
                         (path.to_string(), model, protocol, protocol)
                     }
-                    Some(gproxy_channel::dispatch::RouteImplementation::TransformTo { destination }) => {
+                    Some(gproxy_channel::routing::RouteImplementation::TransformTo { destination }) => {
                         // Check if destination is also a WS operation
                         let dst_op = &destination.operation;
                         let dst_proto = &destination.protocol;
@@ -1070,10 +1070,10 @@ impl GproxyEngine {
             )))
         })?;
 
-        // Dispatch table lookup
-        let src_key = gproxy_channel::dispatch::RouteKey::new(request.operation, request.protocol);
+        // Routing table lookup
+        let src_key = gproxy_channel::routing::RouteKey::new(request.operation, request.protocol);
         let route = provider
-            .dispatch_table()
+            .routing_table()
             .resolve(&src_key)
             .ok_or_else(|| {
                 tracing::warn!(operation = %request.operation, protocol = %request.protocol, "route not found");
@@ -1085,13 +1085,13 @@ impl GproxyEngine {
             .clone();
 
         let (dst_op, dst_proto, needs_transform) = match &route {
-            gproxy_channel::dispatch::RouteImplementation::Passthrough => {
+            gproxy_channel::routing::RouteImplementation::Passthrough => {
                 (request.operation, request.protocol, false)
             }
-            gproxy_channel::dispatch::RouteImplementation::TransformTo { destination } => {
+            gproxy_channel::routing::RouteImplementation::TransformTo { destination } => {
                 (destination.operation, destination.protocol, true)
             }
-            gproxy_channel::dispatch::RouteImplementation::Local => {
+            gproxy_channel::routing::RouteImplementation::Local => {
                 let body = provider
                     .handle_local(request.operation, request.protocol, &request.body)
                     .unwrap_or_else(|| {
@@ -1109,7 +1109,7 @@ impl GproxyEngine {
                     stream_started_at: None,
                 });
             }
-            gproxy_channel::dispatch::RouteImplementation::Unsupported => {
+            gproxy_channel::routing::RouteImplementation::Unsupported => {
                 return Err(ExecuteError::bare(UpstreamError::Channel(format!(
                     "unsupported: ({}, {})",
                     request.operation, request.protocol
@@ -1357,9 +1357,9 @@ impl GproxyEngine {
             )))
         })?;
 
-        let src_key = gproxy_channel::dispatch::RouteKey::new(request.operation, request.protocol);
+        let src_key = gproxy_channel::routing::RouteKey::new(request.operation, request.protocol);
         let route = provider
-            .dispatch_table()
+            .routing_table()
             .resolve(&src_key)
             .ok_or_else(|| {
                 tracing::warn!(operation = %request.operation, protocol = %request.protocol, "route not found");
@@ -1371,13 +1371,13 @@ impl GproxyEngine {
             .clone();
 
         let (dst_op, dst_proto, needs_transform) = match &route {
-            gproxy_channel::dispatch::RouteImplementation::Passthrough => {
+            gproxy_channel::routing::RouteImplementation::Passthrough => {
                 (request.operation, request.protocol, false)
             }
-            gproxy_channel::dispatch::RouteImplementation::TransformTo { destination } => {
+            gproxy_channel::routing::RouteImplementation::TransformTo { destination } => {
                 (destination.operation, destination.protocol, true)
             }
-            gproxy_channel::dispatch::RouteImplementation::Local => {
+            gproxy_channel::routing::RouteImplementation::Local => {
                 let body = provider
                     .handle_local(request.operation, request.protocol, &request.body)
                     .unwrap_or_else(|| {
@@ -1395,7 +1395,7 @@ impl GproxyEngine {
                     stream_started_at: None,
                 });
             }
-            gproxy_channel::dispatch::RouteImplementation::Unsupported => {
+            gproxy_channel::routing::RouteImplementation::Unsupported => {
                 return Err(ExecuteError::bare(UpstreamError::Channel(format!(
                     "unsupported: ({}, {})",
                     request.operation, request.protocol

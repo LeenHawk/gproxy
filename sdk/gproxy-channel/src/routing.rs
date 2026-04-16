@@ -8,7 +8,7 @@ use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// Maps (operation, protocol) pairs to routing strategies.
 #[derive(Debug, Clone, Default, Serialize)]
-pub struct DispatchTable {
+pub struct RoutingTable {
     routes: HashMap<RouteKey, RouteImplementation>,
 }
 
@@ -34,30 +34,30 @@ pub enum RouteImplementation {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-pub struct DispatchTableDocument {
+pub struct RoutingTableDocument {
     #[serde(default)]
-    pub rules: Vec<DispatchRuleDocument>,
+    pub rules: Vec<RoutingRuleDocument>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DispatchRuleDocument {
+pub struct RoutingRuleDocument {
     pub route: RouteKey,
     pub implementation: RouteImplementation,
 }
 
 #[derive(Debug, Error)]
-pub enum DispatchTableError {
-    #[error("invalid dispatch json: {0}")]
+pub enum RoutingTableError {
+    #[error("invalid routing json: {0}")]
     InvalidJson(#[from] serde_json::Error),
-    #[error("duplicate dispatch route: operation={operation}, protocol={protocol}")]
+    #[error("duplicate routing route: operation={operation}, protocol={protocol}")]
     DuplicateRoute {
         operation: OperationFamily,
         protocol: ProtocolKind,
     },
 }
 
-impl DispatchTable {
+impl RoutingTable {
     pub fn new() -> Self {
         Self::default()
     }
@@ -86,11 +86,11 @@ impl DispatchTable {
         self.routes.is_empty()
     }
 
-    pub fn to_document(&self) -> DispatchTableDocument {
+    pub fn to_document(&self) -> RoutingTableDocument {
         let mut rules: Vec<_> = self
             .routes
             .iter()
-            .map(|(route, implementation)| DispatchRuleDocument {
+            .map(|(route, implementation)| RoutingRuleDocument {
                 route: route.clone(),
                 implementation: implementation.clone(),
             })
@@ -106,16 +106,16 @@ impl DispatchTable {
             );
             left_key.cmp(&right_key)
         });
-        DispatchTableDocument { rules }
+        RoutingTableDocument { rules }
     }
 
-    pub fn from_document(document: DispatchTableDocument) -> Result<Self, DispatchTableError> {
+    pub fn from_document(document: RoutingTableDocument) -> Result<Self, RoutingTableError> {
         let mut table = Self::new();
         let mut seen = HashSet::new();
         for rule in document.rules {
             let route = rule.route;
             if !seen.insert(route.clone()) {
-                return Err(DispatchTableError::DuplicateRoute {
+                return Err(RoutingTableError::DuplicateRoute {
                     operation: route.operation,
                     protocol: route.protocol,
                 });
@@ -125,16 +125,16 @@ impl DispatchTable {
         Ok(table)
     }
 
-    pub fn from_json_value(value: serde_json::Value) -> Result<Option<Self>, DispatchTableError> {
-        let Some(document) = DispatchTableDocument::from_json_value(value)? else {
+    pub fn from_json_value(value: serde_json::Value) -> Result<Option<Self>, RoutingTableError> {
+        let Some(document) = RoutingTableDocument::from_json_value(value)? else {
             return Ok(None);
         };
         Ok(Some(Self::from_document(document)?))
     }
 }
 
-impl DispatchTableDocument {
-    pub fn from_json_value(value: serde_json::Value) -> Result<Option<Self>, DispatchTableError> {
+impl RoutingTableDocument {
+    pub fn from_json_value(value: serde_json::Value) -> Result<Option<Self>, RoutingTableError> {
         if value.is_null() {
             return Ok(None);
         }
@@ -161,15 +161,15 @@ impl RouteKey {
 #[cfg(test)]
 mod tests {
     use super::{
-        DispatchRuleDocument, DispatchTable, DispatchTableDocument, RouteImplementation, RouteKey,
+        RouteImplementation, RouteKey, RoutingRuleDocument, RoutingTable, RoutingTableDocument,
     };
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
     #[test]
-    fn dispatch_document_round_trips_through_dispatch_table() {
-        let document = DispatchTableDocument {
+    fn routing_document_round_trips_through_routing_table() {
+        let document = RoutingTableDocument {
             rules: vec![
-                DispatchRuleDocument {
+                RoutingRuleDocument {
                     route: RouteKey::new(OperationFamily::CountToken, ProtocolKind::Claude),
                     implementation: RouteImplementation::TransformTo {
                         destination: RouteKey::new(
@@ -178,15 +178,15 @@ mod tests {
                         ),
                     },
                 },
-                DispatchRuleDocument {
+                RoutingRuleDocument {
                     route: RouteKey::new(OperationFamily::GeminiLive, ProtocolKind::Gemini),
                     implementation: RouteImplementation::Local,
                 },
-                DispatchRuleDocument {
+                RoutingRuleDocument {
                     route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::OpenAi),
                     implementation: RouteImplementation::Passthrough,
                 },
-                DispatchRuleDocument {
+                RoutingRuleDocument {
                     route: RouteKey::new(
                         OperationFamily::OpenAiResponseWebSocket,
                         ProtocolKind::OpenAi,
@@ -196,27 +196,27 @@ mod tests {
             ],
         };
 
-        let table = DispatchTable::from_document(document.clone()).expect("dispatch document");
+        let table = RoutingTable::from_document(document.clone()).expect("routing document");
 
         assert_eq!(table.to_document(), document);
     }
 
     #[test]
-    fn dispatch_document_rejects_duplicate_source_routes() {
-        let document = DispatchTableDocument {
+    fn routing_document_rejects_duplicate_source_routes() {
+        let document = RoutingTableDocument {
             rules: vec![
-                DispatchRuleDocument {
+                RoutingRuleDocument {
                     route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::OpenAi),
                     implementation: RouteImplementation::Passthrough,
                 },
-                DispatchRuleDocument {
+                RoutingRuleDocument {
                     route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::OpenAi),
                     implementation: RouteImplementation::Unsupported,
                 },
             ],
         };
 
-        let error = DispatchTable::from_document(document).expect_err("duplicate route");
+        let error = RoutingTable::from_document(document).expect_err("duplicate route");
 
         assert!(
             error.to_string().contains("duplicate"),

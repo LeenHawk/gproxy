@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
-use crate::dispatch::DispatchTable;
+use crate::routing::RoutingTable;
 use crate::health::CredentialHealth;
 use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
@@ -31,8 +31,8 @@ pub trait Channel: Send + Sync + 'static {
     /// Channel-specific health tracking shape.
     type Health: CredentialHealth;
 
-    /// Default dispatch table mapping (operation, protocol) → route strategy.
-    fn dispatch_table(&self) -> DispatchTable;
+    /// Default routing table mapping (operation, protocol) → route strategy.
+    fn routing_table(&self) -> RoutingTable;
 
     /// Channel-owned default pricing table.
     fn model_pricing(&self) -> &'static [crate::billing::ModelPrice] {

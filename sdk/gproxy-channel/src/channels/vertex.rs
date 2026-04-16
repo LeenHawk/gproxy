@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -250,8 +250,8 @@ impl Channel for VertexChannel {
     type Credential = VertexCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -554,8 +554,8 @@ fn vertex_request_path(
     }
 }
 
-fn vertex_dispatch_table() -> DispatchTable {
-    VertexChannel.dispatch_table()
+fn vertex_routing_table() -> RoutingTable {
+    VertexChannel.routing_table()
 }
 
 // ---------------------------------------------------------------------------
@@ -663,4 +663,4 @@ fn vertex_publisher_model_to_gemini(value: Value) -> Value {
     Value::Object(out)
 }
 
-inventory::submit! { ChannelRegistration::new(VertexChannel::ID, vertex_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(VertexChannel::ID, vertex_routing_table) }

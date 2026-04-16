@@ -1,7 +1,7 @@
 //! Multi-channel LLM orchestration engine (L2 layer of the gproxy SDK).
 //!
 //! This crate hosts `GproxyEngine`, `ProviderStore`, the retry loop,
-//! credential affinity, the dispatch consumer, backend traits for
+//! credential affinity, the routing consumer, backend traits for
 //! distributed rate-limit / quota / affinity state, and framework-independent
 //! routing helpers (classify, permission, rate_limit, provider_prefix,
 //! model_alias, model_extraction, header sanitize).

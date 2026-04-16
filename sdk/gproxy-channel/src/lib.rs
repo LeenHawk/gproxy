@@ -3,7 +3,7 @@
 //! This crate provides the L1 "channel" layer of the gproxy SDK: the
 //! [`Channel`] trait, concrete channel implementations (OpenAI, Anthropic,
 //! Gemini, and friends), credential and response types, token counting,
-//! billing price types, dispatch table types, and a thin [`executor`]
+//! billing price types, routing table types, and a thin [`executor`]
 //! entry point for running a single upstream request without retry or
 //! credential rotation.
 //!
@@ -25,7 +25,6 @@ pub mod billing;
 pub mod channel;
 pub mod channels;
 pub mod count_tokens;
-pub mod dispatch;
 pub mod executor;
 pub mod file_operation;
 pub mod health;
@@ -34,15 +33,12 @@ pub mod meta;
 pub mod registry;
 pub mod request;
 pub mod response;
+pub mod routing;
 pub mod usage;
 pub mod utils;
 
 pub use billing::{ModelPrice, ModelPriceTier};
 pub use channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, OAuthFlow};
-pub use dispatch::{
-    DispatchRuleDocument, DispatchTable, DispatchTableDocument, DispatchTableError,
-    RouteImplementation, RouteKey,
-};
 pub use executor::{
     ExecuteOnceResult, SendAttemptStreamOutcome, apply_outgoing_rules, execute_once,
     execute_once_stream, prepare_for_send, send_attempt, send_attempt_stream,
@@ -55,5 +51,9 @@ pub use request::PreparedRequest;
 pub use response::{
     FailedUpstreamAttempt, ResponseClassification, RetryableUpstreamResponse, UpstreamBodyStream,
     UpstreamError, UpstreamResponse, UpstreamStreamingResponse,
+};
+pub use routing::{
+    RouteImplementation, RouteKey, RoutingRuleDocument, RoutingTable, RoutingTableDocument,
+    RoutingTableError,
 };
 pub use usage::Usage;

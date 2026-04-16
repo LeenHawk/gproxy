@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -75,8 +75,8 @@ impl Channel for AnthropicChannel {
     type Credential = AnthropicCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -382,8 +382,8 @@ fn anthropic_request_path(request: &PreparedRequest) -> Result<String, UpstreamE
     }
 }
 
-fn anthropic_dispatch_table() -> DispatchTable {
-    AnthropicChannel.dispatch_table()
+fn anthropic_routing_table() -> RoutingTable {
+    AnthropicChannel.routing_table()
 }
 
-inventory::submit! { ChannelRegistration::new(AnthropicChannel::ID, anthropic_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(AnthropicChannel::ID, anthropic_routing_table) }

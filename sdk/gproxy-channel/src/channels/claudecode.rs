@@ -12,7 +12,7 @@ use crate::channel::{
     OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -739,8 +739,8 @@ impl Channel for ClaudeCodeChannel {
     type Credential = ClaudeCodeCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -1448,8 +1448,8 @@ fn parse_retry_after_secs(headers: &http::HeaderMap) -> Option<u64> {
         .map(|secs| secs * 1000)
 }
 
-fn claudecode_dispatch_table() -> DispatchTable {
-    ClaudeCodeChannel.dispatch_table()
+fn claudecode_routing_table() -> RoutingTable {
+    ClaudeCodeChannel.routing_table()
 }
 
-inventory::submit! { ChannelRegistration::new(ClaudeCodeChannel::ID, claudecode_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(ClaudeCodeChannel::ID, claudecode_routing_table) }

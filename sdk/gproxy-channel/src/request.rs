@@ -1,4 +1,4 @@
-use crate::dispatch::RouteKey;
+use crate::routing::RouteKey;
 
 /// A prepared upstream request, protocol-agnostic.
 #[derive(Debug, Clone)]

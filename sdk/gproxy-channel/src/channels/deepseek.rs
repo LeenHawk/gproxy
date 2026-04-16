@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -96,8 +96,8 @@ impl Channel for DeepSeekChannel {
     type Credential = DeepSeekCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
 
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
@@ -625,11 +625,11 @@ fn normalize_deepseek_chat_response_body(body: &[u8]) -> Option<Vec<u8>> {
     changed.then(|| serde_json::to_vec(&value).ok()).flatten()
 }
 
-fn deepseek_dispatch_table() -> DispatchTable {
-    DeepSeekChannel.dispatch_table()
+fn deepseek_routing_table() -> RoutingTable {
+    DeepSeekChannel.routing_table()
 }
 
-inventory::submit! { ChannelRegistration::new(DeepSeekChannel::ID, deepseek_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(DeepSeekChannel::ID, deepseek_routing_table) }
 
 #[cfg(test)]
 mod tests {

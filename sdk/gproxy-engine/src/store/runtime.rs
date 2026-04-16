@@ -3,7 +3,7 @@
 //!
 //! `ProviderRuntime` is the type-erased internal handle the store uses
 //! to drive one provider's worth of state (channel, settings snapshot,
-//! credential pool, health state, dispatch table, affinity pool, etc.)
+//! credential pool, health state, routing table, affinity pool, etc.)
 //! without leaking the concrete `Channel` generic into
 //! `ProviderStore`'s `HashMap<String, Arc<dyn ProviderRuntime>>`.
 //!
@@ -32,8 +32,8 @@ use crate::retry::{RetryContext, retry_with_credentials, retry_with_credentials_
 use gproxy_channel::channel::{
     Channel, ChannelCredential, ChannelSettings, OAuthCredentialResult, OAuthFlow,
 };
-use gproxy_channel::dispatch::DispatchTable;
-use gproxy_channel::dispatch::RouteKey;
+use gproxy_channel::routing::RoutingTable;
+use gproxy_channel::routing::RouteKey;
 use gproxy_channel::health::CredentialHealth;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::{UpstreamError, UpstreamResponse, UpstreamStreamingResponse};
@@ -89,7 +89,7 @@ impl<T> ExecutionOutcome<T> {
 }
 
 pub(crate) trait ProviderRuntime: Send + Sync {
-    fn dispatch_table(&self) -> &DispatchTable;
+    fn routing_table(&self) -> &RoutingTable;
     fn channel_id(&self) -> &str;
     fn estimate_billing(
         &self,
@@ -215,7 +215,7 @@ pub(super) struct ProviderInstance<C: Channel> {
     settings: ArcSwap<C::Settings>,
     credentials: ArcSwap<Vec<C::Credential>>,
     health: Mutex<Vec<C::Health>>,
-    dispatch_table: DispatchTable,
+    routing_table: RoutingTable,
     affinity_pool: CacheAffinityPool,
     round_robin_cursor: AtomicUsize,
     credential_revision: AtomicU64,
@@ -227,14 +227,14 @@ impl<C: Channel> ProviderInstance<C> {
         channel: C,
         settings: C::Settings,
         credentials: Vec<(C::Credential, C::Health)>,
-        dispatch_override: Option<DispatchTable>,
+        routing_override: Option<RoutingTable>,
     ) -> Self {
         let (credential_values, health_values): (Vec<_>, Vec<_>) = credentials.into_iter().unzip();
         let initial_pricing = channel.model_pricing().to_vec();
         Self {
             name,
             model_pricing: arc_swap::ArcSwap::from_pointee(initial_pricing),
-            dispatch_table: dispatch_override.unwrap_or_else(|| channel.dispatch_table()),
+            routing_table: routing_override.unwrap_or_else(|| channel.routing_table()),
             channel,
             settings: ArcSwap::from_pointee(settings),
             credentials: ArcSwap::from_pointee(credential_values),
@@ -343,8 +343,8 @@ impl<C: Channel> ProviderInstance<C> {
 }
 
 impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
-    fn dispatch_table(&self) -> &DispatchTable {
-        &self.dispatch_table
+    fn routing_table(&self) -> &RoutingTable {
+        &self.routing_table
     }
 
     fn channel_id(&self) -> &str {

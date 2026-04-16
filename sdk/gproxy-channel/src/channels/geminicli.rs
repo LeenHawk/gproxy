@@ -10,7 +10,7 @@ use crate::channel::{
     OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -417,8 +417,8 @@ impl Channel for GeminiCliChannel {
     type Credential = GeminiCliCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -951,8 +951,8 @@ fn geminicli_request_path(request: &PreparedRequest) -> Result<String, UpstreamE
     }
 }
 
-fn geminicli_dispatch_table() -> DispatchTable {
-    GeminiCliChannel.dispatch_table()
+fn geminicli_routing_table() -> RoutingTable {
+    GeminiCliChannel.routing_table()
 }
 
 // ---------------------------------------------------------------------------
@@ -1036,4 +1036,4 @@ fn quota_to_model_get_response(body: &[u8], target: &str) -> Vec<u8> {
     }
 }
 
-inventory::submit! { ChannelRegistration::new(GeminiCliChannel::ID, geminicli_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(GeminiCliChannel::ID, geminicli_routing_table) }

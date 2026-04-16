@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -58,8 +58,8 @@ impl Channel for VertexExpressChannel {
     type Credential = VertexExpressCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut t = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -348,8 +348,8 @@ fn vertexexpress_request_path(request: &PreparedRequest) -> Result<String, Upstr
     }
 }
 
-fn vertexexpress_dispatch_table() -> DispatchTable {
-    VertexExpressChannel.dispatch_table()
+fn vertexexpress_routing_table() -> RoutingTable {
+    VertexExpressChannel.routing_table()
 }
 
 // ---------------------------------------------------------------------------
@@ -452,4 +452,4 @@ fn vertexexpress_local_model_get(body: &[u8]) -> Result<Vec<u8>, UpstreamError> 
     }
 }
 
-inventory::submit! { ChannelRegistration::new(VertexExpressChannel::ID, vertexexpress_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(VertexExpressChannel::ID, vertexexpress_routing_table) }

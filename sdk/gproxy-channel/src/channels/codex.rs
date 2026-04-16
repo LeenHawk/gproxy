@@ -12,7 +12,7 @@ use crate::channel::{
     OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -477,10 +477,10 @@ impl Channel for CodexChannel {
     type Credential = CodexCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
+    fn routing_table(&self) -> RoutingTable {
         // Native Codex traffic uses the Responses API, but the proxy can still
         // transform other request protocols into openai_response.
-        let mut t = DispatchTable::new();
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -1047,8 +1047,8 @@ fn parse_codex_rate_limit(headers: &http::HeaderMap) -> Option<u64> {
         .map(|secs| secs * 1000)
 }
 
-fn codex_dispatch_table() -> DispatchTable {
-    CodexChannel.dispatch_table()
+fn codex_routing_table() -> RoutingTable {
+    CodexChannel.routing_table()
 }
 
 fn codex_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
@@ -1068,7 +1068,7 @@ fn codex_request_path(request: &PreparedRequest) -> Result<String, UpstreamError
     }
 }
 
-inventory::submit! { ChannelRegistration::new(CodexChannel::ID, codex_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(CodexChannel::ID, codex_routing_table) }
 
 #[cfg(test)]
 mod tests {

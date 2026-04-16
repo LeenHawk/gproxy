@@ -10,7 +10,7 @@ use crate::channel::{
     OAuthFlow,
 };
 use crate::count_tokens::CountStrategy;
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -427,9 +427,9 @@ impl Channel for AntigravityChannel {
     type Credential = AntigravityCredential;
     type Health = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
+    fn routing_table(&self) -> RoutingTable {
         // Same as geminicli / vertex — native protocol is ProtocolKind::Gemini
-        let mut t = DispatchTable::new();
+        let mut t = RoutingTable::new();
         let pass = |op: OperationFamily, proto: ProtocolKind| {
             (RouteKey::new(op, proto), RouteImplementation::Passthrough)
         };
@@ -939,8 +939,8 @@ fn antigravity_request_path(request: &PreparedRequest) -> Result<String, Upstrea
     }
 }
 
-fn antigravity_dispatch_table() -> DispatchTable {
-    AntigravityChannel.dispatch_table()
+fn antigravity_routing_table() -> RoutingTable {
+    AntigravityChannel.routing_table()
 }
 
 // ---------------------------------------------------------------------------
@@ -1062,4 +1062,4 @@ fn available_models_to_get_response(body: &[u8], target: &str) -> Vec<u8> {
     }
 }
 
-inventory::submit! { ChannelRegistration::new(AntigravityChannel::ID, antigravity_dispatch_table) }
+inventory::submit! { ChannelRegistration::new(AntigravityChannel::ID, antigravity_routing_table) }
