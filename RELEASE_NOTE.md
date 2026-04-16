@@ -1,5 +1,43 @@
 # Release Notes
 
+## v1.0.13
+
+> `gproxy-protocol` is updated for Claude Opus 4.7: the Claude wire types now include the new model / output fields (`claude-opus-4-7`, `output_config.task_budget`, `effort="xhigh"`), and Claude-targeting transforms stop generating deprecated budgeted `thinking: { type: "enabled" }` requests when the target model is Opus 4.7.
+
+### English
+
+#### Added
+
+- **Claude Opus 4.7 protocol fields in `gproxy-protocol`.** Claude request types now recognize `claude-opus-4-7`, support `output_config.task_budget`, and accept the new `output_config.effort = "xhigh"` value. This keeps the L0 wire types aligned with the current Claude Messages API surface.
+- **Regression tests for Opus 4.7 request shaping.** Added unit coverage for `claude-opus-4-7` model serialization, `xhigh` + `task_budget` output config serialization, and the Opus-4.7-specific thinking conversion paths in Gemini → Claude and OpenAI → Claude transforms.
+
+#### Fixed
+
+- **Claude-targeting transforms no longer emit removed extended-thinking budgets for Opus 4.7.** When the target Claude model is `claude-opus-4-7`, the OpenAI → Claude and Gemini → Claude request transforms now map reasoning / thinking to adaptive thinking instead of constructing `thinking: { type: "enabled", budget_tokens: ... }`, which Claude Opus 4.7 rejects.
+- **Claude output-effort mappings now understand `xhigh`.** Claude → OpenAI and Claude → Gemini transforms now treat `BetaOutputEffort::XHigh` as a first-class value instead of only handling `low` / `medium` / `high` / `max`, keeping verbosity / reasoning-effort conversions internally consistent.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.12 for the gproxy server and console. No DB migration, no HTTP API route change, no config change, and no non-protocol crate behavior change.
+- **SDK / protocol consumers**: additive protocol update. If you construct Claude payloads through `gproxy-protocol`, you can now use the Opus 4.7 model id and the new output config fields directly. Existing payloads continue to deserialize as before.
+
+### 简体中文
+
+#### 新增
+
+- **`gproxy-protocol` 补齐 Claude Opus 4.7 协议字段。** Claude 请求类型现在识别 `claude-opus-4-7`,支持 `output_config.task_budget`,并接受新的 `output_config.effort = "xhigh"` 值,让 L0 wire types 与当前 Claude Messages API 对齐。
+- **新增 Opus 4.7 请求 shape 回归测试。** 增加了 `claude-opus-4-7` 模型序列化、`xhigh` + `task_budget` 输出配置序列化,以及 Gemini → Claude / OpenAI → Claude 在 Opus 4.7 场景下 thinking 转换路径的单测。
+
+#### 修复
+
+- **指向 Claude 的 transform 不再为 Opus 4.7 生成已移除的 extended-thinking budget 形状。** 当目标模型是 `claude-opus-4-7` 时,OpenAI → Claude 与 Gemini → Claude 的请求转换现在会把 reasoning / thinking 映射为 adaptive thinking,不再构造 `thinking: { type: "enabled", budget_tokens: ... }` 这种会被 Claude Opus 4.7 拒绝的请求。
+- **Claude output-effort 映射补齐 `xhigh`.** Claude → OpenAI 和 Claude → Gemini 的 transform 现在把 `BetaOutputEffort::XHigh` 作为一等值处理,不再只覆盖 `low` / `medium` / `high` / `max`,避免 verbosity / reasoning-effort 转换前后不一致。
+
+#### 兼容性
+
+- **从 v1.0.12 直接升级**。对 gproxy server 和 console 来说,不涉及 DB 迁移、HTTP API 路由变化、配置变化,也没有非 protocol crate 的行为改动。
+- **SDK / protocol 调用方**:这是一次增量协议更新。如果你直接用 `gproxy-protocol` 构造 Claude payload,现在可以直接使用 Opus 4.7 的 model id 和新的 output config 字段。现有 payload 的反序列化行为保持不变。
+
 ## v1.0.12
 
 > Proxy response headers are now normalized (correct `Content-Type`, stripped upstream `Content-Length` / `Content-Encoding` / `Transfer-Encoding`), two long-standing bugs in the OpenAI-response → Claude stream converter are fixed (duplicate block emission when `output_item.done` arrives after streamed deltas; spurious `stop_reason=end_turn` swallowing `tool_use`), the OpenAI WebSocket handshake now detects auth failures on the first frame and rotates to the next credential, and the "dispatch" concept is renamed to "routing" across SDK / API / storage / console / docs — with an automatic SQL column rename from `providers.dispatch_json` to `providers.routing_json`.
