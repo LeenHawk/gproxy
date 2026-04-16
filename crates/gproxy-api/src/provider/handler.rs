@@ -4,7 +4,10 @@ use std::sync::{Arc, Mutex};
 use async_stream::try_stream;
 use axum::body::Body;
 use axum::extract::{Extension, Path, Request, State};
-use axum::http::{HeaderValue, StatusCode, header::CONTENT_TYPE};
+use axum::http::{
+    HeaderValue, StatusCode,
+    header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
+};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt;
 
@@ -400,6 +403,7 @@ pub async fn proxy(
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
 
     *response.headers_mut() = result.headers;
+    normalize_response_headers(response.headers_mut(), operation, protocol);
     Ok(response)
 }
 
@@ -675,6 +679,7 @@ pub async fn proxy_unscoped(
         .body(response_body)
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     *response.headers_mut() = result.headers;
+    normalize_response_headers(response.headers_mut(), operation, protocol);
     Ok(response)
 }
 
@@ -876,6 +881,7 @@ pub async fn proxy_unscoped_files(
         .body(response_body)
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     *response.headers_mut() = result.headers;
+    normalize_response_headers(response.headers_mut(), operation, protocol);
     Ok(response)
 }
 
@@ -2168,6 +2174,56 @@ async fn respond_with_local_json(
     response
 }
 
+fn default_response_content_type(
+    operation: OperationFamily,
+    protocol: ProtocolKind,
+) -> Option<&'static str> {
+    match (operation, protocol) {
+        (OperationFamily::StreamGenerateContent, ProtocolKind::Claude)
+        | (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiChatCompletion)
+        | (OperationFamily::StreamGenerateContent, ProtocolKind::OpenAiResponse)
+        | (OperationFamily::StreamGenerateContent, ProtocolKind::Gemini) => {
+            Some("text/event-stream")
+        }
+        (OperationFamily::GenerateContent, ProtocolKind::Claude)
+        | (OperationFamily::GenerateContent, ProtocolKind::OpenAi)
+        | (OperationFamily::GenerateContent, ProtocolKind::OpenAiChatCompletion)
+        | (OperationFamily::GenerateContent, ProtocolKind::OpenAiResponse)
+        | (OperationFamily::CountToken, ProtocolKind::Claude)
+        | (OperationFamily::CountToken, ProtocolKind::OpenAi)
+        | (OperationFamily::Compact, ProtocolKind::OpenAi)
+        | (OperationFamily::Embedding, ProtocolKind::OpenAi)
+        | (OperationFamily::CreateImage, ProtocolKind::OpenAi)
+        | (OperationFamily::CreateImageEdit, ProtocolKind::OpenAi)
+        | (OperationFamily::ModelList, _)
+        | (OperationFamily::ModelGet, _)
+        | (OperationFamily::FileList, _)
+        | (OperationFamily::FileGet, _)
+        | (OperationFamily::FileContent, _)
+        | (OperationFamily::FileDelete, _)
+        | (OperationFamily::FileUpload, _) => Some("application/json"),
+        _ => None,
+    }
+}
+
+fn normalize_response_headers(
+    headers: &mut axum::http::HeaderMap,
+    operation: OperationFamily,
+    protocol: ProtocolKind,
+) {
+    headers.remove(CONTENT_LENGTH);
+    headers.remove(CONTENT_ENCODING);
+    headers.remove(TRANSFER_ENCODING);
+
+    if headers.contains_key(CONTENT_TYPE) {
+        return;
+    }
+    let Some(content_type) = default_response_content_type(operation, protocol) else {
+        return;
+    };
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
+}
+
 async fn persist_claude_file_side_effects(ctx: ClaudeFileSideEffectsContext<'_>) {
     if !is_claude_file_provider(ctx.state, ctx.provider_name) {
         return;
@@ -3334,7 +3390,10 @@ mod tests {
 
     use axum::body::Body;
     use axum::extract::{Extension, Request, State};
-    use axum::http::StatusCode;
+    use axum::http::{
+        HeaderMap, HeaderValue, StatusCode,
+        header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
+    };
     use axum::routing::post;
     use axum::{Json, Router};
     use bytes::Bytes;
@@ -3351,7 +3410,7 @@ mod tests {
     use serde_json::json;
     use tokio::net::TcpListener;
 
-    use super::{UsageRecordContext, proxy_unscoped, record_usage};
+    use super::{UsageRecordContext, normalize_response_headers, proxy_unscoped, record_usage};
     use crate::auth::AuthenticatedUser;
 
     async fn spawn_mock_openai_server() -> (String, tokio::task::JoinHandle<()>) {
@@ -3543,6 +3602,74 @@ mod tests {
 
         let response = response.expect("request should not be rejected before upstream call");
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[test]
+    fn normalize_response_headers_sets_streaming_claude_sse_header() {
+        let mut headers = HeaderMap::new();
+        normalize_response_headers(
+            &mut headers,
+            gproxy_server::OperationFamily::StreamGenerateContent,
+            gproxy_server::ProtocolKind::Claude,
+        );
+
+        assert_eq!(
+            headers.get(CONTENT_TYPE),
+            Some(&HeaderValue::from_static("text/event-stream"))
+        );
+    }
+
+    #[test]
+    fn normalize_response_headers_sets_nonstream_claude_json_header() {
+        let mut headers = HeaderMap::new();
+        normalize_response_headers(
+            &mut headers,
+            gproxy_server::OperationFamily::GenerateContent,
+            gproxy_server::ProtocolKind::Claude,
+        );
+
+        assert_eq!(
+            headers.get(CONTENT_TYPE),
+            Some(&HeaderValue::from_static("application/json"))
+        );
+    }
+
+    #[test]
+    fn normalize_response_headers_preserves_existing_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/custom"));
+        normalize_response_headers(
+            &mut headers,
+            gproxy_server::OperationFamily::StreamGenerateContent,
+            gproxy_server::ProtocolKind::Claude,
+        );
+
+        assert_eq!(
+            headers.get(CONTENT_TYPE),
+            Some(&HeaderValue::from_static("application/custom"))
+        );
+    }
+
+    #[test]
+    fn normalize_response_headers_removes_body_bound_headers() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("123"));
+        headers.insert(CONTENT_ENCODING, HeaderValue::from_static("gzip"));
+        headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("chunked"));
+
+        normalize_response_headers(
+            &mut headers,
+            gproxy_server::OperationFamily::StreamGenerateContent,
+            gproxy_server::ProtocolKind::Claude,
+        );
+
+        assert!(!headers.contains_key(CONTENT_LENGTH));
+        assert!(!headers.contains_key(CONTENT_ENCODING));
+        assert!(!headers.contains_key(TRANSFER_ENCODING));
+        assert_eq!(
+            headers.get(CONTENT_TYPE),
+            Some(&HeaderValue::from_static("text/event-stream"))
+        );
     }
 
     #[tokio::test]

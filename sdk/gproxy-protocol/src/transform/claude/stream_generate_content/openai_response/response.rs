@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::claude::create_message::stream::ClaudeStreamEvent;
 use crate::claude::create_message::types::{BetaServiceTier, BetaStopReason};
@@ -38,6 +38,11 @@ pub struct OpenAiResponseToClaudeStream {
     open_thinking_blocks: BTreeMap<(String, u64, u64), u64>,
     open_summary_blocks: BTreeMap<(String, u64, u64), u64>,
     open_tool_blocks: BTreeMap<String, u64>,
+    completed_text_blocks: BTreeSet<(String, u64, u64)>,
+    completed_thinking_blocks: BTreeSet<(String, u64, u64)>,
+    completed_summary_blocks: BTreeSet<(String, u64, u64)>,
+    streamed_message_items: BTreeSet<String>,
+    streamed_tool_args: BTreeSet<String>,
 }
 
 impl Default for OpenAiResponseToClaudeStream {
@@ -58,6 +63,11 @@ impl Default for OpenAiResponseToClaudeStream {
             open_thinking_blocks: BTreeMap::new(),
             open_summary_blocks: BTreeMap::new(),
             open_tool_blocks: BTreeMap::new(),
+            completed_text_blocks: BTreeSet::new(),
+            completed_thinking_blocks: BTreeSet::new(),
+            completed_summary_blocks: BTreeSet::new(),
+            streamed_message_items: BTreeSet::new(),
+            streamed_tool_args: BTreeSet::new(),
         }
     }
 }
@@ -182,6 +192,71 @@ impl OpenAiResponseToClaudeStream {
         }
     }
 
+    fn finish_text_block(
+        &mut self,
+        out: &mut Vec<ClaudeStreamEvent>,
+        key: (String, u64, u64),
+        text: String,
+    ) {
+        if !self.completed_text_blocks.insert(key.clone()) {
+            return;
+        }
+        if let Some(index) = self.open_text_blocks.remove(&key) {
+            out.push(stop_block_event(index));
+            return;
+        }
+        let index = self.next_block();
+        out.push(start_text_block_event(index));
+        if !text.is_empty() {
+            out.push(text_delta_event(index, text));
+        }
+        out.push(stop_block_event(index));
+    }
+
+    fn finish_thinking_block(
+        &mut self,
+        out: &mut Vec<ClaudeStreamEvent>,
+        key: (String, u64, u64),
+        signature: String,
+        text: String,
+    ) {
+        if !self.completed_thinking_blocks.insert(key.clone()) {
+            return;
+        }
+        if let Some(index) = self.open_thinking_blocks.remove(&key) {
+            out.push(stop_block_event(index));
+            return;
+        }
+        let index = self.next_block();
+        out.push(start_thinking_block_event(index, signature));
+        if !text.is_empty() {
+            out.push(thinking_delta_event(index, text));
+        }
+        out.push(stop_block_event(index));
+    }
+
+    fn finish_summary_block(
+        &mut self,
+        out: &mut Vec<ClaudeStreamEvent>,
+        key: (String, u64, u64),
+        signature: String,
+        text: String,
+    ) {
+        if !self.completed_summary_blocks.insert(key.clone()) {
+            return;
+        }
+        if let Some(index) = self.open_summary_blocks.remove(&key) {
+            out.push(stop_block_event(index));
+            return;
+        }
+        let index = self.next_block();
+        out.push(start_thinking_block_event(index, signature));
+        if !text.is_empty() {
+            out.push(thinking_delta_event(index, text));
+        }
+        out.push(stop_block_event(index));
+    }
+
     fn map_output_item(
         &mut self,
         out: &mut Vec<ClaudeStreamEvent>,
@@ -190,6 +265,9 @@ impl OpenAiResponseToClaudeStream {
     ) {
         match item {
             ResponseOutputItem::Message(message) => {
+                if !is_done {
+                    self.streamed_message_items.insert(message.id.clone());
+                }
                 for part in message.content {
                     match part {
                         crate::openai::count_tokens::types::ResponseOutputContent::Text(text) => {
@@ -574,9 +652,35 @@ impl OpenAiResponseToClaudeStream {
             ResponseStreamEvent::OutputItemAdded { item, .. } => {
                 self.map_output_item(out, item, false);
             }
-            ResponseStreamEvent::OutputItemDone { item, .. } => {
-                self.map_output_item(out, item, true);
-            }
+            ResponseStreamEvent::OutputItemDone { item, .. } => match item {
+                ResponseOutputItem::Message(message)
+                    if self.streamed_message_items.contains(&message.id) => {}
+                ResponseOutputItem::FunctionToolCall(call) => {
+                    let item_id = call
+                        .id
+                        .as_deref()
+                        .unwrap_or(call.call_id.as_str())
+                        .to_string();
+                    if self.streamed_tool_args.contains(&item_id) {
+                        self.close_tool_block(out, &item_id);
+                    } else {
+                        self.map_output_item(out, ResponseOutputItem::FunctionToolCall(call), true);
+                    }
+                }
+                ResponseOutputItem::CustomToolCall(call) => {
+                    let item_id = call
+                        .id
+                        .as_deref()
+                        .unwrap_or(call.call_id.as_str())
+                        .to_string();
+                    if self.streamed_tool_args.contains(&item_id) {
+                        self.close_tool_block(out, &item_id);
+                    } else {
+                        self.map_output_item(out, ResponseOutputItem::CustomToolCall(call), true);
+                    }
+                }
+                item => self.map_output_item(out, item, true),
+            },
             ResponseStreamEvent::ContentPartAdded {
                 content_index,
                 item_id,
@@ -585,6 +689,7 @@ impl OpenAiResponseToClaudeStream {
                 ..
             } => match part {
                 ResponseStreamContentPart::OutputText(text) => {
+                    self.streamed_message_items.insert(item_id.clone());
                     self.ensure_running(out);
                     let key = (item_id.clone(), output_index, content_index);
                     let block_index = if let Some(index) = self.open_text_blocks.get(&key) {
@@ -601,6 +706,7 @@ impl OpenAiResponseToClaudeStream {
                 }
                 ResponseStreamContentPart::Refusal(refusal) => {
                     self.has_refusal = true;
+                    self.streamed_message_items.insert(item_id.clone());
                     self.ensure_running(out);
                     let key = (item_id.clone(), output_index, content_index);
                     let block_index = if let Some(index) = self.open_text_blocks.get(&key) {
@@ -616,6 +722,7 @@ impl OpenAiResponseToClaudeStream {
                     }
                 }
                 ResponseStreamContentPart::ReasoningText(reasoning) => {
+                    self.streamed_message_items.insert(item_id.clone());
                     self.ensure_running(out);
                     let key = (item_id.clone(), output_index, content_index);
                     let block_index = if let Some(index) = self.open_thinking_blocks.get(&key) {
@@ -642,50 +749,24 @@ impl OpenAiResponseToClaudeStream {
                 ..
             } => match part {
                 ResponseStreamContentPart::OutputText(text) => {
-                    let key = (item_id.clone(), output_index, content_index);
-                    let block_index = if let Some(index) = self.open_text_blocks.remove(&key) {
-                        index
-                    } else {
-                        let index = self.next_block();
-                        out.push(start_text_block_event(index));
-                        index
-                    };
-                    if !text.text.is_empty() {
-                        out.push(text_delta_event(block_index, text.text));
-                    }
-                    out.push(stop_block_event(block_index));
+                    self.finish_text_block(out, (item_id, output_index, content_index), text.text);
                 }
                 ResponseStreamContentPart::Refusal(refusal) => {
                     self.has_refusal = true;
-                    let key = (item_id.clone(), output_index, content_index);
-                    let block_index = if let Some(index) = self.open_text_blocks.remove(&key) {
-                        index
-                    } else {
-                        let index = self.next_block();
-                        out.push(start_text_block_event(index));
-                        index
-                    };
-                    if !refusal.refusal.is_empty() {
-                        out.push(text_delta_event(block_index, refusal.refusal));
-                    }
-                    out.push(stop_block_event(block_index));
+                    self.finish_text_block(
+                        out,
+                        (item_id, output_index, content_index),
+                        refusal.refusal,
+                    );
                 }
                 ResponseStreamContentPart::ReasoningText(reasoning) => {
-                    let key = (item_id.clone(), output_index, content_index);
-                    let block_index = if let Some(index) = self.open_thinking_blocks.remove(&key) {
-                        index
-                    } else {
-                        let index = self.next_block();
-                        out.push(start_thinking_block_event(
-                            index,
-                            format!("{item_id}_{output_index}_{content_index}"),
-                        ));
-                        index
-                    };
-                    if !reasoning.text.is_empty() {
-                        out.push(thinking_delta_event(block_index, reasoning.text));
-                    }
-                    out.push(stop_block_event(block_index));
+                    let signature = format!("{item_id}_{output_index}_{content_index}");
+                    self.finish_thinking_block(
+                        out,
+                        (item_id, output_index, content_index),
+                        signature,
+                        reasoning.text,
+                    );
                 }
             },
             ResponseStreamEvent::OutputTextAnnotationAdded {
@@ -713,6 +794,7 @@ impl OpenAiResponseToClaudeStream {
                 output_index,
                 ..
             } => {
+                self.streamed_message_items.insert(item_id.clone());
                 self.ensure_running(out);
                 let key = (item_id.clone(), output_index, content_index);
                 let block_index = if let Some(index) = self.open_text_blocks.get(&key) {
@@ -734,18 +816,7 @@ impl OpenAiResponseToClaudeStream {
                 text,
                 ..
             } => {
-                let key = (item_id, output_index, content_index);
-                let block_index = if let Some(index) = self.open_text_blocks.remove(&key) {
-                    index
-                } else {
-                    let index = self.next_block();
-                    out.push(start_text_block_event(index));
-                    index
-                };
-                if !text.is_empty() {
-                    out.push(text_delta_event(block_index, text));
-                }
-                out.push(stop_block_event(block_index));
+                self.finish_text_block(out, (item_id, output_index, content_index), text);
             }
             ResponseStreamEvent::RefusalDelta {
                 content_index,
@@ -755,6 +826,7 @@ impl OpenAiResponseToClaudeStream {
                 ..
             } => {
                 self.has_refusal = true;
+                self.streamed_message_items.insert(item_id.clone());
                 let key = (item_id.clone(), output_index, content_index);
                 let block_index = if let Some(index) = self.open_text_blocks.get(&key) {
                     *index
@@ -776,18 +848,7 @@ impl OpenAiResponseToClaudeStream {
                 ..
             } => {
                 self.has_refusal = true;
-                let key = (item_id, output_index, content_index);
-                let block_index = if let Some(index) = self.open_text_blocks.remove(&key) {
-                    index
-                } else {
-                    let index = self.next_block();
-                    out.push(start_text_block_event(index));
-                    index
-                };
-                if !refusal.is_empty() {
-                    out.push(text_delta_event(block_index, refusal));
-                }
-                out.push(stop_block_event(block_index));
+                self.finish_text_block(out, (item_id, output_index, content_index), refusal);
             }
             ResponseStreamEvent::ReasoningTextDelta {
                 content_index,
@@ -796,6 +857,7 @@ impl OpenAiResponseToClaudeStream {
                 output_index,
                 ..
             } => {
+                self.streamed_message_items.insert(item_id.clone());
                 let key = (item_id.clone(), output_index, content_index);
                 let block_index = if let Some(index) = self.open_thinking_blocks.get(&key) {
                     *index
@@ -819,21 +881,13 @@ impl OpenAiResponseToClaudeStream {
                 text,
                 ..
             } => {
-                let key = (item_id.clone(), output_index, content_index);
-                let block_index = if let Some(index) = self.open_thinking_blocks.remove(&key) {
-                    index
-                } else {
-                    let index = self.next_block();
-                    out.push(start_thinking_block_event(
-                        index,
-                        format!("{item_id}_{output_index}_{content_index}"),
-                    ));
-                    index
-                };
-                if !text.is_empty() {
-                    out.push(thinking_delta_event(block_index, text));
-                }
-                out.push(stop_block_event(block_index));
+                let signature = format!("{item_id}_{output_index}_{content_index}");
+                self.finish_thinking_block(
+                    out,
+                    (item_id, output_index, content_index),
+                    signature,
+                    text,
+                );
             }
             ResponseStreamEvent::ReasoningSummaryPartAdded {
                 item_id,
@@ -842,6 +896,7 @@ impl OpenAiResponseToClaudeStream {
                 summary_index,
                 ..
             } => {
+                self.streamed_message_items.insert(item_id.clone());
                 let key = (item_id.clone(), output_index, summary_index);
                 let block_index = if let Some(index) = self.open_summary_blocks.get(&key) {
                     *index
@@ -865,21 +920,13 @@ impl OpenAiResponseToClaudeStream {
                 summary_index,
                 ..
             } => {
-                let key = (item_id.clone(), output_index, summary_index);
-                let block_index = if let Some(index) = self.open_summary_blocks.remove(&key) {
-                    index
-                } else {
-                    let index = self.next_block();
-                    out.push(start_thinking_block_event(
-                        index,
-                        format!("{item_id}_{output_index}_summary_{summary_index}"),
-                    ));
-                    index
-                };
-                if !part.text.is_empty() {
-                    out.push(thinking_delta_event(block_index, part.text));
-                }
-                out.push(stop_block_event(block_index));
+                let signature = format!("{item_id}_{output_index}_summary_{summary_index}");
+                self.finish_summary_block(
+                    out,
+                    (item_id, output_index, summary_index),
+                    signature,
+                    part.text,
+                );
             }
             ResponseStreamEvent::ReasoningSummaryTextDelta {
                 delta,
@@ -888,6 +935,7 @@ impl OpenAiResponseToClaudeStream {
                 summary_index,
                 ..
             } => {
+                self.streamed_message_items.insert(item_id.clone());
                 let key = (item_id.clone(), output_index, summary_index);
                 let block_index = if let Some(index) = self.open_summary_blocks.get(&key) {
                     *index
@@ -911,24 +959,17 @@ impl OpenAiResponseToClaudeStream {
                 text,
                 ..
             } => {
-                let key = (item_id.clone(), output_index, summary_index);
-                let block_index = if let Some(index) = self.open_summary_blocks.remove(&key) {
-                    index
-                } else {
-                    let index = self.next_block();
-                    out.push(start_thinking_block_event(
-                        index,
-                        format!("{item_id}_{output_index}_summary_{summary_index}"),
-                    ));
-                    index
-                };
-                if !text.is_empty() {
-                    out.push(thinking_delta_event(block_index, text));
-                }
-                out.push(stop_block_event(block_index));
+                let signature = format!("{item_id}_{output_index}_summary_{summary_index}");
+                self.finish_summary_block(
+                    out,
+                    (item_id, output_index, summary_index),
+                    signature,
+                    text,
+                );
             }
             ResponseStreamEvent::FunctionCallArgumentsDelta { delta, item_id, .. } => {
                 let block_index = self.ensure_tool_block(out, &item_id, "function");
+                self.streamed_tool_args.insert(item_id.clone());
                 if !delta.is_empty() {
                     out.push(input_json_delta_event(block_index, delta));
                 }
@@ -939,10 +980,15 @@ impl OpenAiResponseToClaudeStream {
                 name,
                 ..
             } => {
-                let block_index =
-                    self.ensure_tool_block(out, &item_id, name.as_deref().unwrap_or("function"));
-                if !arguments.is_empty() {
-                    out.push(input_json_delta_event(block_index, arguments));
+                if !self.streamed_tool_args.contains(&item_id) {
+                    let block_index = self.ensure_tool_block(
+                        out,
+                        &item_id,
+                        name.as_deref().unwrap_or("function"),
+                    );
+                    if !arguments.is_empty() {
+                        out.push(input_json_delta_event(block_index, arguments));
+                    }
                 }
                 self.close_tool_block(out, &item_id);
             }
@@ -985,19 +1031,23 @@ impl OpenAiResponseToClaudeStream {
             }
             ResponseStreamEvent::CustomToolCallInputDelta { delta, item_id, .. } => {
                 let block_index = self.ensure_tool_block(out, &item_id, "custom_tool");
+                self.streamed_tool_args.insert(item_id.clone());
                 if !delta.is_empty() {
                     out.push(input_json_delta_event(block_index, delta));
                 }
             }
             ResponseStreamEvent::CustomToolCallInputDone { input, item_id, .. } => {
-                let block_index = self.ensure_tool_block(out, &item_id, "custom_tool");
-                if !input.is_empty() {
-                    out.push(input_json_delta_event(block_index, input));
+                if !self.streamed_tool_args.contains(&item_id) {
+                    let block_index = self.ensure_tool_block(out, &item_id, "custom_tool");
+                    if !input.is_empty() {
+                        out.push(input_json_delta_event(block_index, input));
+                    }
                 }
                 self.close_tool_block(out, &item_id);
             }
             ResponseStreamEvent::McpCallArgumentsDelta { delta, item_id, .. } => {
                 let block_index = self.ensure_tool_block(out, &item_id, "mcp_call");
+                self.streamed_tool_args.insert(item_id.clone());
                 if !delta.is_empty() {
                     out.push(input_json_delta_event(block_index, delta));
                 }
@@ -1005,9 +1055,11 @@ impl OpenAiResponseToClaudeStream {
             ResponseStreamEvent::McpCallArgumentsDone {
                 arguments, item_id, ..
             } => {
-                let block_index = self.ensure_tool_block(out, &item_id, "mcp_call");
-                if !arguments.is_empty() {
-                    out.push(input_json_delta_event(block_index, arguments));
+                if !self.streamed_tool_args.contains(&item_id) {
+                    let block_index = self.ensure_tool_block(out, &item_id, "mcp_call");
+                    if !arguments.is_empty() {
+                        out.push(input_json_delta_event(block_index, arguments));
+                    }
                 }
                 self.close_tool_block(out, &item_id);
             }
@@ -1082,7 +1134,7 @@ impl OpenAiResponseToClaudeStream {
 #[cfg(test)]
 mod tests {
     use super::OpenAiResponseToClaudeStream;
-    use crate::claude::create_message::stream::ClaudeStreamEvent;
+    use crate::claude::create_message::stream::{BetaRawContentBlockDelta, ClaudeStreamEvent};
     use crate::claude::create_message::types::BetaStopReason;
     use crate::openai::count_tokens::types as ot;
     use crate::openai::create_response::response::ResponseBody;
@@ -1220,5 +1272,234 @@ mod tests {
             last_delta,
             Some((Some(BetaStopReason::ToolUse), Some(26_138), 85))
         );
+    }
+
+    #[test]
+    fn text_stream_events_do_not_duplicate_content() {
+        let mut converter = OpenAiResponseToClaudeStream::default();
+        let mut out = Vec::new();
+        let item_id = "msg_1".to_string();
+
+        converter.on_stream_event(
+            ResponseStreamEvent::Created {
+                response: base_response(),
+                sequence_number: 0,
+            },
+            &mut out,
+        );
+        converter.on_stream_event(
+            ResponseStreamEvent::OutputItemAdded {
+                item: crate::openai::create_response::types::ResponseOutputItem::Message(
+                    ot::ResponseOutputMessage {
+                        id: item_id.clone(),
+                        content: Vec::new(),
+                        role: ot::ResponseOutputMessageRole::Assistant,
+                        phase: None,
+                        status: ot::ResponseItemStatus::InProgress,
+                        type_: ot::ResponseOutputMessageType::Message,
+                    },
+                ),
+                output_index: 0,
+                sequence_number: 1,
+            },
+            &mut out,
+        );
+        converter.on_stream_event(
+            ResponseStreamEvent::ContentPartAdded {
+                content_index: 0,
+                item_id: item_id.clone(),
+                output_index: 0,
+                part: crate::openai::create_response::stream::ResponseStreamContentPart::OutputText(
+                    ot::ResponseOutputText {
+                        annotations: Vec::new(),
+                        logprobs: None,
+                        text: String::new(),
+                        type_: ot::ResponseOutputTextType::OutputText,
+                    },
+                ),
+                sequence_number: 2,
+            },
+            &mut out,
+        );
+        for (sequence_number, delta) in ["{\"", "title", "\":\"", "Hello", "\"}"]
+            .into_iter()
+            .enumerate()
+        {
+            converter.on_stream_event(
+                ResponseStreamEvent::OutputTextDelta {
+                    content_index: 0,
+                    delta: delta.to_string(),
+                    item_id: item_id.clone(),
+                    logprobs: None,
+                    output_index: 0,
+                    sequence_number: (sequence_number + 3) as u64,
+                    obfuscation: None,
+                },
+                &mut out,
+            );
+        }
+        converter.on_stream_event(
+            ResponseStreamEvent::OutputTextDone {
+                content_index: 0,
+                item_id: item_id.clone(),
+                logprobs: None,
+                output_index: 0,
+                sequence_number: 8,
+                text: "{\"title\":\"Hello\"}".to_string(),
+            },
+            &mut out,
+        );
+        converter.on_stream_event(
+            ResponseStreamEvent::ContentPartDone {
+                content_index: 0,
+                item_id: item_id.clone(),
+                output_index: 0,
+                part: crate::openai::create_response::stream::ResponseStreamContentPart::OutputText(
+                    ot::ResponseOutputText {
+                        annotations: Vec::new(),
+                        logprobs: None,
+                        text: "{\"title\":\"Hello\"}".to_string(),
+                        type_: ot::ResponseOutputTextType::OutputText,
+                    },
+                ),
+                sequence_number: 9,
+            },
+            &mut out,
+        );
+        converter.on_stream_event(
+            ResponseStreamEvent::OutputItemDone {
+                item: crate::openai::create_response::types::ResponseOutputItem::Message(
+                    ot::ResponseOutputMessage {
+                        id: item_id,
+                        content: vec![ot::ResponseOutputContent::Text(ot::ResponseOutputText {
+                            annotations: Vec::new(),
+                            logprobs: None,
+                            text: "{\"title\":\"Hello\"}".to_string(),
+                            type_: ot::ResponseOutputTextType::OutputText,
+                        })],
+                        role: ot::ResponseOutputMessageRole::Assistant,
+                        phase: None,
+                        status: ot::ResponseItemStatus::Completed,
+                        type_: ot::ResponseOutputMessageType::Message,
+                    },
+                ),
+                output_index: 0,
+                sequence_number: 10,
+            },
+            &mut out,
+        );
+
+        converter.finish(&mut out);
+
+        let mut text_blocks = 0usize;
+        let mut text_payload = String::new();
+        for event in out {
+            match event {
+                ClaudeStreamEvent::ContentBlockStart {
+                    content_block: crate::claude::create_message::types::BetaContentBlock::Text(_),
+                    ..
+                } => text_blocks += 1,
+                ClaudeStreamEvent::ContentBlockDelta {
+                    delta: BetaRawContentBlockDelta::Text { text },
+                    ..
+                } => text_payload.push_str(&text),
+                _ => {}
+            }
+        }
+
+        assert_eq!(text_blocks, 1);
+        assert_eq!(text_payload, "{\"title\":\"Hello\"}");
+    }
+
+    #[test]
+    fn function_call_stream_events_do_not_duplicate_tool_payload() {
+        let mut converter = OpenAiResponseToClaudeStream::default();
+        let mut out = Vec::new();
+
+        converter.on_stream_event(
+            ResponseStreamEvent::Created {
+                response: base_response(),
+                sequence_number: 0,
+            },
+            &mut out,
+        );
+        converter.on_stream_event(
+            ResponseStreamEvent::OutputItemAdded {
+                item: crate::openai::create_response::types::ResponseOutputItem::FunctionToolCall(
+                    crate::openai::count_tokens::types::ResponseFunctionToolCall {
+                        arguments: String::new(),
+                        call_id: "call_1".to_string(),
+                        name: "Skill".to_string(),
+                        type_: ot::ResponseFunctionToolCallType::FunctionCall,
+                        id: Some("fc_1".to_string()),
+                        status: Some(ot::ResponseItemStatus::InProgress),
+                    },
+                ),
+                output_index: 0,
+                sequence_number: 1,
+            },
+            &mut out,
+        );
+        for (sequence_number, delta) in ["{\"", "args", "\":\"\"}"].into_iter().enumerate() {
+            converter.on_stream_event(
+                ResponseStreamEvent::FunctionCallArgumentsDelta {
+                    delta: delta.to_string(),
+                    item_id: "fc_1".to_string(),
+                    output_index: 0,
+                    sequence_number: (sequence_number + 2) as u64,
+                    obfuscation: None,
+                },
+                &mut out,
+            );
+        }
+        converter.on_stream_event(
+            ResponseStreamEvent::FunctionCallArgumentsDone {
+                arguments: "{\"args\":\"\"}".to_string(),
+                item_id: "fc_1".to_string(),
+                name: Some("Skill".to_string()),
+                output_index: 0,
+                sequence_number: 5,
+            },
+            &mut out,
+        );
+        converter.on_stream_event(
+            ResponseStreamEvent::OutputItemDone {
+                item: crate::openai::create_response::types::ResponseOutputItem::FunctionToolCall(
+                    crate::openai::count_tokens::types::ResponseFunctionToolCall {
+                        arguments: "{\"args\":\"\"}".to_string(),
+                        call_id: "call_1".to_string(),
+                        name: "Skill".to_string(),
+                        type_: ot::ResponseFunctionToolCallType::FunctionCall,
+                        id: Some("fc_1".to_string()),
+                        status: Some(ot::ResponseItemStatus::Completed),
+                    },
+                ),
+                output_index: 0,
+                sequence_number: 6,
+            },
+            &mut out,
+        );
+
+        converter.finish(&mut out);
+
+        let mut tool_blocks = 0usize;
+        let mut tool_payload = String::new();
+        for event in out {
+            match event {
+                ClaudeStreamEvent::ContentBlockStart {
+                    content_block:
+                        crate::claude::create_message::types::BetaContentBlock::ToolUse(_),
+                    ..
+                } => tool_blocks += 1,
+                ClaudeStreamEvent::ContentBlockDelta {
+                    delta: BetaRawContentBlockDelta::InputJson { partial_json },
+                    ..
+                } => tool_payload.push_str(&partial_json),
+                _ => {}
+            }
+        }
+
+        assert_eq!(tool_blocks, 1);
+        assert_eq!(tool_payload, "{\"args\":\"\"}");
     }
 }
