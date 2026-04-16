@@ -24,6 +24,30 @@
     ]
   },
   {
+    "model_id": "claude-opus-4-7",
+    "display_name": "Claude Opus 4.7",
+    "priority_price_tiers": [
+      {
+        "input_tokens_up_to": 100000000,
+        "price_input_tokens": 30.0,
+        "price_output_tokens": 150.0,
+        "price_cache_read_input_tokens": 3.0,
+        "price_cache_creation_input_tokens_5min": 37.5,
+        "price_cache_creation_input_tokens_1h": 60.0
+      }
+    ],
+    "price_tiers": [
+      {
+        "input_tokens_up_to": 100000000,
+        "price_input_tokens": 5.0,
+        "price_output_tokens": 25.0,
+        "price_cache_read_input_tokens": 0.5,
+        "price_cache_creation_input_tokens_5min": 6.25,
+        "price_cache_creation_input_tokens_1h": 10.0
+      }
+    ]
+  },
+  {
     "model_id": "claude-opus-4-5-20251101",
     "display_name": "Claude Opus 4.5",
     "price_tiers": [
