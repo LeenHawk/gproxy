@@ -1,6 +1,5 @@
 mod crypto;
 pub mod entities;
-mod migrations;
 mod optimize;
 mod store_mutation;
 mod store_query;
@@ -47,7 +46,6 @@ impl SeaOrmStorage {
         let schema = self
             .db
             .get_schema_registry("gproxy_storage::seaorm::entities::*");
-        migrations::run_pre_sync(&self.db).await?;
         schema.sync(&self.db).await?;
         optimize::apply_after_sync(&self.db).await
     }
