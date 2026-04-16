@@ -1,11 +1,11 @@
 ---
 title: Adding a Channel
-description: How to implement a new upstream channel in GPROXY — the Channel trait, dispatch table, registration, and Cargo feature wiring.
+description: How to implement a new upstream channel in GPROXY — the Channel trait, routing table, registration, and Cargo feature wiring.
 ---
 
 A **channel** is the code that speaks a specific upstream's wire
 protocol. Adding a new upstream means implementing the `Channel` trait
-once, declaring a default dispatch table, and registering the channel
+once, declaring a default routing table, and registering the channel
 via `inventory` so both the SDK and the server pick it up
 automatically.
 
@@ -31,13 +31,13 @@ A channel is made of five things:
 4. **A `Channel` impl** — the trait with `prepare_request`,
    `classify_response`, an optional `finalize_request` /
    `normalize_response` / `handle_local`, and the default
-   `dispatch_table`.
+   `routing_table`.
 5. **A registration** — an `inventory::submit!` block that adds a
    `ChannelRegistration` so the channel shows up in the registry at
    startup.
 
 The trait lives in
-[`sdk/gproxy-provider/src/channel.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/channel.rs).
+[`sdk/gproxy-channel/src/channel.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channel.rs).
 
 ## Pick a starting point
 
@@ -61,7 +61,7 @@ there.
 use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings};
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RoutingTable, RouteImplementation, RouteKey};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -109,7 +109,7 @@ three lines and there is almost no reason to skip them.
 
 ## 2. Implement `Channel`
 
-The two required methods are `dispatch_table` and
+The two required methods are `routing_table` and
 `prepare_request`. Everything else has a default.
 
 ```rust
@@ -119,8 +119,8 @@ impl Channel for AcmeChannel {
     type Credential = AcmeCredential;
     type Health     = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut table = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut table = RoutingTable::new();
         let pass = |op, proto| (
             RouteKey::new(op, proto),
             RouteImplementation::Passthrough,
@@ -181,9 +181,9 @@ Optional hooks you'll probably want eventually:
   `prepare_request`.
 - **`normalize_response`** — fix up non-standard response fields
   before usage extraction / protocol transform.
-- **`handle_local`** — implement `Local` routes in the dispatch
+- **`handle_local`** — implement `Local` routes in the routing
   table. Most channels only use it for `model_list` / `model_get`
-  when paired with an `*-only` dispatch preset.
+  when paired with an `*-only` routing preset.
 - **`model_pricing`** — return a `&'static [ModelPrice]` so GPROXY
   can bill calls without the admin entering prices by hand. See
   `channels/pricing/` for the JSON-backed pattern used by existing
@@ -196,12 +196,12 @@ the file. It has to sit outside the `impl` block and is what makes
 the registry discover the channel at startup:
 
 ```rust
-fn acme_dispatch_table() -> DispatchTable {
-    AcmeChannel.dispatch_table()
+fn acme_routing_table() -> RoutingTable {
+    AcmeChannel.routing_table()
 }
 
 inventory::submit! {
-    ChannelRegistration::new(AcmeChannel::ID, acme_dispatch_table)
+    ChannelRegistration::new(AcmeChannel::ID, acme_routing_table)
 }
 ```
 
@@ -254,7 +254,7 @@ A few checks to run before opening a PR:
   to the channel implementation.
 - **`cargo run -p gproxy`** with a seed TOML that has
   `channel = "acme"` and an `AcmeCredential` in `credentials` —
-  verifies the registry, settings deserialization, and dispatch
+  verifies the registry, settings deserialization, and routing
   table all line up.
 - **Hit the actual upstream** with `curl` through the scoped path
   form (`/acme-test/v1/chat/completions`) — the scoped form is the
@@ -265,7 +265,7 @@ A few checks to run before opening a PR:
 
 - [ ] `ChannelSettings` / `ChannelCredential` structs with `serde`
   defaults.
-- [ ] `Channel` impl with `dispatch_table`, `prepare_request`,
+- [ ] `Channel` impl with `routing_table`, `prepare_request`,
   `classify_response`.
 - [ ] (If needed) `finalize_request`, `normalize_response`,
   `handle_local`.

@@ -348,7 +348,7 @@ type ProviderRow = {
   name: string;
   channel: string;
   settings_json: Record<string, unknown>;
-  dispatch_json: Record<string, unknown> | null;
+  routing_json: Record<string, unknown> | null;
   credential_count: number;
 };
 
@@ -357,7 +357,7 @@ type ProviderWrite = {
   name: string;
   channel: string;
   settings_json: string;
-  dispatch_json: string;
+  routing_json: string;
 };
 
 type DeleteProviderPayload = {

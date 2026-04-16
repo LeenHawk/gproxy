@@ -15,7 +15,7 @@ Multi-channel LLM orchestration engine in Rust. Drops a ready-to-use
 - **Credential affinity** — optional prompt-cache hint affinity that
   pins requests with similar prefixes to the same credential to
   maximise upstream prompt-cache hits.
-- **Dispatch consumer** — walks each channel's `DispatchTable` and
+- **Routing consumer** — walks each channel's `RoutingTable` and
   drives cross-protocol transforms (via
   [`gproxy-protocol`]'s runtime dispatcher) when a client speaks one
   protocol and the upstream speaks another.

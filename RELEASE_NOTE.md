@@ -28,7 +28,7 @@
 #### Changed
 
 - **Custom channel drops `auth_scheme` field.** The field was added in d7691681 as a configurable switch for bearer / x-api-key / query-key, but the frontend form never exposed it and no user could set it without hand-editing `settings_json`. After protocol-aware auth headers (see Fixed), `auth_scheme` had no reachable effect. `prepare_request` now picks headers purely from `request.route.protocol`. Backward compat: `CustomSettings` has no `deny_unknown_fields`, so existing rows containing `"auth_scheme": "..."` deserialize unchanged (the field is silently dropped).
-- **Admin `pull_models` unified to OpenAI protocol.** Drops the per-channel protocol mapping. Every channel already registers `(ModelList, OpenAi)` in its dispatch table — as passthrough, xform, or local — so a single OpenAi `execute` call lets the dispatch layer handle protocol conversion. Removes `channel_to_model_list_protocol`, `build_live_model_list_request_body`, and the Claude/Gemini branches of `extract_model_ids`. Net −66 lines.
+- **Admin `pull_models` unified to OpenAI protocol.** Drops the per-channel protocol mapping. Every channel already registers `(ModelList, OpenAi)` in its routing table — as passthrough, xform, or local — so a single OpenAi `execute` call lets the routing layer handle protocol conversion. Removes `channel_to_model_list_protocol`, `build_live_model_list_request_body`, and the Claude/Gemini branches of `extract_model_ids`. Net −66 lines.
 - **Console module restructuring.** `ProvidersModule.tsx` (932 → 303 lines) split into `CredentialsPane`, `ModelsPane`, and `OAuthPane` container components, each owning their own state and handlers. `SettingsEditors.tsx` split into `settings-editors/` with one file per editor. Extracted `SuffixVariantDialog`, `usePullModelsPanel` hook, and `RewriteRuleEditor` into standalone files. Dropped unused `RewriteRulesEditor` definitions. Pure restructure; no behaviour change.
 
 #### Compatibility
@@ -61,7 +61,7 @@
 #### 变更
 
 - **Custom channel 移除 `auth_scheme` 字段.** 该字段在 d7691681 加入,可配置 bearer / x-api-key / query-key,但前端表单从未暴露,用户只有手改 `settings_json` 才能设置。协议感知 auth header 修复后 `auth_scheme` 不再有可达效果。`prepare_request` 现在纯粹从 `request.route.protocol` 决定 header。向后兼容:`CustomSettings` 没有 `deny_unknown_fields`,已有的 `"auth_scheme": "..."` 行反序列化不变(字段被静默忽略)。
-- **Admin `pull_models` 统一为 OpenAI 协议.** 移除 channel→protocol 映射。每个 channel 的 dispatch 表已经注册了 `(ModelList, OpenAi)` —— passthrough、xform 或 local —— 所以一次 OpenAi `execute` 调用让 dispatch 层处理协议转换。移除 `channel_to_model_list_protocol`、`build_live_model_list_request_body` 和 `extract_model_ids` 的 Claude/Gemini 分支。净减 66 行。
+- **Admin `pull_models` 统一为 OpenAI 协议.** 移除 channel→protocol 映射。每个 channel 的 routing 表已经注册了 `(ModelList, OpenAi)` —— passthrough、xform 或 local —— 所以一次 OpenAi `execute` 调用让 routing 层处理协议转换。移除 `channel_to_model_list_protocol`、`build_live_model_list_request_body` 和 `extract_model_ids` 的 Claude/Gemini 分支。净减 66 行。
 - **控制台模块重构.** `ProvidersModule.tsx`(932 → 303 行)拆分为 `CredentialsPane`、`ModelsPane`、`OAuthPane` 容器组件,各自管理自己的状态和 handler。`SettingsEditors.tsx` 拆到 `settings-editors/` 目录,每个编辑器一个文件。提取 `SuffixVariantDialog`、`usePullModelsPanel` hook、`RewriteRuleEditor` 为独立文件。删除已无人使用的 `RewriteRulesEditor` 定义。纯结构重组,无行为变更。
 
 #### 兼容性

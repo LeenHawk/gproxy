@@ -73,7 +73,7 @@ HTTP request ──►│  gproxy-server (Axum)                       │
    single canonical order (see *Guides → Models & Aliases*). Aliases,
    permission glob patterns, and channel-level rewrite rules are applied
    here.
-4. **Dispatch.** For `*-only` presets, `model_list` and `model_get` are
+4. **Routing.** For `*-only` presets, `model_list` and `model_get` are
    served **locally** from the `models` table, never touching upstream. For
    `*-like` / pass-through presets, upstream is called and its response is
    merged with the local `models` table so admins still see what they

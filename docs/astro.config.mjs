@@ -166,8 +166,8 @@ export default defineConfig({
 							translations: { 'zh-CN': 'TOML 配置' },
 						},
 						{
-							label: 'Dispatch Table',
-							slug: 'reference/dispatch-table',
+							label: 'Routing Table',
+							slug: 'reference/routing-table',
 							translations: { 'zh-CN': '路由表' },
 						},
 						{

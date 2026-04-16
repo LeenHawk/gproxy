@@ -7,7 +7,7 @@
 Single-channel LLM client layer for Rust. Provides the `Channel` trait, 14
 pre-built channel implementations (OpenAI, Anthropic, Gemini, Vertex, and
 friends), strongly typed credential / request / response types, credential
-health tracking, a dispatch table system, and an `execute_once` single-request
+health tracking, a routing table system, and an `execute_once` single-request
 pipeline that handles finalize → sanitize → rewrite → prepare_request → HTTP
 send → normalize_response → classify_response in one call.
 
@@ -48,7 +48,7 @@ cargo add gproxy-channel --no-default-features --features openai
 
 ```rust
 use gproxy_channel::channels::openai::{OpenAiChannel, OpenAiCredential, OpenAiSettings};
-use gproxy_channel::dispatch::RouteKey;
+use gproxy_channel::routing::RouteKey;
 use gproxy_channel::executor::execute_once;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -89,7 +89,7 @@ version you can drive against real OpenAI.
 ## What's in the box
 
 - **`Channel` trait** — implement once per upstream provider. Declares the
-  channel's dispatch table, HTTP request construction, response
+  channel's routing table, HTTP request construction, response
   classification, OAuth flow (if any), and optional local routes.
 - **14 built-in channels** — OpenAI (`/v1/chat/completions` and
   `/v1/responses`), Anthropic Claude, Google AI Studio (Gemini), Vertex
@@ -102,7 +102,7 @@ version you can drive against real OpenAI.
 - **Credential health** — `CredentialHealth` trait with a
   `ModelCooldownHealth` default implementation that tracks per-model
   cooldown windows and 429 / 5xx penalties.
-- **Dispatch table** — each channel declares a `DispatchTable` that maps
+- **Routing table** — each channel declares a `RoutingTable` that maps
   `(OperationFamily, ProtocolKind)` pairs to `Passthrough`,
   `TransformTo { destination }`, `Local`, or `Unsupported` routes. This
   is how the engine decides whether to run a cross-protocol transform

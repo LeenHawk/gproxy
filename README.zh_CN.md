@@ -147,7 +147,7 @@ docs/                  # Starlight 文档站 (gproxy.leenhawk.com 的源)
 - [请求改写规则](https://gproxy.leenhawk.com/zh-cn/guides/rewrite-rules/) · [消息改写规则](https://gproxy.leenhawk.com/zh-cn/guides/message-rewrite/)
 - [Claude 提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)
 - [新增通道](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)
-- [路由表](https://gproxy.leenhawk.com/zh-cn/reference/dispatch-table/)
+- [路由表](https://gproxy.leenhawk.com/zh-cn/reference/routing-table/)
 - [环境变量](https://gproxy.leenhawk.com/zh-cn/reference/environment-variables/) · [TOML 配置](https://gproxy.leenhawk.com/zh-cn/reference/toml-config/)
 - [Rust SDK](https://gproxy.leenhawk.com/zh-cn/reference/sdk/)
 

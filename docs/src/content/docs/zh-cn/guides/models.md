@@ -1,6 +1,6 @@
 ---
 title: 模型与别名
-description: GPROXY 如何端到端地解析一个模型名 —— 包括别名、重写规则和本地 model_list 分发。
+description: GPROXY 如何端到端地解析一个模型名 —— 包括别名、重写规则和本地 model_list 路由。
 ---
 
 发给 GPROXY 的每个请求都携带一个模型名。它从这个字符串走到真实上游调用的路径
@@ -61,9 +61,9 @@ enabled = true
 
 这样你就能获得"从上游拉取、本地自定义"的工作流，而不必手动编辑 TOML。
 
-## `model_list` / `model_get` 分发
+## `model_list` / `model_get` 路由
 
-模型列表接口的行为取决于路由所使用的分发模板：
+模型列表接口的行为取决于路由所使用的路由模板：
 
 - **`*-only` 预设** (`chat-completions-only`、`response-only`、`claude-only`、
   `gemini-only`) 的 `model_list` 和 `model_get` 默认使用 **Local** 实现：
@@ -73,7 +73,7 @@ enabled = true
   其目标模型。`model_get` 先查本地表，未命中再落到上游。
 
 `GproxyEngine::is_local_dispatch(...)` 让 handler 在调用 `engine.execute` 之前
-先判断是否走本地分发。
+先判断是否走本地路由。
 
 ## 定价与别名
 

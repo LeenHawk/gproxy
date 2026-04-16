@@ -69,7 +69,7 @@ HTTP 请求   ──► │  gproxy-server (Axum)                       │
    路由类型 (`model_list` / `model_get` / chat 调用 …)。
 3. **模型解析。** `permission → rewrite → alias → execute` 是唯一规范的顺序
    (详见*使用指南 → 模型与别名*)，别名、权限 glob 匹配、通道级重写规则都在这里生效。
-4. **分发。** 对于 `*-only` 预设，`model_list` 和 `model_get` 直接由本地 `models`
+4. **路由。** 对于 `*-only` 预设，`model_list` 和 `model_get` 直接由本地 `models`
    表响应，不会打到上游。对于 `*-like` / 透传预设，仍会调用上游，但响应会与本地
    `models` 表**合并**，让管理员注册过的条目始终可见。
 5. **执行。** `GproxyEngine::execute` 让解析得到的通道准备上游请求，发起调用，

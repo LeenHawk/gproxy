@@ -153,7 +153,7 @@ entry points:
 - [Request Rewrite Rules](https://gproxy.leenhawk.com/guides/rewrite-rules/) · [Message Rewrite Rules](https://gproxy.leenhawk.com/guides/message-rewrite/)
 - [Claude Prompt Caching](https://gproxy.leenhawk.com/guides/claude-caching/)
 - [Adding a Channel](https://gproxy.leenhawk.com/guides/adding-a-channel/)
-- [Dispatch Table](https://gproxy.leenhawk.com/reference/dispatch-table/)
+- [Routing Table](https://gproxy.leenhawk.com/reference/routing-table/)
 - [Environment Variables](https://gproxy.leenhawk.com/reference/environment-variables/) · [TOML Config](https://gproxy.leenhawk.com/reference/toml-config/)
 - [Rust SDK](https://gproxy.leenhawk.com/reference/sdk/)
 

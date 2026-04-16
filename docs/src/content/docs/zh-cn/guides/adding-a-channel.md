@@ -1,10 +1,10 @@
 ---
 title: 新增通道 (Adding a Channel)
-description: 如何在 GPROXY 中实现一个新的上游通道 —— Channel trait、dispatch table、注册以及 Cargo feature。
+description: 如何在 GPROXY 中实现一个新的上游通道 —— Channel trait、routing table、注册以及 Cargo feature。
 ---
 
 **通道 (channel)** 是一段说特定上游 wire 协议的代码。新增一个上游 =
-实现一次 `Channel` trait、声明默认 dispatch table、用 `inventory`
+实现一次 `Channel` trait、声明默认 routing table、用 `inventory`
 注册 —— SDK 和 server 就都能自动发现它。
 
 本页只给最少步骤。请把这一页和现有通道
@@ -23,7 +23,7 @@ description: 如何在 GPROXY 中实现一个新的上游通道 —— Channel t
    按 `(credential, model)` 粒度在可重试失败时冷却凭证。
 4. **`Channel` impl** —— 这个 trait 包括 `prepare_request`、
    `classify_response`、可选的 `finalize_request` / `normalize_response` /
-   `handle_local`，以及默认 `dispatch_table`。
+   `handle_local`，以及默认 `routing_table`。
 5. **注册** —— 一段 `inventory::submit!` 块，给注册表添加
    `ChannelRegistration`，启动时被自动发现。
 
@@ -50,7 +50,7 @@ trait 定义在
 use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings};
-use crate::dispatch::{DispatchTable, RouteImplementation, RouteKey};
+use crate::routing::{RoutingTable, RouteImplementation, RouteKey};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
@@ -97,7 +97,7 @@ impl ChannelCredential for AcmeCredential {}
 
 ## 2. 实现 `Channel`
 
-必选方法只有两个：`dispatch_table` 和 `prepare_request`。其它都有默认值。
+必选方法只有两个：`routing_table` 和 `prepare_request`。其它都有默认值。
 
 ```rust
 impl Channel for AcmeChannel {
@@ -106,8 +106,8 @@ impl Channel for AcmeChannel {
     type Credential = AcmeCredential;
     type Health     = ModelCooldownHealth;
 
-    fn dispatch_table(&self) -> DispatchTable {
-        let mut table = DispatchTable::new();
+    fn routing_table(&self) -> RoutingTable {
+        let mut table = RoutingTable::new();
         let pass = |op, proto| (
             RouteKey::new(op, proto),
             RouteImplementation::Passthrough,
@@ -167,7 +167,7 @@ impl Channel for AcmeChannel {
   不要放 `prepare_request`。
 - **`normalize_response`** —— 在 usage 抽取 / 协议翻译前，修正非标准的
   响应字段。
-- **`handle_local`** —— 实现 dispatch 表中的 `Local` 路由。大多数通道
+- **`handle_local`** —— 实现 routing 表中的 `Local` 路由。大多数通道
   只在搭配 `*-only` 预设时给 `model_list` / `model_get` 用。
 - **`model_pricing`** —— 返回 `&'static [ModelPrice]`，让 GPROXY 无需管理员
   手填价格就能记账。参考 `channels/pricing/` 下现有的 JSON 模式。
@@ -178,12 +178,12 @@ impl Channel for AcmeChannel {
 之外 —— 这是注册表能在启动时发现该通道的关键：
 
 ```rust
-fn acme_dispatch_table() -> DispatchTable {
-    AcmeChannel.dispatch_table()
+fn acme_routing_table() -> RoutingTable {
+    AcmeChannel.routing_table()
 }
 
 inventory::submit! {
-    ChannelRegistration::new(AcmeChannel::ID, acme_dispatch_table)
+    ChannelRegistration::new(AcmeChannel::ID, acme_routing_table)
 }
 ```
 
@@ -234,14 +234,14 @@ all-channels = ["openai", "anthropic", /* … */, "acme"]
 - **`cargo test -p gproxy-provider`** —— 通道测试就放在通道实现旁边。
 - **`cargo run -p gproxy`** 配一份 `channel = "acme"` 并在 `credentials`
   里带 `AcmeCredential` 的种子 TOML —— 验证注册表、settings 反序列化、
-  dispatch 表全都对齐。
+  routing 表全都对齐。
 - **用真正的上游跑一遍 `curl`**，通过限定作用域路径（`/acme-test/v1/chat/completions`）—— 限定作用域是调试新通道最干净的隔离方式，详见
   [发送第一个请求](/zh-cn/getting-started/first-request/)。
 
 ## 自检清单
 
 - [ ] `ChannelSettings` / `ChannelCredential` 结构体带 `serde` 默认值。
-- [ ] `Channel` impl 有 `dispatch_table`、`prepare_request`、
+- [ ] `Channel` impl 有 `routing_table`、`prepare_request`、
   `classify_response`。
 - [ ]（如需）`finalize_request`、`normalize_response`、`handle_local`。
 - [ ] 文件末尾的 `inventory::submit!` 注册。

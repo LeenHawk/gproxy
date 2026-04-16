@@ -1,6 +1,6 @@
 ---
 title: Models & Aliases
-description: How GPROXY resolves a model name end-to-end, including aliases, rewrite rules, and local model-list dispatch.
+description: How GPROXY resolves a model name end-to-end, including aliases, rewrite rules, and local model-list routing.
 ---
 
 Every request to GPROXY carries a model name. The route it takes from that
@@ -74,9 +74,9 @@ pricing, which an admin can then edit.
 This gives you the "seed from upstream, customize locally" workflow without
 having to hand-edit TOML.
 
-## `model_list` / `model_get` dispatch
+## `model_list` / `model_get` routing
 
-How the model-list endpoints behave depends on the dispatch template
+How the model-list endpoints behave depends on the routing template
 configured for the route:
 
 - **`*-only` presets** (`chat-completions-only`, `response-only`,
