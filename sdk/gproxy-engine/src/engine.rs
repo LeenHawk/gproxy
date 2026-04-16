@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -856,7 +857,7 @@ impl GproxyEngine {
             let auth_candidates = provider.prepare_ws_auth(&ws_path, ws_model)?;
 
             let mut last_error = None;
-            for (idx, (auth_url, auth_headers)) in auth_candidates.into_iter().enumerate() {
+            for (idx, auth_url, auth_headers) in auth_candidates {
                 // Convert URL scheme to wss/ws
                 let ws_url = auth_url
                     .replace("https://", "wss://")
@@ -906,7 +907,7 @@ impl GproxyEngine {
                     continue;
                 }
 
-                let ws = match response.into_websocket().await {
+                let mut ws = match response.into_websocket().await {
                     Ok(ws) => ws,
                     Err(e) => {
                         tracing::warn!(credential = idx, error = %e, "ws upgrade failed, trying next credential");
@@ -916,8 +917,32 @@ impl GproxyEngine {
                     }
                 };
 
+                let buffered_first_message = if matches!(
+                    operation,
+                    OperationFamily::OpenAiResponseWebSocket
+                ) {
+                    match probe_openai_ws_connection(&mut ws).await? {
+                        OpenAiWsProbeResult::Ready(message) => message,
+                        OpenAiWsProbeResult::AuthRejected(detail) => {
+                            tracing::warn!(
+                                credential = idx,
+                                error = %detail,
+                                "ws emitted immediate auth error, trying next credential"
+                            );
+                            provider.mark_credential_dead(idx);
+                            last_error = Some(UpstreamError::Channel(detail));
+                            continue;
+                        }
+                    }
+                } else {
+                    None
+                };
+
                 tracing::info!(credential = idx, "upstream websocket connected");
-                let upstream = UpstreamWebSocket { inner: ws };
+                let mut upstream = UpstreamWebSocket::new(ws);
+                if let Some(message) = buffered_first_message {
+                    upstream.buffer_message(message);
+                }
                 let meta = WsUpstreamMeta {
                     url: ws_url,
                     request_headers: auth_headers
@@ -1853,6 +1878,11 @@ pub enum WsConnectionResult {
     },
 }
 
+enum OpenAiWsProbeResult {
+    Ready(Option<WsMessage>),
+    AuthRejected(String),
+}
+
 /// Determine HTTP method and base path for a given operation.
 ///
 /// For most operations the engine historically used `POST /{op}`.
@@ -1937,9 +1967,21 @@ fn ws_path_for_operation<'a>(
 /// Wrapper around a wreq WebSocket connection to an upstream provider.
 pub struct UpstreamWebSocket {
     inner: wreq::ws::WebSocket,
+    buffered_messages: VecDeque<WsMessage>,
 }
 
 impl UpstreamWebSocket {
+    fn new(inner: wreq::ws::WebSocket) -> Self {
+        Self {
+            inner,
+            buffered_messages: VecDeque::new(),
+        }
+    }
+
+    fn buffer_message(&mut self, message: WsMessage) {
+        self.buffered_messages.push_back(message);
+    }
+
     /// Get a mutable reference to the inner wreq WebSocket.
     /// Use `futures_util::StreamExt` and `futures_util::SinkExt` for
     /// send/recv, or call `recv()` / `send()` directly.
@@ -1949,6 +1991,9 @@ impl UpstreamWebSocket {
 
     /// Receive a message from the upstream WebSocket.
     pub async fn recv(&mut self) -> Option<Result<WsMessage, UpstreamError>> {
+        if let Some(message) = self.buffered_messages.pop_front() {
+            return Some(Ok(message));
+        }
         self.inner
             .recv()
             .await
@@ -1966,6 +2011,83 @@ impl UpstreamWebSocket {
 
 /// Re-export wreq WS message type.
 pub use wreq::ws::message::Message as WsMessage;
+
+async fn probe_openai_ws_connection(
+    ws: &mut wreq::ws::WebSocket,
+) -> Result<OpenAiWsProbeResult, UpstreamError> {
+    let first_frame =
+        match tokio::time::timeout(std::time::Duration::from_millis(150), ws.recv()).await {
+            Ok(Some(Ok(message))) => message,
+            Ok(Some(Err(error))) => return Err(UpstreamError::Http(error.to_string())),
+            Ok(None) | Err(_) => return Ok(OpenAiWsProbeResult::Ready(None)),
+        };
+
+    let auth_rejection = classify_openai_ws_probe_message(&first_frame);
+
+    if let Some(message) = auth_rejection {
+        Ok(OpenAiWsProbeResult::AuthRejected(message))
+    } else {
+        Ok(OpenAiWsProbeResult::Ready(Some(first_frame)))
+    }
+}
+
+fn classify_openai_ws_probe_message(message: &WsMessage) -> Option<String> {
+    use gproxy_protocol::openai::create_response::stream::ResponseStreamEvent;
+    use gproxy_protocol::openai::create_response::websocket::types::OpenAiCreateResponseWebSocketServerMessage;
+
+    match message {
+        WsMessage::Text(text) => {
+            match serde_json::from_str::<OpenAiCreateResponseWebSocketServerMessage>(text) {
+                Ok(OpenAiCreateResponseWebSocketServerMessage::WrappedError(event))
+                    if matches!(event.status, Some(401 | 403)) =>
+                {
+                    event
+                        .error
+                        .and_then(|error| error.message)
+                        .filter(|message| !message.is_empty())
+                        .or_else(|| Some("websocket auth rejected".to_string()))
+                }
+                Ok(OpenAiCreateResponseWebSocketServerMessage::ApiError(error))
+                    if looks_like_openai_auth_error(
+                        error.error.code.as_deref(),
+                        &error.error.type_,
+                        &error.error.message,
+                    ) =>
+                {
+                    Some(error.error.message)
+                }
+                Ok(OpenAiCreateResponseWebSocketServerMessage::StreamEvent(
+                    ResponseStreamEvent::Error { error, .. },
+                )) if looks_like_openai_auth_error(
+                    error.code.as_deref(),
+                    &error.type_,
+                    &error.message,
+                ) =>
+                {
+                    Some(error.message)
+                }
+                _ => None,
+            }
+        }
+        WsMessage::Close(_) => Some("websocket closed during auth probe".to_string()),
+        _ => None,
+    }
+}
+
+fn looks_like_openai_auth_error(code: Option<&str>, type_: &str, message: &str) -> bool {
+    let code = code.unwrap_or_default().to_ascii_lowercase();
+    let type_ = type_.to_ascii_lowercase();
+    let message = message.to_ascii_lowercase();
+
+    code.contains("auth")
+        || code.contains("api_key")
+        || type_.contains("auth")
+        || type_.contains("permission")
+        || message.contains("auth")
+        || message.contains("api key")
+        || message.contains("unauthorized")
+        || message.contains("forbidden")
+}
 
 /// Inject or overwrite the `"stream"` flag in an already-serialized JSON
 /// request body so it matches the resolved operation family.
@@ -2015,7 +2137,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        is_stream_aggregation_route, validate_credential_json, wrap_upstream_response_stream,
+        WsMessage, classify_openai_ws_probe_message, is_stream_aggregation_route,
+        validate_credential_json, wrap_upstream_response_stream,
     };
     use gproxy_channel::response::{UpstreamBodyStream, UpstreamError};
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -2108,5 +2231,59 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].as_ref(), b"chunk-a");
         assert_eq!(chunks[1].as_ref(), b"chunk-b");
+    }
+
+    #[test]
+    fn classify_openai_ws_probe_message_flags_wrapped_401_errors() {
+        let message = WsMessage::Text(
+            json!({
+                "type": "error",
+                "status": 401,
+                "error": {
+                    "type": "invalid_request_error",
+                    "code": "invalid_api_key",
+                    "message": "bad credential"
+                }
+            })
+            .to_string()
+            .into(),
+        );
+        assert!(
+            classify_openai_ws_probe_message(&message).is_some(),
+            "wrapped websocket 401 errors should trigger credential rotation"
+        );
+    }
+
+    #[test]
+    fn classify_openai_ws_probe_message_ignores_success_frames() {
+        let message = WsMessage::Text(
+            json!({
+                "type": "response.created",
+                "sequence_number": 0,
+                "response": {
+                    "id": "resp_test",
+                    "object": "response",
+                    "created_at": 0,
+                    "status": "in_progress",
+                    "background": false,
+                    "error": null,
+                    "incomplete_details": null,
+                    "instructions": null,
+                    "max_output_tokens": null,
+                    "model": "gpt-5.4",
+                    "output": [],
+                    "parallel_tool_calls": true,
+                    "tool_choice": "auto",
+                    "tools": [],
+                    "top_p": 1.0,
+                    "truncation": "disabled",
+                    "usage": null,
+                    "metadata": {}
+                }
+            })
+            .to_string()
+            .into(),
+        );
+        assert_eq!(classify_openai_ws_probe_message(&message), None);
     }
 }

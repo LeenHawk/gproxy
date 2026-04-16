@@ -512,9 +512,7 @@ impl OpenAiResponseToClaudeStream {
                     Some(ResponseIncompleteReason::MaxOutputTokens) => {
                         Some(BetaStopReason::MaxTokens)
                     }
-                    Some(ResponseIncompleteReason::ContentFilter) => {
-                        Some(BetaStopReason::Refusal)
-                    }
+                    Some(ResponseIncompleteReason::ContentFilter) => Some(BetaStopReason::Refusal),
                     None => None,
                 };
             }
@@ -1090,9 +1088,8 @@ mod tests {
     use crate::openai::create_response::response::ResponseBody;
     use crate::openai::create_response::stream::ResponseStreamEvent;
     use crate::openai::create_response::types::{
-        ResponseInputTokensDetails, ResponseObject, ResponseOutputTokensDetails,
-        ResponseReasoning, ResponseServiceTier, ResponseStatus, ResponseTextConfig,
-        ResponseToolChoice, ResponseUsage,
+        ResponseInputTokensDetails, ResponseObject, ResponseOutputTokensDetails, ResponseReasoning,
+        ResponseServiceTier, ResponseStatus, ResponseTextConfig, ResponseToolChoice, ResponseUsage,
     };
 
     fn base_response() -> ResponseBody {
@@ -1195,7 +1192,9 @@ mod tests {
             input_tokens: 26_138,
             input_tokens_details: ResponseInputTokensDetails { cached_tokens: 0 },
             output_tokens: 85,
-            output_tokens_details: ResponseOutputTokensDetails { reasoning_tokens: 59 },
+            output_tokens_details: ResponseOutputTokensDetails {
+                reasoning_tokens: 59,
+            },
             total_tokens: 26_223,
         });
         converter.on_stream_event(
@@ -1209,9 +1208,11 @@ mod tests {
         converter.finish(&mut out);
 
         let last_delta = out.iter().rev().find_map(|event| match event {
-            ClaudeStreamEvent::MessageDelta { delta, usage, .. } => {
-                Some((delta.stop_reason.clone(), usage.input_tokens, usage.output_tokens))
-            }
+            ClaudeStreamEvent::MessageDelta { delta, usage, .. } => Some((
+                delta.stop_reason.clone(),
+                usage.input_tokens,
+                usage.output_tokens,
+            )),
             _ => None,
         });
 

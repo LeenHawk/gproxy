@@ -703,4 +703,47 @@ mod tests {
             .expect("authorization header");
         assert_eq!(auth, "Bearer token-2");
     }
+
+    #[test]
+    fn prepare_ws_auth_skips_dead_credentials() {
+        let store = ProviderStore::builder()
+            .add_provider(
+                "demo",
+                CodexChannel,
+                CodexSettings::default(),
+                vec![
+                    (
+                        gproxy_channel::channels::codex::CodexCredential {
+                            access_token: "token-1".to_string(),
+                            ..Default::default()
+                        },
+                        ModelCooldownHealth::default(),
+                    ),
+                    (
+                        gproxy_channel::channels::codex::CodexCredential {
+                            access_token: "token-2".to_string(),
+                            ..Default::default()
+                        },
+                        ModelCooldownHealth::default(),
+                    ),
+                ],
+            )
+            .build();
+
+        let runtime = store.get_runtime("demo").expect("runtime");
+        runtime.mark_credential_dead(0);
+
+        let auth_candidates = runtime
+            .prepare_ws_auth("/v1/responses", Some("gpt-5.4"))
+            .expect("ws auth candidates");
+
+        assert_eq!(auth_candidates.len(), 1);
+        let (credential_index, _url, headers) = &auth_candidates[0];
+        assert_eq!(*credential_index, 1);
+        let auth = headers
+            .get("Authorization")
+            .and_then(|value| value.to_str().ok())
+            .expect("authorization header");
+        assert_eq!(auth, "Bearer token-2");
+    }
 }

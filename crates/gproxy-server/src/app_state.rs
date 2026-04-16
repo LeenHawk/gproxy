@@ -1204,6 +1204,10 @@ mod tests {
             .expect("session token should keep sess- prefix");
 
         assert_eq!(suffix.len(), 32);
-        assert!(suffix.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)));
+        assert!(
+            suffix
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+        );
     }
 }

@@ -112,12 +112,13 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn rewrite_rules(&self) -> Vec<gproxy_channel::utils::rewrite::RewriteRule>;
 
-    /// Build WS-ready (url, headers) pairs for each credential.
+    /// Build WS-ready `(credential_index, url, headers)` candidates for
+    /// healthy credentials in the order this provider should try them.
     fn prepare_ws_auth(
         &self,
         path: &str,
         model: Option<&str>,
-    ) -> Result<Vec<(String, http::HeaderMap)>, UpstreamError>;
+    ) -> Result<Vec<(usize, String, http::HeaderMap)>, UpstreamError>;
 
     fn execute<'a>(
         &'a self,
@@ -390,7 +391,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         &self,
         path: &str,
         model: Option<&str>,
-    ) -> Result<Vec<(String, http::HeaderMap)>, UpstreamError> {
+    ) -> Result<Vec<(usize, String, http::HeaderMap)>, UpstreamError> {
         let settings = self.settings.load();
         let credentials = self.credentials.load();
         if credentials.is_empty() {
@@ -414,16 +415,40 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             headers: http::HeaderMap::new(),
         };
 
-        let mut results = Vec::with_capacity(credentials.len());
+        let health = self.health.lock().unwrap();
+        let eligible: Vec<usize> = credentials
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, _)| {
+                health
+                    .get(idx)
+                    .is_none_or(|entry| entry.is_available(model))
+                    .then_some(idx)
+            })
+            .collect();
+        if eligible.is_empty() {
+            return Err(UpstreamError::NoEligibleCredentials);
+        }
+
+        let start = self
+            .round_robin_cursor
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            % eligible.len();
+        let ordered: Vec<usize> = (0..eligible.len())
+            .map(|offset| eligible[(start + offset) % eligible.len()])
+            .collect();
+
+        let mut results = Vec::with_capacity(ordered.len());
         let ws_extra = self.channel.ws_extra_headers();
-        for credential in credentials.iter() {
+        for idx in ordered {
+            let credential = &credentials[idx];
             let http_req = self
                 .channel
                 .prepare_request(credential, &settings, &dummy)?;
             let url = http_req.uri().to_string();
             let mut headers = http_req.headers().clone();
             headers.extend(ws_extra.clone());
-            results.push((url, headers));
+            results.push((idx, url, headers));
         }
         Ok(results)
     }
