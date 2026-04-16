@@ -480,10 +480,14 @@ pub async fn proxy_unscoped(
                 model_name.clone(),
             )
         } else if let Some((provider, model)) = model_name.split_once('/') {
+            // Preserve the `provider/` prefix in the response. The engine's
+            // `response_model_override` rewrites the response body's model
+            // field — without it the client would see just "model" instead
+            // of the "provider/model" string it sent.
             (
                 provider.to_string(),
                 model.to_string(),
-                None,
+                Some(model_name.clone()),
                 model.to_string(),
             )
         } else {
