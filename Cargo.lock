@@ -449,9 +449,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.16.2"
+version = "1.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a054912289d18629dc78375ba2c3726a3afe3ff71b4edba9dedfca0e3446d1fc"
+checksum = "0ec6fb3fe69024a75fa7e1bfb48aa6cf59706a101658ea01bfd33b2b248a038f"
 dependencies = [
  "aws-lc-sys",
  "zeroize",
@@ -459,9 +459,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.39.1"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83a25cf98105baa966497416dbd42565ce3a8cf8dbfd59803ec9ad46f3126399"
+checksum = "f50037ee5e1e41e7b8f9d161680a725bd1626cb6f8c7e901f91f942850852fe7"
 dependencies = [
  "cc",
  "cmake",
@@ -888,9 +888,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.0"
+version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b193af5b67834b676abd72466a96c1024e6a6ad978a1f484bd90b85c94041351"
+checksum = "1ddb117e43bbf7dacf0a4190fef4d345b9bad68dfc649cb349e7d17d28428e51"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -910,9 +910,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.6.0"
+version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1110bd8a634a1ab8cb04345d8d878267d57c3cf1b38d91b71af6686408bbca6a"
+checksum = "f2ce8604710f6733aa641a2b3731eaa1e8b3d9973d5e3565da11800813f997a9"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "async-stream",
  "axum",
@@ -1868,7 +1868,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1883,7 +1883,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-engine"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1910,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1922,7 +1922,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "bytes",
  "chrono",
@@ -1948,7 +1948,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "gproxy-channel",
  "gproxy-engine",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1994,7 +1994,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.11"
+version = "1.0.12"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -5069,9 +5069,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.23.0"
+version = "1.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ac8b6f42ead25368cf5b098aeb3dc8a1a2c05a3eee8a9a1a68c640edbfc79d9"
+checksum = "ddd74a9687298c6858e9b88ec8935ec45d22e8fd5e6394fa1bd4e99a87789c76"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",

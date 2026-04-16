@@ -1,5 +1,79 @@
 # Release Notes
 
+## v1.0.12
+
+> Proxy response headers are now normalized (correct `Content-Type`, stripped upstream `Content-Length` / `Content-Encoding` / `Transfer-Encoding`), two long-standing bugs in the OpenAI-response → Claude stream converter are fixed (duplicate block emission when `output_item.done` arrives after streamed deltas; spurious `stop_reason=end_turn` swallowing `tool_use`), the OpenAI WebSocket handshake now detects auth failures on the first frame and rotates to the next credential, and the "dispatch" concept is renamed to "routing" across SDK / API / storage / console / docs — with an automatic SQL column rename from `providers.dispatch_json` to `providers.routing_json`.
+
+### English
+
+#### Added
+
+- **`Apply Default Pricing` button on the Models tab.** The 12 backend per-channel pricing JSON files (397 models total) are consolidated into a frontend lookup table at `frontend/console/src/lib/default-model-pricing.ts`. Each model's edit form now exposes a button that auto-fills `pricing_json` by taking the last `/`-separated segment of `model_id` and running a longest-substring match against the template — one click to populate pricing for any model the template knows.
+- **OpenAI Responses WebSocket auth probe.** `UpstreamWebSocket` now waits up to 150ms for the first upstream frame when operation is `OpenAiResponseWebSocket`; if it classifies as a 401/403 / `invalid_api_key` / permission / unauthorized signal, the credential is marked dead and the engine rotates to the next one. Non-auth first frames are buffered and delivered on the first `recv()` so downstream code sees no dropped data. Before this, a bad `sk-proj-…` key produced a successful `101 Switching Protocols`, an immediate error frame, and a user-facing failure with no credential rotation.
+- **`prepare_ws_auth` returns credential indices with round-robin ordering.** The WS auth candidate tuple is now `(credential_index, url, headers)` instead of `(url, headers)`. The runtime filters dead credentials up-front (cooldown-health aware) and rotates the start offset via an atomic cursor, matching HTTP execution semantics.
+- **`parseBetaHeaders` accepts JSON array strings.** Legacy CSV input (`"a,b,c"`) is replaced by strict JSON array parsing (`'["a","b","c"]'`) so the `BetaHeadersEditor` can round-trip structured config without ambiguity. Invalid input yields `[]` instead of silent partial parse. Covered by new unit tests.
+
+#### Fixed
+
+- **Proxy response headers now normalized.** The new `normalize_response_headers` helper strips three upstream-owned headers (`Content-Length`, `Content-Encoding`, `Transfer-Encoding`) from every `proxy`, `proxy_unscoped`, and `proxy_unscoped_files` response because the body is re-streamed through axum and the stale values break chunked encoding / gzip-chained downstreams. When the upstream omitted `Content-Type` entirely, a correct default is injected per (operation, protocol) — `text/event-stream` for Claude / OpenAI-chat / OpenAI-response / Gemini streaming, `application/json` for non-stream generation / count-token / compact / embedding / image / file / model-list routes.
+- **`OpenAiResponseToClaudeStream` no longer double-emits closed blocks.** The converter kept per-block sets (`completed_text_blocks` / `completed_thinking_blocks` / `completed_summary_blocks` / `streamed_message_items` / `streamed_tool_args`) so a `*.done` event that arrives after the corresponding streaming delta closes the already-open block exactly once, and tool-call `output_item.done` with the same `item_id` as a streamed `function_call_arguments.done` becomes a single `content_block_stop` instead of a re-opened block. The rewrite consolidates the duplicate per-event block-close logic into `finish_text_block` / `finish_thinking_block` / `finish_summary_block` helpers.
+- **`OpenAiResponseToClaudeStream` preserves `tool_use` stop reason.** On a `ResponseStreamEvent::Completed` with no `incomplete_details.reason`, the converter previously forced `stop_reason = BetaStopReason::EndTurn`, which overwrote the `ToolUse` reason set by the tool-call mapper. It now leaves `stop_reason` as `None` in that branch so tool-driven stop reasons propagate to the final `message_delta`. Regression-tested with a function-call → completed sequence that asserts `BetaStopReason::ToolUse`.
+- **Pricing save: missing `model_id` and i64 overflow.** `ModelPrice.model_id` gains `#[serde(default)]` because the frontend omits it (backend overwrites from the URL param) and the previous hard requirement caused 400 on save. Pricing templates' "unlimited" tier cap was lowered from `i64::MAX` (`9_223_372_036_854_775_807`) to `100_000_000` — JavaScript rounds `i64::MAX` to `9_223_372_036_854_776_000` on `JSON.parse`, which overflows i64 on round-trip. 100M tokens is still effectively unlimited (no LLM has a context window anywhere near it).
+- **Dashboard i18n.** `dashboard.subtitle` is now empty in both locales (the prior placeholder text added no information). "Time bucket" is renamed to "Time interval" in chart subtitles — "bucket" is engineer-speak, "interval" is what the number actually means.
+- **Removed spurious `users.rs` / `app_state.rs` tests** added by the rename agent during the dispatch → routing refactor.
+
+#### Changed
+
+- **`dispatch` renamed to `routing` across the whole codebase.** Pure mechanical rename at every layer — same semantics, clearer name:
+  - **SDK** (`gproxy-channel`, `gproxy-engine`): `DispatchTable` → `RoutingTable`, `DispatchTableDocument` → `RoutingTableDocument`, `DispatchTableError` → `RoutingTableError`, `DispatchRuleDocument` → `RoutingRuleDocument`, `Channel::dispatch_table()` → `Channel::routing_table()`, `ProviderRuntime::dispatch_table()` → `routing_table()`, `ProviderStore::get_dispatch_table()` → `get_routing_table()`, `add_provider_with_dispatch()` → `add_provider_with_routing()`, `ProviderConfig.dispatch` → `routing`, `dispatch.rs` → `routing.rs`, `dispatch_alignment.rs` → `routing_alignment.rs`. `gproxy_protocol::transform::dispatch` (separate runtime-keyed transform dispatcher) is intentionally untouched.
+  - **API + storage**: field and column rename across admin, providers, bootstrap, handler, store-mutation, store-query, write-sink, write-event, entities, and query layers. A sea-orm-migration `m20260416_000001_rename_dispatch_to_routing` renames the `providers.dispatch_json` column to `providers.routing_json` before schema sync — idempotent, skipped on fresh DBs, and ledger-recorded so it runs at most once per DB.
+  - **Frontend console**: hook, module, type, and i18n strings renamed; `dispatch.ts` / `dispatch.test.ts` → `routing.ts` / `routing.test.ts`.
+  - **Docs**: `docs/src/content/docs/reference/dispatch-table.md` and its zh-cn counterpart moved to `routing-table.md`; README, Astro sidebar, guides, and architecture docs updated.
+- **Dashboard credential health replaced from table to grouped summary counts.** The old per-credential rows (provider / index / status / available) are replaced by per-provider summary chips showing `healthy / cooldown / dead` counts, so each channel's status is visible at a glance without scrolling a long table.
+- **Redundant inline migration removed.** The `dispatch_json → routing_json` rename briefly had two implementations (raw-SQL inline `migrations.rs` + sea-orm-migration). The inline one is deleted; sea-orm-migration is the single source of truth.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.11. No HTTP API change, no config change at the surface level.
+- **DB migration**: `providers.dispatch_json` is renamed to `providers.routing_json` via sea-orm-migration on startup. Idempotent; safe on fresh and migrated DBs. Rollback is supported via `down()`.
+- **SDK rename is a breaking change for direct SDK consumers.** Code that imports `DispatchTable`, calls `Channel::dispatch_table()`, or constructs `ProviderConfig { dispatch: … }` must rename to the `routing` variant. The gproxy binary and console are unaffected.
+- **Existing pricing JSON with `i64::MAX` upper bound**: backend accepts the value, but the console now clamps user input to `MAX_SAFE_INTEGER` and the built-in templates use `100_000_000`. Existing rows keep working; re-saving a tier via the UI will clamp it.
+
+### 简体中文
+
+#### 新增
+
+- **Models 标签新增「应用默认定价」按钮。** 后端 12 个 per-channel pricing JSON 文件(共 397 个模型)合并进前端查找表 `frontend/console/src/lib/default-model-pricing.ts`。每个模型的编辑表单新增一个按钮,以 `model_id` 最后一段(`/` 之后)对模板做最长子串匹配,一键填充 `pricing_json`——模板里认识的模型都能一键完成定价配置。
+- **OpenAI Responses WebSocket 鉴权探测.** 当 operation 是 `OpenAiResponseWebSocket` 时,`UpstreamWebSocket` 在连接后等待 150ms 的首帧;若判定为 401/403 / `invalid_api_key` / permission / unauthorized 之类的鉴权错误,就把该 credential 标死,engine 切换到下一个。非鉴权的首帧会被 buffer,首次 `recv()` 时原样交付,下游看不到任何数据丢失。此前一个错的 `sk-proj-…` 会得到成功的 `101 Switching Protocols`、立即出错帧、用户侧报错、credential 不轮换。
+- **`prepare_ws_auth` 返回 credential 下标并做 round-robin 排序.** WS 鉴权候选的元组从 `(url, headers)` 改为 `(credential_index, url, headers)`。runtime 先基于 cooldown-health 过滤掉死 credential,然后用一个原子游标轮询起始偏移,和 HTTP 执行逻辑对齐。
+- **`parseBetaHeaders` 支持 JSON 数组字符串.** 旧的 CSV 输入(`"a,b,c"`)替换为严格的 JSON 数组解析(`'["a","b","c"]'`),让 `BetaHeadersEditor` 能无歧义地往返结构化配置。非法输入返回 `[]` 而不是悄悄地部分解析。新增单测覆盖。
+
+#### 修复
+
+- **代理响应头规范化.** 新增的 `normalize_response_headers` helper 会从 `proxy`、`proxy_unscoped`、`proxy_unscoped_files` 的每个响应中剥离 3 个上游相关的 header(`Content-Length`、`Content-Encoding`、`Transfer-Encoding`)——body 经过 axum 重新 stream 后这些过期值会破坏 chunked 编码 / gzip 链路。当上游完全没发 `Content-Type` 时,按 (operation, protocol) 组合注入正确默认值——Claude / OpenAI-chat / OpenAI-response / Gemini 流式用 `text/event-stream`,非流式生成 / count-token / compact / embedding / image / file / model-list 路由用 `application/json`。
+- **`OpenAiResponseToClaudeStream` 不再重复输出已关闭 block.** 转换器新增一组 per-block 集合(`completed_text_blocks` / `completed_thinking_blocks` / `completed_summary_blocks` / `streamed_message_items` / `streamed_tool_args`),保证:流式 delta 之后到来的 `*.done` 事件对已打开的 block 只发一次关闭;与流式 `function_call_arguments.done` 相同 `item_id` 的工具调用 `output_item.done` 只产生一次 `content_block_stop`,不再重开 block。重写时把多处重复的 per-event block 关闭逻辑统一到 `finish_text_block` / `finish_thinking_block` / `finish_summary_block`。
+- **`OpenAiResponseToClaudeStream` 保留 `tool_use` stop 原因.** 当 `ResponseStreamEvent::Completed` 不带 `incomplete_details.reason` 时,转换器之前强制 `stop_reason = BetaStopReason::EndTurn`,这会覆盖工具调用映射器设置的 `ToolUse`。现在这个分支把 `stop_reason` 留空(`None`),让工具驱动的 stop 原因传播到最终的 `message_delta`。新增回归测试:function-call → completed 序列断言 `BetaStopReason::ToolUse`。
+- **Pricing 保存修复:缺失 `model_id` 与 i64 溢出.** `ModelPrice.model_id` 加 `#[serde(default)]`,因为前端不发这个字段(后端从 URL 参数覆写),之前硬性要求导致保存报 400。Pricing 模板里「无上限」的分层上限从 `i64::MAX`(`9_223_372_036_854_775_807`)下调为 `100_000_000`——JavaScript `JSON.parse` 会把 `i64::MAX` 舍入成 `9_223_372_036_854_776_000`,往返就溢出 i64。100M tokens 仍然等同无上限(没有 LLM 的上下文窗口接近这个数量级)。
+- **Dashboard i18n.** `dashboard.subtitle` 在中英两种语言下都清空(之前的占位文本没带任何信息)。图表副标题里的 "Time bucket" 改为 "Time interval"——"bucket" 是工程师黑话,"interval" 才是那个数字的真实含义。
+- **清理 rename agent 误加的 `users.rs` / `app_state.rs` 测试**(dispatch → routing 重构过程中遗留)。
+
+#### 变更
+
+- **全代码库 `dispatch` 改名为 `routing`.** 纯机械改名,语义不变,但语义更清晰:
+  - **SDK** (`gproxy-channel`、`gproxy-engine`):`DispatchTable` → `RoutingTable`、`DispatchTableDocument` → `RoutingTableDocument`、`DispatchTableError` → `RoutingTableError`、`DispatchRuleDocument` → `RoutingRuleDocument`、`Channel::dispatch_table()` → `Channel::routing_table()`、`ProviderRuntime::dispatch_table()` → `routing_table()`、`ProviderStore::get_dispatch_table()` → `get_routing_table()`、`add_provider_with_dispatch()` → `add_provider_with_routing()`、`ProviderConfig.dispatch` → `routing`、`dispatch.rs` → `routing.rs`、`dispatch_alignment.rs` → `routing_alignment.rs`。`gproxy_protocol::transform::dispatch`(独立的 runtime-keyed transform 分发器)刻意保持不变。
+  - **API + storage**:字段和列名在 admin、providers、bootstrap、handler、store-mutation、store-query、write-sink、write-event、entities、query 各层统一改名。新增 sea-orm-migration `m20260416_000001_rename_dispatch_to_routing`,在 schema sync 之前把 `providers.dispatch_json` 列重命名为 `providers.routing_json`——幂等、新 DB 跳过、有 ledger 记录保证每个 DB 最多执行一次。
+  - **前端控制台**:hook、module、type、i18n 字符串统一改名;`dispatch.ts` / `dispatch.test.ts` → `routing.ts` / `routing.test.ts`。
+  - **文档**:`docs/src/content/docs/reference/dispatch-table.md` 与其中文版迁移为 `routing-table.md`;README、Astro 侧边栏、guides、架构文档一并更新。
+- **Dashboard credential health 从表格改为分组汇总.** 原本按 credential 逐行展示(provider / index / status / available)被替换为按 provider 分组的 `healthy / cooldown / dead` 计数 chip,一眼就能看到每个 channel 的状态,不再需要滚动长表。
+- **移除冗余的 inline migration.** `dispatch_json → routing_json` 重命名短暂出现过两套实现(原始 SQL 的 inline `migrations.rs` + sea-orm-migration)。inline 那份删除,保留 sea-orm-migration 作为单一真源。
+
+#### 兼容性
+
+- **从 v1.0.11 直接升级**。HTTP API 表层无变化,配置表层无变化。
+- **DB 迁移**:启动时 sea-orm-migration 自动把 `providers.dispatch_json` 重命名为 `providers.routing_json`。幂等;新库和已迁移的库都安全。支持通过 `down()` 回滚。
+- **SDK 改名对直接使用 SDK 的调用方是破坏性变更**。import `DispatchTable`、调用 `Channel::dispatch_table()`、构造 `ProviderConfig { dispatch: … }` 的代码需要改成 `routing` 命名。gproxy 二进制和控制台不受影响。
+- **已有 pricing JSON 里 `i64::MAX` 上限的行**:后端接受该值,但控制台现在会把用户输入 clamp 到 `MAX_SAFE_INTEGER`,内置模板改用 `100_000_000`。已有行继续可用;通过 UI 重新保存某个 tier 会 clamp。
+
 ## v1.0.11
 
 > End-to-end upstream latency tracking (TTFB + total) from transport layer to DB to console, a new dashboard module with credential health / KPI / traffic charts, protocol-aware auth for custom channel dispatch routes, and a LogGuard that finally flushes request logs on panic and stream cancel.
