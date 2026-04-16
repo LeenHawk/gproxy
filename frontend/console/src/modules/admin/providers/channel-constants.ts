@@ -228,8 +228,8 @@ export const SANITIZE_TEMPLATES: Array<{
 // ---------------------------------------------------------------------------
 
 export type RewriteAction =
-  | { type: "Set"; value: unknown }
-  | { type: "Remove" };
+  | { type: "set"; value: unknown }
+  | { type: "remove" };
 
 export type RewriteFilter = {
   model_pattern?: string;
@@ -271,10 +271,14 @@ export function parseRewriteRules(value: unknown): RewriteRule[] {
 function normalizeRewriteAction(value: unknown): RewriteAction {
   if (value && typeof value === "object" && "type" in value) {
     const obj = value as Record<string, unknown>;
-    if (obj.type === "Remove") return { type: "Remove" };
-    if (obj.type === "Set") return { type: "Set", value: obj.value ?? null };
+    // Backend serde uses snake_case ("set"/"remove"). Accept legacy
+    // capitalized forms ("Set"/"Remove") on read so older persisted
+    // configs still display correctly; only the lowercase form is written.
+    const tag = typeof obj.type === "string" ? obj.type.toLowerCase() : "";
+    if (tag === "remove") return { type: "remove" };
+    if (tag === "set") return { type: "set", value: obj.value ?? null };
   }
-  return { type: "Set", value: null };
+  return { type: "set", value: null };
 }
 
 function normalizeRewriteFilter(value: unknown): RewriteFilter | undefined {

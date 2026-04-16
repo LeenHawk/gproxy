@@ -275,7 +275,7 @@ export function ModelsPane({
       }
       const newRules = actions.map((a) => ({
         path: a.path,
-        action: { type: "Set", value: a.value },
+        action: { type: "set", value: a.value },
         filter: { model_pattern: aliasName },
       }));
       const mergedRulesJson = JSON.stringify([...existingRules, ...newRules]);

@@ -93,19 +93,19 @@ export function RewriteRuleEditor({
 
   const updatePath = (path: string) => onUpdateEditing((r) => ({ ...r, path }));
 
-  const updateActionType = (type: "Set" | "Remove") =>
+  const updateActionType = (type: "set" | "remove") =>
     onUpdateEditing((r) => ({
       ...r,
       action:
-        type === "Remove"
-          ? { type: "Remove" as const }
-          : { type: "Set" as const, value: null },
+        type === "remove"
+          ? { type: "remove" as const }
+          : { type: "set" as const, value: null },
     }));
 
   const updateActionValue = (raw: string) =>
     onUpdateEditing((r) => ({
       ...r,
-      action: { type: "Set" as const, value: parseActionValue(raw) },
+      action: { type: "set" as const, value: parseActionValue(raw) },
     }));
 
   const updateFilter = (filter: RewriteFilter | undefined) =>
@@ -148,14 +148,14 @@ export function RewriteRuleEditor({
         <label className="text-xs text-muted">{t("providers.rewrite.action")}</label>
         <Select
           value={editing.action.type}
-          onChange={(v) => updateActionType(v as "Set" | "Remove")}
+          onChange={(v) => updateActionType(v as "set" | "remove")}
           options={[
-            { value: "Set", label: t("providers.rewrite.action.set") },
-            { value: "Remove", label: t("providers.rewrite.action.remove") },
+            { value: "set", label: t("providers.rewrite.action.set") },
+            { value: "remove", label: t("providers.rewrite.action.remove") },
           ]}
         />
       </div>
-      {editing.action.type === "Set" ? (
+      {editing.action.type === "set" ? (
         <>
           {(() => {
             const valueType = detectValueType(editing.action.value);
@@ -171,7 +171,7 @@ export function RewriteRuleEditor({
                       const next = v as ValueType;
                       onUpdateEditing((r) => ({
                         ...r,
-                        action: { type: "Set" as const, value: defaultValueForType(next) },
+                        action: { type: "set" as const, value: defaultValueForType(next) },
                       }));
                     }}
                     options={[
@@ -192,7 +192,7 @@ export function RewriteRuleEditor({
                       onChange={(v) =>
                         onUpdateEditing((r) => ({
                           ...r,
-                          action: { type: "Set" as const, value: v },
+                          action: { type: "set" as const, value: v },
                         }))
                       }
                     />
@@ -208,7 +208,7 @@ export function RewriteRuleEditor({
                         onUpdateEditing((r) => ({
                           ...r,
                           action: {
-                            type: "Set" as const,
+                            type: "set" as const,
                             value: Number.isFinite(n) ? n : 0,
                           },
                         }));
@@ -220,7 +220,7 @@ export function RewriteRuleEditor({
                       onChange={(v) =>
                         onUpdateEditing((r) => ({
                           ...r,
-                          action: { type: "Set" as const, value: v === "true" },
+                          action: { type: "set" as const, value: v === "true" },
                         }))
                       }
                       options={[

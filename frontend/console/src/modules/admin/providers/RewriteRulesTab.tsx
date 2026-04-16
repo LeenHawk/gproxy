@@ -10,7 +10,7 @@ import { RewriteRuleEditor, serializeActionValue } from "./RewriteRuleEditor";
 
 const EMPTY_RULE: RewriteRule = {
   path: "",
-  action: { type: "Set", value: null },
+  action: { type: "set", value: null },
 };
 
 export function RewriteRulesTab({
@@ -154,7 +154,7 @@ export function RewriteRulesTab({
           {rules.map((rule, idx) => {
             const title = rule.path.trim() || t("providers.rewrite.empty_path");
             const subtitle =
-              rule.action.type === "Remove"
+              rule.action.type === "remove"
                 ? t("providers.rewrite.action.remove")
                 : `${t("providers.rewrite.action.set")} · ${serializeActionValue(rule.action.value).slice(0, 40)}`;
             return (
