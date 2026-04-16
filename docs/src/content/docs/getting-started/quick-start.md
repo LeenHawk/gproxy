@@ -67,9 +67,34 @@ file supports.
 
 ## 2. Launch GPROXY
 
+You can point GPROXY at the seed TOML in three equivalent ways — pick one:
+
 ```bash
-GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
+# (a) environment variable
+GPROXY_CONFIG=./gproxy.toml ./gproxy
+
+# (b) command-line flag
+./gproxy --config ./gproxy.toml
+
+# (c) default discovery — no flag needed if the file is named
+# `gproxy.toml` and sits in the current working directory
+./gproxy
 ```
+
+Every setting has both an env var and a `--flag`; the flag wins. Common
+ones:
+
+| Flag | Env | Default |
+|------|-----|---------|
+| `--config` | `GPROXY_CONFIG` | `gproxy.toml` |
+| `--host` | `GPROXY_HOST` | `127.0.0.1` |
+| `--port` | `GPROXY_PORT` | `8787` |
+| `--dsn` | `GPROXY_DSN` | sqlite under `--data-dir` |
+| `--data-dir` | `GPROXY_DATA_DIR` | `./data` |
+
+Run `./gproxy --help` for the full list. See the
+[Environment Variables reference](/reference/environment-variables/)
+for the complete table.
 
 On the first run GPROXY will:
 
@@ -83,9 +108,10 @@ They are only used when the seed has no admin.
 
 :::tip
 If you're running without a seed TOML, set those three environment
-variables so GPROXY can bootstrap an admin on first launch. When they
-are unset, GPROXY generates a password and API key and **logs them
-once** — copy them immediately.
+variables (or pass `--admin-user` / `--admin-password` /
+`--admin-api-key`) so GPROXY can bootstrap an admin on first launch.
+When they are unset, GPROXY generates a password and API key and
+**logs them once** — copy them immediately.
 :::
 
 ## 3. Open the console
@@ -110,3 +136,22 @@ LLM routes just like any other user key.
 See [First Request](/getting-started/first-request/) for the full example,
 including how to use model aliases and how the Claude / Gemini compatible
 endpoints work.
+
+## 5. Forced-thinking / effort variants via aliases
+
+GPROXY does not expose "force-thinking" as a server flag — instead, any
+model variant you want clients to call (e.g. a `gpt-5-thinking-high` that
+always forces high reasoning effort, or a `claude-thinking-low` that
+always enables 1024 thinking tokens) is created as an **alias with a
+suffix preset** in the console's *Models* tab.
+
+Each suffix preset attaches a small set of body-rewrite rules (for
+example, forcing `"thinking": { "type": "enabled", "budget_tokens":
+32768 }` on every Claude request, or pinning `"reasoning_effort":
+"high"` on every Chat Completions request). Clients call the alias name
+and the rewrite fires automatically before the request is dispatched
+upstream.
+
+See [Models & Aliases](/guides/models/) for the full alias pipeline,
+and [Rewrite Rules](/guides/rewrite-rules/) for what the suffix presets
+emit under the hood.

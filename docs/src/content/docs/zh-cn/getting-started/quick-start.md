@@ -63,9 +63,32 @@ model_pattern = "*"
 
 ## 2. 启动 GPROXY
 
+把 GPROXY 指向种子 TOML 的三种等价写法，任选其一：
+
 ```bash
-GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
+# (a) 环境变量
+GPROXY_CONFIG=./gproxy.toml ./gproxy
+
+# (b) 命令行参数
+./gproxy --config ./gproxy.toml
+
+# (c) 默认发现 —— 如果文件名就是 `gproxy.toml`
+# 且位于当前工作目录，可以完全不传参数
+./gproxy
 ```
+
+每个设置都同时支持环境变量和 `--flag`，命令行参数优先。常用项：
+
+| Flag | 环境变量 | 默认 |
+|------|----------|------|
+| `--config` | `GPROXY_CONFIG` | `gproxy.toml` |
+| `--host` | `GPROXY_HOST` | `127.0.0.1` |
+| `--port` | `GPROXY_PORT` | `8787` |
+| `--dsn` | `GPROXY_DSN` | `--data-dir` 下的 sqlite |
+| `--data-dir` | `GPROXY_DATA_DIR` | `./data` |
+
+完整列表见 `./gproxy --help` 或
+[环境变量参考](/zh-cn/reference/environment-variables/)。
 
 首次启动时 GPROXY 会：
 
@@ -78,9 +101,10 @@ GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 没有管理员时才会被用到。
 
 :::tip
-如果你不使用种子 TOML，可以改为设置上述三个环境变量，让 GPROXY 在首次启动时
-bootstrap 一个管理员。未设置时 GPROXY 会自动生成密码和 API key 并
-**打印一次** —— 请立刻记下。
+如果你不使用种子 TOML，可以改为设置上述三个环境变量 (或传
+`--admin-user` / `--admin-password` / `--admin-api-key`)，让 GPROXY
+在首次启动时 bootstrap 一个管理员。未设置时 GPROXY 会自动生成密码
+和 API key 并**打印一次** —— 请立刻记下。
 :::
 
 ## 3. 打开控制台
@@ -103,3 +127,18 @@ LLM 路由上。
 
 完整示例 (包括如何使用模型别名、以及 Claude / Gemini 兼容接口的用法) 请见
 [发送第一个请求](/zh-cn/getting-started/first-request/)。
+
+## 5. 通过别名实现强制思考 / effort 变体
+
+GPROXY **不会**把"强制思考"做成服务端开关 —— 任何你希望客户端直接调用的
+变体 (比如固定高 effort 的 `gpt-5-thinking-high`，或者固定开启 1024
+思考 token 的 `claude-thinking-low`) 都是在控制台*模型*标签页里，作为
+**带后缀预设的别名**创建出来的。
+
+每个后缀预设会附加一小组 body 重写规则：例如给每个 Claude 请求强制塞入
+`"thinking": { "type": "enabled", "budget_tokens": 32768 }`，或者给每个
+Chat Completions 请求固定 `"reasoning_effort": "high"`。客户端调用别名
+名，请求在分发到上游之前就会自动改写。
+
+完整别名管道见 [模型与别名](/zh-cn/guides/models/)，后缀预设底层生成的
+具体规则见 [重写规则](/zh-cn/guides/rewrite-rules/)。
