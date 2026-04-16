@@ -23,6 +23,7 @@ use crate::gemini::count_tokens::types::{
 };
 use crate::openai::count_tokens::types::ResponseReasoningEffort;
 use crate::openai::create_chat_completions::types::ChatCompletionReasoningEffort;
+use crate::transform::claude::utils::claude_model_supports_enabled_thinking;
 use crate::transform::utils::push_message_block;
 
 pub fn strip_models_prefix(value: &str) -> String {
@@ -467,6 +468,7 @@ pub fn openai_chat_reasoning_effort_from_gemini_thinking(
 
 pub fn claude_thinking_from_gemini(
     thinking: &GeminiThinkingConfig,
+    model: Option<&crate::claude::count_tokens::types::Model>,
 ) -> Option<BetaThinkingConfigParam> {
     if matches!(thinking.include_thoughts, Some(false)) {
         return Some(BetaThinkingConfigParam::Disabled(
@@ -477,6 +479,14 @@ pub fn claude_thinking_from_gemini(
     }
 
     if let Some(budget) = thinking.thinking_budget {
+        if !claude_model_supports_enabled_thinking(model) {
+            return Some(BetaThinkingConfigParam::Adaptive(
+                BetaThinkingConfigAdaptive {
+                    type_: BetaThinkingConfigAdaptiveType::Adaptive,
+                    display: None,
+                },
+            ));
+        }
         return Some(BetaThinkingConfigParam::Enabled(
             BetaThinkingConfigEnabled {
                 budget_tokens: u64::try_from(budget).unwrap_or(0),
@@ -527,6 +537,7 @@ pub fn claude_output_format_from_gemini_generation_config(
 
 pub fn claude_thinking_effort_format_from_gemini_generation_config(
     generation_config: Option<&GeminiGenerationConfig>,
+    model: Option<&crate::claude::count_tokens::types::Model>,
 ) -> (
     Option<BetaThinkingConfigParam>,
     Option<BetaOutputEffort>,
@@ -536,7 +547,7 @@ pub fn claude_thinking_effort_format_from_gemini_generation_config(
         let thinking = generation_config
             .thinking_config
             .as_ref()
-            .and_then(claude_thinking_from_gemini);
+            .and_then(|thinking_config| claude_thinking_from_gemini(thinking_config, model));
 
         let output_effort = generation_config
             .thinking_config
@@ -560,6 +571,7 @@ pub fn claude_output_config_from_effort_and_format(
         Some(BetaOutputConfig {
             effort: output_effort,
             format: output_format,
+            task_budget: None,
         })
     } else {
         None

@@ -43,7 +43,10 @@ impl TryFrom<GeminiCountTokensRequest> for ClaudeCountTokensRequest {
         let tools = gemini_tools_to_claude(tools);
 
         let (thinking, output_effort, output_format) =
-            claude_thinking_effort_format_from_gemini_generation_config(generation_config.as_ref());
+            claude_thinking_effort_format_from_gemini_generation_config(
+                generation_config.as_ref(),
+                Some(&model),
+            );
         let output_config =
             claude_output_config_from_effort_and_format(output_effort, output_format.clone());
 

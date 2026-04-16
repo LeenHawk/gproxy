@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::claude::count_tokens::types as ct;
 use crate::openai::count_tokens::types as ot;
+use crate::transform::claude::utils::claude_model_supports_enabled_thinking;
 
 const CLAUDE_TOOL_USE_ID_PREFIX: &str = "toolu_";
 const CLAUDE_SERVER_TOOL_USE_ID_PREFIX: &str = "srvtoolu_";
@@ -280,6 +281,7 @@ pub fn openai_role_to_claude(role: ot::ResponseInputMessageRole) -> ct::BetaMess
 pub fn openai_reasoning_to_claude(
     reasoning: Option<ot::ResponseReasoning>,
     max_tokens: Option<u64>,
+    model: Option<&ct::Model>,
 ) -> Option<ct::BetaThinkingConfigParam> {
     const MIN_BUDGET_TOKENS: u64 = 1_024;
 
@@ -308,6 +310,25 @@ pub fn openai_reasoning_to_claude(
     }
 
     let effort = reasoning.and_then(|config| config.effort)?;
+    if !claude_model_supports_enabled_thinking(model) {
+        return Some(match effort {
+            ot::ResponseReasoningEffort::None => {
+                ct::BetaThinkingConfigParam::Disabled(ct::BetaThinkingConfigDisabled {
+                    type_: ct::BetaThinkingConfigDisabledType::Disabled,
+                })
+            }
+            ot::ResponseReasoningEffort::Minimal
+            | ot::ResponseReasoningEffort::Low
+            | ot::ResponseReasoningEffort::Medium
+            | ot::ResponseReasoningEffort::High
+            | ot::ResponseReasoningEffort::XHigh => {
+                ct::BetaThinkingConfigParam::Adaptive(ct::BetaThinkingConfigAdaptive {
+                    type_: ct::BetaThinkingConfigAdaptiveType::Adaptive,
+                    display: None,
+                })
+            }
+        });
+    }
     if !matches!(effort, ot::ResponseReasoningEffort::None)
         && max_tokens.is_some_and(|tokens| tokens < MIN_BUDGET_TOKENS)
     {
@@ -649,4 +670,43 @@ fn json_object_to_btree(value: &serde_json::Value) -> Option<ct::JsonObject> {
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect::<ct::JsonObject>(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::openai_reasoning_to_claude;
+    use crate::claude::count_tokens::types as ct;
+    use crate::openai::count_tokens::types as ot;
+
+    fn reasoning(effort: ot::ResponseReasoningEffort) -> ot::ResponseReasoning {
+        ot::ResponseReasoning {
+            effort: Some(effort),
+            generate_summary: None,
+            summary: None,
+        }
+    }
+
+    #[test]
+    fn opus_47_reasoning_uses_adaptive_thinking_instead_of_enabled_budget() {
+        let thinking = openai_reasoning_to_claude(
+            Some(reasoning(ot::ResponseReasoningEffort::High)),
+            Some(8_192),
+            Some(&ct::Model::Known(ct::ModelKnown::ClaudeOpus47)),
+        )
+        .expect("thinking config");
+
+        assert!(matches!(thinking, ct::BetaThinkingConfigParam::Adaptive(_)));
+    }
+
+    #[test]
+    fn older_models_keep_enabled_thinking_budget_mapping() {
+        let thinking = openai_reasoning_to_claude(
+            Some(reasoning(ot::ResponseReasoningEffort::High)),
+            Some(8_192),
+            Some(&ct::Model::Known(ct::ModelKnown::ClaudeOpus46)),
+        )
+        .expect("thinking config");
+
+        assert!(matches!(thinking, ct::BetaThinkingConfigParam::Enabled(_)));
+    }
 }

@@ -106,6 +106,7 @@ export const ANTHROPIC_REFERENCE_BETA_HEADERS = [
   "compact-2026-01-12",
   "claude-code-20250219",
   "adaptive-thinking-2026-01-28",
+  "task-budgets-2026-03-13",
   "prompt-caching-scope-2026-01-05",
   "advanced-tool-use-2025-11-20",
   "effort-2025-11-24",

@@ -41,7 +41,10 @@ impl TryFrom<GeminiGenerateContentRequest> for ClaudeCreateMessageRequest {
         let top_p = generation_config.as_ref().and_then(|config| config.top_p);
 
         let (thinking, output_effort, output_format) =
-            claude_thinking_effort_format_from_gemini_generation_config(generation_config.as_ref());
+            claude_thinking_effort_format_from_gemini_generation_config(
+                generation_config.as_ref(),
+                Some(&model),
+            );
         let output_config =
             claude_output_config_from_effort_and_format(output_effort, output_format.clone());
 
@@ -75,5 +78,55 @@ impl TryFrom<GeminiGenerateContentRequest> for ClaudeCreateMessageRequest {
                 top_p,
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::claude::count_tokens::types as ct;
+    use crate::gemini::count_tokens::types::{GeminiContentRole, GeminiPart};
+    use crate::gemini::generate_content::request::{
+        GeminiGenerateContentRequest, PathParameters as GeminiPathParameters,
+        QueryParameters as GeminiQueryParameters, RequestBody as GeminiRequestBody,
+        RequestHeaders as GeminiRequestHeaders,
+    };
+    use crate::gemini::generate_content::types::{
+        GeminiContent, GeminiGenerationConfig, GeminiThinkingConfig,
+    };
+
+    #[test]
+    fn opus_47_converts_budgeted_gemini_thinking_to_adaptive() {
+        let request = GeminiGenerateContentRequest {
+            method: crate::gemini::types::HttpMethod::Post,
+            path: GeminiPathParameters {
+                model: "models/claude-opus-4-7".to_string(),
+            },
+            query: GeminiQueryParameters::default(),
+            headers: GeminiRequestHeaders::default(),
+            body: GeminiRequestBody {
+                contents: vec![GeminiContent {
+                    parts: vec![GeminiPart {
+                        text: Some("hi".to_string()),
+                        ..Default::default()
+                    }],
+                    role: Some(GeminiContentRole::User),
+                }],
+                generation_config: Some(GeminiGenerationConfig {
+                    thinking_config: Some(GeminiThinkingConfig {
+                        thinking_budget: Some(4_096),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        };
+
+        let claude_request = ClaudeCreateMessageRequest::try_from(request).expect("transform");
+        assert!(matches!(
+            claude_request.body.thinking,
+            Some(ct::BetaThinkingConfigParam::Adaptive(_))
+        ));
     }
 }

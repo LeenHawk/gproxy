@@ -117,7 +117,8 @@ impl TryFrom<OpenAiCountTokensRequest> for ClaudeCountTokensRequest {
 
         let disable_parallel_tool_use = parallel_disable(body.parallel_tool_calls);
         let tool_choice = openai_tool_choice_to_claude(body.tool_choice, disable_parallel_tool_use);
-        let thinking = openai_reasoning_to_claude(body.reasoning, None);
+        let model = ct::Model::Custom(body.model.clone().unwrap_or_default());
+        let thinking = openai_reasoning_to_claude(body.reasoning, None, Some(&model));
 
         let output_effort = body
             .text
@@ -147,6 +148,7 @@ impl TryFrom<OpenAiCountTokensRequest> for ClaudeCountTokensRequest {
             Some(ct::BetaOutputConfig {
                 effort: output_effort,
                 format: output_format.clone(),
+                task_budget: None,
             })
         } else {
             None
@@ -290,8 +292,6 @@ impl TryFrom<OpenAiCountTokensRequest> for ClaudeCountTokensRequest {
                 Some(ct::BetaSystemPrompt::Text(text))
             }
         });
-
-        let model = ct::Model::Custom(body.model.unwrap_or_default());
 
         Ok(ClaudeCountTokensRequest {
             method: ct::HttpMethod::Post,

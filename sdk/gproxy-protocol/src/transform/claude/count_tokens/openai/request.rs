@@ -124,6 +124,7 @@ impl TryFrom<ClaudeCountTokensRequest> for OpenAiCountTokensRequest {
                 BetaOutputEffort::Low => ResponseReasoningEffort::Low,
                 BetaOutputEffort::Medium => ResponseReasoningEffort::Medium,
                 BetaOutputEffort::High => ResponseReasoningEffort::High,
+                BetaOutputEffort::XHigh => ResponseReasoningEffort::XHigh,
                 BetaOutputEffort::Max => ResponseReasoningEffort::XHigh,
             });
         let reasoning = reasoning_effort_from_thinking

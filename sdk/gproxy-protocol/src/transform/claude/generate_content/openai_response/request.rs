@@ -796,7 +796,9 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiCreateResponseRequest {
             .map(|effort| match effort {
                 BetaOutputEffort::Low => ResponseTextVerbosity::Low,
                 BetaOutputEffort::Medium => ResponseTextVerbosity::Medium,
-                BetaOutputEffort::High | BetaOutputEffort::Max => ResponseTextVerbosity::High,
+                BetaOutputEffort::High | BetaOutputEffort::XHigh | BetaOutputEffort::Max => {
+                    ResponseTextVerbosity::High
+                }
             });
         let text = if text_format.is_some() || text_verbosity.is_some() {
             Some(ResponseTextConfig {

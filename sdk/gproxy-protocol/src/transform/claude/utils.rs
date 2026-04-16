@@ -67,6 +67,7 @@ pub fn claude_model_to_string(model: &Model) -> String {
     match model {
         Model::Custom(model) => model.clone(),
         Model::Known(model) => match model {
+            ModelKnown::ClaudeOpus47 => "claude-opus-4-7",
             ModelKnown::ClaudeOpus46 => "claude-opus-4-6",
             ModelKnown::ClaudeOpus4520251101 => "claude-opus-4-5-20251101",
             ModelKnown::ClaudeOpus45 => "claude-opus-4-5",
@@ -92,6 +93,13 @@ pub fn claude_model_to_string(model: &Model) -> String {
         }
         .to_string(),
     }
+}
+
+pub fn claude_model_supports_enabled_thinking(model: Option<&Model>) -> bool {
+    !matches!(
+        model.map(claude_model_to_string).as_deref(),
+        Some("claude-opus-4-7")
+    )
 }
 
 pub fn beta_message_content_to_text(content: &BetaMessageContent) -> String {

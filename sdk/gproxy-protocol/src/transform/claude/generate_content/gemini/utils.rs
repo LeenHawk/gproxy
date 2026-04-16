@@ -168,6 +168,7 @@ pub fn gemini_thinking_config_from_claude(
             BetaOutputEffort::Low => GeminiThinkingLevel::Low,
             BetaOutputEffort::Medium => GeminiThinkingLevel::Medium,
             BetaOutputEffort::High => GeminiThinkingLevel::High,
+            BetaOutputEffort::XHigh => GeminiThinkingLevel::High,
             BetaOutputEffort::Max => GeminiThinkingLevel::High,
         });
         has_thinking_config = true;

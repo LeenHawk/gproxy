@@ -421,7 +421,9 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiChatCompletionsRequest {
             .map(|effort| match effort {
                 BetaOutputEffort::Low => ChatCompletionVerbosity::Low,
                 BetaOutputEffort::Medium => ChatCompletionVerbosity::Medium,
-                BetaOutputEffort::High | BetaOutputEffort::Max => ChatCompletionVerbosity::High,
+                BetaOutputEffort::High | BetaOutputEffort::XHigh | BetaOutputEffort::Max => {
+                    ChatCompletionVerbosity::High
+                }
             });
 
         let response_format = body

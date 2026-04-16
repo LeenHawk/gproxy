@@ -57,6 +57,7 @@ const CLAUDE_GROUPS: SuffixGroup[] = [
       { suffix: "-effort-low", label: "effort: low", actions: [{ kind: "set", path: "output_config", value: { effort: "low" } }] },
       { suffix: "-effort-medium", label: "effort: medium", actions: [{ kind: "set", path: "output_config", value: { effort: "medium" } }] },
       { suffix: "-effort-high", label: "effort: high", actions: [{ kind: "set", path: "output_config", value: { effort: "high" } }] },
+      { suffix: "-effort-xhigh", label: "effort: xhigh", actions: [{ kind: "set", path: "output_config", value: { effort: "xhigh" } }] },
       { suffix: "-effort-max", label: "effort: max", actions: [{ kind: "set", path: "output_config", value: { effort: "max" } }] },
     ],
   },

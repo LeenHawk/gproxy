@@ -124,6 +124,8 @@ pub enum AnthropicBetaKnown {
     FastMode20260201,
     #[serde(rename = "compact-2026-01-12")]
     Compact20260112,
+    #[serde(rename = "task-budgets-2026-03-13")]
+    TaskBudgets20260313,
 }
 
 /// Claude model metadata returned by list/get model endpoints.

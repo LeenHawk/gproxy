@@ -638,9 +638,14 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
             }
         }
 
+        let claude_model = Model::Custom(body.model.clone().unwrap_or_default());
         let disable_parallel_tool_use = parallel_disable(body.parallel_tool_calls);
         let tool_choice = openai_tool_choice_to_claude(body.tool_choice, disable_parallel_tool_use);
-        let thinking = openai_reasoning_to_claude(body.reasoning.clone(), body.max_output_tokens);
+        let thinking = openai_reasoning_to_claude(
+            body.reasoning.clone(),
+            body.max_output_tokens,
+            Some(&claude_model),
+        );
         let claude_max_tokens = body.max_output_tokens.unwrap_or(8_192);
 
         let output_effort = body
@@ -676,6 +681,7 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
             Some(ct::BetaOutputConfig {
                 effort: output_effort,
                 format: output_format.clone(),
+                task_budget: None,
             })
         } else {
             None
@@ -895,7 +901,7 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
             body: RequestBody {
                 max_tokens: claude_max_tokens,
                 messages,
-                model: Model::Custom(body.model.unwrap_or_default()),
+                model: claude_model,
                 container: None,
                 context_management,
                 inference_geo: None,

@@ -22,6 +22,8 @@ pub enum Model {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModelKnown {
+    #[serde(rename = "claude-opus-4-7")]
+    ClaudeOpus47,
     #[serde(rename = "claude-opus-4-6")]
     ClaudeOpus46,
     #[serde(rename = "claude-opus-4-5-20251101")]
@@ -1384,6 +1386,8 @@ pub struct BetaOutputConfig {
     pub effort: Option<BetaOutputEffort>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub format: Option<BetaJsonOutputFormat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_budget: Option<BetaTaskBudget>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1394,8 +1398,23 @@ pub enum BetaOutputEffort {
     Medium,
     #[serde(rename = "high")]
     High,
+    #[serde(rename = "xhigh")]
+    XHigh,
     #[serde(rename = "max")]
     Max,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BetaTaskBudget {
+    pub total: u64,
+    #[serde(rename = "type")]
+    pub type_: BetaTaskBudgetType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BetaTaskBudgetType {
+    #[serde(rename = "tokens")]
+    Tokens,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1473,6 +1492,40 @@ pub enum BetaThinkingDisplay {
     Summarized,
     #[serde(rename = "omitted")]
     Omitted,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BetaOutputConfig, BetaOutputEffort, BetaTaskBudget, BetaTaskBudgetType, Model, ModelKnown,
+    };
+
+    #[test]
+    fn model_round_trips_claude_opus_47() {
+        let model: Model = serde_json::from_str(r#""claude-opus-4-7""#).expect("model");
+        assert_eq!(model, Model::Known(ModelKnown::ClaudeOpus47));
+        assert_eq!(
+            serde_json::to_string(&model).expect("serialize model"),
+            r#""claude-opus-4-7""#
+        );
+    }
+
+    #[test]
+    fn output_config_serializes_xhigh_and_task_budget() {
+        let output_config = BetaOutputConfig {
+            effort: Some(BetaOutputEffort::XHigh),
+            format: None,
+            task_budget: Some(BetaTaskBudget {
+                total: 128_000,
+                type_: BetaTaskBudgetType::Tokens,
+            }),
+        };
+
+        let value = serde_json::to_value(output_config).expect("serialize output config");
+        assert_eq!(value["effort"], "xhigh");
+        assert_eq!(value["task_budget"]["type"], "tokens");
+        assert_eq!(value["task_budget"]["total"], 128_000);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

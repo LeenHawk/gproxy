@@ -9,6 +9,7 @@ use crate::claude::create_message::types::{
 use crate::openai::count_tokens::types as ot;
 use crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest;
 use crate::openai::create_chat_completions::types as oct;
+use crate::transform::claude::utils::claude_model_supports_enabled_thinking;
 use crate::transform::openai::count_tokens::claude::utils::{
     ClaudeToolUseIdMapper, mcp_allowed_tools_to_configs, openai_mcp_tool_to_server,
     openai_message_content_to_claude, openai_reasoning_to_claude, openai_role_to_claude,
@@ -53,6 +54,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
         } = value.body;
 
         let response_reasoning = chat_reasoning_to_response_reasoning(reasoning_effort);
+        let claude_model = Model::Custom(model.clone());
         let response_text = chat_response_text_config(response_format, verbosity);
         let response_tool_choice =
             chat_tool_choice_to_response_tool_choice(tool_choice, function_call);
@@ -244,11 +246,18 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
             openai_tool_choice_to_claude(response_tool_choice, disable_parallel_tool_use);
         let extra_thinking = chat_thinking.map(|thinking| match thinking {
             oct::ChatCompletionClaudeThinkingConfig::Enabled(config) => {
-                ct::BetaThinkingConfigParam::Enabled(ct::BetaThinkingConfigEnabled {
-                    budget_tokens: config.budget_tokens,
-                    type_: ct::BetaThinkingConfigEnabledType::Enabled,
-                    display: None,
-                })
+                if claude_model_supports_enabled_thinking(Some(&claude_model)) {
+                    ct::BetaThinkingConfigParam::Enabled(ct::BetaThinkingConfigEnabled {
+                        budget_tokens: config.budget_tokens,
+                        type_: ct::BetaThinkingConfigEnabledType::Enabled,
+                        display: None,
+                    })
+                } else {
+                    ct::BetaThinkingConfigParam::Adaptive(ct::BetaThinkingConfigAdaptive {
+                        type_: ct::BetaThinkingConfigAdaptiveType::Adaptive,
+                        display: None,
+                    })
+                }
             }
             oct::ChatCompletionClaudeThinkingConfig::Disabled(_) => {
                 ct::BetaThinkingConfigParam::Disabled(ct::BetaThinkingConfigDisabled {
@@ -263,7 +272,13 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
             }
         });
         let thinking = extra_thinking
-            .or_else(|| openai_reasoning_to_claude(response_reasoning, reasoning_max_tokens))
+            .or_else(|| {
+                openai_reasoning_to_claude(
+                    response_reasoning,
+                    reasoning_max_tokens,
+                    Some(&claude_model),
+                )
+            })
             .or_else(|| Some(default_chat_thinking()));
 
         let output_effort = response_text
@@ -297,6 +312,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
             Some(ct::BetaOutputConfig {
                 effort: output_effort,
                 format: output_format.clone(),
+                task_budget: None,
             })
         } else {
             None
@@ -460,7 +476,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
             body: RequestBody {
                 max_tokens: claude_max_tokens,
                 messages,
-                model: Model::Custom(model),
+                model: claude_model,
                 container: None,
                 context_management: None,
                 inference_geo: None,
