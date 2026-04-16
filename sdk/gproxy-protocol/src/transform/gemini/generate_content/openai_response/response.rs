@@ -187,13 +187,13 @@ impl TryFrom<OpenAiCreateResponseResponse> for GeminiGenerateContentResponse {
                                 });
                             }
                         }
-                        ResponseOutputItem::LocalShellCallOutput(call) => {
-                            if !call.output.is_empty() {
-                                parts.push(GeminiPart {
-                                    text: Some(call.output),
-                                    ..GeminiPart::default()
-                                });
-                            }
+                        ResponseOutputItem::LocalShellCallOutput(call)
+                            if !call.output.is_empty() =>
+                        {
+                            parts.push(GeminiPart {
+                                text: Some(call.output),
+                                ..GeminiPart::default()
+                            });
                         }
                         ResponseOutputItem::McpCall(call) => {
                             if let Some(output) = call.output
@@ -214,13 +214,13 @@ impl TryFrom<OpenAiCreateResponseResponse> for GeminiGenerateContentResponse {
                                 });
                             }
                         }
-                        ResponseOutputItem::ImageGenerationCall(call) => {
-                            if !call.result.is_empty() {
-                                parts.push(GeminiPart {
-                                    text: Some(call.result),
-                                    ..GeminiPart::default()
-                                });
-                            }
+                        ResponseOutputItem::ImageGenerationCall(call)
+                            if !call.result.is_empty() =>
+                        {
+                            parts.push(GeminiPart {
+                                text: Some(call.result),
+                                ..GeminiPart::default()
+                            });
                         }
                         _ => {}
                     }

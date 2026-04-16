@@ -420,20 +420,20 @@ impl ClaudeToOpenAiChatCompletionsStream {
                 }
             }
             ClaudeStreamEvent::ContentBlockDelta { delta, index } => match delta {
-                BetaRawContentBlockDelta::Text { text } => {
-                    if self.text_blocks.contains(&index) {
-                        self.emit_content(index, text, false, out);
-                    }
+                BetaRawContentBlockDelta::Text { text }
+                    if self.text_blocks.contains(&index) =>
+                {
+                    self.emit_content(index, text, false, out);
                 }
-                BetaRawContentBlockDelta::Thinking { thinking } => {
-                    if self.thinking_blocks.contains(&index) {
-                        self.emit_reasoning_content(index, thinking, out);
-                    }
+                BetaRawContentBlockDelta::Thinking { thinking }
+                    if self.thinking_blocks.contains(&index) =>
+                {
+                    self.emit_reasoning_content(index, thinking, out);
                 }
-                BetaRawContentBlockDelta::Signature { signature } => {
-                    if self.thinking_blocks.contains(&index) {
-                        self.emit_reasoning_signature(index, signature, out);
-                    }
+                BetaRawContentBlockDelta::Signature { signature }
+                    if self.thinking_blocks.contains(&index) =>
+                {
+                    self.emit_reasoning_signature(index, signature, out);
                 }
                 BetaRawContentBlockDelta::InputJson { partial_json } => {
                     if let Some(call_id) = self.tool_blocks.get(&index).cloned() {

@@ -268,17 +268,17 @@ impl TryFrom<OpenAiCreateResponseResponse> for ClaudeCreateMessageResponse {
                                 },
                             ));
                         }
-                        ResponseOutputItem::LocalShellCallOutput(call) => {
-                            if !call.output.is_empty() {
-                                content.push(BetaContentBlock::Text(BetaTextBlock {
-                                    citations: None,
-                                    text: format!(
-                                        "local_shell_output({}): {}",
-                                        call.id, call.output
-                                    ),
-                                    type_: BetaTextBlockType::Text,
-                                }));
-                            }
+                        ResponseOutputItem::LocalShellCallOutput(call)
+                            if !call.output.is_empty() =>
+                        {
+                            content.push(BetaContentBlock::Text(BetaTextBlock {
+                                citations: None,
+                                text: format!(
+                                    "local_shell_output({}): {}",
+                                    call.id, call.output
+                                ),
+                                type_: BetaTextBlockType::Text,
+                            }));
                         }
                         ResponseOutputItem::ApplyPatchCall(call) => {
                             has_tool_use = true;
@@ -348,14 +348,14 @@ impl TryFrom<OpenAiCreateResponseResponse> for ClaudeCreateMessageResponse {
                                 },
                             ));
                         }
-                        ResponseOutputItem::ImageGenerationCall(call) => {
-                            if !call.result.is_empty() {
-                                content.push(BetaContentBlock::Text(BetaTextBlock {
-                                    citations: None,
-                                    text: call.result,
-                                    type_: BetaTextBlockType::Text,
-                                }));
-                            }
+                        ResponseOutputItem::ImageGenerationCall(call)
+                            if !call.result.is_empty() =>
+                        {
+                            content.push(BetaContentBlock::Text(BetaTextBlock {
+                                citations: None,
+                                text: call.result,
+                                type_: BetaTextBlockType::Text,
+                            }));
                         }
                         _ => {}
                     }

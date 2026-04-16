@@ -571,31 +571,27 @@ impl ClaudeToOpenAiResponseStream {
             (
                 Some(ClaudeBlockState::Text { item_id, text }),
                 BetaRawContentBlockDelta::Text { text: delta_text },
-            ) => {
-                if !delta_text.is_empty() {
-                    text.push_str(&delta_text);
-                    text_delta = Some((item_id.clone(), delta_text));
-                }
+            ) if !delta_text.is_empty() => {
+                text.push_str(&delta_text);
+                text_delta = Some((item_id.clone(), delta_text));
             }
             (
                 Some(ClaudeBlockState::Thinking { item_id, text, .. }),
                 BetaRawContentBlockDelta::Thinking { thinking },
-            ) => {
-                if !thinking.is_empty() {
-                    text.push_str(&thinking);
-                    let sequence_number = next_sequence_number(&mut self.next_sequence_number);
-                    push_stream_event(
-                        out,
-                        ResponseStreamEvent::ReasoningTextDelta {
-                            content_index: 0,
-                            delta: thinking,
-                            item_id: item_id.clone(),
-                            output_index: index,
-                            sequence_number,
-                            obfuscation: None,
-                        },
-                    );
-                }
+            ) if !thinking.is_empty() => {
+                text.push_str(&thinking);
+                let sequence_number = next_sequence_number(&mut self.next_sequence_number);
+                push_stream_event(
+                    out,
+                    ResponseStreamEvent::ReasoningTextDelta {
+                        content_index: 0,
+                        delta: thinking,
+                        item_id: item_id.clone(),
+                        output_index: index,
+                        sequence_number,
+                        obfuscation: None,
+                    },
+                );
             }
             (
                 Some(ClaudeBlockState::Thinking { signature, .. }),
@@ -608,61 +604,55 @@ impl ClaudeToOpenAiResponseStream {
                     item_id, arguments, ..
                 }),
                 BetaRawContentBlockDelta::InputJson { partial_json },
-            ) => {
-                if !partial_json.is_empty() {
-                    arguments.push_delta(&partial_json);
-                    let sequence_number = next_sequence_number(&mut self.next_sequence_number);
-                    push_stream_event(
-                        out,
-                        ResponseStreamEvent::FunctionCallArgumentsDelta {
-                            delta: partial_json,
-                            item_id: item_id.clone(),
-                            output_index: index,
-                            sequence_number,
-                            obfuscation: None,
-                        },
-                    );
-                }
+            ) if !partial_json.is_empty() => {
+                arguments.push_delta(&partial_json);
+                let sequence_number = next_sequence_number(&mut self.next_sequence_number);
+                push_stream_event(
+                    out,
+                    ResponseStreamEvent::FunctionCallArgumentsDelta {
+                        delta: partial_json,
+                        item_id: item_id.clone(),
+                        output_index: index,
+                        sequence_number,
+                        obfuscation: None,
+                    },
+                );
             }
             (
                 Some(ClaudeBlockState::CustomToolCall { item_id, input, .. }),
                 BetaRawContentBlockDelta::InputJson { partial_json },
-            ) => {
-                if !partial_json.is_empty() {
-                    input.push_delta(&partial_json);
-                    let sequence_number = next_sequence_number(&mut self.next_sequence_number);
-                    push_stream_event(
-                        out,
-                        ResponseStreamEvent::CustomToolCallInputDelta {
-                            delta: partial_json,
-                            item_id: item_id.clone(),
-                            output_index: index,
-                            sequence_number,
-                            obfuscation: None,
-                        },
-                    );
-                }
+            ) if !partial_json.is_empty() => {
+                input.push_delta(&partial_json);
+                let sequence_number = next_sequence_number(&mut self.next_sequence_number);
+                push_stream_event(
+                    out,
+                    ResponseStreamEvent::CustomToolCallInputDelta {
+                        delta: partial_json,
+                        item_id: item_id.clone(),
+                        output_index: index,
+                        sequence_number,
+                        obfuscation: None,
+                    },
+                );
             }
             (
                 Some(ClaudeBlockState::McpCall {
                     item_id, arguments, ..
                 }),
                 BetaRawContentBlockDelta::InputJson { partial_json },
-            ) => {
-                if !partial_json.is_empty() {
-                    arguments.push_delta(&partial_json);
-                    let sequence_number = next_sequence_number(&mut self.next_sequence_number);
-                    push_stream_event(
-                        out,
-                        ResponseStreamEvent::McpCallArgumentsDelta {
-                            delta: partial_json,
-                            item_id: item_id.clone(),
-                            output_index: index,
-                            sequence_number,
-                            obfuscation: None,
-                        },
-                    );
-                }
+            ) if !partial_json.is_empty() => {
+                arguments.push_delta(&partial_json);
+                let sequence_number = next_sequence_number(&mut self.next_sequence_number);
+                push_stream_event(
+                    out,
+                    ResponseStreamEvent::McpCallArgumentsDelta {
+                        delta: partial_json,
+                        item_id: item_id.clone(),
+                        output_index: index,
+                        sequence_number,
+                        obfuscation: None,
+                    },
+                );
             }
             (
                 Some(ClaudeBlockState::Compaction {

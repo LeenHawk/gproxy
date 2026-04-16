@@ -24,23 +24,19 @@ impl TryFrom<ClaudeCreateMessageResponse> for GeminiGenerateContentResponse {
                 let mut parts = Vec::new();
                 for block in body.content {
                     match block {
-                        BetaContentBlock::Text(block) => {
-                            if !block.text.is_empty() {
-                                parts.push(GeminiPart {
-                                    text: Some(block.text),
-                                    ..GeminiPart::default()
-                                });
-                            }
+                        BetaContentBlock::Text(block) if !block.text.is_empty() => {
+                            parts.push(GeminiPart {
+                                text: Some(block.text),
+                                ..GeminiPart::default()
+                            });
                         }
-                        BetaContentBlock::Thinking(block) => {
-                            if !block.thinking.is_empty() {
-                                parts.push(GeminiPart {
-                                    thought: Some(true),
-                                    thought_signature: Some(block.signature),
-                                    text: Some(block.thinking),
-                                    ..GeminiPart::default()
-                                });
-                            }
+                        BetaContentBlock::Thinking(block) if !block.thinking.is_empty() => {
+                            parts.push(GeminiPart {
+                                thought: Some(true),
+                                thought_signature: Some(block.signature),
+                                text: Some(block.thinking),
+                                ..GeminiPart::default()
+                            });
                         }
                         BetaContentBlock::ToolUse(block) => {
                             parts.push(GeminiPart {

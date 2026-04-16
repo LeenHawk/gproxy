@@ -317,10 +317,10 @@ fn image_generation_tool_from_tools(
             | (PreferredImageAction::Edit, Some(ot::ResponseImageGenerationAction::Edit)) => {
                 return Some(image_tool);
             }
-            (_, Some(ot::ResponseImageGenerationAction::Auto)) | (_, None) => {
-                if auto_or_unspecified.is_none() {
-                    auto_or_unspecified = Some(image_tool);
-                }
+            (_, Some(ot::ResponseImageGenerationAction::Auto)) | (_, None)
+                if auto_or_unspecified.is_none() =>
+            {
+                auto_or_unspecified = Some(image_tool);
             }
             _ => {}
         }

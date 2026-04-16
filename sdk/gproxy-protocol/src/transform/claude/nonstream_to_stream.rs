@@ -100,15 +100,13 @@ fn push_content_block_delta_events(
                 });
             }
         }
-        BetaContentBlock::Compaction(block) => {
-            if block.content.is_some() {
-                events.push(ClaudeStreamEvent::ContentBlockDelta {
-                    delta: BetaRawContentBlockDelta::Compaction {
-                        content: block.content.clone(),
-                    },
-                    index,
-                });
-            }
+        BetaContentBlock::Compaction(block) if block.content.is_some() => {
+            events.push(ClaudeStreamEvent::ContentBlockDelta {
+                delta: BetaRawContentBlockDelta::Compaction {
+                    content: block.content.clone(),
+                },
+                index,
+            });
         }
         _ => {}
     }

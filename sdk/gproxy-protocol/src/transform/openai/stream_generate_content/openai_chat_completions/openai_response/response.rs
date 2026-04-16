@@ -539,23 +539,21 @@ impl OpenAiResponseToOpenAiChatCompletionsStream {
                     self.finished = true;
                 }
             }
-            ResponseStreamEvent::Error { error, .. } => {
-                if !self.finished {
-                    let detail = match error.param.as_deref() {
-                        Some(param) => format!(
-                            "openai_response_error code={} param={param} message={}",
-                            error.code_or_type(),
-                            error.message
-                        ),
-                        None => format!(
-                            "openai_response_error code={} message={}",
-                            error.code_or_type(),
-                            error.message
-                        ),
-                    };
-                    self.emit_error_refusal(detail, out);
-                    self.finished = true;
-                }
+            ResponseStreamEvent::Error { error, .. } if !self.finished => {
+                let detail = match error.param.as_deref() {
+                    Some(param) => format!(
+                        "openai_response_error code={} param={param} message={}",
+                        error.code_or_type(),
+                        error.message
+                    ),
+                    None => format!(
+                        "openai_response_error code={} message={}",
+                        error.code_or_type(),
+                        error.message
+                    ),
+                };
+                self.emit_error_refusal(detail, out);
+                self.finished = true;
             }
             _ => {}
         }
