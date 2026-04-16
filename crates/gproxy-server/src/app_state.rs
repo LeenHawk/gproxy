@@ -226,7 +226,7 @@ impl AppState {
     /// Session expires after `ttl_secs` seconds.
     pub fn create_session(&self, user_id: i64, ttl_secs: u64) -> String {
         use rand::RngExt;
-        let token = format!("sess-{:016x}", rand::rng().random::<u64>());
+        let token = format!("sess-{:032x}", rand::rng().random::<u128>());
         let expires_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()

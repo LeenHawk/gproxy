@@ -330,8 +330,8 @@ pub fn generate_unique_api_key_for(state: &AppState) -> String {
     use rand::RngExt;
     let mut rng = rand::rng();
     loop {
-        let n: u64 = rng.random_range(0..1u64 << 48);
-        let key = format!("sk-api01-{n:012x}");
+        let n: u128 = rng.random();
+        let key = format!("sk-api01-{n:032x}");
         // Use authenticate_api_key which does SHA-256 digest lookup
         if state.authenticate_api_key(&key).is_some() {
             continue;
