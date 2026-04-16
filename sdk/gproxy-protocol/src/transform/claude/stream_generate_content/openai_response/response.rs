@@ -504,19 +504,19 @@ impl OpenAiResponseToClaudeStream {
             }
             ResponseStreamEvent::Completed { response, .. } => {
                 self.apply_response_state(&response, out);
-                self.stop_reason = Some(
-                    match response
-                        .incomplete_details
-                        .as_ref()
-                        .and_then(|details| details.reason.as_ref())
-                    {
-                        Some(ResponseIncompleteReason::MaxOutputTokens) => {
-                            BetaStopReason::MaxTokens
-                        }
-                        Some(ResponseIncompleteReason::ContentFilter) => BetaStopReason::Refusal,
-                        None => BetaStopReason::EndTurn,
-                    },
-                );
+                self.stop_reason = match response
+                    .incomplete_details
+                    .as_ref()
+                    .and_then(|details| details.reason.as_ref())
+                {
+                    Some(ResponseIncompleteReason::MaxOutputTokens) => {
+                        Some(BetaStopReason::MaxTokens)
+                    }
+                    Some(ResponseIncompleteReason::ContentFilter) => {
+                        Some(BetaStopReason::Refusal)
+                    }
+                    None => None,
+                };
             }
             ResponseStreamEvent::Incomplete { response, .. } => {
                 self.apply_response_state(&response, out);
@@ -1078,5 +1078,146 @@ impl OpenAiResponseToClaudeStream {
         ));
         out.push(message_stop_event());
         self.state = StreamState::Finished;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenAiResponseToClaudeStream;
+    use crate::claude::create_message::stream::ClaudeStreamEvent;
+    use crate::claude::create_message::types::BetaStopReason;
+    use crate::openai::count_tokens::types as ot;
+    use crate::openai::create_response::response::ResponseBody;
+    use crate::openai::create_response::stream::ResponseStreamEvent;
+    use crate::openai::create_response::types::{
+        ResponseInputTokensDetails, ResponseObject, ResponseOutputTokensDetails,
+        ResponseReasoning, ResponseServiceTier, ResponseStatus, ResponseTextConfig,
+        ResponseToolChoice, ResponseUsage,
+    };
+
+    fn base_response() -> ResponseBody {
+        ResponseBody {
+            id: "resp_test".to_string(),
+            created_at: 1_776_310_008,
+            error: None,
+            incomplete_details: None,
+            instructions: Some(crate::openai::count_tokens::types::ResponseInput::Text(
+                "test".to_string(),
+            )),
+            metadata: Default::default(),
+            model: "gpt-5.4".to_string(),
+            object: ResponseObject::Response,
+            output: Vec::new(),
+            parallel_tool_calls: true,
+            temperature: 1.0,
+            tool_choice: ResponseToolChoice::Options(ot::ResponseToolChoiceOptions::Auto),
+            tools: Vec::new(),
+            top_p: 0.98,
+            background: Some(false),
+            completed_at: None,
+            conversation: None,
+            max_output_tokens: None,
+            max_tool_calls: None,
+            output_text: None,
+            previous_response_id: None,
+            prompt: None,
+            prompt_cache_key: None,
+            prompt_cache_retention: None,
+            reasoning: Some(ResponseReasoning {
+                effort: Some(ot::ResponseReasoningEffort::Medium),
+                generate_summary: None,
+                summary: None,
+            }),
+            safety_identifier: None,
+            service_tier: Some(ResponseServiceTier::Auto),
+            status: Some(ResponseStatus::InProgress),
+            text: Some(ResponseTextConfig {
+                format: Some(ot::ResponseTextFormatConfig::Text(ot::ResponseFormatText {
+                    type_: ot::ResponseFormatTextType::Text,
+                })),
+                verbosity: Some(ot::ResponseTextVerbosity::Medium),
+            }),
+            top_logprobs: Some(0),
+            truncation: Some(crate::openai::create_response::types::ResponseTruncation::Disabled),
+            usage: None,
+            user: None,
+        }
+    }
+
+    #[test]
+    fn tool_calls_finish_with_tool_use_stop_reason() {
+        let mut converter = OpenAiResponseToClaudeStream::default();
+        let mut out = Vec::new();
+
+        let created = base_response();
+        converter.on_stream_event(
+            ResponseStreamEvent::Created {
+                response: created,
+                sequence_number: 0,
+            },
+            &mut out,
+        );
+
+        converter.on_stream_event(
+            ResponseStreamEvent::OutputItemAdded {
+                item: crate::openai::create_response::types::ResponseOutputItem::FunctionToolCall(
+                    crate::openai::count_tokens::types::ResponseFunctionToolCall {
+                        arguments: String::new(),
+                        call_id: "call_1".to_string(),
+                        name: "Skill".to_string(),
+                        type_: ot::ResponseFunctionToolCallType::FunctionCall,
+                        id: Some("fc_1".to_string()),
+                        status: Some(ot::ResponseItemStatus::InProgress),
+                    },
+                ),
+                output_index: 0,
+                sequence_number: 1,
+            },
+            &mut out,
+        );
+
+        converter.on_stream_event(
+            ResponseStreamEvent::FunctionCallArgumentsDone {
+                arguments: "{\"args\":\"\",\"skill\":\"superpowers:using-superpowers\"}"
+                    .to_string(),
+                item_id: "fc_1".to_string(),
+                output_index: 0,
+                sequence_number: 2,
+                name: Some("Skill".to_string()),
+            },
+            &mut out,
+        );
+
+        let mut completed = base_response();
+        completed.status = Some(ResponseStatus::Completed);
+        completed.completed_at = Some(1_776_310_014);
+        completed.usage = Some(ResponseUsage {
+            input_tokens: 26_138,
+            input_tokens_details: ResponseInputTokensDetails { cached_tokens: 0 },
+            output_tokens: 85,
+            output_tokens_details: ResponseOutputTokensDetails { reasoning_tokens: 59 },
+            total_tokens: 26_223,
+        });
+        converter.on_stream_event(
+            ResponseStreamEvent::Completed {
+                response: completed,
+                sequence_number: 3,
+            },
+            &mut out,
+        );
+
+        converter.finish(&mut out);
+
+        let last_delta = out.iter().rev().find_map(|event| match event {
+            ClaudeStreamEvent::MessageDelta { delta, usage, .. } => {
+                Some((delta.stop_reason.clone(), usage.input_tokens, usage.output_tokens))
+            }
+            _ => None,
+        });
+
+        assert_eq!(
+            last_delta,
+            Some((Some(BetaStopReason::ToolUse), Some(26_138), 85))
+        );
     }
 }
