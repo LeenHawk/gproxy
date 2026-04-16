@@ -69,6 +69,7 @@ export function BetaHeadersEditor({
               className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
                 active ? "btn-primary" : "btn-neutral"
               }`}
+              aria-pressed={active}
               onClick={() => toggle(beta)}
             >
               {beta}

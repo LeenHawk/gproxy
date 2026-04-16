@@ -118,10 +118,15 @@ export function parseBetaHeaders(value: unknown): string[] {
     return value.filter((item): item is string => typeof item === "string" && item.trim() !== "");
   }
   if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((s) => s.trim())
-      .filter((s) => s !== "");
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed.filter((item): item is string => typeof item === "string" && item.trim() !== "");
+    } catch {
+      return [];
+    }
   }
   return [];
 }
