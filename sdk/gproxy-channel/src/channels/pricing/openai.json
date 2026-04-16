@@ -10,7 +10,7 @@
         "price_cache_read_input_tokens": 0.13
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 11.25,
         "price_cache_read_input_tokens": 0.25
@@ -18,7 +18,7 @@
     ],
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 30.0,
         "price_cache_read_input_tokens": 0.5
@@ -32,7 +32,7 @@
         "price_cache_read_input_tokens": 0.25
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 22.5,
         "price_cache_read_input_tokens": 0.5
@@ -44,7 +44,7 @@
     "display_name": "GPT-5.4 Mini",
     "flex_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.375,
         "price_output_tokens": 2.25,
         "price_cache_read_input_tokens": 0.0375
@@ -52,7 +52,7 @@
     ],
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.5,
         "price_output_tokens": 9.0,
         "price_cache_read_input_tokens": 0.15
@@ -60,7 +60,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.75,
         "price_output_tokens": 4.5,
         "price_cache_read_input_tokens": 0.075
@@ -72,7 +72,7 @@
     "display_name": "GPT-5.4 Nano",
     "flex_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.1,
         "price_output_tokens": 0.625,
         "price_cache_read_input_tokens": 0.01
@@ -80,7 +80,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.2,
         "price_output_tokens": 1.25,
         "price_cache_read_input_tokens": 0.02
@@ -97,7 +97,7 @@
         "price_output_tokens": 90.0
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 30.0,
         "price_output_tokens": 135.0
       }
@@ -109,7 +109,7 @@
         "price_output_tokens": 180.0
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 60.0,
         "price_output_tokens": 270.0
       }
@@ -120,7 +120,7 @@
     "display_name": "GPT-5.2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -132,7 +132,7 @@
     "display_name": "GPT-5.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -144,7 +144,7 @@
     "display_name": "GPT-5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -156,7 +156,7 @@
     "display_name": "GPT-5 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.025
@@ -168,7 +168,7 @@
     "display_name": "GPT-5 Nano",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.05,
         "price_output_tokens": 0.4,
         "price_cache_read_input_tokens": 0.005
@@ -180,7 +180,7 @@
     "display_name": "GPT-5.3 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -192,7 +192,7 @@
     "display_name": "GPT-5.2 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -204,7 +204,7 @@
     "display_name": "GPT-5.1 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -216,7 +216,7 @@
     "display_name": "GPT-5 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -228,7 +228,7 @@
     "display_name": "GPT-5.2 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 21.0,
         "price_output_tokens": 168.0
       }
@@ -239,7 +239,7 @@
     "display_name": "GPT-5 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 120.0
       }
@@ -250,7 +250,7 @@
     "display_name": "GPT-4.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0,
         "price_cache_read_input_tokens": 0.5
@@ -262,7 +262,7 @@
     "display_name": "GPT-4.1 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.4,
         "price_output_tokens": 1.6,
         "price_cache_read_input_tokens": 0.1
@@ -274,7 +274,7 @@
     "display_name": "GPT-4.1 Nano",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.1,
         "price_output_tokens": 0.4,
         "price_cache_read_input_tokens": 0.025
@@ -286,7 +286,7 @@
     "display_name": "GPT-4o",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 1.25
@@ -298,7 +298,7 @@
     "display_name": "GPT-4o Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.075
@@ -310,7 +310,7 @@
     "display_name": "o4-mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.1,
         "price_output_tokens": 4.4,
         "price_cache_read_input_tokens": 0.275

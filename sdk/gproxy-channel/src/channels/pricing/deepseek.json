@@ -4,7 +4,7 @@
     "display_name": "DeepSeek Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028
@@ -16,7 +16,7 @@
     "display_name": "DeepSeek Reasoner",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028

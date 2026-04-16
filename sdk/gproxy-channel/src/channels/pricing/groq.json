@@ -4,7 +4,7 @@
     "display_name": "Llama 3.1 8B Instant",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.05,
         "price_output_tokens": 0.08
       }
@@ -15,7 +15,7 @@
     "display_name": "Llama 3.3 70B Versatile",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.59,
         "price_output_tokens": 0.79
       }
@@ -26,7 +26,7 @@
     "display_name": "OpenAI GPT OSS 120B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.075
@@ -38,7 +38,7 @@
     "display_name": "OpenAI GPT OSS 20B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.075,
         "price_output_tokens": 0.3,
         "price_cache_read_input_tokens": 0.0375
@@ -50,7 +50,7 @@
     "display_name": "Qwen3-32B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.29,
         "price_output_tokens": 0.59
       }

@@ -4,7 +4,7 @@
     "display_name": "chat_20706",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028
@@ -16,7 +16,7 @@
     "display_name": "chat_23310",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028
@@ -28,7 +28,7 @@
     "display_name": "Claude Opus 4.6 Thinking",
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 30.0,
         "price_output_tokens": 150.0,
         "price_cache_read_input_tokens": 3.0,
@@ -38,7 +38,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 25.0,
         "price_cache_read_input_tokens": 0.5,
@@ -60,7 +60,7 @@
         "price_cache_creation_input_tokens_1h": 6.0
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 6.0,
         "price_output_tokens": 22.5,
         "price_cache_read_input_tokens": 0.6,
@@ -74,7 +74,7 @@
     "display_name": "Gemini 2.5 Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 2.5,
         "price_cache_read_input_tokens": 0.03
@@ -86,7 +86,7 @@
     "display_name": "Gemini 2.5 Flash-Lite",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.1,
         "price_output_tokens": 0.4,
         "price_cache_read_input_tokens": 0.01
@@ -98,7 +98,7 @@
     "display_name": "Gemini 2.5 Flash Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 2.5,
         "price_cache_read_input_tokens": 0.03
@@ -116,7 +116,7 @@
         "price_cache_read_input_tokens": 0.125
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.25
@@ -128,7 +128,7 @@
     "display_name": "Gemini 3 Flash",
     "flex_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 1.5,
         "price_cache_read_input_tokens": 0.05
@@ -136,7 +136,7 @@
     ],
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.9,
         "price_output_tokens": 5.4,
         "price_cache_read_input_tokens": 0.09
@@ -144,7 +144,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 3.0,
         "price_cache_read_input_tokens": 0.05
@@ -156,7 +156,7 @@
     "display_name": "Gemini 3 Flash Agent",
     "flex_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 1.5,
         "price_cache_read_input_tokens": 0.05
@@ -164,7 +164,7 @@
     ],
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.9,
         "price_output_tokens": 5.4,
         "price_cache_read_input_tokens": 0.09
@@ -172,7 +172,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 3.0,
         "price_cache_read_input_tokens": 0.05
@@ -190,7 +190,7 @@
         "price_cache_read_input_tokens": 0.2
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 4.0,
         "price_output_tokens": 18.0,
         "price_cache_read_input_tokens": 0.4
@@ -208,7 +208,7 @@
         "price_cache_read_input_tokens": 0.2
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 4.0,
         "price_output_tokens": 18.0,
         "price_cache_read_input_tokens": 0.4
@@ -220,7 +220,7 @@
     "display_name": "Gemini 3.1 Flash Image",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028
@@ -232,7 +232,7 @@
     "display_name": "Gemini 3.1 Flash-Lite",
     "flex_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.125,
         "price_output_tokens": 0.75,
         "price_cache_read_input_tokens": 0.0125
@@ -240,7 +240,7 @@
     ],
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.45,
         "price_output_tokens": 2.7,
         "price_cache_read_input_tokens": 0.045
@@ -248,7 +248,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 1.5,
         "price_cache_read_input_tokens": 0.025
@@ -266,7 +266,7 @@
         "price_cache_read_input_tokens": 0.2
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 9.0,
         "price_cache_read_input_tokens": 0.4
@@ -284,7 +284,7 @@
         "price_cache_read_input_tokens": 0.2
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 9.0,
         "price_cache_read_input_tokens": 0.4
@@ -296,7 +296,7 @@
     "display_name": "GPT OSS 120B Medium",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028
@@ -308,7 +308,7 @@
     "display_name": "Tab Flash Lite Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028
@@ -320,7 +320,7 @@
     "display_name": "Tab Jump Flash Lite Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 0.42,
         "price_cache_read_input_tokens": 0.028

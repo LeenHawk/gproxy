@@ -4,7 +4,7 @@
     "display_name": "Google: Gemma 4 26B A4B ",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.13,
         "price_output_tokens": 0.39999999999999997
       }
@@ -15,7 +15,7 @@
     "display_name": "Google: Gemma 4 31B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.14,
         "price_output_tokens": 0.39999999999999997
       }
@@ -26,7 +26,7 @@
     "display_name": "Qwen: Qwen3.6 Plus (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -37,7 +37,7 @@
     "display_name": "Z.ai: GLM 5V Turbo",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.2,
         "price_output_tokens": 4.0,
         "price_cache_read_input_tokens": 0.24
@@ -49,7 +49,7 @@
     "display_name": "Arcee AI: Trinity Large Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.22,
         "price_output_tokens": 0.85
       }
@@ -60,7 +60,7 @@
     "display_name": "xAI: Grok 4.20 Multi-Agent",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -72,7 +72,7 @@
     "display_name": "xAI: Grok 4.20",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -84,7 +84,7 @@
     "display_name": "Google: Lyria 3 Pro Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -95,7 +95,7 @@
     "display_name": "Google: Lyria 3 Clip Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -106,7 +106,7 @@
     "display_name": "Kwaipilot: KAT-Coder-Pro V2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 1.2,
         "price_cache_read_input_tokens": 0.06
@@ -118,7 +118,7 @@
     "display_name": "Reka Edge",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.09999999999999999
       }
@@ -129,7 +129,7 @@
     "display_name": "Xiaomi: MiMo-V2-Omni",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.08
@@ -141,7 +141,7 @@
     "display_name": "Xiaomi: MiMo-V2-Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 3.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -153,7 +153,7 @@
     "display_name": "MiniMax: MiniMax M2.7",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 1.2,
         "price_cache_read_input_tokens": 0.06
@@ -165,7 +165,7 @@
     "display_name": "OpenAI: GPT-5.4 Nano",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 1.25,
         "price_cache_read_input_tokens": 0.02
@@ -177,7 +177,7 @@
     "display_name": "OpenAI: GPT-5.4 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.75,
         "price_output_tokens": 4.5,
         "price_cache_read_input_tokens": 0.075
@@ -189,7 +189,7 @@
     "display_name": "Mistral: Mistral Small 4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.015
@@ -201,7 +201,7 @@
     "display_name": "Z.ai: GLM 5 Turbo",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.2,
         "price_output_tokens": 4.0,
         "price_cache_read_input_tokens": 0.24
@@ -213,7 +213,7 @@
     "display_name": "NVIDIA: Nemotron 3 Super (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -224,7 +224,7 @@
     "display_name": "NVIDIA: Nemotron 3 Super",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.5,
         "price_cache_read_input_tokens": 0.09999999999999999
@@ -236,7 +236,7 @@
     "display_name": "ByteDance Seed: Seed-2.0-Lite",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0
       }
@@ -247,7 +247,7 @@
     "display_name": "Qwen: Qwen3.5-9B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049999999999999996,
         "price_output_tokens": 0.15
       }
@@ -258,7 +258,7 @@
     "display_name": "OpenAI: GPT-5.4 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 30.0,
         "price_output_tokens": 180.0
       }
@@ -269,7 +269,7 @@
     "display_name": "OpenAI: GPT-5.4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.25
@@ -281,7 +281,7 @@
     "display_name": "Inception: Mercury 2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 0.75,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -293,7 +293,7 @@
     "display_name": "OpenAI: GPT-5.3 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -305,7 +305,7 @@
     "display_name": "Google: Gemini 3.1 Flash Lite Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 1.5,
         "price_cache_read_input_tokens": 0.024999999999999998,
@@ -318,7 +318,7 @@
     "display_name": "ByteDance Seed: Seed-2.0-Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.39999999999999997
       }
@@ -329,7 +329,7 @@
     "display_name": "Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 3.0
       }
@@ -340,7 +340,7 @@
     "display_name": "Qwen: Qwen3.5-35B-A3B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.1625,
         "price_output_tokens": 1.3
       }
@@ -351,7 +351,7 @@
     "display_name": "Qwen: Qwen3.5-27B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.195,
         "price_output_tokens": 1.56
       }
@@ -362,7 +362,7 @@
     "display_name": "Qwen: Qwen3.5-122B-A10B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 2.08
       }
@@ -373,7 +373,7 @@
     "display_name": "Qwen: Qwen3.5-Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.065,
         "price_output_tokens": 0.26
       }
@@ -384,7 +384,7 @@
     "display_name": "LiquidAI: LFM2-24B-A2B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.03,
         "price_output_tokens": 0.12
       }
@@ -395,7 +395,7 @@
     "display_name": "Google: Gemini 3.1 Pro Preview Custom Tools",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 12.0,
         "price_cache_read_input_tokens": 0.19999999999999998,
@@ -408,7 +408,7 @@
     "display_name": "OpenAI: GPT-5.3-Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -420,7 +420,7 @@
     "display_name": "AionLabs: Aion-2.0",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 1.5999999999999999,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -432,7 +432,7 @@
     "display_name": "Google: Gemini 3.1 Pro Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 12.0,
         "price_cache_read_input_tokens": 0.19999999999999998,
@@ -445,7 +445,7 @@
     "display_name": "Anthropic: Claude Sonnet 4.6",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.3,
@@ -458,7 +458,7 @@
     "display_name": "Qwen: Qwen3.5 Plus 2026-02-15",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 1.56
       }
@@ -469,7 +469,7 @@
     "display_name": "Qwen: Qwen3.5 397B A17B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39,
         "price_output_tokens": 2.34
       }
@@ -480,7 +480,7 @@
     "display_name": "MiniMax: MiniMax M2.5 (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -491,7 +491,7 @@
     "display_name": "MiniMax: MiniMax M2.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.118,
         "price_output_tokens": 0.9900000000000001,
         "price_cache_read_input_tokens": 0.059
@@ -503,7 +503,7 @@
     "display_name": "Z.ai: GLM 5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.72,
         "price_output_tokens": 2.3
       }
@@ -514,7 +514,7 @@
     "display_name": "Qwen: Qwen3 Max Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.78,
         "price_output_tokens": 3.9
       }
@@ -525,7 +525,7 @@
     "display_name": "Anthropic: Claude Opus 4.6",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 25.0,
         "price_cache_read_input_tokens": 0.5,
@@ -538,7 +538,7 @@
     "display_name": "Qwen: Qwen3 Coder Next",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.12,
         "price_output_tokens": 0.75,
         "price_cache_read_input_tokens": 0.06
@@ -550,7 +550,7 @@
     "display_name": "Free Models Router",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -561,7 +561,7 @@
     "display_name": "StepFun: Step 3.5 Flash (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -572,7 +572,7 @@
     "display_name": "StepFun: Step 3.5 Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.3
       }
@@ -583,7 +583,7 @@
     "display_name": "Arcee AI: Trinity Large Preview (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -594,7 +594,7 @@
     "display_name": "MoonshotAI: Kimi K2.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3827,
         "price_output_tokens": 1.72,
         "price_cache_read_input_tokens": 0.1935
@@ -606,7 +606,7 @@
     "display_name": "Upstage: Solar Pro 3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.015
@@ -618,7 +618,7 @@
     "display_name": "MiniMax: MiniMax M2-her",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 1.2,
         "price_cache_read_input_tokens": 0.03
@@ -630,7 +630,7 @@
     "display_name": "Writer: Palmyra X5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.6,
         "price_output_tokens": 6.0
       }
@@ -641,7 +641,7 @@
     "display_name": "LiquidAI: LFM2.5-1.2B-Thinking (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -652,7 +652,7 @@
     "display_name": "LiquidAI: LFM2.5-1.2B-Instruct (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -663,7 +663,7 @@
     "display_name": "OpenAI: GPT Audio",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -674,7 +674,7 @@
     "display_name": "OpenAI: GPT Audio Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.6,
         "price_output_tokens": 2.4
       }
@@ -685,7 +685,7 @@
     "display_name": "Z.ai: GLM 4.7 Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.06,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.0100000002
@@ -697,7 +697,7 @@
     "display_name": "OpenAI: GPT-5.2-Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -709,7 +709,7 @@
     "display_name": "AllenAI: Olmo 3.1 32B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.6
       }
@@ -720,7 +720,7 @@
     "display_name": "ByteDance Seed: Seed 1.6 Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.075,
         "price_output_tokens": 0.3
       }
@@ -731,7 +731,7 @@
     "display_name": "ByteDance Seed: Seed 1.6",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0
       }
@@ -742,7 +742,7 @@
     "display_name": "MiniMax: MiniMax M2.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.27,
         "price_output_tokens": 0.95,
         "price_cache_read_input_tokens": 0.0290000007
@@ -754,7 +754,7 @@
     "display_name": "Z.ai: GLM 4.7",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39,
         "price_output_tokens": 1.75,
         "price_cache_read_input_tokens": 0.195
@@ -766,7 +766,7 @@
     "display_name": "Google: Gemini 3 Flash Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 3.0,
         "price_cache_read_input_tokens": 0.049999999999999996,
@@ -779,7 +779,7 @@
     "display_name": "Mistral: Mistral Small Creative",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.3,
         "price_cache_read_input_tokens": 0.01
@@ -791,7 +791,7 @@
     "display_name": "AllenAI: Olmo 3.1 32B Think",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.5
       }
@@ -802,7 +802,7 @@
     "display_name": "Xiaomi: MiMo-V2-Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09,
         "price_output_tokens": 0.29,
         "price_cache_read_input_tokens": 0.045
@@ -814,7 +814,7 @@
     "display_name": "NVIDIA: Nemotron 3 Nano 30B A3B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -825,7 +825,7 @@
     "display_name": "NVIDIA: Nemotron 3 Nano 30B A3B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049999999999999996,
         "price_output_tokens": 0.19999999999999998
       }
@@ -836,7 +836,7 @@
     "display_name": "OpenAI: GPT-5.2 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -848,7 +848,7 @@
     "display_name": "OpenAI: GPT-5.2 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 21.0,
         "price_output_tokens": 168.0
       }
@@ -859,7 +859,7 @@
     "display_name": "OpenAI: GPT-5.2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -871,7 +871,7 @@
     "display_name": "Mistral: Devstral 2 2512",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.04
@@ -883,7 +883,7 @@
     "display_name": "Relace: Relace Search",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 3.0
       }
@@ -894,7 +894,7 @@
     "display_name": "Z.ai: GLM 4.6V",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 0.8999999999999999
       }
@@ -905,7 +905,7 @@
     "display_name": "Nex AGI: DeepSeek V3.1 Nex N1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.135,
         "price_output_tokens": 0.5
       }
@@ -916,7 +916,7 @@
     "display_name": "EssentialAI: Rnj 1 Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.15
       }
@@ -927,7 +927,7 @@
     "display_name": "OpenAI: GPT-5.1-Codex-Max",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -939,7 +939,7 @@
     "display_name": "Amazon: Nova 2 Lite",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 2.5
       }
@@ -950,7 +950,7 @@
     "display_name": "Mistral: Ministral 3 14B 2512",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.19999999999999998,
         "price_cache_read_input_tokens": 0.02
@@ -962,7 +962,7 @@
     "display_name": "Mistral: Ministral 3 8B 2512",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.15,
         "price_cache_read_input_tokens": 0.015
@@ -974,7 +974,7 @@
     "display_name": "Mistral: Ministral 3 3B 2512",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.09999999999999999,
         "price_cache_read_input_tokens": 0.01
@@ -986,7 +986,7 @@
     "display_name": "Mistral: Mistral Large 3 2512",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 1.5,
         "price_cache_read_input_tokens": 0.049999999999999996
@@ -998,7 +998,7 @@
     "display_name": "Arcee AI: Trinity Mini (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1009,7 +1009,7 @@
     "display_name": "Arcee AI: Trinity Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.045,
         "price_output_tokens": 0.15
       }
@@ -1020,7 +1020,7 @@
     "display_name": "DeepSeek: DeepSeek V3.2 Speciale",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 1.2,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -1032,7 +1032,7 @@
     "display_name": "DeepSeek: DeepSeek V3.2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 0.38,
         "price_cache_read_input_tokens": 0.13
@@ -1044,7 +1044,7 @@
     "display_name": "Prime Intellect: INTELLECT-3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 1.1
       }
@@ -1055,7 +1055,7 @@
     "display_name": "Anthropic: Claude Opus 4.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 25.0,
         "price_cache_read_input_tokens": 0.5,
@@ -1068,7 +1068,7 @@
     "display_name": "AllenAI: Olmo 3 32B Think",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.5
       }
@@ -1079,7 +1079,7 @@
     "display_name": "Google: Nano Banana Pro (Gemini 3 Pro Image Preview)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 12.0,
         "price_cache_read_input_tokens": 0.19999999999999998,
@@ -1092,7 +1092,7 @@
     "display_name": "xAI: Grok 4.1 Fast",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.5,
         "price_cache_read_input_tokens": 0.049999999999999996
@@ -1104,7 +1104,7 @@
     "display_name": "Deep Cogito: Cogito v2.1 671B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 1.25
       }
@@ -1115,7 +1115,7 @@
     "display_name": "OpenAI: GPT-5.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -1127,7 +1127,7 @@
     "display_name": "OpenAI: GPT-5.1 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -1139,7 +1139,7 @@
     "display_name": "OpenAI: GPT-5.1-Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -1151,7 +1151,7 @@
     "display_name": "OpenAI: GPT-5.1-Codex-Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -1163,7 +1163,7 @@
     "display_name": "MoonshotAI: Kimi K2 Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.47,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.14100000000000001
@@ -1175,7 +1175,7 @@
     "display_name": "Amazon: Nova Premier 1.0",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 12.5,
         "price_cache_read_input_tokens": 0.625
@@ -1187,7 +1187,7 @@
     "display_name": "Perplexity: Sonar Pro Search",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0
       }
@@ -1198,7 +1198,7 @@
     "display_name": "Mistral: Voxtral Small 24B 2507",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.3,
         "price_cache_read_input_tokens": 0.01
@@ -1210,7 +1210,7 @@
     "display_name": "OpenAI: gpt-oss-safeguard-20b",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.075,
         "price_output_tokens": 0.3,
         "price_cache_read_input_tokens": 0.037
@@ -1222,7 +1222,7 @@
     "display_name": "NVIDIA: Nemotron Nano 12B 2 VL (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1233,7 +1233,7 @@
     "display_name": "NVIDIA: Nemotron Nano 12B 2 VL",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.6
       }
@@ -1244,7 +1244,7 @@
     "display_name": "MiniMax: MiniMax M2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.255,
         "price_output_tokens": 1.0,
         "price_cache_read_input_tokens": 0.03
@@ -1256,7 +1256,7 @@
     "display_name": "Qwen: Qwen3 VL 32B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.10400000000000001,
         "price_output_tokens": 0.41600000000000004
       }
@@ -1267,7 +1267,7 @@
     "display_name": "IBM: Granite 4.0 Micro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.017,
         "price_output_tokens": 0.11
       }
@@ -1278,7 +1278,7 @@
     "display_name": "OpenAI: GPT-5 Image Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.25
@@ -1290,7 +1290,7 @@
     "display_name": "Anthropic: Claude Haiku 4.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 5.0,
         "price_cache_read_input_tokens": 0.09999999999999999,
@@ -1303,7 +1303,7 @@
     "display_name": "Qwen: Qwen3 VL 8B Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.117,
         "price_output_tokens": 1.365
       }
@@ -1314,7 +1314,7 @@
     "display_name": "Qwen: Qwen3 VL 8B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.08,
         "price_output_tokens": 0.5
       }
@@ -1325,7 +1325,7 @@
     "display_name": "OpenAI: GPT-5 Image",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 10.0,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 1.25
@@ -1337,7 +1337,7 @@
     "display_name": "OpenAI: o3 Deep Research",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 10.0,
         "price_output_tokens": 40.0,
         "price_cache_read_input_tokens": 2.5
@@ -1349,7 +1349,7 @@
     "display_name": "OpenAI: o4 Mini Deep Research",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0,
         "price_cache_read_input_tokens": 0.5
@@ -1361,7 +1361,7 @@
     "display_name": "NVIDIA: Llama 3.3 Nemotron Super 49B V1.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.39999999999999997
       }
@@ -1372,7 +1372,7 @@
     "display_name": "Baidu: ERNIE 4.5 21B A3B Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.07,
         "price_output_tokens": 0.28
       }
@@ -1383,7 +1383,7 @@
     "display_name": "Google: Nano Banana (Gemini 2.5 Flash Image)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 2.5,
         "price_cache_read_input_tokens": 0.03,
@@ -1396,7 +1396,7 @@
     "display_name": "Qwen: Qwen3 VL 30B A3B Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.13,
         "price_output_tokens": 1.56
       }
@@ -1407,7 +1407,7 @@
     "display_name": "Qwen: Qwen3 VL 30B A3B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.13,
         "price_output_tokens": 0.52
       }
@@ -1418,7 +1418,7 @@
     "display_name": "OpenAI: GPT-5 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 120.0
       }
@@ -1429,7 +1429,7 @@
     "display_name": "Z.ai: GLM 4.6",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39,
         "price_output_tokens": 1.9
       }
@@ -1440,7 +1440,7 @@
     "display_name": "Anthropic: Claude Sonnet 4.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.3,
@@ -1453,7 +1453,7 @@
     "display_name": "DeepSeek: DeepSeek V3.2 Exp",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.27,
         "price_output_tokens": 0.41
       }
@@ -1464,7 +1464,7 @@
     "display_name": "TheDrummer: Cydonia 24B V4.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 0.5
       }
@@ -1475,7 +1475,7 @@
     "display_name": "Relace: Relace Apply 3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.85,
         "price_output_tokens": 1.25
       }
@@ -1486,7 +1486,7 @@
     "display_name": "Google: Gemini 2.5 Flash Lite Preview 09-2025",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.01,
@@ -1499,7 +1499,7 @@
     "display_name": "Qwen: Qwen3 VL 235B A22B Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 2.6
       }
@@ -1510,7 +1510,7 @@
     "display_name": "Qwen: Qwen3 VL 235B A22B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.88,
         "price_cache_read_input_tokens": 0.11
@@ -1522,7 +1522,7 @@
     "display_name": "Qwen: Qwen3 Max",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.78,
         "price_output_tokens": 3.9,
         "price_cache_read_input_tokens": 0.156
@@ -1534,7 +1534,7 @@
     "display_name": "Qwen: Qwen3 Coder Plus",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.65,
         "price_output_tokens": 3.25,
         "price_cache_read_input_tokens": 0.13
@@ -1546,7 +1546,7 @@
     "display_name": "OpenAI: GPT-5 Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -1558,7 +1558,7 @@
     "display_name": "DeepSeek: DeepSeek V3.1 Terminus",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.21,
         "price_output_tokens": 0.7899999999999999,
         "price_cache_read_input_tokens": 0.1300000002
@@ -1570,7 +1570,7 @@
     "display_name": "xAI: Grok 4 Fast",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.5,
         "price_cache_read_input_tokens": 0.049999999999999996
@@ -1582,7 +1582,7 @@
     "display_name": "Tongyi DeepResearch 30B A3B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09,
         "price_output_tokens": 0.44999999999999996,
         "price_cache_read_input_tokens": 0.09
@@ -1594,7 +1594,7 @@
     "display_name": "Qwen: Qwen3 Coder Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.195,
         "price_output_tokens": 0.975,
         "price_cache_read_input_tokens": 0.039
@@ -1606,7 +1606,7 @@
     "display_name": "Qwen: Qwen3 Next 80B A3B Thinking",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0975,
         "price_output_tokens": 0.78
       }
@@ -1617,7 +1617,7 @@
     "display_name": "Qwen: Qwen3 Next 80B A3B Instruct (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1628,7 +1628,7 @@
     "display_name": "Qwen: Qwen3 Next 80B A3B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09,
         "price_output_tokens": 1.1
       }
@@ -1639,7 +1639,7 @@
     "display_name": "Meituan: LongCat Flash Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.7999999999999999,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -1651,7 +1651,7 @@
     "display_name": "Qwen: Qwen Plus 0728 (thinking)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 0.78
       }
@@ -1662,7 +1662,7 @@
     "display_name": "Qwen: Qwen Plus 0728",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 0.78
       }
@@ -1673,7 +1673,7 @@
     "display_name": "NVIDIA: Nemotron Nano 9B V2 (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1684,7 +1684,7 @@
     "display_name": "NVIDIA: Nemotron Nano 9B V2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.04,
         "price_output_tokens": 0.16
       }
@@ -1695,7 +1695,7 @@
     "display_name": "MoonshotAI: Kimi K2 0905",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.15
@@ -1707,7 +1707,7 @@
     "display_name": "Qwen: Qwen3 30B A3B Thinking 2507",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.08,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.08
@@ -1719,7 +1719,7 @@
     "display_name": "xAI: Grok Code Fast 1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 1.5,
         "price_cache_read_input_tokens": 0.02
@@ -1731,7 +1731,7 @@
     "display_name": "Nous: Hermes 4 70B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.13,
         "price_output_tokens": 0.39999999999999997
       }
@@ -1742,7 +1742,7 @@
     "display_name": "Nous: Hermes 4 405B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 3.0
       }
@@ -1753,7 +1753,7 @@
     "display_name": "DeepSeek: DeepSeek V3.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.75
       }
@@ -1764,7 +1764,7 @@
     "display_name": "OpenAI: GPT-4o Audio",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -1775,7 +1775,7 @@
     "display_name": "Mistral: Mistral Medium 3.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.04
@@ -1787,7 +1787,7 @@
     "display_name": "Baidu: ERNIE 4.5 21B A3B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.07,
         "price_output_tokens": 0.28
       }
@@ -1798,7 +1798,7 @@
     "display_name": "Baidu: ERNIE 4.5 VL 28B A3B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.14,
         "price_output_tokens": 0.56
       }
@@ -1809,7 +1809,7 @@
     "display_name": "Z.ai: GLM 4.5V",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.6,
         "price_output_tokens": 1.7999999999999998,
         "price_cache_read_input_tokens": 0.11
@@ -1821,7 +1821,7 @@
     "display_name": "AI21: Jamba Large 1.7",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0
       }
@@ -1832,7 +1832,7 @@
     "display_name": "OpenAI: GPT-5 Chat",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -1844,7 +1844,7 @@
     "display_name": "OpenAI: GPT-5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -1856,7 +1856,7 @@
     "display_name": "OpenAI: GPT-5 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -1868,7 +1868,7 @@
     "display_name": "OpenAI: GPT-5 Nano",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049999999999999996,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.005
@@ -1880,7 +1880,7 @@
     "display_name": "OpenAI: gpt-oss-120b (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1891,7 +1891,7 @@
     "display_name": "OpenAI: gpt-oss-120b",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.039,
         "price_output_tokens": 0.19
       }
@@ -1902,7 +1902,7 @@
     "display_name": "OpenAI: gpt-oss-20b (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1913,7 +1913,7 @@
     "display_name": "OpenAI: gpt-oss-20b",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.03,
         "price_output_tokens": 0.11,
         "price_cache_read_input_tokens": 0.015
@@ -1925,7 +1925,7 @@
     "display_name": "Anthropic: Claude Opus 4.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 75.0,
         "price_cache_read_input_tokens": 1.5,
@@ -1938,7 +1938,7 @@
     "display_name": "Mistral: Codestral 2508",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 0.8999999999999999,
         "price_cache_read_input_tokens": 0.03
@@ -1950,7 +1950,7 @@
     "display_name": "Qwen: Qwen3 Coder 30B A3B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.07,
         "price_output_tokens": 0.27
       }
@@ -1961,7 +1961,7 @@
     "display_name": "Qwen: Qwen3 30B A3B Instruct 2507",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09,
         "price_output_tokens": 0.3
       }
@@ -1972,7 +1972,7 @@
     "display_name": "Z.ai: GLM 4.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.6,
         "price_output_tokens": 2.2,
         "price_cache_read_input_tokens": 0.11
@@ -1984,7 +1984,7 @@
     "display_name": "Z.ai: GLM 4.5 Air (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -1995,7 +1995,7 @@
     "display_name": "Z.ai: GLM 4.5 Air",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.13,
         "price_output_tokens": 0.85,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -2007,7 +2007,7 @@
     "display_name": "Qwen: Qwen3 235B A22B Thinking 2507",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.14950000000000002,
         "price_output_tokens": 1.495
       }
@@ -2018,7 +2018,7 @@
     "display_name": "Z.ai: GLM 4 32B ",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.09999999999999999
       }
@@ -2029,7 +2029,7 @@
     "display_name": "Qwen: Qwen3 Coder 480B A35B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2040,7 +2040,7 @@
     "display_name": "Qwen: Qwen3 Coder 480B A35B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.22,
         "price_output_tokens": 1.0,
         "price_cache_read_input_tokens": 0.022
@@ -2052,7 +2052,7 @@
     "display_name": "ByteDance: UI-TARS 7B ",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.19999999999999998
       }
@@ -2063,7 +2063,7 @@
     "display_name": "Google: Gemini 2.5 Flash Lite",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.01,
@@ -2076,7 +2076,7 @@
     "display_name": "Qwen: Qwen3 235B A22B Instruct 2507",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.071,
         "price_output_tokens": 0.09999999999999999
       }
@@ -2087,7 +2087,7 @@
     "display_name": "Switchpoint Router",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.85,
         "price_output_tokens": 3.4
       }
@@ -2098,7 +2098,7 @@
     "display_name": "MoonshotAI: Kimi K2 0711",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5700000000000001,
         "price_output_tokens": 2.3
       }
@@ -2109,7 +2109,7 @@
     "display_name": "Mistral: Devstral Medium",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.04
@@ -2121,7 +2121,7 @@
     "display_name": "Mistral: Devstral Small 1.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.3,
         "price_cache_read_input_tokens": 0.01
@@ -2133,7 +2133,7 @@
     "display_name": "Venice: Uncensored (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2144,7 +2144,7 @@
     "display_name": "xAI: Grok 4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.75
@@ -2156,7 +2156,7 @@
     "display_name": "Google: Gemma 3n 2B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2167,7 +2167,7 @@
     "display_name": "Tencent: Hunyuan A13B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.14,
         "price_output_tokens": 0.5700000000000001
       }
@@ -2178,7 +2178,7 @@
     "display_name": "TNG: DeepSeek R1T2 Chimera",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 1.1,
         "price_cache_read_input_tokens": 0.15
@@ -2190,7 +2190,7 @@
     "display_name": "Morph: Morph V3 Large",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.8999999999999999,
         "price_output_tokens": 1.9
       }
@@ -2201,7 +2201,7 @@
     "display_name": "Morph: Morph V3 Fast",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 1.2
       }
@@ -2212,7 +2212,7 @@
     "display_name": "Baidu: ERNIE 4.5 VL 424B A47B ",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.42,
         "price_output_tokens": 1.25
       }
@@ -2223,7 +2223,7 @@
     "display_name": "Baidu: ERNIE 4.5 300B A47B ",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.28,
         "price_output_tokens": 1.1
       }
@@ -2234,7 +2234,7 @@
     "display_name": "Inception: Mercury",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 0.75,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -2246,7 +2246,7 @@
     "display_name": "Mistral: Mistral Small 3.2 24B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.075,
         "price_output_tokens": 0.19999999999999998
       }
@@ -2257,7 +2257,7 @@
     "display_name": "MiniMax: MiniMax M1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.2
       }
@@ -2268,7 +2268,7 @@
     "display_name": "Google: Gemini 2.5 Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 2.5,
         "price_cache_read_input_tokens": 0.03,
@@ -2281,7 +2281,7 @@
     "display_name": "Google: Gemini 2.5 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125,
@@ -2294,7 +2294,7 @@
     "display_name": "OpenAI: o3 Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 20.0,
         "price_output_tokens": 80.0
       }
@@ -2305,7 +2305,7 @@
     "display_name": "xAI: Grok 3 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 0.5,
         "price_cache_read_input_tokens": 0.075
@@ -2317,7 +2317,7 @@
     "display_name": "xAI: Grok 3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.75
@@ -2329,7 +2329,7 @@
     "display_name": "Google: Gemini 2.5 Pro Preview 06-05",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125,
@@ -2342,7 +2342,7 @@
     "display_name": "DeepSeek: R1 0528",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.44999999999999996,
         "price_output_tokens": 2.1500000000000004,
         "price_cache_read_input_tokens": 0.22499999999999998
@@ -2354,7 +2354,7 @@
     "display_name": "Anthropic: Claude Opus 4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 75.0,
         "price_cache_read_input_tokens": 1.5,
@@ -2367,7 +2367,7 @@
     "display_name": "Anthropic: Claude Sonnet 4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.3,
@@ -2380,7 +2380,7 @@
     "display_name": "Google: Gemma 3n 4B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2391,7 +2391,7 @@
     "display_name": "Google: Gemma 3n 4B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.02,
         "price_output_tokens": 0.04
       }
@@ -2402,7 +2402,7 @@
     "display_name": "Mistral: Mistral Medium 3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.04
@@ -2414,7 +2414,7 @@
     "display_name": "Google: Gemini 2.5 Pro Preview 05-06",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125,
@@ -2427,7 +2427,7 @@
     "display_name": "Arcee AI: Spotlight",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.18,
         "price_output_tokens": 0.18
       }
@@ -2438,7 +2438,7 @@
     "display_name": "Arcee AI: Maestro Reasoning",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.8999999999999999,
         "price_output_tokens": 3.3000000000000003
       }
@@ -2449,7 +2449,7 @@
     "display_name": "Arcee AI: Virtuoso Large",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.75,
         "price_output_tokens": 1.2
       }
@@ -2460,7 +2460,7 @@
     "display_name": "Arcee AI: Coder Large",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 0.7999999999999999
       }
@@ -2471,7 +2471,7 @@
     "display_name": "Inception: Mercury Coder",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 0.75,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -2483,7 +2483,7 @@
     "display_name": "Meta: Llama Guard 4 12B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.18,
         "price_output_tokens": 0.18
       }
@@ -2494,7 +2494,7 @@
     "display_name": "Qwen: Qwen3 30B A3B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.08,
         "price_output_tokens": 0.28
       }
@@ -2505,7 +2505,7 @@
     "display_name": "Qwen: Qwen3 8B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049999999999999996,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.049999999999999996
@@ -2517,7 +2517,7 @@
     "display_name": "Qwen: Qwen3 14B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.06,
         "price_output_tokens": 0.24
       }
@@ -2528,7 +2528,7 @@
     "display_name": "Qwen: Qwen3 32B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.08,
         "price_output_tokens": 0.24,
         "price_cache_read_input_tokens": 0.04
@@ -2540,7 +2540,7 @@
     "display_name": "Qwen: Qwen3 235B A22B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.45499999999999996,
         "price_output_tokens": 1.8199999999999998
       }
@@ -2551,7 +2551,7 @@
     "display_name": "OpenAI: o4 Mini High",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.1,
         "price_output_tokens": 4.4,
         "price_cache_read_input_tokens": 0.275
@@ -2563,7 +2563,7 @@
     "display_name": "OpenAI: o3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0,
         "price_cache_read_input_tokens": 0.5
@@ -2575,7 +2575,7 @@
     "display_name": "OpenAI: o4 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.1,
         "price_output_tokens": 4.4,
         "price_cache_read_input_tokens": 0.275
@@ -2587,7 +2587,7 @@
     "display_name": "Qwen: Qwen2.5 Coder 7B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.03,
         "price_output_tokens": 0.09
       }
@@ -2598,7 +2598,7 @@
     "display_name": "OpenAI: GPT-4.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0,
         "price_cache_read_input_tokens": 0.5
@@ -2610,7 +2610,7 @@
     "display_name": "OpenAI: GPT-4.1 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 1.5999999999999999,
         "price_cache_read_input_tokens": 0.09999999999999999
@@ -2622,7 +2622,7 @@
     "display_name": "OpenAI: GPT-4.1 Nano",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.024999999999999998
@@ -2634,7 +2634,7 @@
     "display_name": "EleutherAI: Llemma 7b",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 1.2
       }
@@ -2645,7 +2645,7 @@
     "display_name": "AlfredPros: CodeLLaMa 7B Instruct Solidity",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 1.2
       }
@@ -2656,7 +2656,7 @@
     "display_name": "xAI: Grok 3 Mini Beta",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 0.5,
         "price_cache_read_input_tokens": 0.075
@@ -2668,7 +2668,7 @@
     "display_name": "xAI: Grok 3 Beta",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.75
@@ -2680,7 +2680,7 @@
     "display_name": "NVIDIA: Llama 3.1 Nemotron Ultra 253B v1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.6,
         "price_output_tokens": 1.7999999999999998
       }
@@ -2691,7 +2691,7 @@
     "display_name": "Meta: Llama 4 Maverick",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6
       }
@@ -2702,7 +2702,7 @@
     "display_name": "Meta: Llama 4 Scout",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.08,
         "price_output_tokens": 0.3
       }
@@ -2713,7 +2713,7 @@
     "display_name": "Qwen: Qwen2.5 VL 32B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.6
       }
@@ -2724,7 +2724,7 @@
     "display_name": "DeepSeek: DeepSeek V3 0324",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.77,
         "price_cache_read_input_tokens": 0.135
@@ -2736,7 +2736,7 @@
     "display_name": "OpenAI: o1-pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 150.0,
         "price_output_tokens": 600.0
       }
@@ -2747,7 +2747,7 @@
     "display_name": "Mistral: Mistral Small 3.1 24B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.03,
         "price_output_tokens": 0.11,
         "price_cache_read_input_tokens": 0.015
@@ -2759,7 +2759,7 @@
     "display_name": "AllenAI: Olmo 2 32B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049999999999999996,
         "price_output_tokens": 0.19999999999999998
       }
@@ -2770,7 +2770,7 @@
     "display_name": "Google: Gemma 3 4B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2781,7 +2781,7 @@
     "display_name": "Google: Gemma 3 4B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.04,
         "price_output_tokens": 0.08
       }
@@ -2792,7 +2792,7 @@
     "display_name": "Google: Gemma 3 12B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2803,7 +2803,7 @@
     "display_name": "Google: Gemma 3 12B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.04,
         "price_output_tokens": 0.13
       }
@@ -2814,7 +2814,7 @@
     "display_name": "Cohere: Command A",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -2825,7 +2825,7 @@
     "display_name": "OpenAI: GPT-4o-mini Search Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6
       }
@@ -2836,7 +2836,7 @@
     "display_name": "OpenAI: GPT-4o Search Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -2847,7 +2847,7 @@
     "display_name": "Reka Flash 3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.19999999999999998
       }
@@ -2858,7 +2858,7 @@
     "display_name": "Google: Gemma 3 27B (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -2869,7 +2869,7 @@
     "display_name": "Google: Gemma 3 27B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.08,
         "price_output_tokens": 0.16
       }
@@ -2880,7 +2880,7 @@
     "display_name": "TheDrummer: Skyfall 36B V2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.55,
         "price_output_tokens": 0.7999999999999999
       }
@@ -2891,7 +2891,7 @@
     "display_name": "Perplexity: Sonar Reasoning Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0
       }
@@ -2902,7 +2902,7 @@
     "display_name": "Perplexity: Sonar Pro",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0
       }
@@ -2913,7 +2913,7 @@
     "display_name": "Perplexity: Sonar Deep Research",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 8.0
       }
@@ -2924,7 +2924,7 @@
     "display_name": "Qwen: QwQ 32B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.58
       }
@@ -2935,7 +2935,7 @@
     "display_name": "Google: Gemini 2.0 Flash Lite",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.075,
         "price_output_tokens": 0.3
       }
@@ -2946,7 +2946,7 @@
     "display_name": "Anthropic: Claude 3.7 Sonnet",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.3,
@@ -2959,7 +2959,7 @@
     "display_name": "Anthropic: Claude 3.7 Sonnet (thinking)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 15.0,
         "price_cache_read_input_tokens": 0.3,
@@ -2972,7 +2972,7 @@
     "display_name": "Mistral: Saba",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.02
@@ -2984,7 +2984,7 @@
     "display_name": "Llama Guard 3 8B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.02,
         "price_output_tokens": 0.06
       }
@@ -2995,7 +2995,7 @@
     "display_name": "OpenAI: o3 Mini High",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.1,
         "price_output_tokens": 4.4,
         "price_cache_read_input_tokens": 0.55
@@ -3007,7 +3007,7 @@
     "display_name": "Google: Gemini 2.0 Flash",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.39999999999999997,
         "price_cache_read_input_tokens": 0.024999999999999998,
@@ -3020,7 +3020,7 @@
     "display_name": "Qwen: Qwen VL Plus",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.1365,
         "price_output_tokens": 0.40950000000000003,
         "price_cache_read_input_tokens": 0.027299999999999998
@@ -3032,7 +3032,7 @@
     "display_name": "AionLabs: Aion-1.0",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 4.0,
         "price_output_tokens": 8.0
       }
@@ -3043,7 +3043,7 @@
     "display_name": "AionLabs: Aion-1.0-Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7,
         "price_output_tokens": 1.4
       }
@@ -3054,7 +3054,7 @@
     "display_name": "AionLabs: Aion-RP 1.0 (8B)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 1.5999999999999999
       }
@@ -3065,7 +3065,7 @@
     "display_name": "Qwen: Qwen VL Max",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.52,
         "price_output_tokens": 2.08
       }
@@ -3076,7 +3076,7 @@
     "display_name": "Qwen: Qwen-Turbo",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0325,
         "price_output_tokens": 0.13,
         "price_cache_read_input_tokens": 0.006500000000000001
@@ -3088,7 +3088,7 @@
     "display_name": "Qwen: Qwen2.5 VL 72B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 0.7999999999999999
       }
@@ -3099,7 +3099,7 @@
     "display_name": "Qwen: Qwen-Plus",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.26,
         "price_output_tokens": 0.78,
         "price_cache_read_input_tokens": 0.052000000000000005
@@ -3111,7 +3111,7 @@
     "display_name": "Qwen: Qwen-Max ",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.04,
         "price_output_tokens": 4.16,
         "price_cache_read_input_tokens": 0.20800000000000002
@@ -3123,7 +3123,7 @@
     "display_name": "OpenAI: o3 Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.1,
         "price_output_tokens": 4.4,
         "price_cache_read_input_tokens": 0.55
@@ -3135,7 +3135,7 @@
     "display_name": "Mistral: Mistral Small 3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049999999999999996,
         "price_output_tokens": 0.08
       }
@@ -3146,7 +3146,7 @@
     "display_name": "DeepSeek: R1 Distill Qwen 32B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.29,
         "price_output_tokens": 0.29
       }
@@ -3157,7 +3157,7 @@
     "display_name": "Perplexity: Sonar",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 1.0
       }
@@ -3168,7 +3168,7 @@
     "display_name": "DeepSeek: R1 Distill Llama 70B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7,
         "price_output_tokens": 0.7999999999999999
       }
@@ -3179,7 +3179,7 @@
     "display_name": "DeepSeek: R1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7,
         "price_output_tokens": 2.5
       }
@@ -3190,7 +3190,7 @@
     "display_name": "MiniMax: MiniMax-01",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.19999999999999998,
         "price_output_tokens": 1.1
       }
@@ -3201,7 +3201,7 @@
     "display_name": "Microsoft: Phi 4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.065,
         "price_output_tokens": 0.14
       }
@@ -3212,7 +3212,7 @@
     "display_name": "Sao10K: Llama 3.1 70B Hanami x1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 3.0
       }
@@ -3223,7 +3223,7 @@
     "display_name": "DeepSeek: DeepSeek V3",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.32,
         "price_output_tokens": 0.8899999999999999
       }
@@ -3234,7 +3234,7 @@
     "display_name": "Sao10K: Llama 3.3 Euryale 70B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.65,
         "price_output_tokens": 0.75
       }
@@ -3245,7 +3245,7 @@
     "display_name": "OpenAI: o1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 60.0,
         "price_cache_read_input_tokens": 7.5
@@ -3257,7 +3257,7 @@
     "display_name": "Cohere: Command R7B (12-2024)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0375,
         "price_output_tokens": 0.15
       }
@@ -3268,7 +3268,7 @@
     "display_name": "Meta: Llama 3.3 70B Instruct (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -3279,7 +3279,7 @@
     "display_name": "Meta: Llama 3.3 70B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.09999999999999999,
         "price_output_tokens": 0.32
       }
@@ -3290,7 +3290,7 @@
     "display_name": "Amazon: Nova Lite 1.0",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.06,
         "price_output_tokens": 0.24
       }
@@ -3301,7 +3301,7 @@
     "display_name": "Amazon: Nova Micro 1.0",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.035,
         "price_output_tokens": 0.14
       }
@@ -3312,7 +3312,7 @@
     "display_name": "Amazon: Nova Pro 1.0",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 3.1999999999999997
       }
@@ -3323,7 +3323,7 @@
     "display_name": "OpenAI: GPT-4o (2024-11-20)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 1.25
@@ -3335,7 +3335,7 @@
     "display_name": "Mistral Large 2411",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -3347,7 +3347,7 @@
     "display_name": "Mistral Large 2407",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -3359,7 +3359,7 @@
     "display_name": "Mistral: Pixtral Large 2411",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -3371,7 +3371,7 @@
     "display_name": "Qwen2.5 Coder 32B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.66,
         "price_output_tokens": 1.0
       }
@@ -3382,7 +3382,7 @@
     "display_name": "TheDrummer: UnslopNemo 12B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 0.39999999999999997
       }
@@ -3393,7 +3393,7 @@
     "display_name": "Anthropic: Claude 3.5 Haiku",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.7999999999999999,
         "price_output_tokens": 4.0,
         "price_cache_read_input_tokens": 0.08,
@@ -3406,7 +3406,7 @@
     "display_name": "Magnum v4 72B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 5.0
       }
@@ -3417,7 +3417,7 @@
     "display_name": "Anthropic: Claude 3.5 Sonnet",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 6.0,
         "price_output_tokens": 30.0,
         "price_cache_read_input_tokens": 0.6,
@@ -3430,7 +3430,7 @@
     "display_name": "Qwen: Qwen2.5 7B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.04,
         "price_output_tokens": 0.09999999999999999
       }
@@ -3441,7 +3441,7 @@
     "display_name": "NVIDIA: Llama 3.1 Nemotron 70B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.2,
         "price_output_tokens": 1.2
       }
@@ -3452,7 +3452,7 @@
     "display_name": "Inflection: Inflection 3 Pi",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -3463,7 +3463,7 @@
     "display_name": "Inflection: Inflection 3 Productivity",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -3474,7 +3474,7 @@
     "display_name": "TheDrummer: Rocinante 12B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.16999999999999998,
         "price_output_tokens": 0.43
       }
@@ -3485,7 +3485,7 @@
     "display_name": "Meta: Llama 3.2 3B Instruct (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -3496,7 +3496,7 @@
     "display_name": "Meta: Llama 3.2 3B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.051,
         "price_output_tokens": 0.33999999999999997
       }
@@ -3507,7 +3507,7 @@
     "display_name": "Meta: Llama 3.2 1B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.027,
         "price_output_tokens": 0.19999999999999998
       }
@@ -3518,7 +3518,7 @@
     "display_name": "Meta: Llama 3.2 11B Vision Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.049,
         "price_output_tokens": 0.049
       }
@@ -3529,7 +3529,7 @@
     "display_name": "Qwen2.5 72B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.12,
         "price_output_tokens": 0.39
       }
@@ -3540,7 +3540,7 @@
     "display_name": "Cohere: Command R (08-2024)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6
       }
@@ -3551,7 +3551,7 @@
     "display_name": "Cohere: Command R+ (08-2024)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0
       }
@@ -3562,7 +3562,7 @@
     "display_name": "Sao10K: Llama 3.1 Euryale 70B v2.2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.85,
         "price_output_tokens": 0.85
       }
@@ -3573,7 +3573,7 @@
     "display_name": "Nous: Hermes 3 70B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.3,
         "price_output_tokens": 0.3
       }
@@ -3584,7 +3584,7 @@
     "display_name": "Nous: Hermes 3 405B Instruct (free)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.0,
         "price_output_tokens": 0.0
       }
@@ -3595,7 +3595,7 @@
     "display_name": "Nous: Hermes 3 405B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 1.0
       }
@@ -3606,7 +3606,7 @@
     "display_name": "Sao10K: Llama 3 8B Lunaris",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.04,
         "price_output_tokens": 0.049999999999999996
       }
@@ -3617,7 +3617,7 @@
     "display_name": "OpenAI: GPT-4o (2024-08-06)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 1.25
@@ -3629,7 +3629,7 @@
     "display_name": "Meta: Llama 3.1 8B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.02,
         "price_output_tokens": 0.049999999999999996
       }
@@ -3640,7 +3640,7 @@
     "display_name": "Meta: Llama 3.1 70B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.39999999999999997,
         "price_output_tokens": 0.39999999999999997
       }
@@ -3651,7 +3651,7 @@
     "display_name": "Mistral: Mistral Nemo",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.02,
         "price_output_tokens": 0.04
       }
@@ -3662,7 +3662,7 @@
     "display_name": "OpenAI: GPT-4o-mini (2024-07-18)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.075
@@ -3674,7 +3674,7 @@
     "display_name": "OpenAI: GPT-4o-mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.15,
         "price_output_tokens": 0.6,
         "price_cache_read_input_tokens": 0.075
@@ -3686,7 +3686,7 @@
     "display_name": "Google: Gemma 2 27B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.65,
         "price_output_tokens": 0.65
       }
@@ -3697,7 +3697,7 @@
     "display_name": "Google: Gemma 2 9B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.03,
         "price_output_tokens": 0.09
       }
@@ -3708,7 +3708,7 @@
     "display_name": "Sao10k: Llama 3 Euryale 70B v2.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.48,
         "price_output_tokens": 1.48
       }
@@ -3719,7 +3719,7 @@
     "display_name": "NousResearch: Hermes 2 Pro - Llama-3 8B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.14,
         "price_output_tokens": 0.14
       }
@@ -3730,7 +3730,7 @@
     "display_name": "OpenAI: GPT-4o",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.5,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 1.25
@@ -3742,7 +3742,7 @@
     "display_name": "OpenAI: GPT-4o (extended)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 6.0,
         "price_output_tokens": 18.0
       }
@@ -3753,7 +3753,7 @@
     "display_name": "OpenAI: GPT-4o (2024-05-13)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 15.0
       }
@@ -3764,7 +3764,7 @@
     "display_name": "Meta: Llama 3 8B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.03,
         "price_output_tokens": 0.04
       }
@@ -3775,7 +3775,7 @@
     "display_name": "Meta: Llama 3 70B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.51,
         "price_output_tokens": 0.74
       }
@@ -3786,7 +3786,7 @@
     "display_name": "Mistral: Mixtral 8x22B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -3798,7 +3798,7 @@
     "display_name": "WizardLM-2 8x22B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.62,
         "price_output_tokens": 0.62
       }
@@ -3809,7 +3809,7 @@
     "display_name": "OpenAI: GPT-4 Turbo",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 10.0,
         "price_output_tokens": 30.0
       }
@@ -3820,7 +3820,7 @@
     "display_name": "Anthropic: Claude 3 Haiku",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 1.25,
         "price_cache_read_input_tokens": 0.03,
@@ -3833,7 +3833,7 @@
     "display_name": "Mistral Large",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 2.0,
         "price_output_tokens": 6.0,
         "price_cache_read_input_tokens": 0.19999999999999998
@@ -3845,7 +3845,7 @@
     "display_name": "OpenAI: GPT-3.5 Turbo (older v0613)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 2.0
       }
@@ -3856,7 +3856,7 @@
     "display_name": "OpenAI: GPT-4 Turbo Preview",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 10.0,
         "price_output_tokens": 30.0
       }
@@ -3867,7 +3867,7 @@
     "display_name": "Mistral: Mixtral 8x7B Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.54,
         "price_output_tokens": 0.54
       }
@@ -3878,7 +3878,7 @@
     "display_name": "Goliath 120B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.75,
         "price_output_tokens": 7.5
       }
@@ -3889,7 +3889,7 @@
     "display_name": "OpenAI: GPT-4 Turbo (older v1106)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 10.0,
         "price_output_tokens": 30.0
       }
@@ -3900,7 +3900,7 @@
     "display_name": "Mistral: Mistral 7B Instruct v0.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.11,
         "price_output_tokens": 0.19
       }
@@ -3911,7 +3911,7 @@
     "display_name": "OpenAI: GPT-3.5 Turbo Instruct",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.5,
         "price_output_tokens": 2.0
       }
@@ -3922,7 +3922,7 @@
     "display_name": "OpenAI: GPT-3.5 Turbo 16k",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.0,
         "price_output_tokens": 4.0
       }
@@ -3933,7 +3933,7 @@
     "display_name": "Mancer: Weaver (alpha)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.75,
         "price_output_tokens": 1.0
       }
@@ -3944,7 +3944,7 @@
     "display_name": "ReMM SLERP 13B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.44999999999999996,
         "price_output_tokens": 0.65
       }
@@ -3955,7 +3955,7 @@
     "display_name": "MythoMax 13B",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.06,
         "price_output_tokens": 0.06
       }
@@ -3966,7 +3966,7 @@
     "display_name": "OpenAI: GPT-4 (older v0314)",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 30.0,
         "price_output_tokens": 60.0
       }
@@ -3977,7 +3977,7 @@
     "display_name": "OpenAI: GPT-3.5 Turbo",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.5,
         "price_output_tokens": 1.5
       }
@@ -3988,7 +3988,7 @@
     "display_name": "OpenAI: GPT-4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 30.0,
         "price_output_tokens": 60.0
       }

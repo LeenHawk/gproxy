@@ -12,7 +12,7 @@
         "price_cache_creation_input_tokens_1h": 6.0
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 6.0,
         "price_output_tokens": 22.5,
         "price_cache_read_input_tokens": 0.6,
@@ -26,7 +26,7 @@
     "display_name": "Claude Opus 4.6",
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 30.0,
         "price_output_tokens": 150.0,
         "price_cache_read_input_tokens": 3.0,
@@ -36,7 +36,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 25.0,
         "price_cache_read_input_tokens": 0.5,
@@ -50,7 +50,7 @@
     "display_name": "Claude Opus 4.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 25.0,
         "price_cache_read_input_tokens": 0.5,
@@ -64,7 +64,7 @@
     "display_name": "Claude Haiku 4.5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.0,
         "price_output_tokens": 5.0,
         "price_cache_read_input_tokens": 0.1,
@@ -86,7 +86,7 @@
         "price_cache_creation_input_tokens_1h": 6.0
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 6.0,
         "price_output_tokens": 22.5,
         "price_cache_read_input_tokens": 0.6,
@@ -100,7 +100,7 @@
     "display_name": "Claude Opus 4.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 75.0,
         "price_cache_read_input_tokens": 1.5,
@@ -114,7 +114,7 @@
     "display_name": "Claude Opus 4",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 15.0,
         "price_output_tokens": 75.0,
         "price_cache_read_input_tokens": 1.5,
@@ -136,7 +136,7 @@
         "price_cache_creation_input_tokens_1h": 6.0
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 6.0,
         "price_output_tokens": 22.5,
         "price_cache_read_input_tokens": 0.6,

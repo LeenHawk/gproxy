@@ -4,7 +4,7 @@
     "display_name": "GPT-5.4",
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 30.0,
         "price_cache_read_input_tokens": 0.5
@@ -18,7 +18,7 @@
         "price_cache_read_input_tokens": 0.25
       },
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 5.0,
         "price_output_tokens": 22.5,
         "price_cache_read_input_tokens": 0.5
@@ -30,7 +30,7 @@
     "display_name": "GPT-5.4 Mini",
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.5,
         "price_output_tokens": 9.0,
         "price_cache_read_input_tokens": 0.15
@@ -38,7 +38,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.75,
         "price_output_tokens": 4.5,
         "price_cache_read_input_tokens": 0.075
@@ -50,7 +50,7 @@
     "display_name": "GPT-5.3 Codex",
     "priority_price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 3.5,
         "price_output_tokens": 28.0,
         "price_cache_read_input_tokens": 0.35
@@ -58,7 +58,7 @@
     ],
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -70,7 +70,7 @@
     "display_name": "GPT-5.2",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -82,7 +82,7 @@
     "display_name": "GPT-5.2 Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.75,
         "price_output_tokens": 14.0,
         "price_cache_read_input_tokens": 0.175
@@ -94,7 +94,7 @@
     "display_name": "GPT-5.1",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -106,7 +106,7 @@
     "display_name": "GPT-5.1 Codex Max",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -118,7 +118,7 @@
     "display_name": "GPT-5.1 Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -130,7 +130,7 @@
     "display_name": "GPT-5.1 Codex Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.025
@@ -142,7 +142,7 @@
     "display_name": "GPT-5",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -154,7 +154,7 @@
     "display_name": "GPT-5 Codex",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 1.25,
         "price_output_tokens": 10.0,
         "price_cache_read_input_tokens": 0.125
@@ -166,7 +166,7 @@
     "display_name": "GPT-5 Codex Mini",
     "price_tiers": [
       {
-        "input_tokens_up_to": 9223372036854775807,
+        "input_tokens_up_to": 100000000,
         "price_input_tokens": 0.25,
         "price_output_tokens": 2.0,
         "price_cache_read_input_tokens": 0.025
