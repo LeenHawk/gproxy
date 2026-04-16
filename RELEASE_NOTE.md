@@ -1,5 +1,57 @@
 # Release Notes
 
+## v1.0.14
+
+> Console rewrite-rule pipeline is repaired end-to-end: the `Set` / `Remove` action tags are now emitted in the snake_case form the backend actually accepts, manually drafted rules no longer disappear on Save (stale-closure race), suffix variants auto-attach a `model`-rename rewrite so the upstream receives the real model id instead of the alias, and the Claude thinking presets now explicitly set `display: "summarized"` so the chain-of-thought stays visible in responses. Claude Opus 4.7 pricing is also shipped in the built-in `anthropic.json` table.
+
+### English
+
+#### Added
+
+- **Claude Opus 4.7 pricing in the built-in anthropic pricing table.** `sdk/gproxy-channel/src/channels/pricing/anthropic.json` now contains a `claude-opus-4-7` entry with both default-tier and priority-tier pricing (input $5 / output $25 / cache-read $0.5 / 5m-write $6.25 / 1h-write $10 per 1M default; priority 6× default). New Opus 4.7 providers get accurate billing out of the box — no manual `Apply Default Pricing` needed.
+- **Suffix-variant rewrite now auto-renames `body.model` to the real model id.** `addSuffixVariant` appends a final `{ path: "model", action: { type: "set", value: <real_model_id> } }` rule after the parameter-setting rules (thinking / reasoning / effort / tier / verbosity). Without this, the outbound request still carried the alias string (e.g. `claude-opus-4-7-thinking-high`) in `body.model` and upstream rejected it — alias resolution only rewrote routing metadata, not the body. Ordering matters: the rename is last so the other rules can still match against the alias via `model_pattern`.
+- **Claude thinking presets set `display: "summarized"` explicitly.** `-thinking-low` / `-thinking-medium` / `-thinking-high` / `-thinking-adaptive` in `suffix-presets.ts` now pin `display` so the chain-of-thought stays visible in responses regardless of future default-behavior changes. `-thinking-none` (disabled) intentionally has no `display` field (Claude's disabled variant doesn't accept one).
+
+#### Fixed
+
+- **Console emits snake_case rewrite-action tags.** The backend `RewriteAction` enum uses `#[serde(rename_all = "snake_case")]` and rejected the capitalized `"Set"` / `"Remove"` tags the console had been writing, producing `unknown variant 'Set', expected 'set' or 'remove'` on every save. The TypeScript `RewriteAction` type and every writer in `ModelsPane` / `RewriteRuleEditor` / `RewriteRulesTab` / `channel-constants` now use the lowercase form. `normalizeRewriteAction` still accepts the legacy capitalized tags on read so already-persisted configs render correctly.
+- **Manually drafted rewrite rule no longer vanishes after Save.** `RewriteRulesTab.save()` committed the new draft via `setProviderForm`, then immediately called the parent's `saveProvider`, which captured `providerForm` from its render-time closure — the queued state update had not flushed yet, so the POST body omitted the new rule, and the following `reloadAndReselect` overwrote local state with the (unchanged) backend version. `onSave` now accepts an optional `rewriteRulesOverride: string`, and the draft-commit path hands the freshly-computed JSON to the parent so `saveProvider` substitutes it into the payload instead of reading the stale closure.
+
+#### Changed
+
+- **"Channel" form label → "Channel Type" (both locales).** The dropdown selects one of ~12 built-in channel kinds (anthropic, claudecode, codex, ...), not a channel instance. The old label read as if it were picking an instance.
+- **Transform match statements simplified with guard clauses.** Pure readability refactor across 8 response-transform files (Claude → OpenAI / Gemini, Gemini → Claude / OpenAI Response, OpenAI Chat → Claude, OpenAI Response → Claude). No behavior change.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.13. No DB migration, no HTTP API change, no config change at the surface level.
+- **Console rewrite-rule snake_case migration is read-compatible.** Any rewrite rules saved with the old capitalized tags still render and match; the next save rewrites them as snake_case. No manual cleanup required.
+- **SDK / protocol consumers**: no protocol surface changes in this release.
+
+### 简体中文
+
+#### 新增
+
+- **内置 anthropic 价目表新增 Claude Opus 4.7 定价。** `sdk/gproxy-channel/src/channels/pricing/anthropic.json` 新增 `claude-opus-4-7` 条目,同时包含默认档和 priority 档单价(默认 1M tokens:input $5 / output $25 / cache-read $0.5 / 5m-write $6.25 / 1h-write $10;priority 档 6×)。新建 Opus 4.7 provider 可以直接用内置模板计费,不用手点 `Apply Default Pricing`。
+- **后缀变体的 rewrite 规则现在自动把 `body.model` 改写回真实模型名。** `addSuffixVariant` 会在参数规则(thinking / reasoning / effort / tier / verbosity)之后再追加一条 `{ path: "model", action: { type: "set", value: <真实模型名> } }`。之前请求体里的 `body.model` 仍然是别名(比如 `claude-opus-4-7-thinking-high`),上游不识别 —— 别名解析只改了路由元数据,没碰 body。改写必须放在最后,否则前面基于 `model_pattern` 匹配别名的规则会被自己写坏而失配。
+- **Claude thinking 预设显式写入 `display: "summarized"`。** `suffix-presets.ts` 里 Claude 的 `-thinking-low` / `-thinking-medium` / `-thinking-high` / `-thinking-adaptive` 四档现在固定 `display: "summarized"`,确保响应里的思维链始终可见,不依赖 API 默认值将来是否变化。`-thinking-none`(disabled) 故意不带 `display`(Claude disabled 分支不接受这个字段)。
+
+#### 修复
+
+- **控制台写出 snake_case 的 rewrite action tag。** 后端 `RewriteAction` 使用 `#[serde(rename_all = "snake_case")]`,此前 console 写的 `"Set"` / `"Remove"` 会直接被拒,保存时报 `unknown variant 'Set', expected 'set' or 'remove'`。TypeScript 里的 `RewriteAction` 类型和 `ModelsPane` / `RewriteRuleEditor` / `RewriteRulesTab` / `channel-constants` 所有写入点统一改为小写;`normalizeRewriteAction` 在读取路径保留了对历史大写值的兼容,旧配置仍能正常展示。
+- **手动新增的 rewrite rule 保存后不再消失。** `RewriteRulesTab.save()` 在草稿提交时先调 `setProviderForm` 写入新规则,然后立刻调用父组件的 `saveProvider` —— 但 `saveProvider` 闭包里的 `providerForm` 是上一次渲染时的值,队列里的 state update 还没刷到闭包,POST 发出的是不含新规则的旧 JSON;接着 `reloadAndReselect` 又用后端(没保存上的)旧值覆盖本地,新规则就这样蒸发了。`onSave` 新增可选参数 `rewriteRulesOverride: string`,草稿提交分支把刚算出的 JSON 直接传给父组件,`saveProvider` 用它替换 payload 里的 `rewrite_rules`,不再依赖陈旧闭包。
+
+#### 调整
+
+- **表单 "Channel" 标签 → "渠道类型" / "Channel Type"(两种语言均改)。** 这个下拉选的是 ~12 种内置渠道类型(anthropic / claudecode / codex / ...),不是具体的渠道实例,旧标签读着像在选实例。
+- **Transform 中 match 语句用 guard clause 简化。** 纯可读性重构,覆盖 8 个响应转换文件(Claude → OpenAI / Gemini、Gemini → Claude / OpenAI Response、OpenAI Chat → Claude、OpenAI Response → Claude),行为不变。
+
+#### 兼容性
+
+- **从 v1.0.13 直接升级**。无 DB 迁移、无 HTTP API 变更、无表面配置变更。
+- **Rewrite 规则 snake_case 迁移对读向后兼容。** 历史大写 tag 保存的规则仍能正常渲染和匹配;下次保存会以 snake_case 写回。无需手动清理。
+- **SDK / protocol 调用方**:本版本无协议表面变化。
+
 ## v1.0.13
 
 > `gproxy-protocol` is updated for Claude Opus 4.7: the Claude wire types now include the new model / output fields (`claude-opus-4-7`, `output_config.task_budget`, `effort="xhigh"`), and Claude-targeting transforms stop generating deprecated budgeted `thinking: { type: "enabled" }` requests when the target model is Opus 4.7.
