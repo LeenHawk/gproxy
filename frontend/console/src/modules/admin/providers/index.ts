@@ -1,4 +1,4 @@
-import type { DispatchRuleDraft } from "./dispatch";
+import type { RoutingRuleDraft } from "./routing";
 
 export type ProviderWorkspaceTab = "config" | "credentials" | "models" | "rewrite" | "oauth";
 
@@ -8,7 +8,7 @@ export type ProviderFormState = {
   label: string;
   channel: string;
   settings: Record<string, string>;
-  dispatchRules: DispatchRuleDraft[];
+  routingRules: RoutingRuleDraft[];
 };
 
 export type CredentialFormState = {

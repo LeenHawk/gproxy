@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { useI18n } from "../../../app/i18n";
 import { Button, Card, Input, Label, Select, TextArea } from "../../../components/ui";
 import {
-  DISPATCH_IMPLEMENTATION_OPTIONS,
-  DISPATCH_OPERATION_OPTIONS,
-  DISPATCH_PROTOCOL_OPTIONS,
-  DISPATCH_TEMPLATES,
-  applyDispatchTemplate,
-  createDispatchRuleDraft,
-  isDispatchTemplateMatch,
-} from "./dispatch";
+  ROUTING_IMPLEMENTATION_OPTIONS,
+  ROUTING_OPERATION_OPTIONS,
+  ROUTING_PROTOCOL_OPTIONS,
+  ROUTING_TEMPLATES,
+  applyRoutingTemplate,
+  createRoutingRuleDraft,
+  isRoutingTemplateMatch,
+} from "./routing";
 import { settingsFieldsForChannel } from "./channel-forms";
 import type { ProviderFormState } from "./index";
 import {
@@ -53,19 +53,19 @@ export function ConfigTab({
     label: string;
     labelPlaceholder: string;
     channel: string;
-    dispatchRules: string;
-    dispatchHint: string;
-    dispatchRule: string;
-    dispatchSourceOperation: string;
-    dispatchSourceProtocol: string;
-    dispatchMode: string;
-    dispatchDestinationOperation: string;
-    dispatchDestinationProtocol: string;
-    dispatchAddRule: string;
-    dispatchRemoveRule: string;
-    dispatchExpand: string;
-    dispatchCollapse: string;
-    dispatchCollapsedSummary: string;
+    routingRules: string;
+    routingHint: string;
+    routingRule: string;
+    routingSourceOperation: string;
+    routingSourceProtocol: string;
+    routingMode: string;
+    routingDestinationOperation: string;
+    routingDestinationProtocol: string;
+    routingAddRule: string;
+    routingRemoveRule: string;
+    routingExpand: string;
+    routingCollapse: string;
+    routingCollapsedSummary: string;
     modePassthrough: string;
     modeTransformTo: string;
     modeLocal: string;
@@ -77,8 +77,8 @@ export function ConfigTab({
   canDelete: boolean;
 }) {
   const { t } = useI18n();
-  const [dispatchExpanded, setDispatchExpanded] = useState(false);
-  const modeOptions = DISPATCH_IMPLEMENTATION_OPTIONS.map((option) => ({
+  const [routingExpanded, setRoutingExpanded] = useState(false);
+  const modeOptions = ROUTING_IMPLEMENTATION_OPTIONS.map((option) => ({
     value: option.value,
     label:
       option.value === "Passthrough"
@@ -91,7 +91,7 @@ export function ConfigTab({
   }));
 
   useEffect(() => {
-    setDispatchExpanded(false);
+    setRoutingExpanded(false);
   }, [form.id, form.channel]);
 
   const updateSetting = (key: string, value: string) => {
@@ -210,25 +210,25 @@ export function ConfigTab({
         />
       </div>
 
-      {/* Dispatch rules */}
+      {/* Routing rules */}
       <div className="panel-shell mt-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-text">{labels.dispatchRules}</div>
-            <p className="mt-1 text-xs text-muted">{labels.dispatchHint}</p>
+            <div className="text-sm font-semibold text-text">{labels.routingRules}</div>
+            <p className="mt-1 text-xs text-muted">{labels.routingHint}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="neutral" onClick={() => setDispatchExpanded((value) => !value)}>
-              {dispatchExpanded ? labels.dispatchCollapse : labels.dispatchExpand}
+            <Button variant="neutral" onClick={() => setRoutingExpanded((value) => !value)}>
+              {routingExpanded ? labels.routingCollapse : labels.routingExpand}
             </Button>
-            {dispatchExpanded ? (
+            {routingExpanded ? (
               <Button
                 variant="neutral"
                 onClick={() =>
-                  onChange({ dispatchRules: [...form.dispatchRules, createDispatchRuleDraft()] })
+                  onChange({ routingRules: [...form.routingRules, createRoutingRuleDraft()] })
                 }
               >
-                {labels.dispatchAddRule}
+                {labels.routingAddRule}
               </Button>
             ) : null}
           </div>
@@ -236,11 +236,11 @@ export function ConfigTab({
 
         {/* Template chips */}
         <div>
-            <div className="mb-1.5 text-xs text-muted">{t("providers.dispatch.templates")}</div>
-            <p className="mb-2 text-[11px] text-muted">{t("providers.dispatch.templatesHint")}</p>
+            <div className="mb-1.5 text-xs text-muted">{t("providers.routing.templates")}</div>
+            <p className="mb-2 text-[11px] text-muted">{t("providers.routing.templatesHint")}</p>
             <div className="flex flex-wrap gap-1.5">
-              {DISPATCH_TEMPLATES.map((tmpl) => {
-                const active = isDispatchTemplateMatch(tmpl, form.dispatchRules);
+              {ROUTING_TEMPLATES.map((tmpl) => {
+                const active = isRoutingTemplateMatch(tmpl, form.routingRules);
                 return (
                   <button
                     key={tmpl.key}
@@ -249,8 +249,8 @@ export function ConfigTab({
                       active ? "btn-primary" : "btn-neutral"
                     }`}
                     onClick={() => {
-                      onChange({ dispatchRules: applyDispatchTemplate(tmpl) });
-                      setDispatchExpanded(true);
+                      onChange({ routingRules: applyRoutingTemplate(tmpl) });
+                      setRoutingExpanded(true);
                     }}
                   >
                     {tmpl.label}
@@ -260,63 +260,63 @@ export function ConfigTab({
             </div>
           </div>
 
-        {dispatchExpanded ? (
+        {routingExpanded ? (
           <div className="max-h-128 space-y-3 overflow-y-auto pr-1">
-            {form.dispatchRules.map((rule, index) => (
+            {form.routingRules.map((rule, index) => (
               <div key={rule.id} className="panel-shell panel-shell-compact space-y-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-text">
-                    {labels.dispatchRule} {index + 1}
+                    {labels.routingRule} {index + 1}
                   </div>
                   <Button
                     variant="danger"
-                    disabled={form.dispatchRules.length === 1}
+                    disabled={form.routingRules.length === 1}
                     onClick={() =>
                       onChange({
-                        dispatchRules: form.dispatchRules.filter((item) => item.id !== rule.id),
+                        routingRules: form.routingRules.filter((item) => item.id !== rule.id),
                       })
                     }
                   >
-                    {labels.dispatchRemoveRule}
+                    {labels.routingRemoveRule}
                   </Button>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
-                    <Label>{labels.dispatchSourceOperation}</Label>
+                    <Label>{labels.routingSourceOperation}</Label>
                     <Select
                       value={rule.srcOperation}
                       onChange={(value) =>
                         onChange({
-                          dispatchRules: form.dispatchRules.map((item) =>
+                          routingRules: form.routingRules.map((item) =>
                             item.id === rule.id ? { ...item, srcOperation: value } : item,
                           ),
                         })
                       }
-                      options={DISPATCH_OPERATION_OPTIONS}
+                      options={ROUTING_OPERATION_OPTIONS}
                     />
                   </div>
                   <div>
-                    <Label>{labels.dispatchSourceProtocol}</Label>
+                    <Label>{labels.routingSourceProtocol}</Label>
                     <Select
                       value={rule.srcProtocol}
                       onChange={(value) =>
                         onChange({
-                          dispatchRules: form.dispatchRules.map((item) =>
+                          routingRules: form.routingRules.map((item) =>
                             item.id === rule.id ? { ...item, srcProtocol: value } : item,
                           ),
                         })
                       }
-                      options={DISPATCH_PROTOCOL_OPTIONS}
+                      options={ROUTING_PROTOCOL_OPTIONS}
                     />
                   </div>
                   <div>
-                    <Label>{labels.dispatchMode}</Label>
+                    <Label>{labels.routingMode}</Label>
                     <Select
                       value={rule.implementation}
                       onChange={(value) =>
                         onChange({
-                          dispatchRules: form.dispatchRules.map((item) =>
+                          routingRules: form.routingRules.map((item) =>
                             item.id === rule.id
                               ? {
                                   ...item,
@@ -342,31 +342,31 @@ export function ConfigTab({
                 {rule.implementation === "TransformTo" ? (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <Label>{labels.dispatchDestinationOperation}</Label>
+                      <Label>{labels.routingDestinationOperation}</Label>
                       <Select
                         value={rule.destinationOperation}
                         onChange={(value) =>
                           onChange({
-                            dispatchRules: form.dispatchRules.map((item) =>
+                            routingRules: form.routingRules.map((item) =>
                               item.id === rule.id ? { ...item, destinationOperation: value } : item,
                             ),
                           })
                         }
-                        options={DISPATCH_OPERATION_OPTIONS}
+                        options={ROUTING_OPERATION_OPTIONS}
                       />
                     </div>
                     <div>
-                      <Label>{labels.dispatchDestinationProtocol}</Label>
+                      <Label>{labels.routingDestinationProtocol}</Label>
                       <Select
                         value={rule.destinationProtocol}
                         onChange={(value) =>
                           onChange({
-                            dispatchRules: form.dispatchRules.map((item) =>
+                            routingRules: form.routingRules.map((item) =>
                               item.id === rule.id ? { ...item, destinationProtocol: value } : item,
                             ),
                           })
                         }
-                        options={DISPATCH_PROTOCOL_OPTIONS}
+                        options={ROUTING_PROTOCOL_OPTIONS}
                       />
                     </div>
                   </div>
@@ -376,7 +376,7 @@ export function ConfigTab({
           </div>
         ) : (
           <div className="text-sm text-muted">
-            {labels.dispatchCollapsedSummary.replace("{count}", String(form.dispatchRules.length))}
+            {labels.routingCollapsedSummary.replace("{count}", String(form.routingRules.length))}
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { Button } from "../../../../components/ui";
 
 export type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
-/// Collapsible section header — matches the dispatch table pattern.
+/// Collapsible section header — matches the routing table pattern.
 export function CollapsibleSection({
   title,
   summary,

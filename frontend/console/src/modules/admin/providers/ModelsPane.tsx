@@ -12,7 +12,7 @@ import type {
   ProviderWrite,
 } from "../../../lib/types/admin";
 import { buildChannelSettingsJson } from "./channel-forms";
-import { buildDispatchDocument } from "./dispatch";
+import { buildRoutingDocument } from "./routing";
 import { ModelsTab, type ModelFormState } from "./ModelsTab";
 import { filterModelsForProvider, nextResourceId } from "./resources";
 import type { ProviderFormState } from "./index";
@@ -292,7 +292,7 @@ export function ModelsPane({
             rewrite_rules: mergedRulesJson,
           }),
         ),
-        dispatch_json: JSON.stringify(buildDispatchDocument(providerForm.dispatchRules)),
+        routing_json: JSON.stringify(buildRoutingDocument(providerForm.routingRules)),
       };
       await apiJson("/admin/providers/upsert", {
         method: "POST",

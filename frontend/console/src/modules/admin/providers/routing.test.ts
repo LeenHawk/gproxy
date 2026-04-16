@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildDispatchDocument,
-  dispatchDraftsFromDocument,
-  normalizeDispatchDrafts,
-} from "./dispatch";
+  buildRoutingDocument,
+  routingDraftsFromDocument,
+  normalizeRoutingDrafts,
+} from "./routing";
 
-describe("providers dispatch helpers", () => {
-  it("round-trips drafts through canonical dispatch document", () => {
+describe("providers routing helpers", () => {
+  it("round-trips drafts through canonical routing document", () => {
     const drafts = [
       {
         id: "rule-1",
@@ -43,8 +43,8 @@ describe("providers dispatch helpers", () => {
       },
     ];
 
-    const document = buildDispatchDocument(drafts);
-    const roundtrip = dispatchDraftsFromDocument(document);
+    const document = buildRoutingDocument(drafts);
+    const roundtrip = routingDraftsFromDocument(document);
 
     expect(roundtrip).toHaveLength(4);
     expect(roundtrip.map((rule) => rule.implementation)).toEqual([
@@ -59,7 +59,7 @@ describe("providers dispatch helpers", () => {
 
   it("rejects duplicate source routes", () => {
     expect(() =>
-      normalizeDispatchDrafts([
+      normalizeRoutingDrafts([
         {
           id: "rule-1",
           srcOperation: "generate_content",

@@ -11,7 +11,7 @@ import {
   defaultSettingsForChannel,
   settingsValuesFromJson,
 } from "../channel-forms";
-import { createDispatchRuleDraft, dispatchDraftsFromDocument } from "../dispatch";
+import { createRoutingRuleDraft, routingDraftsFromDocument } from "../routing";
 import type { ProviderFormState } from "../index";
 
 function formFromProvider(row: ProviderRow): ProviderFormState {
@@ -21,7 +21,7 @@ function formFromProvider(row: ProviderRow): ProviderFormState {
     label: row.label ?? "",
     channel: row.channel,
     settings: settingsValuesFromJson(row.channel, row.settings_json),
-    dispatchRules: dispatchDraftsFromDocument(row.dispatch_json),
+    routingRules: routingDraftsFromDocument(row.routing_json),
   };
 }
 
@@ -32,7 +32,7 @@ function emptyForm(nextId: number): ProviderFormState {
     label: "",
     channel: "openai",
     settings: defaultSettingsForChannel("openai"),
-    dispatchRules: [createDispatchRuleDraft()],
+    routingRules: [createRoutingRuleDraft()],
   };
 }
 

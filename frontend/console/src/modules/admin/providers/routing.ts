@@ -1,20 +1,20 @@
 import type {
-  DispatchImplementation,
-  DispatchTableDocument,
+  RoutingImplementation,
+  RoutingTableDocument,
 } from "../../../lib/types/admin";
 
-export type DispatchMode = "Passthrough" | "TransformTo" | "Local" | "Unsupported";
+export type RoutingMode = "Passthrough" | "TransformTo" | "Local" | "Unsupported";
 
-export type DispatchRuleDraft = {
+export type RoutingRuleDraft = {
   id: string;
   srcOperation: string;
   srcProtocol: string;
-  implementation: DispatchMode;
+  implementation: RoutingMode;
   destinationOperation: string;
   destinationProtocol: string;
 };
 
-export const DISPATCH_OPERATION_OPTIONS = [
+export const ROUTING_OPERATION_OPTIONS = [
   "model_list",
   "model_get",
   "count_tokens",
@@ -35,7 +35,7 @@ export const DISPATCH_OPERATION_OPTIONS = [
   "file_delete",
 ].map((value) => ({ value, label: value }));
 
-export const DISPATCH_PROTOCOL_OPTIONS = [
+export const ROUTING_PROTOCOL_OPTIONS = [
   "openai",
   "claude",
   "gemini",
@@ -44,20 +44,20 @@ export const DISPATCH_PROTOCOL_OPTIONS = [
   "openai_response",
 ].map((value) => ({ value, label: value }));
 
-export const DISPATCH_IMPLEMENTATION_OPTIONS = [
+export const ROUTING_IMPLEMENTATION_OPTIONS = [
   { value: "Passthrough", label: "Passthrough" },
   { value: "TransformTo", label: "TransformTo" },
   { value: "Local", label: "Local" },
   { value: "Unsupported", label: "Unsupported" },
 ] as const;
 
-function nextDispatchRuleId() {
-  return `dispatch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function nextRoutingRuleId() {
+  return `routing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function createDispatchRuleDraft(): DispatchRuleDraft {
+export function createRoutingRuleDraft(): RoutingRuleDraft {
   return {
-    id: nextDispatchRuleId(),
+    id: nextRoutingRuleId(),
     srcOperation: "generate_content",
     srcProtocol: "openai",
     implementation: "Passthrough",
@@ -70,21 +70,21 @@ function routeSignature(operation: string, protocol: string) {
   return `${operation.trim().toLowerCase()}::${protocol.trim().toLowerCase()}`;
 }
 
-function implementationMode(value: DispatchImplementation): DispatchMode {
+function implementationMode(value: RoutingImplementation): RoutingMode {
   if (value === "Passthrough" || value === "Local" || value === "Unsupported") {
     return value;
   }
   return "TransformTo";
 }
 
-export function dispatchDraftsFromDocument(
-  document?: DispatchTableDocument | null,
-): DispatchRuleDraft[] {
+export function routingDraftsFromDocument(
+  document?: RoutingTableDocument | null,
+): RoutingRuleDraft[] {
   if (!document || !Array.isArray(document.rules) || document.rules.length === 0) {
-    return [createDispatchRuleDraft()];
+    return [createRoutingRuleDraft()];
   }
   return document.rules.map((rule) => ({
-    id: nextDispatchRuleId(),
+    id: nextRoutingRuleId(),
     srcOperation: rule.route.operation,
     srcProtocol: rule.route.protocol,
     implementation: implementationMode(rule.implementation),
@@ -99,11 +99,11 @@ export function dispatchDraftsFromDocument(
   }));
 }
 
-export function normalizeDispatchDrafts(
-  drafts: DispatchRuleDraft[],
-): DispatchRuleDraft[] {
+export function normalizeRoutingDrafts(
+  drafts: RoutingRuleDraft[],
+): RoutingRuleDraft[] {
   if (drafts.length === 0) {
-    throw new Error("dispatch must contain at least one rule");
+    throw new Error("routing must contain at least one rule");
   }
 
   const seen = new Set<string>();
@@ -114,12 +114,12 @@ export function normalizeDispatchDrafts(
     const destinationProtocol = draft.destinationProtocol.trim();
 
     if (!srcOperation || !srcProtocol) {
-      throw new Error(`dispatch rule ${index + 1} is missing source route`);
+      throw new Error(`routing rule ${index + 1} is missing source route`);
     }
 
     const signature = routeSignature(srcOperation, srcProtocol);
     if (seen.has(signature)) {
-      throw new Error(`dispatch contains duplicate source route ${srcOperation}/${srcProtocol}`);
+      throw new Error(`routing contains duplicate source route ${srcOperation}/${srcProtocol}`);
     }
     seen.add(signature);
 
@@ -127,7 +127,7 @@ export function normalizeDispatchDrafts(
       draft.implementation === "TransformTo" &&
       (!destinationOperation || !destinationProtocol)
     ) {
-      throw new Error(`dispatch rule ${index + 1} is missing transform destination`);
+      throw new Error(`routing rule ${index + 1} is missing transform destination`);
     }
 
     return {
@@ -141,16 +141,16 @@ export function normalizeDispatchDrafts(
 }
 
 // ---------------------------------------------------------------------------
-// Dispatch templates — preset rule sets for common custom channel configs
+// Routing templates — preset rule sets for common custom channel configs
 // ---------------------------------------------------------------------------
 
-export type DispatchTemplate = {
+export type RoutingTemplate = {
   key: string;
   label: string;
   rules: Array<{
     srcOperation: string;
     srcProtocol: string;
-    implementation: DispatchMode;
+    implementation: RoutingMode;
     destinationOperation: string;
     destinationProtocol: string;
   }>;
@@ -186,7 +186,7 @@ const GEMINI_MODEL_RULES = [
   pass("model_get", "gemini"), xform("model_get", "claude", "model_get", "gemini"), xform("model_get", "openai", "model_get", "gemini"),
 ];
 
-// Local dispatch for model_list/model_get — used by the -only preset templates.
+// Local routing for model_list/model_get — used by the -only preset templates.
 // Admins pull models from upstream via /admin/models/pull once, then requests
 // hit the local models table instead of upstream on every call.
 const LOCAL_MODEL_RULES = [
@@ -194,7 +194,7 @@ const LOCAL_MODEL_RULES = [
   local("model_get", "openai"), local("model_get", "claude"), local("model_get", "gemini"),
 ];
 
-export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
+export const ROUTING_TEMPLATES: RoutingTemplate[] = [
   // --- openai-like (mirrors openai.rs) ---
   {
     key: "openai-like",
@@ -333,18 +333,18 @@ export const DISPATCH_TEMPLATES: DispatchTemplate[] = [
   },
 ];
 
-/** Create a fresh set of DispatchRuleDraft[] from a template (new ids). */
-export function applyDispatchTemplate(tmpl: DispatchTemplate): DispatchRuleDraft[] {
+/** Create a fresh set of RoutingRuleDraft[] from a template (new ids). */
+export function applyRoutingTemplate(tmpl: RoutingTemplate): RoutingRuleDraft[] {
   return tmpl.rules.map((r) => ({
-    id: `dispatch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    id: `routing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     ...r,
   }));
 }
 
-/** Check whether the current dispatch rules match a template exactly. */
-export function isDispatchTemplateMatch(
-  tmpl: DispatchTemplate,
-  current: DispatchRuleDraft[],
+/** Check whether the current routing rules match a template exactly. */
+export function isRoutingTemplateMatch(
+  tmpl: RoutingTemplate,
+  current: RoutingRuleDraft[],
 ): boolean {
   if (current.length !== tmpl.rules.length) return false;
   const sig = (r: { srcOperation: string; srcProtocol: string; implementation: string; destinationOperation: string; destinationProtocol: string }) =>
@@ -353,11 +353,11 @@ export function isDispatchTemplateMatch(
   return tmpl.rules.every((r) => currentSigs.has(sig(r)));
 }
 
-export function buildDispatchDocument(
-  drafts: DispatchRuleDraft[],
-): DispatchTableDocument {
+export function buildRoutingDocument(
+  drafts: RoutingRuleDraft[],
+): RoutingTableDocument {
   return {
-    rules: normalizeDispatchDrafts(drafts).map((draft) => ({
+    rules: normalizeRoutingDrafts(drafts).map((draft) => ({
       route: {
         operation: draft.srcOperation,
         protocol: draft.srcProtocol,

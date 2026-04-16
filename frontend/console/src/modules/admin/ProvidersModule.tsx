@@ -6,16 +6,16 @@ import { apiJson } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import { parseRequiredI64 } from "../../lib/form";
 import type {
-  DispatchTableDocument,
-  ProviderDispatchTemplateParams,
+  RoutingTableDocument,
+  ProviderRoutingTemplateParams,
   ProviderWrite,
 } from "../../lib/types/admin";
 import { buildChannelSettingsJson, defaultSettingsForChannel } from "./providers/channel-forms";
 import {
-  buildDispatchDocument,
-  createDispatchRuleDraft,
-  dispatchDraftsFromDocument,
-} from "./providers/dispatch";
+  buildRoutingDocument,
+  createRoutingRuleDraft,
+  routingDraftsFromDocument,
+} from "./providers/routing";
 import { ConfigTab } from "./providers/ConfigTab";
 import { CredentialsPane } from "./providers/CredentialsPane";
 import { ModelsPane } from "./providers/ModelsPane";
@@ -86,25 +86,25 @@ export function ProvidersModule({
         patch.channel && patch.channel !== current.channel
           ? defaultSettingsForChannel(nextChannel)
           : patch.settings ?? current.settings,
-      dispatchRules:
+      routingRules:
         patch.channel && patch.channel !== current.channel
-          ? [createDispatchRuleDraft()]
-          : patch.dispatchRules ?? current.dispatchRules,
+          ? [createRoutingRuleDraft()]
+          : patch.routingRules ?? current.routingRules,
     }));
   };
 
-  const loadDefaultDispatch = async (channel: string) => {
-    const document = await apiJson<DispatchTableDocument>("/admin/providers/default-dispatch", {
+  const loadDefaultRouting = async (channel: string) => {
+    const document = await apiJson<RoutingTableDocument>("/admin/providers/default-routing", {
       method: "POST",
       headers,
-      body: JSON.stringify({ channel } satisfies ProviderDispatchTemplateParams),
+      body: JSON.stringify({ channel } satisfies ProviderRoutingTemplateParams),
     });
-    return dispatchDraftsFromDocument(document);
+    return routingDraftsFromDocument(document);
   };
 
-  // When creating a new provider, re-load the default dispatch template on
+  // When creating a new provider, re-load the default routing template on
   // channel change so the user sees a sensible starting point. Selected
-  // (existing) providers already carry their dispatch rules from storage.
+  // (existing) providers already carry their routing rules from storage.
   useEffect(() => {
     if (selectedProvider) {
       return;
@@ -112,14 +112,14 @@ export function ProvidersModule({
     let active = true;
     const channel = providerForm.channel;
     const formId = providerForm.id;
-    void loadDefaultDispatch(channel)
-      .then((dispatchRules) => {
+    void loadDefaultRouting(channel)
+      .then((routingRules) => {
         if (!active) {
           return;
         }
         setProviderForm((current) =>
           current.id === formId && current.channel === channel
-            ? { ...current, dispatchRules }
+            ? { ...current, routingRules }
             : current,
         );
       })
@@ -144,7 +144,7 @@ export function ProvidersModule({
         settings_json: JSON.stringify(
           buildChannelSettingsJson(providerForm.channel, providerForm.settings),
         ),
-        dispatch_json: JSON.stringify(buildDispatchDocument(providerForm.dispatchRules)),
+        routing_json: JSON.stringify(buildRoutingDocument(providerForm.routingRules)),
       };
       await apiJson("/admin/providers/upsert", {
         method: "POST",
@@ -233,23 +233,23 @@ export function ProvidersModule({
                 label: t("providers.form.label"),
                 labelPlaceholder: t("providers.form.labelPlaceholder"),
                 channel: t("providers.form.channel"),
-                dispatchRules: t("providers.form.dispatchRules"),
-                dispatchHint: t("providers.form.dispatchHint"),
-                dispatchRule: t("providers.dispatch.rule"),
-                dispatchSourceOperation: t("providers.dispatch.sourceOperation"),
-                dispatchSourceProtocol: t("providers.dispatch.sourceProtocol"),
-                dispatchMode: t("providers.dispatch.mode"),
-                dispatchDestinationOperation: t("providers.dispatch.destinationOperation"),
-                dispatchDestinationProtocol: t("providers.dispatch.destinationProtocol"),
-                dispatchAddRule: t("providers.dispatch.addRule"),
-                dispatchRemoveRule: t("providers.dispatch.removeRule"),
-                dispatchExpand: t("providers.dispatch.expand"),
-                dispatchCollapse: t("providers.dispatch.collapse"),
-                dispatchCollapsedSummary: t("providers.dispatch.collapsedSummary"),
-                modePassthrough: t("providers.dispatch.mode.passthrough"),
-                modeTransformTo: t("providers.dispatch.mode.transformTo"),
-                modeLocal: t("providers.dispatch.mode.local"),
-                modeUnsupported: t("providers.dispatch.mode.unsupported"),
+                routingRules: t("providers.form.routingRules"),
+                routingHint: t("providers.form.routingHint"),
+                routingRule: t("providers.routing.rule"),
+                routingSourceOperation: t("providers.routing.sourceOperation"),
+                routingSourceProtocol: t("providers.routing.sourceProtocol"),
+                routingMode: t("providers.routing.mode"),
+                routingDestinationOperation: t("providers.routing.destinationOperation"),
+                routingDestinationProtocol: t("providers.routing.destinationProtocol"),
+                routingAddRule: t("providers.routing.addRule"),
+                routingRemoveRule: t("providers.routing.removeRule"),
+                routingExpand: t("providers.routing.expand"),
+                routingCollapse: t("providers.routing.collapse"),
+                routingCollapsedSummary: t("providers.routing.collapsedSummary"),
+                modePassthrough: t("providers.routing.mode.passthrough"),
+                modeTransformTo: t("providers.routing.mode.transformTo"),
+                modeLocal: t("providers.routing.mode.local"),
+                modeUnsupported: t("providers.routing.mode.unsupported"),
                 save: t("providers.form.save"),
                 delete: t("providers.form.delete"),
                 newHint: t("providers.form.newHint"),

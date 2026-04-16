@@ -34,28 +34,28 @@ export type ProviderQueryParams = {
   channel?: Scope<string>;
 };
 
-export type DispatchRoute = {
+export type RoutingRoute = {
   operation: string;
   protocol: string;
 };
 
-export type DispatchImplementation =
+export type RoutingImplementation =
   | "Passthrough"
   | "Local"
   | "Unsupported"
   | {
       TransformTo: {
-        destination: DispatchRoute;
+        destination: RoutingRoute;
       };
     };
 
-export type DispatchRuleDocument = {
-  route: DispatchRoute;
-  implementation: DispatchImplementation;
+export type RoutingRuleDocument = {
+  route: RoutingRoute;
+  implementation: RoutingImplementation;
 };
 
-export type DispatchTableDocument = {
-  rules: DispatchRuleDocument[];
+export type RoutingTableDocument = {
+  rules: RoutingRuleDocument[];
 };
 
 export type ProviderRow = {
@@ -64,7 +64,7 @@ export type ProviderRow = {
   channel: string;
   label?: string | null;
   settings_json: Record<string, unknown>;
-  dispatch_json: DispatchTableDocument | null;
+  routing_json: RoutingTableDocument | null;
   credential_count: number;
 };
 
@@ -74,10 +74,10 @@ export type ProviderWrite = {
   channel: string;
   label?: string | null;
   settings_json: string;
-  dispatch_json: string;
+  routing_json: string;
 };
 
-export type ProviderDispatchTemplateParams = {
+export type ProviderRoutingTemplateParams = {
   channel: string;
 };
 

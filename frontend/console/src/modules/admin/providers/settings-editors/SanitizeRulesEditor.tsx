@@ -80,7 +80,7 @@ export function SanitizeRulesEditor({
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       expandLabel={t("common.show")}
-      collapseLabel={t("providers.dispatch.collapse")}
+      collapseLabel={t("providers.routing.collapse")}
       actions={
         <Button variant="neutral" onClick={add}>
           + {t("providers.sanitize.add")}

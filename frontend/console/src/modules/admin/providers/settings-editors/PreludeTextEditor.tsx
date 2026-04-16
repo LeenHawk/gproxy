@@ -31,7 +31,7 @@ export function PreludeTextEditor({
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       expandLabel={t("common.show")}
-      collapseLabel={t("providers.dispatch.collapse")}
+      collapseLabel={t("providers.routing.collapse")}
     >
       <textarea
         className="textarea"
