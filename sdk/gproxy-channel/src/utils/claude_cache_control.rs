@@ -576,10 +576,8 @@ fn existing_cache_breakpoint_count(root: &serde_json::Map<String, Value>) -> usi
                 .filter(|item| item.contains_key("cache_control"))
                 .count();
         }
-        Some(Value::Object(item)) => {
-            if item.contains_key("cache_control") {
-                count += 1;
-            }
+        Some(Value::Object(item)) if item.contains_key("cache_control") => {
+            count += 1;
         }
         _ => {}
     }
@@ -600,10 +598,8 @@ fn existing_cache_breakpoint_count(root: &serde_json::Map<String, Value>) -> usi
                         .filter(|item| item.contains_key("cache_control"))
                         .count();
                 }
-                Value::Object(item) => {
-                    if item.contains_key("cache_control") {
-                        count += 1;
-                    }
+                Value::Object(item) if item.contains_key("cache_control") => {
+                    count += 1;
                 }
                 _ => {}
             }
