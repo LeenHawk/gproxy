@@ -126,7 +126,7 @@ export const enMessages: Record<string, string> = {
   "dashboard.chart.traffic.title": "Traffic Trend",
   "dashboard.chart.traffic.subtitle": "Requests and cost over time",
   "dashboard.chart.status.title": "Status Codes",
-  "dashboard.chart.status.subtitle": "2xx / 4xx / 5xx by time bucket",
+  "dashboard.chart.status.subtitle": "2xx / 4xx / 5xx by time interval",
   "dashboard.table.topProviders": "Top Providers",
   "dashboard.table.topModels": "Top Models",
   "dashboard.table.credentialHealth": "Credential Health",
