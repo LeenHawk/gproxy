@@ -33,7 +33,10 @@ impl MigrationTrait for Migration {
         // If old column isn't present, nothing to do (already migrated, or
         // fresh DB created by entity sync with the new name).
         if !manager
-            .has_column(Providers::Table.to_string(), Providers::DispatchJson.to_string())
+            .has_column(
+                Providers::Table.to_string(),
+                Providers::DispatchJson.to_string(),
+            )
             .await?
         {
             return Ok(());
@@ -56,7 +59,10 @@ impl MigrationTrait for Migration {
             return Ok(());
         }
         if !manager
-            .has_column(Providers::Table.to_string(), Providers::RoutingJson.to_string())
+            .has_column(
+                Providers::Table.to_string(),
+                Providers::RoutingJson.to_string(),
+            )
             .await?
         {
             return Ok(());

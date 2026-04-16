@@ -3,11 +3,11 @@ use std::sync::OnceLock;
 use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
-use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
+use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// OpenAI API channel.

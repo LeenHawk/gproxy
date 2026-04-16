@@ -22,10 +22,10 @@
 //! doesn't accidentally require any of the other 13 channels to compile.
 
 use gproxy_channel::channels::openai::{OpenAiChannel, OpenAiCredential, OpenAiSettings};
-use gproxy_channel::routing::RouteKey;
 use gproxy_channel::executor::execute_once;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::ResponseClassification;
+use gproxy_channel::routing::RouteKey;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use http::HeaderMap;
 

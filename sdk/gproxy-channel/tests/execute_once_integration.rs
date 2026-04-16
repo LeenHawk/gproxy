@@ -24,10 +24,10 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use gproxy_channel::channels::openai::{OpenAiChannel, OpenAiCredential, OpenAiSettings};
-use gproxy_channel::routing::RouteKey;
 use gproxy_channel::executor::execute_once;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::ResponseClassification;
+use gproxy_channel::routing::RouteKey;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// State captured by the mock server so the test can assert against

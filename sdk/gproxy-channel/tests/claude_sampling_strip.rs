@@ -10,8 +10,8 @@
 use gproxy_channel::channel::Channel;
 use gproxy_channel::channels::anthropic::{AnthropicChannel, AnthropicSettings};
 use gproxy_channel::channels::claudecode::{ClaudeCodeChannel, ClaudeCodeSettings};
-use gproxy_channel::routing::RouteKey;
 use gproxy_channel::request::PreparedRequest;
+use gproxy_channel::routing::RouteKey;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use http::{HeaderMap, Method};
 use serde_json::Value;

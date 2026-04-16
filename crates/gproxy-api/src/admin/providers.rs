@@ -7,8 +7,8 @@ use crate::error::{AckResponse, HttpError};
 use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use gproxy_sdk::channel::routing::RoutingTableDocument;
 use gproxy_sdk::channel::registry::ChannelRegistry;
+use gproxy_sdk::channel::routing::RoutingTableDocument;
 use gproxy_sdk::engine::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::AppState;
 use gproxy_storage::repository::ProviderRepository;
@@ -58,9 +58,7 @@ fn parse_routing_document_json(
         .map_err(|e| HttpError::bad_request(format!("invalid provider routing_json: {e}")))
 }
 
-fn default_routing_document_for_channel(
-    channel: &str,
-) -> Result<RoutingTableDocument, HttpError> {
+fn default_routing_document_for_channel(channel: &str) -> Result<RoutingTableDocument, HttpError> {
     ChannelRegistry::collect()
         .routing_table(channel)
         .map(|table| table.to_document())

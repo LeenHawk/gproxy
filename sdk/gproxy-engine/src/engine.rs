@@ -12,10 +12,10 @@ use tracing::Instrument;
 
 use crate::store::{CredentialUpdate, ProviderStore, ProviderStoreBuilder};
 use gproxy_channel::Channel;
-use gproxy_channel::routing::RouteKey;
 use gproxy_channel::health::ModelCooldownHealth;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::UpstreamError;
+use gproxy_channel::routing::RouteKey;
 
 fn is_stream_aggregation_route(
     src_operation: OperationFamily,

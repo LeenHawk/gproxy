@@ -8,8 +8,8 @@ use serde_json::Value;
 use tokio::sync::broadcast;
 
 use gproxy_channel::channel::{Channel, OAuthFlow};
-use gproxy_channel::routing::RoutingTable;
 use gproxy_channel::response::UpstreamError;
+use gproxy_channel::routing::RoutingTable;
 
 pub mod public_traits;
 mod runtime;

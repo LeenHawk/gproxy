@@ -7,10 +7,10 @@ use serde_json::Value;
 
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
-use crate::routing::RoutingTable;
 use crate::health::CredentialHealth;
 use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
+use crate::routing::RoutingTable;
 
 /// Boxed future type for async OAuth methods.
 type OAuthFuture<'a, T> =

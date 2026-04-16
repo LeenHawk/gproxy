@@ -32,11 +32,11 @@ use crate::retry::{RetryContext, retry_with_credentials, retry_with_credentials_
 use gproxy_channel::channel::{
     Channel, ChannelCredential, ChannelSettings, OAuthCredentialResult, OAuthFlow,
 };
-use gproxy_channel::routing::RoutingTable;
-use gproxy_channel::routing::RouteKey;
 use gproxy_channel::health::CredentialHealth;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::{UpstreamError, UpstreamResponse, UpstreamStreamingResponse};
+use gproxy_channel::routing::RouteKey;
+use gproxy_channel::routing::RoutingTable;
 
 use super::BoxFuture;
 use super::RetryState;
