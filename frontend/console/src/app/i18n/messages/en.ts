@@ -103,7 +103,7 @@ export const enMessages: Record<string, string> = {
   "common.noData": "No data",
   "common.noSelection": "No Selection",
   "dashboard.title": "Dashboard",
-  "dashboard.subtitle": "Operational health and usage costs in one view.",
+  "dashboard.subtitle": "",
   "dashboard.range.1h": "1h",
   "dashboard.range.24h": "24h",
   "dashboard.range.7d": "7d",

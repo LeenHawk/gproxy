@@ -103,7 +103,7 @@ export const zhMessages: Record<string, string> = {
   "common.noData": "暂无数据",
   "common.noSelection": "未选中",
   "dashboard.title": "仪表盘",
-  "dashboard.subtitle": "在一个页面里同时看系统状态和成本趋势。",
+  "dashboard.subtitle": "",
   "dashboard.range.1h": "1小时",
   "dashboard.range.24h": "24小时",
   "dashboard.range.7d": "7天",
