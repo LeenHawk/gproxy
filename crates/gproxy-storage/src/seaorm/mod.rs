@@ -1,5 +1,6 @@
 mod crypto;
 pub mod entities;
+mod migrations;
 mod optimize;
 mod store_mutation;
 mod store_query;
@@ -39,9 +40,14 @@ impl SeaOrmStorage {
     }
 
     pub async fn sync(&self) -> Result<(), DbErr> {
+        use sea_orm_migration::MigratorTrait;
+        crate::migration::Migrator::up(&self.db, None)
+            .await
+            .map_err(|err| DbErr::Custom(format!("migration up failed: {err}")))?;
         let schema = self
             .db
             .get_schema_registry("gproxy_storage::seaorm::entities::*");
+        migrations::run_pre_sync(&self.db).await?;
         schema.sync(&self.db).await?;
         optimize::apply_after_sync(&self.db).await
     }

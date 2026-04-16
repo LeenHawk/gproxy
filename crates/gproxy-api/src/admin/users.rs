@@ -593,4 +593,17 @@ mod tests {
             .expect("updated key");
         assert!(!key.enabled);
     }
+
+    #[tokio::test]
+    async fn generate_unique_api_key_uses_32_char_lower_hex_random_suffix() {
+        let state = build_test_state().await;
+
+        let key = super::generate_unique_api_key_for(&state);
+        let suffix = key
+            .strip_prefix("sk-api01-")
+            .expect("API key should keep sk-api01- prefix");
+
+        assert_eq!(suffix.len(), 32);
+        assert!(suffix.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)));
+    }
 }

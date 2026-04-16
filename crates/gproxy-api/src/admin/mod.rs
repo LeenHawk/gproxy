@@ -37,8 +37,8 @@ pub fn router() -> Router<Arc<AppState>> {
         // Providers
         .route("/providers/query", post(providers::query_providers))
         .route(
-            "/providers/default-dispatch",
-            post(providers::default_provider_dispatch),
+            "/providers/default-routing",
+            post(providers::default_provider_routing),
         )
         .route("/providers/upsert", post(providers::upsert_provider))
         .route("/providers/delete", post(providers::delete_provider))

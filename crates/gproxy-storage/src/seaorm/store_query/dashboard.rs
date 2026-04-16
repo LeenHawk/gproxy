@@ -266,7 +266,7 @@ mod tests {
             channel: Set(channel.to_string()),
             label: Set(None),
             settings_json: Set(json!({})),
-            dispatch_json: Set(json!({})),
+            routing_json: Set(json!({})),
             created_at: Set(OffsetDateTime::UNIX_EPOCH),
             updated_at: Set(OffsetDateTime::UNIX_EPOCH),
         })

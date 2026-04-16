@@ -139,7 +139,7 @@ impl SeaOrmStorage {
                 .iter()
                 .map(|p| {
                     let settings = serde_json::from_str(&p.settings_json).unwrap_or_default();
-                    let dispatch = serde_json::from_str(&p.dispatch_json).unwrap_or_default();
+                    let routing = serde_json::from_str(&p.routing_json).unwrap_or_default();
                     let now = OffsetDateTime::now_utc();
                     providers::ActiveModel {
                         id: Set(p.id),
@@ -147,7 +147,7 @@ impl SeaOrmStorage {
                         channel: Set(p.channel.clone()),
                         label: Set(p.label.clone()),
                         settings_json: Set(settings),
-                        dispatch_json: Set(dispatch),
+                        routing_json: Set(routing),
                         created_at: Set(now),
                         updated_at: Set(now),
                     }
@@ -161,7 +161,7 @@ impl SeaOrmStorage {
                             providers::Column::Channel,
                             providers::Column::Label,
                             providers::Column::SettingsJson,
-                            providers::Column::DispatchJson,
+                            providers::Column::RoutingJson,
                             providers::Column::UpdatedAt,
                         ])
                         .to_owned(),

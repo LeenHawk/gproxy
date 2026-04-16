@@ -19,7 +19,7 @@ pub struct ProviderQueryRow {
     #[serde(default)]
     pub label: Option<String>,
     pub settings_json: Value,
-    pub dispatch_json: Value,
+    pub routing_json: Value,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }

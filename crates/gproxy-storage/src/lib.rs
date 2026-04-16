@@ -1,3 +1,4 @@
+pub(crate) mod migration;
 pub mod query;
 pub mod repository;
 pub mod seaorm;

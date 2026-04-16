@@ -165,15 +165,15 @@ pub async fn proxy(
         .await);
     }
 
-    // Local dispatch short-circuit for model_list / model_get: when the
-    // provider's dispatch rule for this (operation, protocol) is Local,
+    // Local routing short-circuit for model_list / model_get: when the
+    // provider's routing rule for this (operation, protocol) is Local,
     // serve the response from the local models table without hitting upstream.
     if matches!(
         operation,
         OperationFamily::ModelList | OperationFamily::ModelGet
     ) && state
         .engine()
-        .is_local_dispatch(&effective_provider, operation, protocol)
+        .is_local_routing(&effective_provider, operation, protocol)
     {
         let resp_body = match operation {
             OperationFamily::ModelList => {
@@ -521,10 +521,10 @@ pub async fn proxy_unscoped(
         ));
     }
 
-    // model_get: try local table first (works for both Local dispatch and
-    // Passthrough/Transform dispatch — local always takes precedence when the
+    // model_get: try local table first (works for both Local routing and
+    // Passthrough/Transform routing — local always takes precedence when the
     // model is found locally). If the model isn't in the local table and the
-    // dispatch is Local, 404; otherwise fall through to upstream.
+    // routing is Local, 404; otherwise fall through to upstream.
     if operation == OperationFamily::ModelGet {
         if let Some(body) = build_local_model_get_body(
             &state,
@@ -546,7 +546,7 @@ pub async fn proxy_unscoped(
         }
         if state
             .engine()
-            .is_local_dispatch(&target_provider, operation, protocol)
+            .is_local_routing(&target_provider, operation, protocol)
         {
             return Err(HttpError::not_found("model not found in local table"));
         }
@@ -1043,7 +1043,7 @@ fn apply_handler_rewrite_rules(
     }
     let mut request = gproxy_sdk::channel::PreparedRequest {
         method: http::Method::POST,
-        route: gproxy_sdk::channel::dispatch::RouteKey::new(operation, protocol),
+        route: gproxy_sdk::channel::routing::RouteKey::new(operation, protocol),
         model: model.map(String::from),
         body,
         headers: http::HeaderMap::new(),
@@ -1088,7 +1088,7 @@ async fn execute_live_model_list(
             operation: OperationFamily::ModelList,
             protocol,
             // Body is `{}` (not empty) because xform routes — e.g. a custom
-            // channel using an anthropic-like / gemini-like dispatch template,
+            // channel using an anthropic-like / gemini-like routing template,
             // or claudecode/geminicli/antigravity's built-in xforms — will
             // call `serde_json::from_slice::<RequestBody>(body)` in the
             // transformer. The OpenAi / Claude / Gemini ModelList
@@ -1125,9 +1125,9 @@ async fn build_openai_unscoped_model_list_body(
     let mut last_error = None;
 
     for provider in providers {
-        // If the provider's dispatch for ModelList is Local, serve from the
+        // If the provider's routing for ModelList is Local, serve from the
         // local models table instead of calling upstream.
-        if state.engine().is_local_dispatch(
+        if state.engine().is_local_routing(
             &provider.provider_name,
             OperationFamily::ModelList,
             ProtocolKind::OpenAi,
@@ -1239,8 +1239,8 @@ async fn build_claude_unscoped_model_list_body(
     let mut last_error = None;
 
     for provider in providers {
-        // Local dispatch: serve from local models table.
-        if state.engine().is_local_dispatch(
+        // Local routing: serve from local models table.
+        if state.engine().is_local_routing(
             &provider.provider_name,
             OperationFamily::ModelList,
             ProtocolKind::Claude,
@@ -1363,8 +1363,8 @@ async fn build_gemini_unscoped_model_list_body(
     let mut last_error = None;
 
     for provider in providers {
-        // Local dispatch: serve from local models table.
-        if state.engine().is_local_dispatch(
+        // Local routing: serve from local models table.
+        if state.engine().is_local_routing(
             &provider.provider_name,
             OperationFamily::ModelList,
             ProtocolKind::Gemini,
@@ -1692,7 +1692,7 @@ fn inject_gemini_alias_entries(
 /// Inject model alias entries into a scoped (single-provider) model_list
 /// response. Works on raw JSON bytes and handles all protocol formats.
 /// Build a model_list response body from the local `models` table for the
-/// given provider. Used when dispatch is Local.
+/// given provider. Used when routing is Local.
 ///
 /// Returns all enabled models (both real and aliases) that the user has
 /// permission to access.
@@ -3257,7 +3257,7 @@ async fn record_execute_error_logs(
         // (carries the actual URL, headers, request body, and upstream
         // response body). Fall back to the placeholder values the
         // handler already had when no attempt ever reached upstream
-        // (unknown provider, dispatch miss, etc.).
+        // (unknown provider, routing miss, etc.).
         let (
             upstream_method,
             upstream_url,
@@ -3406,7 +3406,7 @@ mod tests {
                     "base_url": base_url,
                 })
                 .to_string(),
-                dispatch_json: "".to_string(),
+                routing_json: "".to_string(),
             })
             .await
             .expect("seed provider");
@@ -3440,7 +3440,7 @@ mod tests {
                 credentials: vec![json!({
                     "api_key": "sk-upstream"
                 })],
-                dispatch: None,
+                routing: None,
             })
             .expect("custom provider config should be valid")
             .build();

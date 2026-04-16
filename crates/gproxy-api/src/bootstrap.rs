@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Error as IoError;
 
-use gproxy_sdk::channel::dispatch::DispatchTableDocument;
+use gproxy_sdk::channel::routing::RoutingTableDocument;
 use gproxy_sdk::engine::engine::{GproxyEngineBuilder, ProviderConfig};
 use gproxy_server::{
     AppState, FilePermissionEntry, GlobalConfig, MemoryClaudeFile, MemoryModel, MemoryUser,
@@ -437,7 +437,7 @@ fn build_seed_provider_runtime_state(providers: &[ProviderToml]) -> SeedProvider
                 .iter()
                 .map(|(_, credential)| credential.clone())
                 .collect(),
-            dispatch: None,
+            routing: None,
         });
         provider_channel_map.insert(provider.name.clone(), provider.channel.clone());
         provider_label_map.insert(provider.name.clone(), provider.label.clone());
@@ -588,7 +588,7 @@ pub async fn reload_from_db(
             channel: provider.channel.clone(),
             settings_json: provider.settings_json.clone(),
             credentials: creds,
-            dispatch: DispatchTableDocument::from_json_value(provider.dispatch_json.clone())?,
+            routing: RoutingTableDocument::from_json_value(provider.routing_json.clone())?,
         })?;
         provider_count += 1;
     }
@@ -894,7 +894,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 channel: p.channel.clone(),
                 label: p.label.clone(),
                 settings_json: serde_json::to_string(&p.settings).unwrap_or_default(),
-                dispatch_json: String::new(),
+                routing_json: String::new(),
             })
             .await?;
         // Persist credentials

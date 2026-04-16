@@ -93,7 +93,7 @@ mod tests {
             channel: Set("openai".to_string()),
             label: Set(None),
             settings_json: Set(json!({})),
-            dispatch_json: Set(json!({})),
+            routing_json: Set(json!({})),
             created_at: Set(at),
             updated_at: Set(at),
         })

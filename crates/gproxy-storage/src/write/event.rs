@@ -30,7 +30,7 @@ pub struct ProviderWrite {
     #[serde(default)]
     pub label: Option<String>,
     pub settings_json: String,
-    pub dispatch_json: String,
+    pub routing_json: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

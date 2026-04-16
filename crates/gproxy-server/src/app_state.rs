@@ -1193,4 +1193,17 @@ mod tests {
         assert!(state.validate_session(&alice_token_b).is_none());
         assert!(state.validate_session(&bob_token).is_some());
     }
+
+    #[tokio::test]
+    async fn create_session_uses_32_char_lower_hex_random_suffix() {
+        let state = build_test_state().await;
+
+        let token = state.create_session(1, 60);
+        let suffix = token
+            .strip_prefix("sess-")
+            .expect("session token should keep sess- prefix");
+
+        assert_eq!(suffix.len(), 32);
+        assert!(suffix.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)));
+    }
 }

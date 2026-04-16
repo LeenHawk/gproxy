@@ -15,7 +15,7 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub label: Option<String>,
     pub settings_json: Json,
-    pub dispatch_json: Json,
+    pub routing_json: Json,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
     #[sea_orm(has_many)]

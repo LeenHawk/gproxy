@@ -14,18 +14,18 @@ impl SeaOrmStorage {
         name: &str,
         channel: &str,
         settings_json: &str,
-        dispatch_json: &str,
+        routing_json: &str,
     ) -> Result<i64, DbErr> {
         let settings: serde_json::Value = serde_json::from_str(settings_json)
             .map_err(|e| DbErr::Custom(format!("invalid settings_json: {e}")))?;
-        let dispatch: serde_json::Value = serde_json::from_str(dispatch_json)
-            .map_err(|e| DbErr::Custom(format!("invalid dispatch_json: {e}")))?;
+        let routing: serde_json::Value = serde_json::from_str(routing_json)
+            .map_err(|e| DbErr::Custom(format!("invalid routing_json: {e}")))?;
         let now = OffsetDateTime::now_utc();
         let model = providers::ActiveModel {
             name: Set(name.to_string()),
             channel: Set(channel.to_string()),
             settings_json: Set(settings),
-            dispatch_json: Set(dispatch),
+            routing_json: Set(routing),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
