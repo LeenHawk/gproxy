@@ -273,10 +273,7 @@ impl TryFrom<OpenAiCreateResponseResponse> for ClaudeCreateMessageResponse {
                         {
                             content.push(BetaContentBlock::Text(BetaTextBlock {
                                 citations: None,
-                                text: format!(
-                                    "local_shell_output({}): {}",
-                                    call.id, call.output
-                                ),
+                                text: format!("local_shell_output({}): {}", call.id, call.output),
                                 type_: BetaTextBlockType::Text,
                             }));
                         }

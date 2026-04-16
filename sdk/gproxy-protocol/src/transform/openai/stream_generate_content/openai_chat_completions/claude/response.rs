@@ -420,9 +420,7 @@ impl ClaudeToOpenAiChatCompletionsStream {
                 }
             }
             ClaudeStreamEvent::ContentBlockDelta { delta, index } => match delta {
-                BetaRawContentBlockDelta::Text { text }
-                    if self.text_blocks.contains(&index) =>
-                {
+                BetaRawContentBlockDelta::Text { text } if self.text_blocks.contains(&index) => {
                     self.emit_content(index, text, false, out);
                 }
                 BetaRawContentBlockDelta::Thinking { thinking }
