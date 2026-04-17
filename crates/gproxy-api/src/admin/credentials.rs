@@ -245,7 +245,7 @@ pub async fn batch_delete_credentials(
     let store = engine.store();
     // Delete in reverse index order to avoid index shifting
     let mut sorted = items;
-    sorted.sort_by(|a, b| b.index.cmp(&a.index));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.index));
     for item in &sorted {
         let provider = resolve_provider_by_name(&state, &item.provider_name).await?;
         let cred_id = resolve_credential_db_id(&state, &provider.name, item.index)?;

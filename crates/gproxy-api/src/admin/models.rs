@@ -224,7 +224,7 @@ pub async fn batch_upsert_models(
         })
         .collect::<Result<_, _>>()?;
 
-    for (item, pricing) in items.iter().zip(parsed.into_iter()) {
+    for (item, pricing) in items.iter().zip(parsed) {
         state.storage().upsert_model(item.clone()).await?;
         state.upsert_model_in_memory(MemoryModel {
             id: item.id,
