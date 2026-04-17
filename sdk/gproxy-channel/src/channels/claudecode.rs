@@ -268,6 +268,11 @@ pub struct ClaudeCodeSettings {
     pub claude_ai_base_url: String,
     #[serde(default)]
     pub enable_magic_cache: bool,
+    /// Merge consecutive `system` text blocks into one before cache
+    /// breakpoints are applied. Useful when clients split system into many
+    /// small pieces that would otherwise fragment the cache.
+    #[serde(default)]
+    pub flatten_system_before_cache: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cache_breakpoints: Vec<cache_control::CacheBreakpointRule>,
     /// Optional system-prompt prelude injected as the first `system` block
@@ -1012,6 +1017,9 @@ impl Channel for ClaudeCodeChannel {
             apply_claudecode_prelude(&mut body_json, prelude);
         }
 
+        if settings.flatten_system_before_cache {
+            cache_control::flatten_system_text_blocks(&mut body_json);
+        }
         if settings.enable_magic_cache {
             cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
         }

@@ -461,6 +461,7 @@ export const zhMessages: Record<string, string> = {
   "models.suffixDialog.confirm": "创建",
   "models.suffixDialog.created": "已创建后缀变体 {name}",
   "field.enable_magic_cache": "启用缓存魔法字符串",
+  "field.flatten_system_before_cache": "缓存前合并 system 文本块",
   "field.max_retries_on_429": "429 每凭证重试上限",
   "permissions.saved": "权限已保存",
   "permissions.deleted": "权限已删除",

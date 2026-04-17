@@ -139,6 +139,66 @@ fn json_text_block(text: &str) -> Value {
     })
 }
 
+/// Flatten consecutive text blocks in `system` into a single text block so
+/// that downstream cache breakpoint logic has fewer, larger segments to
+/// work with. Non-text blocks are preserved and serve as run boundaries.
+/// If any text block in a run carries `cache_control`, the last such marker
+/// is kept on the merged block.
+pub fn flatten_system_text_blocks(body: &mut Value) {
+    canonicalize_claude_body(body);
+    let Some(root) = body.as_object_mut() else {
+        return;
+    };
+    let Some(Value::Array(blocks)) = root.get_mut("system") else {
+        return;
+    };
+    if blocks.len() <= 1 {
+        return;
+    }
+
+    let owned = std::mem::take(blocks);
+    let mut out: Vec<Value> = Vec::with_capacity(owned.len());
+    let mut run_text = String::new();
+    let mut run_cc: Option<Value> = None;
+
+    let flush = |out: &mut Vec<Value>, text: &mut String, cc: &mut Option<Value>| {
+        if text.is_empty() && cc.is_none() {
+            return;
+        }
+        let mut merged = serde_json::Map::new();
+        merged.insert("type".into(), Value::String("text".into()));
+        merged.insert("text".into(), Value::String(std::mem::take(text)));
+        if let Some(cc) = cc.take() {
+            merged.insert("cache_control".into(), cc);
+        }
+        out.push(Value::Object(merged));
+    };
+
+    for block in owned {
+        let Value::Object(map) = block else {
+            flush(&mut out, &mut run_text, &mut run_cc);
+            out.push(block);
+            continue;
+        };
+        let is_text = map.get("type").and_then(Value::as_str) == Some("text");
+        if !is_text {
+            flush(&mut out, &mut run_text, &mut run_cc);
+            out.push(Value::Object(map));
+            continue;
+        }
+        let text = map.get("text").and_then(Value::as_str).unwrap_or("");
+        run_text.push_str(text);
+        if let Some(cc) = map.get("cache_control") {
+            run_cc = Some(cc.clone());
+        }
+    }
+    flush(&mut out, &mut run_text, &mut run_cc);
+
+    if let Some(Value::Array(blocks)) = root.get_mut("system") {
+        *blocks = out;
+    }
+}
+
 pub fn apply_magic_string_cache_control_triggers(body: &mut Value) {
     canonicalize_claude_body(body);
     let Some(root) = body.as_object_mut() else {

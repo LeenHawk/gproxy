@@ -24,6 +24,11 @@ pub struct AnthropicSettings {
     /// Enable magic string -> cache_control conversion (e.g. <|CACHE_5M|> in text)
     #[serde(default)]
     pub enable_magic_cache: bool,
+    /// Merge consecutive `system` text blocks into one before cache
+    /// breakpoints are applied. Useful when clients split system into many
+    /// small pieces that would otherwise fragment the cache.
+    #[serde(default)]
+    pub flatten_system_before_cache: bool,
     /// Cache breakpoint rules
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cache_breakpoints: Vec<cache_control::CacheBreakpointRule>,
@@ -286,6 +291,9 @@ impl Channel for AnthropicChannel {
         // top_k, and we want the default behavior for every client.
         claude_sampling::strip_sampling_params(&mut body_json);
 
+        if settings.flatten_system_before_cache {
+            cache_control::flatten_system_text_blocks(&mut body_json);
+        }
         if settings.enable_magic_cache {
             cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
         }
