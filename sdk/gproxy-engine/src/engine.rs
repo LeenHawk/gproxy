@@ -1901,17 +1901,86 @@ fn operation_http_method(operation: OperationFamily) -> http::Method {
     }
 }
 
-/// Replace the `"model"` field in a JSON response body with `new_model`.
-/// Used for alias rewriting on chat/messages responses.
+/// Replace the `"model"` field in a response body with `new_model`.
+///
+/// Handles three shapes:
+/// 1. The buffer is a single JSON document (non-stream responses, or
+///    transformer-emitted per-event JSON chunks) — walk the tree and
+///    replace every `"model"` string value at any depth. Protocol
+///    agnostic: Claude top-level `model`, OpenAI Chat top-level `model`,
+///    OpenAI Response `response.model`, and Claude stream's nested
+///    `message.model` (inside `message_start` events) are all covered.
+/// 2. The buffer is SSE text (one or more `data: {json}\n\n` events) —
+///    split by lines, rewrite the JSON on each `data:` line, reassemble.
+/// 3. The buffer is something else (partial frame, binary, empty) — no-op.
 fn rewrite_model_field_in_body(body: &mut Vec<u8>, new_model: &str) {
-    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(body) else {
+    // Case 1: whole-buffer JSON.
+    if let Ok(mut value) = serde_json::from_slice::<serde_json::Value>(body) {
+        if rewrite_model_in_value(&mut value, new_model)
+            && let Ok(serialized) = serde_json::to_vec(&value)
+        {
+            *body = serialized;
+        }
+        return;
+    }
+
+    // Case 2: SSE. Look for `data:` lines that contain JSON.
+    let Ok(text) = std::str::from_utf8(body) else {
         return;
     };
-    if v.get("model").is_some() {
-        v["model"] = serde_json::Value::String(new_model.to_string());
-        if let Ok(b) = serde_json::to_vec(&v) {
-            *body = b;
+    if !text.contains("data:") {
+        return;
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut changed = false;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_end_matches(['\r', '\n']);
+        if let Some(payload) = trimmed.strip_prefix("data:") {
+            let payload = payload.trim_start();
+            if !payload.is_empty()
+                && let Ok(mut value) = serde_json::from_str::<serde_json::Value>(payload)
+                && rewrite_model_in_value(&mut value, new_model)
+                && let Ok(serialized) = serde_json::to_string(&value)
+            {
+                out.push_str("data: ");
+                out.push_str(&serialized);
+                // Preserve the original line terminator(s).
+                out.push_str(&line[trimmed.len()..]);
+                changed = true;
+                continue;
+            }
         }
+        out.push_str(line);
+    }
+    if changed {
+        *body = out.into_bytes();
+    }
+}
+
+/// Walk the JSON tree and replace every `"model"` string field with
+/// `new_model`. Returns true iff at least one field was replaced, so the
+/// caller can skip re-serializing untouched bodies.
+fn rewrite_model_in_value(value: &mut serde_json::Value, new_model: &str) -> bool {
+    match value {
+        serde_json::Value::Object(map) => {
+            let mut changed = false;
+            for (key, child) in map.iter_mut() {
+                if key == "model"
+                    && let serde_json::Value::String(existing) = child
+                    && existing != new_model
+                {
+                    *existing = new_model.to_string();
+                    changed = true;
+                } else {
+                    changed |= rewrite_model_in_value(child, new_model);
+                }
+            }
+            changed
+        }
+        serde_json::Value::Array(items) => items.iter_mut().fold(false, |acc, item| {
+            acc | rewrite_model_in_value(item, new_model)
+        }),
+        _ => false,
     }
 }
 
@@ -2138,7 +2207,7 @@ mod tests {
 
     use super::{
         WsMessage, classify_openai_ws_probe_message, is_stream_aggregation_route,
-        validate_credential_json, wrap_upstream_response_stream,
+        rewrite_model_field_in_body, validate_credential_json, wrap_upstream_response_stream,
     };
     use gproxy_channel::response::{UpstreamBodyStream, UpstreamError};
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -2162,6 +2231,49 @@ mod tests {
         let credential = json!({ "token": "sk-test" });
         let err = validate_credential_json("openai", &credential).unwrap_err();
         assert!(err.to_string().contains("invalid credential"));
+    }
+
+    #[test]
+    fn rewrite_model_rewrites_top_level_json() {
+        let mut body =
+            br#"{"id":"msg_1","model":"claude-opus-4-7","stop_reason":"end_turn"}"#.to_vec();
+        rewrite_model_field_in_body(&mut body, "claudecode/claude-opus-4-7-thinking-adaptive");
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            parsed["model"],
+            "claudecode/claude-opus-4-7-thinking-adaptive"
+        );
+    }
+
+    #[test]
+    fn rewrite_model_rewrites_nested_claude_message_start() {
+        let mut body = br#"{"type":"message_start","message":{"id":"msg_1","model":"claude-opus-4-7","role":"assistant"}}"#.to_vec();
+        rewrite_model_field_in_body(&mut body, "claudecode/claude-opus-4-7-thinking-adaptive");
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            parsed["message"]["model"],
+            "claudecode/claude-opus-4-7-thinking-adaptive"
+        );
+    }
+
+    #[test]
+    fn rewrite_model_rewrites_sse_chunk() {
+        let sse = b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-opus-4-7\"}}\n\n";
+        let mut body = sse.to_vec();
+        rewrite_model_field_in_body(&mut body, "claudecode/claude-opus-4-7-thinking-adaptive");
+        let text = std::str::from_utf8(&body).unwrap();
+        assert!(text.contains("claudecode/claude-opus-4-7-thinking-adaptive"));
+        assert!(!text.contains("\"model\":\"claude-opus-4-7\""));
+        // The `event:` line should survive verbatim.
+        assert!(text.starts_with("event: message_start\n"));
+    }
+
+    #[test]
+    fn rewrite_model_preserves_unrelated_sse_lines() {
+        let sse = b"event: ping\ndata: {\"type\":\"ping\"}\n\n";
+        let mut body = sse.to_vec();
+        rewrite_model_field_in_body(&mut body, "claudecode/anything");
+        assert_eq!(body, sse);
     }
 
     #[test]

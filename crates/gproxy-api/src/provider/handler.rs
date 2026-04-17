@@ -484,12 +484,29 @@ pub async fn proxy_unscoped(
             // `response_model_override` rewrites the response body's model
             // field — without it the client would see just "model" instead
             // of the "provider/model" string it sent.
-            (
-                provider.to_string(),
-                model.to_string(),
-                Some(model_name.clone()),
-                model.to_string(),
-            )
+            //
+            // The bare `model` part may itself be a suffix-variant alias
+            // (e.g. `claudecode/claude-opus-4-7-thinking-adaptive`), which
+            // `resolve_model_alias` misses on the full prefixed string
+            // because the alias index is keyed by the bare model_id. Re-try
+            // resolution on the unprefixed segment so the real model name
+            // reaches the upstream and the alias's rewrite_rules fire on
+            // `permission_model` (the unprefixed match key).
+            if let Some(alias) = state.resolve_model_alias(model) {
+                (
+                    alias.provider_name,
+                    alias.model_id,
+                    Some(model_name.clone()),
+                    model.to_string(),
+                )
+            } else {
+                (
+                    provider.to_string(),
+                    model.to_string(),
+                    Some(model_name.clone()),
+                    model.to_string(),
+                )
+            }
         } else {
             return Err(HttpError::bad_request(
                 "model must have provider prefix (provider/model) or match an alias",
@@ -505,12 +522,14 @@ pub async fn proxy_unscoped(
     let operation = classification.operation;
     let protocol = classification.protocol;
 
-    // Apply rewrite_rules with the ORIGINAL model name (before alias rename)
-    // so patterns like `*-fast` can match the user-sent name.
+    // Apply rewrite_rules with the unprefixed model name so suffix-variant
+    // filter patterns (keyed by the bare alias model_id) fire on requests
+    // that arrived as `provider/alias`. `permission_model` is always the
+    // unprefixed form for both alias and prefix branches, so reuse it.
     let req_body = apply_handler_rewrite_rules(
         &state,
         &target_provider,
-        Some(model_name),
+        Some(&permission_model),
         operation,
         protocol,
         req_body,
@@ -1554,10 +1573,11 @@ fn inject_openai_alias_entries(
         let Some(base_model) = models.get(&prefixed_target).cloned() else {
             continue;
         };
+        let prefixed_alias = prefixed_model_id(&provider_name, &alias_model.model_id);
         let mut alias_entry = base_model;
-        alias_entry.id = alias_model.model_id.clone();
+        alias_entry.id = prefixed_alias.clone();
         alias_entry.owned_by = provider_name;
-        models.insert(alias_model.model_id.clone(), alias_entry);
+        models.insert(prefixed_alias, alias_entry);
     }
 }
 
@@ -1619,9 +1639,10 @@ fn inject_claude_alias_entries(
         let Some(base_model) = models.get(&prefixed_target).cloned() else {
             continue;
         };
+        let prefixed_alias = prefixed_model_id(&provider_name, &alias_model.model_id);
         let mut alias_entry = base_model;
-        alias_entry.id = alias_model.model_id.clone();
-        models.insert(alias_model.model_id.clone(), alias_entry);
+        alias_entry.id = prefixed_alias.clone();
+        models.insert(prefixed_alias, alias_entry);
     }
 }
 
@@ -1691,10 +1712,11 @@ fn inject_gemini_alias_entries(
         let Some(base_model) = models.get(&prefixed_gemini_key).cloned() else {
             continue;
         };
-        let alias_key = format!("models/{}", alias_model.model_id);
+        let prefixed_alias = prefixed_model_id(&provider_name, &alias_model.model_id);
+        let alias_key = format!("models/{prefixed_alias}");
         let mut alias_entry = base_model;
         alias_entry.name = alias_key.clone();
-        alias_entry.base_model_id = Some(alias_model.model_id.clone());
+        alias_entry.base_model_id = Some(prefixed_alias);
         models.insert(alias_key, alias_entry);
     }
 }
