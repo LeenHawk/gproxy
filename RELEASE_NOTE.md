@@ -1,6 +1,6 @@
 # Release Notes
 
-## Unreleased
+## v1.0.16
 
 > Console polish on the provider config tab: the Upstream Protocol Template row is folded away behind a show/hide toggle, and the hint copy is rewritten to warn against changing built-in channels' routing tables without a reason. Plus a tiny cleanup in the credential-update store path.
 

@@ -1217,9 +1217,9 @@ dependencies = [
 
 [[package]]
 name = "dary_heap"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06d2e3287df1c007e74221c49ca10a95d557349e54b3a75dc2fb14712c751f04"
+checksum = "8b1e3a325bc115f096c8b77bbf027a7c2592230e70be2d985be950d3d5e60ebe"
 dependencies = [
  "serde",
 ]
@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "async-stream",
  "axum",
@@ -1868,7 +1868,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1883,7 +1883,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-engine"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1910,7 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1922,7 +1922,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "bytes",
  "chrono",
@@ -1948,7 +1948,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "gproxy-channel",
  "gproxy-engine",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1994,7 +1994,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.15"
+version = "1.0.16"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -2528,7 +2528,7 @@ dependencies = [
  "p256",
  "p384",
  "pem",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rsa",
  "serde",
  "serde_json",
@@ -2875,7 +2875,7 @@ dependencies = [
  "num-integer",
  "num-iter",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "smallvec",
  "zeroize",
 ]
@@ -3321,9 +3321,9 @@ checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -3613,7 +3613,7 @@ dependencies = [
  "borsh",
  "bytes",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rkyv",
  "serde",
  "serde_json",
@@ -4286,7 +4286,7 @@ dependencies = [
  "memchr",
  "once_cell",
  "percent-encoding",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rsa",
  "rust_decimal",
  "serde",
@@ -4328,7 +4328,7 @@ dependencies = [
  "md-5",
  "memchr",
  "once_cell",
- "rand 0.8.5",
+ "rand 0.8.6",
  "rust_decimal",
  "serde",
  "serde_json",
@@ -4624,9 +4624,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.52.0"
+version = "1.52.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a91135f59b1cbf38c91e73cf3386fca9bb77915c45ce2771460c9d92f0f3d776"
+checksum = "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6"
 dependencies = [
  "bytes",
  "libc",
