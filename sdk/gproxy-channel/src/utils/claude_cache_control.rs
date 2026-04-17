@@ -208,43 +208,117 @@ pub fn apply_magic_string_cache_control_triggers(body: &mut Value) {
     let mut remaining_slots = 4usize.saturating_sub(existing_breakpoints);
 
     if let Some(system) = root.get_mut("system") {
-        apply_magic_trigger_to_content(system, &mut remaining_slots);
+        // System sits at the start of context — a pending breakpoint here
+        // has nothing earlier to shift to, so we drop it.
+        let _ = apply_magic_trigger_to_content(system, &mut remaining_slots);
     }
 
-    if let Some(messages) = root.get_mut("messages").and_then(Value::as_array_mut) {
-        for message in messages {
-            let Some(message_map) = message.as_object_mut() else {
-                continue;
-            };
-            let Some(content) = message_map.get_mut("content") else {
-                continue;
-            };
-            apply_magic_trigger_to_content(content, &mut remaining_slots);
+    let Some(messages) = root.get_mut("messages").and_then(Value::as_array_mut) else {
+        return;
+    };
+    let mut i = 0;
+    while i < messages.len() {
+        let (pending, content_empty) =
+            process_message_magic_trigger(&mut messages[i], &mut remaining_slots);
+        if let Some(ttl) = pending
+            && i > 0
+            && remaining_slots > 0
+        {
+            place_cache_control_on_prev_message_tail(
+                &mut messages[..i],
+                ttl,
+                &mut remaining_slots,
+            );
+            // If no prior message or prior tail already has cache_control,
+            // the pending breakpoint is silently dropped.
+        }
+        if content_empty {
+            messages.remove(i);
+        } else {
+            i += 1;
         }
     }
 }
 
-fn apply_magic_trigger_to_content(content: &mut Value, remaining_slots: &mut usize) {
+fn process_message_magic_trigger(
+    message: &mut Value,
+    remaining_slots: &mut usize,
+) -> (Option<CacheBreakpointTtl>, bool) {
+    let Some(message_map) = message.as_object_mut() else {
+        return (None, false);
+    };
+    let Some(content) = message_map.get_mut("content") else {
+        return (None, false);
+    };
+    let pending = apply_magic_trigger_to_content(content, remaining_slots);
+    let content_empty = match content {
+        Value::Array(blocks) => blocks.is_empty(),
+        Value::Object(map) => {
+            map.get("type").and_then(Value::as_str) == Some("text")
+                && map
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .is_some_and(str::is_empty)
+        }
+        _ => false,
+    };
+    (pending, content_empty)
+}
+
+fn place_cache_control_on_prev_message_tail(
+    prev_messages: &mut [Value],
+    ttl: CacheBreakpointTtl,
+    remaining_slots: &mut usize,
+) {
+    let Some(prev_msg) = prev_messages.last_mut() else {
+        return;
+    };
+    let Some(prev_map) = prev_msg.as_object_mut() else {
+        return;
+    };
+    let Some(Value::Array(blocks)) = prev_map.get_mut("content") else {
+        return;
+    };
+    let Some(last) = blocks.last_mut() else {
+        return;
+    };
+    let Some(last_map) = last.as_object_mut() else {
+        return;
+    };
+    if last_map.contains_key("cache_control") {
+        return;
+    }
+    last_map.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
+    *remaining_slots = remaining_slots.saturating_sub(1);
+}
+
+fn apply_magic_trigger_to_content(
+    content: &mut Value,
+    remaining_slots: &mut usize,
+) -> Option<CacheBreakpointTtl> {
     match content {
         Value::Array(blocks) => apply_magic_trigger_to_blocks(blocks, remaining_slots),
         Value::Object(block_map) => {
-            let Some((ttl, became_empty, has_cc)) = strip_magic_trigger_from_block(block_map)
-            else {
-                return;
-            };
+            let (ttl, became_empty, has_cc) = strip_magic_trigger_from_block(block_map)?;
             if became_empty {
-                return;
+                // Caller will shift this to the previous message's tail.
+                return Some(ttl);
             }
             if *remaining_slots > 0 && !has_cc {
                 block_map.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
                 *remaining_slots = remaining_slots.saturating_sub(1);
             }
+            None
         }
-        _ => {}
+        _ => None,
     }
 }
 
-fn apply_magic_trigger_to_blocks(blocks: &mut Vec<Value>, remaining_slots: &mut usize) {
+fn apply_magic_trigger_to_blocks(
+    blocks: &mut Vec<Value>,
+    remaining_slots: &mut usize,
+) -> Option<CacheBreakpointTtl> {
+    let mut pending: Option<CacheBreakpointTtl> = None;
     let mut i = 0;
     while i < blocks.len() {
         let Some(block_map) = blocks[i].as_object_mut() else {
@@ -266,19 +340,23 @@ fn apply_magic_trigger_to_blocks(blocks: &mut Vec<Value>, remaining_slots: &mut 
         }
 
         // Block is empty after stripping. Claude rejects empty text blocks,
-        // so drop it. Shift the cache breakpoint to the previous block when
-        // one exists; if we were the first block, just drop without marking.
+        // so drop it and try to shift the breakpoint to the previous block.
+        // If there is no previous block in this array, propagate the TTL
+        // back to the caller so it can target the previous message's tail.
         blocks.remove(i);
-        if i > 0
-            && *remaining_slots > 0
+        if i == 0 {
+            pending = Some(ttl);
+            continue;
+        }
+        if *remaining_slots > 0
             && let Some(prev) = blocks[i - 1].as_object_mut()
             && !prev.contains_key("cache_control")
         {
             prev.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
             *remaining_slots = remaining_slots.saturating_sub(1);
         }
-        // Blocks shifted left; keep i pointed at the next unprocessed block.
     }
+    pending
 }
 
 fn strip_magic_trigger_from_block(
