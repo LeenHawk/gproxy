@@ -56,11 +56,20 @@ pub async fn proxy(
         .cloned()
         .ok_or_else(|| HttpError::bad_request("request not classified"))?;
 
-    // Extract model from middleware extensions
+    // Extract model from middleware extensions. OpenAI clients conventionally
+    // send `body.model = "{provider}/{model}"`; strip the matching prefix so
+    // downstream alias resolution, permission checks, and rewrite_rules all
+    // see the bare name (`model_pattern` filters are authored without the
+    // prefix).
     let model = request
         .extensions()
         .get::<ExtractedModel>()
-        .and_then(|m| m.0.clone());
+        .and_then(|m| m.0.clone())
+        .map(|m| {
+            m.strip_prefix(&format!("{provider_name}/"))
+                .map(str::to_string)
+                .unwrap_or(m)
+        });
 
     // Map classification to SDK operation/protocol strings
     let operation = classification.operation;
