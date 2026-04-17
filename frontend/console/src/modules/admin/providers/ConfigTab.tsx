@@ -78,6 +78,7 @@ export function ConfigTab({
 }) {
   const { t } = useI18n();
   const [routingExpanded, setRoutingExpanded] = useState(false);
+  const [templatesExpanded, setTemplatesExpanded] = useState(false);
   const modeOptions = ROUTING_IMPLEMENTATION_OPTIONS.map((option) => ({
     value: option.value,
     label:
@@ -92,6 +93,7 @@ export function ConfigTab({
 
   useEffect(() => {
     setRoutingExpanded(false);
+    setTemplatesExpanded(false);
   }, [form.id, form.channel]);
 
   const updateSetting = (key: string, value: string) => {
@@ -236,28 +238,41 @@ export function ConfigTab({
 
         {/* Template chips */}
         <div>
-            <div className="mb-1.5 text-xs text-muted">{t("providers.routing.templates")}</div>
-            <p className="mb-2 text-[11px] text-muted">{t("providers.routing.templatesHint")}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {ROUTING_TEMPLATES.map((tmpl) => {
-                const active = isRoutingTemplateMatch(tmpl, form.routingRules);
-                return (
-                  <button
-                    key={tmpl.key}
-                    type="button"
-                    className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
-                      active ? "btn-primary" : "btn-neutral"
-                    }`}
-                    onClick={() => {
-                      onChange({ routingRules: applyRoutingTemplate(tmpl) });
-                      setRoutingExpanded(true);
-                    }}
-                  >
-                    {tmpl.label}
-                  </button>
-                );
-              })}
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <div className="text-xs text-muted">{t("providers.routing.templates")}</div>
+              <button
+                type="button"
+                className="btn btn-neutral rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                onClick={() => setTemplatesExpanded((value) => !value)}
+              >
+                {templatesExpanded
+                  ? t("providers.routing.templatesCollapse")
+                  : t("providers.routing.templatesExpand")}
+              </button>
             </div>
+            <p className="mb-2 text-[11px] text-muted">{t("providers.routing.templatesHint")}</p>
+            {templatesExpanded ? (
+              <div className="flex flex-wrap gap-1.5">
+                {ROUTING_TEMPLATES.map((tmpl) => {
+                  const active = isRoutingTemplateMatch(tmpl, form.routingRules);
+                  return (
+                    <button
+                      key={tmpl.key}
+                      type="button"
+                      className={`btn rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                        active ? "btn-primary" : "btn-neutral"
+                      }`}
+                      onClick={() => {
+                        onChange({ routingRules: applyRoutingTemplate(tmpl) });
+                        setRoutingExpanded(true);
+                      }}
+                    >
+                      {tmpl.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
         {routingExpanded ? (
