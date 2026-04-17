@@ -387,7 +387,7 @@ impl ProviderStore {
                 entries.iter().map(|(_, update)| update.clone()).collect();
             let batch_results = provider.apply_credential_updates(&batch)?;
             let mut provider_updated = false;
-            for ((original_index, _), applied) in entries.into_iter().zip(batch_results.into_iter())
+            for ((original_index, _), applied) in entries.into_iter().zip(batch_results)
             {
                 results[original_index] = applied;
                 provider_updated |= applied;
