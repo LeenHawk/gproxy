@@ -1205,7 +1205,7 @@ impl GproxyEngine {
         gproxy_channel::executor::apply_outgoing_rules(
             &mut prepared,
             &provider.sanitize_rules(),
-            &[],
+            &provider.rewrite_rules(),
         );
 
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
@@ -1478,7 +1478,7 @@ impl GproxyEngine {
         gproxy_channel::executor::apply_outgoing_rules(
             &mut prepared,
             &provider.sanitize_rules(),
-            &[],
+            &provider.rewrite_rules(),
         );
 
         let affinity_hint = crate::affinity::cache_affinity_hint_for_request(dst_proto, &prepared);
