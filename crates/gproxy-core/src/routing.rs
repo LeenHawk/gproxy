@@ -36,28 +36,23 @@ impl RoutingService {
         }
     }
 
-    /// Resolve a model alias to its target (provider_name, model_id).
+    /// Resolve a model name to its `(provider_name, model_id)`.
     ///
-    /// Looks up the name in the model_index, finds the model in memory,
-    /// and if it has `alias_of`, follows to the real model.
+    /// Looks the name up in the model index and returns the owning
+    /// provider plus the row's own `model_id` string. Callers use the
+    /// provider name for routing; the body-side `model` field is fixed
+    /// up to the upstream-native name by `rewrite_rules` further down
+    /// the pipeline.
     pub fn resolve_model_alias(&self, alias: &str) -> Option<ModelAliasTarget> {
         let index = self.model_index.load();
         let model_id = index.get(alias)?;
         let models = self.models.load();
         let model = models.iter().find(|m| m.id == *model_id)?;
-
-        // If this model is an alias, follow to the real model
-        if let Some(target_id) = model.alias_of {
-            let target = models.iter().find(|m| m.id == target_id)?;
-            let provider_name = self.provider_name_for_id(target.provider_id)?;
-            Some(ModelAliasTarget {
-                provider_name,
-                model_id: target.model_id.clone(),
-            })
-        } else {
-            // Not an alias — return None (same as old behavior: only aliases resolve)
-            None
-        }
+        let provider_name = self.provider_name_for_id(model.provider_id)?;
+        Some(ModelAliasTarget {
+            provider_name,
+            model_id: model.model_id.clone(),
+        })
     }
 
     /// Get provider name by DB id (reverse lookup).
@@ -131,13 +126,6 @@ impl RoutingService {
         let index = Self::build_model_index(&models);
         self.models.store(Arc::new(models));
         self.model_index.store(Arc::new(index));
-    }
-
-    /// Replace all model aliases atomically.
-    /// No-op: aliases are now part of the models vec, resolved via model_index.
-    #[deprecated(note = "aliases unified into models table; will be removed")]
-    pub fn replace_model_aliases(&self, _aliases: HashMap<String, ModelAliasTarget>) {
-        // No-op: aliases are now part of the models vec.
     }
 
     /// Replace all provider name -> id mappings.

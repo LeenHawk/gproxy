@@ -145,7 +145,6 @@ fn routing_service_resolves_alias() {
             display_name: None,
             enabled: true,
             pricing: None,
-            alias_of: None,
         },
         MemoryModel {
             id: 2,
@@ -154,7 +153,6 @@ fn routing_service_resolves_alias() {
             display_name: None,
             enabled: true,
             pricing: None,
-            alias_of: Some(1),
         },
     ]);
 
@@ -162,7 +160,7 @@ fn routing_service_resolves_alias() {
     assert!(result.is_some());
     let target = result.unwrap();
     assert_eq!(target.provider_name, "openai");
-    assert_eq!(target.model_id, "gpt-4-turbo");
+    assert_eq!(target.model_id, "gpt4");
 
     assert!(svc.resolve_model_alias("nonexistent").is_none());
 }

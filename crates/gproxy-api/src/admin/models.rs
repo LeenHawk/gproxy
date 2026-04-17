@@ -34,8 +34,6 @@ pub struct MemoryModelRow {
     pub enabled: bool,
     /// Full serialized ModelPrice JSON (matches `models.pricing_json`).
     pub pricing_json: Option<String>,
-    /// NULL = real model, Some(id) = alias pointing to another model's id.
-    pub alias_of: Option<i64>,
 }
 
 /// Query filter for models (simplified from storage ModelQuery).
@@ -45,20 +43,8 @@ pub struct ModelQueryParams {
     pub provider_id: Option<Scope<i64>>,
     pub model_id: Option<Scope<String>>,
     pub enabled: Option<Scope<bool>>,
-    /// Filter by alias status:
-    /// - omit / null → return all models (aliases + real)
-    /// - `"only_aliases"` → only rows where alias_of IS NOT NULL
-    /// - `"only_real"` → only rows where alias_of IS NULL
-    pub alias_of_filter: Option<AliasOfFilter>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
-}
-
-#[derive(serde::Deserialize, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum AliasOfFilter {
-    OnlyAliases,
-    OnlyReal,
 }
 
 fn scope_matches<T: PartialEq>(scope: &Option<Scope<T>>, value: &T) -> bool {
@@ -84,11 +70,6 @@ pub async fn query_models(
                 && scope_matches(&query.provider_id, &m.provider_id)
                 && scope_matches(&query.model_id, &m.model_id)
                 && scope_matches(&query.enabled, &m.enabled)
-                && match query.alias_of_filter {
-                    None => true,
-                    Some(AliasOfFilter::OnlyAliases) => m.alias_of.is_some(),
-                    Some(AliasOfFilter::OnlyReal) => m.alias_of.is_none(),
-                }
         })
         .map(|m| MemoryModelRow {
             id: m.id,
@@ -109,7 +90,6 @@ pub async fn query_models(
                     }
                 }
             }),
-            alias_of: m.alias_of,
         })
         .collect();
 
@@ -153,7 +133,6 @@ pub async fn upsert_model(
         display_name: payload.display_name.clone(),
         enabled: payload.enabled,
         pricing,
-        alias_of: payload.alias_of,
     });
 
     let provider_name = resolve_provider_name(&state, payload.provider_id).await?;
@@ -233,7 +212,6 @@ pub async fn batch_upsert_models(
             display_name: item.display_name.clone(),
             enabled: item.enabled,
             pricing,
-            alias_of: item.alias_of,
         });
     }
     let touched_providers: BTreeSet<i64> = items.iter().map(|i| i.provider_id).collect();
@@ -475,7 +453,6 @@ mod tests {
                 display_name: None,
                 enabled: true,
                 pricing_json: Some(pricing_json_str),
-                alias_of: None,
             })
             .await
             .expect("upsert model in storage");
@@ -486,7 +463,6 @@ mod tests {
             display_name: None,
             enabled: true,
             pricing: Some(model_price),
-            alias_of: None,
         });
         state.push_pricing_to_engine(provider_name);
 

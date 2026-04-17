@@ -53,7 +53,6 @@ export function ModelsPane({
     display_name: "",
     enabled: true,
     pricing_json: "",
-    alias_of: "",
   });
 
   const providerModelRows = useMemo(
@@ -69,7 +68,6 @@ export function ModelsPane({
       display_name: "",
       enabled: true,
       pricing_json: "",
-      alias_of: "",
     });
   };
 
@@ -99,7 +97,6 @@ export function ModelsPane({
       return;
     }
     try {
-      const aliasOf = modelForm.alias_of.trim() ? Number(modelForm.alias_of) : null;
       // Validate pricing JSON before sending — catches user typos before the
       // round-trip and keeps error messages local.
       let pricing_json: string | null = null;
@@ -125,7 +122,6 @@ export function ModelsPane({
         price_each_call: null,
         price_tiers_json: null,
         pricing_json,
-        alias_of: aliasOf,
       };
       await apiJson("/admin/models/upsert", {
         method: "POST",
@@ -211,7 +207,6 @@ export function ModelsPane({
         price_each_call: null,
         price_tiers_json: null,
         pricing_json: null,
-        alias_of: null,
       }));
       await apiJson("/admin/models/batch-upsert", {
         method: "POST",
@@ -225,9 +220,9 @@ export function ModelsPane({
     }
   };
 
-  /// Create an alias row for a suffix variant (model_id + suffix pointing at
-  /// the base model) and append matching rewrite rules to the provider's
-  /// settings_json, all scoped to the new alias name via model_pattern.
+  /// Create a model row for a suffix variant (model_id + suffix) and append
+  /// matching rewrite rules to the provider's settings_json, all scoped to
+  /// the new model name via model_pattern.
   const addSuffixVariant = async (
     base: MemoryModelRow,
     suffix: string,
@@ -236,12 +231,10 @@ export function ModelsPane({
     if (!selectedProvider) return;
     const aliasName = `${base.model_id}${suffix}`;
     try {
-      // 1. Create the alias row (check duplicate first).
+      // 1. Create the variant row (check duplicate first).
       const existing = allModelRows.find(
         (m) =>
-          m.provider_id === selectedProvider.id &&
-          m.model_id === aliasName &&
-          m.alias_of != null,
+          m.provider_id === selectedProvider.id && m.model_id === aliasName,
       );
       if (!existing) {
         const maxId = allModelRows.reduce((max, row) => Math.max(max, row.id), 0);
@@ -254,7 +247,6 @@ export function ModelsPane({
           price_each_call: null,
           price_tiers_json: null,
           pricing_json: null,
-          alias_of: base.id,
         };
         await apiJson("/admin/models/upsert", {
           method: "POST",
@@ -346,7 +338,6 @@ export function ModelsPane({
                 }
               })()
             : "",
-          alias_of: row.alias_of != null ? String(row.alias_of) : "",
         });
       }}
       onCreate={beginCreateModel}
@@ -371,13 +362,6 @@ export function ModelsPane({
         enabled: t("common.enabled"),
         pricingJsonHint: t("models.pricingJson.hint"),
         applyDefaultPricing: t("models.applyDefaultPricing"),
-        aliasOf: t("models.aliasOf"),
-        aliasOfNone: t("models.aliasOf.none"),
-        aliasBadge: t("models.aliasBadge"),
-        filterAll: t("models.filter.all"),
-        filterReal: t("models.filter.real"),
-        filterAliases: t("models.filter.aliases"),
-        priceOverrideHint: t("models.priceOverrideHint"),
         pull: t("models.pull"),
         pullLoading: t("models.pull.loading"),
         pullEmpty: t("models.pull.empty"),

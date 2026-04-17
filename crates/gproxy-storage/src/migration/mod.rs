@@ -7,14 +7,16 @@
 use sea_orm_migration::prelude::*;
 
 mod m20260416_000001_rename_dispatch_to_routing;
+mod m20260417_000001_drop_models_alias_of;
 
 pub struct Migrator;
 
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(
-            m20260416_000001_rename_dispatch_to_routing::Migration,
-        )]
+        vec![
+            Box::new(m20260416_000001_rename_dispatch_to_routing::Migration),
+            Box::new(m20260417_000001_drop_models_alias_of::Migration),
+        ]
     }
 }

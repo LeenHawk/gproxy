@@ -994,7 +994,6 @@ mod tests {
                 display_name: Some("Claude 3.5 Sonnet".to_string()),
                 enabled: true,
                 pricing: None,
-                alias_of: None,
             },
             MemoryModel {
                 id: 101,
@@ -1003,7 +1002,6 @@ mod tests {
                 display_name: None,
                 enabled: true,
                 pricing: None,
-                alias_of: Some(100),
             },
         ]);
         state.replace_provider_names(HashMap::from([("anthropic".to_string(), 42)]));

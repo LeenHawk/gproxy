@@ -318,7 +318,6 @@ impl SeaOrmStorage {
                 display_name: r.display_name,
                 enabled: r.enabled,
                 pricing_json: r.pricing_json,
-                alias_of: r.alias_of,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
             })

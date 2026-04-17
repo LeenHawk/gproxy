@@ -454,7 +454,6 @@ impl SeaOrmStorage {
                         display_name: Set(m.display_name.clone()),
                         enabled: Set(m.enabled),
                         pricing_json: Set(m.pricing_json.clone()),
-                        alias_of: Set(m.alias_of),
                         created_at: Set(now),
                         updated_at: Set(now),
                     }
@@ -469,7 +468,6 @@ impl SeaOrmStorage {
                             models::Column::DisplayName,
                             models::Column::Enabled,
                             models::Column::PricingJson,
-                            models::Column::AliasOf,
                             models::Column::UpdatedAt,
                         ])
                         .to_owned(),

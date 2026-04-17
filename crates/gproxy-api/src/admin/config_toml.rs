@@ -22,8 +22,6 @@ pub struct GproxyToml {
     #[serde(default)]
     pub models: Vec<ModelToml>,
     #[serde(default)]
-    pub model_aliases: Vec<ModelAliasToml>,
-    #[serde(default)]
     pub users: Vec<UserToml>,
     #[serde(default)]
     pub permissions: Vec<PermissionToml>,
@@ -114,15 +112,6 @@ pub struct ModelToml {
     pub priority_price_each_call: Option<f64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub priority_price_tiers: Vec<gproxy_sdk::channel::billing::ModelPriceTier>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ModelAliasToml {
-    pub alias: String,
-    pub provider_name: String,
-    pub model_id: String,
-    #[serde(default = "default_true")]
-    pub enabled: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -242,7 +231,6 @@ pub async fn export_toml(
     };
     let models: Vec<ModelToml> = memory_models
         .iter()
-        .filter(|m| m.alias_of.is_none())
         .map(|m| {
             let pricing = m.pricing.as_ref();
             ModelToml {
@@ -268,25 +256,6 @@ pub async fn export_toml(
                     .map(|p| p.priority_price_tiers.clone())
                     .unwrap_or_default(),
             }
-        })
-        .collect();
-
-    // Model aliases — derived from models with alias_of set
-    let model_aliases: Vec<ModelAliasToml> = memory_models
-        .iter()
-        .filter(|m| m.alias_of.is_some())
-        .filter_map(|m| {
-            let target_id = m.alias_of?;
-            let target = memory_models.iter().find(|t| t.id == target_id)?;
-            Some(ModelAliasToml {
-                alias: m.model_id.clone(),
-                provider_name: provider_id_to_name
-                    .get(&target.provider_id)
-                    .cloned()
-                    .unwrap_or_else(|| target.provider_id.to_string()),
-                model_id: target.model_id.clone(),
-                enabled: m.enabled,
-            })
         })
         .collect();
 
@@ -389,7 +358,6 @@ pub async fn export_toml(
         global: Some(global),
         providers,
         models,
-        model_aliases,
         users,
         permissions,
         file_permissions,

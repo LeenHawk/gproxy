@@ -128,7 +128,6 @@ export type ModelQueryParams = {
   provider_id?: Scope<number>;
   model_id?: Scope<string>;
   enabled?: Scope<boolean>;
-  alias_of_filter?: "only_aliases" | "only_real";
   limit?: number;
   offset?: number;
 };
@@ -143,7 +142,6 @@ export type MemoryModelRow = {
   /// Covers every billing mode (default / flex / scale / priority).
   /// `null` on rows with no pricing configured.
   pricing_json?: string | null;
-  alias_of?: number | null;
 };
 
 export type ModelWrite = {
@@ -161,7 +159,6 @@ export type ModelWrite = {
   /// Authoritative serialized ModelPrice blob. Must be valid JSON matching
   /// the `ModelPrice` struct shape in `sdk/gproxy-provider/src/billing.rs`.
   pricing_json?: string | null;
-  alias_of?: number | null;
 };
 
 export type UserQueryParams = {

@@ -21,8 +21,6 @@ pub struct ModelQueryRow {
     pub display_name: Option<String>,
     pub enabled: bool,
     pub pricing_json: Option<String>,
-    /// NULL = real model, Some(id) = alias pointing to another model's id.
-    pub alias_of: Option<i64>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }

@@ -1114,7 +1114,7 @@ async fn build_openai_unscoped_model_list_body(
                 continue;
             };
             for m in state.models().iter() {
-                if m.provider_id != provider_id || !m.enabled || m.alias_of.is_some() {
+                if m.provider_id != provider_id || !m.enabled {
                     continue;
                 }
                 if !state.check_model_permission(user_id, &provider.provider_name, &m.model_id) {
@@ -1227,7 +1227,7 @@ async fn build_claude_unscoped_model_list_body(
                 continue;
             };
             for m in state.models().iter() {
-                if m.provider_id != provider_id || !m.enabled || m.alias_of.is_some() {
+                if m.provider_id != provider_id || !m.enabled {
                     continue;
                 }
                 if !state.check_model_permission(user_id, &provider.provider_name, &m.model_id) {
@@ -1351,7 +1351,7 @@ async fn build_gemini_unscoped_model_list_body(
                 continue;
             };
             for m in state.models().iter() {
-                if m.provider_id != provider_id || !m.enabled || m.alias_of.is_some() {
+                if m.provider_id != provider_id || !m.enabled {
                     continue;
                 }
                 if !state.check_model_permission(user_id, &provider.provider_name, &m.model_id) {
@@ -1478,19 +1478,16 @@ fn inject_openai_alias_entries(
 ) {
     let all_models = state.models();
 
-    // 1. Inject real local models (alias_of is None) that aren't already in
-    // the upstream response. This lets admins add custom models locally.
-    for real_model in all_models
-        .iter()
-        .filter(|m| m.alias_of.is_none() && m.enabled)
-    {
-        let Some(provider_name) = state.routing.provider_name_for_id(real_model.provider_id) else {
+    // Inject local models that aren't already in the upstream response.
+    // This lets admins add custom models (including suffix variants) locally.
+    for local in all_models.iter().filter(|m| m.enabled) {
+        let Some(provider_name) = state.routing.provider_name_for_id(local.provider_id) else {
             continue;
         };
-        if !state.check_model_permission(user_id, &provider_name, &real_model.model_id) {
+        if !state.check_model_permission(user_id, &provider_name, &local.model_id) {
             continue;
         }
-        let prefixed = prefixed_model_id(&provider_name, &real_model.model_id);
+        let prefixed = prefixed_model_id(&provider_name, &local.model_id);
         models.entry(prefixed.clone()).or_insert_with(|| {
             gproxy_sdk::protocol::openai::types::OpenAiModel {
                 id: prefixed,
@@ -1499,34 +1496,6 @@ fn inject_openai_alias_entries(
                 owned_by: provider_name,
             }
         });
-    }
-
-    // 2. Inject alias entries: clone the target model and rename.
-    for alias_model in all_models
-        .iter()
-        .filter(|m| m.alias_of.is_some() && m.enabled)
-    {
-        let Some(target_id) = alias_model.alias_of else {
-            continue;
-        };
-        let Some(target) = all_models.iter().find(|m| m.id == target_id) else {
-            continue;
-        };
-        let Some(provider_name) = state.routing.provider_name_for_id(target.provider_id) else {
-            continue;
-        };
-        if !state.check_model_permission(user_id, &provider_name, &target.model_id) {
-            continue;
-        }
-        let prefixed_target = prefixed_model_id(&provider_name, &target.model_id);
-        let Some(base_model) = models.get(&prefixed_target).cloned() else {
-            continue;
-        };
-        let prefixed_alias = prefixed_model_id(&provider_name, &alias_model.model_id);
-        let mut alias_entry = base_model;
-        alias_entry.id = prefixed_alias.clone();
-        alias_entry.owned_by = provider_name;
-        models.insert(prefixed_alias, alias_entry);
     }
 }
 
@@ -1538,22 +1507,18 @@ fn inject_claude_alias_entries(
 ) {
     let all_models = state.models();
 
-    // 1. Inject real local models (not in upstream response).
-    for real_model in all_models
-        .iter()
-        .filter(|m| m.alias_of.is_none() && m.enabled)
-    {
-        let Some(provider_name) = state.routing.provider_name_for_id(real_model.provider_id) else {
+    for local in all_models.iter().filter(|m| m.enabled) {
+        let Some(provider_name) = state.routing.provider_name_for_id(local.provider_id) else {
             continue;
         };
-        if !state.check_model_permission(user_id, &provider_name, &real_model.model_id) {
+        if !state.check_model_permission(user_id, &provider_name, &local.model_id) {
             continue;
         }
-        let prefixed = prefixed_model_id(&provider_name, &real_model.model_id);
-        let display_name = real_model
+        let prefixed = prefixed_model_id(&provider_name, &local.model_id);
+        let display_name = local
             .display_name
             .clone()
-            .unwrap_or_else(|| real_model.model_id.clone());
+            .unwrap_or_else(|| local.model_id.clone());
         models.entry(prefixed.clone()).or_insert_with(|| {
             gproxy_sdk::protocol::claude::types::BetaModelInfo {
                 id: prefixed,
@@ -1566,33 +1531,6 @@ fn inject_claude_alias_entries(
             }
         });
     }
-
-    // 2. Inject aliases.
-    for alias_model in all_models
-        .iter()
-        .filter(|m| m.alias_of.is_some() && m.enabled)
-    {
-        let Some(target_id) = alias_model.alias_of else {
-            continue;
-        };
-        let Some(target) = all_models.iter().find(|m| m.id == target_id) else {
-            continue;
-        };
-        let Some(provider_name) = state.routing.provider_name_for_id(target.provider_id) else {
-            continue;
-        };
-        if !state.check_model_permission(user_id, &provider_name, &target.model_id) {
-            continue;
-        }
-        let prefixed_target = prefixed_model_id(&provider_name, &target.model_id);
-        let Some(base_model) = models.get(&prefixed_target).cloned() else {
-            continue;
-        };
-        let prefixed_alias = prefixed_model_id(&provider_name, &alias_model.model_id);
-        let mut alias_entry = base_model;
-        alias_entry.id = prefixed_alias.clone();
-        models.insert(prefixed_alias, alias_entry);
-    }
 }
 
 /// Inject model alias entries into a Gemini-format model HashMap.
@@ -1603,23 +1541,19 @@ fn inject_gemini_alias_entries(
 ) {
     let all_models = state.models();
 
-    // 1. Inject real local models (not in upstream response).
-    for real_model in all_models
-        .iter()
-        .filter(|m| m.alias_of.is_none() && m.enabled)
-    {
-        let Some(provider_name) = state.routing.provider_name_for_id(real_model.provider_id) else {
+    for local in all_models.iter().filter(|m| m.enabled) {
+        let Some(provider_name) = state.routing.provider_name_for_id(local.provider_id) else {
             continue;
         };
-        if !state.check_model_permission(user_id, &provider_name, &real_model.model_id) {
+        if !state.check_model_permission(user_id, &provider_name, &local.model_id) {
             continue;
         }
-        let prefixed = prefixed_model_id(&provider_name, &real_model.model_id);
+        let prefixed = prefixed_model_id(&provider_name, &local.model_id);
         let gemini_name = format!("models/{prefixed}");
-        let display_name = real_model
+        let display_name = local
             .display_name
             .clone()
-            .unwrap_or_else(|| real_model.model_id.clone());
+            .unwrap_or_else(|| local.model_id.clone());
         models.entry(gemini_name.clone()).or_insert_with(|| {
             gproxy_sdk::protocol::gemini::types::GeminiModelInfo {
                 name: gemini_name,
@@ -1637,36 +1571,6 @@ fn inject_gemini_alias_entries(
                 top_k: None,
             }
         });
-    }
-
-    // 2. Inject aliases.
-    for alias_model in all_models
-        .iter()
-        .filter(|m| m.alias_of.is_some() && m.enabled)
-    {
-        let Some(target_id) = alias_model.alias_of else {
-            continue;
-        };
-        let Some(target) = all_models.iter().find(|m| m.id == target_id) else {
-            continue;
-        };
-        let Some(provider_name) = state.routing.provider_name_for_id(target.provider_id) else {
-            continue;
-        };
-        if !state.check_model_permission(user_id, &provider_name, &target.model_id) {
-            continue;
-        }
-        let prefixed_target = prefixed_model_id(&provider_name, &target.model_id);
-        let prefixed_gemini_key = format!("models/{prefixed_target}");
-        let Some(base_model) = models.get(&prefixed_gemini_key).cloned() else {
-            continue;
-        };
-        let prefixed_alias = prefixed_model_id(&provider_name, &alias_model.model_id);
-        let alias_key = format!("models/{prefixed_alias}");
-        let mut alias_entry = base_model;
-        alias_entry.name = alias_key.clone();
-        alias_entry.base_model_id = Some(prefixed_alias);
-        models.insert(alias_key, alias_entry);
     }
 }
 
@@ -1815,36 +1719,17 @@ fn inject_scoped_model_list_locals(
     };
     let all_models = state.models();
 
-    // Collect local real models for this provider (alias_of is None).
-    let real_locals: Vec<&gproxy_core::MemoryModel> = all_models
+    // Collect local models for this provider.
+    let locals: Vec<&gproxy_core::MemoryModel> = all_models
         .iter()
         .filter(|m| {
             m.provider_id == provider_id
                 && m.enabled
-                && m.alias_of.is_none()
                 && state.check_model_permission(user_id, provider_name, &m.model_id)
         })
         .collect();
 
-    // Collect alias → target model_id pairs for this provider.
-    let alias_pairs: Vec<(String, String)> = all_models
-        .iter()
-        .filter(|m| m.alias_of.is_some() && m.enabled)
-        .filter_map(|m| {
-            let target_id = m.alias_of?;
-            let target = all_models.iter().find(|t| t.id == target_id)?;
-            let target_provider = state.routing.provider_name_for_id(target.provider_id)?;
-            if target_provider != provider_name {
-                return None;
-            }
-            if !state.check_model_permission(user_id, &target_provider, &target.model_id) {
-                return None;
-            }
-            Some((m.model_id.clone(), target.model_id.clone()))
-        })
-        .collect();
-
-    if real_locals.is_empty() && alias_pairs.is_empty() {
+    if locals.is_empty() {
         return;
     }
 
@@ -1874,45 +1759,13 @@ fn inject_scoped_model_list_locals(
         })
         .collect();
 
-    // 1. Append real local models that aren't already in the upstream response.
-    for m in &real_locals {
+    // Append local models that aren't already in the upstream response.
+    for m in &locals {
         if existing_ids.contains(&m.model_id) {
             continue;
         }
         let entry = local_model_to_json(m, provider_name, protocol);
         arr.push(entry);
-    }
-
-    // 2. Append alias entries that mirror their target model.
-    // Snapshot the current array (which now includes real locals) so we can
-    // find targets that were just added too.
-    let snapshot: Vec<serde_json::Value> = arr.clone();
-    let find_by_id = |target_id: &str| -> Option<&serde_json::Value> {
-        snapshot.iter().find(|m| {
-            m.get(id_key).and_then(|i| i.as_str()).is_some_and(|id| {
-                if id_key == "name" {
-                    id == format!("models/{target_id}")
-                } else {
-                    id == target_id
-                }
-            })
-        })
-    };
-
-    for (alias_name, target_model_id) in &alias_pairs {
-        let Some(base) = find_by_id(target_model_id) else {
-            continue;
-        };
-        let mut alias_entry = base.clone();
-        if id_key == "name" {
-            alias_entry["name"] = serde_json::Value::String(format!("models/{alias_name}"));
-            if alias_entry.get("baseModelId").is_some() {
-                alias_entry["baseModelId"] = serde_json::Value::String(alias_name.to_string());
-            }
-        } else {
-            alias_entry[id_key] = serde_json::Value::String(alias_name.to_string());
-        }
-        arr.push(alias_entry);
     }
 
     if let Ok(b) = serde_json::to_vec(&v) {

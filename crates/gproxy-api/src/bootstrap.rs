@@ -97,7 +97,6 @@ pub(crate) fn model_rows_to_memory_models(
                 display_name: model.display_name.clone(),
                 enabled: model.enabled,
                 pricing,
-                alias_of: model.alias_of,
             }
         })
         .collect()
@@ -139,7 +138,6 @@ pub(crate) async fn ensure_default_models_in_storage(
                     display_name: price.display_name,
                     enabled: true,
                     pricing_json,
-                    alias_of: None,
                 })
                 .await?;
             next_id += 1;
@@ -1036,7 +1034,6 @@ pub async fn seed_from_toml_with_bootstrap(
                 display_name: m.display_name.clone(),
                 enabled: m.enabled,
                 pricing,
-                alias_of: None,
             }
         })
         .collect();
@@ -1055,7 +1052,6 @@ pub async fn seed_from_toml_with_bootstrap(
                 display_name: m.display_name.clone(),
                 enabled: m.enabled,
                 pricing_json,
-                alias_of: None,
             })
             .await?;
     }
@@ -1069,48 +1065,7 @@ pub async fn seed_from_toml_with_bootstrap(
         state.push_pricing_to_engine(provider_name);
     }
 
-    // 5. Model aliases → upsert into models table with alias_of set
-    let current_max_id = all_models.iter().map(|r| r.id).max().unwrap_or(0);
-    for (i, a) in config.model_aliases.iter().enumerate() {
-        if !a.enabled {
-            continue;
-        }
-        let provider_id = provider_runtime
-            .provider_name_to_id
-            .get(&a.provider_name)
-            .copied()
-            .unwrap_or(0);
-        // Find the target model by model_id + provider_id in the loaded models
-        let alias_of = all_models
-            .iter()
-            .find(|m| m.model_id == a.model_id && m.provider_id == provider_id)
-            .map(|m| m.id);
-        let alias_model_id = current_max_id + i as i64 + 1;
-        state
-            .storage()
-            .upsert_model(gproxy_storage::ModelWrite {
-                id: alias_model_id,
-                provider_id,
-                model_id: a.alias.clone(),
-                display_name: None,
-                enabled: true,
-                pricing_json: None,
-                alias_of,
-            })
-            .await?;
-    }
-    // Reload models including any alias rows we just inserted
-    let all_models = state
-        .storage()
-        .list_models(&gproxy_storage::ModelQuery::default())
-        .await?;
-    state.replace_models(model_rows_to_memory_models(&all_models));
-    // Push pricing into the engine so admin-edited prices take effect at billing time.
-    for provider_name in provider_runtime.provider_name_to_id.keys() {
-        state.push_pricing_to_engine(provider_name);
-    }
-
-    // 6. Permissions, file permissions, rate limits, quotas → memory + DB
+    // 5. Permissions, file permissions, rate limits, quotas → memory + DB
     let users_snapshot = state.users_snapshot();
     let user_id_map: HashMap<String, i64> = users_snapshot
         .iter()
@@ -1592,7 +1547,6 @@ enabled = true
             global: None,
             providers: Vec::new(),
             models: Vec::new(),
-            model_aliases: Vec::new(),
             users: vec![
                 UserToml {
                     name: "alice".to_string(),

@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { BatchActionBar } from "../../../components/BatchActionBar";
-import { Button, Card, Input, Label, Select } from "../../../components/ui";
+import { Button, Card, Input, Label } from "../../../components/ui";
 import { lookupDefaultPricing } from "../../../lib/default-model-pricing";
 import type { MemoryModelRow } from "../../../lib/types/admin";
 import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
@@ -15,10 +15,7 @@ export type ModelFormState = {
   display_name: string;
   enabled: boolean;
   pricing_json: string;
-  alias_of: string;
 };
-
-export type ModelsTabFilter = "all" | "real" | "aliases";
 
 export type ModelsBatchProps = {
   batchMode: boolean;
@@ -45,13 +42,6 @@ type ModelsTabLabels = {
   enabled: string;
   pricingJsonHint: string;
   applyDefaultPricing: string;
-  aliasOf: string;
-  aliasOfNone: string;
-  aliasBadge: string;
-  filterAll: string;
-  filterReal: string;
-  filterAliases: string;
-  priceOverrideHint: string;
   pull: string;
   pullLoading: string;
   pullEmpty: string;
@@ -109,43 +99,6 @@ export function ModelsTab({
   batch: ModelsBatchProps;
 }) {
   const selected = rows.find((row) => row.id === selectedId) ?? null;
-  const [filter, setFilter] = useState<ModelsTabFilter>("all");
-
-  const realModels = useMemo(
-    () => rows.filter((row) => row.alias_of == null),
-    [rows],
-  );
-
-  const filteredRows = useMemo(() => {
-    if (filter === "real") {
-      return rows.filter((row) => row.alias_of == null);
-    }
-    if (filter === "aliases") {
-      return rows.filter((row) => row.alias_of != null);
-    }
-    return rows;
-  }, [rows, filter]);
-
-  const targetNameById = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const row of rows) {
-      map.set(row.id, row.model_id);
-    }
-    return map;
-  }, [rows]);
-
-  const aliasOfOptions = useMemo(
-    () => [
-      { value: "", label: labels.aliasOfNone },
-      ...realModels.map((row) => ({
-        value: String(row.id),
-        label: row.model_id,
-      })),
-    ],
-    [realModels, labels.aliasOfNone],
-  );
-
-  const isAliasForm = form.alias_of !== "";
 
   const pullModels = usePullModelsPanel({
     rows,
@@ -163,32 +116,15 @@ export function ModelsTab({
     },
   });
 
-  // Suffix variant dialog: `null` means closed, otherwise holds the real model
-  // being aliased. All picker state lives inside the dialog component itself.
+  // Suffix variant dialog: `null` means closed, otherwise holds the base model
+  // being varied. All picker state lives inside the dialog component itself.
   const [suffixDialogBase, setSuffixDialogBase] = useState<MemoryModelRow | null>(null);
-
-  const filterButtons: Array<{ value: ModelsTabFilter; label: string }> = [
-    { value: "all", label: labels.filterAll },
-    { value: "real", label: labels.filterReal },
-    { value: "aliases", label: labels.filterAliases },
-  ];
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
       <Card title={labels.title} action={pullModels.trigger}>
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap gap-1">
-              {filterButtons.map((btn) => (
-                <Button
-                  key={btn.value}
-                  variant={filter === btn.value ? "primary" : "neutral"}
-                  onClick={() => setFilter(btn.value)}
-                >
-                  {btn.label}
-                </Button>
-              ))}
-            </div>
             <BatchActionBar
               batchMode={batch.batchMode}
               selectedCount={batch.selectedCount}
@@ -201,14 +137,10 @@ export function ModelsTab({
             />
           </div>
           <div className="max-h-128 overflow-y-auto space-y-2 pr-1">
-            {filteredRows.length === 0 ? (
+            {rows.length === 0 ? (
               <p className="text-sm text-muted">{labels.empty}</p>
             ) : null}
-            {filteredRows.map((row) => {
-              const isAlias = row.alias_of != null;
-              const targetName = isAlias
-                ? targetNameById.get(row.alias_of as number) ?? String(row.alias_of)
-                : null;
+            {rows.map((row) => {
               return (
                 <button
                   key={row.id}
@@ -232,15 +164,8 @@ export function ModelsTab({
                       />
                     ) : null}
                     <div className="font-semibold">{row.model_id}</div>
-                    {isAlias ? (
-                      <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">
-                        {labels.aliasBadge}
-                      </span>
-                    ) : null}
                   </div>
-                  <div className="text-xs text-muted">
-                    {isAlias ? `→ ${targetName}` : row.display_name ?? "—"}
-                  </div>
+                  <div className="text-xs text-muted">{row.display_name ?? "—"}</div>
                 </button>
               );
             })}
@@ -260,14 +185,6 @@ export function ModelsTab({
         ) : (
           <div className="space-y-4">
             <div>
-              <Label>{labels.aliasOf}</Label>
-              <Select
-                value={form.alias_of}
-                onChange={(value) => onChangeForm({ alias_of: value })}
-                options={aliasOfOptions}
-              />
-            </div>
-            <div>
               <Label>{labels.modelId}</Label>
               <Input value={form.model_id} onChange={(value) => onChangeForm({ model_id: value })} />
             </div>
@@ -286,9 +203,6 @@ export function ModelsTab({
               />
               {labels.enabled}
             </label>
-            {isAliasForm ? (
-              <p className="text-xs text-muted">{labels.priceOverrideHint}</p>
-            ) : null}
             <div>
               <PricingEditor
                 value={form.pricing_json}
@@ -296,22 +210,20 @@ export function ModelsTab({
                 labels={labels.pricingEditor}
               />
               <p className="mt-1 text-xs text-muted">{labels.pricingJsonHint}</p>
-              {!isAliasForm ? (
-                <Button
-                  variant="neutral"
-                  onClick={() => {
-                    const result = lookupDefaultPricing(form.model_id);
-                    if (result) onChangeForm({ pricing_json: result });
-                  }}
-                  disabled={!lookupDefaultPricing(form.model_id)}
-                >
-                  {labels.applyDefaultPricing}
-                </Button>
-              ) : null}
+              <Button
+                variant="neutral"
+                onClick={() => {
+                  const result = lookupDefaultPricing(form.model_id);
+                  if (result) onChangeForm({ pricing_json: result });
+                }}
+                disabled={!lookupDefaultPricing(form.model_id)}
+              >
+                {labels.applyDefaultPricing}
+              </Button>
             </div>
             <div className="flex gap-2">
               <Button onClick={onSave}>{labels.save}</Button>
-              {selected && selected.alias_of == null && onAddSuffixVariant ? (
+              {selected && onAddSuffixVariant ? (
                 <Button variant="neutral" onClick={() => setSuffixDialogBase(selected)}>
                   + {labels.addSuffixVariant}
                 </Button>

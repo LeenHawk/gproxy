@@ -149,9 +149,6 @@ pub struct ModelWrite {
     pub enabled: bool,
     #[serde(default)]
     pub pricing_json: Option<String>,
-    /// NULL = real model, Some(id) = alias pointing to another model's id.
-    #[serde(default)]
-    pub alias_of: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
