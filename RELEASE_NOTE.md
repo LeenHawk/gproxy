@@ -1,5 +1,31 @@
 # Release Notes
 
+## Unreleased
+
+> Console polish on the provider config tab: the Upstream Protocol Template row is folded away behind a show/hide toggle, and the hint copy is rewritten to warn against changing built-in channels' routing tables without a reason. Plus a tiny cleanup in the credential-update store path.
+
+### English
+
+#### Changed
+
+- **Upstream Protocol Template collapsed by default.** On the provider config tab, the template chips row now sits behind a show/hide toggle and starts collapsed on load / on channel switch. The hint copy is rewritten in a more formal register and explicitly tells readers that built-in channels ship with their own routing tables — pick Custom only when you actually need to customize, and don't change the template unless you know what you're doing. English and 简体中文 strings updated.
+- **Credential-update store: drop a redundant `into_iter()` in the zip.** `ProviderStore::apply_credential_updates` was calling `.zip(batch_results.into_iter())` where `zip` already calls `into_iter()` on its argument — trimmed to `.zip(batch_results)`. Pure cleanup, no behavior change.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.15. No DB migration, no HTTP API change, no config change.
+
+### 简体中文
+
+#### 调整
+
+- **上游协议模板默认折叠。** Provider 配置页的模板 chips 现在默认折叠,标题旁加了"展开模板 / 收起模板"按钮,加载和切换渠道时都会回到折叠态。提示语改为更正式的措辞,并明确告知:内置渠道已预置路由表,确有自定义需求时才选自定义,如无明确把握请勿修改。中英文文案同步更新。
+- **凭证更新 store 路径的 `zip` 小清理。** `ProviderStore::apply_credential_updates` 之前写的是 `.zip(batch_results.into_iter())`,但 `zip` 本身就会对实参调 `into_iter()`,属于冗余。改为 `.zip(batch_results)`,纯清理无行为变更。
+
+#### 兼容性
+
+- **可直接从 v1.0.15 升级**,无需数据库迁移,HTTP API 无变化,配置无变化。
+
 ## v1.0.15
 
 > Fixes a regression in the unscoped proxy path where the `providerX/` prefix was stripped from the response's `model` field — clients that routed via `POST /v1/...` with `"model": "providerX/claude-opus-4-7"` saw `"model": "claude-opus-4-7"` come back. Also rewrites the Quick-Start guide to cover three startup forms (env var / `--config` flag / default discovery) and point at the suffix-preset alias recipe for forced-thinking variants.
