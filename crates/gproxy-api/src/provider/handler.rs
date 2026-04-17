@@ -87,16 +87,12 @@ pub async fn proxy(
         buffered_request_body(&request)?,
     );
 
-    // Apply rewrite_rules BEFORE alias resolution, using the original model
-    // name so patterns like `*-fast` can match the user-sent name.
-    let req_body = apply_handler_rewrite_rules(
-        &state,
-        &provider_name,
-        model.as_deref(),
-        operation,
-        classification.protocol,
-        req_body,
-    );
+    // Rewrite rules run later, at the executor stage (post-translation),
+    // so setting target-protocol-only fields like Claude `thinking.display`
+    // or `output_config.effort` actually lands on the outbound body.
+    // Alias resolution keeps the user-sent name in `ExecuteRequest.model`
+    // (only `provider` is taken from the alias target) so suffix-variant
+    // `model_pattern` filters still match at the executor stage.
 
     // Resolve alias (after permission check and rewrite_rules).
     let resolved_alias = request.extensions().get::<ResolvedAlias>().cloned();
@@ -104,11 +100,14 @@ pub async fn proxy(
         &resolved_alias
         && alias.provider_name.is_some()
     {
-        let effective = alias.model_id.clone().or(model.clone());
+        // Keep the user-sent model name as the effective model so
+        // `rewrite_rules` at the executor stage can still match the
+        // suffix-variant pattern (rules include a `path:"model"` set
+        // action that rewrites the body's model to the upstream target).
         let alias_name = model.clone();
         (
             alias.provider_name.clone().unwrap_or(provider_name.clone()),
-            effective,
+            model.clone(),
             alias_name,
         )
     } else {
@@ -471,31 +470,22 @@ pub async fn proxy_unscoped(
     // `permission_model` is the name we'll check against the permission
     // whitelist — for aliases this is the alias NAME (not the target model)
     // so aliases don't silently inherit the target model's permissions.
+    // `target_model` likewise keeps the alias name (not the resolved
+    // target) so executor-stage `rewrite_rules` can still match the
+    // suffix-variant pattern and rewrite the outbound body's model field.
     let (target_provider, target_model, alias_model_override, permission_model) =
         if let Some(alias) = state.resolve_model_alias(model_name) {
             (
                 alias.provider_name,
-                alias.model_id,
+                model_name.clone(),
                 Some(model_name.clone()),
                 model_name.clone(),
             )
         } else if let Some((provider, model)) = model_name.split_once('/') {
-            // Preserve the `provider/` prefix in the response. The engine's
-            // `response_model_override` rewrites the response body's model
-            // field — without it the client would see just "model" instead
-            // of the "provider/model" string it sent.
-            //
-            // The bare `model` part may itself be a suffix-variant alias
-            // (e.g. `claudecode/claude-opus-4-7-thinking-adaptive`), which
-            // `resolve_model_alias` misses on the full prefixed string
-            // because the alias index is keyed by the bare model_id. Re-try
-            // resolution on the unprefixed segment so the real model name
-            // reaches the upstream and the alias's rewrite_rules fire on
-            // `permission_model` (the unprefixed match key).
             if let Some(alias) = state.resolve_model_alias(model) {
                 (
                     alias.provider_name,
-                    alias.model_id,
+                    model.to_string(),
                     Some(model_name.clone()),
                     model.to_string(),
                 )
@@ -522,19 +512,8 @@ pub async fn proxy_unscoped(
     let operation = classification.operation;
     let protocol = classification.protocol;
 
-    // Apply rewrite_rules with the unprefixed model name so suffix-variant
-    // filter patterns (keyed by the bare alias model_id) fire on requests
-    // that arrived as `provider/alias`. `permission_model` is always the
-    // unprefixed form for both alias and prefix branches, so reuse it.
-    let req_body = apply_handler_rewrite_rules(
-        &state,
-        &target_provider,
-        Some(&permission_model),
-        operation,
-        protocol,
-        req_body,
-    );
-
+    // Rewrite rules run at the executor stage (post-translation); see the
+    // matching comment in `proxy` above.
     let req_body = normalize_unscoped_request_body(operation, protocol, req_body, &target_model);
 
     // Check rate limit after rewriting the request body to the canonical target model.
@@ -1049,36 +1028,6 @@ fn resolve_unscoped_model_list_protocol(req_path: &str, classified: ProtocolKind
     } else {
         classified
     }
-}
-
-/// Apply provider-level rewrite_rules in the handler layer (before engine).
-/// Uses the original model name for pattern matching so alias-based patterns
-/// like `*-fast` can match before the model name is replaced by alias resolution.
-///
-/// Goes through `gproxy_channel::executor::apply_outgoing_rules` — the
-/// single in-tree invocation point for the raw `apply_sanitize_rules` /
-/// `apply_rewrite_rules` pure functions (spec success criterion #7).
-fn apply_handler_rewrite_rules(
-    state: &AppState,
-    provider_name: &str,
-    model: Option<&str>,
-    operation: OperationFamily,
-    protocol: ProtocolKind,
-    body: Vec<u8>,
-) -> Vec<u8> {
-    let rules = state.engine().rewrite_rules(provider_name);
-    if rules.is_empty() {
-        return body;
-    }
-    let mut request = gproxy_sdk::channel::PreparedRequest {
-        method: http::Method::POST,
-        route: gproxy_sdk::channel::routing::RouteKey::new(operation, protocol),
-        model: model.map(String::from),
-        body,
-        headers: http::HeaderMap::new(),
-    };
-    gproxy_sdk::channel::executor::apply_outgoing_rules(&mut request, &[], &rules);
-    request.body
 }
 
 fn prefixed_model_id(provider_name: &str, model_id: &str) -> String {
