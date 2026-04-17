@@ -166,36 +166,71 @@ pub fn apply_magic_string_cache_control_triggers(body: &mut Value) {
 
 fn apply_magic_trigger_to_content(content: &mut Value, remaining_slots: &mut usize) {
     match content {
-        Value::Array(blocks) => {
-            for block in blocks {
-                let Some(block_map) = block.as_object_mut() else {
-                    continue;
-                };
-                apply_magic_trigger_to_block(block_map, remaining_slots);
+        Value::Array(blocks) => apply_magic_trigger_to_blocks(blocks, remaining_slots),
+        Value::Object(block_map) => {
+            let Some((ttl, became_empty, has_cc)) = strip_magic_trigger_from_block(block_map)
+            else {
+                return;
+            };
+            if became_empty {
+                return;
+            }
+            if *remaining_slots > 0 && !has_cc {
+                block_map.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
+                *remaining_slots = remaining_slots.saturating_sub(1);
             }
         }
-        Value::Object(block_map) => apply_magic_trigger_to_block(block_map, remaining_slots),
         _ => {}
     }
 }
 
-fn apply_magic_trigger_to_block(
-    block_map: &mut serde_json::Map<String, Value>,
-    remaining_slots: &mut usize,
-) {
-    let Some(Value::String(text)) = block_map.get_mut("text") else {
-        return;
-    };
+fn apply_magic_trigger_to_blocks(blocks: &mut Vec<Value>, remaining_slots: &mut usize) {
+    let mut i = 0;
+    while i < blocks.len() {
+        let Some(block_map) = blocks[i].as_object_mut() else {
+            i += 1;
+            continue;
+        };
+        let Some((ttl, became_empty, has_cc)) = strip_magic_trigger_from_block(block_map) else {
+            i += 1;
+            continue;
+        };
 
-    let ttl = remove_magic_trigger_tokens(text);
-    let Some(ttl) = ttl else {
-        return;
-    };
+        if !became_empty {
+            if *remaining_slots > 0 && !has_cc {
+                block_map.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
+                *remaining_slots = remaining_slots.saturating_sub(1);
+            }
+            i += 1;
+            continue;
+        }
 
-    if *remaining_slots > 0 && !block_map.contains_key("cache_control") {
-        block_map.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
-        *remaining_slots = remaining_slots.saturating_sub(1);
+        // Block is empty after stripping. Claude rejects empty text blocks,
+        // so drop it. Shift the cache breakpoint to the previous block when
+        // one exists; if we were the first block, just drop without marking.
+        blocks.remove(i);
+        if i > 0
+            && *remaining_slots > 0
+            && let Some(prev) = blocks[i - 1].as_object_mut()
+            && !prev.contains_key("cache_control")
+        {
+            prev.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
+            *remaining_slots = remaining_slots.saturating_sub(1);
+        }
+        // Blocks shifted left; keep i pointed at the next unprocessed block.
     }
+}
+
+fn strip_magic_trigger_from_block(
+    block_map: &mut serde_json::Map<String, Value>,
+) -> Option<(CacheBreakpointTtl, bool, bool)> {
+    let Some(Value::String(text)) = block_map.get_mut("text") else {
+        return None;
+    };
+    let ttl = remove_magic_trigger_tokens(text)?;
+    let became_empty = text.is_empty();
+    let has_cc = block_map.contains_key("cache_control");
+    Some((ttl, became_empty, has_cc))
 }
 
 fn remove_magic_trigger_tokens(text: &mut String) -> Option<CacheBreakpointTtl> {
