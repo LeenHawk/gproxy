@@ -224,11 +224,7 @@ pub fn apply_magic_string_cache_control_triggers(body: &mut Value) {
             && i > 0
             && remaining_slots > 0
         {
-            place_cache_control_on_prev_message_tail(
-                &mut messages[..i],
-                ttl,
-                &mut remaining_slots,
-            );
+            place_cache_control_on_prev_message_tail(&mut messages[..i], ttl, &mut remaining_slots);
             // If no prior message or prior tail already has cache_control,
             // the pending breakpoint is silently dropped.
         }
