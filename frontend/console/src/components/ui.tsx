@@ -85,10 +85,12 @@ export function StatusToggle({
       onClick={onToggle}
       aria-pressed={checked}
     >
-      <span className={`status-toggle-dot ${checked ? "status-toggle-dot-on" : "status-toggle-dot-off"}`} />
       <span className="status-toggle-copy">
         <span className="status-toggle-label">{label}</span>
         <span className="status-toggle-value">{checked ? checkedLabel : uncheckedLabel}</span>
+      </span>
+      <span className={`status-toggle-track ${checked ? "status-toggle-track-on" : ""}`}>
+        <span className={`status-toggle-knob ${checked ? "status-toggle-knob-on" : ""}`} />
       </span>
     </button>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useI18n } from "../../../app/i18n";
-import { Button, Card, Input, Label, Select, TextArea } from "../../../components/ui";
+import { Button, Card, Input, Label, Select, StatusToggle, TextArea } from "../../../components/ui";
 import {
   ROUTING_IMPLEMENTATION_OPTIONS,
   ROUTING_OPERATION_OPTIONS,
@@ -143,27 +143,35 @@ export function ConfigTab({
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {genericFields.map((field) => (
           <div key={field.key}>
-            <Label>{fieldLabel(field)}</Label>
-            {field.type === "textarea" || field.type === "json" ? (
-              <TextArea
-                value={form.settings[field.key] ?? ""}
-                onChange={(value) => updateSetting(field.key, value)}
-                rows={field.type === "json" ? 6 : 4}
-              />
-            ) : field.type === "boolean" ? (
-              <Select
-                value={form.settings[field.key] ?? "false"}
-                onChange={(value) => updateSetting(field.key, value)}
-                options={[
-                  { value: "false", label: "false" },
-                  { value: "true", label: "true" },
-                ]}
+            {field.type === "boolean" ? (
+              <StatusToggle
+                label={fieldLabel(field)}
+                checked={form.settings[field.key] === "true"}
+                onToggle={() =>
+                  updateSetting(
+                    field.key,
+                    form.settings[field.key] === "true" ? "false" : "true",
+                  )
+                }
+                checkedLabel={t("common.enabled")}
+                uncheckedLabel={t("common.disabled")}
               />
             ) : (
-              <Input
-                value={form.settings[field.key] ?? ""}
-                onChange={(value) => updateSetting(field.key, value)}
-              />
+              <>
+                <Label>{fieldLabel(field)}</Label>
+                {field.type === "textarea" || field.type === "json" ? (
+                  <TextArea
+                    value={form.settings[field.key] ?? ""}
+                    onChange={(value) => updateSetting(field.key, value)}
+                    rows={field.type === "json" ? 6 : 4}
+                  />
+                ) : (
+                  <Input
+                    value={form.settings[field.key] ?? ""}
+                    onChange={(value) => updateSetting(field.key, value)}
+                  />
+                )}
+              </>
             )}
           </div>
         ))}
