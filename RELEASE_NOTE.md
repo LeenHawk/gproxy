@@ -1,5 +1,69 @@
 # Release Notes
 
+## v1.0.17
+
+> The suffix-variant rewrite pipeline is repaired end-to-end: the engine was passing `&[]` as the rewrite rule slice, the handler was letting alias resolution replace the user-sent model name (so `model_pattern` never matched), and `body.model = "provider/variant"` from OpenAI-style clients rode the `provider/` prefix straight into the filter. All three are fixed — a request to `claudecode/claude-opus-4-7-thinking-adaptive-effort-max` now actually reaches Anthropic with `thinking.display = "summarized"`, `output_config.effort = "max"`, and `model = "claude-opus-4-7"`. The models table is flattened in the same pass: `alias_of` is dropped, every model is a standalone row, and the DB migration takes care of existing aliases in place. Plus cache-control gets a new `flatten_system_before_cache` toggle, a few breakpoint-shifting bug fixes, and the console's boolean settings get an iOS-style slide switch.
+
+### English
+
+#### Added
+
+- **`flatten_system_before_cache` channel setting (claudecode / anthropic).** When the request's `system` is a list of text blocks, the blocks are concatenated into a single `text` block before cache breakpoints run. This undoes Claude Code's habit of splitting a stable system prompt across many small blocks, which was preventing the cache-breakpoint planner from reliably tagging the prompt as cacheable. Off by default; flip it on for claudecode-forwarded traffic where cache hit rate matters.
+- **Status toggle turns into a slide switch.** `StatusToggle` is restyled as an iOS-style slide switch (grey track + white knob that slides on/off, green when on). Replaces the previous dot-and-badge design. Applied to `GlobalSettingsModule`'s five flags and `ConfigTab`'s two cache booleans (`enable_magic_cache`, `flatten_system_before_cache`) — the boolean channel settings in `ConfigTab` are now switches instead of a `false`/`true` dropdown.
+- **Migration `m20260417_000001_drop_models_alias_of`.** Drops the `alias_of` column on the `models` table. Runs at most once per DB (tracked in `seaql_migrations`); a fresh DB skips it because entity sync creates the table without the column in the first place.
+
+#### Fixed
+
+- **Executor actually applies `rewrite_rules` now.** `engine.execute` / `engine.execute_stream` were calling `apply_outgoing_rules(&mut prepared, &provider.sanitize_rules(), &[])` — the rewrite slice was hard-coded empty. Sanitize rules ran, rewrite rules never did. This silently broke every suffix-variant recipe in the console: you could author `model_pattern = "…-thinking-adaptive-effort-max"` → `path:"thinking" set {display, type}` / `path:"output_config" set {effort:"max"}` / `path:"model" set "claude-opus-4-7"` rules, save them, and watch the upstream body come out untouched. Fixed by passing `&provider.rewrite_rules()`. The outbound body for a `claude-opus-4-7-thinking-adaptive-effort-max` request now correctly reflects every applicable rule.
+- **Handler strips the `{provider}/` prefix from `body.model` before alias / permission / rewrite lookups.** OpenAI-style clients conventionally send `body.model = "claudecode/claude-opus-4-7-thinking-adaptive-effort-max"`. The prefixed string rode straight into `resolve_model_alias`, the permission check, `ExecuteRequest.model`, and ultimately the executor's `model_pattern` filter — where every stored suffix-variant rule is authored against the bare name, so nothing matched. Strip the matching `{provider}/` prefix once at handler entry; all downstream matching now sees the same bare key.
+- **Handler no longer lets alias resolution overwrite the model name.** Alias resolution used to replace `effective_model` with the target model's `model_id` (e.g. `claude-opus-4-7-thinking-adaptive-effort-max` → `claude-opus-4-7`) before the body ever reached the executor. That killed `model_pattern` matching for every suffix-variant rule by the time rewrite_rules ran. Alias resolution now contributes only the provider route; the user-sent model name stays in `effective_model` end-to-end. The suffix variant's own `path:"model" set "<real>"` rewrite rule takes over the body-side rename at the correct pipeline position (after protocol translation, before send).
+- **`cache_control`: empty system messages and magic-trigger stripping no longer waste breakpoints.** Three related fixes: (1) `flatten_system_text_blocks` drops empty `text` blocks and shifts cache breakpoints up one index if the removed block was already tagged; (2) magic-string triggers whose replacement empties the block now shift the breakpoint to the next non-empty block instead of pointing at a deleted slot; (3) `apply_magic_string_cache_control_triggers` helper tightened to one call path instead of two (pure cleanup). End result: no more "silent cache miss because the breakpoint pointed at a removed block" regressions.
+- **Console preserves `i64` trace ID precision.** `trace_id` / `downstream_trace_id` / `cursor_trace_id` values (and the `trace_ids` array on batch-delete) can exceed 2⁵³, which silently rounds the last digits through JavaScript's `Number`. The console now pre-processes JSON responses to quote those fields as strings before `JSON.parse`, and reverses the quoting when building request bodies — the precise 18-19 digit ID survives display, copy/paste, cursor-based pagination, and batch-delete round-trips. No backend change required.
+
+#### Changed
+
+- **Models table flattened: `alias_of` indirection dropped.** Suffix variants used to be model rows carrying an `alias_of` pointer to the "real" model; `resolve_model_alias` followed that pointer and returned the target's `(provider_name, model_id)`. The indirection duplicated what rewrite_rules already do — every alias row was already paired with a `path:"model" set <real>` rule and already stored the right `provider_id`. After this release: every model, suffix-variant or not, is a standalone row; `resolve_model_alias` returns the row's own `(provider_name, model_id)`; body-side model translation is done by rewrite_rules end-to-end. Existing alias rows are kept in place by the migration — the column drop is lossless because each row already carries the right `provider_id` and variant name. Frontend follows: the `only_aliases` / `only_real` filter tabs, the alias-target picker, the alias badge, and the alias "→ target" link in the model list are all removed; the "+ Add Suffix Variant" button is now available on any model. No TOML `[[model_aliases]]` section anymore; they were redundant with `[[models]]`.
+- **i18n: `enable_magic_cache` label renamed to "Enable Cache Magic String" (both locales).** Clarifies that the setting gates the magic-string trigger pass, not cache in general.
+- **Two unrelated loop / iterator cleanups.** `apply_credential_updates` drops a redundant `.into_iter()` argument to `zip`, and `batch_upsert_models` simplifies its item loop. Pure readability.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.16. The DB migration runs on first boot; no manual data work is needed.
+- **Suffix-variant aliases created in earlier versions keep working.** The rows themselves are kept — migration drops only the `alias_of` column — and their `provider_id` + `model_id = variant-name` already make them valid standalone model entries under the new routing.
+- **TOML config format: `[[model_aliases]]` is gone.** Suffix variants now belong under `[[models]]`. If your config exports still include `[[model_aliases]]`, they'll fail to parse; remove the section (existing DB rows are already flat).
+- **Console JSON payloads for rewrite rules now carry trace IDs as strings.** If you have external tooling scraping the admin `requests/*/query` APIs, it needs to accept string trace IDs (both numbers and strings are accepted on the wire by the backend, so there's no serializer change server-side — this is a frontend-only behavior).
+- **SDK / protocol consumers**: no protocol surface changes.
+
+### 简体中文
+
+#### 新增
+
+- **`flatten_system_before_cache` 渠道开关(claudecode / anthropic)。** 当请求的 `system` 是一串 text block 时,缓存断点逻辑运行前把这些块合并成一个 `text` 块。专治 Claude Code 把一个稳定的系统提示拆成多个小块、导致缓存断点规划命中率低的情况。默认关闭,对转发 claudecode 流量且关心缓存命中率的部署再打开。
+- **状态开关改成左右滑的"滑动开关"。** `StatusToggle` 重新样式化为 iOS 风格滑动开关(灰色 track + 白色 knob,开启时 track 变绿、knob 右滑),替换原来的"小圆点 + 徽章"。`GlobalSettingsModule` 里五个开关和 `ConfigTab` 的两个缓存布尔开关(`enable_magic_cache`、`flatten_system_before_cache`)都跟着变;`ConfigTab` 的布尔设置不再是 `false`/`true` 下拉,直接就是滑动开关。
+- **迁移 `m20260417_000001_drop_models_alias_of`。** 删除 `models` 表的 `alias_of` 列,每个 DB 至多跑一次(记录在 `seaql_migrations` 表)。全新 DB 会跳过,因为 entity sync 创建表时就已经不带该列。
+
+#### 修复
+
+- **executor 真正应用 `rewrite_rules` 了。** `engine.execute` / `engine.execute_stream` 之前调用 `apply_outgoing_rules(&mut prepared, &provider.sanitize_rules(), &[])`,rewrite 片段硬编码空。sanitize 规则跑了,rewrite 规则一条没跑。这个 bug 静默地把控制台里所有后缀变体方案搞坏:你能正常写 `model_pattern = "…-thinking-adaptive-effort-max"` → `path:"thinking" set {display, type}` / `path:"output_config" set {effort:"max"}` / `path:"model" set "claude-opus-4-7"` 三条规则并保存,但上游收到的 body 没有任何改写。改为传 `&provider.rewrite_rules()`。`claude-opus-4-7-thinking-adaptive-effort-max` 这类请求的出站 body 现在会正确反映所有匹配的规则。
+- **handler 在别名/权限/rewrite 查询前剥掉 `body.model` 上的 `{provider}/` 前缀。** OpenAI 风格客户端习惯把 `body.model` 写成 `"claudecode/claude-opus-4-7-thinking-adaptive-effort-max"`。这个带前缀的字符串一路带到 `resolve_model_alias`、权限检查、`ExecuteRequest.model`、executor 的 `model_pattern` 过滤器 —— 而所有存下来的后缀变体规则都是按裸名写的 `model_pattern`,前缀一加就全不匹配。handler 入口统一剥一次 `{provider}/` 前缀,下游所有匹配都看到同一个裸 key。
+- **别名解析不再覆盖 `effective_model`。** 之前别名解析会把 `effective_model` 替换成目标模型的 `model_id`(比如 `claude-opus-4-7-thinking-adaptive-effort-max` → `claude-opus-4-7`),body 还没到 executor 前 `model_pattern` 就已经匹配失败了。现在别名只贡献 provider 路由,用户原发的模型名在 `effective_model` 里一直保留;body 侧把模型名改写成真名这件事交给变体自己的 `path:"model" set "<real>"` rewrite 规则 —— 在正确的管线位置(协议翻译之后、发送之前)执行。
+- **`cache_control`:空的 system message 和 magic-trigger 清理不再浪费断点。** 三个相关修复:(1)`flatten_system_text_blocks` 会扔掉空 `text` 块,如果被扔的块此前带着缓存断点,则断点 index 整体向前移一位;(2)magic-string trigger 替换后如果块内容变空,断点会转移到下一个非空块,而不是指向已删除的位置;(3)`apply_magic_string_cache_control_triggers` 的调用路径简化为一次(纯清理)。结果:不再出现"断点落在被删除块上 → 缓存静默 miss"这种倒退。
+- **控制台保持 `i64` trace id 精度。** `trace_id` / `downstream_trace_id` / `cursor_trace_id`(以及批量删除用的 `trace_ids` 数组)的值可能超过 2⁵³,JavaScript 的 `Number` 会静默四舍五入末尾几位。控制台现在在 `JSON.parse` 前把这些字段在文本层裹成字符串,发请求前再反向展开 —— 18-19 位完整 id 在显示、复制粘贴、cursor 翻页、批量删除全链路上都不丢精度。后端契约未变。
+
+#### 调整
+
+- **模型表扁平化:`alias_of` 间接一层删掉。** 后缀变体之前作为带 `alias_of` 指针的 model 行存在,`resolve_model_alias` 跟指针返回目标行的 `(provider_name, model_id)`。这层间接和 rewrite_rules 做的事是重复的 —— 每个别名行都配了 `path:"model" set <real>` 规则,行本身也已经存着正确的 `provider_id`。本次之后:任何模型(变体或真名)都是独立的一行;`resolve_model_alias` 直接返回这一行自己的 `(provider_name, model_id)`;body 侧的模型名翻译完全交给 rewrite_rules。已有的别名行由迁移就地保留 —— drop column 无损,因为每行本来就带着正确的 `provider_id` 和变体名。前端跟进:`only_aliases` / `only_real` 两个过滤 tab、别名目标选择框、别名徽章、模型列表里的"→ 目标"文案全都删掉;"+ 添加后缀变体"按钮现在在任意 model 上都能点。TOML 的 `[[model_aliases]]` 区块一并删除,原地合并进 `[[models]]`。
+- **i18n:`enable_magic_cache` 标签改为"Enable Cache Magic String"/"启用缓存魔法字符串"(中英文同步)。** 明确这个开关控制的是魔法串触发,而不是缓存本身。
+- **两处无关的循环/迭代器清理。** `apply_credential_updates` 拿掉了 `zip` 实参上冗余的 `.into_iter()`,`batch_upsert_models` 的逐项循环简化。纯可读性。
+
+#### 兼容性
+
+- **从 v1.0.16 直接升级**。DB 迁移首次启动时自动跑,无须手工搬数据。
+- **之前版本创建的后缀变体别名继续可用。** 行本身保留(迁移只删 `alias_of` 列),其 `provider_id` + `model_id = 变体名` 在新路由下已经是有效的独立 model 记录。
+- **TOML 配置:`[[model_aliases]]` 已去除。** 后缀变体统一归到 `[[models]]`。如果你导出的配置里还带 `[[model_aliases]]`,新版本会解析失败,手动删掉即可(DB 里的行已经是扁平格式)。
+- **控制台请求改写规则的 JSON payload 里 trace id 以字符串形式出现。** 如果有外部工具抓 `requests/*/query` 管理 API,请让它同时接受字符串形 trace id(后端两种都认,所以服务端契约没变 —— 这纯粹是前端行为调整)。
+- **SDK / protocol 调用方**:无协议表面变化。
+
 ## v1.0.16
 
 > Console polish on the provider config tab: the Upstream Protocol Template row is folded away behind a show/hide toggle, and the hint copy is rewritten to warn against changing built-in channels' routing tables without a reason. Plus a tiny cleanup in the credential-update store path.
