@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { apiJson } from "../../../lib/api";
+import { apiJson, stringifyRequest } from "../../../lib/api";
 import { authHeaders } from "../../../lib/auth";
 import { parseAtToUnixMs, parseDateTimeLocalToUnixMs } from "../../../lib/datetime";
 import { parseOptionalI64 } from "../../../lib/form";
@@ -40,7 +40,7 @@ const DEFAULT_FILTERS: RequestsFilterState = {
 
 type RequestPageCursor = {
   atUnixMs: number;
-  traceId: number;
+  traceId: string;
 };
 
 /// Pick a sensible default page size based on the viewport width so
@@ -72,7 +72,7 @@ function toPositiveOrNull(value: number | null): number | null {
 function buildRequestCountPayload(snapshot: RequestQuerySnapshot) {
   if (snapshot.kind === "upstream") {
     return {
-      trace_id: scopeAll<number>(),
+      trace_id: scopeAll<string>(),
       provider_id:
         snapshot.providerId === null ? scopeAll<number>() : scopeEq(snapshot.providerId),
       credential_id:
@@ -83,7 +83,7 @@ function buildRequestCountPayload(snapshot: RequestQuerySnapshot) {
     };
   }
   return {
-    trace_id: scopeAll<number>(),
+    trace_id: scopeAll<string>(),
     user_id: snapshot.userId === null ? scopeAll<number>() : scopeEq(snapshot.userId),
     user_key_id: snapshot.userKeyId === null ? scopeAll<number>() : scopeEq(snapshot.userKeyId),
     ...(snapshot.pathContains ? { request_path_contains: snapshot.pathContains } : {}),
@@ -97,7 +97,7 @@ function buildRequestRowsPayload(
   options: {
     limit: number;
     includeBody: boolean;
-    traceId?: number;
+    traceId?: string;
     cursor?: RequestPageCursor | null;
   },
 ) {
@@ -182,11 +182,11 @@ export function useRequestsModuleState({
   const [loadingCount, setLoadingCount] = useState(false);
   const [clearingPayload, setClearingPayload] = useState(false);
   const [deletingLogs, setDeletingLogs] = useState(false);
-  const [selectedTraceIds, setSelectedTraceIds] = useState<number[]>([]);
+  const [selectedTraceIds, setSelectedTraceIds] = useState<string[]>([]);
 
-  const [bodyByTraceId, setBodyByTraceId] = useState<Record<number, RequestBodyPayload>>({});
-  const [bodyLoadingByTraceId, setBodyLoadingByTraceId] = useState<Record<number, boolean>>({});
-  const [bodyErrorByTraceId, setBodyErrorByTraceId] = useState<Record<number, string>>({});
+  const [bodyByTraceId, setBodyByTraceId] = useState<Record<string, RequestBodyPayload>>({});
+  const [bodyLoadingByTraceId, setBodyLoadingByTraceId] = useState<Record<string, boolean>>({});
+  const [bodyErrorByTraceId, setBodyErrorByTraceId] = useState<Record<string, string>>({});
 
   const countTokenRef = useRef(0);
   const rowsTokenRef = useRef(0);
@@ -262,7 +262,7 @@ export function useRequestsModuleState({
     void apiJson<CountResponse>(requestCountPath(activeQuery.kind), {
       method: "POST",
       headers,
-      body: JSON.stringify(buildRequestCountPayload(activeQuery)),
+      body: stringifyRequest(buildRequestCountPayload(activeQuery)),
     })
       .then((response) => {
         if (countTokenRef.current !== token) {
@@ -305,7 +305,7 @@ export function useRequestsModuleState({
     void apiJson<RequestRow[]>(requestQueryPath(activeQuery.kind), {
       method: "POST",
       headers,
-      body: JSON.stringify({
+      body: stringifyRequest({
         ...buildRequestRowsPayload(activeQuery, {
           limit,
           includeBody: false,
@@ -350,7 +350,7 @@ export function useRequestsModuleState({
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
   const canGoNext = page < totalPages && pageCursors[page] !== undefined;
 
-  const toggleTraceIdSelected = useCallback((traceId: number) => {
+  const toggleTraceIdSelected = useCallback((traceId: string) => {
     setSelectedTraceIds((prev) =>
       prev.includes(traceId) ? prev.filter((id) => id !== traceId) : [...prev, traceId],
     );
@@ -387,7 +387,7 @@ export function useRequestsModuleState({
         const response = await apiJson<RequestRow[]>(requestQueryPath(activeQuery.kind), {
           method: "POST",
           headers,
-          body: JSON.stringify(body),
+          body: stringifyRequest(body),
         });
         const match = response.find((item) => item.trace_id === traceId);
         const payload: RequestBodyPayload = {
@@ -419,9 +419,7 @@ export function useRequestsModuleState({
 
   const clearPayload = useCallback(
     async (all: boolean) => {
-      const ids = Array.from(new Set(selectedTraceIds.filter((id) => id > 0))).sort(
-        (a, b) => a - b,
-      );
+      const ids = Array.from(new Set(selectedTraceIds.filter((id) => id.length > 0))).sort();
       if (!all && ids.length === 0) {
         notify("info", t("common.none"));
         return;
@@ -437,7 +435,7 @@ export function useRequestsModuleState({
         const ack = await apiJson<RequestClearAck>(requestClearPath(kind), {
           method: "POST",
           headers,
-          body: JSON.stringify({ all, trace_ids: all ? [] : ids }),
+          body: stringifyRequest({ all, trace_ids: all ? [] : ids }),
         });
         notify("success", t("requests.clear.done", { count: ack.cleared }));
         setSelectedTraceIds([]);
@@ -456,9 +454,7 @@ export function useRequestsModuleState({
 
   const deleteLogs = useCallback(
     async (all: boolean) => {
-      const ids = Array.from(new Set(selectedTraceIds.filter((id) => id > 0))).sort(
-        (a, b) => a - b,
-      );
+      const ids = Array.from(new Set(selectedTraceIds.filter((id) => id.length > 0))).sort();
       if (!all && ids.length === 0) {
         notify("info", t("common.none"));
         return;
@@ -480,7 +476,7 @@ export function useRequestsModuleState({
           const drained = await apiJson<RequestRow[]>(requestQueryPath(activeQuery.kind), {
             method: "POST",
             headers,
-            body: JSON.stringify(
+            body: stringifyRequest(
               buildRequestRowsPayload(activeQuery, { limit: maxBatch, includeBody: false }),
             ),
           });
@@ -493,7 +489,7 @@ export function useRequestsModuleState({
         await apiJson<unknown>(requestDeletePath(kind), {
           method: "POST",
           headers,
-          body: JSON.stringify(idsToDelete),
+          body: `[${idsToDelete.join(",")}]`,
         });
         notify("success", t("requests.delete.done", { count: idsToDelete.length }));
         setSelectedTraceIds([]);

@@ -57,14 +57,14 @@ export function RequestsTable({
 }: {
   kind: RequestKind;
   rows: RequestRow[];
-  bodyByTraceId: Record<number, RequestBodyPayload>;
-  bodyLoadingByTraceId: Record<number, boolean>;
-  bodyErrorByTraceId: Record<number, string>;
+  bodyByTraceId: Record<string, RequestBodyPayload>;
+  bodyLoadingByTraceId: Record<string, boolean>;
+  bodyErrorByTraceId: Record<string, string>;
   ensureBodyLoaded: (row: RequestRow) => Promise<RequestBodyPayload | undefined>;
-  selectedTraceIds: number[];
+  selectedTraceIds: string[];
   clearingPayload: boolean;
   deletingLogs: boolean;
-  onToggleTraceIdSelected: (traceId: number) => void;
+  onToggleTraceIdSelected: (traceId: string) => void;
   totalRows: number;
   pageSize: number;
   onPageSizeChange: (pageSize: number) => void;

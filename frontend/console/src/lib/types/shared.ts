@@ -45,14 +45,14 @@ export type UsageQuery = {
   from_unix_ms?: number;
   to_unix_ms?: number;
   cursor_at_unix_ms?: number;
-  cursor_trace_id?: number;
+  cursor_trace_id?: string;
   offset?: number;
   limit?: number;
 };
 
 export type UsageQueryRow = {
-  trace_id: number;
-  downstream_trace_id?: number | null;
+  trace_id: string;
+  downstream_trace_id?: string | null;
   at: string;
   provider_id?: number | null;
   provider_channel?: string | null;

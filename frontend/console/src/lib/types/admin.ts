@@ -296,22 +296,22 @@ export type UserQuotaWrite = {
 };
 
 export type UpstreamRequestQuery = {
-  trace_id?: Scope<number>;
+  trace_id?: Scope<string>;
   provider_id?: Scope<number>;
   credential_id?: Scope<number>;
   request_url_contains?: string;
   from_unix_ms?: number;
   to_unix_ms?: number;
   cursor_at_unix_ms?: number;
-  cursor_trace_id?: number;
+  cursor_trace_id?: string;
   offset?: number;
   limit?: number;
   include_body?: boolean;
 };
 
 export type UpstreamRequestQueryRow = {
-  trace_id: number;
-  downstream_trace_id?: number | null;
+  trace_id: string;
+  downstream_trace_id?: string | null;
   at: string;
   internal: boolean;
   provider_id?: number | null;
@@ -329,21 +329,21 @@ export type UpstreamRequestQueryRow = {
 };
 
 export type DownstreamRequestQuery = {
-  trace_id?: Scope<number>;
+  trace_id?: Scope<string>;
   user_id?: Scope<number>;
   user_key_id?: Scope<number>;
   request_path_contains?: string;
   from_unix_ms?: number;
   to_unix_ms?: number;
   cursor_at_unix_ms?: number;
-  cursor_trace_id?: number;
+  cursor_trace_id?: string;
   offset?: number;
   limit?: number;
   include_body?: boolean;
 };
 
 export type DownstreamRequestQueryRow = {
-  trace_id: number;
+  trace_id: string;
   at: string;
   internal: boolean;
   user_id?: number | null;
@@ -429,7 +429,7 @@ export type DashboardTopModels = {
 /// the log row itself (unlike `batch-delete` which removes the row).
 export type ClearRequestPayload = {
   all: boolean;
-  trace_ids: number[];
+  trace_ids: string[];
 };
 
 export type RequestClearAck = {

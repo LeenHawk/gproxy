@@ -11,7 +11,7 @@ import {
   Select,
   Table,
 } from "../../components/ui";
-import { apiJson } from "../../lib/api";
+import { apiJson, stringifyRequest } from "../../lib/api";
 import { authHeaders } from "../../lib/auth";
 import {
   formatAtForViewer,
@@ -35,7 +35,7 @@ type UsageQuerySnapshot = {
 
 type UsagePageCursor = {
   atUnixMs: number;
-  traceId: number;
+  traceId: string;
 };
 
 function emptySummary(): UsageSummary {
@@ -423,7 +423,7 @@ export function UsageModule({
     void apiJson<UsageQueryRow[]>("/admin/usages/query", {
       method: "POST",
       headers,
-      body: JSON.stringify(
+      body: stringifyRequest(
         buildUsageRowsPayload(activeQuery, { limit, cursor: currentPageCursor }),
       ),
     })
