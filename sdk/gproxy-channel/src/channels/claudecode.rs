@@ -1017,9 +1017,6 @@ impl Channel for ClaudeCodeChannel {
             apply_claudecode_prelude(&mut body_json, prelude);
         }
 
-        if settings.flatten_system_before_cache {
-            cache_control::flatten_system_text_blocks(&mut body_json);
-        }
         if settings.enable_magic_cache {
             cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
         }
@@ -1028,6 +1025,9 @@ impl Channel for ClaudeCodeChannel {
                 &mut body_json,
                 &settings.cache_breakpoints,
             );
+        }
+        if settings.flatten_system_before_cache {
+            cache_control::flatten_system_text_blocks(&mut body_json);
         }
 
         let attribution = build_attribution(&first_user_message_text(&body_json));

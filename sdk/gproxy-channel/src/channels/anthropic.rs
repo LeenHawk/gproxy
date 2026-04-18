@@ -291,9 +291,6 @@ impl Channel for AnthropicChannel {
         // top_k, and we want the default behavior for every client.
         claude_sampling::strip_sampling_params(&mut body_json);
 
-        if settings.flatten_system_before_cache {
-            cache_control::flatten_system_text_blocks(&mut body_json);
-        }
         if settings.enable_magic_cache {
             cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
         }
@@ -302,6 +299,9 @@ impl Channel for AnthropicChannel {
                 &mut body_json,
                 &settings.cache_breakpoints,
             );
+        }
+        if settings.flatten_system_before_cache {
+            cache_control::flatten_system_text_blocks(&mut body_json);
         }
         // Merge any operator-configured beta values into the header.
         if !settings.extra_beta_headers.is_empty() {
