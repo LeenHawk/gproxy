@@ -399,6 +399,7 @@ pub async fn proxy(
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
                 Some(ul_ctx),
+                result.stream_usage_state.clone(),
                 stream,
             ))
         }
@@ -679,6 +680,7 @@ pub async fn proxy_unscoped(
             Body::from_stream(stream_with_usage_tracking(
                 usage_ctx.clone(),
                 Some(ul_ctx),
+                result.stream_usage_state.clone(),
                 stream,
             ))
         }
@@ -2308,24 +2310,16 @@ async fn persist_usage_write_now(
 fn stream_with_usage_tracking(
     ctx: UsageRecordContext,
     upstream_log: Option<StreamUpstreamLogContext>,
+    stream_usage_state: Option<Arc<Mutex<gproxy_sdk::channel::usage::StreamUsageSnapshot>>>,
     mut stream: gproxy_sdk::engine::engine::ExecuteBodyStream,
 ) -> impl futures_util::Stream<Item = Result<bytes::Bytes, gproxy_sdk::channel::response::UpstreamError>>
 + Send {
-    let recorder = StreamUsageRecorder::new(ctx.clone());
+    let recorder = StreamUsageRecorder::new(ctx.clone(), stream_usage_state);
 
     try_stream! {
-        let mut decoder = UsageChunkDecoder::new(ctx.protocol);
-
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?;
-            for json_chunk in decoder.push_chunk(&chunk) {
-                recorder.observe_json_chunk(&json_chunk);
-            }
             yield chunk;
-        }
-
-        for json_chunk in decoder.finish() {
-            recorder.observe_json_chunk(&json_chunk);
         }
 
         if let Some(usage) = recorder.finish_completed() {
@@ -2371,59 +2365,29 @@ fn stream_with_usage_tracking(
     }
 }
 
-#[derive(Default)]
-struct StreamUsageRecorderState {
-    finalized: bool,
-    last_usage: Option<Usage>,
-    partial_usage: Usage,
-    partial_output: String,
-}
-
 struct StreamUsageRecorder {
     ctx: UsageRecordContext,
-    state: Arc<Mutex<StreamUsageRecorderState>>,
+    state: Option<Arc<Mutex<gproxy_sdk::channel::usage::StreamUsageSnapshot>>>,
 }
 
 impl StreamUsageRecorder {
-    fn new(ctx: UsageRecordContext) -> Self {
-        Self {
-            ctx,
-            state: Arc::new(Mutex::new(StreamUsageRecorderState::default())),
-        }
-    }
-
-    fn observe_json_chunk(&self, json_chunk: &[u8]) {
-        let mut state = match self.state.lock() {
-            Ok(state) => state,
-            Err(_) => return,
-        };
-        if state.finalized {
-            return;
-        }
-
-        if let Some(usage) =
-            gproxy_sdk::channel::usage::extract_stream_usage(self.ctx.protocol, json_chunk)
-        {
-            merge_usage(&mut state.partial_usage, &usage);
-            state.last_usage = Some(usage);
-        } else if let Some(usage) = extract_partial_stream_usage(self.ctx.protocol, json_chunk) {
-            merge_usage(&mut state.partial_usage, &usage);
-        }
-
-        if let Some(text) = extract_partial_output_text(self.ctx.protocol, json_chunk) {
-            state.partial_output.push_str(&text);
-        }
+    fn new(
+        ctx: UsageRecordContext,
+        state: Option<Arc<Mutex<gproxy_sdk::channel::usage::StreamUsageSnapshot>>>,
+    ) -> Self {
+        Self { ctx, state }
     }
 
     fn finish_completed(&self) -> Option<Usage> {
-        let mut state = self.state.lock().ok()?;
+        let state = self.state.as_ref()?;
+        let mut state = state.lock().ok()?;
         state.finalized = true;
         // Return the merged view from `partial_usage`, not the last single
         // chunk. The merge captures token counts from whichever chunk is
         // authoritative (cumulative across replaces). For protocols that emit
         // a single terminal chunk (Claude message_delta, OpenAI
         // ChatCompletions final chunk), this is identical to `last_usage`.
-        if usage_has_any_value(&state.partial_usage) {
+        if gproxy_sdk::channel::usage::stream_usage_has_any_value(&state.partial_usage) {
             Some(state.partial_usage.clone())
         } else {
             state.last_usage.clone()
@@ -2431,7 +2395,8 @@ impl StreamUsageRecorder {
     }
 
     fn take_interrupted_usage(&self) -> Option<Usage> {
-        let mut state = self.state.lock().ok()?;
+        let state = self.state.as_ref()?;
+        let mut state = state.lock().ok()?;
         if state.finalized {
             return None;
         }
@@ -2441,7 +2406,8 @@ impl StreamUsageRecorder {
             return Some(usage);
         }
 
-        let has_partial_usage = usage_has_any_value(&state.partial_usage);
+        let has_partial_usage =
+            gproxy_sdk::channel::usage::stream_usage_has_any_value(&state.partial_usage);
         if !has_partial_usage && state.partial_output.is_empty() {
             return None;
         }
@@ -2461,7 +2427,7 @@ impl StreamUsageRecorder {
             }
         }
 
-        usage_has_any_value(&usage).then_some(usage)
+        gproxy_sdk::channel::usage::stream_usage_has_any_value(&usage).then_some(usage)
     }
 }
 
@@ -2521,294 +2487,6 @@ async fn record_stream_usage(ctx: &UsageRecordContext, usage: Usage) {
     persist_usage_write_now(ctx, usage_write, cost).await;
 }
 
-enum UsageChunkDecoder {
-    Sse(gproxy_sdk::protocol::stream::SseToNdjsonRewriter),
-    Ndjson(Vec<u8>),
-}
-
-impl UsageChunkDecoder {
-    fn new(protocol: ProtocolKind) -> Self {
-        match protocol {
-            ProtocolKind::Claude
-            | ProtocolKind::OpenAi
-            | ProtocolKind::OpenAiResponse
-            | ProtocolKind::OpenAiChatCompletion
-            | ProtocolKind::Gemini => {
-                Self::Sse(gproxy_sdk::protocol::stream::SseToNdjsonRewriter::default())
-            }
-            ProtocolKind::GeminiNDJson => Self::Ndjson(Vec::new()),
-        }
-    }
-
-    fn push_chunk(&mut self, chunk: &[u8]) -> Vec<Vec<u8>> {
-        let mut out = Vec::new();
-        match self {
-            Self::Sse(rewriter) => split_usage_lines(&rewriter.push_chunk(chunk), &mut out),
-            Self::Ndjson(pending) => {
-                pending.extend_from_slice(chunk);
-                drain_usage_lines(pending, &mut out);
-            }
-        }
-        out
-    }
-
-    fn finish(&mut self) -> Vec<Vec<u8>> {
-        let mut out = Vec::new();
-        match self {
-            Self::Sse(rewriter) => split_usage_lines(&rewriter.finish(), &mut out),
-            Self::Ndjson(pending) => {
-                if !pending.is_empty() {
-                    let mut line = std::mem::take(pending);
-                    if line.last().copied() == Some(b'\r') {
-                        line.pop();
-                    }
-                    if !line.is_empty() {
-                        out.push(line);
-                    }
-                }
-            }
-        }
-        out
-    }
-}
-
-use gproxy_sdk::protocol::stream::{
-    drain_lines as drain_usage_lines, split_lines as split_usage_lines,
-};
-
-fn usage_has_any_value(usage: &Usage) -> bool {
-    usage.input_tokens.is_some()
-        || usage.output_tokens.is_some()
-        || usage.cache_read_input_tokens.is_some()
-        || usage.cache_creation_input_tokens.is_some()
-        || usage.cache_creation_input_tokens_5min.is_some()
-        || usage.cache_creation_input_tokens_1h.is_some()
-}
-
-fn merge_usage(dst: &mut Usage, src: &Usage) {
-    if src.input_tokens.is_some() {
-        dst.input_tokens = src.input_tokens;
-    }
-    if src.output_tokens.is_some() {
-        dst.output_tokens = src.output_tokens;
-    }
-    if src.cache_read_input_tokens.is_some() {
-        dst.cache_read_input_tokens = src.cache_read_input_tokens;
-    }
-    if src.cache_creation_input_tokens.is_some() {
-        dst.cache_creation_input_tokens = src.cache_creation_input_tokens;
-    }
-    if src.cache_creation_input_tokens_5min.is_some() {
-        dst.cache_creation_input_tokens_5min = src.cache_creation_input_tokens_5min;
-    }
-    if src.cache_creation_input_tokens_1h.is_some() {
-        dst.cache_creation_input_tokens_1h = src.cache_creation_input_tokens_1h;
-    }
-}
-
-fn extract_partial_stream_usage(protocol: ProtocolKind, json_chunk: &[u8]) -> Option<Usage> {
-    match protocol {
-        ProtocolKind::Claude => {
-            use gproxy_sdk::protocol::claude::create_message::stream::ClaudeStreamEvent;
-
-            let event: ClaudeStreamEvent = serde_json::from_slice(json_chunk).ok()?;
-            match event {
-                ClaudeStreamEvent::MessageStart { message } => Some(Usage {
-                    input_tokens: i64::try_from(message.usage.input_tokens).ok(),
-                    output_tokens: i64::try_from(message.usage.output_tokens).ok(),
-                    cache_read_input_tokens: message.usage.cache_read_input_tokens.try_into().ok(),
-                    cache_creation_input_tokens: message
-                        .usage
-                        .cache_creation_input_tokens
-                        .try_into()
-                        .ok(),
-                    cache_creation_input_tokens_5min: None,
-                    cache_creation_input_tokens_1h: None,
-                }),
-                _ => None,
-            }
-        }
-        ProtocolKind::OpenAiResponse => {
-            use gproxy_sdk::protocol::openai::create_response::stream::ResponseStreamEvent;
-
-            let event: ResponseStreamEvent = serde_json::from_slice(json_chunk).ok()?;
-            let response = match event {
-                ResponseStreamEvent::Created { response, .. }
-                | ResponseStreamEvent::Queued { response, .. }
-                | ResponseStreamEvent::InProgress { response, .. }
-                | ResponseStreamEvent::Completed { response, .. }
-                | ResponseStreamEvent::Incomplete { response, .. }
-                | ResponseStreamEvent::Failed { response, .. } => response,
-                _ => return None,
-            };
-            let usage = response.usage?;
-            Some(Usage {
-                input_tokens: i64::try_from(usage.input_tokens).ok(),
-                output_tokens: i64::try_from(usage.output_tokens).ok(),
-                cache_read_input_tokens: i64::try_from(usage.input_tokens_details.cached_tokens)
-                    .ok(),
-                cache_creation_input_tokens: None,
-                cache_creation_input_tokens_5min: None,
-                cache_creation_input_tokens_1h: None,
-            })
-        }
-        ProtocolKind::OpenAi => {
-            use gproxy_sdk::protocol::openai::create_image::stream::ImageGenerationStreamEvent;
-
-            let event: ImageGenerationStreamEvent = serde_json::from_slice(json_chunk).ok()?;
-            match event {
-                ImageGenerationStreamEvent::Completed { usage, .. } => Some(Usage {
-                    input_tokens: i64::try_from(usage.input_tokens).ok(),
-                    output_tokens: i64::try_from(usage.output_tokens).ok(),
-                    cache_read_input_tokens: None,
-                    cache_creation_input_tokens: None,
-                    cache_creation_input_tokens_5min: None,
-                    cache_creation_input_tokens_1h: None,
-                }),
-                _ => None,
-            }
-        }
-        _ => None,
-    }
-}
-
-fn extract_partial_output_text(protocol: ProtocolKind, json_chunk: &[u8]) -> Option<String> {
-    match protocol {
-        ProtocolKind::Claude => {
-            use gproxy_sdk::protocol::claude::create_message::stream::{
-                BetaRawContentBlockDelta, ClaudeStreamEvent,
-            };
-
-            let event: ClaudeStreamEvent = serde_json::from_slice(json_chunk).ok()?;
-            match event {
-                ClaudeStreamEvent::ContentBlockDelta { delta, .. } => match delta {
-                    BetaRawContentBlockDelta::Text { text } => Some(text),
-                    BetaRawContentBlockDelta::Thinking { thinking } => Some(thinking),
-                    BetaRawContentBlockDelta::InputJson { partial_json } => Some(partial_json),
-                    BetaRawContentBlockDelta::Compaction { content } => content,
-                    BetaRawContentBlockDelta::Citations { .. }
-                    | BetaRawContentBlockDelta::Signature { .. } => None,
-                },
-                _ => None,
-            }
-        }
-        ProtocolKind::OpenAiChatCompletion => {
-            use gproxy_sdk::protocol::openai::create_chat_completions::stream::ChatCompletionChunk;
-
-            let chunk: ChatCompletionChunk = serde_json::from_slice(json_chunk).ok()?;
-            let mut parts = Vec::new();
-            for choice in chunk.choices {
-                let delta = choice.delta;
-                if let Some(text) = delta.content
-                    && !text.is_empty()
-                {
-                    parts.push(text);
-                }
-                if let Some(text) = delta.reasoning_content
-                    && !text.is_empty()
-                {
-                    parts.push(text);
-                }
-                if let Some(text) = delta.refusal
-                    && !text.is_empty()
-                {
-                    parts.push(text);
-                }
-                if let Some(function_call) = delta.function_call {
-                    if let Some(name) = function_call.name
-                        && !name.is_empty()
-                    {
-                        parts.push(name);
-                    }
-                    if let Some(arguments) = function_call.arguments
-                        && !arguments.is_empty()
-                    {
-                        parts.push(arguments);
-                    }
-                }
-                if let Some(tool_calls) = delta.tool_calls {
-                    for tool_call in tool_calls {
-                        if let Some(function) = tool_call.function {
-                            if let Some(name) = function.name
-                                && !name.is_empty()
-                            {
-                                parts.push(name);
-                            }
-                            if let Some(arguments) = function.arguments
-                                && !arguments.is_empty()
-                            {
-                                parts.push(arguments);
-                            }
-                        }
-                    }
-                }
-            }
-            (!parts.is_empty()).then_some(parts.join("\n"))
-        }
-        ProtocolKind::OpenAiResponse => {
-            use gproxy_sdk::protocol::openai::create_response::stream::ResponseStreamEvent;
-
-            let event: ResponseStreamEvent = serde_json::from_slice(json_chunk).ok()?;
-            match event {
-                ResponseStreamEvent::OutputTextDelta { delta, .. }
-                | ResponseStreamEvent::RefusalDelta { delta, .. }
-                | ResponseStreamEvent::ReasoningTextDelta { delta, .. }
-                | ResponseStreamEvent::ReasoningSummaryTextDelta { delta, .. }
-                | ResponseStreamEvent::FunctionCallArgumentsDelta { delta, .. }
-                | ResponseStreamEvent::CustomToolCallInputDelta { delta, .. }
-                | ResponseStreamEvent::McpCallArgumentsDelta { delta, .. }
-                | ResponseStreamEvent::AudioTranscriptDelta { delta, .. }
-                | ResponseStreamEvent::CodeInterpreterCallCodeDelta { delta, .. } => {
-                    (!delta.is_empty()).then_some(delta)
-                }
-                _ => None,
-            }
-        }
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            use gproxy_sdk::protocol::gemini::generate_content::response::ResponseBody;
-
-            let chunk: ResponseBody = serde_json::from_slice(json_chunk).ok()?;
-            let mut parts = Vec::new();
-            if let Some(candidates) = chunk.candidates {
-                for candidate in candidates {
-                    if let Some(content) = candidate.content {
-                        for part in content.parts {
-                            if let Some(text) = part.text
-                                && !text.is_empty()
-                            {
-                                parts.push(text);
-                            }
-                            if let Some(function_call) = part.function_call {
-                                if !function_call.name.is_empty() {
-                                    parts.push(function_call.name);
-                                }
-                                if let Some(args) = function_call.args
-                                    && let Ok(json) = serde_json::to_string(&args)
-                                    && !json.is_empty()
-                                {
-                                    parts.push(json);
-                                }
-                            }
-                        }
-                    }
-                    if let Some(message) = candidate.finish_message
-                        && !message.is_empty()
-                    {
-                        parts.push(message);
-                    }
-                }
-            }
-            if let Some(status) = chunk.model_status
-                && let Some(message) = status.message
-                && !message.is_empty()
-            {
-                parts.push(message);
-            }
-            (!parts.is_empty()).then_some(parts.join("\n"))
-        }
-        _ => None,
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Logging helpers

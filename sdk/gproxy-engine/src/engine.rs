@@ -96,6 +96,14 @@ pub struct ExecuteResult {
     /// after the stream drain loop finishes. `None` for non-streaming
     /// executions (meta already carries both timings).
     pub stream_started_at: Option<std::time::Instant>,
+    /// For streaming executions: shared snapshot updated by the engine as
+    /// it observes **raw upstream bytes** through a
+    /// [`gproxy_channel::usage::StreamUsageObserver`] keyed on the
+    /// upstream protocol. The handler reads this after the stream drains
+    /// (or on drop) to persist usage. Populated only when the engine's
+    /// `enable_usage` is true and the upstream is 2xx streaming.
+    pub stream_usage_state:
+        Option<Arc<std::sync::Mutex<gproxy_channel::usage::StreamUsageSnapshot>>>,
 }
 
 /// Engine execution error bundled with optional upstream-request log
@@ -1132,6 +1140,7 @@ impl GproxyEngine {
                     credential_index: 0,
                     stream_raw_capture: None,
                     stream_started_at: None,
+                    stream_usage_state: None,
                 });
             }
             gproxy_channel::routing::RouteImplementation::Unsupported => {
@@ -1367,6 +1376,7 @@ impl GproxyEngine {
             credential_index: used_credential_index,
             stream_raw_capture: None,
             stream_started_at: None,
+            stream_usage_state: None,
         })
     }
 
@@ -1418,6 +1428,7 @@ impl GproxyEngine {
                     credential_index: 0,
                     stream_raw_capture: None,
                     stream_started_at: None,
+                    stream_usage_state: None,
                 });
             }
             gproxy_channel::routing::RouteImplementation::Unsupported => {
@@ -1611,6 +1622,7 @@ impl GproxyEngine {
                 credential_index: used_credential_index,
                 stream_raw_capture: raw_capture,
                 stream_started_at: Some(stream_started_at),
+                stream_usage_state: None,
             });
         }
 
@@ -1692,8 +1704,23 @@ impl GproxyEngine {
 
         let model_override = request.response_model_override.clone();
 
+        // Observe upstream bytes (pre-transform) so usage reflects the
+        // upstream-native fields, immune to downstream cross-protocol
+        // transforms that may drop or zero out cache breakdowns. The
+        // surrounding block is guaranteed 2xx (see comment above).
+        let usage_observer = if self.enable_usage {
+            Some(gproxy_channel::usage::StreamUsageObserver::new(dst_proto))
+        } else {
+            None
+        };
+        let stream_usage_state = usage_observer.as_ref().map(|o| o.shared_state());
+
         // Fast path: nothing to do per-chunk, hand the raw stream through.
-        let body = if transformer.is_none() && raw_capture.is_none() && model_override.is_none() {
+        let body = if transformer.is_none()
+            && raw_capture.is_none()
+            && model_override.is_none()
+            && usage_observer.is_none()
+        {
             ExecuteBody::Stream(response.body)
         } else {
             ExecuteBody::Stream(wrap_upstream_response_stream(
@@ -1701,6 +1728,7 @@ impl GproxyEngine {
                 transformer,
                 raw_capture.clone(),
                 model_override,
+                usage_observer,
             ))
         };
 
@@ -1714,6 +1742,7 @@ impl GproxyEngine {
             credential_index: used_credential_index,
             stream_raw_capture: raw_capture,
             stream_started_at: Some(stream_started_at),
+            stream_usage_state,
         })
     }
 }
@@ -1737,6 +1766,7 @@ fn wrap_upstream_response_stream(
     transformer: Option<gproxy_protocol::transform::dispatch::StreamResponseTransformer>,
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
     model_override: Option<String>,
+    mut usage_observer: Option<gproxy_channel::usage::StreamUsageObserver>,
 ) -> ExecuteBodyStream {
     // Helper pins the try_stream's Ok type so the macro can infer its
     // error type from the `?` uses below — without it, rustc can't
@@ -1760,6 +1790,14 @@ fn wrap_upstream_response_stream(
                 && let Ok(mut buf) = cap.lock()
             {
                 buf.extend_from_slice(&chunk);
+            }
+
+            // Feed raw upstream bytes into the usage observer (keyed on
+            // the upstream protocol). Must happen before the transformer
+            // rewrites the bytes into downstream format, otherwise
+            // cross-protocol transforms can drop or zero out cache fields.
+            if let Some(obs) = usage_observer.as_mut() {
+                obs.observe_chunk(&chunk);
             }
 
             match transformer.as_mut() {
@@ -1792,6 +1830,10 @@ fn wrap_upstream_response_stream(
             if !tail.is_empty() {
                 yield Bytes::from(tail);
             }
+        }
+
+        if let Some(mut obs) = usage_observer {
+            obs.finish();
         }
     })
 }
@@ -2306,7 +2348,7 @@ mod tests {
         let upstream = mock_upstream_stream(vec![b"hello ", b"world"]);
 
         let mut stream =
-            wrap_upstream_response_stream(upstream, None, Some(raw_capture.clone()), None);
+            wrap_upstream_response_stream(upstream, None, Some(raw_capture.clone()), None, None);
 
         let mut client_bytes = Vec::new();
         while let Some(item) = stream.next().await {
@@ -2333,7 +2375,7 @@ mod tests {
     async fn wrap_response_stream_pure_passthrough_yields_chunks_unchanged() {
         let upstream = mock_upstream_stream(vec![b"chunk-a", b"chunk-b"]);
 
-        let mut stream = wrap_upstream_response_stream(upstream, None, None, None);
+        let mut stream = wrap_upstream_response_stream(upstream, None, None, None, None);
 
         let mut chunks = Vec::new();
         while let Some(item) = stream.next().await {
