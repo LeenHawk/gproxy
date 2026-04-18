@@ -2237,6 +2237,25 @@ fn inject_stream_flag(dst_op: OperationFamily, dst_proto: ProtocolKind, body: Ve
     };
     let should_stream = dst_op == OperationFamily::StreamGenerateContent;
     map.insert("stream".to_string(), serde_json::Value::Bool(should_stream));
+    // OpenAI Chat Completions only emits the final `usage` block when the
+    // client explicitly opts in via `stream_options.include_usage: true`.
+    // Force-override on streaming requests so our observer always has
+    // usage to capture, regardless of what the downstream client sent.
+    if should_stream && dst_proto == ProtocolKind::OpenAiChatCompletion {
+        let options = map
+            .entry("stream_options".to_string())
+            .or_insert_with(|| serde_json::Value::Object(Default::default()));
+        if let Some(opts) = options.as_object_mut() {
+            opts.insert(
+                "include_usage".to_string(),
+                serde_json::Value::Bool(true),
+            );
+        } else {
+            // `stream_options` was present but not an object — overwrite
+            // rather than silently drop the injection.
+            *options = serde_json::json!({ "include_usage": true });
+        }
+    }
     serde_json::to_vec(&value).unwrap_or(body)
 }
 #[cfg(test)]
