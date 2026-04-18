@@ -213,10 +213,7 @@ pub fn apply_magic_string_cache_control_triggers(body: &mut Value) {
 
     if let Some(messages) = root.get_mut("messages").and_then(Value::as_array_mut) {
         for message in messages {
-            if let Some(content) = message
-                .as_object_mut()
-                .and_then(|m| m.get_mut("content"))
-            {
+            if let Some(content) = message.as_object_mut().and_then(|m| m.get_mut("content")) {
                 apply_magic_trigger_to_content(content, &mut remaining_slots);
             }
         }

@@ -49,6 +49,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
         } = value.body;
 
         let mut input_items = Vec::new();
+        let mut instructions_parts: Vec<String> = Vec::new();
 
         for (index, message) in messages.into_iter().enumerate() {
             match message {
@@ -64,15 +65,10 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                     }));
                 }
                 ct::ChatCompletionMessageParam::System(message) => {
-                    input_items.push(ot::ResponseInputItem::Message(ot::ResponseInputMessage {
-                        content: chat_text_content_to_response_input_message_content(
-                            message.content,
-                        ),
-                        role: ot::ResponseInputMessageRole::System,
-                        phase: None,
-                        status: None,
-                        type_: Some(ot::ResponseInputMessageType::Message),
-                    }));
+                    let text = chat_text_content_to_plain_text(&message.content);
+                    if !text.is_empty() {
+                        instructions_parts.push(text);
+                    }
                 }
                 ct::ChatCompletionMessageParam::User(message) => {
                     input_items.push(ot::ResponseInputItem::Message(ot::ResponseInputMessage {
@@ -298,7 +294,11 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                 } else {
                     Some(ot::ResponseInput::Items(input_items))
                 },
-                instructions: None,
+                instructions: if instructions_parts.is_empty() {
+                    None
+                } else {
+                    Some(instructions_parts.join("\n\n"))
+                },
                 max_output_tokens: max_completion_tokens.or(max_tokens),
                 max_tool_calls: None,
                 metadata,
