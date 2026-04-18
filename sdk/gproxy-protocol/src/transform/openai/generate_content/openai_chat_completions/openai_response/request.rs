@@ -297,7 +297,7 @@ impl TryFrom<OpenAiChatCompletionsRequest> for OpenAiCreateResponseRequest {
                 instructions: if instructions_parts.is_empty() {
                     None
                 } else {
-                    Some(instructions_parts.join("\n\n"))
+                    Some(instructions_parts.join(" "))
                 },
                 max_output_tokens: max_completion_tokens.or(max_tokens),
                 max_tool_calls: None,
