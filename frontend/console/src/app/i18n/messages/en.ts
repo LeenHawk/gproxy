@@ -167,6 +167,7 @@ export const enMessages: Record<string, string> = {
   "providers.routing.destinationOperation": "Destination Operation",
   "providers.routing.destinationProtocol": "Destination Protocol",
   "providers.routing.addRule": "Add Rule",
+  "providers.routing.restoreDefault": "Restore Default",
   "providers.routing.removeRule": "Remove Rule",
   "providers.routing.expand": "Expand Rules",
   "providers.routing.collapse": "Collapse Rules",

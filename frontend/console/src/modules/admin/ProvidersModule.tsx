@@ -229,6 +229,12 @@ export function ProvidersModule({
               onChange={updateProviderForm}
               onSave={() => void saveProvider()}
               onDelete={() => void deleteProvider()}
+              onRestoreDefault={() => {
+                void (async () => {
+                  const drafts = await loadDefaultRouting(providerForm.channel);
+                  updateProviderForm({ routingRules: drafts });
+                })();
+              }}
               channelOptions={channelOptions}
               canDelete={Boolean(selectedProvider)}
               labels={{

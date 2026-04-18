@@ -38,6 +38,7 @@ export function ConfigTab({
   onChange,
   onSave,
   onDelete,
+  onRestoreDefault,
   channelOptions,
   labels,
   canDelete,
@@ -46,6 +47,7 @@ export function ConfigTab({
   onChange: (patch: Partial<ProviderFormState>) => void;
   onSave: () => void;
   onDelete: () => void;
+  onRestoreDefault: () => void;
   channelOptions: Array<{ value: string; label: string }>;
   labels: {
     subtitle: string;
@@ -228,6 +230,15 @@ export function ConfigTab({
             <p className="mt-1 text-xs text-muted">{labels.routingHint}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="neutral"
+              onClick={() => {
+                onRestoreDefault();
+                setRoutingExpanded(true);
+              }}
+            >
+              {t("providers.routing.restoreDefault")}
+            </Button>
             <Button variant="neutral" onClick={() => setRoutingExpanded((value) => !value)}>
               {routingExpanded ? labels.routingCollapse : labels.routingExpand}
             </Button>

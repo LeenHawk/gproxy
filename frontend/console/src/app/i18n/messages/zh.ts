@@ -167,6 +167,7 @@ export const zhMessages: Record<string, string> = {
   "providers.routing.destinationOperation": "目标操作",
   "providers.routing.destinationProtocol": "目标协议",
   "providers.routing.addRule": "新增规则",
+  "providers.routing.restoreDefault": "恢复默认路由",
   "providers.routing.removeRule": "删除规则",
   "providers.routing.expand": "展开规则",
   "providers.routing.collapse": "收起规则",
