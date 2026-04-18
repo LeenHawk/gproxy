@@ -2246,10 +2246,7 @@ fn inject_stream_flag(dst_op: OperationFamily, dst_proto: ProtocolKind, body: Ve
             .entry("stream_options".to_string())
             .or_insert_with(|| serde_json::Value::Object(Default::default()));
         if let Some(opts) = options.as_object_mut() {
-            opts.insert(
-                "include_usage".to_string(),
-                serde_json::Value::Bool(true),
-            );
+            opts.insert("include_usage".to_string(), serde_json::Value::Bool(true));
         } else {
             // `stream_options` was present but not an object — overwrite
             // rather than silently drop the injection.

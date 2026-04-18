@@ -2487,7 +2487,6 @@ async fn record_stream_usage(ctx: &UsageRecordContext, usage: Usage) {
     persist_usage_write_now(ctx, usage_write, cost).await;
 }
 
-
 // ---------------------------------------------------------------------------
 // Logging helpers
 // ---------------------------------------------------------------------------
