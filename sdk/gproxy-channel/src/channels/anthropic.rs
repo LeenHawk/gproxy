@@ -303,6 +303,7 @@ impl Channel for AnthropicChannel {
         if settings.flatten_system_before_cache {
             cache_control::flatten_system_text_blocks(&mut body_json);
         }
+        cache_control::sanitize_claude_body(&mut body_json);
         // Merge any operator-configured beta values into the header.
         if !settings.extra_beta_headers.is_empty() {
             let refs: Vec<&str> = settings

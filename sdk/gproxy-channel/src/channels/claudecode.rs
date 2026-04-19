@@ -1029,6 +1029,7 @@ impl Channel for ClaudeCodeChannel {
         if settings.flatten_system_before_cache {
             cache_control::flatten_system_text_blocks(&mut body_json);
         }
+        cache_control::sanitize_claude_body(&mut body_json);
 
         let attribution = build_attribution(&first_user_message_text(&body_json));
         inject_system_attribution(&mut body_json, &attribution);
