@@ -163,9 +163,9 @@ export function ModelsTab({
                         onClick={(event) => event.stopPropagation()}
                       />
                     ) : null}
-                    <div className="font-semibold">{row.model_id}</div>
+                    <div className="font-semibold">{row.display_name?.trim() || row.model_id}</div>
                   </div>
-                  <div className="text-xs text-muted">{row.display_name ?? "—"}</div>
+                  <div className="text-xs text-muted">{row.display_name?.trim() ? row.model_id : "—"}</div>
                 </button>
               );
             })}

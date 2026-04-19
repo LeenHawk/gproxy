@@ -37,8 +37,8 @@ export function ProviderList({
       <div className="space-y-2">
         {rows.length === 0 ? <p className="text-sm text-muted">{emptyLabel}</p> : null}
         {rows.map((row) => {
-          const displayName = row.label?.trim() || row.name;
-          const showTechnicalName = displayName !== row.name;
+          const hasLabel = Boolean(row.label?.trim());
+          const displayName = hasLabel ? row.label!.trim() : `/${row.name}`;
           return (
             <button
               key={row.id}
@@ -48,7 +48,7 @@ export function ProviderList({
             >
               <div className="font-semibold">{displayName}</div>
               <div className="text-xs text-muted">
-                #{row.id} · {showTechnicalName ? `${row.name} · ` : ""}
+                #{row.id} · {hasLabel ? `/${row.name} · ` : ""}
                 {row.channel} · {row.credential_count} creds
               </div>
             </button>
