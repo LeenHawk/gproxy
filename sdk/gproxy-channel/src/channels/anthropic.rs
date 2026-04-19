@@ -304,6 +304,12 @@ impl Channel for AnthropicChannel {
             cache_control::flatten_system_text_blocks(&mut body_json);
         }
         cache_control::sanitize_claude_body(&mut body_json);
+        // Drop default-on betas that upstream rejects. Operators can opt
+        // back in via `extra_beta_headers` (merge runs after this strip).
+        crate::utils::anthropic_beta::strip_anthropic_beta_tokens(
+            &mut request.headers,
+            &["context-1m-2025-08-07"],
+        )?;
         // Merge any operator-configured beta values into the header.
         if !settings.extra_beta_headers.is_empty() {
             let refs: Vec<&str> = settings

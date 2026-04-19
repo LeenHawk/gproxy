@@ -1042,6 +1042,12 @@ impl Channel for ClaudeCodeChannel {
             &mut request.headers,
             &[CLAUDECODE_OAUTH_BETA],
         )?;
+        // Drop default-on betas that upstream rejects on the OAuth path.
+        // Operators can opt back in via `extra_beta_headers` below.
+        crate::utils::anthropic_beta::strip_anthropic_beta_tokens(
+            &mut request.headers,
+            &["context-1m-2025-08-07"],
+        )?;
         // Merge any extra beta values from settings (e.g. feature flags
         // the operator wants on every request to this provider).
         if !settings.extra_beta_headers.is_empty() {
