@@ -150,7 +150,7 @@ export const enMessages: Record<string, string> = {
   "providers.tab.oauth": "OAuth",
   "providers.tab.usage": "Usage",
   "providers.form.id": "ID",
-  "providers.form.name": "Name",
+  "providers.form.name": "Route name (exposed at /{route}/v1)",
   "providers.form.label": "Display Label",
   "providers.form.labelPlaceholder": "Friendly name shown in lists (optional)",
   "providers.form.channel": "Channel Type",
