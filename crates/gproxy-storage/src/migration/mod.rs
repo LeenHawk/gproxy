@@ -8,6 +8,7 @@ use sea_orm_migration::prelude::*;
 
 mod m20260416_000001_rename_dispatch_to_routing;
 mod m20260417_000001_drop_models_alias_of;
+mod m20260420_000001_strip_realtime_routing_rules;
 
 pub struct Migrator;
 
@@ -17,6 +18,7 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20260416_000001_rename_dispatch_to_routing::Migration),
             Box::new(m20260417_000001_drop_models_alias_of::Migration),
+            Box::new(m20260420_000001_strip_realtime_routing_rules::Migration),
         ]
     }
 }
