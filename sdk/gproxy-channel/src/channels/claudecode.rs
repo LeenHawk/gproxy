@@ -25,9 +25,19 @@ use tracing::Instrument;
 /// Claude Code channel (Anthropic Messages API with OAuth).
 pub struct ClaudeCodeChannel;
 
-const DEFAULT_CLAUDECODE_VERSION: &str = "2.1.89";
+const DEFAULT_CLAUDECODE_VERSION: &str = "2.1.112";
 const DEFAULT_CLAUDECODE_ENTRYPOINT: &str = "cli";
 const DEFAULT_CLAUDECODE_USER_TYPE: &str = "external";
+// Anthropic JS SDK (Stainless-generated) default header values, matching the
+// ones observed on real `claude-cli` 2.1.112 + `@anthropic-ai/sdk@0.81.0`
+// traffic. All are overridable via `ClaudeCodeSettings::fingerprint`.
+const DEFAULT_STAINLESS_LANG: &str = "js";
+const DEFAULT_STAINLESS_PACKAGE_VERSION: &str = "0.81.0";
+const DEFAULT_STAINLESS_RUNTIME: &str = "node";
+const DEFAULT_STAINLESS_RUNTIME_VERSION: &str = "v22.20.0";
+const DEFAULT_STAINLESS_OS: &str = "Linux";
+const DEFAULT_STAINLESS_ARCH: &str = "x64";
+const DEFAULT_STAINLESS_TIMEOUT_SECS: &str = "600";
 const BILLING_HEADER_PREFIX: &str = "x-anthropic-billing-header:";
 const BILLING_HASH_SALT: &str = "59cf53e54c78";
 const BILLING_CCH_HEX_LEN: usize = 5;
@@ -44,8 +54,8 @@ const CLAUDECODE_OAUTH_SCOPE: &str =
 const CLAUDECODE_OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDECODE_API_VERSION: &str = "2023-06-01";
 const CLAUDECODE_OAUTH_STATE_TTL_MS: u64 = 600_000;
-const CLAUDECODE_TOKEN_UA: &str = "claude-cli/2.1.89 (external, cli)";
-const CLAUDECODE_PROFILE_UA: &str = "claude-code/2.1.89";
+const CLAUDECODE_TOKEN_UA: &str = "claude-cli/2.1.112 (external, cli)";
+const CLAUDECODE_PROFILE_UA: &str = "claude-code/2.1.112";
 
 /// Per-credential session ID cache.  Key = device_id, value = (session_id, created_at_ms).
 /// Follows the same static-DashMap pattern used by `claudecode_oauth_states()`.
@@ -294,6 +304,127 @@ pub struct ClaudeCodeSettings {
     /// so the TOML / JSON wire format is unchanged.
     #[serde(flatten)]
     pub common: CommonChannelSettings,
+    /// Optional overrides for the client fingerprint headers emitted on
+    /// every upstream request (User-Agent components + the `x-stainless-*`
+    /// family injected by `@anthropic-ai/sdk`). Leave fields `None` to
+    /// fall back to the baked-in 2.1.112 / SDK 0.81.0 defaults.
+    #[serde(default, skip_serializing_if = "ClaudeCodeFingerprint::is_empty")]
+    pub fingerprint: ClaudeCodeFingerprint,
+}
+
+/// Overrides for the `claude-cli` / `@anthropic-ai/sdk` request fingerprint.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ClaudeCodeFingerprint {
+    /// CLI version embedded in the User-Agent, e.g. `"2.1.112"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cli_version: Option<String>,
+    /// `USER_TYPE` segment of the User-Agent, e.g. `"external"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_type: Option<String>,
+    /// Entrypoint segment of the User-Agent, e.g. `"cli"` or
+    /// `"claude-vscode"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entrypoint: Option<String>,
+    /// `x-stainless-lang` (default `"js"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_lang: Option<String>,
+    /// `x-stainless-package-version` — the `@anthropic-ai/sdk` npm version
+    /// (default `"0.81.0"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_package_version: Option<String>,
+    /// `x-stainless-runtime` (default `"node"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_runtime: Option<String>,
+    /// `x-stainless-runtime-version` (default `"v22.20.0"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_runtime_version: Option<String>,
+    /// `x-stainless-os` (default `"Linux"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_os: Option<String>,
+    /// `x-stainless-arch` (default `"x64"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_arch: Option<String>,
+    /// `x-stainless-timeout` in seconds (default `"600"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stainless_timeout: Option<String>,
+}
+
+impl ClaudeCodeFingerprint {
+    fn is_empty(&self) -> bool {
+        self.cli_version.is_none()
+            && self.user_type.is_none()
+            && self.entrypoint.is_none()
+            && self.stainless_lang.is_none()
+            && self.stainless_package_version.is_none()
+            && self.stainless_runtime.is_none()
+            && self.stainless_runtime_version.is_none()
+            && self.stainless_os.is_none()
+            && self.stainless_arch.is_none()
+            && self.stainless_timeout.is_none()
+    }
+}
+
+impl ClaudeCodeSettings {
+    fn cli_version(&self) -> &str {
+        self.fingerprint
+            .cli_version
+            .as_deref()
+            .unwrap_or(DEFAULT_CLAUDECODE_VERSION)
+    }
+    fn user_type(&self) -> &str {
+        self.fingerprint
+            .user_type
+            .as_deref()
+            .unwrap_or(DEFAULT_CLAUDECODE_USER_TYPE)
+    }
+    fn entrypoint(&self) -> &str {
+        self.fingerprint
+            .entrypoint
+            .as_deref()
+            .unwrap_or(DEFAULT_CLAUDECODE_ENTRYPOINT)
+    }
+    fn stainless_lang(&self) -> &str {
+        self.fingerprint
+            .stainless_lang
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_LANG)
+    }
+    fn stainless_package_version(&self) -> &str {
+        self.fingerprint
+            .stainless_package_version
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_PACKAGE_VERSION)
+    }
+    fn stainless_runtime(&self) -> &str {
+        self.fingerprint
+            .stainless_runtime
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_RUNTIME)
+    }
+    fn stainless_runtime_version(&self) -> &str {
+        self.fingerprint
+            .stainless_runtime_version
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_RUNTIME_VERSION)
+    }
+    fn stainless_os(&self) -> &str {
+        self.fingerprint
+            .stainless_os
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_OS)
+    }
+    fn stainless_arch(&self) -> &str {
+        self.fingerprint
+            .stainless_arch
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_ARCH)
+    }
+    fn stainless_timeout(&self) -> &str {
+        self.fingerprint
+            .stainless_timeout
+            .as_deref()
+            .unwrap_or(DEFAULT_STAINLESS_TIMEOUT_SECS)
+    }
 }
 
 impl ChannelSettings for ClaudeCodeSettings {
@@ -909,19 +1040,17 @@ impl Channel for ClaudeCodeChannel {
             Some(ua) => ua.to_string(),
             None => format!(
                 "claude-cli/{} ({}, {})",
-                DEFAULT_CLAUDECODE_VERSION,
-                DEFAULT_CLAUDECODE_USER_TYPE,
-                DEFAULT_CLAUDECODE_ENTRYPOINT
+                settings.cli_version(),
+                settings.user_type(),
+                settings.entrypoint()
             ),
         };
 
-        // -- 3. Fresh client request ID per request ---------------------
-        //    Real Claude Code uses crypto.randomUUID() (v4).  Using v7
-        //    here would expose a distinguishable version-nibble (`7xxx`
-        //    vs `4xxx`) in server-side logs.
-        let client_request_id = Uuid::new_v4().to_string();
-
-        // -- 4. Assemble the HTTP request -------------------------------
+        // -- 3. Assemble the HTTP request -------------------------------
+        //    Header order mirrors what the Anthropic JS SDK (Stainless,
+        //    @anthropic-ai/sdk@0.81.0 on undici) emits on real 2.1.112
+        //    traffic. HTTP/2 header order is not semantic but some
+        //    fingerprinters inspect HPACK sequence, so we preserve it.
         let url = format!(
             "{}{}",
             settings.base_url(),
@@ -930,19 +1059,36 @@ impl Channel for ClaudeCodeChannel {
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
+            .header("accept", "application/json")
+            .header("x-stainless-retry-count", "0")
+            .header("x-stainless-timeout", settings.stainless_timeout())
+            .header("x-stainless-lang", settings.stainless_lang())
             .header(
-                "Authorization",
-                format!("Bearer {}", credential.access_token),
+                "x-stainless-package-version",
+                settings.stainless_package_version(),
             )
-            .header("anthropic-version", "2023-06-01")
+            .header("x-stainless-os", settings.stainless_os())
+            .header("x-stainless-arch", settings.stainless_arch())
+            .header("x-stainless-runtime", settings.stainless_runtime())
+            .header(
+                "x-stainless-runtime-version",
+                settings.stainless_runtime_version(),
+            )
+            .header("anthropic-dangerous-direct-browser-access", "true")
+            .header("anthropic-version", CLAUDECODE_API_VERSION)
             .header("x-app", "cli")
-            .header("User-Agent", &user_agent)
-            .header("x-client-request-id", &client_request_id);
+            .header("User-Agent", &user_agent);
 
         if !is_file_op {
-            builder = builder
-                .header("X-Claude-Code-Session-Id", &session_id)
-                .header("Content-Type", "application/json");
+            builder = builder.header("X-Claude-Code-Session-Id", &session_id);
+        }
+
+        builder = builder.header(
+            "Authorization",
+            format!("Bearer {}", credential.access_token),
+        );
+        if !is_file_op {
+            builder = builder.header("Content-Type", "application/json");
         }
 
         // Forward any additional headers from the prepared request —
@@ -960,14 +1106,58 @@ impl Channel for ClaudeCodeChannel {
         crate::utils::http_headers::replace_header(
             &mut builder,
             "anthropic-version",
-            "2023-06-01",
+            CLAUDECODE_API_VERSION,
         )?;
         crate::utils::http_headers::replace_header(&mut builder, "x-app", "cli")?;
         crate::utils::http_headers::replace_header(&mut builder, "User-Agent", &user_agent)?;
+        crate::utils::http_headers::replace_header(&mut builder, "accept", "application/json")?;
         crate::utils::http_headers::replace_header(
             &mut builder,
-            "x-client-request-id",
-            &client_request_id,
+            "anthropic-dangerous-direct-browser-access",
+            "true",
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "x-stainless-retry-count", "0")?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-timeout",
+            settings.stainless_timeout(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-lang",
+            settings.stainless_lang(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-package-version",
+            settings.stainless_package_version(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-os",
+            settings.stainless_os(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-arch",
+            settings.stainless_arch(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-runtime",
+            settings.stainless_runtime(),
+        )?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "x-stainless-runtime-version",
+            settings.stainless_runtime_version(),
+        )?;
+        crate::utils::http_headers::replace_header(&mut builder, "accept-language", "*")?;
+        crate::utils::http_headers::replace_header(&mut builder, "sec-fetch-mode", "cors")?;
+        crate::utils::http_headers::replace_header(
+            &mut builder,
+            "accept-encoding",
+            "gzip, deflate",
         )?;
         if !is_file_op {
             crate::utils::http_headers::replace_header(
