@@ -40,7 +40,6 @@ const DEFAULT_STAINLESS_ARCH: &str = "x64";
 const DEFAULT_STAINLESS_TIMEOUT_SECS: &str = "600";
 const BILLING_HEADER_PREFIX: &str = "x-anthropic-billing-header:";
 const BILLING_HASH_SALT: &str = "59cf53e54c78";
-const BILLING_CCH_HEX_LEN: usize = 5;
 const BILLING_VERSION_HASH_LEN: usize = 3;
 const BILLING_VERSION_CHAR_OFFSETS: [usize; 3] = [4, 7, 20];
 /// Session IDs rotate after this many milliseconds, approximating the median
@@ -499,19 +498,25 @@ fn build_metadata_user_id(credential: &ClaudeCodeCredential, session_id: &str) -
 }
 
 /// Build the billing attribution text injected as the first system element.
+///
+/// Mirrors the real `claude-cli` 2.1.112 bundled behaviour: `cc_version` is
+/// `VERSION.fingerprint` where
+/// `fingerprint = sha256(SALT + msg[4] + msg[7] + msg[20] + VERSION)[..3]`
+/// (see `upstream_docs/code/claude-code/src/utils/fingerprint.ts`), and
+/// `cch` is the literal string `00000` — the compiled CLI hard-codes it
+/// with no attestation post-processing, and the API accepts it as-is.
 fn build_attribution(user_message: &str) -> String {
-    let cch = truncated_sha256_hex(user_message, BILLING_CCH_HEX_LEN);
     let version_hash_input = format!(
         "{}{}{}",
-        DEFAULT_CLAUDECODE_VERSION,
         BILLING_HASH_SALT,
-        sampled_message_chars(user_message)
+        sampled_message_chars(user_message),
+        DEFAULT_CLAUDECODE_VERSION,
     );
     let version_hash = truncated_sha256_hex(&version_hash_input, BILLING_VERSION_HASH_LEN);
 
     format!(
-        "x-anthropic-billing-header: cc_version={}.{}; cc_entrypoint={}; cch={};",
-        DEFAULT_CLAUDECODE_VERSION, version_hash, DEFAULT_CLAUDECODE_ENTRYPOINT, cch
+        "x-anthropic-billing-header: cc_version={}.{}; cc_entrypoint={}; cch=00000;",
+        DEFAULT_CLAUDECODE_VERSION, version_hash, DEFAULT_CLAUDECODE_ENTRYPOINT,
     )
 }
 
