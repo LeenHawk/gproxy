@@ -17,6 +17,7 @@
 pub mod channel;
 pub mod image;
 pub mod image_edit;
+pub mod models;
 pub mod pow;
 pub mod prepare_p;
 pub mod request_builder;

@@ -106,7 +106,10 @@ fn extract_messages(openai_body: &Value) -> Vec<NormalizedMessage> {
     Vec::new()
 }
 
-fn extract_responses_messages(input: &Value, instructions: Option<&Value>) -> Vec<NormalizedMessage> {
+fn extract_responses_messages(
+    input: &Value,
+    instructions: Option<&Value>,
+) -> Vec<NormalizedMessage> {
     let mut out = Vec::new();
     if let Some(s) = instructions.and_then(|v| v.as_str()) {
         out.push(NormalizedMessage {
@@ -252,10 +255,7 @@ mod tests {
         assert_eq!(out["model"], json!("gpt-5-3"));
         let msgs = out["messages"].as_array().unwrap();
         assert_eq!(msgs.len(), 1);
-        assert_eq!(
-            msgs[0]["content"]["parts"][0].as_str().unwrap(),
-            "hi"
-        );
+        assert_eq!(msgs[0]["content"]["parts"][0].as_str().unwrap(), "hi");
     }
 
     #[test]

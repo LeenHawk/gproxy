@@ -38,11 +38,7 @@ pub fn extract_image_pointers(body: &[u8]) -> (Vec<ImagePointer>, Option<String>
         for patch in delta.patches {
             // Whole-wrapper "add" events contain message + conversation_id.
             if patch.op == PatchKind::Add && patch.path.is_empty() {
-                if let Some(cid) = patch
-                    .value
-                    .get("conversation_id")
-                    .and_then(|v| v.as_str())
-                {
+                if let Some(cid) = patch.value.get("conversation_id").and_then(|v| v.as_str()) {
                     conversation_id = Some(cid.to_string());
                 }
                 if let Some(parts) = patch
@@ -185,11 +181,14 @@ pub async fn download_image_b64(
     if !step1_status.is_success() {
         return Err(format!(
             "download step1 {step1_status}: {}",
-            String::from_utf8_lossy(&step1_bytes).chars().take(200).collect::<String>()
+            String::from_utf8_lossy(&step1_bytes)
+                .chars()
+                .take(200)
+                .collect::<String>()
         ));
     }
-    let step1: Value = serde_json::from_slice(&step1_bytes)
-        .map_err(|e| format!("download step1 decode: {e}"))?;
+    let step1: Value =
+        serde_json::from_slice(&step1_bytes).map_err(|e| format!("download step1 decode: {e}"))?;
 
     let download_url = step1
         .get("download_url")
@@ -210,7 +209,10 @@ pub async fn download_image_b64(
         // Browser fetch of the estuary URL uses pre-signed sig= in the
         // querystring and no Authorization header; sending Bearer here
         // causes the server to 403 with "File stream access denied".
-        .header("accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+        .header(
+            "accept",
+            "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        )
         .header("referer", "https://chatgpt.com/")
         .send()
         .await
@@ -223,7 +225,10 @@ pub async fn download_image_b64(
     if !step2_status.is_success() {
         return Err(format!(
             "download step2 {step2_status}: {}",
-            String::from_utf8_lossy(&bytes).chars().take(200).collect::<String>()
+            String::from_utf8_lossy(&bytes)
+                .chars()
+                .take(200)
+                .collect::<String>()
         ));
     }
 

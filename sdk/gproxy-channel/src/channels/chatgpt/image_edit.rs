@@ -47,11 +47,7 @@ pub fn parse_edit_body(body: &[u8]) -> Result<ParsedEdit, String> {
 }
 
 fn is_multipart(body: &[u8]) -> bool {
-    body.starts_with(b"--")
-        && body
-            .iter()
-            .take(256)
-            .any(|b| *b == b'\r' || *b == b'\n')
+    body.starts_with(b"--") && body.iter().take(256).any(|b| *b == b'\r' || *b == b'\n')
 }
 
 fn parse_multipart(body: &[u8]) -> Result<ParsedEdit, String> {
@@ -61,9 +57,7 @@ fn parse_multipart(body: &[u8]) -> Result<ParsedEdit, String> {
         .position(|b| *b == b'\n')
         .ok_or_else(|| "multipart: missing first newline".to_string())?;
     let first_line = &body[..newline];
-    let first_line = first_line
-        .strip_suffix(b"\r")
-        .unwrap_or(first_line);
+    let first_line = first_line.strip_suffix(b"\r").unwrap_or(first_line);
     let boundary = first_line
         .strip_prefix(b"--")
         .ok_or_else(|| "multipart: first line does not start with --".to_string())?;
@@ -169,10 +163,7 @@ fn parse_part_headers(raw: &[u8]) -> (Option<String>, Option<String>, Option<Str
                     file_name = Some(trim_quotes(v).to_string());
                 }
             }
-        } else if let Some(rest) = line
-            .to_ascii_lowercase()
-            .strip_prefix("content-type:")
-        {
+        } else if let Some(rest) = line.to_ascii_lowercase().strip_prefix("content-type:") {
             content_type = Some(rest.trim().to_string());
         }
     }
@@ -180,9 +171,7 @@ fn parse_part_headers(raw: &[u8]) -> (Option<String>, Option<String>, Option<Str
 }
 
 fn trim_quotes(s: &str) -> &str {
-    s.trim()
-        .trim_start_matches('"')
-        .trim_end_matches('"')
+    s.trim().trim_start_matches('"').trim_end_matches('"')
 }
 
 fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
@@ -364,7 +353,9 @@ pub async fn upload_image_to_chatgpt(
         "metadata": {"store_in_library": true},
     });
     let step3 = client
-        .post(&format!("{UPLOAD_BASE}/backend-api/files/process_upload_stream"))
+        .post(&format!(
+            "{UPLOAD_BASE}/backend-api/files/process_upload_stream"
+        ))
         .headers(standard_headers(access_token).into())
         .json(&step3_body)
         .send()
@@ -414,10 +405,7 @@ fn probe_png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
                 continue;
             }
             let marker = bytes[i + 1];
-            if (0xC0..=0xCF).contains(&marker)
-                && marker != 0xC4
-                && marker != 0xC8
-                && marker != 0xCC
+            if (0xC0..=0xCF).contains(&marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC
             {
                 let h = u16::from_be_bytes([bytes[i + 5], bytes[i + 6]]) as u32;
                 let w = u16::from_be_bytes([bytes[i + 7], bytes[i + 8]]) as u32;
@@ -428,9 +416,7 @@ fn probe_png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
         }
     }
     // GIF: 6-byte signature, then width/height little-endian at 6..10.
-    if bytes.len() > 10
-        && (&bytes[..6] == b"GIF87a" || &bytes[..6] == b"GIF89a")
-    {
+    if bytes.len() > 10 && (&bytes[..6] == b"GIF87a" || &bytes[..6] == b"GIF89a") {
         let w = u16::from_le_bytes([bytes[6], bytes[7]]) as u32;
         let h = u16::from_le_bytes([bytes[8], bytes[9]]) as u32;
         return Some((w, h));
@@ -445,10 +431,7 @@ mod tests {
     #[test]
     fn parses_json_data_url() {
         let png_bytes = minimal_png();
-        let data_url = format!(
-            "data:image/png;base64,{}",
-            STANDARD.encode(&png_bytes)
-        );
+        let data_url = format!("data:image/png;base64,{}", STANDARD.encode(&png_bytes));
         let body = serde_json::json!({
             "image": data_url,
             "prompt": "make it blue",

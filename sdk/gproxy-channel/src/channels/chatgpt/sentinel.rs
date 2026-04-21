@@ -24,10 +24,8 @@ use super::session::{standard_headers, warmup};
 use crate::response::UpstreamError;
 
 const CHATGPT_ORIGIN: &str = "https://chatgpt.com";
-const PREPARE_URL: &str =
-    "https://chatgpt.com/backend-api/sentinel/chat-requirements/prepare";
-const FINALIZE_URL: &str =
-    "https://chatgpt.com/backend-api/sentinel/chat-requirements/finalize";
+const PREPARE_URL: &str = "https://chatgpt.com/backend-api/sentinel/chat-requirements/prepare";
+const FINALIZE_URL: &str = "https://chatgpt.com/backend-api/sentinel/chat-requirements/finalize";
 
 /// Tokens returned by a successful sentinel round.
 #[derive(Debug, Clone)]
@@ -161,7 +159,10 @@ async fn send_json<T: serde::de::DeserializeOwned>(
     if !status.is_success() {
         return Err(UpstreamError::Channel(format!(
             "sentinel {url} {status}: {}",
-            String::from_utf8_lossy(&bytes).chars().take(400).collect::<String>()
+            String::from_utf8_lossy(&bytes)
+                .chars()
+                .take(400)
+                .collect::<String>()
         )));
     }
     serde_json::from_slice(&bytes)

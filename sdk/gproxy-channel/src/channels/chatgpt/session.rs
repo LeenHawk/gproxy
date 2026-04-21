@@ -54,7 +54,9 @@ pub async fn warmup(client: &Client, access_token: &str) -> Result<(), UpstreamE
     }
     for path in WARMUP_PATHS {
         let url = format!("{CHATGPT_ORIGIN}{path}");
-        let req = client.get(&url).headers(standard_headers(access_token).into());
+        let req = client
+            .get(&url)
+            .headers(standard_headers(access_token).into());
         if let Err(e) = req.send().await {
             tracing::warn!(error = %e, "chatgpt warmup GET {path} failed");
         }
@@ -128,7 +130,9 @@ pub async fn warmup_fallback(client: &Client, access_token: &str) -> Result<(), 
     }
     for path in WARMUP_PATHS {
         let url = format!("{CHATGPT_ORIGIN}{path}");
-        let req = client.get(&url).headers(standard_headers(access_token).into());
+        let req = client
+            .get(&url)
+            .headers(standard_headers(access_token).into());
         if let Err(e) = req.send().await {
             tracing::warn!(error = %e, "chatgpt fallback warmup GET {path} failed");
         }
@@ -197,11 +201,7 @@ impl From<StandardHeaders> for http::HeaderMap {
         add(&mut map, "sec-ch-ua-mobile", "?0".into());
         add(&mut map, "sec-ch-ua-model", r#""""#.into());
         add(&mut map, "sec-ch-ua-platform", r#""Windows""#.into());
-        add(
-            &mut map,
-            "sec-ch-ua-platform-version",
-            r#""19.0.0""#.into(),
-        );
+        add(&mut map, "sec-ch-ua-platform-version", r#""19.0.0""#.into());
         add(&mut map, "sec-fetch-dest", "empty".into());
         add(&mut map, "sec-fetch-mode", "cors".into());
         add(&mut map, "sec-fetch-site", "same-origin".into());

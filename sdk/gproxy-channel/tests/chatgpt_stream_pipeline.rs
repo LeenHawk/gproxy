@@ -15,9 +15,7 @@ use gproxy_channel::channels::chatgpt::ChatGptChannel;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::routing::RouteKey;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
-use gproxy_protocol::transform::dispatch::{
-    create_stream_response_transformer,
-};
+use gproxy_protocol::transform::dispatch::create_stream_response_transformer;
 
 #[test]
 fn stream_pipeline_reshapes_real_har_to_openai_chunks() {

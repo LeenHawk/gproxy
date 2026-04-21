@@ -185,8 +185,7 @@ impl SseToOpenAi {
     }
 
     fn handle_add(&mut self, channel: Option<u64>, value: &Value) {
-        let wrap: InitialAddValue =
-            serde_json::from_value(value.clone()).unwrap_or_default();
+        let wrap: InitialAddValue = serde_json::from_value(value.clone()).unwrap_or_default();
         if let Some(cid) = wrap.conversation_id {
             self.conversation_id = Some(cid);
         }
@@ -217,10 +216,7 @@ impl SseToOpenAi {
 
         if is_assistant_text && self.final_channel.is_none() {
             self.final_channel = channel;
-            self.message_id = msg
-                .get("id")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            self.message_id = msg.get("id").and_then(|v| v.as_str()).map(String::from);
             if let Some(model) = msg
                 .get("metadata")
                 .and_then(|m| m.get("model_slug"))
@@ -307,8 +303,11 @@ mod tests {
             .filter_map(|ch| ch.delta.get("content").and_then(|v| v.as_str()))
             .collect();
 
-        assert!(text.contains("冒泡") || text.contains("bubble"),
-            "expected bubble sort text, got: {}", text.chars().take(100).collect::<String>());
+        assert!(
+            text.contains("冒泡") || text.contains("bubble"),
+            "expected bubble sort text, got: {}",
+            text.chars().take(100).collect::<String>()
+        );
 
         // Last chunk should carry a finish_reason.
         let finishes: Vec<_> = chunks

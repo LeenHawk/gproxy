@@ -10,11 +10,11 @@ use super::image::{
     ImagePointer, build_openai_images_response, download_image_b64, extract_image_pointers,
     poll_conversation_for_images,
 };
-use super::image_edit::{parse_edit_body, upload_image_to_chatgpt, UploadResult};
+use super::image_edit::{UploadResult, parse_edit_body, upload_image_to_chatgpt};
 use super::request_builder::{build_conversation_body, resolve_model};
 use super::sentinel::{self, SentinelTokens};
 use super::session::{
-    OAI_CLIENT_VERSION, TurnContext, shared_fallback_client, stash_turn, standard_headers,
+    OAI_CLIENT_VERSION, TurnContext, shared_fallback_client, standard_headers, stash_turn,
     take_turn,
 };
 use super::sse_to_openai::SseToOpenAi;
@@ -190,6 +190,54 @@ impl Channel for ChatGptChannel {
             ),
             pass(OperationFamily::CreateImage, ProtocolKind::OpenAi),
             pass(OperationFamily::CreateImageEdit, ProtocolKind::OpenAi),
+            // ---- Local routes (no upstream call) ----
+            // ChatGPT web doesn't expose `/v1/models` or a count-tokens
+            // endpoint, so serve them locally from the hardcoded model
+            // catalog + tiktoken.
+            (
+                RouteKey::new(OperationFamily::ModelList, ProtocolKind::OpenAi),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::ModelGet, ProtocolKind::OpenAi),
+                RouteImplementation::Local,
+            ),
+            xform(
+                OperationFamily::ModelList,
+                ProtocolKind::Claude,
+                OperationFamily::ModelList,
+                ProtocolKind::OpenAi,
+            ),
+            xform(
+                OperationFamily::ModelList,
+                ProtocolKind::Gemini,
+                OperationFamily::ModelList,
+                ProtocolKind::OpenAi,
+            ),
+            xform(
+                OperationFamily::ModelGet,
+                ProtocolKind::Claude,
+                OperationFamily::ModelGet,
+                ProtocolKind::OpenAi,
+            ),
+            xform(
+                OperationFamily::ModelGet,
+                ProtocolKind::Gemini,
+                OperationFamily::ModelGet,
+                ProtocolKind::OpenAi,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::OpenAi),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::Claude),
+                RouteImplementation::Local,
+            ),
+            (
+                RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
+                RouteImplementation::Local,
+            ),
             xform(
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiResponse,
@@ -235,6 +283,37 @@ impl Channel for ChatGptChannel {
 
     fn count_strategy(&self) -> CountStrategy {
         CountStrategy::Local
+    }
+
+    fn handle_local(
+        &self,
+        operation: OperationFamily,
+        protocol: ProtocolKind,
+        body: &[u8],
+    ) -> Option<Result<Vec<u8>, UpstreamError>> {
+        match operation {
+            OperationFamily::CountToken => Some(
+                crate::count_tokens::local_count_response_for_protocol(protocol, body),
+            ),
+            OperationFamily::ModelList => Some(Ok(super::models::openai_model_list_body())),
+            OperationFamily::ModelGet => {
+                // The engine passes the requested id in the body (a small
+                // JSON `{"model": "..."}` payload built by the API layer)
+                // or, for REST clients, in the URL path which the engine
+                // rewrites into the body. Accept both.
+                let id = parse_model_get_id(body);
+                Some(
+                    super::models::openai_model_get_body(&id)
+                        .map(Ok)
+                        .unwrap_or_else(|| {
+                            Err(UpstreamError::Channel(format!(
+                                "chatgpt: unknown model id: {id}"
+                            )))
+                        }),
+                )
+            }
+            _ => None,
+        }
     }
 
     fn finalize_request(
@@ -319,9 +398,8 @@ impl Channel for ChatGptChannel {
             (chat_body, Some(upload_res))
         } else if is_image {
             // CreateImage: OpenAI body has `prompt`. Adapt to chat-like shape.
-            let parsed: Value = serde_json::from_slice(&request.body).map_err(|e| {
-                UpstreamError::Channel(format!("chatgpt: parse request body: {e}"))
-            })?;
+            let parsed: Value = serde_json::from_slice(&request.body)
+                .map_err(|e| UpstreamError::Channel(format!("chatgpt: parse request body: {e}")))?;
             let prompt = parsed
                 .get("prompt")
                 .and_then(|v| v.as_str())
@@ -334,9 +412,8 @@ impl Channel for ChatGptChannel {
                 None,
             )
         } else {
-            let parsed: Value = serde_json::from_slice(&request.body).map_err(|e| {
-                UpstreamError::Channel(format!("chatgpt: parse request body: {e}"))
-            })?;
+            let parsed: Value = serde_json::from_slice(&request.body)
+                .map_err(|e| UpstreamError::Channel(format!("chatgpt: parse request body: {e}")))?;
             (parsed, None)
         };
 
@@ -356,9 +433,8 @@ impl Channel for ChatGptChannel {
             attach_uploaded_image(&mut body_map, upload);
         }
 
-        let body_bytes = serde_json::to_vec(&Value::Object(body_map)).map_err(|e| {
-            UpstreamError::Channel(format!("chatgpt: serialize body: {e}"))
-        })?;
+        let body_bytes = serde_json::to_vec(&Value::Object(body_map))
+            .map_err(|e| UpstreamError::Channel(format!("chatgpt: serialize body: {e}")))?;
 
         // Reuse the PoW answer we computed during finalize. The live
         // browser does the same: a single PoW is used both as the finalize
@@ -401,10 +477,9 @@ impl Channel for ChatGptChannel {
             .uri(&url);
 
         // Standard headers.
-        for (k, v) in std::convert::Into::<http::HeaderMap>::into(standard_headers(
-            &credential.access_token,
-        ))
-        .iter()
+        for (k, v) in
+            std::convert::Into::<http::HeaderMap>::into(standard_headers(&credential.access_token))
+                .iter()
         {
             builder = builder.header(k.clone(), v.clone());
         }
@@ -453,10 +528,7 @@ impl Channel for ChatGptChannel {
             return normalize_image_response(&body, turn_id.as_deref()).unwrap_or(body);
         }
 
-        let model = request
-            .model
-            .clone()
-            .unwrap_or_else(|| "gpt-5".to_string());
+        let model = request.model.clone().unwrap_or_else(|| "gpt-5".to_string());
 
         // Two modes:
         //
@@ -590,16 +662,29 @@ fn chatgpt_routing_table() -> RoutingTable {
     ChatGptChannel.routing_table()
 }
 
+/// Extract the requested model id for `GET /v1/models/:id`.
+///
+/// The API layer serializes the path component as a small JSON body
+/// shaped `{"model": "<id>"}`; older callers might send the raw id.
+fn parse_model_get_id(body: &[u8]) -> String {
+    if body.is_empty() {
+        return String::new();
+    }
+    if let Ok(v) = serde_json::from_slice::<Value>(body)
+        && let Some(id) = v.get("model").and_then(|m| m.as_str())
+    {
+        return id.to_string();
+    }
+    String::from_utf8_lossy(body).trim().to_string()
+}
+
 /// Mutate a `/f/conversation` body in place to attach an uploaded image
 /// onto the single user message:
 /// * `content.content_type` becomes `multimodal_text`
 /// * `content.parts[0]` becomes an `image_asset_pointer` object
 /// * The prompt text is appended as `parts[1]`
 /// * `metadata.attachments[0]` describes the uploaded file
-fn attach_uploaded_image(
-    body: &mut serde_json::Map<String, Value>,
-    upload: &UploadResult,
-) {
+fn attach_uploaded_image(body: &mut serde_json::Map<String, Value>, upload: &UploadResult) {
     let messages = match body.get_mut("messages").and_then(|m| m.as_array_mut()) {
         Some(m) if !m.is_empty() => m,
         _ => return,
@@ -625,7 +710,10 @@ fn attach_uploaded_image(
     if let Some(content) = user_msg.get_mut("content")
         && let Some(obj) = content.as_object_mut()
     {
-        obj.insert("content_type".to_string(), Value::String("multimodal_text".into()));
+        obj.insert(
+            "content_type".to_string(),
+            Value::String("multimodal_text".into()),
+        );
         let mut parts = Vec::with_capacity(2);
         parts.push(asset.clone());
         if !prompt_text.is_empty() {
@@ -658,7 +746,8 @@ fn attach_uploaded_image(
 /// `normalize_response` call and kept alive across chunks.
 fn stream_state_cache() -> &'static dashmap::DashMap<String, std::sync::Mutex<SseToOpenAi>> {
     use std::sync::OnceLock;
-    static CACHE: OnceLock<dashmap::DashMap<String, std::sync::Mutex<SseToOpenAi>>> = OnceLock::new();
+    static CACHE: OnceLock<dashmap::DashMap<String, std::sync::Mutex<SseToOpenAi>>> =
+        OnceLock::new();
     CACHE.get_or_init(dashmap::DashMap::new)
 }
 
@@ -782,7 +871,11 @@ fn parse_delta_from_value(v: &Value) -> super::sse_v1::Delta {
     Delta {
         channel,
         patches: vec![PatchOp {
-            path: v.get("p").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            path: v
+                .get("p")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
             op: PatchKind::parse(op),
             value: v.get("v").cloned().unwrap_or(Value::Null),
         }],
@@ -797,9 +890,7 @@ fn parse_one_patch_value(v: &Value) -> Option<super::sse_v1::PatchOp> {
             .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string(),
-        op: super::sse_v1::PatchKind::parse(
-            obj.get("o").and_then(|x| x.as_str()).unwrap_or(""),
-        ),
+        op: super::sse_v1::PatchKind::parse(obj.get("o").and_then(|x| x.as_str()).unwrap_or("")),
         value: obj.get("v").cloned().unwrap_or(Value::Null),
     })
 }
@@ -863,13 +954,7 @@ fn normalize_image_response(body: &[u8], turn_id: Option<&str>) -> Option<Vec<u8
                 })
                 .collect();
             for ptr in &with_cid {
-                match download_image_b64(
-                    &ctx.client,
-                    &ctx.access_token,
-                    &ctx.device_id,
-                    ptr,
-                )
-                .await
+                match download_image_b64(&ctx.client, &ctx.access_token, &ctx.device_id, ptr).await
                 {
                     Ok(b64) => out.push((b64, String::new())),
                     Err(e) => tracing::warn!(

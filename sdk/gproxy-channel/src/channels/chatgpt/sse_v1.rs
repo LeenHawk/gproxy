@@ -148,8 +148,8 @@ fn parse_block(event: Option<&str>, data: &str) -> Option<Event> {
 
     // `event: delta_encoding` banner. Body is a JSON string "v1".
     if matches!(event, Some("delta_encoding")) {
-        let name = serde_json::from_str::<String>(data.trim())
-            .unwrap_or_else(|_| data.trim().to_string());
+        let name =
+            serde_json::from_str::<String>(data.trim()).unwrap_or_else(|_| data.trim().to_string());
         return Some(Event::Encoding(name));
     }
 
@@ -211,7 +211,11 @@ fn parse_delta(v: &Value) -> Delta {
 
     // Case C: single patch.
     let patch = PatchOp {
-        path: v.get("p").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        path: v
+            .get("p")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
         op: PatchKind::parse(op),
         value: v.get("v").cloned().unwrap_or(Value::Null),
     };

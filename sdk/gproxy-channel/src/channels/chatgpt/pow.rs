@@ -42,11 +42,7 @@ pub fn solve_pow(seed: &str, difficulty: &str, opts: &ConfigOptions) -> String {
             return format!("gAAAAAB{}~S", payload);
         }
     }
-    format!(
-        "{}{}",
-        ERROR_PREFIX,
-        base64_encode_bytes(b"e")
-    )
+    format!("{}{}", ERROR_PREFIX, base64_encode_bytes(b"e"))
 }
 
 fn base64_encode_bytes(b: &[u8]) -> String {
@@ -87,7 +83,10 @@ mod tests {
         buf.push_str("0.5099912974590367");
         buf.push_str(payload);
         let h = pow_hash_hex(&buf);
-        assert!(&h[..6] <= "061a80", "hash {h} must satisfy difficulty 061a80");
+        assert!(
+            &h[..6] <= "061a80",
+            "hash {h} must satisfy difficulty 061a80"
+        );
     }
 
     #[test]
@@ -103,7 +102,10 @@ mod tests {
         buf.push_str("0.6287679384217534");
         buf.push_str(payload);
         let h = pow_hash_hex(&buf);
-        assert!(&h[..6] <= "06c164", "hash {h} must satisfy difficulty 06c164");
+        assert!(
+            &h[..6] <= "06c164",
+            "hash {h} must satisfy difficulty 06c164"
+        );
     }
 
     #[test]

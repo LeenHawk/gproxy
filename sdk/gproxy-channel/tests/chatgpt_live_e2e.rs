@@ -17,9 +17,7 @@
 use std::path::PathBuf;
 
 use gproxy_channel::channel::Channel;
-use gproxy_channel::channels::chatgpt::{
-    ChatGptChannel, ChatGptCredential, ChatGptSettings,
-};
+use gproxy_channel::channels::chatgpt::{ChatGptChannel, ChatGptCredential, ChatGptSettings};
 use gproxy_channel::executor::execute_once;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::routing::RouteKey;
@@ -198,10 +196,13 @@ async fn live_image_generation() {
         &body_str[body_str.len().saturating_sub(1000)..]
     );
 
-    assert!((200..300).contains(&outcome.response.status), "expected 2xx");
+    assert!(
+        (200..300).contains(&outcome.response.status),
+        "expected 2xx"
+    );
 
-    let parsed: serde_json::Value = serde_json::from_slice(&outcome.response.body)
-        .expect("image response should be JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&outcome.response.body).expect("image response should be JSON");
     let data = parsed["data"].as_array().expect("data array");
     assert!(!data.is_empty(), "at least one image in data");
     let b64 = data[0]["b64_json"].as_str().unwrap_or("");
@@ -276,10 +277,7 @@ async fn live_image_edit_with_upload() {
         outcome.response.total_latency_ms
     );
     let body_str = String::from_utf8_lossy(&outcome.response.body);
-    println!(
-        "[edit] body head={}",
-        &body_str[..body_str.len().min(200)]
-    );
+    println!("[edit] body head={}", &body_str[..body_str.len().min(200)]);
 
     assert!(
         (200..300).contains(&outcome.response.status),

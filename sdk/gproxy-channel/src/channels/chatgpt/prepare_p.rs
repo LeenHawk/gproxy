@@ -7,10 +7,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Value, json};
 
-pub const DEFAULT_BUILD_ID: &str =
-    "prod-d7545204e22cb990d0245281e6550977d93b6a81";
-pub const DEFAULT_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+pub const DEFAULT_BUILD_ID: &str = "prod-d7545204e22cb990d0245281e6550977d93b6a81";
+pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
      (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0";
 pub const DEFAULT_LANGUAGES: &[&str] = &["en", "zh-CN", "zh"];
 pub const DEFAULT_TQT_CANDIDATES: &[&str] = &[
@@ -21,8 +19,12 @@ pub const DEFAULT_TQT_CANDIDATES: &[&str] = &[
     "deviceMemory−8",
 ];
 pub const DEFAULT_DOCUMENT_KEYS: &[&str] = &["location", "_reactListening7emk2nodhb"];
-pub const DEFAULT_WINDOW_KEYS: &[&str] =
-    &["outerWidth", "__oai_so_kp", "localStorage", "visualViewport"];
+pub const DEFAULT_WINDOW_KEYS: &[&str] = &[
+    "outerWidth",
+    "__oai_so_kp",
+    "localStorage",
+    "visualViewport",
+];
 
 /// Options for building the base config array. Fields roughly correspond to
 /// JS `buildBaseConfig(options)`; defaults mirror the browser.
