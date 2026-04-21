@@ -220,16 +220,33 @@ export function ModelsPane({
     }
   };
 
+  /// Create an alias row (freely-named) pointing to `base` with a single
+  /// `model` → base.model_id rewrite rule. No parameter injection.
+  const addAlias = (base: MemoryModelRow, aliasName: string) =>
+    createAlias(base, aliasName, [], "models.aliasDialog.created");
+
   /// Create a model row for a suffix variant (model_id + suffix) and append
   /// matching rewrite rules to the provider's settings_json, all scoped to
   /// the new model name via model_pattern.
-  const addSuffixVariant = async (
+  const addSuffixVariant = (
     base: MemoryModelRow,
     suffix: string,
     actions: SuffixActionSetBody[],
+  ) =>
+    createAlias(
+      base,
+      `${base.model_id}${suffix}`,
+      actions,
+      "models.suffixDialog.created",
+    );
+
+  const createAlias = async (
+    base: MemoryModelRow,
+    aliasName: string,
+    actions: SuffixActionSetBody[],
+    successKey: string,
   ) => {
     if (!selectedProvider) return;
-    const aliasName = `${base.model_id}${suffix}`;
     try {
       // 1. Create the variant row (check duplicate first).
       const existing = allModelRows.find(
@@ -310,7 +327,7 @@ export function ModelsPane({
         },
       });
 
-      notify("success", t("models.suffixDialog.created", { name: aliasName }));
+      notify("success", t(successKey, { name: aliasName }));
       await reloadModels();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
@@ -349,6 +366,7 @@ export function ModelsPane({
       onAddSuffixVariant={(base, suffix, actions) =>
         void addSuffixVariant(base, suffix, actions)
       }
+      onAddAlias={(base, aliasName) => void addAlias(base, aliasName)}
       providerChannel={providerForm.channel}
       labels={{
         title: t("models.title"),
@@ -376,6 +394,12 @@ export function ModelsPane({
         suffixNone: t("models.suffixDialog.none"),
         suffixPreview: t("models.suffixDialog.preview"),
         suffixConfirm: t("models.suffixDialog.confirm"),
+        addAlias: t("models.addAlias"),
+        aliasDialogTitle: t("models.aliasDialog.title"),
+        aliasDialogHint: t("models.aliasDialog.hint"),
+        aliasName: t("models.aliasDialog.name"),
+        aliasPreview: t("models.aliasDialog.preview"),
+        aliasConfirm: t("models.aliasDialog.confirm"),
         pricingEditor: {
           sectionTitle: t("models.pricingJson"),
           priceEachCall: t("models.pricing.priceEachCall"),

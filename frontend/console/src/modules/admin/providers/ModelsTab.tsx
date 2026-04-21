@@ -4,6 +4,7 @@ import { BatchActionBar } from "../../../components/BatchActionBar";
 import { Button, Card, Input, Label } from "../../../components/ui";
 import { lookupDefaultPricing } from "../../../lib/default-model-pricing";
 import type { MemoryModelRow } from "../../../lib/types/admin";
+import { AliasDialog } from "./AliasDialog";
 import { PricingEditor, type PricingEditorLabels } from "./PricingEditor";
 import { usePullModelsPanel } from "./PullModelsPanel";
 import { SuffixVariantDialog } from "./SuffixVariantDialog";
@@ -56,6 +57,12 @@ type ModelsTabLabels = {
   suffixNone: string;
   suffixPreview: string;
   suffixConfirm: string;
+  addAlias: string;
+  aliasDialogTitle: string;
+  aliasDialogHint: string;
+  aliasName: string;
+  aliasPreview: string;
+  aliasConfirm: string;
   pricingEditor: PricingEditorLabels;
 };
 
@@ -71,6 +78,7 @@ export function ModelsTab({
   onPull,
   onImport,
   onAddSuffixVariant,
+  onAddAlias,
   providerChannel,
   labels,
   batch,
@@ -93,6 +101,10 @@ export function ModelsTab({
     suffix: string,
     actions: SuffixActionSetBody[],
   ) => void;
+  /// Called when the user confirms the plain-alias dialog. Receives the base
+  /// real model and the user-picked alias name (free-form, not derived from a
+  /// preset suffix).
+  onAddAlias?: (base: MemoryModelRow, aliasName: string) => void;
   /// Current provider's channel — used to pick a default suffix protocol.
   providerChannel?: string;
   labels: ModelsTabLabels;
@@ -119,6 +131,7 @@ export function ModelsTab({
   // Suffix variant dialog: `null` means closed, otherwise holds the base model
   // being varied. All picker state lives inside the dialog component itself.
   const [suffixDialogBase, setSuffixDialogBase] = useState<MemoryModelRow | null>(null);
+  const [aliasDialogBase, setAliasDialogBase] = useState<MemoryModelRow | null>(null);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
@@ -223,6 +236,11 @@ export function ModelsTab({
             </div>
             <div className="flex gap-2">
               <Button onClick={onSave}>{labels.save}</Button>
+              {selected && onAddAlias ? (
+                <Button variant="neutral" onClick={() => setAliasDialogBase(selected)}>
+                  + {labels.addAlias}
+                </Button>
+              ) : null}
               {selected && onAddSuffixVariant ? (
                 <Button variant="neutral" onClick={() => setSuffixDialogBase(selected)}>
                   + {labels.addSuffixVariant}
@@ -256,6 +274,25 @@ export function ModelsTab({
             setSuffixDialogBase(null);
           }}
           onClose={() => setSuffixDialogBase(null)}
+        />
+      ) : null}
+
+      {aliasDialogBase && onAddAlias ? (
+        <AliasDialog
+          base={aliasDialogBase}
+          labels={{
+            aliasDialogTitle: labels.aliasDialogTitle,
+            aliasDialogHint: labels.aliasDialogHint,
+            aliasName: labels.aliasName,
+            aliasPreview: labels.aliasPreview,
+            aliasConfirm: labels.aliasConfirm,
+            cancel: labels.cancel,
+          }}
+          onConfirm={(base, aliasName) => {
+            onAddAlias(base, aliasName);
+            setAliasDialogBase(null);
+          }}
+          onClose={() => setAliasDialogBase(null)}
         />
       ) : null}
     </div>
