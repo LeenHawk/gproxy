@@ -1,17 +1,22 @@
-//! HTTP header helpers for the ChatGPT web channel.
+//! HTTP header helpers + turn context cache for the ChatGPT web channel.
 //!
 //! ChatGPT's `/backend-api/f/conversation` endpoint sits behind a Cloudflare
 //! WAF that issues a `cf-mitigated: challenge` unless the request carries a
 //! `__cf_bm` cookie established by a prior GET to the origin.
 //!
-//! This module does not own an HTTP client — callers pass a `wreq::Client`
-//! (with `cookie_store` enabled) into [`warmup`] and it both populates the
-//! CF cookie and becomes the client that subsequent sentinel and
-//! conversation requests should be issued from.
+//! This module:
+//! * provides [`standard_headers`] — the common request header set,
+//! * provides [`warmup`] — populates `__cf_bm` on a caller-supplied
+//!   `wreq::Client` (which MUST have `cookie_store(true)`),
+//! * caches per-turn credential context in [`stash_turn`] / [`take_turn`]
+//!   keyed by `x-oai-turn-trace-id` — so `normalize_response` (which does
+//!   not receive the credential) can still reach back for image download.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use dashmap::DashMap;
+use std::sync::OnceLock;
 use wreq::Client;
 
 use crate::response::UpstreamError;
@@ -58,6 +63,80 @@ pub async fn warmup(client: &Client, access_token: &str) -> Result<(), UpstreamE
     Ok(())
 }
 
+/// Per-turn credential/client context stashed by `prepare_request` for
+/// later pickup by `normalize_response` (which has no way to access the
+/// credential or HTTP client otherwise). Keyed by `x-oai-turn-trace-id`.
+#[derive(Clone)]
+pub struct TurnContext {
+    pub access_token: String,
+    pub chat_req_token: String,
+    pub device_id: String,
+    pub client: Client,
+}
+
+fn turn_cache() -> &'static DashMap<String, TurnContext> {
+    static CACHE: OnceLock<DashMap<String, TurnContext>> = OnceLock::new();
+    CACHE.get_or_init(DashMap::new)
+}
+
+pub fn stash_turn(trace_id: String, ctx: TurnContext) {
+    // Prune anything older than 60s on each insert to keep the map small.
+    let cache = turn_cache();
+    cache.insert(trace_id, ctx);
+    if cache.len() > 1024 {
+        let stale: Vec<String> = cache.iter().map(|e| e.key().clone()).take(256).collect();
+        for k in stale {
+            cache.remove(&k);
+        }
+    }
+}
+
+pub fn take_turn(trace_id: &str) -> Option<TurnContext> {
+    turn_cache().remove(trace_id).map(|(_, v)| v)
+}
+
+/// Shared cookie-enabled `wreq::Client` for fallback HTTP calls made
+/// outside the engine's request loop (file downloads etc.). Built lazily
+/// on first use with Chrome emulation + cookie jar.
+pub fn shared_fallback_client() -> Result<Client, UpstreamError> {
+    static CLIENT: OnceLock<Client> = OnceLock::new();
+    if let Some(c) = CLIENT.get() {
+        return Ok(c.clone());
+    }
+    let built = Client::builder()
+        .emulation(wreq_util::Emulation::Chrome136)
+        .cookie_store(true)
+        .redirect(wreq::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| UpstreamError::Channel(format!("chatgpt fallback client: {e}")))?;
+    let _ = CLIENT.set(built);
+    Ok(CLIENT.get().cloned().expect("just set"))
+}
+
+/// Warmup the shared fallback client specifically. Tracks its own
+/// timestamp so that warmups for the engine's http_client do not mask
+/// the fallback needing one.
+pub async fn warmup_fallback(client: &Client, access_token: &str) -> Result<(), UpstreamError> {
+    static LAST: Mutex<Option<Instant>> = Mutex::new(None);
+    {
+        let guard = LAST.lock().unwrap();
+        if let Some(t) = *guard
+            && t.elapsed() < WARMUP_TTL
+        {
+            return Ok(());
+        }
+    }
+    for path in WARMUP_PATHS {
+        let url = format!("{CHATGPT_ORIGIN}{path}");
+        let req = client.get(&url).headers(standard_headers(access_token).into());
+        if let Err(e) = req.send().await {
+            tracing::warn!(error = %e, "chatgpt fallback warmup GET {path} failed");
+        }
+    }
+    *LAST.lock().unwrap() = Some(Instant::now());
+    Ok(())
+}
+
 /// Common request headers (non-sentinel) used for every backend-api call.
 pub fn standard_headers(access_token: &str) -> StandardHeaders {
     StandardHeaders {
@@ -68,6 +147,7 @@ pub fn standard_headers(access_token: &str) -> StandardHeaders {
 /// Builder-style helper for the recurring "chatgpt web" request header set.
 /// The fields are populated once and then flattened into a [`http::HeaderMap`]
 /// when attached to a request.
+#[derive(Clone)]
 pub struct StandardHeaders {
     access_token: String,
 }

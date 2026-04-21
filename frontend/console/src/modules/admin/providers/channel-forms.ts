@@ -27,6 +27,7 @@ export const ALL_CHANNEL_IDS = [
   "antigravity",
   "claudecode",
   "codex",
+  "chatgpt",
   "nvidia",
   "deepseek",
   "groq",
@@ -149,6 +150,16 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
       { key: "oauth_issuer_url", label: "oauth_issuer_url", type: "text", optional: true },
     ],
   },
+  chatgpt: {
+    defaults: {
+      base_url: "https://chatgpt.com",
+      user_agent: "",
+    },
+    fields: [
+      { key: "base_url", label: "base_url", type: "text" },
+      { key: "user_agent", label: "user_agent", type: "text", optional: true },
+    ],
+  },
   nvidia: {
     defaults: { base_url: "https://integrate.api.nvidia.com", user_agent: "" },
     fields: [
@@ -243,6 +254,16 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
       { key: "user_email", label: "user_email", type: "text", optional: true },
       { key: "account_id", label: "account_id", type: "text", optional: true },
       { key: "expires_at_ms", label: "expires_at_ms", type: "integer" },
+    ],
+  },
+  chatgpt: {
+    fields: [
+      { key: "access_token", label: "access_token (chatgpt.com web session)", type: "textarea" },
+      { key: "chat_req_token", label: "chat_req_token", type: "textarea", optional: true },
+      { key: "proof_token", label: "proof_token", type: "textarea", optional: true },
+      { key: "chat_req_token_expires_at_ms", label: "chat_req_token_expires_at_ms", type: "integer", optional: true },
+      { key: "persona", label: "persona", type: "text", optional: true },
+      { key: "device_id", label: "device_id", type: "text", optional: true },
     ],
   },
   nvidia: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },

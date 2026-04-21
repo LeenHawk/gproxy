@@ -6,9 +6,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::Instrument;
 
+use super::image::{
+    ImagePointer, build_openai_images_response, download_image_b64, extract_image_pointers,
+    poll_conversation_for_images,
+};
 use super::request_builder::{build_conversation_body, resolve_model};
 use super::sentinel::{self, SentinelTokens};
-use super::session::{OAI_CLIENT_VERSION, standard_headers};
+use super::session::{
+    OAI_CLIENT_VERSION, TurnContext, shared_fallback_client, stash_turn, standard_headers,
+    take_turn,
+};
 use super::sse_to_openai::SseToOpenAi;
 use super::sse_v1::SseDecoder;
 
@@ -158,6 +165,7 @@ impl Channel for ChatGptChannel {
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
             ),
+            pass(OperationFamily::CreateImage, ProtocolKind::OpenAi),
             xform(
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiResponse,
@@ -205,6 +213,27 @@ impl Channel for ChatGptChannel {
         CountStrategy::Local
     }
 
+    fn finalize_request(
+        &self,
+        _settings: &Self::Settings,
+        mut request: PreparedRequest,
+    ) -> Result<PreparedRequest, UpstreamError> {
+        // Attach a per-turn trace id to both ends of the pipeline so
+        // `prepare_request` (stash TurnContext) and `normalize_response`
+        // (look it up) agree on a key. The engine passes the SAME
+        // PreparedRequest object to both hooks, so stashing a header here
+        // is the simplest way to thread state through.
+        if !request.headers.contains_key("x-chatgpt-turn-id") {
+            let id = uuid::Uuid::new_v4().to_string();
+            if let Ok(v) = http::HeaderValue::from_str(&id) {
+                request
+                    .headers
+                    .insert(http::HeaderName::from_static("x-chatgpt-turn-id"), v);
+            }
+        }
+        Ok(request)
+    }
+
     fn needs_spoof_client(&self, _credential: &Self::Credential) -> bool {
         // The engine may use its own spoof client too, but we maintain our
         // own cookie-jar'd client inside `session.rs` for all calls this
@@ -242,6 +271,24 @@ impl Channel for ChatGptChannel {
         let openai_body: Value = serde_json::from_slice(&request.body).map_err(|e| {
             UpstreamError::Channel(format!("chatgpt: parse request body: {e}"))
         })?;
+        let is_image = matches!(
+            request.route.operation,
+            OperationFamily::CreateImage | OperationFamily::StreamCreateImage
+        );
+        // For image requests, adapt the prompt-only body into a chat-like
+        // shape so `build_conversation_body` can reuse the same path.
+        let chat_body: Value = if is_image {
+            let prompt = openai_body
+                .get("prompt")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            serde_json::json!({
+                "messages": [{"role": "user", "content": prompt}],
+            })
+        } else {
+            openai_body.clone()
+        };
         let model = resolve_model(
             request
                 .model
@@ -249,7 +296,7 @@ impl Channel for ChatGptChannel {
                 .or_else(|| openai_body.get("model").and_then(|v| v.as_str()))
                 .unwrap_or(""),
         );
-        let body_map = build_conversation_body(&openai_body, &model);
+        let body_map = build_conversation_body(&chat_body, &model);
         let body_bytes = serde_json::to_vec(&Value::Object(body_map)).map_err(|e| {
             UpstreamError::Channel(format!("chatgpt: serialize body: {e}"))
         })?;
@@ -265,6 +312,30 @@ impl Channel for ChatGptChannel {
             .device_id
             .clone()
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let turn_id = request
+            .headers
+            .get("x-chatgpt-turn-id")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from)
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let trace_id = uuid::Uuid::new_v4().to_string();
+
+        // Stash turn context so normalize_response can fetch image bytes
+        // for `CreateImage` routes. Includes a cookie-enabled fallback
+        // client suitable for the file-download API.
+        if is_image
+            && let Ok(fallback_client) = shared_fallback_client()
+        {
+            stash_turn(
+                turn_id.clone(),
+                TurnContext {
+                    access_token: credential.access_token.clone(),
+                    chat_req_token: credential.chat_req_token.clone(),
+                    device_id: device_id.clone(),
+                    client: fallback_client,
+                },
+            );
+        }
 
         let mut builder = http::Request::builder()
             .method(http::Method::POST)
@@ -287,7 +358,7 @@ impl Channel for ChatGptChannel {
                 &credential.chat_req_token,
             )
             .header("openai-sentinel-proof-token", &proof_token)
-            .header("x-oai-turn-trace-id", uuid::Uuid::new_v4().to_string())
+            .header("x-oai-turn-trace-id", trace_id)
             .header("x-openai-target-path", CONVERSATION_PATH);
 
         // User-provided extra headers.
@@ -304,6 +375,22 @@ impl Channel for ChatGptChannel {
         if body.is_empty() {
             return body;
         }
+
+        // Image generation route: pull out file-service pointers, download
+        // them via the stashed fallback client, and return a standard
+        // OpenAI `images.response` body.
+        if matches!(
+            request.route.operation,
+            OperationFamily::CreateImage | OperationFamily::StreamCreateImage
+        ) {
+            let turn_id = request
+                .headers
+                .get("x-chatgpt-turn-id")
+                .and_then(|v| v.to_str().ok())
+                .map(String::from);
+            return normalize_image_response(&body, turn_id.as_deref()).unwrap_or(body);
+        }
+
         // We are only asked to normalize when buffered; streaming is
         // handled by the engine separately. For a buffered SSE body, we
         // parse the whole stream and re-emit as standard OpenAI
@@ -434,6 +521,92 @@ impl Channel for ChatGptChannel {
 
 fn chatgpt_routing_table() -> RoutingTable {
     ChatGptChannel.routing_table()
+}
+
+/// Parse an image-generation SSE body and return an OpenAI
+/// `images.response` JSON body. Uses the turn-scoped [`TurnContext`]
+/// previously stashed by `prepare_request` to download each pointer's
+/// image bytes and base64-encode them.
+///
+/// On any failure, returns `None` so the caller can fall back to the raw
+/// body (preserving diagnostic info in logs).
+fn normalize_image_response(body: &[u8], turn_id: Option<&str>) -> Option<Vec<u8>> {
+    let (mut pointers, conversation_id) = extract_image_pointers(body);
+
+    // Lift the turn context out of the stash. If we have no context we
+    // cannot authenticate the download; bail to raw body.
+    let ctx = turn_id.and_then(take_turn)?;
+
+    let results: Vec<(String, String)> = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async move {
+            // Warmup cookies on the fallback client the first time we use
+            // it; inexpensive after the first successful call. Uses its
+            // own LAST timestamp so it runs once per fallback client,
+            // regardless of the engine client's warmup history.
+            let _ = super::session::warmup_fallback(&ctx.client, &ctx.access_token).await;
+
+            // Image generation on chatgpt.com is ASYNC: the initial SSE
+            // only emits a "Processing image" tool message and returns
+            // BEFORE the file-service pointer appears. Poll the
+            // conversation endpoint until the real pointers show up.
+            if pointers.is_empty()
+                && let Some(cid) = conversation_id.as_deref()
+            {
+                match poll_conversation_for_images(
+                    &ctx.client,
+                    &ctx.access_token,
+                    &ctx.device_id,
+                    cid,
+                    180,
+                )
+                .await
+                {
+                    Ok(ptrs) => pointers = ptrs,
+                    Err(e) => {
+                        tracing::warn!(error = %e, "chatgpt image poll failed");
+                        return Vec::<(String, String)>::new();
+                    }
+                }
+            }
+
+            let mut out = Vec::new();
+            let with_cid: Vec<ImagePointer> = pointers
+                .into_iter()
+                .map(|mut p| {
+                    if p.conversation_id.is_empty()
+                        && let Some(cid) = conversation_id.as_deref()
+                    {
+                        p.conversation_id = cid.to_string();
+                    }
+                    p
+                })
+                .collect();
+            for ptr in &with_cid {
+                match download_image_b64(
+                    &ctx.client,
+                    &ctx.access_token,
+                    &ctx.device_id,
+                    ptr,
+                )
+                .await
+                {
+                    Ok(b64) => out.push((b64, String::new())),
+                    Err(e) => tracing::warn!(
+                        error = %e,
+                        pointer = %ptr.id,
+                        "chatgpt image download failed"
+                    ),
+                }
+            }
+            out
+        })
+    });
+
+    if results.is_empty() {
+        return None;
+    }
+    let wrapped = build_openai_images_response(results);
+    serde_json::to_vec(&wrapped).ok()
 }
 
 inventory::submit! { ChannelRegistration::new(ChatGptChannel::ID, chatgpt_routing_table) }

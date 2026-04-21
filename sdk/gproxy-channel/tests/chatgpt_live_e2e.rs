@@ -136,3 +136,78 @@ async fn live_chat_completion_roundtrip() {
         .unwrap_or("");
     assert!(!content.is_empty(), "assistant content should be non-empty");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "hits live chatgpt.com; generates one image — slow (~30s)"]
+async fn live_image_generation() {
+    let access_token = load_token().expect("need target/.chatgpt_token");
+    tracing_subscriber::fmt()
+        .with_env_filter("gproxy_channel=debug")
+        .with_test_writer()
+        .try_init()
+        .ok();
+
+    let channel = ChatGptChannel;
+    let settings = ChatGptSettings::default();
+    let mut credential = ChatGptCredential {
+        access_token,
+        ..Default::default()
+    };
+
+    let http_client = wreq::Client::builder()
+        .emulation(wreq_util::Emulation::Chrome136)
+        .cookie_store(true)
+        .redirect(wreq::redirect::Policy::limited(10))
+        .build()
+        .expect("build http client");
+
+    channel
+        .refresh_credential(&http_client, &mut credential)
+        .await
+        .expect("refresh");
+
+    let request = PreparedRequest {
+        method: http::Method::POST,
+        route: RouteKey::new(OperationFamily::CreateImage, ProtocolKind::OpenAi),
+        model: Some("gpt-image-1".to_string()),
+        body: serde_json::to_vec(&serde_json::json!({
+            "prompt": "a tiny cartoon cat wearing a red hat, simple line art",
+            "n": 1,
+            "size": "1024x1024"
+        }))
+        .unwrap(),
+        headers: http::HeaderMap::new(),
+    };
+
+    let outcome = execute_once(&channel, &credential, &settings, &http_client, request)
+        .await
+        .expect("execute_once");
+    println!(
+        "[image] status={} bytes={} latency_ms={}",
+        outcome.response.status,
+        outcome.response.body.len(),
+        outcome.response.total_latency_ms
+    );
+    let body_str = String::from_utf8_lossy(&outcome.response.body);
+    println!(
+        "[image] full_body (first 4KB)={}",
+        &body_str[..body_str.len().min(4000)]
+    );
+    println!(
+        "[image] last 1KB={}",
+        &body_str[body_str.len().saturating_sub(1000)..]
+    );
+
+    assert!((200..300).contains(&outcome.response.status), "expected 2xx");
+
+    let parsed: serde_json::Value = serde_json::from_slice(&outcome.response.body)
+        .expect("image response should be JSON");
+    let data = parsed["data"].as_array().expect("data array");
+    assert!(!data.is_empty(), "at least one image in data");
+    let b64 = data[0]["b64_json"].as_str().unwrap_or("");
+    assert!(
+        b64.len() > 1000,
+        "b64_json should be non-trivial (got {} bytes)",
+        b64.len()
+    );
+}

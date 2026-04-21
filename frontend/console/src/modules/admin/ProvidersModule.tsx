@@ -68,6 +68,7 @@ export function ProvidersModule({
         "antigravity",
         "claudecode",
         "codex",
+        "chatgpt",
         "nvidia",
         "deepseek",
         "groq",
