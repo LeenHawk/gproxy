@@ -64,7 +64,7 @@ members = [
 # This resolves Open Question §7 from the SDK layer refactor spec
 # (docs/superpowers/specs/2026-04-13-sdk-layer-refactor-design.md).
 [workspace.package]
-version = "1.0.17"
+version = "1.0.18"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 authors = ["LeenHawk <leenhawk@leenhawk.com>"]
@@ -78,10 +78,10 @@ readme = "README.md"
 # development builds) and `version` (needed at `cargo publish` time —
 # crates.io rejects path-only internal deps). Keep the version string
 # in lock-step with `workspace.package.version` above.
-gproxy-sdk = { path = "sdk/gproxy-sdk", version = "1.0.17" }
-gproxy-protocol = { path = "sdk/gproxy-protocol", version = "1.0.17" }
-gproxy-channel = { path = "sdk/gproxy-channel", version = "1.0.17", default-features = false }
-gproxy-engine = { path = "sdk/gproxy-engine", version = "1.0.17", default-features = false }
+gproxy-sdk = { path = "sdk/gproxy-sdk", version = "1.0.18" }
+gproxy-protocol = { path = "sdk/gproxy-protocol", version = "1.0.18" }
+gproxy-channel = { path = "sdk/gproxy-channel", version = "1.0.18", default-features = false }
+gproxy-engine = { path = "sdk/gproxy-engine", version = "1.0.18", default-features = false }
 
 # Internal App crates
 gproxy-core = { path = "crates/gproxy-core" }

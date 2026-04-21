@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1803,7 +1803,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1838,7 +1838,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "async-stream",
  "axum",
@@ -1869,7 +1869,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1884,7 +1884,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-engine"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1923,7 +1923,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "bytes",
  "chrono",
@@ -1949,7 +1949,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "gproxy-channel",
  "gproxy-engine",
@@ -1958,7 +1958,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1995,7 +1995,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "argon2",
  "base64 0.22.1",
