@@ -97,10 +97,14 @@ export function CredentialsPane({
         if (raw.startsWith("{")) {
           credential = JSON.parse(raw);
         } else {
-          // Plain string — wrap as cookie for claudecode/codex, api_key for others
+          // Plain string — wrap into the channel's primary credential field.
+          // claudecode/codex expect a cookie, chatgpt expects an access_token
+          // (the chatgpt.com session JWT), others expect an api_key.
           const channel = selectedProvider.channel;
-          if (channel === "claudecode" || channel === "codex") {
+          if (channel === "claudecode") {
             credential = { cookie: raw };
+          } else if (channel === "chatgpt") {
+            credential = { access_token: raw };
           } else {
             credential = { api_key: raw };
           }
