@@ -11,10 +11,12 @@
 - **Upstream streaming usage tracking.** The engine now observes and records upstream usage on streaming requests across every cross-protocol path, not just the non-streaming ones. OpenAI Chat Completions streaming requests have `stream_options.include_usage = true` injected automatically so the final `usage` frame is always emitted, and usage is pulled out and persisted alongside the existing non-stream accounting.
 - **mimalloc as the global allocator.** The main binary now pins mimalloc via `#[global_allocator]`. Measurable improvement in steady-state memory footprint and fragmentation under the fan-out-heavy streaming workload this proxy actually runs; no code-side API changes.
 - **"Restore default routing" button on the provider workspace.** One click resets the current provider's `routing_json` back to the channel's built-in routing table — the recovery path for anyone who edited the table by hand and wants to get back to a known-good state without deleting the provider.
+- **"+ Add Alias" button in the models pane.** Sits next to "+ Add Suffix Variant". Opens a minimal dialog asking only for a free-form alias name (prefilled with `{base.model_id}-`), and on confirm creates a standalone model row plus a single `path:"model" set <real>` rewrite rule scoped to the alias. Use this when you just want a name — no thinking / reasoning / effort preset injection.
 - **claudecode default version + fingerprint.** The default bundled `claudecode` version is bumped and the fingerprint/attribution settings are extended.
 
 #### Fixed
 
+- **Sidebar credential count refreshes after add / delete.** The provider list's "N creds" badge is `ProviderRow.credential_count` from `/admin/providers/query`, but `CredentialsPane` only called `onProviderScopedReload` after a credential upsert/delete — that refreshed the credential + status rows but left the provider list stale until the next manual reload. Now threads `onReloadProviders` through and fires it alongside the scoped reload, so the badge updates in-place.
 - **Startup no longer fails on DBs that briefly ran the realtime branch.** A one-shot sea-orm-migration rewrites `providers.routing_json` and drops any rule whose source or `TransformTo` destination operation references a realtime variant (`openai_realtime_websocket`, `realtime_client_secret_create`, `realtime_call_{accept,hangup,refer,reject,create}`). Before this migration those rows would fail serde with `unknown variant 'openai_realtime_websocket', expected one of …` on boot. Run-once via `seaql_migrations`; safe on fresh DBs.
 - **Empty / whitespace-only content blocks no longer waste cache breakpoints.** `finalize_request` now drops whitespace-only `text` blocks, empty content arrays, and empty messages. When a removed block carried `cache_control`, the marker is shifted to the most recent surviving cacheable block — first within the same message scope, then scanning back through earlier kept messages. The magic-trigger space-pad hack is gone: sanitize handles the residue uniformly, which removes ~130 lines of special-case paths.
 - **`claude_cache_control::sanitize_block_array` simplified.** Cache-control handling in the block-array sanitizer is collapsed to a single pass, matching the semantics used elsewhere in the module.
@@ -47,10 +49,12 @@
 - **上游流式 usage 追踪.** 引擎现在在所有跨协议流式路径上都观察并记录上游 usage,不再只覆盖非流式路径。OpenAI Chat Completions 流式请求会自动注入 `stream_options.include_usage = true`,保证最终那一帧 `usage` 一定被发出;usage 在流结束时落入与非流式同一套计费账目。
 - **mimalloc 接管全局分配器.** 主二进制用 `#[global_allocator]` 固定到 mimalloc。对本 proxy 实际跑的"高扇出流式"工作负载,稳态内存占用和碎片有可观的改善;对代码侧 API 零改动。
 - **Provider 工作区新增「恢复默认路由」按钮.** 一键把当前 provider 的 `routing_json` 重置回 channel 的内置路由表 —— 留给那些手改过路由表又想回到已知良好状态的人,不用删 provider 重建。
+- **模型列表新增「+ 添加别名」按钮.** 紧挨着「+ 添加后缀变体」。弹出一个极简对话框,只要求填自由别名(预填 `{base.model_id}-`),确认后创建一行独立 model + 一条 `path:"model" set <真名>` 改写规则(`model_pattern = 别名`)。适用于"只想起个名、不要注入 thinking / reasoning / effort 预设"的场景。
 - **claudecode 默认版本和 fingerprint 升级.** 内置的 claudecode 版本号升级,fingerprint / attribution 相关设置扩展。
 
 #### 修复
 
+- **凭证增删后 sidebar 凭证数量 badge 立即刷新.** provider 列表上的 "N creds" 来自 `/admin/providers/query` 返回的 `ProviderRow.credential_count`,但 `CredentialsPane` 在 upsert/delete 成功后只调了 `onProviderScopedReload`(刷凭证详情 + 状态),provider 列表那份计数不跟着走,要手动刷新才会更新。现在把 `onReloadProviders` 一并传下去,和 scoped reload 一起触发,badge 立即同步。
 - **短暂跑过 realtime 分支的 DB 启动不再失败.** 新增 sea-orm-migration 一次性改写 `providers.routing_json`,剔除任何 source 或 `TransformTo` 目标 operation 指向 realtime 变体(`openai_realtime_websocket`、`realtime_client_secret_create`、`realtime_call_{accept,hangup,refer,reject,create}`)的规则。迁移前这些行会在启动时 serde 报 `unknown variant 'openai_realtime_websocket', expected one of …`。通过 `seaql_migrations` 记录只跑一次;新库会跳过。
 - **空 / 纯空白内容块不再浪费缓存断点.** `finalize_request` 现在会扔掉纯空白 `text` 块、空 content 数组和空 message。被扔的块上如果带 `cache_control`,断点会转移到最近一个仍然存活的可缓存块 —— 先在同 message 作用域内找,再向前跨 message 回溯已保留的块。之前 magic-trigger 打空格 padding 的 hack 一并删掉:sanitize 统一处理残块,省掉约 130 行特殊分支。
 - **`claude_cache_control::sanitize_block_array` 简化.** block array sanitizer 里的 cache_control 处理收敛为单趟,与 module 其它位置的语义一致。
