@@ -18,8 +18,11 @@ use super::session::{
 };
 use super::sse_to_openai::SseToOpenAi;
 use super::sse_v1::SseDecoder;
+use super::stream_reshaper::OpenAiChunkReshaper;
 
-use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
+use crate::channel::{
+    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, StreamReshaper,
+};
 use crate::count_tokens::CountStrategy;
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
@@ -242,6 +245,25 @@ impl Channel for ChatGptChannel {
         // with `cookie_store(true)` (engine.rs), so Set-Cookie from our
         // warmup survives into the actual `/f/conversation` request.
         true
+    }
+
+    fn stream_reshaper(
+        &self,
+        request: &PreparedRequest,
+    ) -> Option<Box<dyn StreamReshaper>> {
+        // Only reshape streaming text responses. Image routes go through
+        // normalize_response (they produce a single buffered JSON).
+        if !matches!(
+            request.route.operation,
+            OperationFamily::StreamGenerateContent
+        ) {
+            return None;
+        }
+        let model = request
+            .model
+            .clone()
+            .unwrap_or_else(|| "gpt-5".to_string());
+        Some(Box::new(OpenAiChunkReshaper::new(&model)))
     }
 
     fn prepare_request(

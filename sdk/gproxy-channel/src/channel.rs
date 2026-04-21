@@ -16,6 +16,28 @@ use crate::routing::RoutingTable;
 type OAuthFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<Option<T>, UpstreamError>> + Send + 'a>>;
 
+/// Per-request channel-owned byte transformer for streaming responses.
+///
+/// When the upstream sends a bytestream that is **not** already in the
+/// channel's declared downstream protocol format, the channel returns one
+/// of these from [`Channel::stream_reshaper`]. The engine invokes it on
+/// every chunk before running any cross-protocol transformer, so the
+/// output of `push_chunk` MUST already be in the channel's downstream
+/// protocol format (e.g. `OpenAiChatCompletion` SSE chunks for chatgpt).
+pub trait StreamReshaper: Send + 'static {
+    /// Accept a raw upstream chunk and return any downstream-shaped
+    /// bytes to emit for it. Return `Vec::new()` to emit nothing this
+    /// turn (e.g. buffering an incomplete SSE event).
+    fn push_chunk(&mut self, chunk: &[u8]) -> Vec<u8>;
+
+    /// Called once after the upstream stream ends. Returns any trailing
+    /// bytes to emit (e.g. a synthesized `data: [DONE]\n\n`). Default
+    /// empty.
+    fn finish(&mut self) -> Vec<u8> {
+        Vec::new()
+    }
+}
+
 /// Core abstraction for an upstream LLM API provider channel.
 ///
 /// Each channel (OpenAI, Anthropic, Gemini, etc.) implements this trait once.
@@ -75,6 +97,23 @@ pub trait Channel: Send + Sync + 'static {
     /// Default: no-op, return body as-is.
     fn normalize_response(&self, _request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
         body
+    }
+
+    /// Return a [`StreamReshaper`] to apply to the upstream bytestream
+    /// BEFORE the engine's cross-protocol transformer runs.
+    ///
+    /// Use when the upstream speaks a protocol that is neither OpenAI,
+    /// Claude, nor Gemini — the reshaper should emit one of those three
+    /// in the channel's declared downstream protocol so the engine's
+    /// existing protocol-layer transforms can then take over.
+    ///
+    /// Default: `None` (upstream bytes are already in the declared
+    /// downstream protocol).
+    fn stream_reshaper(
+        &self,
+        _request: &PreparedRequest,
+    ) -> Option<Box<dyn StreamReshaper>> {
+        None
     }
 
     /// Token counting strategy for this channel.

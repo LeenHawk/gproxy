@@ -29,5 +29,6 @@ pub mod sentinel;
 pub mod session;
 pub mod sse_to_openai;
 pub mod sse_v1;
+pub mod stream_reshaper;
 
 pub use channel::{ChatGptChannel, ChatGptCredential, ChatGptSettings};
