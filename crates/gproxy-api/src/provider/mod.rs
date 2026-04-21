@@ -39,7 +39,7 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     let proxy_http_non_file_router = Router::new()
         // Scoped routes: /{provider}/v1/...
         .route("/{provider}/v1/messages", post(handler::proxy))
-        .route("/{provider}/v1/messages/count-tokens", post(handler::proxy))
+        .route("/{provider}/v1/messages/count_tokens", post(handler::proxy))
         .route("/{provider}/v1/chat/completions", post(handler::proxy))
         .route("/{provider}/v1/responses", post(handler::proxy))
         .route(
