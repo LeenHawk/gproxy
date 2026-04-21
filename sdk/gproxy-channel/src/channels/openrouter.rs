@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
@@ -175,6 +176,14 @@ impl Channel for OpenRouterChannel {
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiResponse,
             ),
+            // === Embeddings ===
+            pass(OperationFamily::Embedding, ProtocolKind::OpenAi),
+            xform(
+                OperationFamily::Embedding,
+                ProtocolKind::Gemini,
+                OperationFamily::Embedding,
+                ProtocolKind::OpenAi,
+            ),
         ];
 
         for (key, implementation) in routes {
@@ -228,6 +237,15 @@ impl Channel for OpenRouterChannel {
         builder
             .body(request.body.clone())
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
+    }
+
+    fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
+        let body = reshape_openrouter_error(&body);
+        match request.route.operation {
+            OperationFamily::ModelList => reshape_openrouter_model_list(&body),
+            OperationFamily::ModelGet => reshape_openrouter_model_get(&body),
+            _ => body,
+        }
     }
 
     fn classify_response(
@@ -284,6 +302,7 @@ fn openrouter_request_path(request: &PreparedRequest) -> Result<String, Upstream
                 ProtocolKind::OpenAiChatCompletion | ProtocolKind::OpenAi => {
                     Ok("/v1/chat/completions".to_string())
                 }
+                ProtocolKind::Claude => Ok("/v1/messages".to_string()),
                 _ => Err(UpstreamError::Channel(format!(
                     "unsupported openrouter request route: ({}, {})",
                     request.route.operation, request.route.protocol
@@ -304,3 +323,89 @@ fn openrouter_routing_table() -> RoutingTable {
 }
 
 inventory::submit! { ChannelRegistration::new(OpenRouterChannel::ID, openrouter_routing_table) }
+
+/// OpenRouter `/v1/models` returns `{"data": [...]}` without the OpenAI-required
+/// `object: "list"` wrapper field, and each item omits `object: "model"` and
+/// `owned_by`. Without these fields `OpenAiModelListResponse` deserialization
+/// fails. Fill them in; leave OR's extra fields alone (serde ignores unknowns).
+fn reshape_openrouter_model_list(body: &[u8]) -> Vec<u8> {
+    let Ok(mut v): Result<Value, _> = serde_json::from_slice(body) else {
+        return body.to_vec();
+    };
+    let Some(obj) = v.as_object_mut() else {
+        return body.to_vec();
+    };
+    if obj.contains_key("error") {
+        return body.to_vec();
+    }
+    obj.entry("object").or_insert_with(|| Value::from("list"));
+    if let Some(arr) = obj.get_mut("data").and_then(Value::as_array_mut) {
+        for item in arr {
+            fill_openai_model_fields(item);
+        }
+    }
+    serde_json::to_vec(&v).unwrap_or_else(|_| body.to_vec())
+}
+
+fn reshape_openrouter_model_get(body: &[u8]) -> Vec<u8> {
+    let Ok(mut v): Result<Value, _> = serde_json::from_slice(body) else {
+        return body.to_vec();
+    };
+    if v.as_object().is_none_or(|o| o.contains_key("error")) {
+        return body.to_vec();
+    }
+    if let Some(data) = v.get_mut("data") {
+        fill_openai_model_fields(data);
+    } else {
+        fill_openai_model_fields(&mut v);
+    }
+    serde_json::to_vec(&v).unwrap_or_else(|_| body.to_vec())
+}
+
+fn fill_openai_model_fields(item: &mut Value) {
+    let Some(obj) = item.as_object_mut() else {
+        return;
+    };
+    obj.entry("object").or_insert_with(|| Value::from("model"));
+    if !obj.contains_key("owned_by") {
+        let owner = obj
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|s| s.split_once('/'))
+            .map(|(org, _)| org.to_string())
+            .unwrap_or_else(|| "openrouter".to_string());
+        obj.insert("owned_by".to_string(), Value::from(owner));
+    }
+}
+
+/// OpenRouter error shape: `{error: {code: int, message: str, metadata?}, user_id?}`.
+/// OpenAI's `OpenAiApiError` requires `message` + `type` as strings and an
+/// optional string `code`. Coerce `code` to string and synthesize `type` from
+/// the numeric code so downstream transforms deserialize cleanly. No-op for
+/// non-error bodies.
+fn reshape_openrouter_error(body: &[u8]) -> Vec<u8> {
+    let Ok(mut v): Result<Value, _> = serde_json::from_slice(body) else {
+        return body.to_vec();
+    };
+    let Some(err) = v.get_mut("error").and_then(Value::as_object_mut) else {
+        return body.to_vec();
+    };
+    let code_num = err.get("code").and_then(Value::as_i64);
+    if let Some(code) = code_num {
+        err.insert("code".to_string(), Value::from(code.to_string()));
+    }
+    err.entry("type").or_insert_with(|| {
+        Value::from(match code_num.unwrap_or(0) {
+            400 => "invalid_request_error",
+            401 => "authentication_error",
+            402 => "insufficient_quota",
+            403 => "permission_error",
+            404 => "not_found_error",
+            408 => "timeout_error",
+            429 => "rate_limit_error",
+            500..=599 => "api_error",
+            _ => "api_error",
+        })
+    });
+    serde_json::to_vec(&v).unwrap_or_else(|_| body.to_vec())
+}
