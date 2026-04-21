@@ -20,7 +20,7 @@ use wreq::Client;
 
 use super::pow::solve_pow;
 use super::prepare_p::{ConfigOptions, build_prepare_p};
-use super::session::{ensure_warmed, standard_headers};
+use super::session::{standard_headers, warmup};
 use crate::response::UpstreamError;
 
 const CHATGPT_ORIGIN: &str = "https://chatgpt.com";
@@ -70,14 +70,17 @@ struct FinalizeResponse {
 
 /// Run prepare → PoW → finalize and return the tokens.
 ///
-/// Uses the process-wide shared `wreq::Client` (with cookie jar), warms up
-/// the CF session on first call. `access_token` is the user's ChatGPT
-/// session `accessToken` (JWT from `/api/auth/session`).
-pub async fn run_sentinel(access_token: &str) -> Result<SentinelTokens, UpstreamError> {
-    let client = ensure_warmed(access_token).await?;
+/// `client` should be a `wreq::Client` built with `cookie_store(true)`; the
+/// same client must be used for subsequent `/f/conversation` calls so the
+/// `__cf_bm` cookie established during warmup is reused.
+pub async fn run_sentinel(
+    client: &Client,
+    access_token: &str,
+) -> Result<SentinelTokens, UpstreamError> {
+    warmup(client, access_token).await?;
     let opts = ConfigOptions::browser_default();
     let p = build_prepare_p(&opts);
-    let prep = call_prepare(&client, access_token, &p).await?;
+    let prep = call_prepare(client, access_token, &p).await?;
 
     let pow_info = prep
         .proofofwork
@@ -98,7 +101,7 @@ pub async fn run_sentinel(access_token: &str) -> Result<SentinelTokens, Upstream
         solve_pow(&seed, &difficulty, &opts)
     };
 
-    let fin = call_finalize(&client, access_token, &prep.prepare_token, &proof_token).await?;
+    let fin = call_finalize(client, access_token, &prep.prepare_token, &proof_token).await?;
 
     let expires_at_ms = decode_jwt_exp_ms(&fin.token).unwrap_or(0);
     Ok(SentinelTokens {

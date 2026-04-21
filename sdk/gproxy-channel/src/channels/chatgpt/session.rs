@@ -1,20 +1,26 @@
-//! HTTP client + session management for the ChatGPT web channel.
+//! HTTP header helpers for the ChatGPT web channel.
 //!
 //! ChatGPT's `/backend-api/f/conversation` endpoint sits behind a Cloudflare
 //! WAF that issues a `cf-mitigated: challenge` unless the request carries a
-//! `__cf_bm` cookie established by a prior GET to the origin. We therefore
-//! keep a single long-lived `wreq::Client` with a cookie jar and "warm it up"
-//! once on first use.
+//! `__cf_bm` cookie established by a prior GET to the origin.
+//!
+//! This module does not own an HTTP client — callers pass a `wreq::Client`
+//! (with `cookie_store` enabled) into [`warmup`] and it both populates the
+//! CF cookie and becomes the client that subsequent sentinel and
+//! conversation requests should be issued from.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
-use tokio::sync::Mutex;
 use wreq::Client;
 
 use crate::response::UpstreamError;
 
 const WARMUP_PATHS: &[&str] = &["/", "/backend-api/me"];
 const CHATGPT_ORIGIN: &str = "https://chatgpt.com";
+/// Re-warm the CF session at most this often. The `__cf_bm` cookie's TTL
+/// is 30 minutes; we stay comfortably inside that.
+const WARMUP_TTL: Duration = Duration::from_secs(25 * 60);
 
 /// Chrome-like desktop User-Agent string. Kept in sync with the
 /// `DEFAULT_USER_AGENT` in `prepare_p.rs`.
@@ -23,62 +29,33 @@ pub const DEFAULT_USER_AGENT: &str = super::prepare_p::DEFAULT_USER_AGENT;
 /// Content of `oai-client-version` header expected by the backend.
 pub const OAI_CLIENT_VERSION: &str = super::prepare_p::DEFAULT_BUILD_ID;
 
-/// Process-wide cached client. Built lazily on first use.
-static SHARED_CLIENT: OnceLock<Arc<SessionState>> = OnceLock::new();
-
-struct SessionState {
-    client: Client,
-    warmup: Mutex<bool>,
-}
-
-/// Return a process-wide `wreq::Client` impersonating Chrome, with a cookie
-/// jar enabled. Subsequent calls return the same instance (so cookies
-/// persist across channel requests).
-pub fn shared_client() -> Result<Client, UpstreamError> {
-    shared_state().map(|s| s.client.clone())
-}
-
-fn shared_state() -> Result<Arc<SessionState>, UpstreamError> {
-    if let Some(s) = SHARED_CLIENT.get() {
-        return Ok(s.clone());
-    }
-    let client = Client::builder()
-        .emulation(wreq_util::Emulation::Chrome136)
-        .cookie_store(true)
-        .redirect(wreq::redirect::Policy::limited(10))
-        .build()
-        .map_err(|e| UpstreamError::Channel(format!("build chatgpt client: {e}")))?;
-    let state = Arc::new(SessionState {
-        client,
-        warmup: Mutex::new(false),
-    });
-    // `get_or_init` wants no-fallible closure; use set_then_get pattern.
-    match SHARED_CLIENT.set(state.clone()) {
-        Ok(()) => Ok(state),
-        Err(_) => Ok(SHARED_CLIENT.get().cloned().expect("just set")),
-    }
-}
-
-/// Hit the origin once to populate the `__cf_bm` cookie. No-op on subsequent
-/// calls in the same process.
-pub async fn ensure_warmed(access_token: &str) -> Result<Client, UpstreamError> {
-    let state = shared_state()?;
+/// Perform a best-effort CF warmup on `client` for the given access token.
+///
+/// Fires two cheap GETs (`/`, `/backend-api/me`) to let Cloudflare set a
+/// `__cf_bm` cookie on this client. Safe to call repeatedly — returns
+/// immediately if a recent warmup is still fresh.
+///
+/// The caller's `client` **MUST** have been built with `cookie_store(true)`,
+/// otherwise the set cookies will not persist into subsequent requests.
+pub async fn warmup(client: &Client, access_token: &str) -> Result<(), UpstreamError> {
+    static LAST_WARMUP: Mutex<Option<Instant>> = Mutex::new(None);
     {
-        let mut warmed = state.warmup.lock().await;
-        if !*warmed {
-            for path in WARMUP_PATHS {
-                let url = format!("{CHATGPT_ORIGIN}{path}");
-                let _ = state
-                    .client
-                    .get(&url)
-                    .headers(standard_headers(access_token).into())
-                    .send()
-                    .await;
-            }
-            *warmed = true;
+        let guard = LAST_WARMUP.lock().unwrap();
+        if let Some(t) = *guard
+            && t.elapsed() < WARMUP_TTL
+        {
+            return Ok(());
         }
     }
-    Ok(state.client.clone())
+    for path in WARMUP_PATHS {
+        let url = format!("{CHATGPT_ORIGIN}{path}");
+        let req = client.get(&url).headers(standard_headers(access_token).into());
+        if let Err(e) = req.send().await {
+            tracing::warn!(error = %e, "chatgpt warmup GET {path} failed");
+        }
+    }
+    *LAST_WARMUP.lock().unwrap() = Some(Instant::now());
+    Ok(())
 }
 
 /// Common request headers (non-sentinel) used for every backend-api call.
