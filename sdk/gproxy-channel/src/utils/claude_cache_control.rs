@@ -731,10 +731,10 @@ fn sanitize_block_array(blocks: Vec<Value>, prev_messages: &mut [Value]) -> Vec<
                 .map(|s| s.trim().to_string());
             if let Some(t) = trimmed {
                 if t.is_empty() {
-                    if let Some(cc) = map.remove("cache_control") {
-                        if !attach_cc_to_prev_in_scope(&mut out, &cc) {
-                            attach_cc_to_prev_messages(prev_messages, &cc);
-                        }
+                    if let Some(cc) = map.remove("cache_control")
+                        && !attach_cc_to_prev_in_scope(&mut out, &cc)
+                    {
+                        attach_cc_to_prev_messages(prev_messages, &cc);
                     }
                     continue;
                 }
