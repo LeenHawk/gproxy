@@ -44,6 +44,16 @@ impl ChatGptChannel {
 pub struct ChatGptSettings {
     #[serde(default = "default_chatgpt_base_url")]
     pub base_url: String,
+    /// When `true`, every `/f/conversation` request is sent with
+    /// `history_and_training_disabled: true`, so the turn is excluded
+    /// from the user's ChatGPT history and from model training
+    /// (equivalent to the "Temporary chat" toggle in the chatgpt.com UI).
+    ///
+    /// Defaults to `true` — gproxy assumes proxied traffic should not
+    /// pollute the human user's personal history. Set to `false` if you
+    /// want turns to appear in the normal chatgpt.com sidebar.
+    #[serde(default = "default_temporary_chat")]
+    pub temporary_chat: bool,
     #[serde(flatten)]
     pub common: CommonChannelSettings,
 }
@@ -52,6 +62,7 @@ impl Default for ChatGptSettings {
     fn default() -> Self {
         Self {
             base_url: default_chatgpt_base_url(),
+            temporary_chat: default_temporary_chat(),
             common: CommonChannelSettings::default(),
         }
     }
@@ -59,6 +70,10 @@ impl Default for ChatGptSettings {
 
 fn default_chatgpt_base_url() -> String {
     CHATGPT_BASE_URL.to_string()
+}
+
+fn default_temporary_chat() -> bool {
+    true
 }
 
 impl ChannelSettings for ChatGptSettings {
@@ -256,7 +271,7 @@ impl Channel for ChatGptChannel {
     fn prepare_request(
         &self,
         credential: &Self::Credential,
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         if credential.access_token.is_empty() {
@@ -333,7 +348,7 @@ impl Channel for ChatGptChannel {
                 .or_else(|| openai_body.get("model").and_then(|v| v.as_str()))
                 .unwrap_or(""),
         );
-        let mut body_map = build_conversation_body(&chat_body, &model);
+        let mut body_map = build_conversation_body(&chat_body, &model, settings.temporary_chat);
 
         // For image edit: rewrite the user message's content to multimodal
         // and attach the uploaded file as an asset pointer + attachment.

@@ -9,9 +9,13 @@ use serde_json::{Value, json};
 
 /// Build the `/f/conversation` request body from an OpenAI request and a
 /// resolved upstream model slug.
+///
+/// `temporary_chat = true` sets `history_and_training_disabled: true` on
+/// the body, mirroring the "Temporary chat" toggle in the chatgpt.com UI.
 pub fn build_conversation_body(
     openai_body: &Value,
     resolved_model: &str,
+    temporary_chat: bool,
 ) -> serde_json::Map<String, Value> {
     let messages = extract_messages(openai_body);
     let stream_preview = messages_to_chatgpt(&messages);
@@ -35,10 +39,11 @@ pub fn build_conversation_body(
     body.insert("system_hints".to_string(), Value::Array(vec![]));
     body.insert("supports_buffering".to_string(), json!(true));
     body.insert("supported_encodings".to_string(), json!(["v1"]));
-    // Temporary-chat mode: tell the upstream not to persist this turn
-    // into the user's ChatGPT history and not to use it for training.
-    // Matches the "Temporary chat" toggle in the chatgpt.com UI.
-    body.insert("history_and_training_disabled".to_string(), json!(true));
+    if temporary_chat {
+        // "Temporary chat" — exclude this turn from the user's ChatGPT
+        // history and from model training (matches the UI toggle).
+        body.insert("history_and_training_disabled".to_string(), json!(true));
+    }
     body.insert(
         "client_contextual_info".to_string(),
         json!({
@@ -243,7 +248,7 @@ mod tests {
                 {"role": "user", "content": "hi"}
             ]
         });
-        let out = build_conversation_body(&body, &resolve_model("gpt-5"));
+        let out = build_conversation_body(&body, &resolve_model("gpt-5"), true);
         assert_eq!(out["model"], json!("gpt-5-3"));
         let msgs = out["messages"].as_array().unwrap();
         assert_eq!(msgs.len(), 1);
@@ -264,7 +269,7 @@ mod tests {
                 ]
             }]
         });
-        let out = build_conversation_body(&body, "gpt-5-3");
+        let out = build_conversation_body(&body, "gpt-5-3", true);
         let text = out["messages"][0]["content"]["parts"][0]
             .as_str()
             .unwrap()
@@ -283,7 +288,7 @@ mod tests {
                 {"role": "user", "content": "say bye"}
             ]
         });
-        let out = build_conversation_body(&body, "gpt-5-3");
+        let out = build_conversation_body(&body, "gpt-5-3", true);
         let text = out["messages"][0]["content"]["parts"][0]
             .as_str()
             .unwrap()
@@ -304,7 +309,7 @@ mod tests {
                 }
             ]
         });
-        let out = build_conversation_body(&body, "gpt-5-3");
+        let out = build_conversation_body(&body, "gpt-5-3", true);
         let text = out["messages"][0]["content"]["parts"][0]
             .as_str()
             .unwrap()

@@ -154,10 +154,17 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     defaults: {
       base_url: "https://chatgpt.com",
       user_agent: "",
+      temporary_chat: "true",
     },
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
+      {
+        key: "temporary_chat",
+        label: "temporary_chat (skip ChatGPT history + training)",
+        type: "boolean",
+        optional: true,
+      },
     ],
   },
   nvidia: {
