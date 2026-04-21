@@ -355,6 +355,8 @@ pub fn validate_credential_json(
         "claudecode" => validate!(claudecode::ClaudeCodeCredential),
         #[cfg(feature = "codex")]
         "codex" => validate!(codex::CodexCredential),
+        #[cfg(feature = "chatgpt")]
+        "chatgpt" => validate!(chatgpt::ChatGptCredential),
         #[cfg(feature = "vertex")]
         "vertex" => validate!(vertex::VertexCredential),
         #[cfg(feature = "vertexexpress")]
@@ -592,6 +594,8 @@ impl GproxyEngineBuilder {
             "claudecode" => add!(self, claudecode::ClaudeCodeChannel, config),
             #[cfg(feature = "codex")]
             "codex" => add!(self, codex::CodexChannel, config),
+            #[cfg(feature = "chatgpt")]
+            "chatgpt" => add!(self, chatgpt::ChatGptChannel, config),
             #[cfg(feature = "vertex")]
             "vertex" => add!(self, vertex::VertexChannel, config),
             #[cfg(feature = "vertexexpress")]
