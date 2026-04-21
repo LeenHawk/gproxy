@@ -1042,7 +1042,8 @@ impl GproxyEngine {
             let mut meta = snapshot_request_meta(&http_request, credential_index);
 
             let response =
-                gproxy_channel::http_client::send_request(&self.client, http_request).await?;
+                gproxy_channel::http_client::send_provider_request(&self.client, http_request)
+                    .await?;
 
             if matches!(response.status, 401 | 403) {
                 tracing::warn!(
@@ -1063,9 +1064,11 @@ impl GproxyEngine {
                     let retry_start = std::time::Instant::now();
                     meta = snapshot_request_meta(&retry_request, credential_index);
 
-                    let retry_response =
-                        gproxy_channel::http_client::send_request(&self.client, retry_request)
-                            .await?;
+                    let retry_response = gproxy_channel::http_client::send_provider_request(
+                        &self.client,
+                        retry_request,
+                    )
+                    .await?;
                     fill_response_meta(&mut meta, &retry_response, retry_start);
                     return Ok((Some(retry_response), updates, Some(meta)));
                 }

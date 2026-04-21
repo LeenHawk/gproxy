@@ -38,7 +38,7 @@
 //! ```
 
 use crate::channel::{Channel, ChannelSettings};
-use crate::http_client::{send_request, send_request_stream};
+use crate::http_client::{send_provider_request, send_provider_request_stream};
 use crate::request::PreparedRequest;
 use crate::response::{
     ResponseClassification, RetryableUpstreamResponse, UpstreamError, UpstreamResponse,
@@ -187,7 +187,7 @@ pub async fn send_attempt<C: Channel>(
         http_client
     };
 
-    let raw = send_request(active_client, http_request).await?;
+    let raw = send_provider_request(active_client, http_request).await?;
     let normalized_body = channel.normalize_response(request, raw.body);
     let classification = channel.classify_response(raw.status, &raw.headers, &normalized_body);
 
@@ -222,7 +222,7 @@ pub async fn send_attempt_stream<C: Channel>(
         http_client
     };
 
-    match send_request_stream(active_client, http_request).await? {
+    match send_provider_request_stream(active_client, http_request).await? {
         RetryableUpstreamResponse::Streaming(stream) => {
             Ok(SendAttemptStreamOutcome::Streaming(stream))
         }

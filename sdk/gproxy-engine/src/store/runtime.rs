@@ -484,9 +484,9 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                     spoof_client,
                     forced_credential,
                 },
-                |c, req| {
+                move |c, req| {
                     let c = c.clone();
-                    async move { gproxy_channel::http_client::send_request(&c, req).await }
+                    async move { gproxy_channel::http_client::send_provider_request(&c, req).await }
                 },
             )
             .await;
@@ -539,9 +539,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                     spoof_client,
                     forced_credential,
                 },
-                |c, req| {
+                move |c, req| {
                     let c = c.clone();
-                    async move { gproxy_channel::http_client::send_request_stream(&c, req).await }
+                    async move {
+                        gproxy_channel::http_client::send_provider_request_stream(&c, req).await
+                    }
                 },
             )
             .await;
