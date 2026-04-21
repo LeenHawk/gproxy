@@ -245,6 +245,7 @@ export function ProvidersModule({
               labels={{
                 subtitle: t("providers.subtitle"),
                 name: t("providers.form.name"),
+                namePlaceholder: t("providers.form.namePlaceholder"),
                 label: t("providers.form.label"),
                 labelPlaceholder: t("providers.form.labelPlaceholder"),
                 channel: t("providers.form.channel"),

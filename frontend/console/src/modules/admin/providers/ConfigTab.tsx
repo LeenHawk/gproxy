@@ -52,6 +52,7 @@ export function ConfigTab({
   labels: {
     subtitle: string;
     name: string;
+    namePlaceholder: string;
     label: string;
     labelPlaceholder: string;
     channel: string;
@@ -120,7 +121,11 @@ export function ConfigTab({
     <Card title={labels.subtitle}>
       <div>
         <Label>{labels.name}</Label>
-        <Input value={form.name} onChange={(value) => onChange({ name: value })} />
+        <Input
+          value={form.name}
+          onChange={(value) => onChange({ name: value })}
+          placeholder={labels.namePlaceholder}
+        />
       </div>
       <div className="mt-4">
         <Label>{labels.label}</Label>
