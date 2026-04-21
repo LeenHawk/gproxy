@@ -10,30 +10,15 @@
 //! hold reverse-engineered sentinel primitives, the SSE v1 decoder, the
 //! OpenAI-chunk converter, and request/body builders.
 //!
-//! # Integration requirements
+//! # Transport
 //!
-//! This channel's upstream (`chatgpt.com`) sits behind a Cloudflare WAF that
-//! issues `cf-mitigated: challenge` rejections unless the requesting
-//! `wreq::Client` carries a `__cf_bm` cookie established by a prior origin
-//! GET. [`session::warmup`] fires those GETs, but they only work if the
-//! client was built with **`cookie_store(true)`**.
-//!
-//! The engine's default `http_client` / `spoof_client` does NOT enable
-//! cookies, so hosts that wish to run this channel through
-//! `GproxyEngine` must override the engine's client:
-//!
-//! ```no_run
-//! use wreq::Client;
-//! let client = Client::builder()
-//!     .emulation(wreq_util::Emulation::Chrome136)
-//!     .cookie_store(true)
-//!     .build()
-//!     .unwrap();
-//! // `.http_client(client)` on the GproxyEngineBuilder.
-//! ```
-//!
-//! Without this, `/f/conversation` calls will 403 with an
-//! "Unusual activity" body even though the sentinel dance succeeds.
+//! Cloudflare in front of chatgpt.com validates both TLS/H2 fingerprint AND
+//! a `__cf_bm` cookie. The channel therefore opts into
+//! [`Channel::needs_spoof_client`] so the engine always uses its
+//! browser-impersonating `spoof_client`. That client is built with
+//! `cookie_store(true)` in `gproxy_engine::engine` so the `__cf_bm` cookie
+//! issued during the warmup call in [`Channel::refresh_credential`]
+//! persists into subsequent `/f/conversation` calls automatically.
 
 pub mod channel;
 pub mod image;

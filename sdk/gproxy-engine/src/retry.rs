@@ -291,7 +291,12 @@ where
             let (credential, _) = &mut credentials[idx];
             if channel.needs_refresh(credential) {
                 tracing::info!(credential = idx, "pre-flight credential refresh");
-                match channel.refresh_credential(http_client, credential).await {
+                let refresh_client = if channel.needs_spoof_client(credential) {
+                    spoof_client.unwrap_or(http_client)
+                } else {
+                    http_client
+                };
+                match channel.refresh_credential(refresh_client, credential).await {
                     Ok(true) => {
                         tracing::info!(credential = idx, "pre-flight refresh succeeded");
                     }
@@ -459,8 +464,13 @@ where
                     );
                     last_failed_attempt = Some(make_failed_attempt());
                     let (credential, health) = &mut credentials[idx];
+                    let refresh_client = if channel.needs_spoof_client(credential) {
+                        spoof_client.unwrap_or(http_client)
+                    } else {
+                        http_client
+                    };
                     let refreshed = channel
-                        .refresh_credential(http_client, credential)
+                        .refresh_credential(refresh_client, credential)
                         .await
                         .unwrap_or(false);
 

@@ -235,20 +235,13 @@ impl Channel for ChatGptChannel {
     }
 
     fn needs_spoof_client(&self, _credential: &Self::Credential) -> bool {
-        // The engine may use its own spoof client too, but we maintain our
-        // own cookie-jar'd client inside `session.rs` for all calls this
-        // channel makes. Return false: our per-channel client is used
-        // directly in refresh_credential; for `prepare_request` the engine
-        // will pick whichever client it has, but authentication is by
-        // bearer token + (shared) __cf_bm cookie, and the CF cookie is on
-        // our client not the engine's. To keep this minimal, we only
-        // expose our channel through execute_once/engine setups that
-        // already use the engine's spoof client with compatible
-        // emulation; the __cf_bm cookie is set by the warmup call in
-        // refresh_credential which uses our private client.
-        //
-        // TODO: factor out so we always send via our private client.
-        false
+        // ChatGPT web absolutely requires the browser-impersonating (spoof)
+        // client: the Cloudflare WAF in front of chatgpt.com matches the
+        // TLS + H2 fingerprint, and the `__cf_bm` cookie issued on warmup
+        // is bound to that fingerprint. The engine's spoof client is built
+        // with `cookie_store(true)` (engine.rs), so Set-Cookie from our
+        // warmup survives into the actual `/f/conversation` request.
+        true
     }
 
     fn prepare_request(

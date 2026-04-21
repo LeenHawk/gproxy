@@ -489,6 +489,7 @@ impl GproxyEngineBuilder {
         let mut spoof_builder = wreq::Client::builder()
             .emulation(emu)
             .http1_only()
+            .cookie_store(true)
             .redirect(wreq::redirect::Policy::limited(10));
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
@@ -662,6 +663,7 @@ impl GproxyEngine {
         let emu = parse_emulation(emulation.unwrap_or("chrome_136"));
         let mut spoof_builder = wreq::Client::builder()
             .emulation(emu)
+            .cookie_store(true)
             .redirect(wreq::redirect::Policy::limited(10));
         if let Some(proxy_url) = proxy
             && !proxy_url.is_empty()
