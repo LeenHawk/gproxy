@@ -296,7 +296,7 @@ pub async fn upload_image_to_chatgpt(
         "library_persistence_mode": "opportunistic",
     });
     let step1: Value = client
-        .post(&format!("{UPLOAD_BASE}/backend-api/files"))
+        .post(format!("{UPLOAD_BASE}/backend-api/files"))
         .headers(standard_headers(access_token).into())
         .json(&step1_body)
         .send()
@@ -353,7 +353,7 @@ pub async fn upload_image_to_chatgpt(
         "metadata": {"store_in_library": true},
     });
     let step3 = client
-        .post(&format!(
+        .post(format!(
             "{UPLOAD_BASE}/backend-api/files/process_upload_stream"
         ))
         .headers(standard_headers(access_token).into())

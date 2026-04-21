@@ -176,6 +176,8 @@ impl ProviderStore {
             "claudecode" => add!(self, claudecode::ClaudeCodeChannel, config),
             #[cfg(feature = "codex")]
             "codex" => add!(self, codex::CodexChannel, config),
+            #[cfg(feature = "chatgpt")]
+            "chatgpt" => add!(self, chatgpt::ChatGptChannel, config),
             #[cfg(feature = "vertex")]
             "vertex" => add!(self, vertex::VertexChannel, config),
             #[cfg(feature = "vertexexpress")]

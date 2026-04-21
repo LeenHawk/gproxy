@@ -813,7 +813,7 @@ fn reshape_stream_chunk(request: &PreparedRequest, chunk: &[u8], model: &str) ->
             .as_ref()
             .map(|c| serde_json::to_vec(c).unwrap_or_default())
             .unwrap_or_default();
-        let keep = !(!was_finished && guard.finished());
+        let keep = was_finished || !guard.finished();
         (bytes, keep)
     };
     if keep {

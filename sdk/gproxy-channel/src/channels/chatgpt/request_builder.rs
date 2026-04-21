@@ -124,11 +124,10 @@ fn extract_responses_messages(
         }),
         Value::Array(arr) => {
             for item in arr {
-                if let Some(item_type) = item.get("type").and_then(|v| v.as_str()) {
-                    if item_type != "message" {
+                if let Some(item_type) = item.get("type").and_then(|v| v.as_str())
+                    && item_type != "message" {
                         continue;
                     }
-                }
                 let role = item
                     .get("role")
                     .and_then(|v| v.as_str())
