@@ -160,6 +160,7 @@ export const zhMessages: Record<string, string> = {
   "providers.form.save": "保存渠道",
   "providers.form.delete": "删除渠道",
   "providers.form.newHint": "当前 v1 后端在创建 provider 时要求显式数字 id。",
+  "providers.error.nameRequired": "路由名不能为空",
   "providers.routing.rule": "规则",
   "providers.routing.sourceOperation": "源操作",
   "providers.routing.sourceProtocol": "源协议",

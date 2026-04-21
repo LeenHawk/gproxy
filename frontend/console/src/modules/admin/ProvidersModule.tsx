@@ -136,13 +136,18 @@ export function ProvidersModule({
 
   const saveProvider = async (rewriteRulesOverride?: string) => {
     try {
+      const name = providerForm.name.trim();
+      if (!name) {
+        notify("error", t("providers.error.nameRequired"));
+        return;
+      }
       const settings =
         rewriteRulesOverride !== undefined
           ? { ...providerForm.settings, rewrite_rules: rewriteRulesOverride }
           : providerForm.settings;
       const payload: ProviderWrite = {
         id: parseRequiredI64(providerForm.id, "id"),
-        name: providerForm.name.trim(),
+        name,
         channel: providerForm.channel.trim(),
         label: providerForm.label.trim() || null,
         settings_json: JSON.stringify(

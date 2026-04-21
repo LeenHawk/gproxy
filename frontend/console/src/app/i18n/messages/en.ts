@@ -160,6 +160,7 @@ export const enMessages: Record<string, string> = {
   "providers.form.save": "Save Provider",
   "providers.form.delete": "Delete Provider",
   "providers.form.newHint": "The current v1 backend expects an explicit numeric provider id on create.",
+  "providers.error.nameRequired": "Route name is required",
   "providers.routing.rule": "Rule",
   "providers.routing.sourceOperation": "Source Operation",
   "providers.routing.sourceProtocol": "Source Protocol",
