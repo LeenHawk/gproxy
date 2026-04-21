@@ -1,5 +1,81 @@
 # Release Notes
 
+## v1.0.18
+
+> Streaming usage 端到端打通(`stream_options.include_usage` 自动注入 + 所有跨协议流式路径都观察上游 usage),mimalloc 接管全局分配器,缓存流水线重排为 magic → rules → flatten 并用 sanitize 统一清理空块/空消息 + 自动把 cache_control 回迁到最近可缓存块,`context-1m-2025-08-07` beta 在 anthropic / claudecode 渠道默认剥离,一次性迁移扫掉指向已废弃 realtime 变体的 routing 规则,控制台新增「恢复默认路由」按钮。
+
+### English
+
+#### Added
+
+- **Upstream streaming usage tracking.** The engine now observes and records upstream usage on streaming requests across every cross-protocol path, not just the non-streaming ones. OpenAI Chat Completions streaming requests have `stream_options.include_usage = true` injected automatically so the final `usage` frame is always emitted, and usage is pulled out and persisted alongside the existing non-stream accounting.
+- **mimalloc as the global allocator.** The main binary now pins mimalloc via `#[global_allocator]`. Measurable improvement in steady-state memory footprint and fragmentation under the fan-out-heavy streaming workload this proxy actually runs; no code-side API changes.
+- **"Restore default routing" button on the provider workspace.** One click resets the current provider's `routing_json` back to the channel's built-in routing table — the recovery path for anyone who edited the table by hand and wants to get back to a known-good state without deleting the provider.
+- **claudecode default version + fingerprint.** The default bundled `claudecode` version is bumped and the fingerprint/attribution settings are extended.
+
+#### Fixed
+
+- **Startup no longer fails on DBs that briefly ran the realtime branch.** A one-shot sea-orm-migration rewrites `providers.routing_json` and drops any rule whose source or `TransformTo` destination operation references a realtime variant (`openai_realtime_websocket`, `realtime_client_secret_create`, `realtime_call_{accept,hangup,refer,reject,create}`). Before this migration those rows would fail serde with `unknown variant 'openai_realtime_websocket', expected one of …` on boot. Run-once via `seaql_migrations`; safe on fresh DBs.
+- **Empty / whitespace-only content blocks no longer waste cache breakpoints.** `finalize_request` now drops whitespace-only `text` blocks, empty content arrays, and empty messages. When a removed block carried `cache_control`, the marker is shifted to the most recent surviving cacheable block — first within the same message scope, then scanning back through earlier kept messages. The magic-trigger space-pad hack is gone: sanitize handles the residue uniformly, which removes ~130 lines of special-case paths.
+- **`claude_cache_control::sanitize_block_array` simplified.** Cache-control handling in the block-array sanitizer is collapsed to a single pass, matching the semantics used elsewhere in the module.
+- **claudecode billing attribution format.** Removed an unused CCH hex length constant and corrected the attribution format.
+
+#### Changed
+
+- **Cache pipeline reordered: magic → rules → flatten.** Rule indices and magic-string positions both depend on the *original* block layout, so flatten now runs last. `cache_control` placed by the earlier passes is inherited by the merged block via flatten's last-cc-wins rule — same breakpoints land in the same places, with strictly fewer wire blocks.
+- **Magic-string cache breakpoint simplified on empty text.** Replaced the cascading drop-block / bubble-to-previous logic with a single space pad when a magic trigger strips its text block to empty. Claude still accepts the block, the breakpoint lands in place, and the removed special-case paths become ~130 lines shorter.
+- **`context-1m-2025-08-07` beta stripped by default on anthropic + claudecode.** Anthropic currently rejects the 1M-context beta on these channels; `finalize_request` strips the header before merging operator-supplied `extra_beta_headers`, so operators can still opt back in explicitly if upstream re-enables it.
+- **Instruction joining: double newline → single space.** Multiple instruction segments (OpenAI Responses → Claude path and friends) are now joined with a single space instead of `\n\n`, and the surrounding instruction-handling code in the OpenAI Response conversion is simplified.
+- **Console muted-text contrast.** Bumped `--muted` from slate-600 → slate-700 (light) and slate-400 → slate-300 (dark) so the 12px module-top hint bars read comfortably over the gradient surfaces.
+- **Usage flag insertion streamlined.** `stream_options.include_usage` insertion in the engine is rewritten into a single small branch.
+
+#### UI / i18n
+
+- **Provider route shown as path, model display name promoted.** The provider list entry now renders the route as its path, and the model's display name takes the primary slot.
+- **"Provider name" relabeled to "Route name".** The field was never the channel-type name — it is the route identifier. Both locales updated.
+
+#### Compatibility
+
+- **Drop-in upgrade** from v1.0.17. The realtime-routing cleanup migration runs on first boot via `seaql_migrations`; fresh DBs skip it.
+- **SDK / protocol consumers**: no protocol surface changes. Streaming upstream usage is additive — non-streaming behavior is unchanged, and streaming responses still pass through chunk-by-chunk.
+- **`context-1m-2025-08-07` opt-back-in**: if you need the 1M-context beta on an anthropic / claudecode channel, add it explicitly via the provider's `extra_beta_headers` — the default strip applies before the merge, so operator-supplied values still win.
+
+### 简体中文
+
+#### 新增
+
+- **上游流式 usage 追踪.** 引擎现在在所有跨协议流式路径上都观察并记录上游 usage,不再只覆盖非流式路径。OpenAI Chat Completions 流式请求会自动注入 `stream_options.include_usage = true`,保证最终那一帧 `usage` 一定被发出;usage 在流结束时落入与非流式同一套计费账目。
+- **mimalloc 接管全局分配器.** 主二进制用 `#[global_allocator]` 固定到 mimalloc。对本 proxy 实际跑的"高扇出流式"工作负载,稳态内存占用和碎片有可观的改善;对代码侧 API 零改动。
+- **Provider 工作区新增「恢复默认路由」按钮.** 一键把当前 provider 的 `routing_json` 重置回 channel 的内置路由表 —— 留给那些手改过路由表又想回到已知良好状态的人,不用删 provider 重建。
+- **claudecode 默认版本和 fingerprint 升级.** 内置的 claudecode 版本号升级,fingerprint / attribution 相关设置扩展。
+
+#### 修复
+
+- **短暂跑过 realtime 分支的 DB 启动不再失败.** 新增 sea-orm-migration 一次性改写 `providers.routing_json`,剔除任何 source 或 `TransformTo` 目标 operation 指向 realtime 变体(`openai_realtime_websocket`、`realtime_client_secret_create`、`realtime_call_{accept,hangup,refer,reject,create}`)的规则。迁移前这些行会在启动时 serde 报 `unknown variant 'openai_realtime_websocket', expected one of …`。通过 `seaql_migrations` 记录只跑一次;新库会跳过。
+- **空 / 纯空白内容块不再浪费缓存断点.** `finalize_request` 现在会扔掉纯空白 `text` 块、空 content 数组和空 message。被扔的块上如果带 `cache_control`,断点会转移到最近一个仍然存活的可缓存块 —— 先在同 message 作用域内找,再向前跨 message 回溯已保留的块。之前 magic-trigger 打空格 padding 的 hack 一并删掉:sanitize 统一处理残块,省掉约 130 行特殊分支。
+- **`claude_cache_control::sanitize_block_array` 简化.** block array sanitizer 里的 cache_control 处理收敛为单趟,与 module 其它位置的语义一致。
+- **claudecode 计费 attribution 格式.** 删除未使用的 CCH hex 长度常量,attribution 格式修正。
+
+#### 变更
+
+- **缓存流水线顺序调整:magic → rules → flatten.** 规则索引和 magic 字符串位置都依赖 *原始* 块布局,所以 flatten 放到最后。前两步放上去的 `cache_control` 在 flatten 里按 last-cc-wins 合并到结果块里 —— 断点落位完全一致,线上块数严格更少。
+- **magic-string 空文本断点处理简化.** 之前的"扔块 / 冒泡到上一块"级联逻辑,替换为 magic trigger 把文本清空后补一个空格。Claude 仍然接受该块,断点落在原位,删掉的特殊分支约 130 行。
+- **anthropic + claudecode 默认剥离 `context-1m-2025-08-07` beta.** 上游当前在这两个渠道上拒绝 1M 上下文 beta;`finalize_request` 在合并 operator 侧 `extra_beta_headers` 之前就剥掉这条,上游放开之后运维还能显式塞回去。
+- **instruction 拼接:双换行 → 单空格.** 多段 instruction(OpenAI Responses → Claude 路径等)拼接从 `\n\n` 改为单空格;OpenAI Response 转换里相关的 instruction 处理代码同步简化。
+- **控制台 muted 文案对比度.** `--muted` 由 slate-600 → slate-700(light)/ slate-400 → slate-300(dark),12px 的模块顶部提示条在渐变背景上读起来更舒服。
+- **usage flag 注入简化.** engine 里 `stream_options.include_usage` 注入收敛为一小段分支写法。
+
+#### UI / i18n
+
+- **provider 路由以 path 展示,模型 display name 升为主字段.** provider 列表条目现在把 route 当作路径渲染,主位让给模型的 display name。
+- **"provider name" 文案改为 "route name".** 这个字段从来不是 channel 类型名,是路由标识。中英文同步更新。
+
+#### 兼容性
+
+- **从 v1.0.17 直接升级**。realtime 路由清理迁移通过 `seaql_migrations` 在首启时跑一次;新库会跳过。
+- **SDK / protocol 调用方**:无协议表面变化。流式 upstream usage 是增量改动 —— 非流式行为不变,流式仍然按 chunk 直通下发。
+- **`context-1m-2025-08-07` 显式启用方式**:如果你确实需要在 anthropic / claudecode 渠道打开 1M 上下文 beta,请通过 provider 的 `extra_beta_headers` 显式添加 —— 默认剥离发生在合并之前,运维显式配置仍然胜出。
+
 ## v1.0.17
 
 > The suffix-variant rewrite pipeline is repaired end-to-end: the engine was passing `&[]` as the rewrite rule slice, the handler was letting alias resolution replace the user-sent model name (so `model_pattern` never matched), and `body.model = "provider/variant"` from OpenAI-style clients rode the `provider/` prefix straight into the filter. All three are fixed — a request to `claudecode/claude-opus-4-7-thinking-adaptive-effort-max` now actually reaches Anthropic with `thinking.display = "summarized"`, `output_config.effort = "max"`, and `model = "claude-opus-4-7"`. The models table is flattened in the same pass: `alias_of` is dropped, every model is a standalone row, and the DB migration takes care of existing aliases in place. Plus cache-control gets a new `flatten_system_before_cache` toggle, a few breakpoint-shifting bug fixes, and the console's boolean settings get an iOS-style slide switch.
