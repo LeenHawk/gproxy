@@ -211,3 +211,85 @@ async fn live_image_generation() {
         b64.len()
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "hits live chatgpt.com; uploads a tiny image then asks for an edit — very slow (~60s)"]
+async fn live_image_edit_with_upload() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    let access_token = load_token().expect("need target/.chatgpt_token");
+    tracing_subscriber::fmt()
+        .with_env_filter("gproxy_channel=debug")
+        .with_test_writer()
+        .try_init()
+        .ok();
+
+    let channel = ChatGptChannel;
+    let settings = ChatGptSettings::default();
+    let mut credential = ChatGptCredential {
+        access_token,
+        ..Default::default()
+    };
+    let http_client = wreq::Client::builder()
+        .emulation(wreq_util::Emulation::Chrome136)
+        .cookie_store(true)
+        .redirect(wreq::redirect::Policy::limited(10))
+        .build()
+        .expect("build http client");
+
+    channel
+        .refresh_credential(&http_client, &mut credential)
+        .await
+        .expect("refresh");
+
+    // Minimal 4x4 red PNG (encoded offline with a tiny PNG encoder).
+    let png_bytes: Vec<u8> = vec![
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x08, 0x02, 0x00, 0x00, 0x00, 0x26,
+        0x93, 0x09, 0x29, 0x00, 0x00, 0x00, 0x19, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x62, 0xFC,
+        0xCF, 0x80, 0x15, 0x30, 0x02, 0x86, 0x03, 0x86, 0x03, 0x86, 0x03, 0x86, 0x03, 0x86, 0x03,
+        0x06, 0x00, 0x00, 0xEE, 0x00, 0x03, 0x41, 0xDB, 0x14, 0x29, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    let data_url = format!("data:image/png;base64,{}", STANDARD.encode(&png_bytes));
+
+    let request = PreparedRequest {
+        method: http::Method::POST,
+        route: RouteKey::new(OperationFamily::CreateImageEdit, ProtocolKind::OpenAi),
+        model: Some("gpt-image-1".to_string()),
+        body: serde_json::to_vec(&serde_json::json!({
+            "image": data_url,
+            "prompt": "turn the red square into a blue square with a yellow border",
+            "n": 1
+        }))
+        .unwrap(),
+        headers: http::HeaderMap::new(),
+    };
+
+    let outcome = execute_once(&channel, &credential, &settings, &http_client, request)
+        .await
+        .expect("execute_once");
+    println!(
+        "[edit] status={} bytes={} latency_ms={}",
+        outcome.response.status,
+        outcome.response.body.len(),
+        outcome.response.total_latency_ms
+    );
+    let body_str = String::from_utf8_lossy(&outcome.response.body);
+    println!(
+        "[edit] body head={}",
+        &body_str[..body_str.len().min(200)]
+    );
+
+    assert!(
+        (200..300).contains(&outcome.response.status),
+        "expected 2xx, body={}",
+        &body_str[..body_str.len().min(500)]
+    );
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&outcome.response.body).expect("images.response JSON");
+    let data = parsed["data"].as_array().expect("data array");
+    assert!(!data.is_empty());
+    let b64 = data[0]["b64_json"].as_str().unwrap_or("");
+    assert!(b64.len() > 1000, "b64_json too short: {}", b64.len());
+}

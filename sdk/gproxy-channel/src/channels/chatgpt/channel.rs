@@ -10,6 +10,7 @@ use super::image::{
     ImagePointer, build_openai_images_response, download_image_b64, extract_image_pointers,
     poll_conversation_for_images,
 };
+use super::image_edit::{parse_edit_body, upload_image_to_chatgpt, UploadResult};
 use super::request_builder::{build_conversation_body, resolve_model};
 use super::sentinel::{self, SentinelTokens};
 use super::session::{
@@ -173,6 +174,7 @@ impl Channel for ChatGptChannel {
                 ProtocolKind::OpenAiChatCompletion,
             ),
             pass(OperationFamily::CreateImage, ProtocolKind::OpenAi),
+            pass(OperationFamily::CreateImageEdit, ProtocolKind::OpenAi),
             xform(
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiResponse,
@@ -268,27 +270,62 @@ impl Channel for ChatGptChannel {
             ));
         }
 
-        let openai_body: Value = serde_json::from_slice(&request.body).map_err(|e| {
-            UpstreamError::Channel(format!("chatgpt: parse request body: {e}"))
-        })?;
         let is_image = matches!(
             request.route.operation,
             OperationFamily::CreateImage | OperationFamily::StreamCreateImage
         );
-        // For image requests, adapt the prompt-only body into a chat-like
-        // shape so `build_conversation_body` can reuse the same path.
-        let chat_body: Value = if is_image {
-            let prompt = openai_body
+        let is_image_edit = matches!(
+            request.route.operation,
+            OperationFamily::CreateImageEdit | OperationFamily::StreamCreateImageEdit
+        );
+
+        // Image edit needs a side trip to the upload API before we can
+        // build the `/f/conversation` body. Everything else parses the
+        // body as JSON directly.
+        let (chat_body, upload): (Value, Option<UploadResult>) = if is_image_edit {
+            let parsed = parse_edit_body(&request.body).map_err(|e| {
+                UpstreamError::Channel(format!("chatgpt: parse image-edit body: {e}"))
+            })?;
+            let client = shared_fallback_client()?;
+            // prepare_request is sync but runs inside tokio; block on the
+            // async upload so the rest of the request can be built
+            // deterministically.
+            let upload_res = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    super::session::warmup_fallback(&client, &credential.access_token)
+                        .await
+                        .ok();
+                    upload_image_to_chatgpt(&client, &credential.access_token, &parsed).await
+                })
+            })?;
+            let chat_body = serde_json::json!({
+                "messages": [{"role": "user", "content": parsed.prompt}],
+            });
+            (chat_body, Some(upload_res))
+        } else if is_image {
+            // CreateImage: OpenAI body has `prompt`. Adapt to chat-like shape.
+            let parsed: Value = serde_json::from_slice(&request.body).map_err(|e| {
+                UpstreamError::Channel(format!("chatgpt: parse request body: {e}"))
+            })?;
+            let prompt = parsed
                 .get("prompt")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            serde_json::json!({
-                "messages": [{"role": "user", "content": prompt}],
-            })
+            (
+                serde_json::json!({
+                    "messages": [{"role": "user", "content": prompt}],
+                }),
+                None,
+            )
         } else {
-            openai_body.clone()
+            let parsed: Value = serde_json::from_slice(&request.body).map_err(|e| {
+                UpstreamError::Channel(format!("chatgpt: parse request body: {e}"))
+            })?;
+            (parsed, None)
         };
+
+        let openai_body: Value = chat_body.clone();
         let model = resolve_model(
             request
                 .model
@@ -296,7 +333,14 @@ impl Channel for ChatGptChannel {
                 .or_else(|| openai_body.get("model").and_then(|v| v.as_str()))
                 .unwrap_or(""),
         );
-        let body_map = build_conversation_body(&chat_body, &model);
+        let mut body_map = build_conversation_body(&chat_body, &model);
+
+        // For image edit: rewrite the user message's content to multimodal
+        // and attach the uploaded file as an asset pointer + attachment.
+        if let Some(upload) = upload.as_ref() {
+            attach_uploaded_image(&mut body_map, upload);
+        }
+
         let body_bytes = serde_json::to_vec(&Value::Object(body_map)).map_err(|e| {
             UpstreamError::Channel(format!("chatgpt: serialize body: {e}"))
         })?;
@@ -321,9 +365,9 @@ impl Channel for ChatGptChannel {
         let trace_id = uuid::Uuid::new_v4().to_string();
 
         // Stash turn context so normalize_response can fetch image bytes
-        // for `CreateImage` routes. Includes a cookie-enabled fallback
-        // client suitable for the file-download API.
-        if is_image
+        // for `CreateImage` / `CreateImageEdit` routes. Includes a
+        // cookie-enabled fallback client suitable for the file-download API.
+        if (is_image || is_image_edit)
             && let Ok(fallback_client) = shared_fallback_client()
         {
             stash_turn(
@@ -376,12 +420,15 @@ impl Channel for ChatGptChannel {
             return body;
         }
 
-        // Image generation route: pull out file-service pointers, download
-        // them via the stashed fallback client, and return a standard
-        // OpenAI `images.response` body.
+        // Image generation/edit routes: pull out file-service pointers,
+        // download them via the stashed fallback client, and return a
+        // standard OpenAI `images.response` body.
         if matches!(
             request.route.operation,
-            OperationFamily::CreateImage | OperationFamily::StreamCreateImage
+            OperationFamily::CreateImage
+                | OperationFamily::StreamCreateImage
+                | OperationFamily::CreateImageEdit
+                | OperationFamily::StreamCreateImageEdit
         ) {
             let turn_id = request
                 .headers
@@ -526,6 +573,69 @@ impl Channel for ChatGptChannel {
 
 fn chatgpt_routing_table() -> RoutingTable {
     ChatGptChannel.routing_table()
+}
+
+/// Mutate a `/f/conversation` body in place to attach an uploaded image
+/// onto the single user message:
+/// * `content.content_type` becomes `multimodal_text`
+/// * `content.parts[0]` becomes an `image_asset_pointer` object
+/// * The prompt text is appended as `parts[1]`
+/// * `metadata.attachments[0]` describes the uploaded file
+fn attach_uploaded_image(
+    body: &mut serde_json::Map<String, Value>,
+    upload: &UploadResult,
+) {
+    let messages = match body.get_mut("messages").and_then(|m| m.as_array_mut()) {
+        Some(m) if !m.is_empty() => m,
+        _ => return,
+    };
+    let user_msg = &mut messages[0];
+    let prompt_text = user_msg
+        .get("content")
+        .and_then(|c| c.get("parts"))
+        .and_then(|p| p.as_array())
+        .and_then(|a| a.first())
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let asset = serde_json::json!({
+        "content_type": "image_asset_pointer",
+        "asset_pointer": format!("sediment://{}", upload.file_id),
+        "size_bytes": upload.size_bytes,
+        "width": upload.width,
+        "height": upload.height,
+    });
+
+    if let Some(content) = user_msg.get_mut("content")
+        && let Some(obj) = content.as_object_mut()
+    {
+        obj.insert("content_type".to_string(), Value::String("multimodal_text".into()));
+        let mut parts = Vec::with_capacity(2);
+        parts.push(asset.clone());
+        if !prompt_text.is_empty() {
+            parts.push(Value::String(prompt_text));
+        }
+        obj.insert("parts".to_string(), Value::Array(parts));
+    }
+
+    if let Some(metadata) = user_msg.get_mut("metadata")
+        && let Some(md) = metadata.as_object_mut()
+    {
+        md.insert(
+            "attachments".to_string(),
+            Value::Array(vec![serde_json::json!({
+                "id": upload.file_id,
+                "size": upload.size_bytes,
+                "name": upload.filename,
+                "mime_type": upload.mime_type,
+                "width": upload.width,
+                "height": upload.height,
+                "source": "library",
+                "is_big_paste": false,
+            })]),
+        );
+    }
 }
 
 /// Per-turn stream state. One entry per in-flight stream request,
