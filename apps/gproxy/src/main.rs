@@ -1,6 +1,9 @@
 use std::path::Path;
 use std::sync::Arc;
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use clap::{CommandFactory, FromArgMatches, Parser, parser::ValueSource};
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
