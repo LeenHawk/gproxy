@@ -1167,6 +1167,7 @@ impl GproxyEngine {
                     dst_op
                 },
                 dst_proto,
+                request.model.as_deref(),
                 request.body,
             ) {
                 Ok(b) => b,
@@ -1446,6 +1447,7 @@ impl GproxyEngine {
                 request.protocol,
                 dst_op,
                 dst_proto,
+                request.model.as_deref(),
                 request.body,
             ) {
                 Ok(b) => b,

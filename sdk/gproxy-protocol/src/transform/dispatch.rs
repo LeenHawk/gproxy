@@ -241,6 +241,19 @@ trait RequestDescriptor: Sized {
 
     fn from_body(body: Self::Body) -> Self;
     fn into_body(self) -> Self::Body;
+
+    /// Inject a model identifier into the request descriptor's path parameters.
+    ///
+    /// The HTTP body alone does not always carry the model — Gemini requests,
+    /// for example, keep it in the URL (`/v1beta/models/{model}:generateContent`).
+    /// `transform_request` strips the envelope to the body for JSON parsing, so
+    /// without this hook the downstream `TryFrom` impls read an empty
+    /// `path.model` and the transformed upstream body is missing the model.
+    ///
+    /// Default: no-op for descriptors whose path carries no model.
+    fn with_model(self, _model: Option<&str>) -> Self {
+        self
+    }
 }
 
 impl RequestDescriptor
@@ -303,6 +316,13 @@ impl RequestDescriptor for crate::gemini::generate_content::request::GeminiGener
     fn into_body(self) -> Self::Body {
         self.body
     }
+
+    fn with_model(mut self, model: Option<&str>) -> Self {
+        if let Some(m) = model {
+            self.path.model = m.to_string();
+        }
+        self
+    }
 }
 
 impl RequestDescriptor
@@ -319,6 +339,13 @@ impl RequestDescriptor
 
     fn into_body(self) -> Self::Body {
         self.body
+    }
+
+    fn with_model(mut self, model: Option<&str>) -> Self {
+        if let Some(m) = model {
+            self.path.model = m.to_string();
+        }
+        self
     }
 }
 
@@ -351,6 +378,29 @@ macro_rules! impl_request_descriptor_default_envelope {
             }
         }
     };
+    ($wrapper:ty, body = $body:ty, path_model = $field:ident) => {
+        impl RequestDescriptor for $wrapper {
+            type Body = $body;
+
+            fn from_body(body: Self::Body) -> Self {
+                Self {
+                    body,
+                    ..Self::default()
+                }
+            }
+
+            fn into_body(self) -> Self::Body {
+                self.body
+            }
+
+            fn with_model(mut self, model: Option<&str>) -> Self {
+                if let Some(m) = model {
+                    self.path.$field = m.to_string();
+                }
+                self
+            }
+        }
+    };
 }
 
 impl_request_descriptor_default_envelope!(
@@ -363,19 +413,23 @@ impl_request_descriptor_default_envelope!(
 );
 impl_request_descriptor_default_envelope!(
     crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-    body = crate::gemini::count_tokens::request::RequestBody
+    body = crate::gemini::count_tokens::request::RequestBody,
+    path_model = model
 );
 impl_request_descriptor_default_envelope!(
     crate::claude::model_get::request::ClaudeModelGetRequest,
-    body = crate::claude::model_get::request::RequestBody
+    body = crate::claude::model_get::request::RequestBody,
+    path_model = model_id
 );
 impl_request_descriptor_default_envelope!(
     crate::openai::model_get::request::OpenAiModelGetRequest,
-    body = crate::openai::model_get::request::RequestBody
+    body = crate::openai::model_get::request::RequestBody,
+    path_model = model
 );
 impl_request_descriptor_default_envelope!(
     crate::gemini::model_get::request::GeminiModelGetRequest,
-    body = crate::gemini::model_get::request::RequestBody
+    body = crate::gemini::model_get::request::RequestBody,
+    path_model = name
 );
 impl_request_descriptor_default_envelope!(
     crate::claude::model_list::request::ClaudeModelListRequest,
@@ -395,7 +449,8 @@ impl_request_descriptor_default_envelope!(
 );
 impl_request_descriptor_default_envelope!(
     crate::gemini::embeddings::request::GeminiEmbedContentRequest,
-    body = crate::gemini::embeddings::request::RequestBody
+    body = crate::gemini::embeddings::request::RequestBody,
+    path_model = model
 );
 impl_request_descriptor_default_envelope!(
     crate::openai::create_image::request::OpenAiCreateImageRequest,
@@ -418,6 +473,7 @@ pub fn transform_request(
     src_protocol: ProtocolKind,
     dst_operation: OperationFamily,
     dst_protocol: ProtocolKind,
+    model: Option<&str>,
     body: Vec<u8>,
 ) -> Result<Vec<u8>, TransformError> {
     if src_operation == dst_operation && src_protocol == dst_protocol {
@@ -447,7 +503,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::GenerateContent,
             ProtocolKind::Claude,
@@ -456,7 +512,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
 
         // === Claude source → Gemini targets ===
         (
@@ -467,7 +523,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-        >(&body),
+        >(&body, model),
 
         // === OpenAI ChatCompletions source → Claude ===
         (
@@ -478,7 +534,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
 
         // === OpenAI ChatCompletions source → Gemini ===
         (
@@ -489,7 +545,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-        >(&body),
+        >(&body, model),
 
         // === OpenAI ChatCompletions source → OpenAI Response ===
         (
@@ -500,7 +556,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
 
         // === OpenAI Response source → OpenAI ChatCompletions ===
         //
@@ -515,7 +571,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
 
         // === OpenAI Response source → Claude ===
         (
@@ -526,7 +582,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
 
         // === OpenAI Response source → Gemini ===
         (
@@ -537,7 +593,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::gemini::generate_content::request::GeminiGenerateContentRequest,
-        >(&body),
+        >(&body, model),
 
         // === Gemini source → Claude ===
         (
@@ -548,7 +604,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::generate_content::request::GeminiGenerateContentRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
 
         // === Gemini source → OpenAI ChatCompletions ===
         (
@@ -559,7 +615,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::generate_content::request::GeminiGenerateContentRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
 
         // === Gemini source → OpenAI Response ===
         (
@@ -570,7 +626,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::generate_content::request::GeminiGenerateContentRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
 
         // =====================================================================
         // stream_generate_content (request transforms only)
@@ -585,7 +641,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::Claude,
@@ -594,7 +650,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::Claude,
@@ -603,7 +659,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::Claude,
@@ -612,7 +668,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
 
         // --- Gemini source ---
         (
@@ -623,7 +679,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::GeminiNDJson,
@@ -632,7 +688,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::Gemini,
@@ -641,7 +697,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::GeminiNDJson,
@@ -650,7 +706,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::Gemini,
@@ -659,7 +715,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::GeminiNDJson,
@@ -668,7 +724,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
 
         // --- OpenAI ChatCompletions source ---
         (
@@ -679,7 +735,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::OpenAiChatCompletion,
@@ -688,7 +744,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::OpenAiChatCompletion,
@@ -697,7 +753,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::OpenAiChatCompletion,
@@ -706,7 +762,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
-        >(&body),
+        >(&body, model),
         // Stream mirror of the non-stream arm above: deepseek and friends
         // advertise OpenAI Response streaming to clients but only speak
         // chat-completions upstream.
@@ -718,7 +774,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::openai::create_chat_completions::request::OpenAiChatCompletionsRequest,
-        >(&body),
+        >(&body, model),
 
         // --- OpenAI Response source ---
         (
@@ -729,7 +785,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::claude::create_message::request::ClaudeCreateMessageRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::OpenAiResponse,
@@ -738,7 +794,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::StreamGenerateContent,
             ProtocolKind::OpenAiResponse,
@@ -747,7 +803,7 @@ pub fn transform_request(
         ) => transform_request_descriptor_ref::<
             crate::openai::create_response::request::OpenAiCreateResponseRequest,
             crate::gemini::stream_generate_content::request::GeminiStreamGenerateContentRequest,
-        >(&body),
+        >(&body, model),
 
         // =====================================================================
         // count_tokens
@@ -762,7 +818,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::count_tokens::request::ClaudeCountTokensRequest,
             crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::CountToken,
             ProtocolKind::Claude,
@@ -771,7 +827,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::count_tokens::request::ClaudeCountTokensRequest,
             crate::openai::count_tokens::request::OpenAiCountTokensRequest,
-        >(&body),
+        >(&body, model),
 
         // --- OpenAI source ---
         (
@@ -782,7 +838,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::count_tokens::request::OpenAiCountTokensRequest,
             crate::claude::count_tokens::request::ClaudeCountTokensRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::CountToken,
             ProtocolKind::OpenAi,
@@ -791,7 +847,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::count_tokens::request::OpenAiCountTokensRequest,
             crate::gemini::count_tokens::request::GeminiCountTokensRequest,
-        >(&body),
+        >(&body, model),
 
         // --- Gemini source ---
         (
@@ -802,7 +858,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::count_tokens::request::GeminiCountTokensRequest,
             crate::claude::count_tokens::request::ClaudeCountTokensRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::CountToken,
             ProtocolKind::Gemini,
@@ -811,7 +867,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::count_tokens::request::GeminiCountTokensRequest,
             crate::openai::count_tokens::request::OpenAiCountTokensRequest,
-        >(&body),
+        >(&body, model),
 
         // =====================================================================
         // model_get
@@ -826,7 +882,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::model_get::request::ClaudeModelGetRequest,
             crate::gemini::model_get::request::GeminiModelGetRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::ModelGet,
             ProtocolKind::Claude,
@@ -835,7 +891,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::model_get::request::ClaudeModelGetRequest,
             crate::openai::model_get::request::OpenAiModelGetRequest,
-        >(&body),
+        >(&body, model),
 
         // --- OpenAI source ---
         (
@@ -846,7 +902,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::model_get::request::OpenAiModelGetRequest,
             crate::claude::model_get::request::ClaudeModelGetRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::ModelGet,
             ProtocolKind::OpenAi,
@@ -855,7 +911,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::model_get::request::OpenAiModelGetRequest,
             crate::gemini::model_get::request::GeminiModelGetRequest,
-        >(&body),
+        >(&body, model),
 
         // --- Gemini source ---
         (
@@ -866,7 +922,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::model_get::request::GeminiModelGetRequest,
             crate::claude::model_get::request::ClaudeModelGetRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::ModelGet,
             ProtocolKind::Gemini,
@@ -875,7 +931,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::model_get::request::GeminiModelGetRequest,
             crate::openai::model_get::request::OpenAiModelGetRequest,
-        >(&body),
+        >(&body, model),
 
         // =====================================================================
         // model_list
@@ -890,7 +946,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::model_list::request::ClaudeModelListRequest,
             crate::gemini::model_list::request::GeminiModelListRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::ModelList,
             ProtocolKind::Claude,
@@ -899,7 +955,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::claude::model_list::request::ClaudeModelListRequest,
             crate::openai::model_list::request::OpenAiModelListRequest,
-        >(&body),
+        >(&body, model),
 
         // --- OpenAI source ---
         (
@@ -910,7 +966,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::model_list::request::OpenAiModelListRequest,
             crate::claude::model_list::request::ClaudeModelListRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::ModelList,
             ProtocolKind::OpenAi,
@@ -919,7 +975,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::model_list::request::OpenAiModelListRequest,
             crate::gemini::model_list::request::GeminiModelListRequest,
-        >(&body),
+        >(&body, model),
 
         // --- Gemini source ---
         (
@@ -930,7 +986,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::model_list::request::GeminiModelListRequest,
             crate::claude::model_list::request::ClaudeModelListRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::ModelList,
             ProtocolKind::Gemini,
@@ -939,7 +995,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::model_list::request::GeminiModelListRequest,
             crate::openai::model_list::request::OpenAiModelListRequest,
-        >(&body),
+        >(&body, model),
 
         // =====================================================================
         // embeddings
@@ -952,7 +1008,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::openai::embeddings::request::OpenAiEmbeddingsRequest,
             crate::gemini::embeddings::request::GeminiEmbedContentRequest,
-        >(&body),
+        >(&body, model),
         (
             OperationFamily::Embedding,
             ProtocolKind::Gemini,
@@ -961,7 +1017,7 @@ pub fn transform_request(
         ) => transform_request_descriptor::<
             crate::gemini::embeddings::request::GeminiEmbedContentRequest,
             crate::openai::embeddings::request::OpenAiEmbeddingsRequest,
-        >(&body),
+        >(&body, model),
 
         // =====================================================================
         // create_image
@@ -1582,7 +1638,10 @@ where
     dst.into_body_bytes()
 }
 
-fn transform_request_descriptor<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, TransformError>
+fn transform_request_descriptor<Src, Dst>(
+    body: &[u8],
+    model: Option<&str>,
+) -> Result<Vec<u8>, TransformError>
 where
     Src: RequestDescriptor,
     Dst: RequestDescriptor + TryFrom<Src>,
@@ -1590,14 +1649,17 @@ where
 {
     let src_body: Src::Body = serde_json::from_slice(body)
         .map_err(|e| TransformError::new(format!("request deserialize: {}", e)))?;
-    let src = Src::from_body(src_body);
+    let src = Src::from_body(src_body).with_model(model);
     let dst = Dst::try_from(src).map_err(|e| TransformError::new(format!("transform: {}", e)))?;
 
     serde_json::to_vec(&dst.into_body())
         .map_err(|e| TransformError::new(format!("response serialize: {}", e)))
 }
 
-fn transform_request_descriptor_ref<Src, Dst>(body: &[u8]) -> Result<Vec<u8>, TransformError>
+fn transform_request_descriptor_ref<Src, Dst>(
+    body: &[u8],
+    model: Option<&str>,
+) -> Result<Vec<u8>, TransformError>
 where
     Src: RequestDescriptor,
     for<'a> Dst: RequestDescriptor + TryFrom<&'a Src>,
@@ -1605,7 +1667,7 @@ where
 {
     let src_body: Src::Body = serde_json::from_slice(body)
         .map_err(|e| TransformError::new(format!("request deserialize: {}", e)))?;
-    let src = Src::from_body(src_body);
+    let src = Src::from_body(src_body).with_model(model);
     let dst = Dst::try_from(&src).map_err(|e| TransformError::new(format!("transform: {}", e)))?;
 
     serde_json::to_vec(&dst.into_body())
