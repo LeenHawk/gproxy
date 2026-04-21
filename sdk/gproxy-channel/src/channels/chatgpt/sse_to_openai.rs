@@ -9,7 +9,7 @@
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::sse_v1::{Delta, Event, InitialAddValue, PatchKind, PatchOp, SseDecoder};
+use super::sse_v1::{Delta, Event, InitialAddValue, PatchKind, SseDecoder};
 
 /// State machine that consumes SSE v1 events and emits OpenAI chat chunks.
 #[derive(Debug, Default)]
@@ -79,24 +79,30 @@ impl SseToOpenAi {
         self.finished
     }
 
-    /// Feed one SSE event and collect any OpenAI chunks it produces.
-    pub fn on_event(&mut self, event: Event) -> Vec<OpenAiChunk> {
+    /// Feed one SSE event and return at most one OpenAI chunk.
+    ///
+    /// Collapses all of the event's patch effects (role/content/finish)
+    /// into a single `chat.completion.chunk`. Returns `None` for events
+    /// that don't carry anything the client needs — version banner,
+    /// typed side events, patches against non-final channels, etc.
+    pub fn on_event(&mut self, event: Event) -> Option<OpenAiChunk> {
         match event {
             Event::Delta(delta) => self.on_delta(delta),
             Event::Done => {
-                // Synthesize final stop chunk if we never saw one.
                 if self.emitted_role && !self.finished {
                     self.finished = true;
-                    return vec![self.build_stop_chunk("stop")];
+                    Some(self.build_stop_chunk("stop"))
+                } else {
+                    None
                 }
-                Vec::new()
             }
-            _ => Vec::new(),
+            _ => None,
         }
     }
 
-    fn on_delta(&mut self, delta: Delta) -> Vec<OpenAiChunk> {
-        // Update the current channel when an "add" declares one.
+    fn on_delta(&mut self, delta: Delta) -> Option<OpenAiChunk> {
+        // "add" event declares a new channel and provides the initial
+        // message state.
         let is_add = delta
             .patches
             .first()
@@ -108,26 +114,74 @@ impl SseToOpenAi {
         if is_add {
             let first = &delta.patches[0];
             self.handle_add(delta.channel, &first.value);
-            return Vec::new();
+            return None;
         }
 
-        // Patch events: only relevant for the assistant's final channel.
+        // Only patches on the assistant's final channel produce chunks.
         let relevant = match (delta.channel, self.current_channel, self.final_channel) {
             (Some(c), _, Some(target)) => c == target,
             (None, Some(cur), Some(target)) => cur == target,
             _ => false,
         };
         if !relevant {
-            return Vec::new();
+            return None;
         }
 
-        let mut out = Vec::new();
+        // Aggregate effects of all patches in this delta into one chunk.
+        let mut delta_map = serde_json::Map::new();
+        let mut finish_reason: Option<String> = None;
+        let mut emit_role_this_turn = false;
+        let mut appended_content = String::new();
+
         for patch in delta.patches {
-            if let Some(chunk) = self.handle_patch(&patch) {
-                out.push(chunk);
+            match (patch.op, patch.path.as_str()) {
+                (PatchKind::Append, "/message/content/parts/0") => {
+                    if let Some(text) = patch.value.as_str() {
+                        appended_content.push_str(text);
+                    }
+                }
+                (PatchKind::Replace, "/message/content/parts/0") => {
+                    if let Some(text) = patch.value.as_str() {
+                        // Emit only the new portion relative to what we have.
+                        let new_part = if text.starts_with(&self.accumulated_text) {
+                            text[self.accumulated_text.len()..].to_string()
+                        } else {
+                            text.to_string()
+                        };
+                        appended_content.push_str(&new_part);
+                    }
+                }
+                (PatchKind::Replace, "/message/status") => {
+                    if patch.value.as_str() == Some("finished_successfully") {
+                        finish_reason = Some("stop".to_string());
+                        self.finished = true;
+                    }
+                }
+                _ => {}
             }
         }
-        out
+
+        if !appended_content.is_empty() {
+            self.accumulated_text.push_str(&appended_content);
+            if !self.emitted_role {
+                delta_map.insert("role".to_string(), json!("assistant"));
+                self.emitted_role = true;
+                emit_role_this_turn = true;
+            }
+            delta_map.insert("content".to_string(), json!(appended_content));
+        } else if finish_reason.is_some() && !self.emitted_role {
+            // Edge case: stream ended before any content arrived.
+            delta_map.insert("role".to_string(), json!("assistant"));
+            self.emitted_role = true;
+            emit_role_this_turn = true;
+        }
+
+        if delta_map.is_empty() && finish_reason.is_none() {
+            return None;
+        }
+
+        let _ = emit_role_this_turn;
+        Some(self.build_chunk(delta_map, finish_reason.as_deref()))
     }
 
     fn handle_add(&mut self, channel: Option<u64>, value: &Value) {
@@ -177,60 +231,6 @@ impl SseToOpenAi {
         }
     }
 
-    fn handle_patch(&mut self, patch: &PatchOp) -> Option<OpenAiChunk> {
-        // Text streaming: append to /message/content/parts/0.
-        if patch.op == PatchKind::Append && patch.path == "/message/content/parts/0" {
-            let text = patch.value.as_str()?.to_string();
-            if text.is_empty() {
-                return None;
-            }
-            self.accumulated_text.push_str(&text);
-            let mut delta = serde_json::Map::new();
-            if !self.emitted_role {
-                delta.insert("role".to_string(), json!("assistant"));
-                self.emitted_role = true;
-            }
-            delta.insert("content".to_string(), json!(text));
-            return Some(self.build_chunk(delta, None));
-        }
-
-        // Full-content replace: `/message/content/parts/0` replaced with
-        // a new string (some models send this instead of append early on).
-        if patch.op == PatchKind::Replace && patch.path == "/message/content/parts/0" {
-            let text = patch.value.as_str()?.to_string();
-            if text.is_empty() {
-                return None;
-            }
-            // Emit delta of just the new portion relative to what we have.
-            let new_delta = if text.starts_with(&self.accumulated_text) {
-                text[self.accumulated_text.len()..].to_string()
-            } else {
-                text.clone()
-            };
-            self.accumulated_text = text;
-            if new_delta.is_empty() {
-                return None;
-            }
-            let mut delta = serde_json::Map::new();
-            if !self.emitted_role {
-                delta.insert("role".to_string(), json!("assistant"));
-                self.emitted_role = true;
-            }
-            delta.insert("content".to_string(), json!(new_delta));
-            return Some(self.build_chunk(delta, None));
-        }
-
-        // End of stream.
-        if patch.op == PatchKind::Replace && patch.path == "/message/status" {
-            if patch.value.as_str() == Some("finished_successfully") {
-                self.finished = true;
-                return Some(self.build_stop_chunk("stop"));
-            }
-        }
-
-        None
-    }
-
     fn build_chunk(
         &self,
         delta: serde_json::Map<String, Value>,
@@ -268,7 +268,9 @@ pub fn collect_all(model: &str, body: &[u8]) -> Vec<OpenAiChunk> {
     let mut out = Vec::new();
     decoder.feed(body);
     while let Some(event) = decoder.next_event() {
-        out.extend(converter.on_event(event));
+        if let Some(chunk) = converter.on_event(event) {
+            out.push(chunk);
+        }
     }
     // Trailer: emit a synthesized stop if the upstream never sent one.
     if !converter.finished() && converter.emitted_role {

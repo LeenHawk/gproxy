@@ -17,12 +17,8 @@ use super::session::{
     take_turn,
 };
 use super::sse_to_openai::SseToOpenAi;
-use super::sse_v1::SseDecoder;
-use super::stream_reshaper::OpenAiChunkReshaper;
 
-use crate::channel::{
-    Channel, ChannelCredential, ChannelSettings, CommonChannelSettings, StreamReshaper,
-};
+use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::count_tokens::CountStrategy;
 use crate::health::ModelCooldownHealth;
 use crate::registry::ChannelRegistration;
@@ -164,7 +160,15 @@ impl Channel for ChatGptChannel {
                 OperationFamily::GenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
             ),
-            pass(
+            // Streaming route: declared as a same-src-dst `TransformTo`
+            // so the engine builds a stream transformer. That transformer
+            // uses `IdentityConverter` for the actual chat.completion.chunk
+            // shape but drives our `normalize_response` per JSON chunk,
+            // which is where we reshape ChatGPT's `/f/conversation` SSE v1
+            // deltas into proper OpenAI chunks.
+            xform(
+                OperationFamily::StreamGenerateContent,
+                ProtocolKind::OpenAiChatCompletion,
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::OpenAiChatCompletion,
             ),
@@ -245,25 +249,6 @@ impl Channel for ChatGptChannel {
         // with `cookie_store(true)` (engine.rs), so Set-Cookie from our
         // warmup survives into the actual `/f/conversation` request.
         true
-    }
-
-    fn stream_reshaper(
-        &self,
-        request: &PreparedRequest,
-    ) -> Option<Box<dyn StreamReshaper>> {
-        // Only reshape streaming text responses. Image routes go through
-        // normalize_response (they produce a single buffered JSON).
-        if !matches!(
-            request.route.operation,
-            OperationFamily::StreamGenerateContent
-        ) {
-            return None;
-        }
-        let model = request
-            .model
-            .clone()
-            .unwrap_or_else(|| "gpt-5".to_string());
-        Some(Box::new(OpenAiChunkReshaper::new(&model)))
     }
 
     fn prepare_request(
@@ -406,62 +391,67 @@ impl Channel for ChatGptChannel {
             return normalize_image_response(&body, turn_id.as_deref()).unwrap_or(body);
         }
 
-        // We are only asked to normalize when buffered; streaming is
-        // handled by the engine separately. For a buffered SSE body, we
-        // parse the whole stream and re-emit as standard OpenAI
-        // chat.completion.chunk SSE or chat.completion (non-stream)
-        // depending on the caller's request.
         let model = request
             .model
             .clone()
             .unwrap_or_else(|| "gpt-5".to_string());
-        let mut decoder = SseDecoder::new();
-        let mut converter = SseToOpenAi::with_model(&model);
-        decoder.feed(&body);
-        let mut openai_chunks = Vec::new();
-        while let Some(event) = decoder.next_event() {
-            openai_chunks.extend(converter.on_event(event));
-        }
-        if openai_chunks.is_empty() {
-            return body;
+
+        // Two modes:
+        //
+        // * **Non-stream** (`GenerateContent`): the engine calls us once
+        //   with the full SSE body. We decode it in one shot and emit a
+        //   `chat.completion` JSON.
+        //
+        // * **Stream** (`StreamGenerateContent`): the engine calls us
+        //   per JSON chunk via the stream transformer's `normalizer`
+        //   closure. Input is one ChatGPT SSE data payload, output is
+        //   one `chat.completion.chunk` JSON (or empty to skip).
+        //   Per-turn state (channel map / accumulated text) lives in
+        //   the shared `turn_stream_state` keyed by `x-chatgpt-turn-id`.
+        let streaming = matches!(
+            request.route.operation,
+            OperationFamily::StreamGenerateContent
+        );
+        if streaming {
+            return reshape_stream_chunk(request, &body, &model);
         }
 
-        let streaming = request.route.operation == OperationFamily::StreamGenerateContent
-            || request.route.operation == OperationFamily::OpenAiResponseWebSocket;
-        if streaming {
-            let mut out = Vec::with_capacity(body.len());
-            for chunk in &openai_chunks {
-                out.extend_from_slice(b"data: ");
-                out.extend_from_slice(
-                    &serde_json::to_vec(chunk).unwrap_or_default(),
-                );
-                out.extend_from_slice(b"\n\n");
-            }
-            out.extend_from_slice(b"data: [DONE]\n\n");
-            out
-        } else {
-            // Aggregate into a single chat.completion object.
-            let content = converter.text().to_string();
-            let msg_id = openai_chunks
-                .first()
-                .map(|c| c.id.clone())
-                .unwrap_or_else(|| format!("chatcmpl-{}", uuid::Uuid::new_v4()));
-            let response = serde_json::json!({
-                "id": msg_id,
-                "object": "chat.completion",
-                "created": std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                "model": model,
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant", "content": content},
-                    "finish_reason": "stop"
-                }]
-            });
-            serde_json::to_vec(&response).unwrap_or(body)
+        // Non-stream path: full buffered SSE → chat.completion JSON.
+        let chunks = super::sse_to_openai::collect_all(&model, &body);
+        if chunks.is_empty() {
+            return body;
         }
+        // Aggregate into a single chat.completion object.
+        let mut content = String::new();
+        for chunk in &chunks {
+            if let Some(s) = chunk
+                .choices
+                .first()
+                .and_then(|c| c.delta.get("content"))
+                .and_then(|v| v.as_str())
+            {
+                content.push_str(s);
+            }
+        }
+        let msg_id = chunks
+            .first()
+            .map(|c| c.id.clone())
+            .unwrap_or_else(|| format!("chatcmpl-{}", uuid::Uuid::new_v4()));
+        let response = serde_json::json!({
+            "id": msg_id,
+            "object": "chat.completion",
+            "created": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop"
+            }]
+        });
+        serde_json::to_vec(&response).unwrap_or(body)
     }
 
     fn classify_response(
@@ -536,6 +526,157 @@ impl Channel for ChatGptChannel {
 
 fn chatgpt_routing_table() -> RoutingTable {
     ChatGptChannel.routing_table()
+}
+
+/// Per-turn stream state. One entry per in-flight stream request,
+/// keyed by `x-chatgpt-turn-id`. Populated lazily on the first
+/// `normalize_response` call and kept alive across chunks.
+fn stream_state_cache() -> &'static dashmap::DashMap<String, std::sync::Mutex<SseToOpenAi>> {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<dashmap::DashMap<String, std::sync::Mutex<SseToOpenAi>>> = OnceLock::new();
+    CACHE.get_or_init(dashmap::DashMap::new)
+}
+
+/// Apply a single ChatGPT SSE JSON chunk against the turn's state machine
+/// and return one `chat.completion.chunk` JSON (or empty Vec for events
+/// that don't emit a downstream chunk).
+///
+/// The stream transformer's decoder has already split the raw SSE bytes
+/// into one JSON payload per `data: ...` line. Here we:
+///   1. Parse the payload into an [`sse_v1::Event`]
+///   2. Look up (or create) the per-turn [`SseToOpenAi`] state
+///   3. Push the event, get at most one OpenAI chunk back
+///   4. Serialize it as JSON (no SSE framing — that's added by the
+///      transformer's encoder)
+fn reshape_stream_chunk(request: &PreparedRequest, chunk: &[u8], model: &str) -> Vec<u8> {
+    let Some(turn_id) = request
+        .headers
+        .get("x-chatgpt-turn-id")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+    else {
+        return Vec::new();
+    };
+
+    // Parse the JSON payload. Non-object payloads (the version banner
+    // `"v1"`, `[DONE]` residues, etc.) are treated as no-op events.
+    let value: Value = match serde_json::from_slice(chunk) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+
+    let event = if value.is_object() {
+        // Build an `sse_v1::Event` by hand rather than going through
+        // `SseDecoder` — decoder-level framing has already been done.
+        if let Some(kind) = value.get("type").and_then(|v| v.as_str())
+            && value.get("v").is_none()
+            && value.get("p").is_none()
+        {
+            super::sse_v1::Event::Typed {
+                kind: kind.to_string(),
+                raw: value,
+            }
+        } else {
+            super::sse_v1::Event::Delta(parse_delta_from_value(&value))
+        }
+    } else {
+        return Vec::new();
+    };
+
+    let cache = stream_state_cache();
+    // Take-out pattern: remove the mutex, use it, put it back. Avoids
+    // deadlocking against `cache.remove(...)` / `cache.retain(...)` which
+    // need the same shard lock that `.entry(...)` holds for its lifetime.
+    let state = cache
+        .remove(&turn_id)
+        .map(|(_, m)| m)
+        .unwrap_or_else(|| std::sync::Mutex::new(SseToOpenAi::with_model(model)));
+    let (rendered, keep) = {
+        let mut guard = state.lock().expect("poisoned stream state");
+        let was_finished = guard.finished();
+        let output = guard.on_event(event);
+        let bytes = output
+            .as_ref()
+            .map(|c| serde_json::to_vec(c).unwrap_or_default())
+            .unwrap_or_default();
+        let keep = !(!was_finished && guard.finished());
+        (bytes, keep)
+    };
+    if keep {
+        cache.insert(turn_id, state);
+    }
+
+    // Evict everything if the map grows past the soft cap. Cheap, very
+    // rare, and avoids long O(N) scans mid-request.
+    if cache.len() > 4096 {
+        cache.clear();
+    }
+
+    rendered
+}
+
+/// Mirror of [`super::sse_v1::SseDecoder::parse_delta`] but operating on an
+/// already-parsed [`Value`] (since the engine's stream decoder pre-parses
+/// JSON). Kept private to avoid exposing a duplicate API.
+fn parse_delta_from_value(v: &Value) -> super::sse_v1::Delta {
+    use super::sse_v1::{Delta, PatchKind, PatchOp};
+
+    let channel = v.get("c").and_then(|c| c.as_u64());
+    let op = v.get("o").and_then(|x| x.as_str()).unwrap_or("");
+
+    if op == "patch"
+        && let Some(arr) = v.get("v").and_then(|x| x.as_array())
+    {
+        return Delta {
+            channel,
+            patches: arr.iter().filter_map(parse_one_patch_value).collect(),
+        };
+    }
+
+    if v.get("o").is_none() && v.get("p").is_none() {
+        if let Some(arr) = v.get("v").and_then(|x| x.as_array()) {
+            return Delta {
+                channel,
+                patches: arr.iter().filter_map(parse_one_patch_value).collect(),
+            };
+        }
+        if let Some(obj_value) = v.get("v")
+            && obj_value.is_object()
+        {
+            return Delta {
+                channel,
+                patches: vec![PatchOp {
+                    path: String::new(),
+                    op: PatchKind::Add,
+                    value: obj_value.clone(),
+                }],
+            };
+        }
+    }
+
+    Delta {
+        channel,
+        patches: vec![PatchOp {
+            path: v.get("p").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            op: PatchKind::parse(op),
+            value: v.get("v").cloned().unwrap_or(Value::Null),
+        }],
+    }
+}
+
+fn parse_one_patch_value(v: &Value) -> Option<super::sse_v1::PatchOp> {
+    let obj = v.as_object()?;
+    Some(super::sse_v1::PatchOp {
+        path: obj
+            .get("p")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        op: super::sse_v1::PatchKind::parse(
+            obj.get("o").and_then(|x| x.as_str()).unwrap_or(""),
+        ),
+        value: obj.get("v").cloned().unwrap_or(Value::Null),
+    })
 }
 
 /// Parse an image-generation SSE body and return an OpenAI

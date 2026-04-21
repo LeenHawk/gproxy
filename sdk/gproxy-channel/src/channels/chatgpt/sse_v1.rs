@@ -63,7 +63,7 @@ pub enum PatchKind {
 }
 
 impl PatchKind {
-    fn parse(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s {
             "add" => Self::Add,
             "replace" => Self::Replace,

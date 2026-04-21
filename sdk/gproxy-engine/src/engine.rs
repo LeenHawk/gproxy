@@ -1710,10 +1710,6 @@ impl GproxyEngine {
 
         let model_override = request.response_model_override.clone();
 
-        // Channel-level stream reshaper (e.g. chatgpt: SSE v1 → OpenAI
-        // chat.completion.chunk SSE). Runs before the protocol transformer.
-        let reshaper = provider.stream_reshaper(&prepared);
-
         // Observe upstream bytes (pre-transform) so usage reflects the
         // upstream-native fields, immune to downstream cross-protocol
         // transforms that may drop or zero out cache breakdowns. The
@@ -1727,7 +1723,6 @@ impl GproxyEngine {
 
         // Fast path: nothing to do per-chunk, hand the raw stream through.
         let body = if transformer.is_none()
-            && reshaper.is_none()
             && raw_capture.is_none()
             && model_override.is_none()
             && usage_observer.is_none()
@@ -1736,7 +1731,6 @@ impl GproxyEngine {
         } else {
             ExecuteBody::Stream(wrap_upstream_response_stream(
                 response.body,
-                reshaper,
                 transformer,
                 raw_capture.clone(),
                 model_override,
@@ -1764,21 +1758,17 @@ impl GproxyEngine {
 ///    sees the chunk, so the captured buffer exactly matches what came
 ///    over the wire — mirroring `raw_response_body_for_log` in the
 ///    non-stream path).
-/// 2. An optional per-chunk **channel reshaper**. Channels whose upstream
-///    speaks a non-standard format (e.g. chatgpt's SSE v1) use this to
-///    emit `OpenAiChatCompletion`-shaped chunks *before* the protocol
-///    transformer sees them. Applied right after the raw-bytes tee.
-/// 3. An optional per-chunk cross-protocol transformer for
-///    cross-protocol response conversions. Only set on 2xx responses;
-///    `None` on error statuses and on passthrough routes.
-/// 4. Optional `"model"` field rewriting for alias support.
+/// 2. An optional per-chunk transformer for cross-protocol response
+///    conversions. Only set on 2xx responses; `None` on error statuses and
+///    on passthrough routes.
+/// 3. Optional `"model"` field rewriting for alias support.
 ///
-/// When both `reshaper` and `transformer` are `None`, chunks are yielded
-/// raw (passthrough). This is the path taken for passthrough routes
-/// whose upstream already speaks the advertised protocol.
+/// When `transformer` is `None`, chunks are yielded raw (passthrough).
+/// This is the path taken for passthrough routes, and for non-2xx upstream
+/// responses where cross-protocol transformation would strip the real
+/// error body.
 fn wrap_upstream_response_stream(
     mut upstream: gproxy_channel::response::UpstreamBodyStream,
-    reshaper: Option<Box<dyn gproxy_channel::channel::StreamReshaper>>,
     transformer: Option<gproxy_protocol::transform::dispatch::StreamResponseTransformer>,
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
     model_override: Option<String>,
@@ -1796,7 +1786,6 @@ fn wrap_upstream_response_stream(
 
     typed_stream(try_stream! {
         let mut transformer = transformer;
-        let mut reshaper = reshaper;
         while let Some(chunk) = upstream.next().await {
             let chunk = chunk?;
 
@@ -1817,25 +1806,9 @@ fn wrap_upstream_response_stream(
                 obs.observe_chunk(&chunk);
             }
 
-            // Channel-level reshape (e.g. chatgpt SSE v1 → OpenAI chunks).
-            // After this point the bytes are in the channel's declared
-            // downstream protocol, ready for the protocol transformer.
-            let reshaped: Bytes = match reshaper.as_mut() {
-                Some(r) => {
-                    let out = r.push_chunk(&chunk);
-                    if out.is_empty() {
-                        // Reshaper consumed the chunk without emitting —
-                        // keep reading.
-                        continue;
-                    }
-                    Bytes::from(out)
-                }
-                None => chunk,
-            };
-
             match transformer.as_mut() {
                 Some(t) => {
-                    let mut out = t.push_chunk(&reshaped)?;
+                    let mut out = t.push_chunk(&chunk)?;
                     if let Some(ref alias) = model_override {
                         rewrite_model_field_in_body(&mut out, alias);
                     }
@@ -1845,36 +1818,11 @@ fn wrap_upstream_response_stream(
                 }
                 None => {
                     if let Some(ref alias) = model_override {
-                        let mut buf = reshaped.to_vec();
+                        let mut buf = chunk.to_vec();
                         rewrite_model_field_in_body(&mut buf, alias);
                         yield Bytes::from(buf);
                     } else {
-                        yield reshaped;
-                    }
-                }
-            }
-        }
-
-        // Flush reshaper's trailing bytes first (e.g. `data: [DONE]\n\n`).
-        if let Some(mut r) = reshaper {
-            let tail = r.finish();
-            if !tail.is_empty() {
-                match transformer.as_mut() {
-                    Some(t) => {
-                        let mut out = t.push_chunk(&tail)?;
-                        if let Some(ref alias) = model_override {
-                            rewrite_model_field_in_body(&mut out, alias);
-                        }
-                        if !out.is_empty() {
-                            yield Bytes::from(out);
-                        }
-                    }
-                    None => {
-                        let mut buf = tail;
-                        if let Some(ref alias) = model_override {
-                            rewrite_model_field_in_body(&mut buf, alias);
-                        }
-                        yield Bytes::from(buf);
+                        yield chunk;
                     }
                 }
             }

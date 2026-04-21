@@ -108,14 +108,6 @@ pub(crate) trait ProviderRuntime: Send + Sync {
 
     fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8>;
 
-    /// Return a channel-provided [`StreamReshaper`] for the given request,
-    /// if the channel needs to reshape raw upstream chunks before the
-    /// protocol-layer transformer runs.
-    fn stream_reshaper(
-        &self,
-        request: &PreparedRequest,
-    ) -> Option<Box<dyn gproxy_channel::channel::StreamReshaper>>;
-
     fn sanitize_rules(&self) -> Vec<gproxy_channel::utils::sanitize::SanitizeRule>;
 
     fn rewrite_rules(&self) -> Vec<gproxy_channel::utils::rewrite::RewriteRule>;
@@ -385,13 +377,6 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
 
     fn normalize_response(&self, request: &PreparedRequest, body: Vec<u8>) -> Vec<u8> {
         self.channel.normalize_response(request, body)
-    }
-
-    fn stream_reshaper(
-        &self,
-        request: &PreparedRequest,
-    ) -> Option<Box<dyn gproxy_channel::channel::StreamReshaper>> {
-        self.channel.stream_reshaper(request)
     }
 
     fn sanitize_rules(&self) -> Vec<gproxy_channel::utils::sanitize::SanitizeRule> {
