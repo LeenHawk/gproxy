@@ -2906,7 +2906,7 @@ mod tests {
     use axum::extract::{Extension, Request, State};
     use axum::http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
+        header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, LOCATION, TRANSFER_ENCODING},
     };
     use axum::routing::post;
     use axum::{Json, Router};
@@ -2957,6 +2957,53 @@ mod tests {
             axum::serve(listener, app)
                 .await
                 .expect("mock upstream should serve");
+        });
+
+        (format!("http://{addr}"), handle)
+    }
+
+    async fn spawn_redirecting_openai_server() -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind redirecting mock upstream");
+        let addr = listener
+            .local_addr()
+            .expect("redirecting mock upstream addr");
+        let app = Router::new()
+            .route(
+                "/v1/chat/completions",
+                post(|| async move {
+                    (
+                        StatusCode::TEMPORARY_REDIRECT,
+                        [(LOCATION, "/redirected/chat")],
+                    )
+                }),
+            )
+            .route(
+                "/redirected/chat",
+                post(|| async move {
+                    Json(json!({
+                        "id": "chatcmpl-redirected",
+                        "object": "chat.completion",
+                        "model": "demo",
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "redirected ok"
+                                },
+                                "finish_reason": "stop"
+                            }
+                        ]
+                    }))
+                }),
+            );
+
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("redirecting mock upstream should serve");
         });
 
         (format!("http://{addr}"), handle)
@@ -3116,6 +3163,69 @@ mod tests {
 
         let response = response.expect("request should not be rejected before upstream call");
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn proxy_unscoped_records_final_redirect_uri_in_upstream_logs() {
+        let (base_url, server_handle) = spawn_redirecting_openai_server().await;
+        let state = build_unscoped_proxy_state(base_url.clone()).await;
+        let body = serde_json::to_vec(&json!({
+            "model": "test/demo",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello"
+                }
+            ]
+        }))
+        .expect("request body should serialize");
+
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/v1/chat/completions")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+        request
+            .extensions_mut()
+            .insert(BufferedBodyBytes(Bytes::from(body.clone())));
+        request.extensions_mut().insert(Classification::new(
+            gproxy_server::OperationFamily::GenerateContent,
+            gproxy_server::ProtocolKind::OpenAiChatCompletion,
+        ));
+        request
+            .extensions_mut()
+            .insert(ExtractedModel(Some("test/demo".to_string())));
+
+        let response = proxy_unscoped(
+            State(state.clone()),
+            Extension(AuthenticatedUser(MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })),
+            request,
+        )
+        .await
+        .expect("request should succeed through redirect");
+
+        server_handle.abort();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let upstream_logs = state
+            .storage()
+            .query_upstream_requests(&UpstreamRequestQuery::default())
+            .await
+            .expect("query upstream request logs");
+        assert_eq!(upstream_logs.len(), 1);
+        let expected_url = format!("{base_url}/redirected/chat");
+        assert_eq!(
+            upstream_logs[0].request_url.as_deref(),
+            Some(expected_url.as_str()),
+            "upstream log should record the final URI after redirect"
+        );
     }
 
     #[test]

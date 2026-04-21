@@ -1043,6 +1043,7 @@ impl GproxyEngine {
 
             let response =
                 gproxy_channel::http_client::send_request(&self.client, http_request).await?;
+            meta.url = response.url.clone();
 
             if matches!(response.status, 401 | 403) {
                 tracing::warn!(
@@ -1066,6 +1067,7 @@ impl GproxyEngine {
                     let retry_response =
                         gproxy_channel::http_client::send_request(&self.client, retry_request)
                             .await?;
+                    meta.url = retry_response.url.clone();
                     fill_response_meta(&mut meta, &retry_response, retry_start);
                     return Ok((Some(retry_response), updates, Some(meta)));
                 }
