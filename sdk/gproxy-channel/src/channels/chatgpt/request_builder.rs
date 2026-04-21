@@ -35,6 +35,10 @@ pub fn build_conversation_body(
     body.insert("system_hints".to_string(), Value::Array(vec![]));
     body.insert("supports_buffering".to_string(), json!(true));
     body.insert("supported_encodings".to_string(), json!(["v1"]));
+    // Temporary-chat mode: tell the upstream not to persist this turn
+    // into the user's ChatGPT history and not to use it for training.
+    // Matches the "Temporary chat" toggle in the chatgpt.com UI.
+    body.insert("history_and_training_disabled".to_string(), json!(true));
     body.insert(
         "client_contextual_info".to_string(),
         json!({
