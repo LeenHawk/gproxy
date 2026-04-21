@@ -9,6 +9,8 @@ pub struct UpstreamResponse {
     pub status: u16,
     pub headers: http::HeaderMap,
     pub body: Vec<u8>,
+    /// Final upstream URL after any client-side redirect handling.
+    pub url: String,
     /// Time from `send_request` entry until `client.execute().await` returned
     /// with response headers. Represents upstream TTFB for this attempt only.
     pub initial_latency_ms: u64,
@@ -24,6 +26,8 @@ pub struct UpstreamStreamingResponse {
     pub status: u16,
     pub headers: http::HeaderMap,
     pub body: UpstreamBodyStream,
+    /// Final upstream URL after any client-side redirect handling.
+    pub url: String,
     /// TTFB, measured identically to `UpstreamResponse::initial_latency_ms`.
     pub initial_latency_ms: u64,
     /// Base instant for computing total latency. The stream consumer calls
