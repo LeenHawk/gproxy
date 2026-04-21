@@ -361,6 +361,7 @@ export const enMessages: Record<string, string> = {
   "requests.kind.upstream": "Upstream",
   "requests.path.placeholder": "All paths",
   "field.kind": "Kind",
+  "field.temporary_chat": "Temporary chat",
   "table.provider": "Provider",
   "table.input": "Input",
   "table.output": "Output",

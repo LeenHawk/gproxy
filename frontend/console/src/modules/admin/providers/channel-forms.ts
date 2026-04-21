@@ -161,7 +161,7 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
       {
         key: "temporary_chat",
-        label: "temporary_chat (skip ChatGPT history + training)",
+        label: "temporary_chat",
         type: "boolean",
         optional: true,
       },

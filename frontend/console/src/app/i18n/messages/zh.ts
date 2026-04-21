@@ -361,6 +361,7 @@ export const zhMessages: Record<string, string> = {
   "requests.kind.upstream": "上游",
   "requests.path.placeholder": "全部路径",
   "field.kind": "类型",
+  "field.temporary_chat": "临时会话",
   "table.provider": "Provider",
   "table.input": "输入",
   "table.output": "输出",
