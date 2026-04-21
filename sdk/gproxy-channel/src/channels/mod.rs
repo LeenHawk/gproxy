@@ -4,6 +4,8 @@ pub mod aistudio;
 pub mod anthropic;
 #[cfg(feature = "antigravity")]
 pub mod antigravity;
+#[cfg(feature = "chatgpt")]
+pub mod chatgpt;
 #[cfg(feature = "claudecode")]
 pub mod claudecode;
 #[cfg(feature = "codex")]

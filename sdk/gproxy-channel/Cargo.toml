@@ -23,9 +23,11 @@ default = ["all-channels"]
 all-channels = [
     "openai", "anthropic", "aistudio", "vertexexpress",
     "vertex", "geminicli", "claudecode", "codex",
-    "antigravity", "nvidia", "deepseek", "groq", "openrouter", "custom"
+    "antigravity", "nvidia", "deepseek", "groq", "openrouter", "custom",
+    "chatgpt"
 ]
 openai = []
+chatgpt = []
 anthropic = []
 aistudio = []
 vertexexpress = []
