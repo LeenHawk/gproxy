@@ -229,13 +229,27 @@ fn messages_to_chatgpt(messages: &[NormalizedMessage]) -> Vec<Value> {
 }
 
 /// Resolve an OpenAI model slug to a chatgpt-web-compatible slug.
-/// `gpt-5-3` is the current default observed in HARs; other names are
-/// passed through unchanged.
+///
+/// - Friendly aliases (`""`, `gpt-5`, `gpt-5-latest`, `gpt-5-auto`)
+///   resolve to the current upstream default (`gpt-5-4`).
+/// - Models in the curated catalog
+///   ([`super::models::known_model_ids`]) pass through unchanged.
+/// - Anything else (e.g. a made-up `gpt-5.4`) also falls back to the
+///   default so the upstream doesn't 400 on unknown ids.
 pub fn resolve_model(requested: &str) -> String {
-    match requested {
-        "" | "gpt-5" | "gpt-5-latest" | "gpt-5-auto" => "gpt-5-3".to_string(),
-        other => other.to_string(),
+    const DEFAULT: &str = "gpt-5-4";
+    let trimmed = requested.trim();
+    match trimmed {
+        "" | "gpt-5" | "gpt-5-latest" | "gpt-5-auto" => return DEFAULT.to_string(),
+        _ => {}
     }
+    if super::models::known_model_ids()
+        .iter()
+        .any(|id| *id == trimmed)
+    {
+        return trimmed.to_string();
+    }
+    DEFAULT.to_string()
 }
 
 #[cfg(test)]
@@ -251,7 +265,7 @@ mod tests {
             ]
         });
         let out = build_conversation_body(&body, &resolve_model("gpt-5"), true);
-        assert_eq!(out["model"], json!("gpt-5-3"));
+        assert_eq!(out["model"], json!("gpt-5-4"));
         let msgs = out["messages"].as_array().unwrap();
         assert_eq!(msgs.len(), 1);
         assert_eq!(msgs[0]["content"]["parts"][0].as_str().unwrap(), "hi");
