@@ -275,6 +275,9 @@ export function ProvidersModule({
               sessionToken={sessionToken}
               notify={notify}
               onProviderScopedReload={loadProviderScopedData}
+              onReloadProviders={async () => {
+                await loadProviders();
+              }}
             />
           ) : null}
           {activeTab === "models" ? (

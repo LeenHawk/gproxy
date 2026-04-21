@@ -32,6 +32,7 @@ export function CredentialsPane({
   sessionToken,
   notify,
   onProviderScopedReload,
+  onReloadProviders,
 }: {
   selectedProvider: ProviderRow | null;
   /// The provider form's current channel. Used when selectedProvider is null
@@ -42,6 +43,9 @@ export function CredentialsPane({
   sessionToken: string;
   notify: (kind: "success" | "error" | "info", message: string) => void;
   onProviderScopedReload: (provider: ProviderRow) => Promise<void>;
+  /// Reload the provider list itself so stale `credential_count` on the
+  /// sidebar rows refreshes after add/delete.
+  onReloadProviders: () => Promise<void>;
 }) {
   const { t } = useI18n();
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
@@ -124,6 +128,7 @@ export function CredentialsPane({
       });
       notify("success", t("providers.credentials.saved"));
       await onProviderScopedReload(selectedProvider);
+      await onReloadProviders();
       setCredentialForm({
         editingIndex: null,
         values: emptyCredentialValuesForChannel(selectedProvider.channel),
@@ -148,6 +153,7 @@ export function CredentialsPane({
       if (selectedProvider) {
         await onProviderScopedReload(selectedProvider);
       }
+      await onReloadProviders();
     } catch (error) {
       notify("error", error instanceof Error ? error.message : String(error));
     }
