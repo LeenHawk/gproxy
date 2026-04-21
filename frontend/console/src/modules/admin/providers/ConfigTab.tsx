@@ -274,9 +274,10 @@ export function ConfigTab({
                   : t("providers.routing.templatesExpand")}
               </button>
             </div>
-            <p className="mb-2 text-[11px] text-muted">{t("providers.routing.templatesHint")}</p>
             {templatesExpanded ? (
-              <div className="flex flex-wrap gap-1.5">
+              <>
+                <p className="mb-2 text-[11px] text-muted">{t("providers.routing.templatesHint")}</p>
+                <div className="flex flex-wrap gap-1.5">
                 {ROUTING_TEMPLATES.map((tmpl) => {
                   const active = isRoutingTemplateMatch(tmpl, form.routingRules);
                   return (
@@ -295,7 +296,8 @@ export function ConfigTab({
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              </>
             ) : null}
           </div>
 
