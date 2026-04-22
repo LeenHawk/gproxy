@@ -12,6 +12,17 @@ use serde_json::{Value, json};
 ///
 /// `temporary_chat = true` sets `history_and_training_disabled: true` on
 /// the body, mirroring the "Temporary chat" toggle in the chatgpt.com UI.
+///
+/// Recognised optional inputs on the OpenAI body that get forwarded to
+/// chatgpt.com:
+///
+/// * `thinking_effort` (top-level) or `extra_body.thinking_effort` →
+///   `thinking_effort` body field. Allowed values match the web picker:
+///   `min`, `standard`, `extended`, `max` (Pro/Team/Enterprise) or
+///   `standard` / `extended` (Free). `low` / `medium` / `high` get
+///   mapped to `standard` / `extended` / `max` for OpenAI Responses-API
+///   compatibility.
+/// * `extra_body.reasoning.effort` (alias of `thinking_effort`).
 pub fn build_conversation_body(
     openai_body: &Value,
     resolved_model: &str,
@@ -43,6 +54,9 @@ pub fn build_conversation_body(
         // "Temporary chat" — exclude this turn from the user's ChatGPT
         // history and from model training (matches the UI toggle).
         body.insert("history_and_training_disabled".to_string(), json!(true));
+    }
+    if let Some(effort) = extract_thinking_effort(openai_body) {
+        body.insert("thinking_effort".to_string(), json!(effort));
     }
     body.insert(
         "client_contextual_info".to_string(),
@@ -229,13 +243,6 @@ fn messages_to_chatgpt(messages: &[NormalizedMessage]) -> Vec<Value> {
 }
 
 /// Resolve an OpenAI model slug to a chatgpt-web-compatible slug.
-///
-/// - Friendly aliases (`""`, `gpt-5`, `gpt-5-latest`, `gpt-5-auto`)
-///   resolve to the current upstream default (`gpt-5-4`).
-/// - Models in the curated catalog
-///   ([`super::models::known_model_ids`]) pass through unchanged.
-/// - Anything else (e.g. a made-up `gpt-5.4`) also falls back to the
-///   default so the upstream doesn't 400 on unknown ids.
 pub fn resolve_model(requested: &str) -> String {
     const DEFAULT: &str = "gpt-5-4";
     let trimmed = requested.trim();
@@ -250,6 +257,47 @@ pub fn resolve_model(requested: &str) -> String {
         return trimmed.to_string();
     }
     DEFAULT.to_string()
+}
+
+/// Pull a `thinking_effort` value out of an OpenAI-shaped request body.
+///
+/// Looked up in this priority order:
+/// 1. Top-level `thinking_effort` (chatgpt-web native).
+/// 2. `extra_body.thinking_effort` (the standard extra-body escape hatch).
+/// 3. `extra_body.reasoning.effort` and `reasoning.effort`
+///    (OpenAI Responses-API field). Mapped: `low`→`standard`,
+///    `medium`→`extended`, `high`→`max`. Other values pass through
+///    unchanged so callers can specify the chatgpt-native names directly.
+pub fn extract_thinking_effort(body: &Value) -> Option<String> {
+    let raw = body
+        .get("thinking_effort")
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            body.get("extra_body")
+                .and_then(|x| x.get("thinking_effort"))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            body.get("extra_body")
+                .and_then(|x| x.get("reasoning"))
+                .and_then(|r| r.get("effort"))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            body.get("reasoning")
+                .and_then(|r| r.get("effort"))
+                .and_then(|v| v.as_str())
+        })?;
+    Some(map_effort(raw).to_string())
+}
+
+fn map_effort(raw: &str) -> &str {
+    match raw {
+        "low" => "standard",
+        "medium" => "extended",
+        "high" => "max",
+        other => other,
+    }
 }
 
 #[cfg(test)]
@@ -328,5 +376,34 @@ mod tests {
             .unwrap()
             .to_string();
         assert_eq!(text, "responses api");
+    }
+
+    #[test]
+    fn forwards_thinking_effort_top_level() {
+        let body = json!({
+            "model": "gpt-5-thinking",
+            "messages": [{"role": "user", "content": "hi"}],
+            "thinking_effort": "max"
+        });
+        let out = build_conversation_body(&body, "gpt-5-thinking", true);
+        assert_eq!(out["thinking_effort"], json!("max"));
+    }
+
+    #[test]
+    fn maps_responses_api_effort_aliases() {
+        let body = json!({
+            "model": "gpt-5",
+            "messages": [{"role": "user", "content": "hi"}],
+            "extra_body": {"reasoning": {"effort": "high"}}
+        });
+        let out = build_conversation_body(&body, "gpt-5-4", true);
+        assert_eq!(out["thinking_effort"], json!("max"));
+    }
+
+    #[test]
+    fn omits_thinking_effort_when_absent() {
+        let body = json!({"messages": [{"role": "user", "content": "hi"}]});
+        let out = build_conversation_body(&body, "gpt-5-4", true);
+        assert!(out.get("thinking_effort").is_none());
     }
 }
