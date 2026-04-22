@@ -476,9 +476,7 @@ fn translate_request_query(
     dst_protocol: ProtocolKind,
     query: Option<&str>,
 ) -> Option<String> {
-    let Some(raw) = query else {
-        return None;
-    };
+    let raw = query?;
     if raw.is_empty() {
         return None;
     }

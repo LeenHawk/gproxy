@@ -345,5 +345,5 @@ async fn live_model_list_dynamic() {
         "no gpt-5-* in {:?}",
         ids
     );
-    assert!(ids.iter().any(|id| *id == "gpt-image-1"));
+    assert!(ids.contains(&"gpt-image-1"));
 }

@@ -15,6 +15,8 @@ fn deepseek_local_count_supports_openai_requests() {
         .handle_local(
             OperationFamily::CountToken,
             ProtocolKind::OpenAi,
+            None,
+            None,
             &serde_json::to_vec(&body).expect("serialize"),
         )
         .expect("local route")
@@ -45,6 +47,8 @@ fn groq_local_count_supports_claude_requests() {
         .handle_local(
             OperationFamily::CountToken,
             ProtocolKind::Claude,
+            None,
+            None,
             &serde_json::to_vec(&body).expect("serialize"),
         )
         .expect("local route")
@@ -76,6 +80,8 @@ fn openrouter_local_count_supports_gemini_requests() {
         .handle_local(
             OperationFamily::CountToken,
             ProtocolKind::Gemini,
+            None,
+            None,
             &serde_json::to_vec(&body).expect("serialize"),
         )
         .expect("local route")
