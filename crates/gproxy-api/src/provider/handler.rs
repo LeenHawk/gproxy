@@ -2540,9 +2540,6 @@ fn build_execute_body(
     original_body: Vec<u8>,
 ) -> Vec<u8> {
     match operation {
-        OperationFamily::ModelList => {
-            build_model_request_body(operation, request_path, request_query).unwrap_or_default()
-        }
         OperationFamily::FileList
         | OperationFamily::FileGet
         | OperationFamily::FileContent
@@ -2649,47 +2646,6 @@ pub(crate) fn extract_requested_total_tokens(
             }),
         _ => None,
     }
-}
-
-fn build_model_request_body(
-    operation: OperationFamily,
-    _request_path: &str,
-    request_query: Option<&str>,
-) -> Option<Vec<u8>> {
-    let mut root = serde_json::Map::new();
-
-    match operation {
-        OperationFamily::ModelList => {
-            let mut query = serde_json::Map::new();
-            if let Some(raw_query) = request_query {
-                for (key, value) in url::form_urlencoded::parse(raw_query.as_bytes()) {
-                    match key.as_ref() {
-                        "after_id" | "before_id" | "pageToken" => {
-                            query.insert(
-                                key.into_owned(),
-                                serde_json::Value::String(value.into_owned()),
-                            );
-                        }
-                        "limit" | "pageSize" => {
-                            if let Ok(number) = value.parse::<u64>() {
-                                query.insert(
-                                    key.into_owned(),
-                                    serde_json::Value::Number(number.into()),
-                                );
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            if !query.is_empty() {
-                root.insert("query".to_string(), serde_json::Value::Object(query));
-            }
-        }
-        _ => return None,
-    }
-
-    serde_json::to_vec(&serde_json::Value::Object(root)).ok()
 }
 
 fn build_file_request_body(

@@ -1167,7 +1167,7 @@ impl GproxyEngine {
             is_stream_aggregation_route(request.operation, dst_op, request.protocol, dst_proto);
 
         // Transform request if needed
-        let body = if needs_transform {
+        let (body, query_override) = if needs_transform {
             tracing::debug!(dst_op = %dst_op, dst_proto = %dst_proto, "transforming request");
             let original_body = request.body.clone();
             match gproxy_protocol::transform::dispatch::transform_request(
@@ -1180,9 +1180,10 @@ impl GproxyEngine {
                 },
                 dst_proto,
                 request.model.as_deref(),
+                request.query.as_deref(),
                 request.body,
             ) {
-                Ok(b) => b,
+                Ok((q, b)) => (b, Some(q)),
                 Err(e) => {
                     // Preserve the original downstream body so
                     // `record_execute_error_logs` can write it to the
@@ -1203,7 +1204,7 @@ impl GproxyEngine {
                 }
             }
         } else {
-            request.body
+            (request.body, None)
         };
 
         let body = inject_stream_flag(dst_op, dst_proto, body);
@@ -1213,7 +1214,7 @@ impl GproxyEngine {
             method,
             route: RouteKey::new(dst_op, dst_proto),
             model: request.model.clone(),
-            query: request.query.clone(),
+            query: query_override.unwrap_or_else(|| request.query.clone()),
             body,
             headers: request.headers,
         };
@@ -1453,7 +1454,7 @@ impl GproxyEngine {
             }
         };
 
-        let body = if needs_transform {
+        let (body, query_override) = if needs_transform {
             let original_body = request.body.clone();
             match gproxy_protocol::transform::dispatch::transform_request(
                 request.operation,
@@ -1461,9 +1462,10 @@ impl GproxyEngine {
                 dst_op,
                 dst_proto,
                 request.model.as_deref(),
+                request.query.as_deref(),
                 request.body,
             ) {
-                Ok(b) => b,
+                Ok((q, b)) => (b, Some(q)),
                 Err(e) => {
                     tracing::warn!(
                         error = %e,
@@ -1480,7 +1482,7 @@ impl GproxyEngine {
                 }
             }
         } else {
-            request.body
+            (request.body, None)
         };
 
         let body = inject_stream_flag(dst_op, dst_proto, body);
@@ -1490,7 +1492,7 @@ impl GproxyEngine {
             method,
             route: RouteKey::new(dst_op, dst_proto),
             model: request.model.clone(),
-            query: request.query.clone(),
+            query: query_override.unwrap_or_else(|| request.query.clone()),
             body,
             headers: request.headers,
         };

@@ -654,7 +654,8 @@ impl Channel for CodexChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), codex_request_path(request)?);
+        let mut url = format!("{}{}", settings.base_url(), codex_request_path(request)?);
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
         let session_id = request_session_id(request);
         let mut builder = http::Request::builder()
             .method(request.method.clone())

@@ -465,6 +465,95 @@ impl_request_descriptor_default_envelope!(
     body = crate::openai::compact_response::request::RequestBody
 );
 
+/// Translate URL query keys across protocols for operations whose query
+/// semantics differ. Currently only ModelList (`pageSize`↔`limit`,
+/// `pageToken`↔`after_id`). Unknown keys are dropped since the upstream
+/// protocol won't understand them.
+fn translate_request_query(
+    src_operation: OperationFamily,
+    src_protocol: ProtocolKind,
+    dst_operation: OperationFamily,
+    dst_protocol: ProtocolKind,
+    query: Option<&str>,
+) -> Option<String> {
+    let Some(raw) = query else {
+        return None;
+    };
+    if raw.is_empty() {
+        return None;
+    }
+
+    // Only ModelList has cross-protocol query semantics worth translating.
+    // Everything else passes through verbatim — upstream will accept or
+    // ignore as per its contract.
+    if !(src_operation == OperationFamily::ModelList
+        && dst_operation == OperationFamily::ModelList
+        && src_protocol != dst_protocol)
+    {
+        return Some(raw.to_owned());
+    }
+
+    let mut page_size: Option<String> = None;
+    let mut page_token: Option<String> = None;
+    for (key, value) in url::form_urlencoded::parse(raw.as_bytes()) {
+        match (src_protocol, key.as_ref()) {
+            (ProtocolKind::Gemini | ProtocolKind::GeminiNDJson, "pageSize") => {
+                page_size = Some(value.into_owned())
+            }
+            (ProtocolKind::Gemini | ProtocolKind::GeminiNDJson, "pageToken") => {
+                page_token = Some(value.into_owned())
+            }
+            (ProtocolKind::Claude, "limit") => page_size = Some(value.into_owned()),
+            (ProtocolKind::Claude, "after_id") => page_token = Some(value.into_owned()),
+            (
+                ProtocolKind::OpenAi
+                | ProtocolKind::OpenAiChatCompletion
+                | ProtocolKind::OpenAiResponse,
+                "limit",
+            ) => page_size = Some(value.into_owned()),
+            (
+                ProtocolKind::OpenAi
+                | ProtocolKind::OpenAiChatCompletion
+                | ProtocolKind::OpenAiResponse,
+                "after",
+            ) => page_token = Some(value.into_owned()),
+            _ => {}
+        }
+    }
+
+    let mut out = url::form_urlencoded::Serializer::new(String::new());
+    match dst_protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            if let Some(v) = page_size {
+                out.append_pair("pageSize", &v);
+            }
+            if let Some(v) = page_token {
+                out.append_pair("pageToken", &v);
+            }
+        }
+        ProtocolKind::Claude => {
+            if let Some(v) = page_size {
+                out.append_pair("limit", &v);
+            }
+            if let Some(v) = page_token {
+                out.append_pair("after_id", &v);
+            }
+        }
+        ProtocolKind::OpenAi
+        | ProtocolKind::OpenAiChatCompletion
+        | ProtocolKind::OpenAiResponse => {
+            if let Some(v) = page_size {
+                out.append_pair("limit", &v);
+            }
+            if let Some(v) = page_token {
+                out.append_pair("after", &v);
+            }
+        }
+    }
+    let s = out.finish();
+    if s.is_empty() { None } else { Some(s) }
+}
+
 /// Transform a request body from one (operation, protocol) to another.
 ///
 /// This dispatches to the appropriate `TryFrom` implementation in `crate::transform`.
@@ -474,11 +563,22 @@ pub fn transform_request(
     dst_operation: OperationFamily,
     dst_protocol: ProtocolKind,
     model: Option<&str>,
+    query: Option<&str>,
     body: Vec<u8>,
-) -> Result<Vec<u8>, TransformError> {
+) -> Result<(Option<String>, Vec<u8>), TransformError> {
     if src_operation == dst_operation && src_protocol == dst_protocol {
-        return Ok(body);
+        return Ok((query.map(str::to_owned), body));
     }
+
+    // Translate URL query for operations whose query semantics differ
+    // across protocols. Body transform continues below as normal.
+    let translated_query = translate_request_query(
+        src_operation,
+        src_protocol,
+        dst_operation,
+        dst_protocol,
+        query,
+    );
 
     tracing::debug!(
         src_operation = %src_operation,
@@ -1116,6 +1216,7 @@ pub fn transform_request(
             src_operation, src_protocol, dst_operation, dst_protocol
         ))),
     }
+    .map(|body| (translated_query, body))
 }
 
 /// Transform a response body from upstream protocol back to client protocol.
@@ -3001,7 +3102,7 @@ mod tests {
     use crate::kinds::{OperationFamily, ProtocolKind};
     use serde_json::{Value, json};
 
-    use super::{convert_error_body_or_raw, transform_request, transform_response};
+    use super::{convert_error_body_or_raw, transform_request, transform_response, translate_request_query};
 
     #[test]
     fn transform_request_supports_openai_chat_to_openai_response() {
@@ -3014,11 +3115,12 @@ mod tests {
         }"#
         .to_vec();
 
-        let transformed = transform_request(
+        let (_qout, transformed) = transform_request(
             OperationFamily::GenerateContent,
             ProtocolKind::OpenAiChatCompletion,
             OperationFamily::GenerateContent,
             ProtocolKind::OpenAiResponse,
+            None,
             None,
             body,
         )
@@ -3047,11 +3149,12 @@ mod tests {
         }"#
         .to_vec();
 
-        let transformed = transform_request(
+        let (_qout, transformed) = transform_request(
             OperationFamily::CountToken,
             ProtocolKind::Claude,
             OperationFamily::CountToken,
             ProtocolKind::Gemini,
+            None,
             None,
             body,
         )
@@ -3270,5 +3373,71 @@ mod tests {
         );
 
         assert_eq!(result, claude_error);
+    }
+
+    #[test]
+    fn translate_request_query_gemini_to_claude_model_list() {
+        let translated = translate_request_query(
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            Some("pageSize=25&pageToken=abc"),
+        )
+        .expect("translated query should be present");
+        assert!(translated.contains("limit=25"), "got: {translated}");
+        assert!(translated.contains("after_id=abc"), "got: {translated}");
+    }
+
+    #[test]
+    fn translate_request_query_claude_to_gemini_model_list() {
+        let translated = translate_request_query(
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            Some("limit=50&after_id=cursor1"),
+        )
+        .expect("translated query should be present");
+        assert!(translated.contains("pageSize=50"), "got: {translated}");
+        assert!(translated.contains("pageToken=cursor1"), "got: {translated}");
+    }
+
+    #[test]
+    fn translate_request_query_passes_through_for_same_protocol() {
+        let translated = translate_request_query(
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            Some("pageSize=10"),
+        );
+        assert_eq!(translated.as_deref(), Some("pageSize=10"));
+    }
+
+    #[test]
+    fn translate_request_query_passes_through_for_non_model_list() {
+        let translated = translate_request_query(
+            OperationFamily::GenerateContent,
+            ProtocolKind::Claude,
+            OperationFamily::GenerateContent,
+            ProtocolKind::Gemini,
+            Some("foo=bar"),
+        );
+        assert_eq!(translated.as_deref(), Some("foo=bar"));
+    }
+
+    #[test]
+    fn translate_request_query_drops_unknown_keys_on_cross_protocol_model_list() {
+        let translated = translate_request_query(
+            OperationFamily::ModelList,
+            ProtocolKind::Gemini,
+            OperationFamily::ModelList,
+            ProtocolKind::Claude,
+            Some("pageSize=5&unknown=x"),
+        )
+        .expect("translated query");
+        assert!(translated.contains("limit=5"));
+        assert!(!translated.contains("unknown"));
     }
 }

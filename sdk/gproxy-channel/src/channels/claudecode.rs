@@ -1056,11 +1056,12 @@ impl Channel for ClaudeCodeChannel {
         //    @anthropic-ai/sdk@0.81.0 on undici) emits on real 2.1.112
         //    traffic. HTTP/2 header order is not semantic but some
         //    fingerprinters inspect HPACK sequence, so we preserve it.
-        let url = format!(
+        let mut url = format!(
             "{}{}",
             settings.base_url(),
             claudecode_request_path(request)?
         );
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)

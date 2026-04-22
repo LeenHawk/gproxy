@@ -216,13 +216,14 @@ impl Channel for AiStudioChannel {
         // Gemini API uses query parameter for auth
         let path = aistudio_request_path(request)?;
         let separator = if path.contains('?') { "&" } else { "?" };
-        let url = format!(
+        let mut url = format!(
             "{}{}{}key={}",
             settings.base_url(),
             path,
             separator,
             credential.api_key
         );
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
 
         let mut builder = http::Request::builder()
             .method(request.method.clone())

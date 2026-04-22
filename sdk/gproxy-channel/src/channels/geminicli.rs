@@ -624,11 +624,12 @@ impl Channel for GeminiCliChannel {
             }
         };
 
-        let url = format!(
+        let mut url = format!(
             "{}{}",
             settings.base_url(),
             geminicli_request_path(request)?
         );
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
         let x_goog_api_client = build_x_goog_api_client();
 
         let mut builder = http::Request::builder()

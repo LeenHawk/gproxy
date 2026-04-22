@@ -613,11 +613,12 @@ impl Channel for AntigravityChannel {
             (request.method.clone(), wrapped)
         };
 
-        let url = format!(
+        let mut url = format!(
             "{}{}",
             settings.base_url(),
             antigravity_request_path(request)?
         );
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
 
         // Determine requestType based on model name
         let request_type = request
