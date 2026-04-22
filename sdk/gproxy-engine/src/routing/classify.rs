@@ -272,7 +272,10 @@ fn is_model_get_path(path: &str) -> bool {
     let Some(tail) = path.strip_prefix("/models/") else {
         return false;
     };
-    !tail.is_empty() && !tail.contains('/') && !tail.contains(':')
+    // Model ids may contain '/' (OpenRouter uses `vendor/model-name`),
+    // but ':' still marks a Gemini action suffix (e.g. `:countTokens`)
+    // which is a POST op, not ModelGet.
+    !tail.is_empty() && !tail.contains(':')
 }
 
 fn is_file_get_path(path: &str) -> bool {
