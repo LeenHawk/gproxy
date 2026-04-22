@@ -108,19 +108,14 @@ pub async fn proxy(
     let scoped_alias = model
         .as_deref()
         .and_then(|m| state.resolve_model_alias_for_provider(m, &provider_name));
-    let (effective_provider, effective_model, alias_model_name) = if let Some(alias) =
-        &scoped_alias
+    let (effective_provider, effective_model, alias_model_name) = if let Some(alias) = &scoped_alias
     {
         // Keep the user-sent model name as the effective model so
         // `rewrite_rules` at the executor stage can still match the
         // suffix-variant pattern (rules include a `path:"model"` set
         // action that rewrites the body's model to the upstream target).
         let alias_name = model.clone();
-        (
-            alias.provider_name.clone(),
-            model.clone(),
-            alias_name,
-        )
+        (alias.provider_name.clone(), model.clone(), alias_name)
     } else {
         (provider_name.clone(), model.clone(), None)
     };
@@ -258,10 +253,8 @@ pub async fn proxy(
     // query. If the requested page is fully served by locals, short-circuit
     // here. Otherwise carry `local_head` + `locals_ids` to be merged after
     // the upstream response lands.
-    let mut modellist_merge: Option<(
-        Vec<serde_json::Value>,
-        std::collections::HashSet<String>,
-    )> = None;
+    let mut modellist_merge: Option<(Vec<serde_json::Value>, std::collections::HashSet<String>)> =
+        None;
     let modellist_upstream_query: Option<Option<String>> =
         if operation == OperationFamily::ModelList {
             let locals_json = collect_scoped_model_locals_json(
@@ -1863,20 +1856,18 @@ fn parse_model_list_page_token(
     match protocol {
         // Gemini's pageToken is opaque — we control the shape. Use `L<N>` /
         // `U<opaque>` / empty-is-first-page.
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
-            match raw.unwrap_or("") {
-                "" => ModelListStage::Local(0),
-                s => {
-                    if let Some(rest) = s.strip_prefix('L') {
-                        ModelListStage::Local(rest.parse().unwrap_or(0))
-                    } else if let Some(rest) = s.strip_prefix('U') {
-                        ModelListStage::Upstream(rest.to_string())
-                    } else {
-                        ModelListStage::Upstream(s.to_string())
-                    }
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => match raw.unwrap_or("") {
+            "" => ModelListStage::Local(0),
+            s => {
+                if let Some(rest) = s.strip_prefix('L') {
+                    ModelListStage::Local(rest.parse().unwrap_or(0))
+                } else if let Some(rest) = s.strip_prefix('U') {
+                    ModelListStage::Upstream(rest.to_string())
+                } else {
+                    ModelListStage::Upstream(s.to_string())
                 }
             }
-        }
+        },
         // Claude `after_id` / OpenAI `after` are literal item ids. Look up
         // in locals; hit → we're still in local stage, offset = pos+1
         // (exclusive). Miss → it's an upstream id, forward verbatim.
@@ -3250,7 +3241,9 @@ mod tests {
     use serde_json::json;
     use tokio::net::TcpListener;
 
-    use super::{UsageRecordContext, normalize_response_headers, proxy, proxy_unscoped, record_usage};
+    use super::{
+        UsageRecordContext, normalize_response_headers, proxy, proxy_unscoped, record_usage,
+    };
     use crate::auth::AuthenticatedUser;
 
     async fn spawn_mock_openai_server() -> (String, tokio::task::JoinHandle<()>) {
@@ -3676,7 +3669,10 @@ mod tests {
 
         let response = proxy(
             State(state.clone()),
-            Path(HashMap::from([("provider".to_string(), "alpha".to_string())])),
+            Path(HashMap::from([(
+                "provider".to_string(),
+                "alpha".to_string(),
+            )])),
             Extension(AuthenticatedUser(MemoryUserKey {
                 id: 10,
                 user_id: 1,
@@ -4091,8 +4087,8 @@ mod tests {
     // =====================================================================
 
     use super::{
-        ModelListPlan, finalize_paginated_model_list, parse_model_list_page_token,
-        plan_paginated_model_list, ModelListStage,
+        ModelListPlan, ModelListStage, finalize_paginated_model_list, parse_model_list_page_token,
+        plan_paginated_model_list,
     };
     use gproxy_server::ProtocolKind;
 
@@ -4160,11 +4156,7 @@ mod tests {
     #[test]
     fn plan_fully_local_when_page_fits_under_local_count() {
         let locals: Vec<_> = (0..20).map(|i| gemini_local(&format!("m{i}"))).collect();
-        let plan = plan_paginated_model_list(
-            ProtocolKind::Gemini,
-            locals,
-            Some("pageSize=5"),
-        );
+        let plan = plan_paginated_model_list(ProtocolKind::Gemini, locals, Some("pageSize=5"));
         let body = match plan {
             ModelListPlan::FullyLocal(b) => b,
             _ => panic!("expected FullyLocal"),
@@ -4181,11 +4173,7 @@ mod tests {
         // 3 locals, client asks pageSize=10 starting from offset 0 → head
         // is all 3 locals, upstream needs 7.
         let locals: Vec<_> = (0..3).map(|i| gemini_local(&format!("loc{i}"))).collect();
-        let plan = plan_paginated_model_list(
-            ProtocolKind::Gemini,
-            locals,
-            Some("pageSize=10"),
-        );
+        let plan = plan_paginated_model_list(ProtocolKind::Gemini, locals, Some("pageSize=10"));
         match plan {
             ModelListPlan::Upstream {
                 upstream_query,
@@ -4196,7 +4184,10 @@ mod tests {
                 assert_eq!(locals_ids.len(), 3);
                 let q = upstream_query.expect("query present");
                 assert!(q.contains("pageSize=7"), "got: {q}");
-                assert!(!q.contains("pageToken"), "no token on first upstream hit: {q}");
+                assert!(
+                    !q.contains("pageToken"),
+                    "no token on first upstream hit: {q}"
+                );
             }
             _ => panic!("expected cross-page Upstream plan"),
         }
@@ -4216,7 +4207,10 @@ mod tests {
                 local_head,
                 ..
             } => {
-                assert!(local_head.is_empty(), "upstream-stage must not re-send locals");
+                assert!(
+                    local_head.is_empty(),
+                    "upstream-stage must not re-send locals"
+                );
                 let q = upstream_query.expect("query");
                 assert!(q.contains("pageSize=10"));
                 assert!(q.contains("pageToken=opaqueXYZ"));
@@ -4229,7 +4223,8 @@ mod tests {
     fn finalize_merges_head_and_dedups_upstream() {
         // 2 locals: m0, m1; upstream returns m1 (dup) + r1 + r2 + nextPageToken opaque1
         let head = vec![gemini_local("m0"), gemini_local("m1")];
-        let locals_ids: std::collections::HashSet<_> = ["m0", "m1"].iter().map(|s| s.to_string()).collect();
+        let locals_ids: std::collections::HashSet<_> =
+            ["m0", "m1"].iter().map(|s| s.to_string()).collect();
         let upstream_body = serde_json::to_vec(&serde_json::json!({
             "models": [
                 {"name": "models/m1", "displayName": "m1"},
@@ -4237,19 +4232,24 @@ mod tests {
                 {"name": "models/r2", "displayName": "r2"},
             ],
             "nextPageToken": "opaque1"
-        })).unwrap();
-        let merged = finalize_paginated_model_list(
-            ProtocolKind::Gemini,
-            head,
-            &locals_ids,
-            &upstream_body,
-        );
+        }))
+        .unwrap();
+        let merged =
+            finalize_paginated_model_list(ProtocolKind::Gemini, head, &locals_ids, &upstream_body);
         let v: serde_json::Value = serde_json::from_slice(&merged).unwrap();
-        let names: Vec<&str> = v.get("models").unwrap().as_array().unwrap().iter()
+        let names: Vec<&str> = v
+            .get("models")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
             .filter_map(|x| x.get("name").and_then(|n| n.as_str()))
             .collect();
         // m1 appears once (from head) — upstream's duplicate m1 is dropped.
-        assert_eq!(names, vec!["models/m0", "models/m1", "models/r1", "models/r2"]);
+        assert_eq!(
+            names,
+            vec!["models/m0", "models/m1", "models/r1", "models/r2"]
+        );
         assert_eq!(
             v.get("nextPageToken").and_then(|t| t.as_str()),
             Some("Uopaque1")
@@ -4261,11 +4261,7 @@ mod tests {
         // 10 locals, client pageSize=10 → one full page, but next token
         // must be L10 so the next request transitions into upstream.
         let locals: Vec<_> = (0..10).map(|i| gemini_local(&format!("m{i}"))).collect();
-        let plan = plan_paginated_model_list(
-            ProtocolKind::Gemini,
-            locals,
-            Some("pageSize=10"),
-        );
+        let plan = plan_paginated_model_list(ProtocolKind::Gemini, locals, Some("pageSize=10"));
         let body = match plan {
             ModelListPlan::FullyLocal(b) => b,
             _ => panic!("expected FullyLocal at exact boundary"),
@@ -4325,11 +4321,7 @@ mod tests {
         let locals: Vec<_> = (0..100)
             .map(|i| serde_json::json!({"id": format!("m{i}"), "object": "model"}))
             .collect();
-        let plan = plan_paginated_model_list(
-            ProtocolKind::OpenAi,
-            locals,
-            Some("limit=5"),
-        );
+        let plan = plan_paginated_model_list(ProtocolKind::OpenAi, locals, Some("limit=5"));
         match plan {
             ModelListPlan::FullyLocal(body) => {
                 let v: serde_json::Value = serde_json::from_slice(&body).unwrap();

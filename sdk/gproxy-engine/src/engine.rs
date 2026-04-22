@@ -1138,7 +1138,13 @@ impl GproxyEngine {
             }
             gproxy_channel::routing::RouteImplementation::Local => {
                 let body = provider
-                    .handle_local(request.operation, request.protocol, request.model.as_deref(), request.query.as_deref(), &request.body)
+                    .handle_local(
+                        request.operation,
+                        request.protocol,
+                        request.model.as_deref(),
+                        request.query.as_deref(),
+                        &request.body,
+                    )
                     .unwrap_or_else(|| {
                         Err(UpstreamError::Channel("local route not implemented".into()))
                     })?;
@@ -1429,7 +1435,13 @@ impl GproxyEngine {
             }
             gproxy_channel::routing::RouteImplementation::Local => {
                 let body = provider
-                    .handle_local(request.operation, request.protocol, request.model.as_deref(), request.query.as_deref(), &request.body)
+                    .handle_local(
+                        request.operation,
+                        request.protocol,
+                        request.model.as_deref(),
+                        request.query.as_deref(),
+                        &request.body,
+                    )
                     .unwrap_or_else(|| {
                         Err(UpstreamError::Channel("local route not implemented".into()))
                     })?;

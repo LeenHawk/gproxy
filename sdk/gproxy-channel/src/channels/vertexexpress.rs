@@ -299,11 +299,9 @@ impl Channel for VertexExpressChannel {
             OperationFamily::ModelList => Some(vertexexpress_local_model_list(query).and_then(
                 |gemini_body| vertexexpress_local_transform(operation, protocol, gemini_body),
             )),
-            OperationFamily::ModelGet => {
-                Some(vertexexpress_local_model_get(model).and_then(|gemini_body| {
-                    vertexexpress_local_transform(operation, protocol, gemini_body)
-                }))
-            }
+            OperationFamily::ModelGet => Some(vertexexpress_local_model_get(model).and_then(
+                |gemini_body| vertexexpress_local_transform(operation, protocol, gemini_body),
+            )),
             _ => None,
         }
     }

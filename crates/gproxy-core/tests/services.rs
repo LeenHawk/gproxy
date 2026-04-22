@@ -203,9 +203,10 @@ fn routing_service_resolves_alias_within_provider_scope() {
     assert_eq!(alpha.model_id, "shared");
     assert_eq!(beta.provider_name, "beta");
     assert_eq!(beta.model_id, "shared");
-    assert!(svc
-        .resolve_model_alias_for_provider("shared", "missing")
-        .is_none());
+    assert!(
+        svc.resolve_model_alias_for_provider("shared", "missing")
+            .is_none()
+    );
 }
 
 #[test]

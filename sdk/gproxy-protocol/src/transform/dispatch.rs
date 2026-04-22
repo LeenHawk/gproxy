@@ -3102,7 +3102,9 @@ mod tests {
     use crate::kinds::{OperationFamily, ProtocolKind};
     use serde_json::{Value, json};
 
-    use super::{convert_error_body_or_raw, transform_request, transform_response, translate_request_query};
+    use super::{
+        convert_error_body_or_raw, transform_request, transform_response, translate_request_query,
+    };
 
     #[test]
     fn transform_request_supports_openai_chat_to_openai_response() {
@@ -3400,7 +3402,10 @@ mod tests {
         )
         .expect("translated query should be present");
         assert!(translated.contains("pageSize=50"), "got: {translated}");
-        assert!(translated.contains("pageToken=cursor1"), "got: {translated}");
+        assert!(
+            translated.contains("pageToken=cursor1"),
+            "got: {translated}"
+        );
     }
 
     #[test]

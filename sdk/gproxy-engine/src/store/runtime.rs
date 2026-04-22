@@ -371,7 +371,8 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
         query: Option<&str>,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
-        self.channel.handle_local(operation, protocol, model, query, body)
+        self.channel
+            .handle_local(operation, protocol, model, query, body)
     }
 
     fn finalize_request(&self, request: PreparedRequest) -> Result<PreparedRequest, UpstreamError> {
