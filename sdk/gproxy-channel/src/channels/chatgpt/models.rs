@@ -14,32 +14,29 @@ use serde_json::{Value, json};
 /// The id that will be used when none is provided — also the first entry
 /// in the list response and the one `prepare_request` resolves unknown
 /// model names to.
-pub const DEFAULT_MODEL: &str = "gpt-5";
+pub const DEFAULT_MODEL: &str = "gpt-5-4";
 
 /// Returns the full list of model ids this channel reports.
+///
+/// Used as a **fallback** when the dynamic upstream picker
+/// (`/backend-api/models/gpts`) is unreachable. The live picker is
+/// always preferred — slugs there vary by account plan / version /
+/// A/B group. This list mirrors what a current Team account sees.
 pub fn known_model_ids() -> &'static [&'static str] {
     &[
-        // Text models, observed in the web bundle's picker strings.
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-instant",
-        "gpt-5-thinking",
-        "gpt-5-pro",
-        "gpt-5-t-mini",
-        "gpt-5-1",
-        "gpt-5-1-instant",
-        "gpt-5-1-thinking",
-        "gpt-5-1-pro",
-        "gpt-5-2",
+        // gpt-5 family — observed slugs in /backend-api/models/gpts
+        "gpt-5-2-instant",
+        "gpt-5-2-pro",
         "gpt-5-2-thinking",
         "gpt-5-3",
-        "gpt-4o",
-        "gpt-4-1",
-        "gpt-4-1-mini",
+        "gpt-5-3-instant",
+        "gpt-5-4",
+        "gpt-5-4-pro",
+        "gpt-5-4-thinking",
+        // Reasoning model
         "o3",
-        "o4-mini",
-        "o4-mini-high",
-        // Image models (routed to /f/conversation + async image job).
+        // Image models — routed to /f/conversation but not in the
+        // editor's models_list, so we hardcode them here too.
         "gpt-image-1",
         "gpt-image-1-mini",
         "gpt-image-1.5",
@@ -102,16 +99,17 @@ mod tests {
             .iter()
             .map(|d| d["id"].as_str().unwrap())
             .collect();
-        assert!(ids.contains(&"gpt-5"));
-        assert!(ids.contains(&"gpt-5-thinking"));
+        assert!(ids.contains(&"gpt-5-3"));
+        assert!(ids.contains(&"gpt-5-4-thinking"));
         assert!(ids.contains(&"gpt-image-1"));
+        assert!(ids.contains(&"o3"));
     }
 
     #[test]
     fn get_known_model_returns_body() {
-        let body = openai_model_get_body("gpt-5-thinking").unwrap();
+        let body = openai_model_get_body("gpt-5-4-thinking").unwrap();
         let v: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(v["id"], "gpt-5-thinking");
+        assert_eq!(v["id"], "gpt-5-4-thinking");
         assert_eq!(v["object"], "model");
     }
 

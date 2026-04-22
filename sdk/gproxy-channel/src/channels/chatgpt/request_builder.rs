@@ -243,27 +243,24 @@ fn messages_to_chatgpt(messages: &[NormalizedMessage]) -> Vec<Value> {
 }
 
 /// Resolve an OpenAI model slug to a chatgpt-web-compatible slug.
+///
+/// - Empty / friendly aliases (`gpt-5`, `gpt-5-instant`,
+///   `gpt-5-thinking`, `gpt-5-pro`, `gpt-5-latest`, `gpt-5-auto`)
+///   resolve to the latest known upstream slug for that variant.
+/// - Anything else passes through verbatim. The upstream
+///   `/backend-api/models/gpts` is account-specific and varies by
+///   plan / version / A/B group, so we can't safely whitelist —
+///   trust the caller and let the upstream 400 if it's truly wrong.
 pub fn resolve_model(requested: &str) -> String {
     const DEFAULT: &str = "gpt-5-4";
     let trimmed = requested.trim();
-    // Friendly aliases → latest version of that variant. Mirrors what
-    // the chatgpt.com picker does client-side: the user-facing
-    // "Instant" / "Thinking" / "Pro" entries map to the newest -N-
-    // version (-3-instant, -4-thinking, -4-pro at time of writing).
     match trimmed {
-        "" | "gpt-5" | "gpt-5-latest" | "gpt-5-auto" => return DEFAULT.to_string(),
-        "gpt-5-instant" => return "gpt-5-3-instant".to_string(),
-        "gpt-5-thinking" => return "gpt-5-4-thinking".to_string(),
-        "gpt-5-pro" => return "gpt-5-4-pro".to_string(),
-        _ => {}
+        "" | "gpt-5" | "gpt-5-latest" | "gpt-5-auto" => DEFAULT.to_string(),
+        "gpt-5-instant" => "gpt-5-3-instant".to_string(),
+        "gpt-5-thinking" => "gpt-5-4-thinking".to_string(),
+        "gpt-5-pro" => "gpt-5-4-pro".to_string(),
+        other => other.to_string(),
     }
-    if super::models::known_model_ids()
-        .iter()
-        .any(|id| *id == trimmed)
-    {
-        return trimmed.to_string();
-    }
-    DEFAULT.to_string()
 }
 
 /// Pull a `thinking_effort` value out of an OpenAI-shaped request body.
