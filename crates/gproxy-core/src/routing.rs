@@ -55,6 +55,27 @@ impl RoutingService {
         })
     }
 
+    /// Resolve a model name within a specific provider.
+    ///
+    /// Used by scoped routes and explicit `provider/model` requests so a
+    /// same-named model row owned by some other provider cannot hijack the
+    /// request through the global last-write-wins model index.
+    pub fn resolve_model_alias_for_provider(
+        &self,
+        alias: &str,
+        provider_name: &str,
+    ) -> Option<ModelAliasTarget> {
+        let provider_id = self.provider_id_for_name(provider_name)?;
+        let models = self.models.load();
+        let model = models
+            .iter()
+            .find(|m| m.provider_id == provider_id && m.model_id == alias)?;
+        Some(ModelAliasTarget {
+            provider_name: provider_name.to_string(),
+            model_id: model.model_id.clone(),
+        })
+    }
+
     /// Get provider name by DB id (reverse lookup).
     pub fn provider_name_for_id(&self, provider_id: i64) -> Option<String> {
         self.provider_names

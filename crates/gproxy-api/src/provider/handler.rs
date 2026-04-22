@@ -13,7 +13,6 @@ use futures_util::StreamExt;
 
 use gproxy_sdk::engine::engine::{ExecuteBody, ExecuteRequest, UpstreamRequestMeta, Usage};
 use gproxy_server::middleware::classify::{BufferedBodyBytes, Classification};
-use gproxy_server::middleware::model_alias::ResolvedAlias;
 use gproxy_server::middleware::request_model::ExtractedModel;
 use gproxy_server::{AppState, OperationFamily, ProtocolKind};
 
@@ -103,11 +102,14 @@ pub async fn proxy(
     // (only `provider` is taken from the alias target) so suffix-variant
     // `model_pattern` filters still match at the executor stage.
 
-    // Resolve alias (after permission check and rewrite_rules).
-    let resolved_alias = request.extensions().get::<ResolvedAlias>().cloned();
+    // Resolve alias (after permission check and rewrite_rules), but only
+    // within the currently scoped provider. A same-named model row owned by a
+    // different provider must not hijack `/{provider}/...` traffic.
+    let scoped_alias = model
+        .as_deref()
+        .and_then(|m| state.resolve_model_alias_for_provider(m, &provider_name));
     let (effective_provider, effective_model, alias_model_name) = if let Some(alias) =
-        &resolved_alias
-        && alias.provider_name.is_some()
+        &scoped_alias
     {
         // Keep the user-sent model name as the effective model so
         // `rewrite_rules` at the executor stage can still match the
@@ -115,7 +117,7 @@ pub async fn proxy(
         // action that rewrites the body's model to the upstream target).
         let alias_name = model.clone();
         (
-            alias.provider_name.clone().unwrap_or(provider_name.clone()),
+            alias.provider_name.clone(),
             model.clone(),
             alias_name,
         )
@@ -492,7 +494,7 @@ pub async fn proxy_unscoped(
                 model_name.clone(),
             )
         } else if let Some((provider, model)) = model_name.split_once('/') {
-            if let Some(alias) = state.resolve_model_alias(model) {
+            if let Some(alias) = state.resolve_model_alias_for_provider(model, provider) {
                 (
                     alias.provider_name,
                     model.to_string(),
@@ -2903,7 +2905,7 @@ mod tests {
     use std::sync::Arc;
 
     use axum::body::Body;
-    use axum::extract::{Extension, Request, State};
+    use axum::extract::{Extension, Path, Request, State};
     use axum::http::{
         HeaderMap, HeaderValue, StatusCode,
         header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
@@ -2913,9 +2915,11 @@ mod tests {
     use bytes::Bytes;
     use gproxy_sdk::engine::engine::{GproxyEngine, ProviderConfig, Usage};
     use gproxy_server::middleware::classify::{BufferedBodyBytes, Classification};
+    use gproxy_server::middleware::model_alias::ResolvedAlias;
     use gproxy_server::middleware::request_model::ExtractedModel;
     use gproxy_server::{
-        AppStateBuilder, GlobalConfig, MemoryUser, MemoryUserKey, PermissionEntry, RateLimitRule,
+        AppStateBuilder, GlobalConfig, MemoryModel, MemoryUser, MemoryUserKey, PermissionEntry,
+        RateLimitRule,
     };
     use gproxy_storage::{
         SeaOrmStorage, UpstreamRequestQuery, UsageQuery,
@@ -2924,7 +2928,7 @@ mod tests {
     use serde_json::json;
     use tokio::net::TcpListener;
 
-    use super::{UsageRecordContext, normalize_response_headers, proxy_unscoped, record_usage};
+    use super::{UsageRecordContext, normalize_response_headers, proxy, proxy_unscoped, record_usage};
     use crate::auth::AuthenticatedUser;
 
     async fn spawn_mock_openai_server() -> (String, tokio::task::JoinHandle<()>) {
@@ -2957,6 +2961,43 @@ mod tests {
             axum::serve(listener, app)
                 .await
                 .expect("mock upstream should serve");
+        });
+
+        (format!("http://{addr}"), handle)
+    }
+
+    async fn spawn_named_chat_server(
+        marker: &'static str,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind named mock upstream");
+        let addr = listener.local_addr().expect("named mock upstream addr");
+        let app = Router::new().route(
+            "/v1/chat/completions",
+            post(move || async move {
+                Json(json!({
+                    "id": format!("chatcmpl-{marker}"),
+                    "object": "chat.completion",
+                    "model": "shared",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": marker
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ]
+                }))
+            }),
+        );
+
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("named mock upstream should serve");
         });
 
         (format!("http://{addr}"), handle)
@@ -3068,6 +3109,162 @@ mod tests {
         Arc::new(state)
     }
 
+    async fn build_multi_provider_proxy_state(
+        alpha_base_url: String,
+        beta_base_url: String,
+    ) -> Arc<gproxy_server::AppState> {
+        let storage = Arc::new(
+            SeaOrmStorage::connect("sqlite::memory:", None)
+                .await
+                .expect("in-memory sqlite storage"),
+        );
+        storage.sync().await.expect("sync schema");
+        for (id, name, base_url) in [
+            (42, "alpha", alpha_base_url.clone()),
+            (43, "beta", beta_base_url.clone()),
+        ] {
+            storage
+                .upsert_provider(gproxy_storage::ProviderWrite {
+                    id,
+                    name: name.to_string(),
+                    channel: "custom".to_string(),
+                    label: None,
+                    settings_json: json!({
+                        "base_url": base_url,
+                    })
+                    .to_string(),
+                    routing_json: "".to_string(),
+                })
+                .await
+                .expect("seed provider");
+        }
+        storage
+            .upsert_user(gproxy_storage::UserWrite {
+                id: 1,
+                name: "alice".to_string(),
+                password: "hash".to_string(),
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .expect("seed user");
+        storage
+            .upsert_user_key(gproxy_storage::UserKeyWrite {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })
+            .await
+            .expect("seed user key");
+        let engine = GproxyEngine::builder()
+            .add_provider_json(ProviderConfig {
+                name: "alpha".to_string(),
+                channel: "custom".to_string(),
+                settings_json: json!({
+                    "base_url": alpha_base_url,
+                }),
+                credentials: vec![json!({
+                    "api_key": "sk-alpha"
+                })],
+                routing: None,
+            })
+            .expect("alpha provider config should be valid")
+            .add_provider_json(ProviderConfig {
+                name: "beta".to_string(),
+                channel: "custom".to_string(),
+                settings_json: json!({
+                    "base_url": beta_base_url,
+                }),
+                credentials: vec![json!({
+                    "api_key": "sk-beta"
+                })],
+                routing: None,
+            })
+            .expect("beta provider config should be valid")
+            .build();
+        let state = AppStateBuilder::new()
+            .engine(engine)
+            .storage(storage)
+            .config(GlobalConfig {
+                dsn: "sqlite::memory:".to_string(),
+                enable_upstream_log: true,
+                enable_upstream_log_body: true,
+                enable_downstream_log: true,
+                enable_downstream_log_body: true,
+                ..GlobalConfig::default()
+            })
+            .users(vec![MemoryUser {
+                id: 1,
+                name: "alice".to_string(),
+                enabled: true,
+                is_admin: false,
+                password_hash: "hash".to_string(),
+            }])
+            .keys(vec![MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            }])
+            .build();
+
+        state.replace_provider_names(HashMap::from([
+            ("alpha".to_string(), 42),
+            ("beta".to_string(), 43),
+        ]));
+        // Order matters here: the current global model index is last-write-wins,
+        // so `shared` resolves to beta unless the handler scopes resolution.
+        state.replace_models(vec![
+            MemoryModel {
+                id: 1,
+                provider_id: 42,
+                model_id: "shared".to_string(),
+                display_name: None,
+                enabled: true,
+                pricing: None,
+            },
+            MemoryModel {
+                id: 2,
+                provider_id: 43,
+                model_id: "shared".to_string(),
+                display_name: None,
+                enabled: true,
+                pricing: None,
+            },
+        ]);
+        state.replace_user_permissions(HashMap::from([(
+            1,
+            vec![
+                PermissionEntry {
+                    id: 1,
+                    provider_id: Some(42),
+                    model_pattern: "*".to_string(),
+                },
+                PermissionEntry {
+                    id: 2,
+                    provider_id: Some(43),
+                    model_pattern: "*".to_string(),
+                },
+            ],
+        )]));
+        state.replace_user_rate_limits(HashMap::from([(
+            1,
+            vec![RateLimitRule {
+                id: 3,
+                model_pattern: "*".to_string(),
+                rpm: None,
+                rpd: None,
+                total_tokens: None,
+            }],
+        )]));
+        state.upsert_user_quota_in_memory(1, 1.0, 0.0);
+
+        Arc::new(state)
+    }
+
     #[tokio::test]
     async fn proxy_unscoped_allows_request_when_quota_service_has_remaining_balance() {
         let (base_url, server_handle) = spawn_mock_openai_server().await;
@@ -3116,6 +3313,142 @@ mod tests {
 
         let response = response.expect("request should not be rejected before upstream call");
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn scoped_proxy_ignores_alias_resolution_to_different_provider() {
+        let (alpha_base_url, alpha_handle) = spawn_named_chat_server("alpha").await;
+        let (beta_base_url, beta_handle) = spawn_named_chat_server("beta").await;
+        let state = build_multi_provider_proxy_state(alpha_base_url.clone(), beta_base_url).await;
+        let body = serde_json::to_vec(&json!({
+            "model": "shared",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello"
+                }
+            ]
+        }))
+        .expect("request body should serialize");
+
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/alpha/v1/chat/completions")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+        request
+            .extensions_mut()
+            .insert(BufferedBodyBytes(Bytes::from(body.clone())));
+        request.extensions_mut().insert(Classification::new(
+            gproxy_server::OperationFamily::GenerateContent,
+            gproxy_server::ProtocolKind::OpenAiChatCompletion,
+        ));
+        request
+            .extensions_mut()
+            .insert(ExtractedModel(Some("shared".to_string())));
+        let global_alias = state.resolve_model_alias("shared").expect("global alias");
+        request.extensions_mut().insert(ResolvedAlias {
+            provider_name: Some(global_alias.provider_name),
+            model_id: Some(global_alias.model_id),
+        });
+
+        let response = proxy(
+            State(state.clone()),
+            Path(HashMap::from([("provider".to_string(), "alpha".to_string())])),
+            Extension(AuthenticatedUser(MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })),
+            request,
+        )
+        .await
+        .expect("scoped request should succeed");
+
+        alpha_handle.abort();
+        beta_handle.abort();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let upstream_logs = state
+            .storage()
+            .query_upstream_requests(&UpstreamRequestQuery::default())
+            .await
+            .expect("query upstream request logs");
+        assert_eq!(upstream_logs.len(), 1);
+        assert!(
+            upstream_logs[0]
+                .request_url
+                .as_deref()
+                .is_some_and(|url| url.starts_with(&alpha_base_url)),
+            "scoped provider should stay on alpha instead of being hijacked by beta"
+        );
+    }
+
+    #[tokio::test]
+    async fn unscoped_provider_prefix_scopes_alias_resolution_to_explicit_provider() {
+        let (alpha_base_url, alpha_handle) = spawn_named_chat_server("alpha").await;
+        let (beta_base_url, beta_handle) = spawn_named_chat_server("beta").await;
+        let state = build_multi_provider_proxy_state(alpha_base_url.clone(), beta_base_url).await;
+        let body = serde_json::to_vec(&json!({
+            "model": "alpha/shared",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "hello"
+                }
+            ]
+        }))
+        .expect("request body should serialize");
+
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/v1/chat/completions")
+            .body(Body::from(body.clone()))
+            .expect("request should build");
+        request
+            .extensions_mut()
+            .insert(BufferedBodyBytes(Bytes::from(body.clone())));
+        request.extensions_mut().insert(Classification::new(
+            gproxy_server::OperationFamily::GenerateContent,
+            gproxy_server::ProtocolKind::OpenAiChatCompletion,
+        ));
+        request
+            .extensions_mut()
+            .insert(ExtractedModel(Some("alpha/shared".to_string())));
+
+        let response = proxy_unscoped(
+            State(state.clone()),
+            Extension(AuthenticatedUser(MemoryUserKey {
+                id: 10,
+                user_id: 1,
+                api_key: "sk-test".to_string(),
+                label: Some("default".to_string()),
+                enabled: true,
+            })),
+            request,
+        )
+        .await
+        .expect("unscoped request should succeed");
+
+        alpha_handle.abort();
+        beta_handle.abort();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let upstream_logs = state
+            .storage()
+            .query_upstream_requests(&UpstreamRequestQuery::default())
+            .await
+            .expect("query upstream request logs");
+        assert_eq!(upstream_logs.len(), 1);
+        assert!(
+            upstream_logs[0]
+                .request_url
+                .as_deref()
+                .is_some_and(|url| url.starts_with(&alpha_base_url)),
+            "explicit provider prefix should keep the request on alpha"
+        );
     }
 
     #[test]

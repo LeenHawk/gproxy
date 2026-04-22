@@ -166,6 +166,49 @@ fn routing_service_resolves_alias() {
 }
 
 #[test]
+fn routing_service_resolves_alias_within_provider_scope() {
+    let svc = RoutingService::new();
+    let mut names = HashMap::new();
+    names.insert("alpha".into(), 1i64);
+    names.insert("beta".into(), 2i64);
+    svc.replace_provider_names(names);
+
+    svc.replace_models(vec![
+        MemoryModel {
+            id: 1,
+            provider_id: 1,
+            model_id: "shared".into(),
+            display_name: None,
+            enabled: true,
+            pricing: None,
+        },
+        MemoryModel {
+            id: 2,
+            provider_id: 2,
+            model_id: "shared".into(),
+            display_name: None,
+            enabled: true,
+            pricing: None,
+        },
+    ]);
+
+    let alpha = svc
+        .resolve_model_alias_for_provider("shared", "alpha")
+        .expect("alpha alias");
+    let beta = svc
+        .resolve_model_alias_for_provider("shared", "beta")
+        .expect("beta alias");
+
+    assert_eq!(alpha.provider_name, "alpha");
+    assert_eq!(alpha.model_id, "shared");
+    assert_eq!(beta.provider_name, "beta");
+    assert_eq!(beta.model_id, "shared");
+    assert!(svc
+        .resolve_model_alias_for_provider("shared", "missing")
+        .is_none());
+}
+
+#[test]
 fn routing_service_provider_index_lookups() {
     let svc = RoutingService::new();
     let mut names = HashMap::new();
