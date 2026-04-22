@@ -1855,19 +1855,46 @@ fn parse_client_model_list_query(
     (page_size, token)
 }
 
-fn parse_model_list_page_token(raw: Option<&str>) -> ModelListStage {
-    match raw.unwrap_or("") {
-        "" => ModelListStage::Local(0),
-        s => {
-            if let Some(rest) = s.strip_prefix('L') {
-                ModelListStage::Local(rest.parse().unwrap_or(0))
-            } else if let Some(rest) = s.strip_prefix('U') {
-                ModelListStage::Upstream(rest.to_string())
-            } else {
-                // Legacy / unknown: treat as upstream opaque.
-                ModelListStage::Upstream(s.to_string())
+fn parse_model_list_page_token(
+    protocol: ProtocolKind,
+    locals: &[serde_json::Value],
+    raw: Option<&str>,
+) -> ModelListStage {
+    match protocol {
+        // Gemini's pageToken is opaque — we control the shape. Use `L<N>` /
+        // `U<opaque>` / empty-is-first-page.
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            match raw.unwrap_or("") {
+                "" => ModelListStage::Local(0),
+                s => {
+                    if let Some(rest) = s.strip_prefix('L') {
+                        ModelListStage::Local(rest.parse().unwrap_or(0))
+                    } else if let Some(rest) = s.strip_prefix('U') {
+                        ModelListStage::Upstream(rest.to_string())
+                    } else {
+                        ModelListStage::Upstream(s.to_string())
+                    }
+                }
             }
         }
+        // Claude `after_id` / OpenAI `after` are literal item ids. Look up
+        // in locals; hit → we're still in local stage, offset = pos+1
+        // (exclusive). Miss → it's an upstream id, forward verbatim.
+        _ => match raw {
+            None | Some("") => ModelListStage::Local(0),
+            Some(id) => {
+                let pos = locals.iter().position(|v| {
+                    v.get("id")
+                        .and_then(|i| i.as_str())
+                        .map(|s| s == id)
+                        .unwrap_or(false)
+                });
+                match pos {
+                    Some(k) => ModelListStage::Local(k + 1),
+                    None => ModelListStage::Upstream(id.to_string()),
+                }
+            }
+        },
     }
 }
 
@@ -2024,13 +2051,31 @@ fn plan_paginated_model_list(
     client_query: Option<&str>,
 ) -> ModelListPlan {
     let (client_size, client_token) = parse_client_model_list_query(protocol, client_query);
-    let m = client_size.unwrap_or_else(|| default_model_list_page_size(protocol));
-    let stage = parse_model_list_page_token(client_token.as_deref());
 
     let locals_ids: std::collections::HashSet<String> = locals
         .iter()
         .filter_map(|v| model_item_id(protocol, v))
         .collect();
+
+    // OpenAI-family `/v1/models` canonically returns every model in a
+    // single response with no `has_more`/`last_id`. If the client sent no
+    // explicit `limit`, serve the full merged list in one shot: locals
+    // prepended, upstream hit with no pagination query. This preserves
+    // the OpenAI SDK contract (clients iterate `data` once).
+    let openai_family = matches!(
+        protocol,
+        ProtocolKind::OpenAi | ProtocolKind::OpenAiChatCompletion | ProtocolKind::OpenAiResponse
+    );
+    if openai_family && client_size.is_none() && client_token.is_none() {
+        return ModelListPlan::Upstream {
+            upstream_query: None,
+            local_head: locals,
+            locals_ids,
+        };
+    }
+
+    let m = client_size.unwrap_or_else(|| default_model_list_page_size(protocol));
+    let stage = parse_model_list_page_token(protocol, &locals, client_token.as_deref());
 
     match stage {
         ModelListStage::Local(offset) => {
@@ -2829,6 +2874,13 @@ fn build_execute_body(
     original_body: Vec<u8>,
 ) -> Vec<u8> {
     match operation {
+        // ModelList is a GET (empty body), but cross-protocol transforms
+        // deserialize the body into the protocol's `RequestBody {}` struct,
+        // and `from_slice` on an empty buffer fails with EOF. Hand out an
+        // empty JSON object so the transformer parses cleanly. Query-level
+        // pagination parameters (pageSize/pageToken/limit/after_id) travel
+        // via `ExecuteRequest.query` — no body stuffing.
+        OperationFamily::ModelList => b"{}".to_vec(),
         OperationFamily::FileList
         | OperationFamily::FileGet
         | OperationFamily::FileContent
@@ -4054,20 +4106,54 @@ mod tests {
 
     #[test]
     fn page_token_parses_prefixes() {
-        assert_eq!(parse_model_list_page_token(None), ModelListStage::Local(0));
-        assert_eq!(parse_model_list_page_token(Some("")), ModelListStage::Local(0));
+        // Gemini: opaque token with L/U prefixes
+        let empty_locals: Vec<serde_json::Value> = vec![];
         assert_eq!(
-            parse_model_list_page_token(Some("L12")),
+            parse_model_list_page_token(ProtocolKind::Gemini, &empty_locals, None),
+            ModelListStage::Local(0)
+        );
+        assert_eq!(
+            parse_model_list_page_token(ProtocolKind::Gemini, &empty_locals, Some("")),
+            ModelListStage::Local(0)
+        );
+        assert_eq!(
+            parse_model_list_page_token(ProtocolKind::Gemini, &empty_locals, Some("L12")),
             ModelListStage::Local(12)
         );
         assert_eq!(
-            parse_model_list_page_token(Some("Uabc-xyz")),
+            parse_model_list_page_token(ProtocolKind::Gemini, &empty_locals, Some("Uabc-xyz")),
             ModelListStage::Upstream("abc-xyz".into())
         );
         // Legacy / unknown-shape token treated as upstream opaque.
         assert_eq!(
-            parse_model_list_page_token(Some("legacy_token")),
-            ModelListStage::Upstream("legacy_token".into())
+            parse_model_list_page_token(ProtocolKind::Gemini, &empty_locals, Some("legacy")),
+            ModelListStage::Upstream("legacy".into())
+        );
+    }
+
+    #[test]
+    fn page_token_claude_resolves_id_from_locals() {
+        // Claude after_id is an item id; resolve to offset via locals lookup.
+        let locals = vec![
+            serde_json::json!({"id": "m0", "type": "model"}),
+            serde_json::json!({"id": "m1", "type": "model"}),
+            serde_json::json!({"id": "m2", "type": "model"}),
+        ];
+        assert_eq!(
+            parse_model_list_page_token(ProtocolKind::Claude, &locals, Some("m1")),
+            ModelListStage::Local(2) // m1 is at idx 1, next offset = 2
+        );
+        assert_eq!(
+            parse_model_list_page_token(ProtocolKind::Claude, &locals, Some("m2")),
+            ModelListStage::Local(3) // past end; will transition to upstream
+        );
+        assert_eq!(
+            parse_model_list_page_token(ProtocolKind::Claude, &locals, Some("upstream-only-id")),
+            ModelListStage::Upstream("upstream-only-id".into())
+        );
+        assert_eq!(
+            parse_model_list_page_token(ProtocolKind::Claude, &locals, None),
+            ModelListStage::Local(0)
         );
     }
 
@@ -4209,6 +4295,47 @@ mod tests {
                 assert!(!q.contains("pageToken"), "fresh upstream, no token: {q}");
             }
             _ => panic!("expected Upstream plan"),
+        }
+    }
+
+    #[test]
+    fn plan_openai_no_query_returns_full_list_in_one_shot() {
+        // OpenAI `/v1/models` has no pagination. When client sent no query,
+        // we must dump all locals + full upstream in one response.
+        let locals: Vec<_> = (0..100)
+            .map(|i| serde_json::json!({"id": format!("m{i}"), "object": "model"}))
+            .collect();
+        let plan = plan_paginated_model_list(ProtocolKind::OpenAi, locals.clone(), None);
+        match plan {
+            ModelListPlan::Upstream {
+                upstream_query,
+                local_head,
+                ..
+            } => {
+                assert!(upstream_query.is_none(), "no pagination to upstream");
+                assert_eq!(local_head.len(), 100, "all locals prepended at once");
+            }
+            _ => panic!("expected Upstream plan (full list)"),
+        }
+    }
+
+    #[test]
+    fn plan_openai_with_limit_still_paginates() {
+        // When client explicitly passes `limit`, pagination engages.
+        let locals: Vec<_> = (0..100)
+            .map(|i| serde_json::json!({"id": format!("m{i}"), "object": "model"}))
+            .collect();
+        let plan = plan_paginated_model_list(
+            ProtocolKind::OpenAi,
+            locals,
+            Some("limit=5"),
+        );
+        match plan {
+            ModelListPlan::FullyLocal(body) => {
+                let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+                assert_eq!(v.get("data").unwrap().as_array().unwrap().len(), 5);
+            }
+            _ => panic!("expected FullyLocal plan"),
         }
     }
 }
