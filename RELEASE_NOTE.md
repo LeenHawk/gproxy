@@ -1,5 +1,42 @@
 # Release Notes
 
+## v1.0.19
+
+### 新渠道：ChatGPT Web
+
+- 全新接入 ChatGPT Web 渠道：PoW、prepare_p、sentinel、SSE v1 解码与 OpenAI chunk 转换
+- 对话默认走 temporary chat（可通过渠道设置关闭）
+- 图像生成 + `/v1/images/edits`（三步上传 + asset pointer）
+- 本地 model list / model get / count_tokens，支持动态模型列表与别名映射（用于 picker UI 名称）
+- 转发 `thinking_effort` 至 `/f/conversation`
+- 支持 `cookie_store` 与 spoof client 刷新
+- Console 前端集成：图像生成、`temporary_chat` 本地化、粘贴原始 token 自动包装为 `{access_token}`
+- 信任调用方传入的 model slug；未知模型回退默认值
+- 用 `StreamReshaper` hook 替代旧实现，并将 reshape 迁入 `normalize_response`
+- 在剩余 channel dispatch 与 provider store dispatch 中补齐 chatgpt 注册
+
+### Model List / ModelGet
+
+- URL query 提升为一等请求字段
+- 跨协议 ModelList 翻译，覆盖全部 channel
+- 本地 + 上游合并返回，采用复合 pageToken
+- 针对 Claude / OpenAI 客户端的协议感知分页
+- ModelGet 的 `model_id` 允许包含 `/`，支持带 vendor 前缀的模型 id
+
+### 修复
+
+- Alias：模型解析按 provider 作用域（#90）
+- Log：重定向后记录最终 upstream URI（#89）
+- Protocol：`transform_request` 正确透传 model，使 Gemini 跨协议工作
+- Router：修正 count tokens 端点路径
+- Console：保存 provider 时路由名不得为空；仅在模板展开时显示模板提示
+
+### 其他
+
+- OpenRouter：新增响应归一化与错误 reshape
+- README：强调 DB 不存在时 TOML 仅读取一次
+- ChatGPT 代码格式清理与可读性改进
+
 ## v1.0.18
 
 > Streaming usage 端到端打通(`stream_options.include_usage` 自动注入 + 所有跨协议流式路径都观察上游 usage),mimalloc 接管全局分配器,缓存流水线重排为 magic → rules → flatten 并用 sanitize 统一清理空块/空消息 + 自动把 cache_control 回迁到最近可缓存块,`context-1m-2025-08-07` beta 在 anthropic / claudecode 渠道默认剥离,一次性迁移扫掉指向已废弃 realtime 变体的 routing 规则,控制台新增「恢复默认路由」按钮。

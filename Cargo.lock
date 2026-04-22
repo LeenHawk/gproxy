@@ -1773,7 +1773,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gproxy"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1803,7 +1803,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-api"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "argon2",
  "async-stream",
@@ -1838,7 +1838,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "async-stream",
  "axum",
@@ -1870,7 +1870,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "arc-swap",
  "dashmap",
@@ -1885,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-engine"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1912,7 +1912,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "base64 0.22.1",
  "http",
@@ -1925,7 +1925,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-recorder"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "bytes",
  "chrono",
@@ -1951,7 +1951,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-sdk"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "gproxy-channel",
  "gproxy-engine",
@@ -1960,7 +1960,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-server"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "arc-swap",
  "async-stream",
@@ -1997,7 +1997,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-storage"
-version = "1.0.18"
+version = "1.0.19"
 dependencies = [
  "argon2",
  "base64 0.22.1",
@@ -2642,9 +2642,9 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "libmimalloc-sys"
-version = "0.1.46"
+version = "0.1.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc89deee4af0429081d2a518c0431ae068222a5a262a3bc6ff4d8535ec2e02fe"
+checksum = "2d1eacfa31c33ec25e873c136ba5669f00f9866d0688bea7be4d3f7e43067df6"
 dependencies = [
  "cc",
 ]
@@ -2771,9 +2771,9 @@ dependencies = [
 
 [[package]]
 name = "mimalloc"
-version = "0.1.49"
+version = "0.1.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aca3c01a711f395b4257b81674c0e90e8dd1f1e62c4b7db45f684cc7a4fcb18a"
+checksum = "b3627c4272df786b9260cabaa46aec1d59c93ede723d4c3ef646c503816b0640"
 dependencies = [
  "libmimalloc-sys",
 ]
@@ -3707,9 +3707,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.12"
+version = "0.103.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8279bb85272c9f10811ae6a6c547ff594d6a7f3c6c6b02ee9726d1d0dcfcdd06"
+checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -5525,9 +5525,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09dac053f1cd375980747450bfc7250c264eaae0583872e845c0c7cd578872b5"
+checksum = "2ee1708bef14716a11bae175f579062d4554d95be2c6829f518df847b7b3fdd0"
 dependencies = [
  "memchr",
 ]
