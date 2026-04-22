@@ -190,18 +190,15 @@ impl Channel for ChatGptChannel {
             ),
             pass(OperationFamily::CreateImage, ProtocolKind::OpenAi),
             pass(OperationFamily::CreateImageEdit, ProtocolKind::OpenAi),
-            // ---- Local routes (no upstream call) ----
-            // ChatGPT web doesn't expose `/v1/models` or a count-tokens
-            // endpoint, so serve them locally from the hardcoded model
-            // catalog + tiktoken.
-            (
-                RouteKey::new(OperationFamily::ModelList, ProtocolKind::OpenAi),
-                RouteImplementation::Local,
-            ),
-            (
-                RouteKey::new(OperationFamily::ModelGet, ProtocolKind::OpenAi),
-                RouteImplementation::Local,
-            ),
+            // ---- ModelList / ModelGet ----
+            // chatgpt.com exposes the picker at /backend-api/models/gpts.
+            // We pass through to it from the OpenAi-shaped client request,
+            // and normalize_response reshapes the raw upstream payload
+            // ({categories, models, versions, ...}) into the OpenAI-style
+            // `{object:"list", data:[...]}` body. xforms map Claude/Gemini
+            // model-listing requests through the same OpenAi path.
+            pass(OperationFamily::ModelList, ProtocolKind::OpenAi),
+            pass(OperationFamily::ModelGet, ProtocolKind::OpenAi),
             xform(
                 OperationFamily::ModelList,
                 ProtocolKind::Claude,
@@ -291,27 +288,13 @@ impl Channel for ChatGptChannel {
         protocol: ProtocolKind,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
+        // CountToken stays Local (tiktoken). ModelList / ModelGet now go
+        // upstream to /backend-api/models/gpts; see prepare_request +
+        // normalize_response.
         match operation {
             OperationFamily::CountToken => Some(
                 crate::count_tokens::local_count_response_for_protocol(protocol, body),
             ),
-            OperationFamily::ModelList => Some(Ok(super::models::openai_model_list_body())),
-            OperationFamily::ModelGet => {
-                // The engine passes the requested id in the body (a small
-                // JSON `{"model": "..."}` payload built by the API layer)
-                // or, for REST clients, in the URL path which the engine
-                // rewrites into the body. Accept both.
-                let id = parse_model_get_id(body);
-                Some(
-                    super::models::openai_model_get_body(&id)
-                        .map(Ok)
-                        .unwrap_or_else(|| {
-                            Err(UpstreamError::Channel(format!(
-                                "chatgpt: unknown model id: {id}"
-                            )))
-                        }),
-                )
-            }
             _ => None,
         }
     }
@@ -358,6 +341,16 @@ impl Channel for ChatGptChannel {
                 "chatgpt credential missing access_token".into(),
             ));
         }
+
+        // ModelList / ModelGet — fetch the picker. No sentinel needed for
+        // this endpoint; just bearer + standard headers.
+        if matches!(
+            request.route.operation,
+            OperationFamily::ModelList | OperationFamily::ModelGet
+        ) {
+            return build_models_request(credential);
+        }
+
         if credential.chat_req_token.is_empty() {
             return Err(UpstreamError::Channel(
                 "chatgpt credential missing chat_req_token; refresh first".into(),
@@ -510,6 +503,21 @@ impl Channel for ChatGptChannel {
             return body;
         }
 
+        // ModelList / ModelGet — reshape `/backend-api/models/gpts` raw
+        // payload into OpenAI-style list/get bodies. Falls back to the
+        // hardcoded catalog if the upstream response is unparseable
+        // (offline / 5xx / shape change).
+        if matches!(request.route.operation, OperationFamily::ModelList) {
+            return reshape_model_list(&body)
+                .unwrap_or_else(super::models::openai_model_list_body);
+        }
+        if matches!(request.route.operation, OperationFamily::ModelGet) {
+            let id = parse_model_get_id(&request.body);
+            return reshape_model_get(&body, &id)
+                .or_else(|| super::models::openai_model_get_body(&id))
+                .unwrap_or_else(super::models::openai_model_list_body);
+        }
+
         // Image generation/edit routes: pull out file-service pointers,
         // download them via the stashed fallback client, and return a
         // standard OpenAI `images.response` body.
@@ -660,6 +668,115 @@ impl Channel for ChatGptChannel {
 
 fn chatgpt_routing_table() -> RoutingTable {
     ChatGptChannel.routing_table()
+}
+
+const MODELS_PATH: &str = "/backend-api/models/gpts";
+
+/// Build a `GET /backend-api/models/gpts` request — the chatgpt.com
+/// model picker. Auth is just the bearer token; no sentinel headers
+/// (the picker endpoint isn't gated on chat-requirements).
+fn build_models_request(
+    credential: &ChatGptCredential,
+) -> Result<http::Request<Vec<u8>>, UpstreamError> {
+    let url = format!("{}{}", CHATGPT_BASE_URL, MODELS_PATH);
+    let mut builder = http::Request::builder()
+        .method(http::Method::GET)
+        .uri(&url);
+    for (k, v) in std::convert::Into::<http::HeaderMap>::into(standard_headers(
+        &credential.access_token,
+    ))
+    .iter()
+    {
+        builder = builder.header(k.clone(), v.clone());
+    }
+    if let Some(device_id) = credential.device_id.as_deref() {
+        builder = builder.header("oai-device-id", device_id);
+    }
+    builder = builder.header("oai-client-version", OAI_CLIENT_VERSION);
+    builder
+        .body(Vec::new())
+        .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
+}
+
+/// Reshape `/backend-api/models/gpts` JSON into the OpenAI
+/// `{object:"list", data:[...]}` shape. Returns `None` if the payload
+/// is not parseable (caller should fall back to the local catalog).
+///
+/// The upstream payload is small and shaped like:
+/// ```json
+/// {
+///   "editor": {
+///     "models_list": ["gpt-5-3", "gpt-5-3-instant", "gpt-5-4-thinking", ...],
+///     "models_list_with_custom_actions": [...]
+///   },
+///   "model_override": {}
+/// }
+/// ```
+/// We surface every slug from `editor.models_list` (the union with the
+/// custom-actions list) plus the image models we route to
+/// `/f/conversation` (not in the editor list but valid upstream targets).
+fn reshape_model_list(body: &[u8]) -> Option<Vec<u8>> {
+    let raw: Value = serde_json::from_slice(body).ok()?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let mut ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+
+    let pluck = |arr: Option<&Value>, into: &mut std::collections::BTreeSet<String>| {
+        if let Some(arr) = arr.and_then(|v| v.as_array()) {
+            for v in arr {
+                if let Some(s) = v.as_str()
+                    && !s.is_empty()
+                {
+                    into.insert(s.to_string());
+                }
+            }
+        }
+    };
+
+    let editor = raw.get("editor");
+    pluck(editor.and_then(|e| e.get("models_list")), &mut ids);
+    pluck(
+        editor.and_then(|e| e.get("models_list_with_custom_actions")),
+        &mut ids,
+    );
+
+    // Image models: routed to /f/conversation but not in editor.models_list.
+    for img in ["gpt-image-1", "gpt-image-1-mini", "gpt-image-1.5"] {
+        ids.insert(img.to_string());
+    }
+
+    if ids.is_empty() {
+        return None;
+    }
+    let data: Vec<Value> = ids
+        .into_iter()
+        .map(|id| {
+            serde_json::json!({
+                "id": id,
+                "object": "model",
+                "created": now,
+                "owned_by": "openai",
+            })
+        })
+        .collect();
+    let response = serde_json::json!({ "object": "list", "data": data });
+    serde_json::to_vec(&response).ok()
+}
+
+/// Reshape `/backend-api/models/gpts` for `GET /v1/models/:id` —
+/// extract the entry matching `id` from the picker response.
+fn reshape_model_get(body: &[u8], id: &str) -> Option<Vec<u8>> {
+    let list = reshape_model_list(body)?;
+    let v: Value = serde_json::from_slice(&list).ok()?;
+    let arr = v.get("data").and_then(|d| d.as_array())?;
+    let found = arr
+        .iter()
+        .find(|e| e.get("id").and_then(|s| s.as_str()) == Some(id))?
+        .clone();
+    serde_json::to_vec(&found).ok()
 }
 
 /// Extract the requested model id for `GET /v1/models/:id`.

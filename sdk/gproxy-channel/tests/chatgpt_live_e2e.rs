@@ -291,3 +291,51 @@ async fn live_image_edit_with_upload() {
     let b64 = data[0]["b64_json"].as_str().unwrap_or("");
     assert!(b64.len() > 1000, "b64_json too short: {}", b64.len());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "hits live chatgpt.com /backend-api/models/gpts"]
+async fn live_model_list_dynamic() {
+    let access_token = load_token().expect("need target/.chatgpt_token");
+    let channel = ChatGptChannel;
+    let settings = ChatGptSettings::default();
+    let credential = ChatGptCredential {
+        access_token,
+        chat_req_token: "stub".into(),
+        ..Default::default()
+    };
+    let http_client = wreq::Client::builder()
+        .emulation(wreq_util::Emulation::Chrome136)
+        .cookie_store(true)
+        .redirect(wreq::redirect::Policy::limited(10))
+        .build()
+        .unwrap();
+    let request = PreparedRequest {
+        method: http::Method::GET,
+        route: RouteKey::new(OperationFamily::ModelList, ProtocolKind::OpenAi),
+        model: None,
+        body: Vec::new(),
+        headers: http::HeaderMap::new(),
+    };
+    let outcome = execute_once(&channel, &credential, &settings, &http_client, request)
+        .await
+        .expect("execute_once");
+    println!(
+        "[models] status={} bytes={}",
+        outcome.response.status,
+        outcome.response.body.len()
+    );
+    let parsed: serde_json::Value = serde_json::from_slice(&outcome.response.body).expect("json");
+    assert_eq!(parsed["object"], "list");
+    let data = parsed["data"].as_array().expect("data array");
+    let ids: Vec<&str> = data.iter().filter_map(|d| d["id"].as_str()).collect();
+    println!("[models] ids ({}): {:?}", ids.len(), ids);
+    assert!(ids.len() >= 5, "expected at least 5 models, got {}", ids.len());
+    // The dynamic upstream list should include at least one gpt-5 family
+    // entry and the image models.
+    assert!(
+        ids.iter().any(|id| id.starts_with("gpt-5-")),
+        "no gpt-5-* in {:?}",
+        ids
+    );
+    assert!(ids.iter().any(|id| *id == "gpt-image-1"));
+}

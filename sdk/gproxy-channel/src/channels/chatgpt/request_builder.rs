@@ -246,8 +246,15 @@ fn messages_to_chatgpt(messages: &[NormalizedMessage]) -> Vec<Value> {
 pub fn resolve_model(requested: &str) -> String {
     const DEFAULT: &str = "gpt-5-4";
     let trimmed = requested.trim();
+    // Friendly aliases → latest version of that variant. Mirrors what
+    // the chatgpt.com picker does client-side: the user-facing
+    // "Instant" / "Thinking" / "Pro" entries map to the newest -N-
+    // version (-3-instant, -4-thinking, -4-pro at time of writing).
     match trimmed {
         "" | "gpt-5" | "gpt-5-latest" | "gpt-5-auto" => return DEFAULT.to_string(),
+        "gpt-5-instant" => return "gpt-5-3-instant".to_string(),
+        "gpt-5-thinking" => return "gpt-5-4-thinking".to_string(),
+        "gpt-5-pro" => return "gpt-5-4-pro".to_string(),
         _ => {}
     }
     if super::models::known_model_ids()
