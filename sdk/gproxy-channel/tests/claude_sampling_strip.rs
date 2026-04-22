@@ -21,6 +21,7 @@ fn generate_content_request(body: &str, model: &str) -> PreparedRequest {
         method: Method::POST,
         route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::Claude),
         model: Some(model.to_string()),
+        query: None,
         body: body.as_bytes().to_vec(),
         headers: HeaderMap::new(),
     }

@@ -286,6 +286,8 @@ impl Channel for ChatGptChannel {
         &self,
         operation: OperationFamily,
         protocol: ProtocolKind,
+        _model: Option<&str>,
+        _query: Option<&str>,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         // CountToken stays Local (tiktoken). ModelList / ModelGet now go

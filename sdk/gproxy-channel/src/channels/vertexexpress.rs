@@ -225,13 +225,14 @@ impl Channel for VertexExpressChannel {
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         let path = vertexexpress_request_path(request)?;
         let separator = if path.contains('?') { "&" } else { "?" };
-        let url = format!(
+        let mut url = format!(
             "{}{}{}key={}",
             settings.base_url(),
             path,
             separator,
             credential.api_key
         );
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
 
         let mut builder = http::Request::builder()
             .method(request.method.clone())
@@ -290,14 +291,16 @@ impl Channel for VertexExpressChannel {
         &self,
         operation: OperationFamily,
         protocol: ProtocolKind,
-        body: &[u8],
+        model: Option<&str>,
+        query: Option<&str>,
+        _body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         match operation {
-            OperationFamily::ModelList => Some(vertexexpress_local_model_list(body).and_then(
+            OperationFamily::ModelList => Some(vertexexpress_local_model_list(query).and_then(
                 |gemini_body| vertexexpress_local_transform(operation, protocol, gemini_body),
             )),
             OperationFamily::ModelGet => {
-                Some(vertexexpress_local_model_get(body).and_then(|gemini_body| {
+                Some(vertexexpress_local_model_get(model).and_then(|gemini_body| {
                     vertexexpress_local_transform(operation, protocol, gemini_body)
                 }))
             }
@@ -378,20 +381,24 @@ fn vertexexpress_local_transform(
     .map_err(Into::into)
 }
 
-fn vertexexpress_local_model_list(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+fn vertexexpress_local_model_list(query: Option<&str>) -> Result<Vec<u8>, UpstreamError> {
     let models_doc: serde_json::Value = serde_json::from_str(VERTEXEXPRESS_MODELS_JSON)
         .map_err(|e| UpstreamError::Channel(format!("static models parse: {e}")))?;
 
-    // Extract pagination from the incoming request body (Gemini ModelList format).
-    let req: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
-    let page_size = req
-        .get("pageSize")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as usize);
-    let page_token = req
-        .get("pageToken")
-        .and_then(|v| v.as_str())
-        .and_then(|t| t.parse::<usize>().ok());
+    // Pagination comes from the URL query string (Gemini ModelList contract:
+    // `?pageSize=N&pageToken=X`). No body reads — this matches the
+    // first-class query channel introduced alongside request.query.
+    let mut page_size: Option<usize> = None;
+    let mut page_token: Option<usize> = None;
+    if let Some(raw) = query {
+        for (key, value) in url::form_urlencoded::parse(raw.as_bytes()) {
+            match key.as_ref() {
+                "pageSize" => page_size = value.parse().ok(),
+                "pageToken" => page_token = value.parse().ok(),
+                _ => {}
+            }
+        }
+    }
 
     let all_models = models_doc
         .get("models")
@@ -416,14 +423,15 @@ fn vertexexpress_local_model_list(body: &[u8]) -> Result<Vec<u8>, UpstreamError>
         .map_err(|e| UpstreamError::Channel(format!("model list serialize: {e}")))
 }
 
-fn vertexexpress_local_model_get(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+fn vertexexpress_local_model_get(model: Option<&str>) -> Result<Vec<u8>, UpstreamError> {
     let models_doc: serde_json::Value = serde_json::from_str(VERTEXEXPRESS_MODELS_JSON)
         .map_err(|e| UpstreamError::Channel(format!("static models parse: {e}")))?;
 
-    // The Gemini ModelGet request body contains `{"name": "models/..."}`.
-    let req: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
-    let target = req.get("name").and_then(|v| v.as_str()).unwrap_or_default();
-    let normalized = target.trim().trim_start_matches("models/");
+    // Model identifier comes from the path parameter (e.g. `/v1beta/models/{name}`);
+    // the handler extracts it into `ExecuteRequest.model` and the engine hands
+    // it in via `handle_local`. No body reads.
+    let target = model.unwrap_or_default().trim();
+    let normalized = target.trim_start_matches("models/");
 
     let all_models = models_doc
         .get("models")

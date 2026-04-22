@@ -3019,6 +3019,7 @@ mod tests {
             ProtocolKind::OpenAiChatCompletion,
             OperationFamily::GenerateContent,
             ProtocolKind::OpenAiResponse,
+            None,
             body,
         )
         .expect("chat -> response request transform should succeed");
@@ -3051,6 +3052,7 @@ mod tests {
             ProtocolKind::Claude,
             OperationFamily::CountToken,
             ProtocolKind::Gemini,
+            None,
             body,
         )
         .expect("count_tokens Claude -> Gemini request transform should succeed");

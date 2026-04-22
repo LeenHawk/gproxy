@@ -84,10 +84,18 @@ pub trait Channel: Send + Sync + 'static {
     }
 
     /// Handle a local route (no upstream call). Returns None if not supported.
+    ///
+    /// `query` carries the downstream URL query string verbatim (no leading
+    /// `?`) — local handlers use this for pagination and other URL-level
+    /// parameters. `model` is the target model identifier (populated from
+    /// path params / body / alias resolution by the handler). `body` carries
+    /// the HTTP body.
     fn handle_local(
         &self,
         _operation: OperationFamily,
         _protocol: ProtocolKind,
+        _model: Option<&str>,
+        _query: Option<&str>,
         _body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         None

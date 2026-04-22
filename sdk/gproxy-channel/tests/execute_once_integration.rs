@@ -107,6 +107,7 @@ async fn execute_once_hits_mock_upstream_and_parses_success() {
             ProtocolKind::OpenAiChatCompletion,
         ),
         model: Some("gpt-4o-mini".to_string()),
+        query: None,
         body: serde_json::to_vec(&json!({
             "model": "gpt-4o-mini",
             "messages": [{"role": "user", "content": "hi"}]

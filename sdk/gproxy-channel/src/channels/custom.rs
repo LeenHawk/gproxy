@@ -104,7 +104,8 @@ impl Channel for CustomChannel {
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         let path = custom_request_path(request)?;
-        let url = format!("{}{}", settings.base_url(), path);
+        let mut url = format!("{}{}", settings.base_url(), path);
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
 
         let mut builder = http::Request::builder()
             .method(request.method.clone())

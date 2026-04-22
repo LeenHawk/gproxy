@@ -15,5 +15,6 @@ pub mod oauth;
 pub mod oauth2_refresh;
 pub mod rewrite;
 pub mod sanitize;
+pub mod url;
 #[cfg(any(feature = "vertex", feature = "vertexexpress"))]
 pub mod vertex_normalize;

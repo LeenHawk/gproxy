@@ -281,7 +281,8 @@ impl Channel for DeepSeekChannel {
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
         let path = deepseek_request_path(request)?;
-        let url = format!("{}{}", settings.base_url(), path);
+        let mut url = format!("{}{}", settings.base_url(), path);
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
 
         let mut builder = http::Request::builder()
             .method(request.method.clone())
@@ -366,6 +367,8 @@ impl Channel for DeepSeekChannel {
         &self,
         operation: OperationFamily,
         protocol: ProtocolKind,
+        _model: Option<&str>,
+        _query: Option<&str>,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         (operation == OperationFamily::CountToken)

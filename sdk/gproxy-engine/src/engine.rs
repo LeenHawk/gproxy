@@ -62,6 +62,10 @@ pub struct ExecuteRequest {
     pub operation: OperationFamily,
     pub protocol: ProtocolKind,
     pub body: Vec<u8>,
+    /// URL query string (without leading `?`) from the downstream request.
+    /// Forwarded first-class through transforms and appended to the upstream
+    /// URL by the channel — never stuffed into the body.
+    pub query: Option<String>,
     pub headers: http::HeaderMap,
     pub model: Option<String>,
     pub forced_credential_index: Option<usize>,
@@ -1134,7 +1138,7 @@ impl GproxyEngine {
             }
             gproxy_channel::routing::RouteImplementation::Local => {
                 let body = provider
-                    .handle_local(request.operation, request.protocol, &request.body)
+                    .handle_local(request.operation, request.protocol, request.model.as_deref(), request.query.as_deref(), &request.body)
                     .unwrap_or_else(|| {
                         Err(UpstreamError::Channel("local route not implemented".into()))
                     })?;
@@ -1209,6 +1213,7 @@ impl GproxyEngine {
             method,
             route: RouteKey::new(dst_op, dst_proto),
             model: request.model.clone(),
+            query: request.query.clone(),
             body,
             headers: request.headers,
         };
@@ -1423,7 +1428,7 @@ impl GproxyEngine {
             }
             gproxy_channel::routing::RouteImplementation::Local => {
                 let body = provider
-                    .handle_local(request.operation, request.protocol, &request.body)
+                    .handle_local(request.operation, request.protocol, request.model.as_deref(), request.query.as_deref(), &request.body)
                     .unwrap_or_else(|| {
                         Err(UpstreamError::Channel("local route not implemented".into()))
                     })?;
@@ -1485,6 +1490,7 @@ impl GproxyEngine {
             method,
             route: RouteKey::new(dst_op, dst_proto),
             model: request.model.clone(),
+            query: request.query.clone(),
             body,
             headers: request.headers,
         };

@@ -32,6 +32,7 @@ fn stream_pipeline_reshapes_real_har_to_openai_chunks() {
             ProtocolKind::OpenAiChatCompletion,
         ),
         model: Some("gpt-5".to_string()),
+        query: None,
         body: Vec::new(),
         headers: http::HeaderMap::new(),
     };

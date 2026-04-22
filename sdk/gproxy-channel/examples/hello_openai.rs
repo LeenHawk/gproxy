@@ -59,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ProtocolKind::OpenAiChatCompletion,
         ),
         model: Some("gpt-4o-mini".to_string()),
+        query: None,
         body,
         headers: HeaderMap::new(),
     };

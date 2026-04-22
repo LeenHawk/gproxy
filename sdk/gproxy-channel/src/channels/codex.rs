@@ -781,6 +781,8 @@ impl Channel for CodexChannel {
         &self,
         operation: OperationFamily,
         protocol: ProtocolKind,
+        _model: Option<&str>,
+        _query: Option<&str>,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         (operation == OperationFamily::CountToken)
@@ -1085,6 +1087,7 @@ mod tests {
                 ProtocolKind::OpenAiResponse,
             ),
             model: Some("gpt-5.4".to_string()),
+            query: None,
             body: serde_json::to_vec(&json!({
                 "model": "gpt-5.4",
                 "input": "hi",

@@ -97,6 +97,7 @@ async fn live_chat_completion_roundtrip() {
             ProtocolKind::OpenAiChatCompletion,
         ),
         model: Some("gpt-5".to_string()),
+        query: None,
         body: serde_json::to_vec(&serde_json::json!({
             "model": "gpt-5",
             "messages": [{"role": "user", "content": "reply with the single word hi"}]
@@ -168,6 +169,7 @@ async fn live_image_generation() {
         method: http::Method::POST,
         route: RouteKey::new(OperationFamily::CreateImage, ProtocolKind::OpenAi),
         model: Some("gpt-image-1".to_string()),
+        query: None,
         body: serde_json::to_vec(&serde_json::json!({
             "prompt": "a tiny cartoon cat wearing a red hat, simple line art",
             "n": 1,
@@ -258,6 +260,7 @@ async fn live_image_edit_with_upload() {
         method: http::Method::POST,
         route: RouteKey::new(OperationFamily::CreateImageEdit, ProtocolKind::OpenAi),
         model: Some("gpt-image-1".to_string()),
+        query: None,
         body: serde_json::to_vec(&serde_json::json!({
             "image": data_url,
             "prompt": "turn the red square into a blue square with a yellow border",
@@ -313,6 +316,7 @@ async fn live_model_list_dynamic() {
         method: http::Method::GET,
         route: RouteKey::new(OperationFamily::ModelList, ProtocolKind::OpenAi),
         model: None,
+        query: None,
         body: Vec::new(),
         headers: http::HeaderMap::new(),
     };

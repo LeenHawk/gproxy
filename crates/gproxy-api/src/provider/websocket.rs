@@ -920,6 +920,7 @@ async fn start_http_request(
             operation,
             protocol,
             body: http_request_body,
+            query: None,
             headers: headers.clone(),
             model: Some(effective_model.clone()),
             forced_credential_index: None,

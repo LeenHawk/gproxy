@@ -204,7 +204,8 @@ impl Channel for GroqChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let url = format!("{}{}", settings.base_url(), groq_request_path(request)?);
+        let mut url = format!("{}{}", settings.base_url(), groq_request_path(request)?);
+        crate::utils::url::append_query(&mut url, request.query.as_deref());
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
@@ -269,6 +270,8 @@ impl Channel for GroqChannel {
         &self,
         operation: OperationFamily,
         protocol: ProtocolKind,
+        _model: Option<&str>,
+        _query: Option<&str>,
         body: &[u8],
     ) -> Option<Result<Vec<u8>, UpstreamError>> {
         (operation == OperationFamily::CountToken)

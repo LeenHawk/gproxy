@@ -315,6 +315,7 @@ pub async fn pull_models(
             operation: OperationFamily::ModelList,
             protocol: ProtocolKind::OpenAi,
             body: b"{}".to_vec(),
+            query: None,
             headers: HeaderMap::new(),
             model: None,
             forced_credential_index: None,

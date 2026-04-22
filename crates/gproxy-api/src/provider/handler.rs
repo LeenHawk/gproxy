@@ -261,6 +261,7 @@ pub async fn proxy(
             operation,
             protocol,
             body: req_body.clone(),
+            query: strip_reserved_query_keys(req_query.clone()),
             headers,
             model: effective_model.clone(),
             forced_credential_index,
@@ -577,6 +578,7 @@ pub async fn proxy_unscoped(
             operation,
             protocol,
             body: req_body.clone(),
+            query: strip_reserved_query_keys(req_query.clone()),
             headers,
             model: Some(target_model.clone()),
             forced_credential_index: None,
@@ -796,6 +798,7 @@ pub async fn proxy_unscoped_files(
             operation,
             protocol,
             body: req_body.clone(),
+            query: strip_reserved_query_keys(req_query.clone()),
             headers,
             model: None,
             forced_credential_index,
@@ -963,6 +966,27 @@ struct ClaudeFileListQuery {
     limit: usize,
 }
 
+/// Drop query keys that are reserved/proxy-internal and must not leak to
+/// upstreams. Currently: `alt` (Gemini transport format — we always
+/// decide SSE vs JSON via route + sse→JSON aggregation, so honoring the
+/// client's `alt` would fight our own decision; stripping early keeps
+/// every channel honest without per-channel filtering).
+fn strip_reserved_query_keys(query: Option<String>) -> Option<String> {
+    let raw = query?;
+    let kept: Vec<(String, String)> = url::form_urlencoded::parse(raw.as_bytes())
+        .filter(|(k, _)| !matches!(k.as_ref(), "alt"))
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    if kept.is_empty() {
+        return None;
+    }
+    Some(
+        url::form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(kept)
+            .finish(),
+    )
+}
+
 fn is_file_operation(operation: OperationFamily) -> bool {
     matches!(
         operation,
@@ -1090,6 +1114,7 @@ async fn execute_live_model_list(
             // and specifically does not leak the legacy `{"query":{...}}`
             // shape that some strict proxies were echoing back downstream.
             body: b"{}".to_vec(),
+            query: None,
             headers: headers.clone(),
             model: None,
             forced_credential_index: None,
