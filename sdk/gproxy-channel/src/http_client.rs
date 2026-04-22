@@ -18,6 +18,7 @@ pub async fn send_request(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
     let initial_latency_ms = started_at.elapsed().as_millis() as u64;
 
+    let final_url = response.uri().to_string();
     let status = response.status().as_u16();
     let headers = response.headers().clone();
     let body = response
@@ -31,6 +32,7 @@ pub async fn send_request(
         status,
         headers,
         body,
+        url: final_url,
         initial_latency_ms,
         total_latency_ms,
     })
@@ -52,6 +54,7 @@ pub async fn send_request_stream(
         .map_err(|e| UpstreamError::Http(e.to_string()))?;
     let initial_latency_ms = started_at.elapsed().as_millis() as u64;
 
+    let final_url = response.uri().to_string();
     let status = response.status().as_u16();
     let headers = response.headers().clone();
 
@@ -64,6 +67,7 @@ pub async fn send_request_stream(
                 status,
                 headers,
                 body: Box::pin(body),
+                url: final_url,
                 initial_latency_ms,
                 stream_start: started_at,
             },
@@ -81,6 +85,7 @@ pub async fn send_request_stream(
         status,
         headers,
         body,
+        url: final_url,
         initial_latency_ms,
         total_latency_ms,
     }))

@@ -18,7 +18,7 @@ use tracing::Instrument;
 /// Action determined after inspecting a raw upstream response.
 enum RetryAction<T> {
     /// 2xx streaming — return immediately, body cannot be inspected.
-    ImmediateSuccess { status: u16, output: T },
+    ImmediateSuccess { status: u16, url: String, output: T },
     /// Body is buffered and can be classified for retry decisions.
     Classifiable(UpstreamResponse),
 }
@@ -72,6 +72,7 @@ impl RetryableResult for RetryableUpstreamResponse {
         match self {
             RetryableUpstreamResponse::Streaming(s) => RetryAction::ImmediateSuccess {
                 status: s.status,
+                url: s.url.clone(),
                 output: s,
             },
             RetryableUpstreamResponse::Buffered(b) => RetryAction::Classifiable(b),
@@ -94,6 +95,7 @@ impl RetryableResult for RetryableUpstreamResponse {
             body: Box::pin(futures_util::stream::once(async move {
                 Ok(bytes::Bytes::from(response.body))
             })),
+            url: response.url,
             initial_latency_ms: response.initial_latency_ms,
             stream_start,
         }
@@ -338,7 +340,7 @@ where
 
             // Snapshot wire-level metadata for the upstream-request log.
             // Done before `send` because `http_request` is consumed there.
-            let attempt_meta = UpstreamAttemptMeta {
+            let mut attempt_meta = UpstreamAttemptMeta {
                 method: http_request.method().as_str().to_string(),
                 url: http_request.uri().to_string(),
                 request_headers: http_request
@@ -381,7 +383,12 @@ where
 
             // Determine if this is an immediate success (streaming 2xx) or needs classification
             let response = match raw_response.into_retry_action() {
-                RetryAction::ImmediateSuccess { status, output } => {
+                RetryAction::ImmediateSuccess {
+                    status,
+                    url,
+                    output,
+                } => {
+                    attempt_meta.url = url;
                     tracing::info!(
                         credential = idx,
                         status,
@@ -399,6 +406,7 @@ where
                 }
                 RetryAction::Classifiable(resp) => resp,
             };
+            attempt_meta.url = response.url.clone();
 
             // Classify buffered response
             tracing::info!(
@@ -469,7 +477,7 @@ where
                         };
 
                         // Snapshot the refreshed-attempt wire metadata for logging.
-                        let refresh_meta = UpstreamAttemptMeta {
+                        let mut refresh_meta = UpstreamAttemptMeta {
                             method: retry_request.method().as_str().to_string(),
                             url: retry_request.uri().to_string(),
                             request_headers: retry_request
@@ -484,7 +492,8 @@ where
 
                         match send(active_client, retry_request).await {
                             Ok(raw_retry) => match raw_retry.into_retry_action() {
-                                RetryAction::ImmediateSuccess { output, .. } => {
+                                RetryAction::ImmediateSuccess { url, output, .. } => {
+                                    refresh_meta.url = url;
                                     health.record_success(model);
                                     bind_affinity(
                                         affinity_pool,
@@ -499,6 +508,7 @@ where
                                     });
                                 }
                                 RetryAction::Classifiable(retry_response) => {
+                                    refresh_meta.url = retry_response.url.clone();
                                     let retry_class = channel.classify_response(
                                         retry_response.status,
                                         &retry_response.headers,

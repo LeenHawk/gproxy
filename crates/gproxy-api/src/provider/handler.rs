@@ -2908,7 +2908,7 @@ mod tests {
     use axum::extract::{Extension, Path, Request, State};
     use axum::http::{
         HeaderMap, HeaderValue, StatusCode,
-        header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, TRANSFER_ENCODING},
+        header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE, LOCATION, TRANSFER_ENCODING},
     };
     use axum::routing::post;
     use axum::{Json, Router};
