@@ -254,6 +254,48 @@ pub async fn proxy(
         .and_then(FileOperationPlan::deleted_file)
         .cloned();
 
+    // ModelList: decide whether upstream needs to be hit and with what
+    // query. If the requested page is fully served by locals, short-circuit
+    // here. Otherwise carry `local_head` + `locals_ids` to be merged after
+    // the upstream response lands.
+    let mut modellist_merge: Option<(
+        Vec<serde_json::Value>,
+        std::collections::HashSet<String>,
+    )> = None;
+    let modellist_upstream_query: Option<Option<String>> =
+        if operation == OperationFamily::ModelList {
+            let locals_json = collect_scoped_model_locals_json(
+                &state,
+                user_key.user_id,
+                &effective_provider,
+                protocol,
+            );
+            match plan_paginated_model_list(protocol, locals_json, req_query.as_deref()) {
+                ModelListPlan::FullyLocal(body) => {
+                    return Ok(respond_with_local_json(
+                        LocalJsonResponseContext {
+                            start,
+                            trace_id,
+                            req_method: &req_method,
+                            req_path: &req_path,
+                        },
+                        body,
+                    )
+                    .await);
+                }
+                ModelListPlan::Upstream {
+                    upstream_query,
+                    local_head,
+                    locals_ids,
+                } => {
+                    modellist_merge = Some((local_head, locals_ids));
+                    Some(upstream_query)
+                }
+            }
+        } else {
+            None
+        };
+
     let mut result = match state
         .engine()
         .execute(ExecuteRequest {
@@ -261,7 +303,9 @@ pub async fn proxy(
             operation,
             protocol,
             body: req_body.clone(),
-            query: strip_reserved_query_keys(req_query.clone()),
+            query: modellist_upstream_query
+                .clone()
+                .unwrap_or_else(|| strip_reserved_query_keys(req_query.clone())),
             headers,
             model: effective_model.clone(),
             forced_credential_index,
@@ -376,17 +420,14 @@ pub async fn proxy(
         record_upstream_log(&state, trace_id, &effective_provider, result.meta.as_ref()).await;
     }
 
-    // Merge local real models + aliases into scoped model_list responses.
-    if operation == OperationFamily::ModelList
+    // Merge local models into the scoped ModelList response using the
+    // paginated-merge path. `modellist_merge` is Some for every ModelList
+    // request that reached upstream (fully-local requests short-circuited
+    // earlier).
+    if let Some((local_head, locals_ids)) = modellist_merge
         && let ExecuteBody::Full(ref mut body) = result.body
     {
-        inject_scoped_model_list_locals(
-            &state,
-            user_key.user_id,
-            &effective_provider,
-            protocol,
-            body,
-        );
+        *body = finalize_paginated_model_list(protocol, local_head, &locals_ids, body);
     }
 
     let response_body = match result.body {
@@ -1745,70 +1786,318 @@ fn empty_model_list_body(protocol: ProtocolKind) -> Vec<u8> {
     serde_json::to_vec(&body).unwrap_or_default()
 }
 
-fn inject_scoped_model_list_locals(
+// =====================================================================
+// ModelList pagination: merge DB locals with upstream, maintain a
+// compound pageToken so the request can traverse local-first then
+// upstream without caching upstream state in gproxy.
+//
+// Token grammar (opaque to clients, produced & consumed here):
+//   ""              → local offset 0 (first page)
+//   "L<N>"          → resume local pagination at offset N
+//   "U<opaque>"     → local exhausted; forward <opaque> to upstream
+//
+// Algorithm:
+//   * Local(k) and k+M ≤ N_local → fully local slice, no upstream call.
+//   * Local(k) and k+M > N_local → head = locals[k..], upstream fills
+//     the remaining (M − head.len()) with its first page (no token).
+//   * Upstream(opaque) → forward opaque as pageToken with full M.
+// =====================================================================
+
+#[derive(Debug, Clone, PartialEq)]
+enum ModelListStage {
+    Local(usize),
+    Upstream(String),
+}
+
+enum ModelListPlan {
+    /// Response fully served from locals; caller should short-circuit.
+    FullyLocal(Vec<u8>),
+    /// Caller must call upstream with the rewritten query, then pass the
+    /// upstream body to `finalize_paginated_model_list`.
+    Upstream {
+        upstream_query: Option<String>,
+        local_head: Vec<serde_json::Value>,
+        locals_ids: std::collections::HashSet<String>,
+    },
+}
+
+fn default_model_list_page_size(protocol: ProtocolKind) -> usize {
+    match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => 50,
+        ProtocolKind::Claude => 20,
+        _ => 20,
+    }
+}
+
+fn parse_client_model_list_query(
+    protocol: ProtocolKind,
+    query: Option<&str>,
+) -> (Option<usize>, Option<String>) {
+    let mut page_size: Option<usize> = None;
+    let mut token: Option<String> = None;
+    if let Some(raw) = query {
+        for (key, value) in url::form_urlencoded::parse(raw.as_bytes()) {
+            match (protocol, key.as_ref()) {
+                (ProtocolKind::Gemini | ProtocolKind::GeminiNDJson, "pageSize") => {
+                    page_size = value.parse().ok();
+                }
+                (ProtocolKind::Gemini | ProtocolKind::GeminiNDJson, "pageToken") => {
+                    token = Some(value.into_owned());
+                }
+                (ProtocolKind::Claude, "limit") => page_size = value.parse().ok(),
+                (ProtocolKind::Claude, "after_id") => token = Some(value.into_owned()),
+                (_, "limit") => page_size = value.parse().ok(),
+                (_, "after") => token = Some(value.into_owned()),
+                _ => {}
+            }
+        }
+    }
+    (page_size, token)
+}
+
+fn parse_model_list_page_token(raw: Option<&str>) -> ModelListStage {
+    match raw.unwrap_or("") {
+        "" => ModelListStage::Local(0),
+        s => {
+            if let Some(rest) = s.strip_prefix('L') {
+                ModelListStage::Local(rest.parse().unwrap_or(0))
+            } else if let Some(rest) = s.strip_prefix('U') {
+                ModelListStage::Upstream(rest.to_string())
+            } else {
+                // Legacy / unknown: treat as upstream opaque.
+                ModelListStage::Upstream(s.to_string())
+            }
+        }
+    }
+}
+
+fn build_upstream_model_list_query(
+    protocol: ProtocolKind,
+    page_size: usize,
+    page_token: Option<&str>,
+) -> Option<String> {
+    let mut out = url::form_urlencoded::Serializer::new(String::new());
+    match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => {
+            out.append_pair("pageSize", &page_size.to_string());
+            if let Some(t) = page_token {
+                out.append_pair("pageToken", t);
+            }
+        }
+        ProtocolKind::Claude => {
+            out.append_pair("limit", &page_size.to_string());
+            if let Some(t) = page_token {
+                out.append_pair("after_id", t);
+            }
+        }
+        _ => {
+            out.append_pair("limit", &page_size.to_string());
+            if let Some(t) = page_token {
+                out.append_pair("after", t);
+            }
+        }
+    }
+    let s = out.finish();
+    if s.is_empty() { None } else { Some(s) }
+}
+
+fn extract_upstream_model_list(
+    protocol: ProtocolKind,
+    body: &[u8],
+) -> (Vec<serde_json::Value>, Option<String>) {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return (Vec::new(), None);
+    };
+    let array_key = match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => "models",
+        _ => "data",
+    };
+    let items = v
+        .get(array_key)
+        .and_then(|a| a.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let next = match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => v
+            .get("nextPageToken")
+            .and_then(|t| t.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string()),
+        ProtocolKind::Claude => {
+            let has_more = v.get("has_more").and_then(|b| b.as_bool()).unwrap_or(false);
+            if has_more {
+                v.get("last_id")
+                    .and_then(|t| t.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        }
+        _ => {
+            // OpenAI ModelList has no canonical pageination token — upstream
+            // returns everything in a single response. Signal end of stream.
+            None
+        }
+    };
+    (items, next)
+}
+
+fn model_item_id(protocol: ProtocolKind, item: &serde_json::Value) -> Option<String> {
+    match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => item
+            .get("name")
+            .and_then(|n| n.as_str())
+            .map(|s| s.trim_start_matches("models/").to_string()),
+        _ => item
+            .get("id")
+            .and_then(|i| i.as_str())
+            .map(|s| s.to_string()),
+    }
+}
+
+fn serialize_model_list_response(
+    protocol: ProtocolKind,
+    items: Vec<serde_json::Value>,
+    next_page_token: Option<String>,
+) -> Vec<u8> {
+    let body = match protocol {
+        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => serde_json::json!({
+            "models": items,
+            "nextPageToken": next_page_token,
+        }),
+        ProtocolKind::Claude => {
+            let first_id = items
+                .first()
+                .and_then(|i| i.get("id"))
+                .and_then(|i| i.as_str())
+                .unwrap_or("")
+                .to_string();
+            let last_id = items
+                .last()
+                .and_then(|i| i.get("id"))
+                .and_then(|i| i.as_str())
+                .unwrap_or("")
+                .to_string();
+            serde_json::json!({
+                "data": items,
+                "first_id": first_id,
+                "last_id": last_id,
+                "has_more": next_page_token.is_some(),
+            })
+        }
+        _ => serde_json::json!({
+            "object": "list",
+            "data": items,
+        }),
+    };
+    serde_json::to_vec(&body).unwrap_or_default()
+}
+
+/// Build the canonical [`serde_json::Value`] list of local models for a
+/// provider, applying per-user permission filtering. Order is stable —
+/// consumers rely on it for `L<N>` offset semantics.
+fn collect_scoped_model_locals_json(
     state: &AppState,
     user_id: i64,
     provider_name: &str,
     protocol: ProtocolKind,
-    body: &mut Vec<u8>,
-) {
+) -> Vec<serde_json::Value> {
     let Some(provider_id) = state.provider_id_for_name(provider_name) else {
-        return;
+        return Vec::new();
     };
     let all_models = state.models();
-
-    // Collect local models for this provider.
-    let locals: Vec<&gproxy_core::MemoryModel> = all_models
+    all_models
         .iter()
         .filter(|m| {
             m.provider_id == provider_id
                 && m.enabled
                 && state.check_model_permission(user_id, provider_name, &m.model_id)
         })
+        .map(|m| local_model_to_json(m, provider_name, protocol))
+        .collect()
+}
+
+fn plan_paginated_model_list(
+    protocol: ProtocolKind,
+    locals: Vec<serde_json::Value>,
+    client_query: Option<&str>,
+) -> ModelListPlan {
+    let (client_size, client_token) = parse_client_model_list_query(protocol, client_query);
+    let m = client_size.unwrap_or_else(|| default_model_list_page_size(protocol));
+    let stage = parse_model_list_page_token(client_token.as_deref());
+
+    let locals_ids: std::collections::HashSet<String> = locals
+        .iter()
+        .filter_map(|v| model_item_id(protocol, v))
         .collect();
 
-    if locals.is_empty() {
-        return;
-    }
-
-    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(body) else {
-        return;
-    };
-
-    let (array_key, id_key) = match protocol {
-        ProtocolKind::Gemini | ProtocolKind::GeminiNDJson => ("models", "name"),
-        _ => ("data", "id"),
-    };
-
-    let Some(arr) = v.get_mut(array_key).and_then(|a| a.as_array_mut()) else {
-        return;
-    };
-
-    // Check which model_ids are already in the upstream response.
-    let existing_ids: std::collections::HashSet<String> = arr
-        .iter()
-        .filter_map(|m| m.get(id_key).and_then(|i| i.as_str()))
-        .map(|id| {
-            if id_key == "name" {
-                id.strip_prefix("models/").unwrap_or(id).to_string()
-            } else {
-                id.to_string()
+    match stage {
+        ModelListStage::Local(offset) => {
+            let n = locals.len();
+            if offset >= n {
+                // No more locals — enter upstream with fresh first page.
+                let upstream_query = build_upstream_model_list_query(protocol, m, None);
+                return ModelListPlan::Upstream {
+                    upstream_query,
+                    local_head: Vec::new(),
+                    locals_ids,
+                };
             }
+            if offset + m <= n {
+                // Fully local slice.
+                let slice = locals[offset..offset + m].to_vec();
+                let next = if offset + m < n {
+                    Some(format!("L{}", offset + m))
+                } else {
+                    // Boundary: local exhausted at exactly this page. Hand
+                    // out an L<N> token so the next request enters the
+                    // branch above and triggers upstream first page.
+                    Some(format!("L{}", n))
+                };
+                let body = serialize_model_list_response(protocol, slice, next);
+                ModelListPlan::FullyLocal(body)
+            } else {
+                // Cross-page: local head + upstream first page.
+                let head = locals[offset..].to_vec();
+                let need = m - head.len();
+                let upstream_query = build_upstream_model_list_query(protocol, need, None);
+                ModelListPlan::Upstream {
+                    upstream_query,
+                    local_head: head,
+                    locals_ids,
+                }
+            }
+        }
+        ModelListStage::Upstream(opaque) => {
+            let upstream_query = build_upstream_model_list_query(protocol, m, Some(&opaque));
+            ModelListPlan::Upstream {
+                upstream_query,
+                local_head: Vec::new(),
+                locals_ids,
+            }
+        }
+    }
+}
+
+fn finalize_paginated_model_list(
+    protocol: ProtocolKind,
+    local_head: Vec<serde_json::Value>,
+    locals_ids: &std::collections::HashSet<String>,
+    upstream_body: &[u8],
+) -> Vec<u8> {
+    let (upstream_items, upstream_next) = extract_upstream_model_list(protocol, upstream_body);
+    let filtered: Vec<_> = upstream_items
+        .into_iter()
+        .filter(|it| match model_item_id(protocol, it) {
+            Some(id) => !locals_ids.contains(&id),
+            None => true,
         })
         .collect();
-
-    // Append local models that aren't already in the upstream response.
-    for m in &locals {
-        if existing_ids.contains(&m.model_id) {
-            continue;
-        }
-        let entry = local_model_to_json(m, provider_name, protocol);
-        arr.push(entry);
-    }
-
-    if let Ok(b) = serde_json::to_vec(&v) {
-        *body = b;
-    }
+    let mut combined = local_head;
+    combined.extend(filtered);
+    let next = upstream_next.map(|s| format!("U{}", s));
+    serialize_model_list_response(protocol, combined, next)
 }
 
 async fn build_unscoped_model_list_body(
@@ -3743,5 +4032,183 @@ mod tests {
         // (not the handler), so they won't appear in this handler-only test.
         // The important thing is that the route resolved correctly and the
         // handler ran (verified by the non-404 status above).
+    }
+
+    // =====================================================================
+    // ModelList pagination helpers
+    // =====================================================================
+
+    use super::{
+        ModelListPlan, finalize_paginated_model_list, parse_model_list_page_token,
+        plan_paginated_model_list, ModelListStage,
+    };
+    use gproxy_server::ProtocolKind;
+
+    fn gemini_local(id: &str) -> serde_json::Value {
+        serde_json::json!({
+            "name": format!("models/{}", id),
+            "displayName": id,
+            "baseModelId": id,
+        })
+    }
+
+    #[test]
+    fn page_token_parses_prefixes() {
+        assert_eq!(parse_model_list_page_token(None), ModelListStage::Local(0));
+        assert_eq!(parse_model_list_page_token(Some("")), ModelListStage::Local(0));
+        assert_eq!(
+            parse_model_list_page_token(Some("L12")),
+            ModelListStage::Local(12)
+        );
+        assert_eq!(
+            parse_model_list_page_token(Some("Uabc-xyz")),
+            ModelListStage::Upstream("abc-xyz".into())
+        );
+        // Legacy / unknown-shape token treated as upstream opaque.
+        assert_eq!(
+            parse_model_list_page_token(Some("legacy_token")),
+            ModelListStage::Upstream("legacy_token".into())
+        );
+    }
+
+    #[test]
+    fn plan_fully_local_when_page_fits_under_local_count() {
+        let locals: Vec<_> = (0..20).map(|i| gemini_local(&format!("m{i}"))).collect();
+        let plan = plan_paginated_model_list(
+            ProtocolKind::Gemini,
+            locals,
+            Some("pageSize=5"),
+        );
+        let body = match plan {
+            ModelListPlan::FullyLocal(b) => b,
+            _ => panic!("expected FullyLocal"),
+        };
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let arr = v.get("models").and_then(|m| m.as_array()).unwrap();
+        assert_eq!(arr.len(), 5);
+        // 20 locals, pageSize 5 → next token L5 (more locals remain).
+        assert_eq!(v.get("nextPageToken").and_then(|t| t.as_str()), Some("L5"));
+    }
+
+    #[test]
+    fn plan_cross_page_sends_short_upstream_query() {
+        // 3 locals, client asks pageSize=10 starting from offset 0 → head
+        // is all 3 locals, upstream needs 7.
+        let locals: Vec<_> = (0..3).map(|i| gemini_local(&format!("loc{i}"))).collect();
+        let plan = plan_paginated_model_list(
+            ProtocolKind::Gemini,
+            locals,
+            Some("pageSize=10"),
+        );
+        match plan {
+            ModelListPlan::Upstream {
+                upstream_query,
+                local_head,
+                locals_ids,
+            } => {
+                assert_eq!(local_head.len(), 3);
+                assert_eq!(locals_ids.len(), 3);
+                let q = upstream_query.expect("query present");
+                assert!(q.contains("pageSize=7"), "got: {q}");
+                assert!(!q.contains("pageToken"), "no token on first upstream hit: {q}");
+            }
+            _ => panic!("expected cross-page Upstream plan"),
+        }
+    }
+
+    #[test]
+    fn plan_upstream_stage_forwards_opaque_token() {
+        let locals: Vec<_> = (0..3).map(|i| gemini_local(&format!("loc{i}"))).collect();
+        let plan = plan_paginated_model_list(
+            ProtocolKind::Gemini,
+            locals,
+            Some("pageSize=10&pageToken=UopaqueXYZ"),
+        );
+        match plan {
+            ModelListPlan::Upstream {
+                upstream_query,
+                local_head,
+                ..
+            } => {
+                assert!(local_head.is_empty(), "upstream-stage must not re-send locals");
+                let q = upstream_query.expect("query");
+                assert!(q.contains("pageSize=10"));
+                assert!(q.contains("pageToken=opaqueXYZ"));
+            }
+            _ => panic!("expected Upstream plan"),
+        }
+    }
+
+    #[test]
+    fn finalize_merges_head_and_dedups_upstream() {
+        // 2 locals: m0, m1; upstream returns m1 (dup) + r1 + r2 + nextPageToken opaque1
+        let head = vec![gemini_local("m0"), gemini_local("m1")];
+        let locals_ids: std::collections::HashSet<_> = ["m0", "m1"].iter().map(|s| s.to_string()).collect();
+        let upstream_body = serde_json::to_vec(&serde_json::json!({
+            "models": [
+                {"name": "models/m1", "displayName": "m1"},
+                {"name": "models/r1", "displayName": "r1"},
+                {"name": "models/r2", "displayName": "r2"},
+            ],
+            "nextPageToken": "opaque1"
+        })).unwrap();
+        let merged = finalize_paginated_model_list(
+            ProtocolKind::Gemini,
+            head,
+            &locals_ids,
+            &upstream_body,
+        );
+        let v: serde_json::Value = serde_json::from_slice(&merged).unwrap();
+        let names: Vec<&str> = v.get("models").unwrap().as_array().unwrap().iter()
+            .filter_map(|x| x.get("name").and_then(|n| n.as_str()))
+            .collect();
+        // m1 appears once (from head) — upstream's duplicate m1 is dropped.
+        assert_eq!(names, vec!["models/m0", "models/m1", "models/r1", "models/r2"]);
+        assert_eq!(
+            v.get("nextPageToken").and_then(|t| t.as_str()),
+            Some("Uopaque1")
+        );
+    }
+
+    #[test]
+    fn plan_exact_local_boundary_issues_transition_token() {
+        // 10 locals, client pageSize=10 → one full page, but next token
+        // must be L10 so the next request transitions into upstream.
+        let locals: Vec<_> = (0..10).map(|i| gemini_local(&format!("m{i}"))).collect();
+        let plan = plan_paginated_model_list(
+            ProtocolKind::Gemini,
+            locals,
+            Some("pageSize=10"),
+        );
+        let body = match plan {
+            ModelListPlan::FullyLocal(b) => b,
+            _ => panic!("expected FullyLocal at exact boundary"),
+        };
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v.get("nextPageToken").and_then(|t| t.as_str()), Some("L10"));
+    }
+
+    #[test]
+    fn plan_local_offset_past_end_enters_upstream() {
+        // Boundary token L10 when locals has 10 items → enter upstream.
+        let locals: Vec<_> = (0..10).map(|i| gemini_local(&format!("m{i}"))).collect();
+        let plan = plan_paginated_model_list(
+            ProtocolKind::Gemini,
+            locals,
+            Some("pageSize=10&pageToken=L10"),
+        );
+        match plan {
+            ModelListPlan::Upstream {
+                upstream_query,
+                local_head,
+                ..
+            } => {
+                assert!(local_head.is_empty());
+                let q = upstream_query.unwrap();
+                assert!(q.contains("pageSize=10"));
+                assert!(!q.contains("pageToken"), "fresh upstream, no token: {q}");
+            }
+            _ => panic!("expected Upstream plan"),
+        }
     }
 }
