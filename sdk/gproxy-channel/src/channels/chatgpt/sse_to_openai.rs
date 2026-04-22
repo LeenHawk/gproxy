@@ -152,10 +152,11 @@ impl SseToOpenAi {
                     }
                 }
                 (PatchKind::Replace, "/message/status")
-                    if patch.value.as_str() == Some("finished_successfully") => {
-                        finish_reason = Some("stop".to_string());
-                        self.finished = true;
-                    }
+                    if patch.value.as_str() == Some("finished_successfully") =>
+                {
+                    finish_reason = Some("stop".to_string());
+                    self.finished = true;
+                }
                 _ => {}
             }
         }

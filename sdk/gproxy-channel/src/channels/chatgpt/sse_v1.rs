@@ -175,12 +175,13 @@ fn parse_delta(v: &Value) -> Delta {
     // Case A: batch patch operation. `o` is "patch" and `v` is an array.
     let op = v.get("o").and_then(|x| x.as_str()).unwrap_or("");
     if op == "patch"
-        && let Some(arr) = v.get("v").and_then(|x| x.as_array()) {
-            return Delta {
-                channel,
-                patches: arr.iter().filter_map(parse_one_patch).collect(),
-            };
-        }
+        && let Some(arr) = v.get("v").and_then(|x| x.as_array())
+    {
+        return Delta {
+            channel,
+            patches: arr.iter().filter_map(parse_one_patch).collect(),
+        };
+    }
 
     // Case B: shorthand batch — no `o`/`p`, `v` is an array of patches.
     if v.get("o").is_none() && v.get("p").is_none() {
@@ -195,16 +196,17 @@ fn parse_delta(v: &Value) -> Delta {
         // typically with a `c` channel marker. This is how the server
         // sends follow-up channel "adds" (channels 1..N) after the first.
         if let Some(obj_value) = v.get("v")
-            && obj_value.is_object() {
-                return Delta {
-                    channel,
-                    patches: vec![PatchOp {
-                        path: String::new(),
-                        op: PatchKind::Add,
-                        value: obj_value.clone(),
-                    }],
-                };
-            }
+            && obj_value.is_object()
+        {
+            return Delta {
+                channel,
+                patches: vec![PatchOp {
+                    path: String::new(),
+                    op: PatchKind::Add,
+                    value: obj_value.clone(),
+                }],
+            };
+        }
     }
 
     // Case C: single patch.

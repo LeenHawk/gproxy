@@ -508,8 +508,7 @@ impl Channel for ChatGptChannel {
         // hardcoded catalog if the upstream response is unparseable
         // (offline / 5xx / shape change).
         if matches!(request.route.operation, OperationFamily::ModelList) {
-            return reshape_model_list(&body)
-                .unwrap_or_else(super::models::openai_model_list_body);
+            return reshape_model_list(&body).unwrap_or_else(super::models::openai_model_list_body);
         }
         if matches!(request.route.operation, OperationFamily::ModelGet) {
             let id = parse_model_get_id(&request.body);
@@ -679,13 +678,10 @@ fn build_models_request(
     credential: &ChatGptCredential,
 ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
     let url = format!("{}{}", CHATGPT_BASE_URL, MODELS_PATH);
-    let mut builder = http::Request::builder()
-        .method(http::Method::GET)
-        .uri(&url);
-    for (k, v) in std::convert::Into::<http::HeaderMap>::into(standard_headers(
-        &credential.access_token,
-    ))
-    .iter()
+    let mut builder = http::Request::builder().method(http::Method::GET).uri(&url);
+    for (k, v) in
+        std::convert::Into::<http::HeaderMap>::into(standard_headers(&credential.access_token))
+            .iter()
     {
         builder = builder.header(k.clone(), v.clone());
     }

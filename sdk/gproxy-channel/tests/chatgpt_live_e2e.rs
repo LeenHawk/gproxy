@@ -329,7 +329,11 @@ async fn live_model_list_dynamic() {
     let data = parsed["data"].as_array().expect("data array");
     let ids: Vec<&str> = data.iter().filter_map(|d| d["id"].as_str()).collect();
     println!("[models] ids ({}): {:?}", ids.len(), ids);
-    assert!(ids.len() >= 5, "expected at least 5 models, got {}", ids.len());
+    assert!(
+        ids.len() >= 5,
+        "expected at least 5 models, got {}",
+        ids.len()
+    );
     // The dynamic upstream list should include at least one gpt-5 family
     // entry and the image models.
     assert!(
