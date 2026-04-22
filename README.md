@@ -56,6 +56,13 @@ GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 A minimal `gproxy.toml` seed that creates an admin user with wildcard
 permissions:
 
+> **Note:** `gproxy.toml` is only read **once**, on first launch when the
+> database does not yet exist. After the initial seed, the database
+> becomes the single source of truth — subsequent edits to
+> `gproxy.toml` are ignored. Manage live configuration through the
+> `/console` UI (or the admin API). To re-seed from TOML, delete the
+> database file first.
+
 ```toml
 [global]
 host = "127.0.0.1"

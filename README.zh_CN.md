@@ -51,6 +51,11 @@ GPROXY_CONFIG=./gproxy.toml ./target/release/gproxy
 
 一份最小的 `gproxy.toml` 种子配置，会创建一个带通配权限的管理员用户：
 
+> **注意：** `gproxy.toml` 只会在**数据库不存在**的首次启动时被读取
+> **一次**。种子导入完成后，数据库就是唯一的真相源 —— 之后再修改
+> `gproxy.toml` 不会生效。日常配置请通过 `/console` 控制台（或管理
+> API）进行；如需重新用 TOML 重新种子，请先删除数据库文件。
+
 ```toml
 [global]
 host = "127.0.0.1"
