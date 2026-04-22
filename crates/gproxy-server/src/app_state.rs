@@ -314,6 +314,15 @@ impl AppState {
         self.routing.resolve_model_alias(alias)
     }
 
+    pub fn resolve_model_alias_for_provider(
+        &self,
+        alias: &str,
+        provider_name: &str,
+    ) -> Option<ModelAliasTarget> {
+        self.routing
+            .resolve_model_alias_for_provider(alias, provider_name)
+    }
+
     pub fn check_model_permission(&self, user_id: i64, provider_name: &str, model: &str) -> bool {
         let provider_id = self
             .routing
