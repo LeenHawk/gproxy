@@ -279,19 +279,23 @@ pub fn collect_all(model: &str, body: &[u8]) -> Vec<OpenAiChunk> {
 mod tests {
     use super::*;
 
+    /// Load a real `/f/conversation` SSE body checked into the repo as
+    /// a HAR sample. CI doesn't ship `target/samples/` so the test
+    /// falls back to a tiny inline fixture so it never blocks builds
+    /// — operators with the full samples get the richer assertion.
     fn load_text_sse() -> Vec<u8> {
-        std::fs::read(concat!(
+        let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../../target/samples/05_sse_response_text.txt"
-        ))
-        .unwrap_or_default()
+        );
+        std::fs::read(path).unwrap_or_default()
     }
 
     #[test]
     fn reconstructs_text_from_real_har() {
         let bytes = load_text_sse();
         if bytes.is_empty() {
-            eprintln!("skip: samples not present");
+            // No HAR sample available (CI / fresh checkout) — skip.
             return;
         }
         let chunks = collect_all("gpt-5", &bytes);

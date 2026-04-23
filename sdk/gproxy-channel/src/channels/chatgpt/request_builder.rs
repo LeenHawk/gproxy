@@ -341,10 +341,7 @@ pub fn extract_system_hints(body: &Value, resolved_model: &str) -> Vec<String> {
     }
 
     // Model-name suffix.
-    let raw_requested = body
-        .get("model")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let raw_requested = body.get("model").and_then(|v| v.as_str()).unwrap_or("");
     if let Some((_, suffix)) = split_tool_suffix(raw_requested.trim())
         && let Some(id) = friendly_to_hint(suffix)
     {
