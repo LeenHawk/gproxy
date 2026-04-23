@@ -9,20 +9,6 @@ use serde_json::{Value, json};
 
 /// Build the `/f/conversation` request body from an OpenAI request and a
 /// resolved upstream model slug.
-///
-/// `temporary_chat = true` sets `history_and_training_disabled: true` on
-/// the body, mirroring the "Temporary chat" toggle in the chatgpt.com UI.
-///
-/// Recognised optional inputs on the OpenAI body that get forwarded to
-/// chatgpt.com:
-///
-/// * `thinking_effort` (top-level) or `extra_body.thinking_effort` →
-///   `thinking_effort` body field. Allowed values match the web picker:
-///   `min`, `standard`, `extended`, `max` (Pro/Team/Enterprise) or
-///   `standard` / `extended` (Free). `low` / `medium` / `high` get
-///   mapped to `standard` / `extended` / `max` for OpenAI Responses-API
-///   compatibility.
-/// * `extra_body.reasoning.effort` (alias of `thinking_effort`).
 pub fn build_conversation_body(
     openai_body: &Value,
     resolved_model: &str,
@@ -47,7 +33,11 @@ pub fn build_conversation_body(
         json!({ "kind": "primary_assistant" }),
     );
     body.insert("enable_message_followups".to_string(), json!(true));
-    body.insert("system_hints".to_string(), Value::Array(vec![]));
+    let hints = extract_system_hints(openai_body, resolved_model);
+    body.insert(
+        "system_hints".to_string(),
+        Value::Array(hints.iter().map(|s| Value::String(s.clone())).collect()),
+    );
     body.insert("supports_buffering".to_string(), json!(true));
     body.insert("supported_encodings".to_string(), json!(["v1"]));
     if temporary_chat {
@@ -248,13 +238,14 @@ fn messages_to_chatgpt(messages: &[NormalizedMessage]) -> Vec<Value> {
 /// - Empty / friendly aliases (`gpt-5`, `gpt-5-instant`,
 ///   `gpt-5-thinking`, `gpt-5-pro`, `gpt-5-latest`, `gpt-5-auto`)
 ///   resolve to the latest known upstream slug for that variant.
-/// - Anything else passes through verbatim. The upstream
-///   `/backend-api/models/gpts` is account-specific and varies by
-///   plan / version / A/B group, so we can't safely whitelist —
-///   trust the caller and let the upstream 400 if it's truly wrong.
+/// - A trailing built-in-tool suffix is **stripped** here (e.g.
+///   `gpt-5-thinking@search` → `gpt-5-thinking`); `extract_system_hints`
+///   reads the suffix separately. Both `@<tool>` and `:<tool>` separators
+///   are accepted.
+/// - Anything else passes through verbatim.
 pub fn resolve_model(requested: &str) -> String {
     const DEFAULT: &str = "gpt-5-4";
-    let trimmed = requested.trim();
+    let trimmed = strip_tool_suffix(requested.trim());
     match trimmed {
         "" | "gpt-5" | "gpt-5-latest" | "gpt-5-auto" => DEFAULT.to_string(),
         "gpt-5-instant" => "gpt-5-3-instant".to_string(),
@@ -262,6 +253,120 @@ pub fn resolve_model(requested: &str) -> String {
         "gpt-5-pro" => "gpt-5-4-pro".to_string(),
         other => other.to_string(),
     }
+}
+
+/// Tool-suffix table — friendly name → upstream `system_hint` id.
+///
+/// Use as `<model>@<tool>` (or `<model>:<tool>`). For example:
+///
+/// * `gpt-5-thinking@search` — text + web search
+/// * `gpt-5@image`           — auto-generate an image
+/// * `gpt-5-pro@deep-research` — deep-research connector
+const TOOL_SUFFIXES: &[(&str, &str)] = &[
+    ("image", "picture_v2"),
+    ("picture", "picture_v2"),
+    ("search", "search"),
+    ("web", "search"),
+    ("study", "tatertot"),
+    ("learn", "tatertot"),
+    ("agent", "agent"),
+    ("canvas", "canvas"),
+    ("connectors", "slurm"),
+    ("company", "glaux"),
+    ("deep-research", "connector:connector_openai_deep_research"),
+    ("deepresearch", "connector:connector_openai_deep_research"),
+    ("research", "connector:connector_openai_deep_research"),
+    ("quiz", "connector:connector_openai_quizgpt_v2"),
+    ("quizzes", "connector:connector_openai_quizgpt_v2"),
+];
+
+fn split_tool_suffix(slug: &str) -> Option<(&str, &str)> {
+    let sep = slug.rfind(|c: char| c == '@' || c == ':')?;
+    Some((&slug[..sep], &slug[sep + 1..]))
+}
+
+fn strip_tool_suffix(slug: &str) -> &str {
+    if let Some((base, suffix)) = split_tool_suffix(slug)
+        && TOOL_SUFFIXES.iter().any(|(name, _)| *name == suffix)
+    {
+        return base;
+    }
+    slug
+}
+
+/// Pull `system_hints` from the request body OR from a model-name
+/// suffix.  Sources, in priority order (later sources extend earlier
+/// ones, never replace):
+///
+/// 1. `body.system_hints: ["picture_v2", "search", ...]` — raw upstream ids
+/// 2. `body.extra_body.system_hints: [...]` — same
+/// 3. `body.extra_body.tools_hint: ["image", "search", ...]` — friendly
+///    aliases that we map to upstream ids via [`TOOL_SUFFIXES`]
+/// 4. Trailing `@<tool>` / `:<tool>` on the resolved model name
+pub fn extract_system_hints(body: &Value, resolved_model: &str) -> Vec<String> {
+    let mut hints: Vec<String> = Vec::new();
+    let mut push = |s: &str| {
+        if !s.is_empty() && !hints.iter().any(|x| x == s) {
+            hints.push(s.to_string());
+        }
+    };
+
+    // Raw upstream ids straight through.
+    for arr_path in [
+        body.get("system_hints"),
+        body.get("extra_body").and_then(|x| x.get("system_hints")),
+    ] {
+        if let Some(arr) = arr_path.and_then(|v| v.as_array()) {
+            for v in arr {
+                if let Some(s) = v.as_str() {
+                    push(s);
+                }
+            }
+        }
+    }
+
+    // Friendly aliases via tools_hint.
+    if let Some(arr) = body
+        .get("extra_body")
+        .and_then(|x| x.get("tools_hint"))
+        .and_then(|v| v.as_array())
+    {
+        for v in arr {
+            if let Some(name) = v.as_str()
+                && let Some(id) = friendly_to_hint(name)
+            {
+                push(id);
+            }
+        }
+    }
+
+    // Model-name suffix.
+    let raw_requested = body
+        .get("model")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    if let Some((_, suffix)) = split_tool_suffix(raw_requested.trim())
+        && let Some(id) = friendly_to_hint(suffix)
+    {
+        push(id);
+    }
+
+    // Also accept the suffix on the (already-resolved) slug — in case
+    // the upstream model itself encodes it.
+    if let Some((_, suffix)) = split_tool_suffix(resolved_model)
+        && let Some(id) = friendly_to_hint(suffix)
+    {
+        push(id);
+    }
+
+    hints
+}
+
+fn friendly_to_hint(name: &str) -> Option<&'static str> {
+    TOOL_SUFFIXES
+        .iter()
+        .find(|(alias, _)| *alias == name)
+        .map(|(_, id)| *id)
 }
 
 /// Pull a `thinking_effort` value out of an OpenAI-shaped request body.
@@ -410,5 +515,58 @@ mod tests {
         let body = json!({"messages": [{"role": "user", "content": "hi"}]});
         let out = build_conversation_body(&body, "gpt-5-4", true);
         assert!(out.get("thinking_effort").is_none());
+    }
+
+    #[test]
+    fn forwards_explicit_system_hints() {
+        let body = json!({
+            "messages": [{"role": "user", "content": "hi"}],
+            "system_hints": ["picture_v2", "search"],
+        });
+        let out = build_conversation_body(&body, "gpt-5-4", true);
+        assert_eq!(out["system_hints"], json!(["picture_v2", "search"]));
+    }
+
+    #[test]
+    fn maps_tools_hint_aliases() {
+        let body = json!({
+            "messages": [{"role": "user", "content": "hi"}],
+            "extra_body": {"tools_hint": ["image", "search", "deep-research"]},
+        });
+        let out = build_conversation_body(&body, "gpt-5-4", true);
+        assert_eq!(
+            out["system_hints"],
+            json!([
+                "picture_v2",
+                "search",
+                "connector:connector_openai_deep_research"
+            ])
+        );
+    }
+
+    #[test]
+    fn extracts_hint_from_model_suffix() {
+        let body = json!({
+            "model": "gpt-5-thinking@search",
+            "messages": [{"role": "user", "content": "hi"}],
+        });
+        let resolved = resolve_model("gpt-5-thinking@search");
+        assert_eq!(resolved, "gpt-5-4-thinking");
+        let out = build_conversation_body(&body, &resolved, true);
+        assert_eq!(out["system_hints"], json!(["search"]));
+        assert_eq!(out["model"], json!("gpt-5-4-thinking"));
+    }
+
+    #[test]
+    fn unknown_suffix_is_left_in_model_name() {
+        // Unknown suffix → no strip, no hint extraction.
+        assert_eq!(resolve_model("gpt-5@bogus"), "gpt-5@bogus");
+        let body = json!({
+            "model": "gpt-5@bogus",
+            "messages": [{"role": "user", "content": "hi"}],
+        });
+        let out = build_conversation_body(&body, "gpt-5@bogus", true);
+        let empty: Vec<String> = Vec::new();
+        assert_eq!(out["system_hints"], json!(empty));
     }
 }
