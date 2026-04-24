@@ -627,14 +627,6 @@ fn first_user_message_text(body: &Value) -> String {
     }
 }
 
-fn normalize_claudecode_unsupported_fields(body: &mut Value) {
-    let Some(map) = body.as_object_mut() else {
-        return;
-    };
-
-    map.remove("speed");
-}
-
 /// Copy the token fields returned by `exchange_tokens_with_cookie` onto
 /// an existing credential record, leaving untouched fields alone.
 ///
@@ -1204,7 +1196,6 @@ impl Channel for ClaudeCodeChannel {
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
 
         claude_sampling::strip_sampling_params(&mut body_json);
-        normalize_claudecode_unsupported_fields(&mut body_json);
 
         // Prelude injection: prepend organization-wide instructions as
         // the first system block. Runs before cache control so the
