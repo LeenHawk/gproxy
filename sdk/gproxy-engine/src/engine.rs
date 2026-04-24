@@ -1279,6 +1279,51 @@ impl GproxyEngine {
             None
         };
 
+        // Build the upstream-log meta up-front from the real wire state
+        // (request headers/body + upstream status/headers/body/latency).
+        // Reused on both the happy path and the transform-failure path so
+        // a serialize/aggregate error no longer wipes out the ground truth
+        // we already have in hand — without this, `?` on the transforms
+        // below coerces TransformError → ExecuteError::bare → meta:None
+        // and the handler falls back to 500 / empty body / 0ms in the
+        // admin upstream log.
+        let log_meta: Option<UpstreamRequestMeta> = if self.enable_upstream_log {
+            let request_body_for_log = if self.enable_upstream_log_body {
+                attempt_meta.request_body.clone()
+            } else {
+                None
+            };
+            Some(UpstreamRequestMeta {
+                method: attempt_meta.method.clone(),
+                url: attempt_meta.url.clone(),
+                request_headers: attempt_meta.request_headers.clone(),
+                request_body: request_body_for_log,
+                response_status: Some(response.status),
+                response_headers: response
+                    .headers
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                    .collect(),
+                response_body: raw_response_body_for_log.clone(),
+                model: request.model.clone(),
+                initial_latency_ms: response.initial_latency_ms,
+                total_latency_ms: response.total_latency_ms,
+                credential_index: Some(used_credential_index),
+            })
+        } else {
+            None
+        };
+        let attach_meta_transform = |e: gproxy_protocol::transform::TransformError| ExecuteError {
+            error: UpstreamError::from(e),
+            meta: log_meta.clone(),
+            credential_index: Some(used_credential_index),
+        };
+        let attach_meta_upstream = |e: UpstreamError| ExecuteError {
+            error: e,
+            meta: log_meta.clone(),
+            credential_index: Some(used_credential_index),
+        };
+
         // 1. Normalize upstream response (channel-specific fixups)
         let normalized_body = provider.normalize_response(&prepared, response.body);
         let response_transform_dst_op = if force_stream_aggregation {
@@ -1288,7 +1333,7 @@ impl GproxyEngine {
         };
         let normalized_nonstream_body =
             if force_stream_aggregation && (200..=299).contains(&response.status) {
-                aggregate_stream_body(dst_proto, &normalized_body)?
+                aggregate_stream_body(dst_proto, &normalized_body).map_err(attach_meta_upstream)?
             } else {
                 normalized_body
             };
@@ -1332,7 +1377,8 @@ impl GproxyEngine {
                 response_transform_dst_op,
                 dst_proto,
                 normalized_nonstream_body,
-            )?
+            )
+            .map_err(attach_meta_transform)?
         } else if needs_transform && !is_success_status && !same_protocol_aggregation {
             gproxy_protocol::transform::dispatch::convert_error_body_or_raw(
                 request.operation,
@@ -1360,32 +1406,7 @@ impl GproxyEngine {
             }
         }
 
-        let meta = if self.enable_upstream_log {
-            let request_body_for_log = if self.enable_upstream_log_body {
-                attempt_meta.request_body
-            } else {
-                None
-            };
-            Some(UpstreamRequestMeta {
-                method: attempt_meta.method,
-                url: attempt_meta.url,
-                request_headers: attempt_meta.request_headers,
-                request_body: request_body_for_log,
-                response_status: Some(response.status),
-                response_headers: response
-                    .headers
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
-                    .collect(),
-                response_body: raw_response_body_for_log,
-                model: request.model,
-                initial_latency_ms: response.initial_latency_ms,
-                total_latency_ms: response.total_latency_ms,
-                credential_index: Some(used_credential_index),
-            })
-        } else {
-            None
-        };
+        let meta = log_meta;
 
         Ok(ExecuteResult {
             status: response.status,
