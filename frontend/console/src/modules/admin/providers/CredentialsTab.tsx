@@ -18,6 +18,7 @@ export function CredentialsTab({
   onEdit,
   onNew,
   onDelete,
+  onCopy,
   onSave,
   onUpdateStatus,
   supportsUsage,
@@ -35,6 +36,7 @@ export function CredentialsTab({
   onEdit: (row: CredentialRow) => void;
   onNew: () => void;
   onDelete: (row: CredentialRow) => void;
+  onCopy: (row: CredentialRow) => void;
   onSave: () => void;
   onUpdateStatus: (
     row: { provider: string; index: number },
@@ -53,6 +55,7 @@ export function CredentialsTab({
     none: string;
     edit: string;
     delete: string;
+    copy: string;
     showJson: string;
     hideJson: string;
     configured: string;
@@ -223,7 +226,29 @@ export function CredentialsTab({
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className="text-muted hover:text-text"
+                      aria-label={labels.copy}
+                      title={labels.copy}
+                      onClick={() => onCopy(row)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
                     <button
                       type="button"
                       className="corner-toggle"

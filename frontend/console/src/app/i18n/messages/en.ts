@@ -188,6 +188,8 @@ export const enMessages: Record<string, string> = {
   "providers.credentials.none": "No credentials",
   "providers.credentials.edit": "Edit",
   "providers.credentials.delete": "Delete",
+  "providers.credentials.copy": "Copy",
+  "providers.credentials.copied": "Credential copied",
   "providers.credentials.showJson": "Show Full JSON",
   "providers.credentials.hideJson": "Hide JSON",
   "providers.credentials.configured": "Credential configured",

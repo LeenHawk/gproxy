@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../../app/i18n";
 import { apiJson, apiVoid } from "../../../lib/api";
 import { authHeaders } from "../../../lib/auth";
+import { copyText } from "../../../lib/clipboard";
 import type {
   CredentialHealthRow,
   CredentialRow,
@@ -163,6 +164,16 @@ export function CredentialsPane({
     }
   };
 
+  const copyCredential = async (row: CredentialRow) => {
+    try {
+      await copyText(JSON.stringify(row.credential, null, 2));
+      notify("success", t("providers.credentials.copied"));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      notify("error", `${t("common.copyFailed")}: ${message}`);
+    }
+  };
+
   const updateStatus = async (
     row: { provider: string; index: number },
     status: "healthy" | "dead",
@@ -228,6 +239,7 @@ export function CredentialsPane({
         })
       }
       onDelete={(row) => void deleteCredential(row)}
+      onCopy={(row) => void copyCredential(row)}
       onSave={() => void saveCredential()}
       statuses={statusRows}
       onUpdateStatus={(row, status) => void updateStatus(row, status)}
@@ -244,6 +256,7 @@ export function CredentialsPane({
         none: t("providers.credentials.none"),
         edit: t("providers.credentials.edit"),
         delete: t("providers.credentials.delete"),
+        copy: t("providers.credentials.copy"),
         showJson: t("providers.credentials.showJson"),
         hideJson: t("providers.credentials.hideJson"),
         expandJson: t("providers.credentials.showJson"),

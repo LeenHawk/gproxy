@@ -188,6 +188,8 @@ export const zhMessages: Record<string, string> = {
   "providers.credentials.none": "暂无凭证",
   "providers.credentials.edit": "编辑",
   "providers.credentials.delete": "删除",
+  "providers.credentials.copy": "复制",
+  "providers.credentials.copied": "凭证已复制",
   "providers.credentials.showJson": "查看完整 JSON",
   "providers.credentials.hideJson": "收起 JSON",
   "providers.credentials.configured": "凭证已配置",
