@@ -65,4 +65,11 @@ pub enum ImageEditStreamEvent {
     },
     #[serde(rename = "error")]
     Error { error: OpenAiApiError },
+    /// Undocumented heartbeat frame some OpenAI-compatible backends ship
+    /// mid-stream (`{"type":"keepalive"}`). Ignored during aggregation.
+    #[serde(rename = "keepalive")]
+    Keepalive {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sequence_number: Option<u64>,
+    },
 }

@@ -1088,6 +1088,7 @@ impl OpenAiResponseToClaudeStream {
                 out.push(stream_error_event(error.message));
                 self.stop_reason = Some(BetaStopReason::Refusal);
             }
+            ResponseStreamEvent::Keepalive { .. } => {}
         }
     }
 

@@ -412,6 +412,13 @@ pub enum ResponseStreamEvent {
         error: ResponseStreamErrorPayload,
         sequence_number: u64,
     },
+
+    /// Undocumented SSE frame Codex ships while the upstream is still working
+    /// (`event: keepalive\ndata: {"type":"keepalive","sequence_number":N}`).
+    /// Not part of OpenAI's public Responses streaming spec but required to
+    /// keep deserialization from failing mid-stream.
+    #[serde(rename = "keepalive")]
+    Keepalive { sequence_number: u64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -436,4 +443,23 @@ pub struct ResponseStreamTopLogprob {
     pub token: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logprob: Option<f64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Codex responses backend ships `{"type":"keepalive","sequence_number":N}`
+    // mid-stream. Not in OpenAI's public spec, but real traffic includes it,
+    // so rejecting the frame aborts the whole SSE with a 500.
+    #[test]
+    fn deserializes_codex_keepalive_frame() {
+        let event: ResponseStreamEvent =
+            serde_json::from_str(r#"{"type":"keepalive","sequence_number":5}"#)
+                .expect("keepalive must deserialize");
+        assert!(matches!(
+            event,
+            ResponseStreamEvent::Keepalive { sequence_number: 5 }
+        ));
+    }
 }
