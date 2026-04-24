@@ -253,12 +253,13 @@ pub fn resolve_model(requested: &str) -> String {
 /// Pull `system_hints` from the request body.
 ///
 /// Sources, in order (later sources extend earlier ones):
-/// 1. `body.system_hints: ["picture_v2", "search", ...]`
+/// 1. `body.system_hints: ["picture_v2", "search", ...]` — upstream-native ids
 /// 2. `body.extra_body.system_hints: [...]`
-///
-/// The friendly-alias (`tools_hint`) and model-name-suffix (`@image`,
-/// `@search`) paths have been removed — use DB aliases with rewrite_rules
-/// instead (see `suffix-presets.ts#CHATGPT_GROUPS` in the console).
+/// 3. `body.tools: [{type: "image_generation" | "web_search_preview" |
+///    "deep_research"}]` — standard OpenAI Responses shape, translated to
+///    the matching chatgpt-web `system_hint`. Lets the same rewrite_rules
+///    preset drive codex/openai upstreams (which accept the tool natively)
+///    and chatgpt (which needs the hint form).
 pub fn extract_system_hints(body: &Value) -> Vec<String> {
     let mut hints: Vec<String> = Vec::new();
     let mut push = |s: &str| {
@@ -280,7 +281,30 @@ pub fn extract_system_hints(body: &Value) -> Vec<String> {
         }
     }
 
+    if let Some(tools) = body.get("tools").and_then(|v| v.as_array()) {
+        for t in tools {
+            if let Some(ty) = t.get("type").and_then(|v| v.as_str())
+                && let Some(id) = openai_tool_to_hint(ty)
+            {
+                push(id);
+            }
+        }
+    }
+
     hints
+}
+
+/// Map a standard OpenAI Responses-API tool `type` to its chatgpt-web
+/// `system_hint` equivalent. Returns `None` for tools chatgpt-web doesn't
+/// have a first-class hint for — those are silently dropped on the chatgpt
+/// channel (other channels still forward them natively).
+fn openai_tool_to_hint(tool_type: &str) -> Option<&'static str> {
+    match tool_type {
+        "image_generation" => Some("picture_v2"),
+        "web_search" | "web_search_preview" | "web_search_preview_2025_03_11" => Some("search"),
+        "deep_research" => Some("connector:connector_openai_deep_research"),
+        _ => None,
+    }
 }
 
 /// Pull a `thinking_effort` value out of an OpenAI-shaped request body.
@@ -451,6 +475,41 @@ mod tests {
         });
         let out = build_conversation_body(&body, "gpt-5-4", true);
         assert_eq!(out["system_hints"], json!(["canvas"]));
+    }
+
+    #[test]
+    fn maps_openai_tools_to_system_hints() {
+        // Standard OpenAI Responses API `tools` array → chatgpt system_hints.
+        for (tool_type, expected) in [
+            ("image_generation", "picture_v2"),
+            ("web_search_preview", "search"),
+            ("web_search", "search"),
+            ("deep_research", "connector:connector_openai_deep_research"),
+        ] {
+            let body = json!({
+                "messages": [{"role": "user", "content": "hi"}],
+                "tools": [{"type": tool_type}],
+            });
+            let out = build_conversation_body(&body, "gpt-5-4", true);
+            assert_eq!(
+                out["system_hints"],
+                json!([expected]),
+                "tool type {tool_type} should map to hint {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn unrecognized_openai_tool_is_dropped() {
+        // User-defined / unknown tool types → no hint (chatgpt-web has no
+        // equivalent). Other channels still forward them natively.
+        let body = json!({
+            "messages": [{"role": "user", "content": "hi"}],
+            "tools": [{"type": "function", "function": {"name": "foo"}}],
+        });
+        let out = build_conversation_body(&body, "gpt-5-4", true);
+        let empty: Vec<String> = Vec::new();
+        assert_eq!(out["system_hints"], json!(empty));
     }
 
     #[test]
