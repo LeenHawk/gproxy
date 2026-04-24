@@ -117,17 +117,24 @@ pub async fn check_update(
     authorize_admin(&headers, &state)?;
 
     let client = state.engine().client().clone();
-    let (latest_version, tag) = match fetch_github_manifest(&client).await {
+    let channel = state.config().update_channel;
+    let (latest_version, tag) = match fetch_github_manifest(&client, channel).await {
         Ok(m) => (Some(m.version), Some(m.tag)),
         Err(e) => {
-            tracing::warn!(error = %e, "failed to fetch update manifest");
+            tracing::warn!(error = %e, channel = ?channel, "failed to fetch update manifest");
             (None, None)
         }
     };
 
-    let update_available = latest_version
-        .as_ref()
-        .is_some_and(|v| is_newer_version(CURRENT_VERSION, v));
+    let update_available = if matches!(channel, gproxy_core::UpdateChannel::Staging) {
+        // Staging is a moving tag — always treat as updatable so the UI
+        // surfaces a download button for fresh staging builds.
+        latest_version.is_some()
+    } else {
+        latest_version
+            .as_ref()
+            .is_some_and(|v| is_newer_version(CURRENT_VERSION, v))
+    };
 
     let download_url = tag.map(|t| {
         format!(
@@ -163,10 +170,13 @@ pub async fn perform_update(
     let tag = if let Some(t) = params.tag {
         t
     } else {
-        let manifest = fetch_github_manifest(&client)
+        let channel = state.config().update_channel;
+        let manifest = fetch_github_manifest(&client, channel)
             .await
             .map_err(|e| HttpError::internal(format!("failed to check for updates: {e}")))?;
-        if !is_newer_version(CURRENT_VERSION, &manifest.version) {
+        if !matches!(channel, gproxy_core::UpdateChannel::Staging)
+            && !is_newer_version(CURRENT_VERSION, &manifest.version)
+        {
             return Ok(Json(UpdatePerformResponse {
                 ok: true,
                 old_version: CURRENT_VERSION.to_string(),
@@ -252,7 +262,25 @@ pub async fn perform_update(
 // Helpers
 // ---------------------------------------------------------------------------
 
-async fn fetch_github_manifest(client: &wreq::Client) -> Result<VersionManifest, String> {
+async fn fetch_github_manifest(
+    client: &wreq::Client,
+    channel: gproxy_core::UpdateChannel,
+) -> Result<VersionManifest, String> {
+    match channel {
+        gproxy_core::UpdateChannel::Staging => {
+            // Long-lived GitHub release tagged literally `staging`,
+            // refreshed continuously. Skip the manifest fetch and return
+            // the tag directly.
+            Ok(VersionManifest {
+                version: "staging".to_string(),
+                tag: "staging".to_string(),
+            })
+        }
+        gproxy_core::UpdateChannel::Release => fetch_latest_release(client).await,
+    }
+}
+
+async fn fetch_latest_release(client: &wreq::Client) -> Result<VersionManifest, String> {
     let api_url = "https://api.github.com/repos/LeenHawk/gproxy/releases/latest";
     let resp = client
         .get(api_url)

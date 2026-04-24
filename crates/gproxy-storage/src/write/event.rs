@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use gproxy_core::UpdateChannel;
 use serde::{Deserialize, Serialize};
 
 fn default_spoof_emulation() -> String {
@@ -20,6 +21,8 @@ pub struct GlobalSettingsWrite {
     pub enable_downstream_log_body: bool,
     pub dsn: String,
     pub data_dir: String,
+    #[serde(default)]
+    pub update_channel: UpdateChannel,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,6 +2,39 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Self-update release channel.
+///
+/// `release` tracks the latest stable GitHub release; `staging` tracks the
+/// long-lived `staging` tag, refreshed continuously for preview builds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateChannel {
+    Release,
+    Staging,
+}
+
+impl Default for UpdateChannel {
+    fn default() -> Self {
+        UpdateChannel::Release
+    }
+}
+
+impl UpdateChannel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            UpdateChannel::Release => "release",
+            UpdateChannel::Staging => "staging",
+        }
+    }
+
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "staging" => UpdateChannel::Staging,
+            _ => UpdateChannel::Release,
+        }
+    }
+}
+
 /// In-memory user record for authentication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryUser {
@@ -111,6 +144,8 @@ pub struct GlobalConfig {
     pub dsn: String,
     #[serde(default = "default_data_dir")]
     pub data_dir: String,
+    #[serde(default)]
+    pub update_channel: UpdateChannel,
 }
 
 impl Default for GlobalConfig {
@@ -127,6 +162,7 @@ impl Default for GlobalConfig {
             enable_downstream_log_body: false,
             dsn: String::new(),
             data_dir: default_data_dir(),
+            update_channel: UpdateChannel::default(),
         }
     }
 }

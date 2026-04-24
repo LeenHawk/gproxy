@@ -7,8 +7,6 @@ import { authHeaders } from "../../lib/auth";
 import type { GlobalSettings, UpdatePerformResponse } from "../../lib/types/admin";
 import {
   normalizeUpdateChannel,
-  resolveUpdateTag,
-  type UpdateChannel,
 } from "./global-settings";
 
 const SPOOF_EMULATION_OPTIONS = [
@@ -35,7 +33,6 @@ export function GlobalSettingsModule({
   const { t } = useI18n();
   const headers = useMemo(() => authHeaders(sessionToken), [sessionToken]);
   const [form, setForm] = useState<GlobalSettings | null>(null);
-  const [updateChannel, setUpdateChannel] = useState<UpdateChannel>("release");
   const [refreshing, setRefreshing] = useState(false);
   const [updating, setUpdating] = useState(false);
 
@@ -76,7 +73,7 @@ export function GlobalSettingsModule({
       const result = await apiJson<UpdatePerformResponse>("/admin/update", {
         method: "POST",
         headers,
-        body: JSON.stringify({ tag: resolveUpdateTag(updateChannel) }),
+        body: JSON.stringify({}),
       });
       notify(
         "success",
@@ -147,8 +144,12 @@ export function GlobalSettingsModule({
         <div>
           <Label>{t("globalSettings.field.updateChannel")}</Label>
           <Select
-            value={updateChannel}
-            onChange={(value) => setUpdateChannel(normalizeUpdateChannel(value))}
+            value={normalizeUpdateChannel(form.update_channel)}
+            onChange={(value) =>
+              setForm((current) =>
+                current ? { ...current, update_channel: normalizeUpdateChannel(value) } : current,
+              )
+            }
             options={[
               { value: "release", label: t("globalSettings.updateChannel.release") },
               { value: "staging", label: t("globalSettings.updateChannel.staging") },

@@ -516,6 +516,7 @@ pub async fn reload_from_db(
             enable_downstream_log_body: settings.enable_downstream_log_body,
             dsn: settings.dsn,
             data_dir: settings.data_dir,
+            update_channel: settings.update_channel,
         });
     let config = replacement_config
         .clone()
@@ -835,6 +836,7 @@ pub async fn seed_from_toml_with_bootstrap(
             enable_downstream_log_body: gs.enable_downstream_log_body,
             dsn: gs.dsn.clone(),
             data_dir: gs.data_dir.clone(),
+            update_channel: gs.update_channel,
         };
         state
             .storage()
@@ -850,6 +852,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 enable_downstream_log_body: gc.enable_downstream_log_body,
                 dsn: gc.dsn.clone(),
                 data_dir: gc.data_dir.clone(),
+                update_channel: gc.update_channel,
             })
             .await?;
         state.replace_config(gc);
@@ -869,6 +872,7 @@ pub async fn seed_from_toml_with_bootstrap(
                 enable_downstream_log_body: cfg.enable_downstream_log_body,
                 dsn: cfg.dsn.clone(),
                 data_dir: cfg.data_dir.clone(),
+                update_channel: cfg.update_channel,
             })
             .await?;
     }
@@ -1215,6 +1219,7 @@ pub async fn seed_defaults(
             enable_downstream_log_body: cfg.enable_downstream_log_body,
             dsn: cfg.dsn.clone(),
             data_dir: cfg.data_dir.clone(),
+            update_channel: cfg.update_channel,
         })
         .await?;
 
@@ -1366,6 +1371,7 @@ mod tests {
                 enable_downstream_log_body: true,
                 dsn: "sqlite::memory:".to_string(),
                 data_dir: "/tmp/db-data".to_string(),
+                update_channel: gproxy_core::UpdateChannel::Release,
             })
             .await
             .expect("seed global settings");

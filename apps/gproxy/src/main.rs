@@ -158,6 +158,7 @@ async fn main() -> anyhow::Result<()> {
         enable_downstream_log_body: false,
         dsn: dsn.clone(),
         data_dir: active_data_dir.clone(),
+        update_channel: gproxy_core::UpdateChannel::Release,
     };
 
     // 9. Create usage channel (sender goes into AppState, receiver to worker)
@@ -302,6 +303,7 @@ async fn main() -> anyhow::Result<()> {
                     enable_downstream_log_body: config.enable_downstream_log_body,
                     dsn: config.dsn.clone(),
                     data_dir: config.data_dir.clone(),
+                    update_channel: config.update_channel,
                 },
             ))
             .await?;

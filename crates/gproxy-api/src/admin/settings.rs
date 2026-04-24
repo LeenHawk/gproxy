@@ -5,6 +5,7 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use serde::Serialize;
 
+use gproxy_core::UpdateChannel;
 use gproxy_server::AppState;
 use gproxy_storage::GlobalSettingsWrite;
 use gproxy_storage::repository::SettingsRepository;
@@ -25,6 +26,7 @@ pub struct GlobalSettingsResponse {
     pub enable_downstream_log_body: bool,
     pub dsn: String,
     pub data_dir: String,
+    pub update_channel: UpdateChannel,
 }
 
 pub async fn get_global_settings(
@@ -45,6 +47,7 @@ pub async fn get_global_settings(
         enable_downstream_log_body: config.enable_downstream_log_body,
         dsn: config.dsn.clone(),
         data_dir: config.data_dir.clone(),
+        update_channel: config.update_channel,
     }))
 }
 
@@ -101,6 +104,7 @@ pub async fn upsert_global_settings(
             enable_downstream_log_body: payload.enable_downstream_log_body,
             dsn: payload.dsn.clone(),
             data_dir: payload.data_dir.clone(),
+            update_channel: payload.update_channel,
         });
 
         let new_engine = state.engine().with_settings(

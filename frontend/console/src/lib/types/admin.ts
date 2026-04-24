@@ -27,6 +27,7 @@ export type GlobalSettings = {
   enable_downstream_log_body: boolean;
   dsn: string;
   data_dir: string;
+  update_channel: string;
 };
 
 export type ProviderQueryParams = {

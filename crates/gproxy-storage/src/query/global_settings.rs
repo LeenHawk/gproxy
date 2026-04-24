@@ -1,3 +1,4 @@
+use gproxy_core::UpdateChannel;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
@@ -15,5 +16,6 @@ pub struct GlobalSettingsRow {
     pub enable_upstream_log_body: bool,
     pub enable_downstream_log: bool,
     pub enable_downstream_log_body: bool,
+    pub update_channel: UpdateChannel,
     pub updated_at: OffsetDateTime,
 }

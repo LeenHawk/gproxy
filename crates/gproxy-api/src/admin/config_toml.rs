@@ -54,6 +54,8 @@ pub struct GlobalSettingsToml {
     pub dsn: String,
     #[serde(default = "default_data_dir")]
     pub data_dir: String,
+    #[serde(default)]
+    pub update_channel: gproxy_core::UpdateChannel,
 }
 
 fn default_spoof() -> String {
@@ -198,6 +200,7 @@ pub async fn export_toml(
         enable_downstream_log_body: config.enable_downstream_log_body,
         dsn: config.dsn.clone(),
         data_dir: config.data_dir.clone(),
+        update_channel: config.update_channel,
     };
 
     // Providers + credentials from SDK store

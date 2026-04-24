@@ -103,6 +103,7 @@ impl SeaOrmStorage {
                 enable_upstream_log_body: Set(gs.enable_upstream_log_body),
                 enable_downstream_log: Set(gs.enable_downstream_log),
                 enable_downstream_log_body: Set(gs.enable_downstream_log_body),
+                update_channel: Set(Some(gs.update_channel.as_str().to_string())),
                 updated_at: Set(now),
             };
             global_settings::Entity::insert(model)
@@ -120,6 +121,7 @@ impl SeaOrmStorage {
                             global_settings::Column::EnableUpstreamLogBody,
                             global_settings::Column::EnableDownstreamLog,
                             global_settings::Column::EnableDownstreamLogBody,
+                            global_settings::Column::UpdateChannel,
                             global_settings::Column::UpdatedAt,
                         ])
                         .to_owned(),

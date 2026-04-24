@@ -18,6 +18,7 @@ pub struct Model {
     pub enable_upstream_log_body: bool,
     pub enable_downstream_log: bool,
     pub enable_downstream_log_body: bool,
+    pub update_channel: Option<String>,
     pub updated_at: OffsetDateTime,
 }
 

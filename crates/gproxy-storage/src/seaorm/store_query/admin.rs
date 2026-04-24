@@ -32,6 +32,11 @@ impl SeaOrmStorage {
             enable_upstream_log_body: row.enable_upstream_log_body,
             enable_downstream_log: row.enable_downstream_log,
             enable_downstream_log_body: row.enable_downstream_log_body,
+            update_channel: row
+                .update_channel
+                .as_deref()
+                .map(gproxy_core::UpdateChannel::parse)
+                .unwrap_or_default(),
             updated_at: row.updated_at,
         }))
     }
