@@ -281,7 +281,7 @@ const TOOL_SUFFIXES: &[(&str, &str)] = &[
 ];
 
 fn split_tool_suffix(slug: &str) -> Option<(&str, &str)> {
-    let sep = slug.rfind(|c: char| c == '@' || c == ':')?;
+    let sep = slug.rfind(['@', ':'])?;
     Some((&slug[..sep], &slug[sep + 1..]))
 }
 

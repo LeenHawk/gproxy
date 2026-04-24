@@ -88,7 +88,7 @@ mod tests {
     // returns a 500 with no upstream log body.
     #[test]
     fn stream_to_nonstream_reconstructs_codex_image_generation_output() {
-        let chunks = vec![
+        let chunks = [
             serde_json::to_vec(&json!({
                 "type": "response.output_item.added",
                 "item": {
