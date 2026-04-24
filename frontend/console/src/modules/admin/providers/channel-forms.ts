@@ -1,10 +1,11 @@
-type FieldType = "text" | "boolean" | "integer" | "textarea" | "json";
+type FieldType = "text" | "boolean" | "integer" | "textarea" | "json" | "select";
 
 export type ChannelField = {
   key: string;
   label: string;
   type: FieldType;
   optional?: boolean;
+  options?: { value: string; label: string }[];
 };
 
 type ChannelSettingsConfig = {
@@ -38,6 +39,17 @@ export const ALL_CHANNEL_IDS = [
 /// is always configurable regardless of channel type.
 const COMMON_SETTINGS_FIELDS: ChannelField[] = [
   { key: "max_retries_on_429", label: "max_retries_on_429", type: "integer", optional: true },
+  {
+    key: "rotation_strategy",
+    label: "rotation_strategy",
+    type: "select",
+    optional: true,
+    options: [
+      { value: "sticky", label: "sticky (固定首个 credential)" },
+      { value: "round_robin", label: "round_robin (顺序轮询)" },
+      { value: "cache_affinity", label: "cache_affinity (缓存亲和)" },
+    ],
+  },
   { key: "sanitize_rules", label: "sanitize_rules", type: "json", optional: true },
   { key: "rewrite_rules", label: "rewrite_rules", type: "json", optional: true },
 ];

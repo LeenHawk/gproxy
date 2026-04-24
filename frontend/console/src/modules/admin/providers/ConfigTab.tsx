@@ -172,6 +172,12 @@ export function ConfigTab({
                     onChange={(value) => updateSetting(field.key, value)}
                     rows={field.type === "json" ? 6 : 4}
                   />
+                ) : field.type === "select" ? (
+                  <Select
+                    value={form.settings[field.key] ?? ""}
+                    onChange={(value) => updateSetting(field.key, value)}
+                    options={field.options ?? []}
+                  />
                 ) : (
                   <Input
                     value={form.settings[field.key] ?? ""}

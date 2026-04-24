@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::affinity::{CacheAffinityHint, CacheAffinityPool};
-use gproxy_channel::channel::Channel;
+use gproxy_channel::channel::{Channel, RotationStrategy};
 use gproxy_channel::health::CredentialHealth;
 use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::{
@@ -157,6 +157,7 @@ pub struct RetryContext<'a, C: Channel> {
     pub affinity_hint: Option<&'a CacheAffinityHint>,
     pub affinity_pool: &'a CacheAffinityPool,
     pub round_robin_cursor: &'a AtomicUsize,
+    pub rotation_strategy: RotationStrategy,
     pub max_retries: u32,
     pub http_client: &'a wreq::Client,
     /// Browser-impersonating client for credentials that need cookie auth.
@@ -237,6 +238,7 @@ where
         affinity_hint,
         affinity_pool,
         round_robin_cursor,
+        rotation_strategy,
         max_retries,
         http_client,
         spoof_client,
@@ -265,7 +267,7 @@ where
         v.extend(eligible.iter().filter(|&&i| i != forced));
         v
     } else {
-        build_remaining_candidates(&eligible, round_robin_cursor, affinity_hint.is_some())
+        build_remaining_candidates(&eligible, round_robin_cursor, rotation_strategy)
     };
     let mut last_error = None;
     // Diagnostics for the most recent attempt that produced a usable
@@ -687,25 +689,34 @@ fn clear_affinity(
 fn build_remaining_candidates(
     eligible: &[usize],
     round_robin_cursor: &AtomicUsize,
-    use_random: bool,
+    strategy: RotationStrategy,
 ) -> Vec<usize> {
     if eligible.is_empty() {
         return Vec::new();
     }
 
-    if use_random {
-        // Random order: cache affinity will steer to the right credential,
-        // and random base order prevents sequential bias that undermines affinity.
-        use rand::seq::SliceRandom;
-        let mut candidates: Vec<usize> = eligible.to_vec();
-        candidates.shuffle(&mut rand::rng());
-        candidates
-    } else {
-        // Round-robin: deterministic rotation across credentials.
-        let start = round_robin_cursor.fetch_add(1, Ordering::Relaxed) % eligible.len();
-        (0..eligible.len())
-            .map(|offset| eligible[(start + offset) % eligible.len()])
-            .collect()
+    match strategy {
+        RotationStrategy::CacheAffinity => {
+            // Random order: cache affinity will steer to the right credential,
+            // and random base order prevents sequential bias that undermines affinity.
+            use rand::seq::SliceRandom;
+            let mut candidates: Vec<usize> = eligible.to_vec();
+            candidates.shuffle(&mut rand::rng());
+            candidates
+        }
+        RotationStrategy::RoundRobin => {
+            // Round-robin: deterministic rotation across credentials.
+            let start = round_robin_cursor.fetch_add(1, Ordering::Relaxed) % eligible.len();
+            (0..eligible.len())
+                .map(|offset| eligible[(start + offset) % eligible.len()])
+                .collect()
+        }
+        RotationStrategy::Sticky => {
+            // Always start from the first available credential; fall through
+            // to the next one only if it's unavailable / errors out. `eligible`
+            // is already sorted ascending by credential index.
+            eligible.to_vec()
+        }
     }
 }
 

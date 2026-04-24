@@ -196,6 +196,25 @@ pub trait Channel: Send + Sync + 'static {
 /// `base_url` is **not** part of this struct because every channel has
 /// a different default URL and needs its own `#[serde(default = "...")]`
 /// hook — it stays on the outer per-channel struct.
+/// Credential selection strategy across a provider's credential list.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RotationStrategy {
+    /// Always start from the first available credential. Falls through to
+    /// the next one only when the chosen credential is unavailable or
+    /// errors out. Effectively a primary-with-hot-backups mode.
+    Sticky,
+    /// Deterministic round-robin across all available credentials (the
+    /// default). Each request advances a shared cursor by one.
+    #[default]
+    RoundRobin,
+    /// Round-robin base ordering, but steer each request to the credential
+    /// that most recently served a similar prompt prefix (maximises upstream
+    /// prompt-cache hits). Requires the destination protocol to support
+    /// cache affinity hinting.
+    CacheAffinity,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CommonChannelSettings {
     /// Override the User-Agent header. `None` = use wreq's default.
@@ -206,6 +225,10 @@ pub struct CommonChannelSettings {
     /// `retry-after`. `None` = use the trait default (currently 3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_retries_on_429: Option<u32>,
+
+    /// Credential rotation strategy. See [`RotationStrategy`].
+    #[serde(default)]
+    pub rotation_strategy: RotationStrategy,
 
     /// Regex-based body-text sanitization rules applied after
     /// `finalize_request`. See [`crate::utils::sanitize`].
@@ -249,13 +272,13 @@ pub trait ChannelSettings:
             .and_then(|c| c.max_retries_on_429)
             .unwrap_or(3)
     }
-    /// Enable cache affinity for this channel.
-    /// When true, credentials are selected randomly and then pinned via the
-    /// affinity pool so that requests with similar prompts reuse the same
-    /// credential (maximising upstream prompt-cache hits).
-    /// When false (default), credentials are selected by round-robin.
-    fn enable_cache_affinity(&self) -> bool {
-        false
+    /// Credential selection strategy. Defaults to the value in
+    /// [`CommonChannelSettings::rotation_strategy`] (round-robin when the
+    /// channel has no common block).
+    fn rotation_strategy(&self) -> RotationStrategy {
+        self.common()
+            .map(|c| c.rotation_strategy)
+            .unwrap_or_default()
     }
     /// Regex-based sanitization rules applied to request body text
     /// before forwarding upstream. The engine calls this after

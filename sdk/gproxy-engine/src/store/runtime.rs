@@ -471,7 +471,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             let (credentials_snapshot, revision, mut creds, max_retries) =
                 self.prepare_retry_state();
             let settings = self.settings.load_full();
-            let effective_hint = if settings.enable_cache_affinity() {
+            let strategy = settings.rotation_strategy();
+            let effective_hint = if matches!(
+                strategy,
+                gproxy_channel::channel::RotationStrategy::CacheAffinity
+            ) {
                 affinity_hint
             } else {
                 None
@@ -485,6 +489,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                     affinity_hint: effective_hint.as_ref(),
                     affinity_pool: &self.affinity_pool,
                     round_robin_cursor: &self.round_robin_cursor,
+                    rotation_strategy: strategy,
                     max_retries,
                     http_client: client,
                     spoof_client,
@@ -526,7 +531,11 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             let (credentials_snapshot, revision, mut creds, max_retries) =
                 self.prepare_retry_state();
             let settings = self.settings.load_full();
-            let effective_hint = if settings.enable_cache_affinity() {
+            let strategy = settings.rotation_strategy();
+            let effective_hint = if matches!(
+                strategy,
+                gproxy_channel::channel::RotationStrategy::CacheAffinity
+            ) {
                 affinity_hint
             } else {
                 None
@@ -540,6 +549,7 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
                     affinity_hint: effective_hint.as_ref(),
                     affinity_pool: &self.affinity_pool,
                     round_robin_cursor: &self.round_robin_cursor,
+                    rotation_strategy: strategy,
                     max_retries,
                     http_client: client,
                     spoof_client,
