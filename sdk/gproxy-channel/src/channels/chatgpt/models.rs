@@ -1,46 +1,50 @@
 //! Hardcoded model catalog exposed via `ModelList` / `ModelGet`.
 //!
 //! chatgpt.com doesn't serve `/v1/models`; the client-side bundle ships
-//! the picker. This module provides a curated list based on the model
-//! slugs we've seen in the bundle
-//! (`target/samples/bundle_main.min.js`) plus the image models the
-//! `/f/conversation` API routes to.
+//! the picker. The catalog is maintained in `models.json` (compiled in
+//! via `include_str!`) so operators can update the list without
+//! touching Rust.
 //!
-//! The list is static at compile time; operators can override via
-//! gproxy's alias table if they want to expose different names.
+//! The list is a **fallback** when the dynamic upstream picker
+//! (`/backend-api/models/gpts`) is unreachable. The live picker is
+//! always preferred — slugs there vary by account plan / version /
+//! A/B group.
 
+use std::sync::OnceLock;
+
+use serde::Deserialize;
 use serde_json::{Value, json};
 
-/// The id that will be used when none is provided — also the first entry
-/// in the list response and the one `prepare_request` resolves unknown
-/// model names to.
-pub const DEFAULT_MODEL: &str = "gpt-5-4";
+const CATALOG_JSON: &str = include_str!("models.json");
+
+#[derive(Debug, Deserialize)]
+struct Catalog {
+    default_model: String,
+    models: Vec<String>,
+}
+
+fn catalog() -> &'static Catalog {
+    static CATALOG: OnceLock<Catalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        serde_json::from_str(CATALOG_JSON).expect("invalid built-in chatgpt models.json")
+    })
+}
+
+fn catalog_ids() -> &'static [&'static str] {
+    static IDS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    IDS.get_or_init(|| catalog().models.iter().map(String::as_str).collect())
+}
+
+/// The id used when none is provided — also the first entry in the
+/// list response and the one `prepare_request` resolves unknown model
+/// names to.
+pub fn default_model() -> &'static str {
+    catalog().default_model.as_str()
+}
 
 /// Returns the full list of model ids this channel reports.
-///
-/// Used as a **fallback** when the dynamic upstream picker
-/// (`/backend-api/models/gpts`) is unreachable. The live picker is
-/// always preferred — slugs there vary by account plan / version /
-/// A/B group. This list mirrors what a current Team account sees.
 pub fn known_model_ids() -> &'static [&'static str] {
-    &[
-        // gpt-5 family — observed slugs in /backend-api/models/gpts
-        "gpt-5-2-instant",
-        "gpt-5-2-pro",
-        "gpt-5-2-thinking",
-        "gpt-5-3",
-        "gpt-5-3-instant",
-        "gpt-5-4",
-        "gpt-5-4-pro",
-        "gpt-5-4-thinking",
-        // Reasoning model
-        "o3",
-        // Image models — routed to /f/conversation but not in the
-        // editor's models_list, so we hardcode them here too.
-        "gpt-image-1",
-        "gpt-image-1-mini",
-        "gpt-image-1.5",
-    ]
+    catalog_ids()
 }
 
 /// Build an OpenAI-compatible `GET /v1/models` response body.
@@ -101,6 +105,7 @@ mod tests {
             .collect();
         assert!(ids.contains(&"gpt-5-3"));
         assert!(ids.contains(&"gpt-5-4-thinking"));
+        assert!(ids.contains(&"gpt-5-5"));
         assert!(ids.contains(&"gpt-image-1"));
         assert!(ids.contains(&"o3"));
     }
@@ -116,5 +121,11 @@ mod tests {
     #[test]
     fn get_unknown_model_returns_none() {
         assert!(openai_model_get_body("gpt-made-up").is_none());
+    }
+
+    #[test]
+    fn default_model_is_defined() {
+        assert!(!default_model().is_empty());
+        assert!(known_model_ids().contains(&default_model()));
     }
 }

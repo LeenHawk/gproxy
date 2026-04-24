@@ -1,0 +1,21 @@
+{
+  "default_model": "gpt-5-4",
+  "models": [
+    "gpt-5-2-instant",
+    "gpt-5-2-pro",
+    "gpt-5-2-thinking",
+    "gpt-5-3",
+    "gpt-5-3-instant",
+    "gpt-5-4",
+    "gpt-5-4-pro",
+    "gpt-5-4-thinking",
+    "gpt-5-5",
+    "gpt-5-5-instant",
+    "gpt-5-5-pro",
+    "gpt-5-5-thinking",
+    "o3",
+    "gpt-image-1",
+    "gpt-image-1-mini",
+    "gpt-image-1.5"
+  ]
+}
