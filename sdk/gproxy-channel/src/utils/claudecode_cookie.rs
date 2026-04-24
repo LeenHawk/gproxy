@@ -84,9 +84,17 @@ pub(crate) async fn exchange_tokens_with_cookie(
 
     let auth_req_body = serde_json::to_vec(&payload).unwrap_or_default();
     let auth_start = std::time::Instant::now();
+    // The `/v1/oauth/<org>/authorize` endpoint is gated by the same
+    // `anthropic-beta: oauth-2025-04-20` feature as `/v1/oauth/token`.
+    // Without these three headers Anthropic returns
+    // `permission_error: Invalid authorization for organization` even
+    // when the sessionKey cookie is valid and the org UUID matches.
     let response = client
         .post(&auth_url)
         .headers(build_cookie_headers(cookie, ai_base)?)
+        .header("anthropic-version", API_VERSION)
+        .header("anthropic-beta", OAUTH_BETA)
+        .header("user-agent", USER_AGENT)
         .header("content-type", "application/json")
         .body(auth_req_body.clone())
         .send()
