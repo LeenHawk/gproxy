@@ -8,14 +8,14 @@ pub use crate::openai::count_tokens::types::{
     ResponseComputerToolCall, ResponseConversation, ResponseConversationParam,
     ResponseCustomToolCall, ResponseCustomToolCallOutput, ResponseFileSearchToolCall,
     ResponseFunctionCallOutput, ResponseFunctionToolCall, ResponseFunctionWebSearch,
-    ResponseImageGenerationCall, ResponseInput, ResponseInputFile, ResponseInputImage,
-    ResponseInputItem, ResponseInputText, ResponseItemReference, ResponseLocalShellCall,
-    ResponseLocalShellCallOutput, ResponseMcpApprovalRequest, ResponseMcpApprovalResponse,
-    ResponseMcpCall, ResponseMcpListTools, ResponseMessagePhase, ResponseOutputMessage,
-    ResponseOutputRefusal, ResponseOutputText, ResponseReasoning, ResponseReasoningItem,
-    ResponseReasoningTextContent, ResponseShellCall, ResponseShellCallOutput,
-    ResponseSummaryTextContent, ResponseTextConfig, ResponseTool, ResponseToolChoice,
-    ResponseToolSearchCall, ResponseToolSearchOutput, ResponseTruncation,
+    ResponseImageGenerationCallStatus, ResponseImageGenerationCallType, ResponseInput,
+    ResponseInputFile, ResponseInputImage, ResponseInputItem, ResponseInputText,
+    ResponseItemReference, ResponseLocalShellCall, ResponseLocalShellCallOutput,
+    ResponseMcpApprovalRequest, ResponseMcpApprovalResponse, ResponseMcpCall, ResponseMcpListTools,
+    ResponseMessagePhase, ResponseOutputMessage, ResponseOutputRefusal, ResponseOutputText,
+    ResponseReasoning, ResponseReasoningItem, ResponseReasoningTextContent, ResponseShellCall,
+    ResponseShellCallOutput, ResponseSummaryTextContent, ResponseTextConfig, ResponseTool,
+    ResponseToolChoice, ResponseToolSearchCall, ResponseToolSearchOutput, ResponseTruncation,
 };
 pub use crate::openai::types::{
     HttpMethod, OpenAiApiError, OpenAiApiErrorResponse, OpenAiResponseHeaders,
@@ -198,7 +198,7 @@ pub enum ResponseOutputItem {
     FunctionCallOutput(ResponseFunctionCallOutput),
     ReasoningItem(ResponseReasoningItem),
     CompactionItem(ResponseCompactionItemParam),
-    ImageGenerationCall(ResponseImageGenerationCall),
+    ImageGenerationCall(ResponseOutputImageGenerationCall),
     CodeInterpreterToolCall(ResponseCodeInterpreterToolCall),
     LocalShellCall(ResponseLocalShellCall),
     LocalShellCallOutput(ResponseLocalShellCallOutput),
@@ -213,6 +213,42 @@ pub enum ResponseOutputItem {
     CustomToolCallOutput(ResponseCustomToolCallOutput),
     CustomToolCall(ResponseCustomToolCall),
     ItemReference(ResponseItemReference),
+}
+
+/// Image generation call as it appears inside a Responses API `output` array
+/// and inside `response.output_item.added` / `response.output_item.done`
+/// streaming events.
+///
+/// This is intentionally looser than `count_tokens::ResponseImageGenerationCall`
+/// (the "final, completed item" shape used as input to count-tokens). The
+/// streaming lifecycle emits the item on `output_item.added` before the image
+/// exists — `result` is only populated when the generation completes, and the
+/// Codex backend additionally ships runtime metadata (`action`, `background`,
+/// `output_format`, `quality`, `size`, `revised_prompt`) that isn't in the
+/// OpenAI public spec. Keeping the input schema strict while the output schema
+/// tolerates partial snapshots avoids breaking `ResponseOutputItem`
+/// deserialization on `output_item.added` without loosening the count-tokens
+/// contract.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseOutputImageGenerationCall {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<String>,
+    pub status: ResponseImageGenerationCallStatus,
+    #[serde(rename = "type")]
+    pub type_: ResponseImageGenerationCallType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_format: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revised_prompt: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

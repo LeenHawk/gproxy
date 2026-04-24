@@ -346,11 +346,11 @@ impl TryFrom<OpenAiCreateResponseResponse> for ClaudeCreateMessageResponse {
                             ));
                         }
                         ResponseOutputItem::ImageGenerationCall(call)
-                            if !call.result.is_empty() =>
+                            if call.result.as_deref().is_some_and(|s| !s.is_empty()) =>
                         {
                             content.push(BetaContentBlock::Text(BetaTextBlock {
                                 citations: None,
-                                text: call.result,
+                                text: call.result.unwrap_or_default(),
                                 type_: BetaTextBlockType::Text,
                             }));
                         }

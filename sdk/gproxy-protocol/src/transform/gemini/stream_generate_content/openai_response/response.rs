@@ -277,7 +277,7 @@ impl OpenAiResponseToGeminiStream {
                 }
             }
             ResponseOutputItem::ImageGenerationCall(call) => {
-                if let Some(chunk) = self.text_chunk(call.result) {
+                if let Some(chunk) = call.result.and_then(|r| self.text_chunk(r)) {
                     out.push(chunk);
                 }
             }

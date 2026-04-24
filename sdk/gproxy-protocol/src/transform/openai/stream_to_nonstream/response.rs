@@ -74,3 +74,97 @@ impl TryFrom<Vec<ResponseStreamEvent>> for OpenAiCreateResponseResponse {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::kinds::ProtocolKind;
+    use serde_json::{Value, json};
+
+    // Mirrors what chatgpt.com/backend-api/codex/responses actually sends for
+    // a `tools:[{type:image_generation}]` call: `output_item.added` ships the
+    // image item WITHOUT `result`, and the base64 only lands on
+    // `output_item.done`. The ResponseOutputItem untagged enum must still
+    // match the added frame — otherwise aggregation fails and the handler
+    // returns a 500 with no upstream log body.
+    #[test]
+    fn stream_to_nonstream_reconstructs_codex_image_generation_output() {
+        let chunks = vec![
+            serde_json::to_vec(&json!({
+                "type": "response.output_item.added",
+                "item": {
+                    "id": "ig_1",
+                    "type": "image_generation_call",
+                    "status": "in_progress"
+                },
+                "output_index": 0,
+                "sequence_number": 2
+            }))
+            .expect("serialize output_item.added"),
+            serde_json::to_vec(&json!({
+                "type": "response.image_generation_call.partial_image",
+                "background": "opaque",
+                "item_id": "ig_1",
+                "output_format": "png",
+                "output_index": 0,
+                "partial_image_b64": "Zm9v",
+                "partial_image_index": 0,
+                "revised_prompt": "cute gray tabby cat hugging an otter",
+                "size": "1122x1402",
+                "sequence_number": 7
+            }))
+            .expect("serialize partial_image"),
+            serde_json::to_vec(&json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "ig_1",
+                    "type": "image_generation_call",
+                    "status": "completed",
+                    "action": "generate",
+                    "background": "opaque",
+                    "output_format": "png",
+                    "quality": "medium",
+                    "result": "iVBORw0KGgo="
+                },
+                "output_index": 0,
+                "sequence_number": 11
+            }))
+            .expect("serialize output_item.done"),
+            serde_json::to_vec(&json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp_1",
+                    "created_at": 1776994440u64,
+                    "metadata": {},
+                    "model": "gpt-5.5",
+                    "object": "response",
+                    "output": [],
+                    "parallel_tool_calls": true,
+                    "temperature": 1.0,
+                    "tool_choice": {
+                        "type": "image_generation"
+                    },
+                    "tools": [{
+                        "type": "image_generation"
+                    }],
+                    "top_p": 0.98,
+                    "status": "completed"
+                },
+                "sequence_number": 13
+            }))
+            .expect("serialize response.completed"),
+        ];
+        let chunk_refs = chunks.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
+        let body = crate::transform::dispatch::stream_to_nonstream(
+            ProtocolKind::OpenAiResponse,
+            &chunk_refs,
+        )
+        .expect("aggregate image response stream");
+        let json: Value = serde_json::from_slice(&body).expect("parse aggregated response");
+
+        assert_eq!(json.get("status").and_then(Value::as_str), Some("completed"));
+        assert_eq!(json["output"][0]["type"], "image_generation_call");
+        assert_eq!(json["output"][0]["status"], "completed");
+        assert_eq!(json["output"][0]["result"], "iVBORw0KGgo=");
+    }
+}

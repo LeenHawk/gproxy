@@ -555,8 +555,8 @@ impl OpenAiResponseToClaudeStream {
                 self.emit_text_block(out, format!("compaction: {}", item.encrypted_content));
             }
             ResponseOutputItem::ImageGenerationCall(item) => {
-                if !item.result.is_empty() {
-                    self.emit_text_block(out, item.result);
+                if let Some(result) = item.result.filter(|s| !s.is_empty()) {
+                    self.emit_text_block(out, result);
                 }
             }
             ResponseOutputItem::ItemReference(item) => {

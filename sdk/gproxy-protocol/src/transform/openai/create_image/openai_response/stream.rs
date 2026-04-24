@@ -64,8 +64,8 @@ impl ResponseStreamToImageStream {
         let rt::ResponseOutputItem::ImageGenerationCall(call) = item else {
             return;
         };
-        if !call.result.is_empty() {
-            self.results.insert(call.id.clone(), call.result.clone());
+        if let Some(result) = call.result.as_deref().filter(|s| !s.is_empty()) {
+            self.results.insert(call.id.clone(), result.to_string());
         }
     }
 

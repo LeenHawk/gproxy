@@ -349,7 +349,7 @@ pub(crate) fn create_image_response_body_from_response(
         .into_iter()
         .filter_map(|item| match item {
             rt::ResponseOutputItem::ImageGenerationCall(call) => Some(it::OpenAiGeneratedImage {
-                b64_json: (!call.result.is_empty()).then_some(call.result),
+                b64_json: call.result.filter(|s| !s.is_empty()),
                 ..Default::default()
             }),
             _ => None,

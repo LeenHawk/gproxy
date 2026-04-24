@@ -215,10 +215,10 @@ impl TryFrom<OpenAiCreateResponseResponse> for GeminiGenerateContentResponse {
                             }
                         }
                         ResponseOutputItem::ImageGenerationCall(call)
-                            if !call.result.is_empty() =>
+                            if call.result.as_deref().is_some_and(|s| !s.is_empty()) =>
                         {
                             parts.push(GeminiPart {
-                                text: Some(call.result),
+                                text: Some(call.result.unwrap_or_default()),
                                 ..GeminiPart::default()
                             });
                         }
