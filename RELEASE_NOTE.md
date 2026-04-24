@@ -1,5 +1,37 @@
 # Release Notes
 
+## v1.0.20
+
+### ChatGPT 渠道重构
+
+- **system_hints 透传 + model 后缀工具别名**：OpenAI 兼容请求体可通过三种方式触发 chatgpt.com 内置工具 —— 原始 id `{"system_hints":["picture_v2","search"]}`、`extra_body.tools_hint` 友好别名、以及 `model: "gpt-5@image"` 的尾缀语法;后缀表覆盖 image / search / study / agent / canvas / connectors / company / deep-research / quiz
+- **硬编码工具映射迁移到 rewrite_rules**：删除 Rust 侧 `TOOL_SUFFIXES`、`@<tool>`/`:<tool>` 解析器、`tools_hint` 友好别名、以及 `resolve_model` 里的 `gpt-5`/`gpt-5-thinking`/`gpt-5-pro`/`gpt-5-instant` 重映射 —— 这些能力现在完全由数据驱动的 rewrite_rules 实现,可在管理控制台里配置
+- **去掉独立 chatgpt 预设协议**：后缀变体(image-gen / web search / deep research)改为输出标准 OpenAI Responses-API 形状(`tools: [{type}]` + `tool_choice`),同一条 DB 别名可跨 codex / openai(透传)与 chatgpt(翻译)复用
+- **工具类型提取扩展**：chatgpt 的 `extract_system_hints` 现在同时读 `body.tools[*].type`,把 `image_generation` → picture_v2、`web_search[_preview]` → search、`deep_research` → `connector:connector_openai_deep_research`;未知 tool 类型在 chatgpt 路径上静默丢弃
+
+### 模型 & 计费
+
+- **DeepSeek V4 上线**：上游精简为 `deepseek-v4-flash` / `deepseek-v4-pro` 两个模型,`deepseek-chat` / `deepseek-reasoner` 保留为兼容别名,分别映射到 flash 的非思考 / 思考模式;前端 `PRICING_TEMPLATES` 同步更新
+- **gpt-5.5 系列模型与定价**：`data/models/` JSON 文件新增 gpt-5.5 系列条目与定价结构
+
+### 协议与引擎修复
+
+- **保留上游 meta 即便流聚合 / 转换失败**：`execute_inner` 捕获的 upstream status + body + latency 之前会被 `aggregate_stream_body?` / `transform_response?` 的 blanket `From<TransformError>` 推入 `ExecuteError::bare`(meta: None),导致 admin 上游日志显示 500 / 空响应 / 0ms。现在统一通过 `map_err` 把 `UpstreamRequestMeta` 附到转换失败路径上,schema 漂移等错误有完整取证
+- **Responses API keepalive SSE 帧**:Codex 后端中途下发 `event: keepalive`,不在 OpenAI 公开的 Responses 流式规范里,之前被 tag-discriminated 枚举拒绝,整个 SSE 变 500。给 `ResponseStreamEvent` / `ImageGenerationStreamEvent` / `ImageEditStreamEvent` 补 Keepalive 变体
+- **image_generation_call 输入 / 输出 schema 分离**:`response.output_item.added` 帧里的 image_generation_call 只有 `{id,type,status}`(还没结果),之前复用了要求 `result: String` 的 count_tokens 输入类型导致解析失败。新增 `ResponseOutputImageGenerationCall`:`result: Option<String>` 并带 Codex 运行时元数据(action / background / output_format / quality / size / revised_prompt),输入类型保持规范严格
+
+### ClaudeCode
+
+- **magic cache_control 跳过 thinking 块**(同步 sgproxy 676c86c):`thinking` / `redacted_thinking` 块不能携带 `cache_control`,注入阶段跳过,计数阶段也不占 4 槽上限
+- **保留 `speed` 字段**:移除 `normalize_claudecode_unsupported_fields` —— `speed` 原样透传给上游
+
+### 其他
+
+- **CodeQL 代码质量扫描工作流**
+- **OpenRouter base_url 修正**:前端 channel-forms 去掉多余版本号段
+- **astro 6.1.5 → 6.1.9**:修 GHSA-j687-52p2-xcff (CVE-2026-41067, define:vars XSS);docs 站静态构建未暴露,仅清理告警
+- **ChatGPT 集成测试清理**:`tests/chatgpt_stream_pipeline.rs` 用 `include_bytes!` 引用 target/samples/ 里未入库的 HAR 导致新 checkout 编译失败,连同 `tests/chatgpt_live_e2e.rs`(需 live 访问 + access token)一并删除;活跃回归覆盖继续放在 target/scripts/ 本地 Python harness
+
 ## v1.0.19
 
 ### 新渠道：ChatGPT Web
