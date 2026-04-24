@@ -7,7 +7,12 @@
 // body-only rewrite rules. Those are marked with `unsupported: true` and
 // filtered out of the UI.
 
-export type SuffixProtocol = "claude" | "openai_response" | "openai_chat_completions" | "gemini";
+export type SuffixProtocol =
+  | "claude"
+  | "openai_response"
+  | "openai_chat_completions"
+  | "gemini"
+  | "chatgpt";
 
 export type SuffixActionSetBody = {
   kind: "set";
@@ -100,6 +105,20 @@ const OPENAI_RESPONSE_GROUPS: SuffixGroup[] = [
       { suffix: "-effort-high", label: "verbosity: high", actions: [{ kind: "set", path: "text", value: { verbosity: "high" } }] },
     ],
   },
+  {
+    key: "tool",
+    label: "Forced Tool",
+    entries: [
+      {
+        suffix: "-image-generation",
+        label: "force image_generation tool",
+        actions: [
+          { kind: "set", path: "tools", value: [{ type: "image_generation" }] },
+          { kind: "set", path: "tool_choice", value: { type: "image_generation" } },
+        ],
+      },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -158,11 +177,46 @@ const GEMINI_GROUPS: SuffixGroup[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// ChatGPT (chatgpt.com /backend-api/f/conversation)
+// ---------------------------------------------------------------------------
+// Upstream-native body fields: `thinking_effort` (string) and `system_hints`
+// (array of upstream-ids). `extract_system_hints` in the chatgpt channel
+// reads `body.system_hints` verbatim, so rewrite rules just set the array.
+
+const CHATGPT_GROUPS: SuffixGroup[] = [
+  {
+    key: "thinking",
+    label: "Thinking",
+    entries: [
+      { suffix: "-thinking-standard", label: "thinking_effort: standard", actions: [{ kind: "set", path: "thinking_effort", value: "standard" }] },
+      { suffix: "-thinking-extended", label: "thinking_effort: extended", actions: [{ kind: "set", path: "thinking_effort", value: "extended" }] },
+      { suffix: "-thinking-max", label: "thinking_effort: max", actions: [{ kind: "set", path: "thinking_effort", value: "max" }] },
+    ],
+  },
+  {
+    key: "tool",
+    label: "Built-in Tool",
+    entries: [
+      { suffix: "-image-generation", label: "image generation (picture_v2)", actions: [{ kind: "set", path: "system_hints", value: ["picture_v2"] }] },
+      { suffix: "-search", label: "web search", actions: [{ kind: "set", path: "system_hints", value: ["search"] }] },
+      { suffix: "-study", label: "study mode (tatertot)", actions: [{ kind: "set", path: "system_hints", value: ["tatertot"] }] },
+      { suffix: "-canvas", label: "canvas", actions: [{ kind: "set", path: "system_hints", value: ["canvas"] }] },
+      { suffix: "-agent", label: "agent", actions: [{ kind: "set", path: "system_hints", value: ["agent"] }] },
+      { suffix: "-connectors", label: "connectors (slurm)", actions: [{ kind: "set", path: "system_hints", value: ["slurm"] }] },
+      { suffix: "-company", label: "company (glaux)", actions: [{ kind: "set", path: "system_hints", value: ["glaux"] }] },
+      { suffix: "-deep-research", label: "deep research", actions: [{ kind: "set", path: "system_hints", value: ["connector:connector_openai_deep_research"] }] },
+      { suffix: "-quiz", label: "quiz (quizgpt)", actions: [{ kind: "set", path: "system_hints", value: ["connector:connector_openai_quizgpt_v2"] }] },
+    ],
+  },
+];
+
 export const SUFFIX_GROUPS_BY_PROTOCOL: Record<SuffixProtocol, SuffixGroup[]> = {
   claude: CLAUDE_GROUPS,
   openai_response: OPENAI_RESPONSE_GROUPS,
   openai_chat_completions: OPENAI_CHAT_GROUPS,
   gemini: GEMINI_GROUPS,
+  chatgpt: CHATGPT_GROUPS,
 };
 
 export const SUFFIX_PROTOCOL_LABELS: Record<SuffixProtocol, string> = {
@@ -170,6 +224,7 @@ export const SUFFIX_PROTOCOL_LABELS: Record<SuffixProtocol, string> = {
   openai_response: "OpenAI Responses API",
   openai_chat_completions: "OpenAI Chat Completions",
   gemini: "Gemini",
+  chatgpt: "ChatGPT (chatgpt.com)",
 };
 
 /// Guess the default protocol from a channel name. Falls back to openai_response.
@@ -184,6 +239,8 @@ export function suffixProtocolForChannel(channel: string | undefined): SuffixPro
     case "geminicli":
     case "antigravity":
       return "gemini";
+    case "chatgpt":
+      return "chatgpt";
     default:
       return "openai_response";
   }
