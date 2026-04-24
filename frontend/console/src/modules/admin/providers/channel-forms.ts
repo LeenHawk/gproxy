@@ -189,7 +189,7 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     ],
   },
   openrouter: {
-    defaults: { base_url: "https://openrouter.ai/api/v1", user_agent: "" },
+    defaults: { base_url: "https://openrouter.ai/api", user_agent: "" },
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
