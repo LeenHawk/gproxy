@@ -162,7 +162,10 @@ mod tests {
         .expect("aggregate image response stream");
         let json: Value = serde_json::from_slice(&body).expect("parse aggregated response");
 
-        assert_eq!(json.get("status").and_then(Value::as_str), Some("completed"));
+        assert_eq!(
+            json.get("status").and_then(Value::as_str),
+            Some("completed")
+        );
         assert_eq!(json["output"][0]["type"], "image_generation_call");
         assert_eq!(json["output"][0]["status"], "completed");
         assert_eq!(json["output"][0]["result"], "iVBORw0KGgo=");
