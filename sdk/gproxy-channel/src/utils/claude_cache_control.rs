@@ -246,10 +246,26 @@ fn strip_and_apply_magic_trigger(
     let Some(ttl) = remove_magic_trigger_tokens(text) else {
         return;
     };
-    if *remaining_slots > 0 && !block_map.contains_key("cache_control") {
+    if *remaining_slots > 0
+        && !block_map.contains_key("cache_control")
+        && block_supports_direct_cache_control(block_map)
+    {
         block_map.insert("cache_control".to_string(), cache_control_ephemeral(ttl));
         *remaining_slots = remaining_slots.saturating_sub(1);
     }
+}
+
+/// Whether a content block can legally carry `cache_control` directly.
+///
+/// Anthropic rejects `cache_control` on `thinking` / `redacted_thinking`
+/// blocks. Empty `text` blocks are allowed here because
+/// `sanitize_claude_body` later drops them and shifts the marker onto the
+/// previous anchor — rejecting them at injection time would lose that shift.
+fn block_supports_direct_cache_control(block_map: &serde_json::Map<String, Value>) -> bool {
+    !matches!(
+        block_map.get("type").and_then(Value::as_str),
+        Some("thinking" | "redacted_thinking")
+    )
 }
 
 fn remove_magic_trigger_tokens(text: &mut String) -> Option<CacheBreakpointTtl> {
@@ -627,10 +643,14 @@ fn existing_cache_breakpoint_count(root: &serde_json::Map<String, Value>) -> usi
             count += blocks
                 .iter()
                 .filter_map(Value::as_object)
-                .filter(|item| item.contains_key("cache_control"))
+                .filter(|item| {
+                    item.contains_key("cache_control") && block_supports_direct_cache_control(item)
+                })
                 .count();
         }
-        Some(Value::Object(item)) if item.contains_key("cache_control") => {
+        Some(Value::Object(item))
+            if item.contains_key("cache_control") && block_supports_direct_cache_control(item) =>
+        {
             count += 1;
         }
         _ => {}
@@ -649,10 +669,16 @@ fn existing_cache_breakpoint_count(root: &serde_json::Map<String, Value>) -> usi
                     count += blocks
                         .iter()
                         .filter_map(Value::as_object)
-                        .filter(|item| item.contains_key("cache_control"))
+                        .filter(|item| {
+                            item.contains_key("cache_control")
+                                && block_supports_direct_cache_control(item)
+                        })
                         .count();
                 }
-                Value::Object(item) if item.contains_key("cache_control") => {
+                Value::Object(item)
+                    if item.contains_key("cache_control")
+                        && block_supports_direct_cache_control(item) =>
+                {
                     count += 1;
                 }
                 _ => {}
