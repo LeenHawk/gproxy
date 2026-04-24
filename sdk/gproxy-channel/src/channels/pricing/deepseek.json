@@ -1,12 +1,36 @@
 [
   {
+    "model_id": "deepseek-v4-flash",
+    "display_name": "DeepSeek V4 Flash",
+    "price_tiers": [
+      {
+        "input_tokens_up_to": 100000000,
+        "price_input_tokens": 0.14,
+        "price_output_tokens": 0.28,
+        "price_cache_read_input_tokens": 0.028
+      }
+    ]
+  },
+  {
+    "model_id": "deepseek-v4-pro",
+    "display_name": "DeepSeek V4 Pro",
+    "price_tiers": [
+      {
+        "input_tokens_up_to": 100000000,
+        "price_input_tokens": 1.68,
+        "price_output_tokens": 3.36,
+        "price_cache_read_input_tokens": 0.14
+      }
+    ]
+  },
+  {
     "model_id": "deepseek-chat",
     "display_name": "DeepSeek Chat",
     "price_tiers": [
       {
         "input_tokens_up_to": 100000000,
-        "price_input_tokens": 0.28,
-        "price_output_tokens": 0.42,
+        "price_input_tokens": 0.14,
+        "price_output_tokens": 0.28,
         "price_cache_read_input_tokens": 0.028
       }
     ]
@@ -17,8 +41,8 @@
     "price_tiers": [
       {
         "input_tokens_up_to": 100000000,
-        "price_input_tokens": 0.28,
-        "price_output_tokens": 0.42,
+        "price_input_tokens": 0.14,
+        "price_output_tokens": 0.28,
         "price_cache_read_input_tokens": 0.028
       }
     ]
