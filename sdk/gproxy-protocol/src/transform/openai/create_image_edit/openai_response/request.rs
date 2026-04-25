@@ -95,7 +95,7 @@ fn create_image_edit_to_response_request(
                 crate::openai::create_response::types::ResponseTool::ImageGeneration(image_tool),
             ]),
             tool_choice: Some(image_tool_choice()),
-            stream: Some(true),
+            stream: body.stream,
             user: body.user.clone(),
             ..ResponseRequestBody::default()
         },
