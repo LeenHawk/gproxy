@@ -223,7 +223,7 @@ pub enum ResponseOutputContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResponseOutputText {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub annotations: Vec<ResponseOutputTextAnnotation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logprobs: Option<Vec<ResponseOutputTokenLogprob>>,
