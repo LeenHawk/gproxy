@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use http::StatusCode;
 
+use crate::openai::count_tokens::types::ResponseImageGenerationCallStatus;
 use crate::openai::create_response::response::OpenAiCreateResponseResponse;
 use crate::openai::create_response::stream::{ResponseStreamErrorPayload, ResponseStreamEvent};
 use crate::openai::create_response::types::{
@@ -36,8 +37,25 @@ impl TryFrom<Vec<ResponseStreamEvent>> for OpenAiCreateResponseResponse {
                     latest_response = Some(response);
                 }
                 ResponseStreamEvent::OutputItemDone {
-                    item, output_index, ..
+                    mut item,
+                    output_index,
+                    ..
                 } => {
+                    // Codex ships `output_item.done` for image_generation_call
+                    // with `status:"generating"` even though the item is final
+                    // (the result base64 is fully populated and no further
+                    // events follow). Normalize to `completed` so non-stream
+                    // consumers see a terminal status, matching the OpenAI
+                    // Responses API spec.
+                    if let ResponseOutputItem::ImageGenerationCall(call) = &mut item
+                        && matches!(
+                            call.status,
+                            ResponseImageGenerationCallStatus::Generating
+                                | ResponseImageGenerationCallStatus::InProgress
+                        )
+                    {
+                        call.status = ResponseImageGenerationCallStatus::Completed;
+                    }
                     output_items.insert(output_index, item);
                 }
                 ResponseStreamEvent::Error { error, .. } => stream_error = Some(error),
@@ -169,5 +187,55 @@ mod tests {
         assert_eq!(json["output"][0]["type"], "image_generation_call");
         assert_eq!(json["output"][0]["status"], "completed");
         assert_eq!(json["output"][0]["result"], "iVBORw0KGgo=");
+    }
+
+    // Codex's `output_item.done` for image_generation_call ships
+    // `status:"generating"` even though the item is final — the aggregator
+    // must normalize that to `"completed"` so downstream Zod / spec
+    // validators don't reject the non-stream response.
+    #[test]
+    fn stream_to_nonstream_normalizes_codex_generating_status_to_completed() {
+        let chunks = [
+            serde_json::to_vec(&json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "ig_1",
+                    "type": "image_generation_call",
+                    "status": "generating",
+                    "result": "iVBORw0KGgo="
+                },
+                "output_index": 0,
+                "sequence_number": 1
+            }))
+            .expect("serialize output_item.done"),
+            serde_json::to_vec(&json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp_1",
+                    "created_at": 1u64,
+                    "metadata": {},
+                    "model": "gpt-5.5",
+                    "object": "response",
+                    "output": [],
+                    "parallel_tool_calls": true,
+                    "temperature": 1.0,
+                    "tool_choice": {"type": "image_generation"},
+                    "tools": [{"type": "image_generation"}],
+                    "top_p": 0.98,
+                    "status": "completed"
+                },
+                "sequence_number": 2
+            }))
+            .expect("serialize response.completed"),
+        ];
+        let chunk_refs = chunks.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
+        let body = crate::transform::dispatch::stream_to_nonstream(
+            ProtocolKind::OpenAiResponse,
+            &chunk_refs,
+        )
+        .expect("aggregate");
+        let json: Value = serde_json::from_slice(&body).expect("parse");
+        assert_eq!(json["output"][0]["status"], "completed");
     }
 }
