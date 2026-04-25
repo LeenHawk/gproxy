@@ -109,10 +109,18 @@ const OPENAI_RESPONSE_GROUPS: SuffixGroup[] = [
     label: "Forced Tool",
     entries: [
       {
-        suffix: "-image-generation",
-        label: "force image_generation",
+        suffix: "-image-generate",
+        label: "force image_generation (generate)",
         actions: [
-          { kind: "set", path: "tools", value: [{ type: "image_generation" }] },
+          { kind: "set", path: "tools", value: [{ type: "image_generation", action: "generate" }] },
+          { kind: "set", path: "tool_choice", value: { type: "image_generation" } },
+        ],
+      },
+      {
+        suffix: "-image-edit",
+        label: "force image_generation (edit)",
+        actions: [
+          { kind: "set", path: "tools", value: [{ type: "image_generation", action: "edit" }] },
           { kind: "set", path: "tool_choice", value: { type: "image_generation" } },
         ],
       },
