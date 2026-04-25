@@ -8,15 +8,11 @@ use serde::{Deserialize, Serialize};
 /// long-lived `staging` tag, refreshed continuously for preview builds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UpdateChannel {
+    #[default]
     Release,
     Staging,
-}
-
-impl Default for UpdateChannel {
-    fn default() -> Self {
-        UpdateChannel::Release
-    }
 }
 
 impl UpdateChannel {
