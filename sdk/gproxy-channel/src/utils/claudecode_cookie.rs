@@ -383,11 +383,37 @@ async fn fetch_org_info(
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    // Claude Code OAuth (`/v1/oauth/<org>/authorize` with the
+    // `user:inference`/`user:sessions:claude_code` scopes) is gated to
+    // organizations that carry a subscription capability
+    // (`claude_pro`/`claude_max`/`claude_team`/`claude_enterprise`).
+    // API-only organizations (capabilities: ["api"]) return
+    // `permission_error: Invalid authorization for organization`, even when
+    // they appear first in the memberships list. Filter accordingly.
+    const SUBSCRIPTION_CAPS: &[&str] = &[
+        "claude_pro",
+        "claude_max",
+        "claude_team",
+        "claude_enterprise",
+    ];
     if let Some(org_obj) = value
         .get("account")
         .and_then(|a| a.get("memberships"))
         .and_then(|m| m.as_array())
-        .and_then(|arr| arr.iter().find_map(|m| m.get("organization")))
+        .and_then(|arr| {
+            arr.iter().filter_map(|m| m.get("organization")).find(|o| {
+                o.get("capabilities")
+                    .and_then(|c| c.as_array())
+                    .map(|caps| {
+                        caps.iter().any(|c| {
+                            c.as_str()
+                                .map(|s| SUBSCRIPTION_CAPS.contains(&s))
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(false)
+            })
+        })
         && let Some(uuid) = org_obj.get("uuid").and_then(|u| u.as_str())
     {
         return Ok(OrgInfo {
@@ -435,7 +461,11 @@ async fn fetch_org_info(
         .and_then(|arr| {
             arr.iter().find_map(|o| {
                 let caps = o.get("capabilities")?.as_array()?;
-                if caps.iter().any(|c| c.as_str() == Some("chat")) {
+                if caps.iter().any(|c| {
+                    c.as_str()
+                        .map(|s| SUBSCRIPTION_CAPS.contains(&s))
+                        .unwrap_or(false)
+                }) {
                     let uuid = o.get("uuid").and_then(|u| u.as_str())?.to_string();
                     Some(OrgInfo {
                         uuid,
@@ -450,7 +480,11 @@ async fn fetch_org_info(
                 }
             })
         })
-        .ok_or_else(|| UpstreamError::Channel("cookie auth: no chat-capable organization".into()))
+        .ok_or_else(|| {
+            UpstreamError::Channel(
+                "cookie auth: no subscription-capable organization (claude_pro/claude_max/claude_team/claude_enterprise)".into(),
+            )
+        })
 }
 
 fn build_cookie_headers(
