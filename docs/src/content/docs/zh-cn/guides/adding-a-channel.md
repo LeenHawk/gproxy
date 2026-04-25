@@ -8,7 +8,7 @@ description: 如何在 GPROXY 中实现一个新的上游通道 —— Channel t
 注册 —— SDK 和 server 就都能自动发现它。
 
 本页只给最少步骤。请把这一页和现有通道
-[`sdk/gproxy-provider/src/channels/`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/channels/)
+[`sdk/gproxy-channel/src/channels/`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channels/)
 一起看 —— 现有通道是权威参考，新通道通常从"复制最接近的那个"开始。
 
 ## 组成部分
@@ -28,7 +28,7 @@ description: 如何在 GPROXY 中实现一个新的上游通道 —— Channel t
    `ChannelRegistration`，启动时被自动发现。
 
 trait 定义在
-[`sdk/gproxy-provider/src/channel.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/channel.rs)。
+[`sdk/gproxy-channel/src/channel.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channel.rs)。
 
 ## 选起点
 
@@ -46,7 +46,7 @@ trait 定义在
 ## 1. 定义 settings 和 credential
 
 ```rust
-// sdk/gproxy-provider/src/channels/acme.rs
+// sdk/gproxy-channel/src/channels/acme.rs
 use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings};
@@ -193,7 +193,7 @@ inventory::submit! {
 ## 4. 把模块接到 crate 里
 
 在
-[`sdk/gproxy-provider/src/channels/mod.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/channels/mod.rs)
+[`sdk/gproxy-channel/src/channels/mod.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channels/mod.rs)
 里声明模块：
 
 ```rust
@@ -201,14 +201,15 @@ pub mod acme;
 ```
 
 如果你想为它加一个 Cargo feature flag（允许用户把不用的通道从二进制里
-剥出去），在
-[`sdk/gproxy-provider/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/Cargo.toml)
-和
-[`sdk/gproxy-sdk/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-sdk/Cargo.toml)
-两处都加上：
+剥出去），需要在三个地方声明 —— 通道 crate（代码所在）、engine crate
+（向通道 crate 的 feature 转发）以及 SDK 伞 crate：
+
+- [`sdk/gproxy-channel/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/Cargo.toml) —— `acme = []` 并加入 `all-channels`
+- [`sdk/gproxy-engine/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-engine/Cargo.toml) —— `acme = ["gproxy-channel/acme"]` 并加入 `all-channels`
+- [`sdk/gproxy-sdk/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-sdk/Cargo.toml) —— `acme = ["gproxy-channel/acme", "gproxy-engine/acme"]`
 
 ```toml
-# gproxy-provider
+# gproxy-channel/Cargo.toml
 [features]
 acme = []
 all-channels = ["openai", "anthropic", /* … */, "acme"]
@@ -231,7 +232,7 @@ all-channels = ["openai", "anthropic", /* … */, "acme"]
 
 开 PR 前的几个检查：
 
-- **`cargo test -p gproxy-provider`** —— 通道测试就放在通道实现旁边。
+- **`cargo test -p gproxy-channel`** —— 通道测试就放在通道实现旁边。
 - **`cargo run -p gproxy`** 配一份 `channel = "acme"` 并在 `credentials`
   里带 `AcmeCredential` 的种子 TOML —— 验证注册表、settings 反序列化、
   routing 表全都对齐。
@@ -246,8 +247,8 @@ all-channels = ["openai", "anthropic", /* … */, "acme"]
 - [ ]（如需）`finalize_request`、`normalize_response`、`handle_local`。
 - [ ] 文件末尾的 `inventory::submit!` 注册。
 - [ ] `channels/mod.rs` 里的 `pub mod your_channel;`。
-- [ ]（可选）`gproxy-provider/Cargo.toml` 和 `gproxy-sdk/Cargo.toml` 里
-  的 Cargo feature。
+- [ ]（可选）`gproxy-channel/Cargo.toml`、`gproxy-engine/Cargo.toml` 和
+  `gproxy-sdk/Cargo.toml` 里的 Cargo feature。
 - [ ]（可选）`channels/pricing/` 下的价格 JSON。
 - [ ]（可选）`frontend/console` 下的结构化编辑器。
 - [ ] 通过限定作用域路径对真实上游做冒烟测试。

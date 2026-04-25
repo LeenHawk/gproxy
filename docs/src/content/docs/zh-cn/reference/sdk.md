@@ -9,17 +9,17 @@ description: 使用 gproxy-sdk 把 provider 引擎嵌入到你自己的 Rust 应
 
 ## Umbrella 里有什么
 
-`sdk/gproxy-sdk/src/lib.rs` 做了三处 re-export：
+`sdk/gproxy-sdk/src/lib.rs` re-export 了三层：
 
 - `pub use gproxy_protocol as protocol;`
-- `pub use gproxy_provider as provider;`
-- `pub use gproxy_routing as routing;`
+- `pub use gproxy_channel as channel;`
+- `pub use gproxy_engine as engine;`
 
-| Crate | 在 `gproxy-sdk` 中的入口 | 职责 |
-| --- | --- | --- |
-| `gproxy-protocol` | `gproxy_sdk::protocol` | Claude / OpenAI / Gemini 的协议类型，以及跨协议 `transform` 转换。 |
-| `gproxy-routing` | `gproxy_sdk::routing` | 路由分类、模型抽取、provider-prefix 处理、权限/限流匹配等框架无关工具。 |
-| `gproxy-provider` | `gproxy_sdk::provider` | 多通道 provider 引擎：`Channel` trait、`ProviderStore`、`GproxyEngine`、重试、健康状态、后端抽象。 |
+| Crate | 在 `gproxy-sdk` 中的入口 | 层级 | 职责 |
+| --- | --- | --- | --- |
+| `gproxy-protocol` | `gproxy_sdk::protocol` | L0 | Claude / OpenAI / Gemini 的协议类型，以及跨协议 `transform` 转换。轻依赖、不带 HTTP。 |
+| `gproxy-channel` | `gproxy_sdk::channel` | L1 | `Channel` trait、各通道实现 (OpenAI、Anthropic、Gemini 等)、凭证类型、请求/响应类型、计费、健康状态、token 计数。需要强类型单通道客户端时使用。 |
+| `gproxy-engine` | `gproxy_sdk::engine` | L2 | 完整的多通道 `GproxyEngine`、`ProviderStore`、重试 / 凭证亲和、限流/配额/亲和的后端 trait，以及路由工具。要构建自己的 LLM 网关时使用。 |
 
 这三个 crate 都不依赖数据库、HTTP server 或 Axum —— 可以在上面构建完全不同的服务。
 
@@ -34,11 +34,11 @@ cargo add gproxy-sdk --no-default-features --features openai
 然后构建一个最小引擎：
 
 ```rust
-use gproxy_sdk::provider::{
-    GproxyEngine,
+use gproxy_sdk::channel::{
     channels::openai::{OpenAiChannel, OpenAiCredential, OpenAiSettings},
     health::ModelCooldownHealth,
 };
+use gproxy_sdk::engine::GproxyEngine;
 
 let engine = GproxyEngine::builder()
     .add_provider(
@@ -71,21 +71,21 @@ assert_eq!(providers.len(), 1);
 | Feature | 转发到 | 说明 |
 | --- | --- | --- |
 | `default` | `all-channels` | 默认启用所有通道。 |
-| `all-channels` | `gproxy-provider/all-channels` | 全部通道的 umbrella。 |
-| `openai` | `gproxy-provider/openai` | OpenAI 通道。 |
-| `anthropic` | `gproxy-provider/anthropic` | Anthropic 通道。 |
-| `aistudio` | `gproxy-provider/aistudio` | Google AI Studio 通道。 |
-| `vertex` | `gproxy-provider/vertex` | Vertex AI 通道。 |
-| `vertexexpress` | `gproxy-provider/vertexexpress` | Vertex AI Express 通道。 |
-| `geminicli` | `gproxy-provider/geminicli` | Gemini CLI 通道。 |
-| `claudecode` | `gproxy-provider/claudecode` | Claude Code 通道。 |
-| `codex` | `gproxy-provider/codex` | Codex 通道。 |
-| `antigravity` | `gproxy-provider/antigravity` | Antigravity 通道。 |
-| `nvidia` | `gproxy-provider/nvidia` | NVIDIA 通道。 |
-| `deepseek` | `gproxy-provider/deepseek` | DeepSeek 通道。 |
-| `groq` | `gproxy-provider/groq` | Groq 通道。 |
-| `openrouter` | `gproxy-provider/openrouter` | OpenRouter 通道。 |
-| `custom` | `gproxy-provider/custom` | 自定义 OpenAI 兼容通道。 |
+| `all-channels` | `gproxy-channel/all-channels` + `gproxy-engine/all-channels` | 全部通道的 umbrella。 |
+| `openai` | `gproxy-channel/openai` + `gproxy-engine/openai` | OpenAI 通道。 |
+| `anthropic` | `gproxy-channel/anthropic` + `gproxy-engine/anthropic` | Anthropic 通道。 |
+| `aistudio` | `gproxy-channel/aistudio` + `gproxy-engine/aistudio` | Google AI Studio 通道。 |
+| `vertex` | `gproxy-channel/vertex` + `gproxy-engine/vertex` | Vertex AI 通道。 |
+| `vertexexpress` | `gproxy-channel/vertexexpress` + `gproxy-engine/vertexexpress` | Vertex AI Express 通道。 |
+| `geminicli` | `gproxy-channel/geminicli` + `gproxy-engine/geminicli` | Gemini CLI 通道。 |
+| `claudecode` | `gproxy-channel/claudecode` + `gproxy-engine/claudecode` | Claude Code 通道。 |
+| `codex` | `gproxy-channel/codex` + `gproxy-engine/codex` | Codex 通道。 |
+| `antigravity` | `gproxy-channel/antigravity` + `gproxy-engine/antigravity` | Antigravity 通道。 |
+| `nvidia` | `gproxy-channel/nvidia` + `gproxy-engine/nvidia` | NVIDIA 通道。 |
+| `deepseek` | `gproxy-channel/deepseek` + `gproxy-engine/deepseek` | DeepSeek 通道。 |
+| `groq` | `gproxy-channel/groq` + `gproxy-engine/groq` | Groq 通道。 |
+| `openrouter` | `gproxy-channel/openrouter` + `gproxy-engine/openrouter` | OpenRouter 通道。 |
+| `custom` | `gproxy-channel/custom` + `gproxy-engine/custom` | 自定义 OpenAI 兼容通道。 |
 
 SDK 层**没有** `redis` feature；只有完整 server 会用到 Redis。
 

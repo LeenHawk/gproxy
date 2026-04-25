@@ -16,7 +16,7 @@ Provider  ──(channel)──►  上游协议实现
 
 ## 内置通道
 
-`gproxy-provider` crate 中内置了以下通道。同名的 feature flag
+`gproxy-channel` crate 中内置了以下通道。同名的 feature flag
 (详见 [Rust SDK](/zh-cn/reference/sdk/)) 可用来只编译你需要的那部分。
 
 | 通道 | 典型上游 | 备注 |

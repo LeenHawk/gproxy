@@ -9,7 +9,7 @@ GPROXY 是一个 Cargo 工作空间，按三层组织：
 2. **Crates** —— 主程序组合使用的服务端组件 (`gproxy-core`、`gproxy-storage`、
    `gproxy-api`、`gproxy-server`)。
 3. **SDK** —— 可在服务外独立复用的框架无关库 (`gproxy-protocol`、
-   `gproxy-routing`、`gproxy-provider`、`gproxy-sdk`)。
+   `gproxy-channel`、`gproxy-engine`、`gproxy-sdk`)。
 
 ## 工作空间布局
 
@@ -24,10 +24,12 @@ gproxy/
 │   ├── gproxy-api/          # 管理与用户 HTTP API、鉴权、登录、CORS
 │   └── gproxy-server/       # 把上述部分组装在一起的 Axum 服务
 ├── sdk/
-│   ├── gproxy-protocol/     # OpenAI/Claude/Gemini 协议类型和 transform
-│   ├── gproxy-routing/      # 路由分类、权限/限流匹配
-│   ├── gproxy-provider/     # Channel trait、ProviderStore、GproxyEngine
-│   └── gproxy-sdk/          # 再导出上述三个的伞 crate
+│   ├── gproxy-protocol/     # L0：OpenAI/Claude/Gemini 协议类型和 transform
+│   ├── gproxy-channel/      # L1：Channel trait、各通道实现、凭证、计费、
+│   │                        #     工具函数、健康状态
+│   ├── gproxy-engine/       # L2：GproxyEngine、ProviderStore、路由、
+│   │                        #     重试、凭证亲和性、后端 trait
+│   └── gproxy-sdk/          # 重导出上述三层的伞 crate
 ├── frontend/console/        # React 控制台，构建时嵌入到二进制
 └── docs/                    # 本文档站
 ```
@@ -46,13 +48,13 @@ HTTP 请求   ──► │  gproxy-server (Axum)                       │
                                 │
                                 ▼
                 ┌─────────────────────────────────────────────┐
-                │  gproxy-routing                             │
+                │  gproxy-engine :: routing                   │
                 │    permission → rewrite → alias → execute   │
                 └───────────────┬─────────────────────────────┘
                                 │ 解析出的 (provider, model)
                                 ▼
                 ┌─────────────────────────────────────────────┐
-                │  gproxy-provider :: GproxyEngine            │
+                │  gproxy-engine :: GproxyEngine              │
                 │    ├── channel.prepare_request(...)         │
                 │    ├── 调用上游 HTTP                         │
                 │    ├── 重试 + 健康状态更新                   │

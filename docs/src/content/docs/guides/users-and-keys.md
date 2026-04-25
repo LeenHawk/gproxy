@@ -77,15 +77,30 @@ whether the authenticated user has `is_admin = true`.
 ## Managing users at runtime
 
 Once the database is live, create and edit users from the console's
-*Users* tab, or call the admin API directly:
+*Users* tab, or call the admin API directly. All admin endpoints are
+**command-style**: `POST` with a JSON body. There is no REST-shaped
+verb-on-path layer.
 
-- `GET    /admin/users` — list
-- `POST   /admin/users` — create
-- `PATCH  /admin/users/{id}` — update
-- `DELETE /admin/users/{id}` — delete
-- `POST   /admin/users/{id}/keys` — add a key
-- `PATCH  /admin/users/{id}/keys/{key_id}` — enable / disable / relabel
-- `DELETE /admin/users/{id}/keys/{key_id}` — revoke
+User CRUD:
+
+- `POST /admin/users/query` — body `{}` or `{"id":{"eq":1}}` / `{"name":{"eq":"alice"}}`
+- `POST /admin/users/upsert` — body is a `UserWrite` (insert if `id == 0`, update otherwise)
+- `POST /admin/users/delete` — body `{"id": <user_id>}`
+- `POST /admin/users/batch-upsert` — body is `[UserWrite, …]`
+- `POST /admin/users/batch-delete` — body is `[<user_id>, …]`
+
+User keys:
+
+- `POST /admin/user-keys/query` — body `{}` or `{"user_id":{"eq":<user_id>}}`
+- `POST /admin/user-keys/generate` — body `{"user_id": <user_id>, "label": "..."}`; the response carries the freshly generated `api_key` (plain text, shown only once)
+- `POST /admin/user-keys/update-enabled` — body `{"id": <key_id>, "enabled": true|false}`
+- `POST /admin/user-keys/delete` — body `{"id": <key_id>}`
+
+Per-user quotas:
+
+- `POST /admin/user-quotas/query` / `POST /admin/user-quotas/upsert`
+
+All endpoints expect `Authorization: Bearer <admin api key>`.
 
 Revoking a key takes effect immediately — the next request presenting it
 will fail auth.

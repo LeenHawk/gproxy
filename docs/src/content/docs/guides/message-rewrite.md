@@ -24,7 +24,7 @@ different things.
 | Match language | Dot-notation path + glob filter | **Regex** on string contents |
 | Typical use | Force a field, strip a field, inject metadata | Rewrite brand names, scrub tool identifiers, replace phrases |
 
-Implementation: [`sdk/gproxy-provider/src/utils/sanitize.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/sanitize.rs).
+Implementation: [`sdk/gproxy-channel/src/utils/sanitize.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/sanitize.rs).
 
 ## Rule shape
 
@@ -153,7 +153,7 @@ collapsing runs of spaces/tabs here is cheaper than fixing the client.
 - **Word boundaries are your friend.** `\bpi\b` is almost always what
   you want; bare `pi` will chew through `pipeline`, `api`, `spirit`,
   `typing`, etc. See the existing unit tests for edge cases
-  ([`utils/sanitize.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/sanitize.rs)).
+  ([`utils/sanitize.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/sanitize.rs)).
 - **Only text fields, not tool payloads.** Tool-use blocks, JSON
   arguments, and image URLs are never touched, even if the regex
   technically could match on a string representation of them.

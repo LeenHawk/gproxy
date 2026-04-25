@@ -16,7 +16,7 @@ Provider  ──(channel)──►  upstream protocol implementation
 
 ## Built-in channels
 
-The `gproxy-provider` crate ships the following channels. Feature flags of the
+The `gproxy-channel` crate ships the following channels. Feature flags of the
 same name (see the [Rust SDK](/reference/sdk/) reference) let you compile only
 the subset you need.
 

@@ -13,7 +13,7 @@ billing engine.
 A single JSON blob — `models.pricing_json` — is the authoritative source of
 pricing for a given `(provider_id, model_id)` row. It mirrors the
 `gproxy_sdk::provider::billing::ModelPrice` struct defined in
-[`sdk/gproxy-provider/src/billing.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/billing.rs):
+[`sdk/gproxy-channel/src/billing.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/billing.rs):
 
 ```json
 {
@@ -56,7 +56,7 @@ onto the parsed `ModelPrice` at load time.
 ## Where pricing lives
 
 - **Built-in JSON** — each channel ships a default price table at
-  [`sdk/gproxy-provider/src/channels/pricing/*.json`](https://github.com/LeenHawk/gproxy/tree/main/sdk/gproxy-provider/src/channels/pricing).
+  [`sdk/gproxy-channel/src/channels/pricing/*.json`](https://github.com/LeenHawk/gproxy/tree/main/sdk/gproxy-channel/src/channels/pricing).
   These are compiled into the binary via `include_str!` and seeded into
   the DB on first run of each provider.
 - **DB (`models.pricing_json`)** — the authoritative source at runtime.

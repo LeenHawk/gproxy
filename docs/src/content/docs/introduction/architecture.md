@@ -9,7 +9,7 @@ GPROXY is a Cargo workspace organized into three layers:
 2. **Crates** — the server-side pieces that the main app composes (`gproxy-core`,
    `gproxy-storage`, `gproxy-api`, `gproxy-server`).
 3. **SDK** — framework-agnostic libraries that can be reused outside the server
-   (`gproxy-protocol`, `gproxy-routing`, `gproxy-provider`, `gproxy-sdk`).
+   (`gproxy-protocol`, `gproxy-channel`, `gproxy-engine`, `gproxy-sdk`).
 
 ## Workspace layout
 
@@ -24,10 +24,12 @@ gproxy/
 │   ├── gproxy-api/          # Admin + user HTTP API, auth, login, CORS
 │   └── gproxy-server/       # The Axum server wiring it all together
 ├── sdk/
-│   ├── gproxy-protocol/     # OpenAI/Claude/Gemini wire types + transforms
-│   ├── gproxy-routing/      # Route classification, permission/limit matching
-│   ├── gproxy-provider/     # Channel trait, ProviderStore, GproxyEngine
-│   └── gproxy-sdk/          # Umbrella crate re-exporting the three above
+│   ├── gproxy-protocol/     # L0: OpenAI/Claude/Gemini wire types + transforms
+│   ├── gproxy-channel/      # L1: Channel trait, channel implementations,
+│   │                        #     credentials, billing, utils, health
+│   ├── gproxy-engine/       # L2: GproxyEngine, ProviderStore, routing,
+│   │                        #     retry, credential affinity, backends
+│   └── gproxy-sdk/          # Umbrella crate re-exporting the three layers
 ├── frontend/console/        # React console, embedded into the binary at build time
 └── docs/                    # This documentation site
 ```
@@ -46,13 +48,13 @@ HTTP request ──►│  gproxy-server (Axum)                       │
                                 │
                                 ▼
                 ┌─────────────────────────────────────────────┐
-                │  gproxy-routing                             │
+                │  gproxy-engine :: routing                   │
                 │    permission → rewrite → alias → execute   │
                 └───────────────┬─────────────────────────────┘
                                 │ resolved (provider, model)
                                 ▼
                 ┌─────────────────────────────────────────────┐
-                │  gproxy-provider :: GproxyEngine            │
+                │  gproxy-engine :: GproxyEngine              │
                 │    ├── channel.prepare_request(...)         │
                 │    ├── HTTP call to upstream                │
                 │    ├── retries + health updates             │

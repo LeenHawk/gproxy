@@ -10,7 +10,7 @@ via `inventory` so both the SDK and the server pick it up
 automatically.
 
 This page walks through the minimum steps. Read the existing channels
-under [`sdk/gproxy-provider/src/channels/`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/channels/)
+under [`sdk/gproxy-channel/src/channels/`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channels/)
 alongside this page — they are the authoritative reference, and most
 new channels start life as a copy of whichever existing one is
 closest.
@@ -57,7 +57,7 @@ there.
 ## 1. Define settings and credentials
 
 ```rust
-// sdk/gproxy-provider/src/channels/acme.rs
+// sdk/gproxy-channel/src/channels/acme.rs
 use serde::{Deserialize, Serialize};
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings};
@@ -212,20 +212,23 @@ startup and indexes every registered channel by its `ID`. No manual
 ## 4. Wire the module into the crate
 
 Add the new module to
-[`sdk/gproxy-provider/src/channels/mod.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/channels/mod.rs):
+[`sdk/gproxy-channel/src/channels/mod.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channels/mod.rs):
 
 ```rust
 pub mod acme;
 ```
 
 And, if you want a Cargo feature flag for it (so users can strip
-unused channels out of their binary), add it to
-[`sdk/gproxy-provider/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/Cargo.toml)
-and re-export it from
-[`sdk/gproxy-sdk/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-sdk/Cargo.toml):
+unused channels out of their binary), declare it in three places — the
+channel crate (where the code lives), the engine crate (which forwards
+to the channel crate's feature), and the SDK umbrella:
+
+- [`sdk/gproxy-channel/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/Cargo.toml) — `acme = []` plus add it to `all-channels`
+- [`sdk/gproxy-engine/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-engine/Cargo.toml) — `acme = ["gproxy-channel/acme"]` plus add it to `all-channels`
+- [`sdk/gproxy-sdk/Cargo.toml`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-sdk/Cargo.toml) — `acme = ["gproxy-channel/acme", "gproxy-engine/acme"]`
 
 ```toml
-# gproxy-provider
+# gproxy-channel/Cargo.toml
 [features]
 acme = []
 all-channels = ["openai", "anthropic", /* … */, "acme"]
@@ -250,7 +253,7 @@ the pattern is a TS type + a form definition.
 
 A few checks to run before opening a PR:
 
-- **`cargo test -p gproxy-provider`** — the channel tests live next
+- **`cargo test -p gproxy-channel`** — the channel tests live next
   to the channel implementation.
 - **`cargo run -p gproxy`** with a seed TOML that has
   `channel = "acme"` and an `AcmeCredential` in `credentials` —
@@ -271,8 +274,8 @@ A few checks to run before opening a PR:
   `handle_local`.
 - [ ] `inventory::submit!` registration at the bottom of the file.
 - [ ] `pub mod your_channel;` in `channels/mod.rs`.
-- [ ] (Optional) Cargo feature in `gproxy-provider/Cargo.toml` and
-  `gproxy-sdk/Cargo.toml`.
+- [ ] (Optional) Cargo feature in `gproxy-channel/Cargo.toml`,
+  `gproxy-engine/Cargo.toml`, and `gproxy-sdk/Cargo.toml`.
 - [ ] (Optional) Pricing JSON under `channels/pricing/`.
 - [ ] (Optional) Structured editor in `frontend/console`.
 - [ ] Smoke test against a real upstream via the scoped path.

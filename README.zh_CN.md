@@ -131,10 +131,12 @@ crates/                # 主程序组合使用的服务端 crate
   gproxy-api/          # 管理与用户 HTTP API、鉴权、登录、CORS
   gproxy-server/       # 把上述部分组装在一起的 Axum 服务
 sdk/                   # 框架无关库 (不依赖 DB/HTTP)
-  gproxy-protocol/     # OpenAI/Claude/Gemini 协议类型 + transform
-  gproxy-routing/      # 路由分类、权限与限流匹配
-  gproxy-provider/     # Channel trait、ProviderStore、GproxyEngine
-  gproxy-sdk/          # 再导出上述三个的伞 crate
+  gproxy-protocol/     # L0：OpenAI/Claude/Gemini 协议类型 + transform
+  gproxy-channel/      # L1：Channel trait、各通道实现、凭证、计费、
+                       #     工具函数、健康状态
+  gproxy-engine/       # L2：GproxyEngine、ProviderStore、路由、
+                       #     重试、凭证亲和、后端 trait
+  gproxy-sdk/          # 重导出上述三层的伞 crate
 frontend/console/      # React 控制台，构建时嵌入到二进制
 docs/                  # Starlight 文档站 (gproxy.leenhawk.com 的源)
 ```

@@ -32,7 +32,7 @@ GPROXY 需要在其之上遵守的 Anthropic 侧规则：
 凭证选择之前），因此无论客户端原本说的是 Claude、OpenAI 还是 Gemini，
 只要最终解析出的上游是 Anthropic 系通道，它们都会生效。
 
-实现：[`sdk/gproxy-provider/src/utils/claude_cache_control.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/claude_cache_control.rs)。
+实现：[`sdk/gproxy-channel/src/utils/claude_cache_control.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/claude_cache_control.rs)。
 
 ## 缓存断点规则
 

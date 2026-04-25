@@ -39,7 +39,7 @@ uniformly regardless of whether the client originally spoke Claude,
 OpenAI, or Gemini — as long as the resolved upstream is an Anthropic
 channel.
 
-Implementation: [`sdk/gproxy-provider/src/utils/claude_cache_control.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/claude_cache_control.rs).
+Implementation: [`sdk/gproxy-channel/src/utils/claude_cache_control.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/claude_cache_control.rs).
 
 ## Cache breakpoint rules
 

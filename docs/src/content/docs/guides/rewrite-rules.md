@@ -22,7 +22,7 @@ settings JSON. They are applied in the handler layer **before** alias
 resolution, using the model name the client sent — so filters that
 match on the alias name still work.
 
-Implementation: [`sdk/gproxy-provider/src/utils/rewrite.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/rewrite.rs).
+Implementation: [`sdk/gproxy-channel/src/utils/rewrite.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/rewrite.rs).
 
 ## The rule shape
 
@@ -85,7 +85,7 @@ silent no-op.
 
 | Dimension | Meaning | Matching |
 | --- | --- | --- |
-| `model_pattern` | Glob against the model name the client sent. | `*` (any run of chars), `?` (exactly one char). See [the glob tests](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/rewrite.rs) for exact behavior. |
+| `model_pattern` | Glob against the model name the client sent. | `*` (any run of chars), `?` (exactly one char). See [the glob tests](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/rewrite.rs) for exact behavior. |
 | `operations` | Allowlist of `OperationFamily` values. | Rule fires only if the current operation is in the list. |
 | `protocols` | Allowlist of `ProtocolKind` values. | Rule fires only if the current protocol is in the list. |
 

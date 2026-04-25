@@ -11,17 +11,17 @@ without running the full GPROXY server.
 
 ## What's in the umbrella
 
-`sdk/gproxy-sdk/src/lib.rs` does three re-exports:
+`sdk/gproxy-sdk/src/lib.rs` re-exports the three layers:
 
 - `pub use gproxy_protocol as protocol;`
-- `pub use gproxy_provider as provider;`
-- `pub use gproxy_routing as routing;`
+- `pub use gproxy_channel as channel;`
+- `pub use gproxy_engine as engine;`
 
-| Crate | Re-exported as | Responsibility |
-| --- | --- | --- |
-| `gproxy-protocol` | `gproxy_sdk::protocol` | Wire-format types for Claude, OpenAI, and Gemini, plus cross-protocol `transform` conversions. |
-| `gproxy-routing` | `gproxy_sdk::routing` | Framework-agnostic helpers for route classification, model extraction, provider-prefix handling, and permission / rate-limit matching. |
-| `gproxy-provider` | `gproxy_sdk::provider` | The multi-channel provider engine: the `Channel` trait, `ProviderStore`, `GproxyEngine`, retries, health state, and backend abstractions. |
+| Crate | Re-exported as | Layer | Responsibility |
+| --- | --- | --- | --- |
+| `gproxy-protocol` | `gproxy_sdk::protocol` | L0 | Wire-format types for Claude, OpenAI, and Gemini, plus cross-protocol `transform` conversions. Light dependencies, no HTTP. |
+| `gproxy-channel` | `gproxy_sdk::channel` | L1 | The `Channel` trait, concrete channel implementations (OpenAI, Anthropic, Gemini, …), credential types, request / response types, billing, health tracking, and token counting. Use this layer when you want a strongly typed single-provider client. |
+| `gproxy-engine` | `gproxy_sdk::engine` | L2 | The full multi-channel `GproxyEngine`, `ProviderStore`, retry / credential affinity, backend traits for rate-limit / quota / affinity state, and routing helpers. Use this layer to build your own LLM gateway. |
 
 None of the three has a dependency on the database, the HTTP server, or
 Axum. You can build an entirely different service on top of them.
@@ -38,11 +38,11 @@ cargo add gproxy-sdk --no-default-features --features openai
 Then build a minimal engine:
 
 ```rust
-use gproxy_sdk::provider::{
-    GproxyEngine,
+use gproxy_sdk::channel::{
     channels::openai::{OpenAiChannel, OpenAiCredential, OpenAiSettings},
     health::ModelCooldownHealth,
 };
+use gproxy_sdk::engine::GproxyEngine;
 
 let engine = GproxyEngine::builder()
     .add_provider(
@@ -76,21 +76,21 @@ Declared in `sdk/gproxy-sdk/Cargo.toml`:
 | Feature | Forwards to | Notes |
 | --- | --- | --- |
 | `default` | `all-channels` | Enables every channel. |
-| `all-channels` | `gproxy-provider/all-channels` | Umbrella for all channel features. |
-| `openai` | `gproxy-provider/openai` | OpenAI channel. |
-| `anthropic` | `gproxy-provider/anthropic` | Anthropic channel. |
-| `aistudio` | `gproxy-provider/aistudio` | Google AI Studio channel. |
-| `vertex` | `gproxy-provider/vertex` | Vertex AI channel. |
-| `vertexexpress` | `gproxy-provider/vertexexpress` | Vertex AI Express channel. |
-| `geminicli` | `gproxy-provider/geminicli` | Gemini CLI channel. |
-| `claudecode` | `gproxy-provider/claudecode` | Claude Code channel. |
-| `codex` | `gproxy-provider/codex` | Codex channel. |
-| `antigravity` | `gproxy-provider/antigravity` | Antigravity channel. |
-| `nvidia` | `gproxy-provider/nvidia` | NVIDIA channel. |
-| `deepseek` | `gproxy-provider/deepseek` | DeepSeek channel. |
-| `groq` | `gproxy-provider/groq` | Groq channel. |
-| `openrouter` | `gproxy-provider/openrouter` | OpenRouter channel. |
-| `custom` | `gproxy-provider/custom` | Custom OpenAI-compatible channel. |
+| `all-channels` | `gproxy-channel/all-channels` + `gproxy-engine/all-channels` | Umbrella for all channel features. |
+| `openai` | `gproxy-channel/openai` + `gproxy-engine/openai` | OpenAI channel. |
+| `anthropic` | `gproxy-channel/anthropic` + `gproxy-engine/anthropic` | Anthropic channel. |
+| `aistudio` | `gproxy-channel/aistudio` + `gproxy-engine/aistudio` | Google AI Studio channel. |
+| `vertex` | `gproxy-channel/vertex` + `gproxy-engine/vertex` | Vertex AI channel. |
+| `vertexexpress` | `gproxy-channel/vertexexpress` + `gproxy-engine/vertexexpress` | Vertex AI Express channel. |
+| `geminicli` | `gproxy-channel/geminicli` + `gproxy-engine/geminicli` | Gemini CLI channel. |
+| `claudecode` | `gproxy-channel/claudecode` + `gproxy-engine/claudecode` | Claude Code channel. |
+| `codex` | `gproxy-channel/codex` + `gproxy-engine/codex` | Codex channel. |
+| `antigravity` | `gproxy-channel/antigravity` + `gproxy-engine/antigravity` | Antigravity channel. |
+| `nvidia` | `gproxy-channel/nvidia` + `gproxy-engine/nvidia` | NVIDIA channel. |
+| `deepseek` | `gproxy-channel/deepseek` + `gproxy-engine/deepseek` | DeepSeek channel. |
+| `groq` | `gproxy-channel/groq` + `gproxy-engine/groq` | Groq channel. |
+| `openrouter` | `gproxy-channel/openrouter` + `gproxy-engine/openrouter` | OpenRouter channel. |
+| `custom` | `gproxy-channel/custom` + `gproxy-engine/custom` | Custom OpenAI-compatible channel. |
 
 The SDK layer does **not** expose a `redis` feature; the workspace uses
 Redis only from the full server binary.

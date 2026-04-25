@@ -11,7 +11,7 @@ billing engine 的。
 
 单个 JSON blob —— `models.pricing_json` —— 是一个
 `(provider_id, model_id)` 行的权威价格源。它的形状和
-`sdk/gproxy-provider/src/billing.rs` 里的
+`sdk/gproxy-channel/src/billing.rs` 里的
 `gproxy_sdk::provider::billing::ModelPrice` 结构体完全一致：
 
 ```json
@@ -54,7 +54,7 @@ JSON blob；它们在读取时会被重新盖到解析后的 `ModelPrice` 上。
 ## 价格数据存在哪里
 
 - **内置 JSON** —— 每个 channel 都带一份默认价格表，路径在
-  `sdk/gproxy-provider/src/channels/pricing/*.json`。这些 JSON 在编译时通过
+  `sdk/gproxy-channel/src/channels/pricing/*.json`。这些 JSON 在编译时通过
   `include_str!` 嵌进二进制，在每个 provider 首次启动时被 seed 到 DB。
 - **DB (`models.pricing_json`)** —— 运行时的权威数据源。admin 的编辑写到
   这里，bootstrap 只在行缺失时从内置 JSON seed。

@@ -19,7 +19,7 @@ GPROXY 允许你在请求发给上游之前，改写或删除**请求体**中的
 层被应用，**早于**别名解析，使用的是客户端发送的原始模型名 —— 所以按
 别名名匹配的 filter 仍然有效。
 
-实现：[`sdk/gproxy-provider/src/utils/rewrite.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/rewrite.rs)。
+实现：[`sdk/gproxy-channel/src/utils/rewrite.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/rewrite.rs)。
 
 ## 规则结构
 
@@ -77,7 +77,7 @@ GPROXY 会用一个新对象覆盖它。
 
 | 维度 | 含义 | 匹配方式 |
 | --- | --- | --- |
-| `model_pattern` | 针对客户端发来的模型名做 glob 匹配。 | `*` (任意字符序列)、`?` (恰好一个字符)。详细行为见 [glob 测试](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-provider/src/utils/rewrite.rs)。 |
+| `model_pattern` | 针对客户端发来的模型名做 glob 匹配。 | `*` (任意字符序列)、`?` (恰好一个字符)。详细行为见 [glob 测试](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/rewrite.rs)。 |
 | `operations` | 允许的 `OperationFamily` 列表。 | 当前请求操作必须在列表里，规则才会触发。 |
 | `protocols` | 允许的 `ProtocolKind` 列表。 | 当前请求协议必须在列表里，规则才会触发。 |
 

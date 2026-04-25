@@ -68,15 +68,30 @@ GPROXY 会从以下环境变量创建管理员：
 
 ## 运行时管理用户
 
-数据库运行起来之后，可通过控制台*用户*标签页创建/编辑，或直接调用管理 API：
+数据库运行起来之后，可通过控制台*用户*标签页创建/编辑，或直接调用管理 API。
+所有 admin 接口都是**命令式**：统一 `POST`、JSON body，没有 REST 风格的
+谓词路径。
 
-- `GET    /admin/users` —— 列表
-- `POST   /admin/users` —— 创建
-- `PATCH  /admin/users/{id}` —— 更新
-- `DELETE /admin/users/{id}` —— 删除
-- `POST   /admin/users/{id}/keys` —— 新增 key
-- `PATCH  /admin/users/{id}/keys/{key_id}` —— 启用/禁用/改 label
-- `DELETE /admin/users/{id}/keys/{key_id}` —— 吊销 key
+用户 CRUD：
+
+- `POST /admin/users/query` —— body `{}` 或 `{"id":{"eq":1}}` / `{"name":{"eq":"alice"}}`
+- `POST /admin/users/upsert` —— body 为 `UserWrite`（`id == 0` 则新建，否则更新）
+- `POST /admin/users/delete` —— body `{"id": <user_id>}`
+- `POST /admin/users/batch-upsert` —— body 为 `[UserWrite, …]`
+- `POST /admin/users/batch-delete` —— body 为 `[<user_id>, …]`
+
+User keys：
+
+- `POST /admin/user-keys/query` —— body `{}` 或 `{"user_id":{"eq":<user_id>}}`
+- `POST /admin/user-keys/generate` —— body `{"user_id": <user_id>, "label": "..."}`；响应中的 `api_key` 是明文，只会出现这一次
+- `POST /admin/user-keys/update-enabled` —— body `{"id": <key_id>, "enabled": true|false}`
+- `POST /admin/user-keys/delete` —— body `{"id": <key_id>}`
+
+按用户配额：
+
+- `POST /admin/user-quotas/query` / `POST /admin/user-quotas/upsert`
+
+所有接口都要求 `Authorization: Bearer <admin api key>`。
 
 吊销立即生效 —— 下一次携带该 key 的请求将鉴权失败。
 

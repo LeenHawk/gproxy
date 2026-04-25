@@ -138,10 +138,12 @@ crates/                # Server-side crates composed by the binary
   gproxy-api/          # Admin + user HTTP API, auth, login, CORS
   gproxy-server/       # The Axum server wiring it all together
 sdk/                   # Framework-agnostic libraries (no DB/HTTP dependencies)
-  gproxy-protocol/     # OpenAI/Claude/Gemini wire types + transforms
-  gproxy-routing/      # Route classification, permission & rate-limit matching
-  gproxy-provider/     # Channel trait, ProviderStore, GproxyEngine
-  gproxy-sdk/          # Umbrella crate re-exporting the three above
+  gproxy-protocol/     # L0: OpenAI/Claude/Gemini wire types + transforms
+  gproxy-channel/      # L1: Channel trait, channel implementations,
+                       #     credentials, billing, utils, health
+  gproxy-engine/       # L2: GproxyEngine, ProviderStore, routing,
+                       #     retry, credential affinity, backends
+  gproxy-sdk/          # Umbrella crate re-exporting the three layers above
 frontend/console/      # React console, embedded into the binary at build time
 docs/                  # Starlight documentation site (source for gproxy.leenhawk.com)
 ```
