@@ -295,8 +295,10 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
             .and_then(|text| text.format.as_ref())
             .and_then(|format| match format {
                 ot::ResponseTextFormatConfig::JsonSchema(schema) => {
+                    let mut coerced = schema.schema.clone();
+                    enforce_strict_object_schema(&mut coerced);
                     Some(ct::BetaJsonOutputFormat {
-                        schema: schema.schema.clone(),
+                        schema: coerced,
                         type_: ct::BetaJsonOutputFormatType::JsonSchema,
                     })
                 }
@@ -517,4 +519,45 @@ fn default_chat_thinking() -> ct::BetaThinkingConfigParam {
     ct::BetaThinkingConfigParam::Disabled(ct::BetaThinkingConfigDisabled {
         type_: ct::BetaThinkingConfigDisabledType::Disabled,
     })
+}
+
+/// Walk a JSON schema and force `additionalProperties: false` on every
+/// object-typed node. Anthropic's structured output rejects schemas where
+/// `additionalProperties` is `true` (or omitted, which it treats as true);
+/// OpenAI's strict mode requires the same, so coercing is consistent with
+/// both providers' contracts.
+fn enforce_strict_object_schema(schema: &mut ct::JsonObject) {
+    fn walk(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if matches!(map.get("type").and_then(|v| v.as_str()), Some("object")) {
+                    map.insert(
+                        "additionalProperties".to_string(),
+                        serde_json::Value::Bool(false),
+                    );
+                }
+                for v in map.values_mut() {
+                    walk(v);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Top-level schema is BTreeMap<String, Value>; if it is itself an
+    // object schema, set additionalProperties=false here too.
+    if matches!(schema.get("type").and_then(|v| v.as_str()), Some("object")) {
+        schema.insert(
+            "additionalProperties".to_string(),
+            serde_json::Value::Bool(false),
+        );
+    }
+    for v in schema.values_mut() {
+        walk(v);
+    }
 }
