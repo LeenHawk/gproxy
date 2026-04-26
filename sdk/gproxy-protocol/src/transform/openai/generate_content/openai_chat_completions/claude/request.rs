@@ -300,11 +300,13 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
                         type_: ct::BetaJsonOutputFormatType::JsonSchema,
                     })
                 }
-                ot::ResponseTextFormatConfig::JsonObject(_) => Some(ct::BetaJsonOutputFormat {
-                    schema: serde_json::from_str::<ct::JsonObject>(r#"{"type":"object"}"#)
-                        .unwrap_or_default(),
-                    type_: ct::BetaJsonOutputFormatType::JsonSchema,
-                }),
+                // OpenAI's `json_object` means "valid JSON, no schema constraint". Anthropic's
+                // structured output always enforces a schema, and a permissive `{type:"object"}`
+                // schema is rejected on the claudecode tier (additionalProperties must be false,
+                // which then forbids all properties). Skip emitting output_config in this mode
+                // and let the caller's prompt instruct the model to return JSON. ST-BME and most
+                // OpenAI clients do exactly this.
+                ot::ResponseTextFormatConfig::JsonObject(_) => None,
                 ot::ResponseTextFormatConfig::Text(_) => None,
             });
 
@@ -488,7 +490,9 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
                 metadata,
                 cache_control: None,
                 output_config,
-                output_format,
+                // output_format is deprecated by Anthropic in favor of output_config.format.
+                // Sending both causes a 400 from the claudecode tier; emit only the new field.
+                output_format: None,
                 service_tier: claude_service_tier,
                 speed,
                 stop_sequences: chat_stop_to_vec(stop),
