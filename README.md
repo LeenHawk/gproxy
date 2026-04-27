@@ -43,6 +43,8 @@ you need to run it as a shared service:
 
 ## Quick start
 
+**Download from releases if you use a common device and common os!**
+
 ```bash
 # 1. Build
 git clone https://github.com/LeenHawk/gproxy.git
