@@ -669,11 +669,6 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
                         type_: ct::BetaJsonOutputFormatType::JsonSchema,
                     })
                 }
-                ot::ResponseTextFormatConfig::JsonObject(_) => Some(ct::BetaJsonOutputFormat {
-                    schema: serde_json::from_str::<ct::JsonObject>(r#"{"type":"object"}"#)
-                        .unwrap_or_default(),
-                    type_: ct::BetaJsonOutputFormatType::JsonSchema,
-                }),
                 _ => None,
             });
 
