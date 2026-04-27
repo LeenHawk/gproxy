@@ -309,7 +309,6 @@ impl TryFrom<OpenAiCountTokensRequest> for ClaudeCountTokensRequest {
                 },
                 cache_control: None,
                 output_config,
-                output_format,
                 speed: None,
                 system,
                 thinking,

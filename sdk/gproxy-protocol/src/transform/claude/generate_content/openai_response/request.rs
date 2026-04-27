@@ -778,8 +778,7 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiCreateResponseRequest {
         let output_schema = body
             .output_config
             .as_ref()
-            .and_then(|config| config.format.as_ref())
-            .or(body.output_format.as_ref());
+            .and_then(|config| config.format.as_ref());
         let text_format = output_schema.map(|schema| {
             ResponseTextFormatConfig::JsonSchema(ResponseFormatTextJsonSchemaConfig {
                 name: "output".to_string(),

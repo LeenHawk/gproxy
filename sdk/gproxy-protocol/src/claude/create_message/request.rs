@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::claude::create_message::types::{
     AnthropicBeta, AnthropicVersion, BetaCacheControlEphemeral, BetaContainerRef,
-    BetaContextManagementConfig, BetaJsonOutputFormat, BetaMessageParam, BetaMetadata,
-    BetaOutputConfig, BetaRequestMcpServerUrlDefinition, BetaServiceTierParam, BetaSpeed,
+    BetaContextManagementConfig, BetaMessageParam, BetaMetadata, BetaOutputConfig,
+    BetaRequestMcpServerUrlDefinition, BetaServiceTierParam, BetaSpeed,
     BetaSystemPrompt, BetaThinkingConfigParam, BetaToolChoice, BetaToolUnion, HttpMethod, Model,
 };
 
@@ -89,9 +89,6 @@ pub struct RequestBody {
     /// Optional output configuration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_config: Option<BetaOutputConfig>,
-    /// Optional deprecated output format.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub output_format: Option<BetaJsonOutputFormat>,
     /// Optional service tier selection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub service_tier: Option<BetaServiceTierParam>,
@@ -140,7 +137,6 @@ impl Default for RequestBody {
             metadata: None,
             cache_control: None,
             output_config: None,
-            output_format: None,
             service_tier: None,
             speed: None,
             stop_sequences: None,

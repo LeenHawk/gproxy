@@ -135,7 +135,6 @@ impl TryFrom<OpenAiCompactRequest> for ClaudeCreateMessageRequest {
                 metadata: None,
                 cache_control: None,
                 output_config: None,
-                output_format: None,
                 service_tier: None,
                 speed: None,
                 stop_sequences: None,

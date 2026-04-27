@@ -488,7 +488,6 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
                 metadata,
                 cache_control: None,
                 output_config,
-                output_format,
                 service_tier: claude_service_tier,
                 speed,
                 stop_sequences: chat_stop_to_vec(stop),

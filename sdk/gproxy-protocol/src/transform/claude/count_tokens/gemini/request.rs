@@ -53,8 +53,7 @@ impl TryFrom<ClaudeCountTokensRequest> for GeminiCountTokensRequest {
             .output_config
             .as_ref()
             .and_then(|config| config.format.as_ref())
-            .is_some()
-            || value.body.output_format.is_some();
+            .is_some();
         let generation_config = if thinking_config.is_some() || json_output_requested {
             Some(GeminiGenerationConfig {
                 response_mime_type: if json_output_requested {

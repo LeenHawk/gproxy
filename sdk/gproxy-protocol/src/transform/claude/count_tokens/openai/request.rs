@@ -138,8 +138,7 @@ impl TryFrom<ClaudeCountTokensRequest> for OpenAiCountTokensRequest {
             .body
             .output_config
             .as_ref()
-            .and_then(|config| config.format.as_ref())
-            .or(value.body.output_format.as_ref());
+            .and_then(|config| config.format.as_ref());
         let text = output_schema.map(|schema| ResponseTextConfig {
             format: Some(ResponseTextFormatConfig::JsonSchema(
                 ResponseFormatTextJsonSchemaConfig {

@@ -62,7 +62,6 @@ impl TryFrom<GeminiCountTokensRequest> for ClaudeCountTokensRequest {
                 mcp_servers: None,
                 cache_control: None,
                 output_config,
-                output_format,
                 speed: None,
                 system,
                 thinking,

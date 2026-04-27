@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::claude::count_tokens::types::{
     AnthropicBeta, AnthropicVersion, BetaCacheControlEphemeral, BetaContextManagementConfig,
-    BetaJsonOutputFormat, BetaMessageParam, BetaOutputConfig, BetaRequestMcpServerUrlDefinition,
+    BetaMessageParam, BetaOutputConfig, BetaRequestMcpServerUrlDefinition,
     BetaSystemPrompt, BetaThinkingConfigParam, BetaToolChoice, BetaToolUnion, HttpMethod, Model,
 };
 
@@ -77,9 +77,6 @@ pub struct RequestBody {
     /// Optional output configuration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_config: Option<BetaOutputConfig>,
-    /// Optional deprecated output format.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub output_format: Option<BetaJsonOutputFormat>,
     /// Optional speed mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speed: Option<String>,
@@ -106,7 +103,6 @@ impl Default for RequestBody {
             mcp_servers: None,
             cache_control: None,
             output_config: None,
-            output_format: None,
             speed: None,
             system: None,
             thinking: None,

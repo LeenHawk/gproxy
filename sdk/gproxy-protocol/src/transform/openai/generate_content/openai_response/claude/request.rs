@@ -913,7 +913,6 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
                 metadata,
                 cache_control: None,
                 output_config,
-                output_format,
                 service_tier,
                 speed,
                 stop_sequences: None,

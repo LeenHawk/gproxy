@@ -163,13 +163,11 @@ impl TryFrom<ClaudeCreateMessageRequest> for GeminiGenerateContentRequest {
             .output_config
             .as_ref()
             .and_then(|config| config.format.as_ref())
-            .is_some()
-            || body.output_format.is_some();
+            .is_some();
         let response_json_schema = body
             .output_config
             .as_ref()
             .and_then(|config| config.format.as_ref())
-            .or(body.output_format.as_ref())
             .and_then(|schema| serde_json::to_value(schema.schema.clone()).ok());
         if json_output_requested {
             generation_config.response_mime_type = Some("application/json".to_string());

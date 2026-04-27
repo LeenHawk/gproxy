@@ -430,7 +430,6 @@ impl TryFrom<ClaudeCreateMessageRequest> for OpenAiChatCompletionsRequest {
             .output_config
             .as_ref()
             .and_then(|config| config.format.as_ref())
-            .or(body.output_format.as_ref())
             .map(|schema| {
                 ChatCompletionResponseFormat::JsonSchema(ChatCompletionResponseFormatJsonSchema {
                     json_schema: ChatCompletionResponseFormatJsonSchemaConfig {
