@@ -176,7 +176,13 @@ export function ConfigTab({
                   <Select
                     value={form.settings[field.key] ?? ""}
                     onChange={(value) => updateSetting(field.key, value)}
-                    options={field.options ?? []}
+                    options={(field.options ?? []).map((opt) => {
+                      const translated = t(opt.label);
+                      return {
+                        value: opt.value,
+                        label: translated !== opt.label ? translated : opt.label,
+                      };
+                    })}
                   />
                 ) : (
                   <Input

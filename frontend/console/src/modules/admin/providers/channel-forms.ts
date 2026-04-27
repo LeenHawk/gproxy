@@ -45,9 +45,9 @@ const COMMON_SETTINGS_FIELDS: ChannelField[] = [
     type: "select",
     optional: true,
     options: [
-      { value: "sticky", label: "sticky (固定首个 credential)" },
-      { value: "round_robin", label: "round_robin (顺序轮询)" },
-      { value: "cache_affinity", label: "cache_affinity (缓存亲和)" },
+      { value: "sticky", label: "field.rotation_strategy.sticky" },
+      { value: "round_robin", label: "field.rotation_strategy.round_robin" },
+      { value: "cache_affinity", label: "field.rotation_strategy.cache_affinity" },
     ],
   },
   { key: "sanitize_rules", label: "sanitize_rules", type: "json", optional: true },
