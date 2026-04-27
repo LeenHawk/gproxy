@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use http::StatusCode;
 
-use crate::openai::count_tokens::types::ResponseImageGenerationCallStatus;
+use crate::openai::count_tokens::types::{
+    ResponseImageGenerationCallStatus, ResponseMessagePhase, ResponseOutputContent,
+};
 use crate::openai::create_response::response::OpenAiCreateResponseResponse;
 use crate::openai::create_response::stream::{ResponseStreamErrorPayload, ResponseStreamEvent};
 use crate::openai::create_response::types::{
@@ -65,7 +67,12 @@ impl TryFrom<Vec<ResponseStreamEvent>> for OpenAiCreateResponseResponse {
 
         if let Some(mut body) = latest_response {
             if body.output.is_empty() && !output_items.is_empty() {
-                body.output = output_items.into_values().collect();
+                let mut items: Vec<ResponseOutputItem> = output_items.into_values().collect();
+                // Codex emits a trailing empty `final_answer` message after
+                // tool-only turns (e.g. image_generation). Drop it so
+                // non-stream consumers don't see a dangling empty message.
+                items.retain(|item| !is_empty_final_answer_message(item));
+                body.output = items;
             }
             Ok(OpenAiCreateResponseResponse::Success {
                 stats_code: StatusCode::OK,
@@ -91,6 +98,19 @@ impl TryFrom<Vec<ResponseStreamEvent>> for OpenAiCreateResponseResponse {
             ))
         }
     }
+}
+
+fn is_empty_final_answer_message(item: &ResponseOutputItem) -> bool {
+    let ResponseOutputItem::Message(msg) = item else {
+        return false;
+    };
+    if !matches!(msg.phase, Some(ResponseMessagePhase::FinalAnswer)) {
+        return false;
+    }
+    msg.content.iter().all(|part| match part {
+        ResponseOutputContent::Text(text) => text.text.is_empty(),
+        _ => false,
+    })
 }
 
 #[cfg(test)]
@@ -237,5 +257,72 @@ mod tests {
         .expect("aggregate");
         let json: Value = serde_json::from_slice(&body).expect("parse");
         assert_eq!(json["output"][0]["status"], "completed");
+    }
+
+    // Codex `image_generation` sessions append a trailing empty
+    // `final_answer` message after the `image_generation_call` output item.
+    // The non-stream aggregator must drop it so consumers don't see a
+    // dangling empty assistant message — the image is the answer.
+    #[test]
+    fn stream_to_nonstream_drops_trailing_empty_final_answer_after_image_call() {
+        let chunks = [
+            serde_json::to_vec(&json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "ig_1",
+                    "type": "image_generation_call",
+                    "status": "completed",
+                    "result": "iVBORw0KGgo="
+                },
+                "output_index": 0,
+                "sequence_number": 1
+            }))
+            .expect("serialize image item.done"),
+            serde_json::to_vec(&json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "msg_1",
+                    "type": "message",
+                    "status": "completed",
+                    "role": "assistant",
+                    "phase": "final_answer",
+                    "content": [
+                        {"type": "output_text", "annotations": [], "logprobs": [], "text": ""}
+                    ]
+                },
+                "output_index": 1,
+                "sequence_number": 2
+            }))
+            .expect("serialize empty final_answer item.done"),
+            serde_json::to_vec(&json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp_1",
+                    "created_at": 1u64,
+                    "metadata": {},
+                    "model": "gpt-5.5",
+                    "object": "response",
+                    "output": [],
+                    "parallel_tool_calls": true,
+                    "temperature": 1.0,
+                    "tool_choice": {"type": "image_generation"},
+                    "tools": [{"type": "image_generation"}],
+                    "top_p": 0.98,
+                    "status": "completed"
+                },
+                "sequence_number": 3
+            }))
+            .expect("serialize response.completed"),
+        ];
+        let chunk_refs = chunks.iter().map(Vec::as_slice).collect::<Vec<_>>();
+
+        let body = crate::transform::dispatch::stream_to_nonstream(
+            ProtocolKind::OpenAiResponse,
+            &chunk_refs,
+        )
+        .expect("aggregate");
+        let json: Value = serde_json::from_slice(&body).expect("parse");
+        assert_eq!(json["output"].as_array().map(Vec::len), Some(1));
+        assert_eq!(json["output"][0]["type"], "image_generation_call");
     }
 }
