@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use crate::claude::create_message::types::{
     AnthropicBeta, AnthropicVersion, BetaCacheControlEphemeral, BetaContainerRef,
     BetaContextManagementConfig, BetaMessageParam, BetaMetadata, BetaOutputConfig,
-    BetaRequestMcpServerUrlDefinition, BetaServiceTierParam, BetaSpeed,
-    BetaSystemPrompt, BetaThinkingConfigParam, BetaToolChoice, BetaToolUnion, HttpMethod, Model,
+    BetaRequestMcpServerUrlDefinition, BetaServiceTierParam, BetaSpeed, BetaSystemPrompt,
+    BetaThinkingConfigParam, BetaToolChoice, BetaToolUnion, HttpMethod, Model,
 };
 
 /// Request descriptor for Claude "Create a Message" endpoint.

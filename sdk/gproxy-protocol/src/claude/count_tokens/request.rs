@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::claude::count_tokens::types::{
     AnthropicBeta, AnthropicVersion, BetaCacheControlEphemeral, BetaContextManagementConfig,
-    BetaMessageParam, BetaOutputConfig, BetaRequestMcpServerUrlDefinition,
-    BetaSystemPrompt, BetaThinkingConfigParam, BetaToolChoice, BetaToolUnion, HttpMethod, Model,
+    BetaMessageParam, BetaOutputConfig, BetaRequestMcpServerUrlDefinition, BetaSystemPrompt,
+    BetaThinkingConfigParam, BetaToolChoice, BetaToolUnion, HttpMethod, Model,
 };
 
 /// Request descriptor for Claude "Count Tokens" endpoint.

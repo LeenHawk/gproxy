@@ -22,7 +22,7 @@ use crate::transform::openai::generate_content::openai_chat_completions::utils::
     chat_tool_choice_to_response_tool_choice, chat_tools_to_response_tools,
     chat_user_content_to_response_input_message_content,
 };
-use crate::transform::utils::TransformError;
+use crate::transform::utils::{TransformError, enforce_anthropic_strict_schema};
 
 impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
     type Error = TransformError;
@@ -295,8 +295,10 @@ impl TryFrom<OpenAiChatCompletionsRequest> for ClaudeCreateMessageRequest {
             .and_then(|text| text.format.as_ref())
             .and_then(|format| match format {
                 ot::ResponseTextFormatConfig::JsonSchema(schema) => {
+                    let mut patched = schema.schema.clone();
+                    enforce_anthropic_strict_schema(&mut patched);
                     Some(ct::BetaJsonOutputFormat {
-                        schema: schema.schema.clone(),
+                        schema: patched,
                         type_: ct::BetaJsonOutputFormatType::JsonSchema,
                     })
                 }

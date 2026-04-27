@@ -17,7 +17,7 @@ use crate::transform::openai::count_tokens::claude::utils::{
 use crate::transform::openai::count_tokens::utils::{
     openai_input_to_items, openai_reasoning_summary_to_text,
 };
-use crate::transform::utils::TransformError;
+use crate::transform::utils::{TransformError, enforce_anthropic_strict_schema};
 
 fn parse_tool_use_input(input: String) -> ct::JsonObject {
     serde_json::from_str::<ct::JsonObject>(&input).unwrap_or_else(|_| {
@@ -664,8 +664,10 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
             .and_then(|text| text.format.as_ref())
             .and_then(|format| match format {
                 ot::ResponseTextFormatConfig::JsonSchema(schema) => {
+                    let mut patched = schema.schema.clone();
+                    enforce_anthropic_strict_schema(&mut patched);
                     Some(ct::BetaJsonOutputFormat {
-                        schema: schema.schema.clone(),
+                        schema: patched,
                         type_: ct::BetaJsonOutputFormatType::JsonSchema,
                     })
                 }
