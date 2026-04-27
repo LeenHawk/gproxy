@@ -933,3 +933,49 @@ impl TryFrom<OpenAiCreateResponseRequest> for ClaudeCreateMessageRequest {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_assistant_output_text_item_without_message_type() {
+        let body = serde_json::from_value(serde_json::json!({
+            "model": "claude-jupiter-v1-p",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [{ "type": "input_text", "text": "hello" }]
+                },
+                {
+                    "role": "assistant",
+                    "content": [{ "type": "output_text", "text": "hello there" }]
+                },
+                {
+                    "role": "user",
+                    "content": [{ "type": "input_text", "text": "who are you" }]
+                }
+            ],
+            "store": false,
+            "stream": true,
+            "temperature": 1.0
+        }))
+        .expect("Cherry Studio Responses history should deserialize");
+        let request = OpenAiCreateResponseRequest {
+            body,
+            ..Default::default()
+        };
+
+        let converted = ClaudeCreateMessageRequest::try_from(request).expect("request converts");
+
+        assert_eq!(converted.body.messages.len(), 3);
+        assert_eq!(
+            converted.body.messages[1].role,
+            ct::BetaMessageRole::Assistant
+        );
+        assert_eq!(
+            converted.body.messages[1].content,
+            ct::BetaMessageContent::Text("hello there".to_string())
+        );
+    }
+}

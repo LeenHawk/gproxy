@@ -1164,8 +1164,8 @@ fn message_item(
         content: vec![ot::ResponseOutputContent::Text(output_text_part(text))],
         role: ot::ResponseOutputMessageRole::Assistant,
         phase: Some(ot::ResponseMessagePhase::FinalAnswer),
-        status,
-        type_: ot::ResponseOutputMessageType::Message,
+        status: Some(status),
+        type_: Some(ot::ResponseOutputMessageType::Message),
     })
 }
 

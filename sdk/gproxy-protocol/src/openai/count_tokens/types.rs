@@ -206,13 +206,10 @@ pub struct ResponseOutputMessage {
     pub role: ResponseOutputMessageRole,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub phase: Option<ResponseMessagePhase>,
-    #[serde(default = "default_response_item_status")]
-    pub status: ResponseItemStatus,
-    #[serde(rename = "type")]
-    pub type_: ResponseOutputMessageType,
-}
-fn default_response_item_status() -> ResponseItemStatus {
-    ResponseItemStatus::Completed
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<ResponseItemStatus>,
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub type_: Option<ResponseOutputMessageType>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -350,6 +347,24 @@ pub enum ResponseOutputMessageRole {
 pub enum ResponseOutputMessageType {
     #[serde(rename = "message")]
     Message,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_output_message_type_and_status_are_optional() {
+        let message: ResponseOutputMessage = serde_json::from_value(serde_json::json!({
+            "role": "assistant",
+            "content": [{ "type": "output_text", "text": "hello" }]
+        }))
+        .expect("assistant output message without optional fields should deserialize");
+
+        let value = serde_json::to_value(message).expect("message serializes");
+        assert!(value.get("status").is_none(), "status should stay absent");
+        assert!(value.get("type").is_none(), "type should stay absent");
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

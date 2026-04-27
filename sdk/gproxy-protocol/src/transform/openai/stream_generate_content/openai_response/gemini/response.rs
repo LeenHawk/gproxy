@@ -941,8 +941,8 @@ fn message_item(
         },
         role: ot::ResponseOutputMessageRole::Assistant,
         phase: Some(ot::ResponseMessagePhase::FinalAnswer),
-        status,
-        type_: ot::ResponseOutputMessageType::Message,
+        status: Some(status),
+        type_: Some(ot::ResponseOutputMessageType::Message),
     })
 }
 

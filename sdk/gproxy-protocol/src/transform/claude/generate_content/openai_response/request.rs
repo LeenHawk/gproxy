@@ -128,8 +128,8 @@ fn output_message_item(id: String, text: String) -> ResponseInputItem {
         })],
         role: ot::ResponseOutputMessageRole::Assistant,
         phase: None,
-        status: ot::ResponseItemStatus::Completed,
-        type_: ot::ResponseOutputMessageType::Message,
+        status: Some(ot::ResponseItemStatus::Completed),
+        type_: Some(ot::ResponseOutputMessageType::Message),
     })
 }
 
