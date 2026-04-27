@@ -347,7 +347,8 @@ pub enum BetaWebSearchToolResultErrorType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BetaWebSearchResultBlock {
     pub encrypted_content: String,
-    pub page_age: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_age: Option<String>,
     pub title: String,
     #[serde(rename = "type")]
     pub type_: BetaWebSearchResultBlockType,
