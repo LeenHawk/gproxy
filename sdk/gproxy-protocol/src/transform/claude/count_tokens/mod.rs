@@ -1,3 +1,0 @@
-pub mod gemini;
-pub mod openai;
-pub mod utils;
