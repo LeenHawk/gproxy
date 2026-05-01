@@ -389,7 +389,10 @@ fn anthropic_request_path(request: &PreparedRequest) -> Result<String, UpstreamE
         )),
         OperationFamily::CountToken => Ok("/v1/messages/count_tokens".to_string()),
         OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
-            Ok("/v1/messages".to_string())
+            match request.route.protocol {
+                ProtocolKind::OpenAiChatCompletion => Ok("/v1/chat/completions".to_string()),
+                _ => Ok("/v1/messages".to_string()),
+            }
         }
         _ => Err(UpstreamError::Channel(format!(
             "unsupported anthropic request route: ({}, {})",
@@ -403,3 +406,41 @@ fn anthropic_routing_table() -> RoutingTable {
 }
 
 inventory::submit! { ChannelRegistration::new(AnthropicChannel::ID, anthropic_routing_table) }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::{HeaderMap, Method};
+
+    fn prepared_request(operation: OperationFamily, protocol: ProtocolKind) -> PreparedRequest {
+        PreparedRequest {
+            method: Method::POST,
+            route: RouteKey::new(operation, protocol),
+            model: Some("claude-test".to_string()),
+            query: None,
+            body: br#"{"model":"claude-test","messages":[{"role":"system","content":"s"}]}"#
+                .to_vec(),
+            headers: HeaderMap::new(),
+        }
+    }
+
+    #[test]
+    fn chat_completions_passthrough_uses_chat_completions_path() {
+        let settings = AnthropicSettings::default();
+        let credential = AnthropicCredential {
+            api_key: "test-key".to_string(),
+        };
+
+        for operation in [
+            OperationFamily::GenerateContent,
+            OperationFamily::StreamGenerateContent,
+        ] {
+            let request = prepared_request(operation, ProtocolKind::OpenAiChatCompletion);
+            let upstream = AnthropicChannel
+                .prepare_request(&credential, &settings, &request)
+                .expect("prepare request");
+
+            assert_eq!(upstream.uri().path(), "/v1/chat/completions");
+        }
+    }
+}
