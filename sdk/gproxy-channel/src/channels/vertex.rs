@@ -478,8 +478,10 @@ impl Channel for VertexChannel {
             crate::utils::http_headers::replace_header(&mut builder, "User-Agent", ua)?;
         }
 
+        let body = vertex_request_body(request)?;
+
         builder
-            .body(request.body.clone())
+            .body(body)
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
     }
 
@@ -528,15 +530,30 @@ fn vertex_request_path(
         credential.project_id.trim(),
         settings.location.trim()
     );
+    let openapi_prefix = format!(
+        "/v1/projects/{}/locations/{}/endpoints/openapi",
+        credential.project_id.trim(),
+        settings.location.trim()
+    );
     match request.route.operation {
         OperationFamily::ModelList => Ok("/v1beta1/publishers/google/models".to_string()),
         OperationFamily::ModelGet => Ok(format!("/v1beta1/publishers/google/models/{model}")),
         OperationFamily::CountToken => Ok(format!(
             "{project_prefix}publishers/google/models/{model}:countTokens"
         )),
+        OperationFamily::GenerateContent
+            if request.route.protocol == ProtocolKind::OpenAiChatCompletion =>
+        {
+            Ok(format!("{openapi_prefix}/chat/completions"))
+        }
         OperationFamily::GenerateContent => Ok(format!(
             "{project_prefix}publishers/google/models/{model}:generateContent"
         )),
+        OperationFamily::StreamGenerateContent
+            if request.route.protocol == ProtocolKind::OpenAiChatCompletion =>
+        {
+            Ok(format!("{openapi_prefix}/chat/completions"))
+        }
         OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => Ok(format!(
             "{project_prefix}publishers/google/models/{model}:streamGenerateContent{}",
             if request.route.protocol == ProtocolKind::Gemini {
@@ -553,6 +570,38 @@ fn vertex_request_path(
             request.route.operation, request.route.protocol
         ))),
     }
+}
+
+fn vertex_request_body(request: &PreparedRequest) -> Result<Vec<u8>, UpstreamError> {
+    if request.route.operation == OperationFamily::CountToken {
+        return flatten_vertex_count_tokens_body(&request.body);
+    }
+    Ok(request.body.clone())
+}
+
+fn flatten_vertex_count_tokens_body(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let Ok(Value::Object(mut body_map)) = serde_json::from_slice::<Value>(body) else {
+        return Ok(body.to_vec());
+    };
+    let Some(generate_content_request) = body_map.remove("generateContentRequest") else {
+        return Ok(body.to_vec());
+    };
+    let Value::Object(generate_content_request) = generate_content_request else {
+        body_map.insert(
+            "generateContentRequest".to_string(),
+            generate_content_request,
+        );
+        return serde_json::to_vec(&Value::Object(body_map))
+            .map_err(|e| UpstreamError::RequestBuild(e.to_string()));
+    };
+
+    for (key, value) in generate_content_request {
+        if key != "model" {
+            body_map.insert(key, value);
+        }
+    }
+    serde_json::to_vec(&Value::Object(body_map))
+        .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
 }
 
 fn vertex_routing_table() -> RoutingTable {
