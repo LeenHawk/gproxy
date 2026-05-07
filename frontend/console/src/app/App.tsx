@@ -27,6 +27,8 @@ type LoginResponse = {
   is_admin: boolean;
 };
 
+const TOAST_AUTO_DISMISS_MS = 10_000;
+
 // Reads the current URL hash and returns a module id valid for this role,
 // falling back to the role default. Normalises the hash in the URL when it
 // points at an unknown / forbidden module so what we render matches the URL.
@@ -103,7 +105,7 @@ function AppFrame() {
     toastTimerRef.current = window.setTimeout(() => {
       setToast(null);
       toastTimerRef.current = null;
-    }, 2600);
+    }, TOAST_AUTO_DISMISS_MS);
   }, []);
 
   const updateCheckedRef = useRef(false);
