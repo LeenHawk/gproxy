@@ -63,7 +63,6 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v5
         with:
-          version: latest
           run_install: false
 
       - name: Set up Node
