@@ -530,15 +530,30 @@ fn vertex_request_path(
         credential.project_id.trim(),
         settings.location.trim()
     );
+    let openapi_prefix = format!(
+        "/v1/projects/{}/locations/{}/endpoints/openapi",
+        credential.project_id.trim(),
+        settings.location.trim()
+    );
     match request.route.operation {
         OperationFamily::ModelList => Ok("/v1beta1/publishers/google/models".to_string()),
         OperationFamily::ModelGet => Ok(format!("/v1beta1/publishers/google/models/{model}")),
         OperationFamily::CountToken => Ok(format!(
             "{project_prefix}publishers/google/models/{model}:countTokens"
         )),
+        OperationFamily::GenerateContent
+            if request.route.protocol == ProtocolKind::OpenAiChatCompletion =>
+        {
+            Ok(format!("{openapi_prefix}/chat/completions"))
+        }
         OperationFamily::GenerateContent => Ok(format!(
             "{project_prefix}publishers/google/models/{model}:generateContent"
         )),
+        OperationFamily::StreamGenerateContent
+            if request.route.protocol == ProtocolKind::OpenAiChatCompletion =>
+        {
+            Ok(format!("{openapi_prefix}/chat/completions"))
+        }
         OperationFamily::StreamGenerateContent | OperationFamily::GeminiLive => Ok(format!(
             "{project_prefix}publishers/google/models/{model}:streamGenerateContent{}",
             if request.route.protocol == ProtocolKind::Gemini {
