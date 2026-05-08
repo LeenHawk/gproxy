@@ -708,6 +708,12 @@ pre {
   color: var(--text);
 }
 
+:root[data-theme="dark"] .toast {
+  border: 1px solid rgba(52, 211, 153, 0.38);
+  background: #064e3b;
+  color: #ecfdf5;
+}
+
 @media (max-width: 960px) {
   .layout-shell {
     flex-direction: column;

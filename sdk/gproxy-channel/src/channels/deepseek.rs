@@ -15,9 +15,9 @@ use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 /// DeepSeek API channel.
 ///
 /// Supports three upstream surfaces:
-/// - `/v1/chat/completions` for OpenAI-compatible chat (+ transforms from
+/// - `/chat/completions` for OpenAI-compatible chat (+ transforms from
 ///   Gemini / OpenAiResponse).
-/// - `/v1/models` and `/v1/models/{model}` for model discovery.
+/// - `/models` and `/models/{model}` for model discovery.
 /// - `/anthropic/v1/messages` for native Claude protocol passthrough (the
 ///   endpoint DeepSeek exposes for Anthropic API compatibility).
 ///
@@ -65,7 +65,7 @@ pub struct DeepSeekCredential {
 impl ChannelCredential for DeepSeekCredential {}
 
 /// OpenAI chat fields DeepSeek rejects. Mirrors the sample gproxy list
-/// so we strip them consistently across the `v1/chat/completions`
+/// so we strip them consistently across the `chat/completions`
 /// entry points.
 const DEEPSEEK_UNSUPPORTED_CHAT_FIELDS: &[&str] = &[
     "audio",
@@ -234,7 +234,7 @@ impl Channel for DeepSeekChannel {
         _settings: &Self::Settings,
         mut request: PreparedRequest,
     ) -> Result<PreparedRequest, UpstreamError> {
-        // Only the `v1/chat/completions` paths need body normalization —
+        // Only the `chat/completions` paths need body normalization —
         // the Claude passthrough hits `/anthropic/v1/messages` which
         // accepts Claude's native schema unchanged, and model list/get
         // have empty bodies.
@@ -378,21 +378,21 @@ impl Channel for DeepSeekChannel {
 
 fn deepseek_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
     match request.route.operation {
-        OperationFamily::ModelList => Ok("/v1/models".to_string()),
+        OperationFamily::ModelList => Ok("/models".to_string()),
         OperationFamily::ModelGet => Ok(format!(
-            "/v1/models/{}",
+            "/models/{}",
             request.model.as_deref().unwrap_or_default()
         )),
-        OperationFamily::CountToken => Ok("/v1/responses/input_tokens/count".to_string()),
+        OperationFamily::CountToken => Ok("/responses/input_tokens/count".to_string()),
         OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
             match request.route.protocol {
                 // DeepSeek exposes an Anthropic-compatible endpoint under
                 // `/anthropic/v1/messages`; the Claude passthrough routes
                 // reach this path directly.
                 ProtocolKind::Claude => Ok("/anthropic/v1/messages".to_string()),
-                ProtocolKind::OpenAiResponse => Ok("/v1/responses".to_string()),
+                ProtocolKind::OpenAiResponse => Ok("/responses".to_string()),
                 ProtocolKind::OpenAiChatCompletion | ProtocolKind::OpenAi => {
-                    Ok("/v1/chat/completions".to_string())
+                    Ok("/chat/completions".to_string())
                 }
                 _ => Err(UpstreamError::Channel(format!(
                     "unsupported deepseek request route: ({}, {})",
@@ -400,8 +400,8 @@ fn deepseek_request_path(request: &PreparedRequest) -> Result<String, UpstreamEr
                 ))),
             }
         }
-        OperationFamily::Embedding => Ok("/v1/embeddings".to_string()),
-        OperationFamily::OpenAiResponseWebSocket => Ok("/v1/responses".to_string()),
+        OperationFamily::Embedding => Ok("/embeddings".to_string()),
+        OperationFamily::OpenAiResponseWebSocket => Ok("/responses".to_string()),
         _ => Err(UpstreamError::Channel(format!(
             "unsupported deepseek request route: ({}, {})",
             request.route.operation, request.route.protocol
@@ -409,7 +409,7 @@ fn deepseek_request_path(request: &PreparedRequest) -> Result<String, UpstreamEr
     }
 }
 
-/// Normalize an outbound `/v1/chat/completions` request body so DeepSeek
+/// Normalize an outbound `/chat/completions` request body so DeepSeek
 /// accepts it. Ported from the sample gproxy upstream module.
 ///
 /// Changes:
@@ -579,7 +579,7 @@ fn normalize_deepseek_chat_tool_choice(choice: Value) -> Option<Value> {
     }
 }
 
-/// Normalize a DeepSeek `/v1/chat/completions` response body into the
+/// Normalize a DeepSeek `/chat/completions` response body into the
 /// shape downstream OpenAI consumers expect. Ported from sample gproxy.
 ///
 /// - Rewrite the nonstandard `finish_reason: "insufficient_system_resource"`
