@@ -16,6 +16,7 @@
 
 ### 协议与引擎修复
 
+- **DeepSeek 上游路径去掉 `/v1` 前缀**：OpenAI 兼容面的 model list / model get / chat completions 现在请求 `https://api.deepseek.com/models`、`/models/{model}`、`/chat/completions`;Anthropic 兼容面仍保持 `/anthropic/v1/messages`
 - **保留上游 meta 即便流聚合 / 转换失败**：`execute_inner` 捕获的 upstream status + body + latency 之前会被 `aggregate_stream_body?` / `transform_response?` 的 blanket `From<TransformError>` 推入 `ExecuteError::bare`(meta: None),导致 admin 上游日志显示 500 / 空响应 / 0ms。现在统一通过 `map_err` 把 `UpstreamRequestMeta` 附到转换失败路径上,schema 漂移等错误有完整取证
 - **Responses API keepalive SSE 帧**:Codex 后端中途下发 `event: keepalive`,不在 OpenAI 公开的 Responses 流式规范里,之前被 tag-discriminated 枚举拒绝,整个 SSE 变 500。给 `ResponseStreamEvent` / `ImageGenerationStreamEvent` / `ImageEditStreamEvent` 补 Keepalive 变体
 - **image_generation_call 输入 / 输出 schema 分离**:`response.output_item.added` 帧里的 image_generation_call 只有 `{id,type,status}`(还没结果),之前复用了要求 `result: String` 的 count_tokens 输入类型导致解析失败。新增 `ResponseOutputImageGenerationCall`:`result: Option<String>` 并带 Codex 运行时元数据(action / background / output_format / quality / size / revised_prompt),输入类型保持规范严格
