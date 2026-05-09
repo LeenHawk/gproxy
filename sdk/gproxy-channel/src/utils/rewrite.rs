@@ -11,6 +11,7 @@ use serde_json::Value;
 pub struct RewriteRule {
     pub path: String,
     pub action: RewriteAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<RewriteFilter>,
 }
 
@@ -29,10 +30,13 @@ pub enum RewriteAction {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RewriteFilter {
     /// Glob pattern matched against the request model name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_pattern: Option<String>,
     /// Allowlist of operation families.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operations: Option<Vec<OperationFamily>>,
     /// Allowlist of protocol kinds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocols: Option<Vec<ProtocolKind>>,
 }
 
