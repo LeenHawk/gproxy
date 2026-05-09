@@ -377,8 +377,10 @@ pub async fn export_toml(
 
 #[cfg(test)]
 mod tests {
-    use super::{ModelToml, UserKeyToml, UserToml};
+    use super::{ModelToml, ProviderToml, UserKeyToml, UserToml};
     use gproxy_sdk::channel::billing::ModelPriceTier;
+    use gproxy_sdk::channel::utils::rewrite::{RewriteAction, RewriteFilter, RewriteRule};
+    use serde_json::json;
 
     #[test]
     fn user_toml_round_trips_argon2_hashes() {
@@ -480,5 +482,35 @@ mod tests {
         assert!(!serialized.contains("flex_price"));
         assert!(!serialized.contains("scale_price"));
         assert!(!serialized.contains("priority_price"));
+    }
+
+    #[test]
+    fn provider_toml_serializes_alias_rewrite_rule_settings() {
+        let alias_rule = RewriteRule {
+            path: "model".into(),
+            action: RewriteAction::Set(json!("deepseek/deepseek-v4-flash")),
+            filter: Some(RewriteFilter {
+                model_pattern: Some("deepseek-ai/deepseek-v4-flash".into()),
+                operations: None,
+                protocols: None,
+            }),
+        };
+        let settings = json!({
+            "base_url": "https://api.qnaigc.com",
+            "rewrite_rules": [serde_json::to_value(alias_rule).expect("serialize rewrite rule")]
+        });
+        let provider = ProviderToml {
+            name: "qn".into(),
+            channel: "custom".into(),
+            label: Some("七牛".into()),
+            settings,
+            credentials: Vec::new(),
+        };
+
+        let serialized = toml::to_string(&provider).expect("serialize provider toml");
+
+        assert!(serialized.contains("deepseek-ai/deepseek-v4-flash"));
+        assert!(!serialized.contains("operations"));
+        assert!(!serialized.contains("protocols"));
     }
 }
