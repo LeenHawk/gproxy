@@ -15,7 +15,6 @@ const OAUTH_SCOPE: &str =
 const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
 const API_VERSION: &str = "2023-06-01";
-const USER_AGENT: &str = "claude-cli/2.1.89 (cli, external)";
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct CookieTokenResponse {
@@ -56,6 +55,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
     client: &wreq::Client,
     api_base_url: &str,
     claude_ai_base_url: &str,
+    user_agent: &str,
     cookie: &str,
     tracked: &mut Vec<UpstreamRequestMeta>,
 ) -> Result<CookieTokenResponse, UpstreamError> {
@@ -94,7 +94,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .headers(build_cookie_headers(cookie, ai_base)?)
         .header("anthropic-version", API_VERSION)
         .header("anthropic-beta", OAUTH_BETA)
-        .header("user-agent", USER_AGENT)
+        .header("user-agent", user_agent)
         .header("content-type", "application/json")
         .body(auth_req_body.clone())
         .send()
@@ -167,7 +167,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
         .header("content-type", "application/x-www-form-urlencoded")
         .header("accept", "application/json, text/plain, */*")
         .header("origin", ai_base)
-        .header("user-agent", USER_AGENT)
+        .header("user-agent", user_agent)
         .body(token_body.clone())
         .send()
         .await
@@ -246,6 +246,7 @@ pub(crate) async fn exchange_tokens_with_cookie(
 pub(crate) async fn exchange_tokens_with_refresh_token(
     client: &wreq::Client,
     api_base_url: &str,
+    user_agent: &str,
     refresh_token: &str,
     tracked: &mut Vec<UpstreamRequestMeta>,
 ) -> Result<CookieTokenResponse, UpstreamError> {
@@ -264,7 +265,7 @@ pub(crate) async fn exchange_tokens_with_refresh_token(
         .header("anthropic-beta", OAUTH_BETA)
         .header("content-type", "application/x-www-form-urlencoded")
         .header("accept", "application/json, text/plain, */*")
-        .header("user-agent", USER_AGENT)
+        .header("user-agent", user_agent)
         .body(body.clone())
         .send()
         .await

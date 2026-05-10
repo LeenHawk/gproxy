@@ -143,6 +143,19 @@ pub trait Channel: Send + Sync + 'static {
         async { Ok(false) }
     }
 
+    /// Settings-aware refresh path. Channels whose refresh flows need the
+    /// same base URLs, OAuth parameters, or client fingerprint as normal
+    /// requests override this; older implementations can keep using
+    /// [`refresh_credential`].
+    fn refresh_credential_with_settings<'a>(
+        &'a self,
+        client: &'a wreq::Client,
+        _settings: &'a Self::Settings,
+        credential: &'a mut Self::Credential,
+    ) -> impl Future<Output = Result<bool, UpstreamError>> + Send + 'a {
+        self.refresh_credential(client, credential)
+    }
+
     /// Build an HTTP request to query the upstream provider's quota / usage
     /// information for a given credential.
     ///

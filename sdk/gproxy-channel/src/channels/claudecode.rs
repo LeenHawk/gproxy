@@ -53,8 +53,6 @@ const CLAUDECODE_OAUTH_SCOPE: &str =
 const CLAUDECODE_OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDECODE_API_VERSION: &str = "2023-06-01";
 const CLAUDECODE_OAUTH_STATE_TTL_MS: u64 = 600_000;
-const CLAUDECODE_TOKEN_UA: &str = "claude-cli/2.1.112 (external, cli)";
-const CLAUDECODE_PROFILE_UA: &str = "claude-code/2.1.112";
 
 /// Per-credential session ID cache.  Key = device_id, value = (session_id, created_at_ms).
 /// Follows the same static-DashMap pattern used by `claudecode_oauth_states()`.
@@ -155,6 +153,7 @@ fn build_claudecode_authorize_url(
 
 async fn exchange_claudecode_code_for_tokens(
     client: &wreq::Client,
+    settings: &ClaudeCodeSettings,
     api_base_url: &str,
     claude_ai_base_url: &str,
     redirect_uri: &str,
@@ -180,7 +179,7 @@ async fn exchange_claudecode_code_for_tokens(
         .header("content-type", "application/x-www-form-urlencoded")
         .header("accept", "application/json, text/plain, */*")
         .header("origin", claude_ai_base_url)
-        .header("user-agent", CLAUDECODE_TOKEN_UA)
+        .header("user-agent", settings.claude_cli_user_agent())
         .body(body)
         .send()
         .await
@@ -202,6 +201,7 @@ async fn exchange_claudecode_code_for_tokens(
 
 async fn fetch_claudecode_oauth_profile(
     client: &wreq::Client,
+    settings: &ClaudeCodeSettings,
     api_base_url: &str,
     access_token: &str,
 ) -> Result<ClaudeCodeOAuthProfile, UpstreamError> {
@@ -211,7 +211,7 @@ async fn fetch_claudecode_oauth_profile(
             api_base_url.trim_end_matches('/')
         ))
         .header("authorization", format!("Bearer {access_token}"))
-        .header("user-agent", CLAUDECODE_PROFILE_UA)
+        .header("user-agent", settings.claude_code_user_agent())
         .header("accept", "application/json")
         .header("anthropic-beta", CLAUDECODE_OAUTH_BETA)
         .send()
@@ -364,6 +364,19 @@ impl ClaudeCodeFingerprint {
 }
 
 impl ClaudeCodeSettings {
+    fn claude_cli_user_agent(&self) -> String {
+        format!(
+            "claude-cli/{} ({}, {})",
+            self.cli_version(),
+            self.user_type(),
+            self.entrypoint()
+        )
+    }
+
+    fn claude_code_user_agent(&self) -> String {
+        format!("claude-code/{}", self.cli_version())
+    }
+
     fn cli_version(&self) -> &str {
         self.fingerprint
             .cli_version
@@ -692,11 +705,19 @@ fn apply_cookie_exchange_tokens(
 pub async fn bootstrap_credential_from_cookie(
     http_client: &wreq::Client,
     spoof_client: Option<&wreq::Client>,
+    settings_json: &Value,
     credential_json: &Value,
 ) -> Result<
     (Option<Value>, Vec<crate::meta::UpstreamRequestMeta>),
     (UpstreamError, Vec<crate::meta::UpstreamRequestMeta>),
 > {
+    let settings: ClaudeCodeSettings =
+        serde_json::from_value(settings_json.clone()).map_err(|e| {
+            (
+                UpstreamError::Channel(format!("invalid claudecode settings: {e}")),
+                Vec::new(),
+            )
+        })?;
     let mut credential: ClaudeCodeCredential = serde_json::from_value(credential_json.clone())
         .map_err(|e| {
             (
@@ -719,10 +740,12 @@ pub async fn bootstrap_credential_from_cookie(
 
     tracing::info!("bootstrapping claudecode credential from cookie on upsert");
     let mut tracked = Vec::new();
+    let user_agent = settings.claude_cli_user_agent();
     let tokens = match crate::utils::claudecode_cookie::exchange_tokens_with_cookie(
         client,
-        &default_claudecode_base_url(),
-        &default_claudecode_claude_ai_base_url(),
+        settings.base_url(),
+        &settings.claude_ai_base_url,
+        &user_agent,
         &cookie,
         &mut tracked,
     )
@@ -865,6 +888,67 @@ fn inject_system_attribution(body: &mut Value, attribution: &str) {
 // ---------------------------------------------------------------------------
 // Channel implementation
 // ---------------------------------------------------------------------------
+
+async fn refresh_claudecode_credential(
+    client: wreq::Client,
+    settings: ClaudeCodeSettings,
+    credential: &mut ClaudeCodeCredential,
+) -> Result<bool, UpstreamError> {
+    let user_agent = settings.claude_cli_user_agent();
+    // Path 1: Anthropic OAuth `refresh_token` grant.
+    //
+    // We do NOT use the generic `oauth2_refresh::refresh_oauth2_token`
+    // helper here — Anthropic's `/v1/oauth/token` endpoint rejects
+    // refresh requests that omit `client_id` or the
+    // `anthropic-version` / `anthropic-beta` / CLI `user-agent`
+    // headers with `invalid_request_error: Invalid request format`.
+    // See `exchange_tokens_with_refresh_token` for the required
+    // shape. A credential with only a `refresh_token` (no cookie)
+    // would otherwise silently stay dead forever.
+    if !credential.refresh_token.is_empty() {
+        match crate::utils::claudecode_cookie::exchange_tokens_with_refresh_token(
+            &client,
+            settings.base_url(),
+            &user_agent,
+            &credential.refresh_token,
+            &mut Vec::new(),
+        )
+        .await
+        {
+            Ok(tokens) => {
+                apply_cookie_exchange_tokens(credential, tokens);
+                tracing::info!("credential refreshed via refresh_token grant");
+                return Ok(true);
+            }
+            Err(e) if credential.cookie.as_ref().is_some_and(|c| !c.is_empty()) => {
+                tracing::info!(
+                    error = %e,
+                    "refresh_token grant failed, falling back to cookie"
+                );
+                // Fall through to cookie path
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
+    // Path 2: Cookie-to-token exchange (fallback)
+    let cookie = match &credential.cookie {
+        Some(c) if !c.is_empty() => c.clone(),
+        _ => return Ok(false),
+    };
+    let tokens = crate::utils::claudecode_cookie::exchange_tokens_with_cookie(
+        &client,
+        settings.base_url(),
+        &settings.claude_ai_base_url,
+        &user_agent,
+        &cookie,
+        &mut Vec::new(),
+    )
+    .await?;
+    apply_cookie_exchange_tokens(credential, tokens);
+    tracing::info!("credential refreshed via cookie exchange");
+    Ok(true)
+}
 
 impl Channel for ClaudeCodeChannel {
     const ID: &'static str = "claudecode";
@@ -1033,15 +1117,7 @@ impl Channel for ClaudeCodeChannel {
         };
 
         // -- 2. Build the User-Agent ------------------------------------
-        let user_agent = match settings.user_agent() {
-            Some(ua) => ua.to_string(),
-            None => format!(
-                "claude-cli/{} ({}, {})",
-                settings.cli_version(),
-                settings.user_type(),
-                settings.entrypoint()
-            ),
-        };
+        let user_agent = settings.claude_cli_user_agent();
 
         // -- 3. Assemble the HTTP request -------------------------------
         //    Header order mirrors what the Anthropic JS SDK (Stainless,
@@ -1294,15 +1370,7 @@ impl Channel for ClaudeCodeChannel {
             "{}/api/oauth/usage",
             settings.platform_base_url.trim_end_matches('/')
         );
-        let user_agent = match settings.user_agent() {
-            Some(ua) => ua.to_string(),
-            None => format!(
-                "claude-cli/{} ({}, {})",
-                DEFAULT_CLAUDECODE_VERSION,
-                DEFAULT_CLAUDECODE_USER_TYPE,
-                DEFAULT_CLAUDECODE_ENTRYPOINT
-            ),
-        };
+        let user_agent = settings.claude_cli_user_agent();
         let req = http::Request::builder()
             .method(http::Method::GET)
             .uri(&url)
@@ -1342,61 +1410,23 @@ impl Channel for ClaudeCodeChannel {
         credential: &'a mut Self::Credential,
     ) -> impl std::future::Future<Output = Result<bool, UpstreamError>> + Send + 'a {
         let client = client.clone();
+        let settings = ClaudeCodeSettings::default();
         let span = tracing::info_span!("refresh_credential", channel = "claudecode");
-        async move {
-            // Path 1: Anthropic OAuth `refresh_token` grant.
-            //
-            // We do NOT use the generic `oauth2_refresh::refresh_oauth2_token`
-            // helper here — Anthropic's `/v1/oauth/token` endpoint rejects
-            // refresh requests that omit `client_id` or the
-            // `anthropic-version` / `anthropic-beta` / CLI `user-agent`
-            // headers with `invalid_request_error: Invalid request format`.
-            // See `exchange_tokens_with_refresh_token` for the required
-            // shape. A credential with only a `refresh_token` (no cookie)
-            // would otherwise silently stay dead forever.
-            if !credential.refresh_token.is_empty() {
-                match crate::utils::claudecode_cookie::exchange_tokens_with_refresh_token(
-                    &client,
-                    &default_claudecode_base_url(),
-                    &credential.refresh_token,
-                    &mut Vec::new(),
-                )
-                .await
-                {
-                    Ok(tokens) => {
-                        apply_cookie_exchange_tokens(credential, tokens);
-                        tracing::info!("credential refreshed via refresh_token grant");
-                        return Ok(true);
-                    }
-                    Err(e) if credential.cookie.as_ref().is_some_and(|c| !c.is_empty()) => {
-                        tracing::info!(
-                            error = %e,
-                            "refresh_token grant failed, falling back to cookie"
-                        );
-                        // Fall through to cookie path
-                    }
-                    Err(e) => return Err(e),
-                }
-            }
+        async move { refresh_claudecode_credential(client, settings, credential).await }
+            .instrument(span)
+    }
 
-            // Path 2: Cookie-to-token exchange (fallback)
-            let cookie = match &credential.cookie {
-                Some(c) if !c.is_empty() => c.clone(),
-                _ => return Ok(false),
-            };
-            let tokens = crate::utils::claudecode_cookie::exchange_tokens_with_cookie(
-                &client,
-                &default_claudecode_base_url(),
-                &default_claudecode_claude_ai_base_url(),
-                &cookie,
-                &mut Vec::new(),
-            )
-            .await?;
-            apply_cookie_exchange_tokens(credential, tokens);
-            tracing::info!("credential refreshed via cookie exchange");
-            Ok(true)
-        }
-        .instrument(span)
+    fn refresh_credential_with_settings<'a>(
+        &'a self,
+        client: &'a wreq::Client,
+        settings: &'a Self::Settings,
+        credential: &'a mut Self::Credential,
+    ) -> impl std::future::Future<Output = Result<bool, UpstreamError>> + Send + 'a {
+        let client = client.clone();
+        let settings = settings.clone();
+        let span = tracing::info_span!("refresh_credential", channel = "claudecode");
+        async move { refresh_claudecode_credential(client, settings, credential).await }
+            .instrument(span)
     }
     fn oauth_start<'a>(
         &'a self,
@@ -1463,7 +1493,7 @@ impl Channel for ClaudeCodeChannel {
     fn oauth_finish<'a>(
         &'a self,
         client: &'a wreq::Client,
-        _settings: &'a Self::Settings,
+        settings: &'a Self::Settings,
         params: &'a BTreeMap<String, String>,
     ) -> std::pin::Pin<
         Box<
@@ -1494,6 +1524,7 @@ impl Channel for ClaudeCodeChannel {
 
             let token = exchange_claudecode_code_for_tokens(
                 client,
+                settings,
                 &oauth_state.api_base_url,
                 &oauth_state.claude_ai_base_url,
                 &oauth_state.redirect_uri,
@@ -1524,10 +1555,14 @@ impl Channel for ClaudeCodeChannel {
                     )
                 })?
                 .to_string();
-            let profile =
-                fetch_claudecode_oauth_profile(client, &oauth_state.api_base_url, &access_token)
-                    .await
-                    .ok();
+            let profile = fetch_claudecode_oauth_profile(
+                client,
+                settings,
+                &oauth_state.api_base_url,
+                &access_token,
+            )
+            .await
+            .ok();
             let rate_limit_tier = token.rate_limit_tier.or_else(|| {
                 profile
                     .as_ref()

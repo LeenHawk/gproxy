@@ -4,6 +4,9 @@ import {
   buildChannelSettingsJson,
   buildCredentialJson,
   credentialFieldsForChannel,
+  defaultSettingsForChannel,
+  settingsFieldsForChannel,
+  settingsValuesFromJson,
 } from "./channel-forms";
 
 describe("buildChannelSettingsJson", () => {
@@ -37,6 +40,36 @@ describe("buildChannelSettingsJson", () => {
       "cookie",
       "user_email",
     ]);
+  });
+
+  it("exposes claudecode fingerprint settings instead of legacy user_agent", () => {
+    const fieldKeys = settingsFieldsForChannel("claudecode").map((field) => field.key);
+
+    expect(fieldKeys).toContain("fingerprint");
+    expect(fieldKeys).not.toContain("user_agent");
+    expect(defaultSettingsForChannel("claudecode")).not.toHaveProperty("user_agent");
+  });
+
+  it("roundtrips claudecode fingerprint settings as a structured object", () => {
+    const values = settingsValuesFromJson("claudecode", {
+      base_url: "https://api.anthropic.com",
+      fingerprint: {
+        cli_version: "9.8.7",
+        user_type: "external",
+        entrypoint: "cli",
+      },
+    });
+
+    expect(values.fingerprint).toContain('"cli_version": "9.8.7"');
+
+    expect(buildChannelSettingsJson("claudecode", values)).toMatchObject({
+      base_url: "https://api.anthropic.com",
+      fingerprint: {
+        cli_version: "9.8.7",
+        user_type: "external",
+        entrypoint: "cli",
+      },
+    });
   });
 
   it("exposes the full geminicli oauth credential schema", () => {

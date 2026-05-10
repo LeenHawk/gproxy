@@ -765,6 +765,7 @@ impl GproxyEngine {
     pub async fn bootstrap_credential_on_upsert(
         &self,
         channel: &str,
+        #[allow(unused_variables)] settings_json: &Value,
         #[allow(unused_variables)] credential_json: &Value,
     ) -> Result<(Option<Value>, Vec<UpstreamRequestMeta>), (UpstreamError, Vec<UpstreamRequestMeta>)>
     {
@@ -774,6 +775,7 @@ impl GproxyEngine {
                 gproxy_channel::channels::claudecode::bootstrap_credential_from_cookie(
                     &self.client,
                     self.spoof_client.as_ref(),
+                    settings_json,
                     credential_json,
                 )
                 .await

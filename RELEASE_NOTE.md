@@ -24,6 +24,7 @@
 
 ### ClaudeCode
 
+- **指纹配置统一为 settings 来源**：控制台新增 `fingerprint` JSON 配置,ClaudeCode 普通请求 / quota / OAuth profile / token refresh 的 UA 统一从 `fingerprint.cli_version` 等字段派生,不再使用前端旧 `user_agent` 默认值或后端硬编码 UA
 - **magic cache_control 跳过 thinking 块**(同步 sgproxy 676c86c):`thinking` / `redacted_thinking` 块不能携带 `cache_control`,注入阶段跳过,计数阶段也不占 4 槽上限
 - **保留 `speed` 字段**:移除 `normalize_claudecode_unsupported_fields` —— `speed` 原样透传给上游
 

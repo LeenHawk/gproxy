@@ -17,6 +17,23 @@ type ChannelCredentialConfig = {
   fields: ChannelField[];
 };
 
+const DEFAULT_CLAUDECODE_FINGERPRINT = JSON.stringify(
+  {
+    cli_version: "2.1.112",
+    user_type: "external",
+    entrypoint: "cli",
+    stainless_lang: "js",
+    stainless_package_version: "0.81.0",
+    stainless_runtime: "node",
+    stainless_runtime_version: "v22.20.0",
+    stainless_os: "Linux",
+    stainless_arch: "x64",
+    stainless_timeout: "600",
+  },
+  null,
+  2,
+);
+
 export const ALL_CHANNEL_IDS = [
   "custom",
   "openai",
@@ -134,15 +151,15 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
   claudecode: {
     defaults: {
       base_url: "https://api.anthropic.com",
-      user_agent: "claude-code/2.1.89",
       claude_ai_base_url: "https://claude.ai",
       platform_base_url: "https://platform.claude.com",
+      fingerprint: DEFAULT_CLAUDECODE_FINGERPRINT,
     },
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
-      { key: "user_agent", label: "user_agent", type: "text", optional: true },
       { key: "claude_ai_base_url", label: "claude_ai_base_url", type: "text" },
       { key: "platform_base_url", label: "platform_base_url", type: "text" },
+      { key: "fingerprint", label: "fingerprint", type: "json", optional: true },
       { key: "enable_magic_cache", label: "enable_magic_cache", type: "boolean", optional: true },
       { key: "flatten_system_before_cache", label: "flatten_system_before_cache", type: "boolean", optional: true },
       { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
