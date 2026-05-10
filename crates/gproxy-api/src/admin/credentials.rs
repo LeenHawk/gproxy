@@ -127,7 +127,7 @@ async fn create_credential_and_sync_runtime(
     // cause immediately.
     let (credential, tracked_requests) = match state
         .engine()
-        .bootstrap_credential_on_upsert(&provider.channel, &credential)
+        .bootstrap_credential_on_upsert(&provider.channel, &provider.settings_json, &credential)
         .await
     {
         Ok((Some(updated), tracked)) => (updated, tracked),

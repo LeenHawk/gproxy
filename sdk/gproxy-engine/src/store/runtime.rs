@@ -770,9 +770,10 @@ impl<C: Channel> ProviderRuntime for ProviderInstance<C> {
             };
 
             let mut credential = original.clone();
+            let settings = self.settings.load();
             let refreshed = self
                 .channel
-                .refresh_credential(client, &mut credential)
+                .refresh_credential_with_settings(client, &settings, &mut credential)
                 .await
                 .unwrap_or(false);
 

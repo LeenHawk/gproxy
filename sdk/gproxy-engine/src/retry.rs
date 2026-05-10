@@ -298,7 +298,10 @@ where
                 } else {
                     http_client
                 };
-                match channel.refresh_credential(refresh_client, credential).await {
+                match channel
+                    .refresh_credential_with_settings(refresh_client, settings, credential)
+                    .await
+                {
                     Ok(true) => {
                         tracing::info!(credential = idx, "pre-flight refresh succeeded");
                     }
@@ -472,7 +475,7 @@ where
                         http_client
                     };
                     let refreshed = channel
-                        .refresh_credential(refresh_client, credential)
+                        .refresh_credential_with_settings(refresh_client, settings, credential)
                         .await
                         .unwrap_or(false);
 
