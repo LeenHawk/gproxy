@@ -1,76 +1,168 @@
 # Release Notes
 
+## v1.0.21
+
+> Protocol packaging is split out, provider/admin behavior is tightened, and several channel compatibility fixes land together.
+
+### English
+
+#### Added
+
+- **Standalone `gproxy-protocol` repository integration.** The protocol crate is now wired as a standalone repository/submodule and the CI/release workflows fetch it explicitly. Workspace and admin API docs were updated to match the new layout.
+- **Update-channel configuration.** Added storage/API support for configuring the update channel, including the migration and admin settings plumbing.
+- **Credential rotation strategy.** Providers can now choose the credential rotation strategy, with console labels and option text localized.
+- **Credential copy affordance.** The admin console adds copy actions with visible success feedback for credential fields.
+
+#### Fixed
+
+- **ClaudeCode fingerprint settings are now the single UA source.** The console exposes `fingerprint` JSON settings, and normal requests, quota requests, OAuth profile/token exchange, token refresh, and cookie bootstrap all derive their UA from the same `fingerprint.cli_version` / user type / entrypoint settings. The old console `user_agent` default and backend hard-coded UA values were removed (#95).
+- **ClaudeCode OAuth/cookie bootstrap compatibility.** Cookie bootstrap filters organizations by subscription capability and sends the required OAuth beta headers during the authorize step.
+- **DeepSeek no longer prepends `/v1` to upstream paths.** Model list/get and chat/responses requests now use DeepSeek's root API paths while Anthropic-compatible paths keep their own prefixing behavior.
+- **Vertex CountToken/OpenAPI handling.** Vertex request body handling is stricter and OpenAPI chat-completions compatible requests route to the correct endpoint.
+- **Structured-output conversion cleanup.** OpenAI-to-Claude transforms drop deprecated `output_format`, avoid unsupported permissive JSON-object shims, and keep schema serialization strict.
+- **TOML export for rewrite rules.** Model alias/suffix rewrite rules no longer export empty filter dimensions as JSON null, avoiding `unsupported unit type` during config export (#94).
+- **Responses/image stream schema tolerance.** Responses keepalive events and partial image-generation output items are accepted instead of turning valid upstream streams into local 500s.
+
+#### Changed
+
+- **Documentation refresh.** Quick-start and SDK/admin references now point at the current workspace, release download flow, and protocol layout.
+- **Console polish.** Rotation-strategy labels are simplified and localized, and dark-theme toast styling is readable.
+
+### 简体中文
+
+#### 新增
+
+- **`gproxy-protocol` 独立仓库接入.** protocol crate 已拆到独立仓库 / submodule,CI 与 release workflow 会显式拉取;workspace 与 admin API 文档同步更新到新布局。
+- **更新渠道配置.** 新增 update channel 的存储 / API / admin settings 管线,包含数据库迁移。
+- **凭证轮换策略.** Provider 可配置 credential rotation strategy,控制台标签和选项文案已完成中英文。
+- **凭证复制反馈.** 管理控制台给凭证字段增加复制动作,并显示明确的成功反馈。
+
+#### 修复
+
+- **ClaudeCode fingerprint settings 成为 UA 唯一来源.** 控制台现在暴露 `fingerprint` JSON 配置;普通请求、quota、OAuth profile/token exchange、token refresh、cookie bootstrap 都从同一组 `fingerprint.cli_version` / user type / entrypoint 派生 UA。移除了旧的控制台 `user_agent` 默认值和后端硬编码 UA(#95)。
+- **ClaudeCode OAuth / cookie bootstrap 兼容性.** cookie bootstrap 会按订阅能力筛选 organization,并在 authorize 步骤发送必需的 OAuth beta headers。
+- **DeepSeek 上游路径不再拼 `/v1`.** Model list/get、chat/responses 请求现在走 DeepSeek 根路径;Anthropic 兼容路径继续保持自己的前缀规则。
+- **Vertex CountToken / OpenAPI 处理.** Vertex 请求体处理更严格,OpenAPI chat-completions 兼容请求会路由到正确端点。
+- **结构化输出转换清理.** OpenAI → Claude 转换删除废弃的 `output_format`,避免生成上游不支持的宽松 JSON-object shim,并保持 schema 序列化严格。
+- **rewrite rules TOML 导出.** 模型别名 / 后缀变体自动生成的 rewrite rules 不再把空 filter 维度导出成 JSON null,避免配置导出时报 `unsupported unit type`(#94)。
+- **Responses / image stream schema 兼容.** Responses keepalive 事件和 image-generation 的 partial output item 现在会被接受,不再把有效上游流误转成本地 500。
+
+#### 调整
+
+- **文档刷新.** Quick Start、SDK、admin API 参考已对齐当前 workspace、release 下载流程和 protocol 布局。
+- **控制台细节.** rotation strategy 标签简化并本地化,dark theme toast 样式可读性修正。
+
 ## v1.0.20
 
-### ChatGPT 渠道重构
+> ChatGPT Web graduated into a full channel, OpenAI/Claude response-stream compatibility was tightened, and pricing/model data was refreshed.
 
-- **system_hints 透传 + model 后缀工具别名**：OpenAI 兼容请求体可通过三种方式触发 chatgpt.com 内置工具 —— 原始 id `{"system_hints":["picture_v2","search"]}`、`extra_body.tools_hint` 友好别名、以及 `model: "gpt-5@image"` 的尾缀语法;后缀表覆盖 image / search / study / agent / canvas / connectors / company / deep-research / quiz
-- **硬编码工具映射迁移到 rewrite_rules**：删除 Rust 侧 `TOOL_SUFFIXES`、`@<tool>`/`:<tool>` 解析器、`tools_hint` 友好别名、以及 `resolve_model` 里的 `gpt-5`/`gpt-5-thinking`/`gpt-5-pro`/`gpt-5-instant` 重映射 —— 这些能力现在完全由数据驱动的 rewrite_rules 实现,可在管理控制台里配置
-- **去掉独立 chatgpt 预设协议**：后缀变体(image-gen / web search / deep research)改为输出标准 OpenAI Responses-API 形状(`tools: [{type}]` + `tool_choice`),同一条 DB 别名可跨 codex / openai(透传)与 chatgpt(翻译)复用
-- **工具类型提取扩展**：chatgpt 的 `extract_system_hints` 现在同时读 `body.tools[*].type`,把 `image_generation` → picture_v2、`web_search[_preview]` → search、`deep_research` → `connector:connector_openai_deep_research`;未知 tool 类型在 chatgpt 路径上静默丢弃
+### English
 
-### 模型 & 计费
+#### Added
 
-- **DeepSeek V4 上线**：上游精简为 `deepseek-v4-flash` / `deepseek-v4-pro` 两个模型,`deepseek-chat` / `deepseek-reasoner` 保留为兼容别名,分别映射到 flash 的非思考 / 思考模式;前端 `PRICING_TEMPLATES` 同步更新
-- **gpt-5.5 系列模型与定价**：`data/models/` JSON 文件新增 gpt-5.5 系列条目与定价结构
+- **ChatGPT channel rework.** OpenAI-compatible requests can trigger chatgpt.com built-in tools through raw `system_hints`, friendly `extra_body.tools_hint`, or model suffixes such as `gpt-5@image`. The suffix table covers image, search, study, agent, canvas, connectors, company, deep-research, and quiz.
+- **Data-driven rewrite rules for ChatGPT tools.** Removed the Rust-side hard-coded tool suffix parsing and model remapping paths; these behaviors are now represented by rewrite rules configurable from the admin console.
+- **DeepSeek V4 model data.** Added `deepseek-v4-flash` and `deepseek-v4-pro`, keeping `deepseek-chat` / `deepseek-reasoner` as compatibility aliases.
+- **gpt-5.5 pricing.** Added gpt-5.5 model and pricing entries under `data/models/`.
 
-### 协议与引擎修复
+#### Fixed
 
-- **DeepSeek 上游路径去掉 `/v1` 前缀**：OpenAI 兼容面的 model list / model get / chat completions 现在请求 `https://api.deepseek.com/models`、`/models/{model}`、`/chat/completions`;Anthropic 兼容面仍保持 `/anthropic/v1/messages`
-- **配置导出支持模型别名 rewrite_rules**：别名 / 后缀变体自动写入的 `rewrite_rules` 不再把空 filter 维度导出成 JSON null,避免 TOML 导出报 `unsupported unit type`(#94)
-- **保留上游 meta 即便流聚合 / 转换失败**：`execute_inner` 捕获的 upstream status + body + latency 之前会被 `aggregate_stream_body?` / `transform_response?` 的 blanket `From<TransformError>` 推入 `ExecuteError::bare`(meta: None),导致 admin 上游日志显示 500 / 空响应 / 0ms。现在统一通过 `map_err` 把 `UpstreamRequestMeta` 附到转换失败路径上,schema 漂移等错误有完整取证
-- **Responses API keepalive SSE 帧**:Codex 后端中途下发 `event: keepalive`,不在 OpenAI 公开的 Responses 流式规范里,之前被 tag-discriminated 枚举拒绝,整个 SSE 变 500。给 `ResponseStreamEvent` / `ImageGenerationStreamEvent` / `ImageEditStreamEvent` 补 Keepalive 变体
-- **image_generation_call 输入 / 输出 schema 分离**:`response.output_item.added` 帧里的 image_generation_call 只有 `{id,type,status}`(还没结果),之前复用了要求 `result: String` 的 count_tokens 输入类型导致解析失败。新增 `ResponseOutputImageGenerationCall`:`result: Option<String>` 并带 Codex 运行时元数据(action / background / output_format / quality / size / revised_prompt),输入类型保持规范严格
+- **Upstream metadata survives stream aggregation / transform failures.** Conversion failures now keep upstream status, body, latency, and URL metadata so admin logs show the real failed attempt instead of a bare 500 with empty timing.
+- **Responses API keepalive SSE frames.** Codex keepalive events are accepted by the Responses/Image stream event schemas.
+- **Image generation output schema split.** `response.output_item.added` image-generation calls can arrive before `result` exists; the output shape now allows `result: Option<String>` while keeping input schemas strict.
+- **ClaudeCode cache-control safety.** Magic cache-control injection skips `thinking` / `redacted_thinking` blocks, and `speed` is preserved instead of being stripped.
+- **ChatGPT integration-test cleanup.** Removed tests that depended on untracked HAR samples or live access tokens; active harnesses stay in local target scripts.
 
-### ClaudeCode
+#### Changed
 
-- **指纹配置统一为 settings 来源**：控制台新增 `fingerprint` JSON 配置,ClaudeCode 普通请求 / quota / OAuth profile / token refresh 的 UA 统一从 `fingerprint.cli_version` 等字段派生,不再使用前端旧 `user_agent` 默认值或后端硬编码 UA
-- **magic cache_control 跳过 thinking 块**(同步 sgproxy 676c86c):`thinking` / `redacted_thinking` 块不能携带 `cache_control`,注入阶段跳过,计数阶段也不占 4 槽上限
-- **保留 `speed` 字段**:移除 `normalize_claudecode_unsupported_fields` —— `speed` 原样透传给上游
+- **No separate ChatGPT preset protocol.** Suffix variants now emit normal OpenAI Responses API shapes (`tools` + `tool_choice`) so one DB alias can be reused across Codex, OpenAI passthrough, and ChatGPT translation.
+- **ChatGPT tool extraction expanded.** `extract_system_hints` also reads `body.tools[*].type`; image, web search, and deep research tool types are mapped to ChatGPT system hints.
+- **OpenRouter base URL corrected.** The console no longer includes the redundant version segment in the OpenRouter default.
+- **CodeQL workflow added.** Code quality scanning is part of the repository workflow.
+- **Astro upgraded.** Bumped Astro 6.1.5 to 6.1.9 to clear GHSA-j687-52p2-xcff / CVE-2026-41067.
 
-### 其他
+### 简体中文
 
-- **CodeQL 代码质量扫描工作流**
-- **OpenRouter base_url 修正**:前端 channel-forms 去掉多余版本号段
-- **astro 6.1.5 → 6.1.9**:修 GHSA-j687-52p2-xcff (CVE-2026-41067, define:vars XSS);docs 站静态构建未暴露,仅清理告警
-- **ChatGPT 集成测试清理**:`tests/chatgpt_stream_pipeline.rs` 用 `include_bytes!` 引用 target/samples/ 里未入库的 HAR 导致新 checkout 编译失败,连同 `tests/chatgpt_live_e2e.rs`(需 live 访问 + access token)一并删除;活跃回归覆盖继续放在 target/scripts/ 本地 Python harness
+#### 新增
+
+- **ChatGPT 渠道重构.** OpenAI 兼容请求可通过原始 `system_hints`、友好别名 `extra_body.tools_hint`、或 `gpt-5@image` 这类 model 后缀触发 chatgpt.com 内置工具;后缀表覆盖 image / search / study / agent / canvas / connectors / company / deep-research / quiz。
+- **ChatGPT 工具映射迁移到 rewrite rules.** 删除 Rust 侧硬编码工具后缀解析和模型重映射路径;这些行为现在由控制台可配置的 rewrite rules 表达。
+- **DeepSeek V4 模型数据.** 新增 `deepseek-v4-flash` / `deepseek-v4-pro`,`deepseek-chat` / `deepseek-reasoner` 保留为兼容别名。
+- **gpt-5.5 定价.** `data/models/` 新增 gpt-5.5 系列模型和价格条目。
+
+#### 修复
+
+- **流聚合 / 转换失败时保留上游 meta.** 转换失败现在保留 upstream status、body、latency 和 URL,admin 日志能看到真实失败尝试,不再是缺少上下文的 500 / 空耗时。
+- **Responses API keepalive SSE 帧.** Codex 下发的 keepalive 事件已被 Responses / Image stream schema 接受。
+- **image generation 输出 schema 分离.** `response.output_item.added` 里的 image-generation call 可能还没有 `result`;输出结构现在允许 `result: Option<String>`,输入 schema 继续保持严格。
+- **ClaudeCode cache-control 安全处理.** magic cache-control 注入跳过 `thinking` / `redacted_thinking` 块,并保留 `speed` 字段。
+- **ChatGPT 集成测试清理.** 删除依赖未入库 HAR 样本或 live access token 的测试;活跃 harness 保留在本地 target scripts。
+
+#### 调整
+
+- **不再保留独立 ChatGPT 预设协议.** 后缀变体输出标准 OpenAI Responses API 形状(`tools` + `tool_choice`),同一条 DB alias 可跨 Codex、OpenAI 透传和 ChatGPT 翻译复用。
+- **ChatGPT 工具类型提取扩展.** `extract_system_hints` 现在读取 `body.tools[*].type`,把 image / web search / deep research 等工具类型映射为 ChatGPT system hints。
+- **OpenRouter base URL 修正.** 控制台默认值去掉多余版本号段。
+- **新增 CodeQL workflow.** 仓库加入代码质量扫描。
+- **Astro 升级.** Astro 6.1.5 升到 6.1.9,清理 GHSA-j687-52p2-xcff / CVE-2026-41067 告警。
 
 ## v1.0.19
 
-### 新渠道：ChatGPT Web
+> ChatGPT Web was introduced as a new channel, model-list/model-get routing became protocol-aware, and several proxy correctness issues were fixed.
 
-- 全新接入 ChatGPT Web 渠道：PoW、prepare_p、sentinel、SSE v1 解码与 OpenAI chunk 转换
-- 对话默认走 temporary chat（可通过渠道设置关闭）
-- 图像生成 + `/v1/images/edits`（三步上传 + asset pointer）
-- 本地 model list / model get / count_tokens，支持动态模型列表与别名映射（用于 picker UI 名称）
-- 转发 `thinking_effort` 至 `/f/conversation`
-- 支持 `cookie_store` 与 spoof client 刷新
-- Console 前端集成：图像生成、`temporary_chat` 本地化、粘贴原始 token 自动包装为 `{access_token}`
-- 信任调用方传入的 model slug；未知模型回退默认值
-- 用 `StreamReshaper` hook 替代旧实现，并将 reshape 迁入 `normalize_response`
-- 在剩余 channel dispatch 与 provider store dispatch 中补齐 chatgpt 注册
+### English
 
-### Model List / ModelGet
+#### Added
 
-- URL query 提升为一等请求字段
-- 跨协议 ModelList 翻译，覆盖全部 channel
-- 本地 + 上游合并返回，采用复合 pageToken
-- 针对 Claude / OpenAI 客户端的协议感知分页
-- ModelGet 的 `model_id` 允许包含 `/`，支持带 vendor 前缀的模型 id
+- **ChatGPT Web channel.** Added PoW, `prepare_p`, sentinel handling, SSE v1 decoding, and OpenAI chunk conversion for the ChatGPT Web backend.
+- **Temporary chat defaults.** Conversations default to temporary chat, with a channel setting to disable it.
+- **Image generation and image edits.** Added `/v1/images/edits` support through the three-step upload + asset pointer flow.
+- **Local model list / model get / count tokens.** ChatGPT Web exposes local model metadata, dynamic aliases, and picker-friendly display names.
+- **Console support.** The admin console supports image generation, localized `temporary_chat`, and wrapping pasted raw tokens into `{access_token}` credentials.
 
-### 修复
+#### Fixed
 
-- Alias：模型解析按 provider 作用域（#90）
-- Log：重定向后记录最终 upstream URI（#89）
-- Protocol：`transform_request` 正确透传 model，使 Gemini 跨协议工作
-- Router：修正 count tokens 端点路径
-- Console：保存 provider 时路由名不得为空；仅在模板展开时显示模板提示
+- **Alias resolution is provider-scoped** (#90).
+- **Redirected upstream logs record the final upstream URI** (#89).
+- **Protocol transforms preserve `model`.** `transform_request` now forwards model data correctly so Gemini cross-protocol routes work.
+- **Count-token route path corrected.**
+- **Provider save validation.** The console prevents empty provider route names and only shows template hints when templates are expanded.
 
-### 其他
+#### Changed
 
-- OpenRouter：新增响应归一化与错误 reshape
-- README：强调 DB 不存在时 TOML 仅读取一次
-- ChatGPT 代码格式清理与可读性改进
+- **URL query is first-class.** Request query strings are carried explicitly for model-list/model-get and pagination flows.
+- **Cross-protocol ModelList translation.** ModelList works across channels with local + upstream merge behavior and compound `pageToken`s.
+- **Protocol-aware pagination.** Claude and OpenAI clients get compatible pagination behavior.
+- **ModelGet accepts slashes.** `model_id` can contain `/`, enabling vendor-prefixed model IDs.
+- **OpenRouter response normalization.** Added normalization and error reshaping for OpenRouter responses.
+- **README startup guidance.** Clarified that TOML bootstrap is only read once when the DB does not exist.
+
+### 简体中文
+
+#### 新增
+
+- **ChatGPT Web 渠道.** 新增 ChatGPT Web 后端接入:PoW、`prepare_p`、sentinel、SSE v1 解码与 OpenAI chunk 转换。
+- **默认 temporary chat.** 对话默认走 temporary chat,可通过渠道设置关闭。
+- **图像生成与图像编辑.** 支持 `/v1/images/edits`,走三步上传 + asset pointer 流程。
+- **本地 model list / model get / count tokens.** ChatGPT Web 提供本地模型元数据、动态别名和适合 picker 展示的名称。
+- **控制台支持.** 管理控制台支持图像生成、`temporary_chat` 本地化、以及把粘贴的原始 token 自动包装为 `{access_token}` 凭证。
+
+#### 修复
+
+- **Alias 解析按 provider 作用域隔离**(#90)。
+- **重定向后的上游日志记录最终 upstream URI**(#89)。
+- **协议转换保留 `model`.** `transform_request` 正确透传 model,使 Gemini 跨协议路由可用。
+- **CountToken 路径修正.**
+- **Provider 保存校验.** 控制台禁止空 provider route name,模板提示只在模板展开时显示。
+
+#### 调整
+
+- **URL query 成为一等请求字段.** 请求 query string 会显式携带,用于 model-list/model-get 和分页。
+- **跨协议 ModelList 翻译.** ModelList 覆盖多渠道,支持本地 + 上游合并和复合 `pageToken`。
+- **协议感知分页.** Claude / OpenAI 客户端获得兼容的分页行为。
+- **ModelGet 接受斜杠.** `model_id` 允许包含 `/`,支持 vendor 前缀模型 ID。
+- **OpenRouter 响应归一化.** 新增 OpenRouter 响应 normalize 和错误 reshape。
+- **README 启动说明.** 明确 DB 不存在时 TOML bootstrap 只读取一次。
 
 ## v1.0.18
 

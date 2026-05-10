@@ -37,6 +37,66 @@ extract_release_note_section() {
     ' "$RELEASE_NOTE_FILE"
 }
 
+repo_root() {
+    git rev-parse --show-toplevel
+}
+
+is_submodule_path() {
+    local path="$1"
+    local root
+    root="$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
+
+    [ -n "$root" ] && [ "$root" != "$(repo_root)" ]
+}
+
+commit_protocol_submodule_release_bump() {
+    local protocol_dir="sdk/gproxy-protocol"
+
+    if [ ! -d "$protocol_dir" ] || ! is_submodule_path "$protocol_dir"; then
+        return
+    fi
+
+    local tracked_changes
+    tracked_changes="$(git -C "$protocol_dir" status --porcelain --untracked-files=no)"
+    if [ -z "$tracked_changes" ]; then
+        return
+    fi
+
+    local changed_files
+    changed_files="$(git -C "$protocol_dir" status --porcelain --untracked-files=no | cut -c4- | sort -u)"
+    if [ "$changed_files" != "Cargo.toml" ]; then
+        echo "Unexpected tracked changes in $protocol_dir:"
+        git -C "$protocol_dir" status --short --untracked-files=no
+        exit 1
+    fi
+
+    git -C "$protocol_dir" add Cargo.toml
+    git -C "$protocol_dir" commit -m "Release v$VERSION"
+    git -C "$protocol_dir" push
+}
+
+stage_release_files() {
+    git add \
+        Cargo.toml \
+        Cargo.lock \
+        apps/*/Cargo.toml \
+        crates/*/Cargo.toml \
+        "$RELEASE_NOTE_FILE"
+
+    local manifest
+    for manifest in sdk/*/Cargo.toml; do
+        [ -e "$manifest" ] || continue
+
+        local sdk_dir
+        sdk_dir="$(dirname "$manifest")"
+        if is_submodule_path "$sdk_dir"; then
+            git add "$sdk_dir"
+        else
+            git add "$manifest"
+        fi
+    done
+}
+
 ensure_release_note_file
 if ! grep -Fqx "## v$VERSION" "$RELEASE_NOTE_FILE"; then
     append_release_note_template
@@ -61,13 +121,8 @@ cargo clippy --workspace --all-targets -- -D warnings -A clippy::too_many_argume
 cargo set-version "$VERSION"
 cargo check -p gproxy
 
-git add \
-    Cargo.toml \
-    Cargo.lock \
-    apps/*/Cargo.toml \
-    crates/*/Cargo.toml \
-    sdk/*/Cargo.toml \
-    "$RELEASE_NOTE_FILE"
+commit_protocol_submodule_release_bump
+stage_release_files
 
 git commit -m "Release v$VERSION"
 git push
