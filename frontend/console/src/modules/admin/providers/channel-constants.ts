@@ -56,8 +56,8 @@ function normalizePosition(value: unknown): CacheBreakpointPosition {
 function normalizeTtl(value: unknown): CacheBreakpointTtl {
   if (typeof value === "string") {
     const v = value.trim().toLowerCase();
-    if (v === "5m") return "5m";
-    if (v === "1h") return "1h";
+    if (v === "5m" || v === "ttl5m") return "5m";
+    if (v === "1h" || v === "ttl1h") return "1h";
   }
   return "auto";
 }

@@ -22,6 +22,7 @@
 - **Structured-output conversion cleanup.** OpenAI-to-Claude transforms drop deprecated `output_format`, avoid unsupported permissive JSON-object shims, and keep schema serialization strict.
 - **TOML export for rewrite rules.** Model alias/suffix rewrite rules no longer export empty filter dimensions as JSON null, avoiding `unsupported unit type` during config export (#94).
 - **Console rewrite-rule deletion persists.** Deleting parameter rewrite rules from the console now saves the fresh `rewrite_rules` JSON immediately, so removed rules do not reappear after reload (#96).
+- **Console cache-breakpoint TTL display.** The cache breakpoint editor now reads API-returned `ttl5m` / `ttl1h` values as `5m` / `1h` instead of rendering them as `auto` (#97).
 - **Responses/image stream schema tolerance.** Responses keepalive events and partial image-generation output items are accepted instead of turning valid upstream streams into local 500s.
 
 #### Changed
@@ -47,6 +48,7 @@
 - **结构化输出转换清理.** OpenAI → Claude 转换删除废弃的 `output_format`,避免生成上游不支持的宽松 JSON-object shim,并保持 schema 序列化严格。
 - **rewrite rules TOML 导出.** 模型别名 / 后缀变体自动生成的 rewrite rules 不再把空 filter 维度导出成 JSON null,避免配置导出时报 `unsupported unit type`(#94)。
 - **控制台删除 rewrite rule 会持久化.** 在控制台删除参数改写规则时,现在会立刻保存最新的 `rewrite_rules` JSON,删除后的规则不会刷新后又出现(#96)。
+- **控制台缓存断点 TTL 显示修复.** cache breakpoint 编辑器现在会把 API 返回的 `ttl5m` / `ttl1h` 识别为 `5m` / `1h`,不再显示成 `auto`(#97)。
 - **Responses / image stream schema 兼容.** Responses keepalive 事件和 image-generation 的 partial output item 现在会被接受,不再把有效上游流误转成本地 500。
 
 #### 调整
