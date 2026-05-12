@@ -276,7 +276,12 @@ impl Channel for VertexChannel {
                 OperationFamily::ModelList,
                 ProtocolKind::Gemini,
             ),
-            pass(OperationFamily::ModelList, ProtocolKind::OpenAi),
+            xform(
+                OperationFamily::ModelList,
+                ProtocolKind::OpenAi,
+                OperationFamily::ModelList,
+                ProtocolKind::Gemini,
+            ),
             pass(OperationFamily::ModelGet, ProtocolKind::Gemini),
             xform(
                 OperationFamily::ModelGet,
@@ -284,7 +289,12 @@ impl Channel for VertexChannel {
                 OperationFamily::ModelGet,
                 ProtocolKind::Gemini,
             ),
-            pass(OperationFamily::ModelGet, ProtocolKind::OpenAi),
+            xform(
+                OperationFamily::ModelGet,
+                ProtocolKind::OpenAi,
+                OperationFamily::ModelGet,
+                ProtocolKind::Gemini,
+            ),
             // Count tokens
             pass(OperationFamily::CountToken, ProtocolKind::Gemini),
             xform(
@@ -573,10 +583,11 @@ fn vertex_request_path(
 }
 
 fn vertex_request_body(request: &PreparedRequest) -> Result<Vec<u8>, UpstreamError> {
-    if request.route.operation == OperationFamily::CountToken {
-        return flatten_vertex_count_tokens_body(&request.body);
+    match request.route.operation {
+        OperationFamily::ModelList | OperationFamily::ModelGet => Ok(Vec::new()),
+        OperationFamily::CountToken => flatten_vertex_count_tokens_body(&request.body),
+        _ => Ok(request.body.clone()),
     }
-    Ok(request.body.clone())
 }
 
 fn flatten_vertex_count_tokens_body(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
