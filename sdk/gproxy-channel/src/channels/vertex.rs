@@ -586,8 +586,49 @@ fn vertex_request_body(request: &PreparedRequest) -> Result<Vec<u8>, UpstreamErr
     match request.route.operation {
         OperationFamily::ModelList | OperationFamily::ModelGet => Ok(Vec::new()),
         OperationFamily::CountToken => flatten_vertex_count_tokens_body(&request.body),
+        OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent
+            if request.route.protocol == ProtocolKind::OpenAiChatCompletion =>
+        {
+            normalize_vertex_openapi_chat_body(&request.body)
+        }
         _ => Ok(request.body.clone()),
     }
+}
+
+fn normalize_vertex_openapi_chat_body(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let Ok(Value::Object(mut body_map)) = serde_json::from_slice::<Value>(body) else {
+        return Ok(body.to_vec());
+    };
+    if let Some(Value::String(model)) = body_map.get_mut("model") {
+        *model = vertex_openapi_model_id(model);
+    }
+    serde_json::to_vec(&Value::Object(body_map))
+        .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
+}
+
+fn vertex_openapi_model_id(model: &str) -> String {
+    let model = model.trim();
+    if model.is_empty() {
+        return model.to_string();
+    }
+    if let Some((publisher, model_id)) = vertex_publisher_model_parts(model) {
+        return format!("{publisher}/{model_id}");
+    }
+    if let Some(model_id) = model.strip_prefix("models/").filter(|id| !id.is_empty()) {
+        return format!("google/{model_id}");
+    }
+    if model.contains('/') {
+        return model.to_string();
+    }
+    format!("google/{model}")
+}
+
+fn vertex_publisher_model_parts(model: &str) -> Option<(&str, &str)> {
+    let tail = model
+        .strip_prefix("publishers/")
+        .or_else(|| model.rsplit_once("/publishers/").map(|(_, tail)| tail))?;
+    let (publisher, model_id) = tail.split_once("/models/")?;
+    (!publisher.is_empty() && !model_id.is_empty()).then_some((publisher, model_id))
 }
 
 fn flatten_vertex_count_tokens_body(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
