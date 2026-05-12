@@ -46,9 +46,11 @@ export function RewriteRulesTab({
   );
 
   const commit = (next: RewriteRule[]) => {
+    const nextJson = JSON.stringify(next);
     onChange({
-      settings: { ...form.settings, rewrite_rules: JSON.stringify(next) },
+      settings: { ...form.settings, rewrite_rules: nextJson },
     });
+    return nextJson;
   };
 
   const batch = useBatchSelection<RewriteRule, string>({
@@ -57,9 +59,10 @@ export function RewriteRulesTab({
     onBatchDelete: async (keys) => {
       const keySet = new Set(keys);
       const next = rules.filter((_, idx) => !keySet.has(String(idx)));
-      commit(next);
+      const nextJson = commit(next);
       setSelectedIdx(null);
       setDraft(null);
+      onSave(nextJson);
     },
     onSuccess: (count) => {
       notify("success", t("batch.deleted", { count }));
@@ -76,9 +79,11 @@ export function RewriteRulesTab({
   };
 
   const remove = (idx: number) => {
-    commit(rules.filter((_, i) => i !== idx));
+    const next = rules.filter((_, i) => i !== idx);
+    const nextJson = commit(next);
     if (selectedIdx === idx) setSelectedIdx(null);
     else if (selectedIdx != null && selectedIdx > idx) setSelectedIdx(selectedIdx - 1);
+    onSave(nextJson);
   };
 
   /// Current rule being edited (either draft or an existing one).
@@ -104,8 +109,7 @@ export function RewriteRulesTab({
   const save = () => {
     if (isDraft && draft) {
       const next = [...rules, draft];
-      const nextJson = JSON.stringify(next);
-      commit(next);
+      const nextJson = commit(next);
       // After this render cycle, `rules` will include the new entry and we
       // want the list to highlight it. Use a timeout so the commit propagates
       // through the parent and our `rules` memo re-runs with the new array.
