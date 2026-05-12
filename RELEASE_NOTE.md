@@ -19,7 +19,7 @@
 - **ClaudeCode OAuth/cookie bootstrap compatibility.** Cookie bootstrap filters organizations by subscription capability and sends the required OAuth beta headers during the authorize step.
 - **DeepSeek no longer prepends `/v1` to upstream paths.** Model list/get and chat/responses requests now use DeepSeek's root API paths while Anthropic-compatible paths keep their own prefixing behavior.
 - **Vertex CountToken/OpenAPI handling.** Vertex request body handling is stricter and OpenAPI chat-completions compatible requests route to the correct endpoint.
-- **Vertex model listing.** Vertex model-list/model-get now route OpenAI clients through Gemini response conversion and send empty GET bodies to Google, fixing local 500s when pulling publisher models.
+- **Vertex model listing and chat.** Vertex model-list/model-get now route OpenAI clients through Gemini response conversion and send empty GET bodies to Google, and Vertex OpenAI chat-completions accepts model IDs returned by the model list.
 - **Structured-output conversion cleanup.** OpenAI-to-Claude transforms drop deprecated `output_format`, avoid unsupported permissive JSON-object shims, and keep schema serialization strict.
 - **TOML export for rewrite rules.** Model alias/suffix rewrite rules no longer export empty filter dimensions as JSON null, avoiding `unsupported unit type` during config export (#94).
 - **Console rewrite-rule deletion persists.** Deleting parameter rewrite rules from the console now saves the fresh `rewrite_rules` JSON immediately, so removed rules do not reappear after reload (#96).
@@ -46,7 +46,7 @@
 - **ClaudeCode OAuth / cookie bootstrap 兼容性.** cookie bootstrap 会按订阅能力筛选 organization,并在 authorize 步骤发送必需的 OAuth beta headers。
 - **DeepSeek 上游路径不再拼 `/v1`.** Model list/get、chat/responses 请求现在走 DeepSeek 根路径;Anthropic 兼容路径继续保持自己的前缀规则。
 - **Vertex CountToken / OpenAPI 处理.** Vertex 请求体处理更严格,OpenAPI chat-completions 兼容请求会路由到正确端点。
-- **Vertex 模型列表.** Vertex 的 model-list/model-get 现在会把 OpenAI 客户端路由到 Gemini 响应转换,并向 Google 发送空 GET body,修复拉取 publisher models 时本地 500 的问题。
+- **Vertex 模型列表和 chat.** Vertex 的 model-list/model-get 现在会把 OpenAI 客户端路由到 Gemini 响应转换,并向 Google 发送空 GET body;Vertex OpenAI chat-completions 也能直接使用模型列表返回的模型 ID。
 - **结构化输出转换清理.** OpenAI → Claude 转换删除废弃的 `output_format`,避免生成上游不支持的宽松 JSON-object shim,并保持 schema 序列化严格。
 - **rewrite rules TOML 导出.** 模型别名 / 后缀变体自动生成的 rewrite rules 不再把空 filter 维度导出成 JSON null,避免配置导出时报 `unsupported unit type`(#94)。
 - **控制台删除 rewrite rule 会持久化.** 在控制台删除参数改写规则时,现在会立刻保存最新的 `rewrite_rules` JSON,删除后的规则不会刷新后又出现(#96)。
