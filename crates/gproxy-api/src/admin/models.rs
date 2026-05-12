@@ -292,9 +292,10 @@ pub async fn pull_models(
 
     // Always request with OpenAI protocol. Every channel in the codebase
     // registers (ModelList, OpenAi) in its dispatch table — as Passthrough
-    // (openai/anthropic/aistudio/vertex/groq/...), Xform (claudecode/geminicli/
-    // antigravity convert to their native protocol), or Local (vertexexpress
-    // serves a baked catalogue). So the response is always OpenAI-shaped, and
+    // (openai/anthropic/aistudio/groq/...), Xform (vertex/claudecode/
+    // geminicli/antigravity convert to their native protocol), or Local
+    // (vertexexpress serves a baked catalogue). So the response is always
+    // OpenAI-shaped, and
     // we don't need to infer the protocol from the channel name.
     //
     // Body is `{}` (not empty) because user-defined dispatch overrides — e.g.
