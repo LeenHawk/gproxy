@@ -18,21 +18,43 @@ use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::UpstreamError;
 use gproxy_channel::routing::RouteKey;
 
-fn is_stream_aggregation_route(
-    src_operation: OperationFamily,
-    dst_operation: OperationFamily,
-    _src_protocol: ProtocolKind,
-    _dst_protocol: ProtocolKind,
-) -> bool {
-    src_operation.can_be_stream_driven() && !src_operation.is_stream() && dst_operation.is_stream()
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExecutionTransformPlan {
+    /// Operation family whose request body schema should be produced before
+    /// the channel sends the request to the upstream route.
+    request_transform_destination: OperationFamily,
+    /// Operation family represented by the upstream response body after any
+    /// stream-to-nonstream aggregation.
+    response_transform_source: OperationFamily,
+    aggregate_success_stream: bool,
 }
 
-fn request_transform_uses_nonstream_destination(
+fn nonstream_body_operation(operation: OperationFamily) -> OperationFamily {
+    match operation {
+        OperationFamily::StreamGenerateContent => OperationFamily::GenerateContent,
+        OperationFamily::StreamCreateImage => OperationFamily::CreateImage,
+        OperationFamily::StreamCreateImageEdit => OperationFamily::CreateImageEdit,
+        other => other,
+    }
+}
+
+fn execution_transform_plan(
     src_operation: OperationFamily,
     dst_operation: OperationFamily,
-) -> bool {
-    src_operation == OperationFamily::GenerateContent
-        && dst_operation == OperationFamily::StreamGenerateContent
+) -> ExecutionTransformPlan {
+    let aggregate_success_stream = src_operation.can_be_stream_driven()
+        && !src_operation.is_stream()
+        && dst_operation.is_stream();
+    let upstream_body_operation = if aggregate_success_stream {
+        nonstream_body_operation(dst_operation)
+    } else {
+        dst_operation
+    };
+    ExecutionTransformPlan {
+        request_transform_destination: upstream_body_operation,
+        response_transform_source: upstream_body_operation,
+        aggregate_success_stream,
+    }
 }
 
 fn aggregate_stream_body(protocol: ProtocolKind, body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
@@ -1178,10 +1200,7 @@ impl GproxyEngine {
             }
         };
 
-        let stream_response_aggregation =
-            is_stream_aggregation_route(request.operation, dst_op, request.protocol, dst_proto);
-        let request_transform_as_nonstream =
-            request_transform_uses_nonstream_destination(request.operation, dst_op);
+        let transform_plan = execution_transform_plan(request.operation, dst_op);
 
         // Transform request if needed
         let (body, query_override) = if needs_transform {
@@ -1190,11 +1209,7 @@ impl GproxyEngine {
             match gproxy_protocol::transform::dispatch::transform_request(
                 request.operation,
                 request.protocol,
-                if request_transform_as_nonstream {
-                    request.operation
-                } else {
-                    dst_op
-                },
+                transform_plan.request_transform_destination,
                 dst_proto,
                 request.model.as_deref(),
                 request.query.as_deref(),
@@ -1337,13 +1352,9 @@ impl GproxyEngine {
 
         // 1. Normalize upstream response (channel-specific fixups)
         let normalized_body = provider.normalize_response(&prepared, response.body);
-        let response_transform_dst_op = if request_transform_as_nonstream {
-            request.operation
-        } else {
-            dst_op
-        };
+        let response_source_op = transform_plan.response_transform_source;
         let normalized_nonstream_body =
-            if stream_response_aggregation && (200..=299).contains(&response.status) {
+            if transform_plan.aggregate_success_stream && (200..=299).contains(&response.status) {
                 aggregate_stream_body(dst_proto, &normalized_body).map_err(attach_meta_upstream)?
             } else {
                 normalized_body
@@ -1368,33 +1379,32 @@ impl GproxyEngine {
         // `{"detail":{"code":"deactivated_workspace"}}`), the helper falls
         // back to forwarding raw bytes so the error information isn't lost.
         //
-        // Additionally: when a non-stream request is intentionally transformed
-        // using its original operation while the upstream route is stream-driven
-        // (e.g. codex `(GenerateContent, OpenAiResponse)` upgraded to
-        // `(StreamGenerateContent, OpenAiResponse)`), stream-to-nonstream
-        // aggregation already produces a body in the client's target shape.
-        // Running a further protocol transform with `src == dst` has no
-        // matching arm and would error out, so skip it.
+        // Additionally: when a non-stream downstream request is served by a
+        // stream upstream route, the execution plan aggregates the success
+        // stream back into that route's non-stream body schema before this
+        // point. If that aggregated body already matches the downstream route,
+        // a second protocol transform would be both unnecessary and sometimes
+        // unsupported, so skip it.
         let is_success_status = (200..=299).contains(&response.status);
-        let same_protocol_aggregation =
-            request.protocol == dst_proto && response_transform_dst_op == request.operation;
+        let aggregated_body_matches_downstream =
+            request.protocol == dst_proto && response_source_op == request.operation;
         let needs_response_transform =
-            needs_transform && is_success_status && !same_protocol_aggregation;
+            needs_transform && is_success_status && !aggregated_body_matches_downstream;
         let mut response_body = if needs_response_transform {
             tracing::debug!("transforming response");
             gproxy_protocol::transform::dispatch::transform_response(
                 request.operation,
                 request.protocol,
-                response_transform_dst_op,
+                response_source_op,
                 dst_proto,
                 normalized_nonstream_body,
             )
             .map_err(attach_meta_transform)?
-        } else if needs_transform && !is_success_status && !same_protocol_aggregation {
+        } else if needs_transform && !is_success_status && !aggregated_body_matches_downstream {
             gproxy_protocol::transform::dispatch::convert_error_body_or_raw(
                 request.operation,
                 request.protocol,
-                response_transform_dst_op,
+                response_source_op,
                 dst_proto,
                 normalized_nonstream_body,
             )
@@ -2327,8 +2337,8 @@ mod tests {
 
     use super::{
         WsMessage, aggregate_stream_body, classify_openai_ws_probe_message,
-        is_stream_aggregation_route, request_transform_uses_nonstream_destination,
-        rewrite_model_field_in_body, validate_credential_json, wrap_upstream_response_stream,
+        execution_transform_plan, rewrite_model_field_in_body, validate_credential_json,
+        wrap_upstream_response_stream,
     };
     use gproxy_channel::response::{UpstreamBodyStream, UpstreamError};
     use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -2398,49 +2408,89 @@ mod tests {
     }
 
     #[test]
-    fn stream_aggregation_treats_chat_to_responses_as_compatible() {
-        assert!(is_stream_aggregation_route(
+    fn execution_plan_maps_text_stream_route_to_nonstream_body_schema() {
+        let plan = execution_transform_plan(
             OperationFamily::GenerateContent,
             OperationFamily::StreamGenerateContent,
-            ProtocolKind::OpenAiChatCompletion,
-            ProtocolKind::OpenAiResponse,
-        ));
+        );
+
+        assert!(plan.aggregate_success_stream);
+        assert_eq!(
+            plan.request_transform_destination,
+            OperationFamily::GenerateContent
+        );
+        assert_eq!(
+            plan.response_transform_source,
+            OperationFamily::GenerateContent
+        );
     }
 
     #[test]
-    fn stream_aggregation_treats_responses_to_responses_as_compatible() {
-        assert!(is_stream_aggregation_route(
-            OperationFamily::GenerateContent,
-            OperationFamily::StreamGenerateContent,
-            ProtocolKind::OpenAiResponse,
-            ProtocolKind::OpenAiResponse,
-        ));
-    }
-
-    #[test]
-    fn stream_aggregation_treats_openai_image_to_responses_as_compatible() {
-        assert!(is_stream_aggregation_route(
+    fn execution_plan_maps_image_stream_route_to_nonstream_body_schema() {
+        let plan = execution_transform_plan(
             OperationFamily::CreateImage,
             OperationFamily::StreamGenerateContent,
-            ProtocolKind::OpenAi,
-            ProtocolKind::OpenAiResponse,
-        ));
+        );
+
+        assert!(plan.aggregate_success_stream);
+        assert_eq!(
+            plan.request_transform_destination,
+            OperationFamily::GenerateContent
+        );
+        assert_eq!(
+            plan.response_transform_source,
+            OperationFamily::GenerateContent
+        );
     }
 
     #[test]
-    fn request_transform_uses_nonstream_destination_only_for_text_generation() {
-        assert!(request_transform_uses_nonstream_destination(
+    fn execution_plan_uses_one_rule_for_all_stream_driven_nonstream_operations() {
+        for operation in [
             OperationFamily::GenerateContent,
-            OperationFamily::StreamGenerateContent,
-        ));
-        assert!(!request_transform_uses_nonstream_destination(
+            OperationFamily::Compact,
             OperationFamily::CreateImage,
+            OperationFamily::CreateImageEdit,
+        ] {
+            let plan = execution_transform_plan(operation, OperationFamily::StreamGenerateContent);
+
+            assert!(plan.aggregate_success_stream, "{operation}");
+            assert_eq!(
+                plan.request_transform_destination,
+                OperationFamily::GenerateContent,
+                "{operation}"
+            );
+            assert_eq!(
+                plan.response_transform_source,
+                OperationFamily::GenerateContent,
+                "{operation}"
+            );
+        }
+    }
+
+    #[test]
+    fn execution_plan_does_not_aggregate_stream_downstream_requests() {
+        let plan = execution_transform_plan(
+            OperationFamily::StreamCreateImage,
             OperationFamily::StreamGenerateContent,
-        ));
+        );
+
+        assert!(!plan.aggregate_success_stream);
+        assert_eq!(
+            plan.request_transform_destination,
+            OperationFamily::StreamGenerateContent
+        );
+        assert_eq!(
+            plan.response_transform_source,
+            OperationFamily::StreamGenerateContent
+        );
     }
 
     #[test]
     fn nonstream_image_route_aggregates_responses_sse_before_image_transform() {
+        let plan = execution_transform_plan(
+            OperationFamily::CreateImage,
+            OperationFamily::StreamGenerateContent,
+        );
         let events = [
             json!({
                 "type": "response.output_item.done",
@@ -2480,12 +2530,7 @@ mod tests {
             sse.push_str("\n\n");
         }
 
-        let aggregated = if is_stream_aggregation_route(
-            OperationFamily::CreateImage,
-            OperationFamily::StreamGenerateContent,
-            ProtocolKind::OpenAi,
-            ProtocolKind::OpenAiResponse,
-        ) {
+        let aggregated = if plan.aggregate_success_stream {
             aggregate_stream_body(ProtocolKind::OpenAiResponse, sse.as_bytes())
                 .expect("aggregate upstream responses stream")
         } else {
@@ -2495,7 +2540,7 @@ mod tests {
         let transformed = gproxy_protocol::transform::dispatch::transform_response(
             OperationFamily::CreateImage,
             ProtocolKind::OpenAi,
-            OperationFamily::StreamGenerateContent,
+            plan.response_transform_source,
             ProtocolKind::OpenAiResponse,
             aggregated,
         )
