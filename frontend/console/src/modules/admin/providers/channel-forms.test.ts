@@ -5,6 +5,7 @@ import {
   buildCredentialJson,
   credentialFieldsForChannel,
   defaultSettingsForChannel,
+  normalizeCredentialJson,
   settingsFieldsForChannel,
   settingsValuesFromJson,
 } from "./channel-forms";
@@ -111,5 +112,28 @@ describe("buildChannelSettingsJson", () => {
       account_id: "fdc791c5-acf2-4760-b8e7-4af508952763",
       expires_at_ms: 1776493967337,
     });
+  });
+
+  it("normalizes pasted claudecode cookie headers to the sessionKey value", () => {
+    const result = buildCredentialJson("claudecode", {
+      access_token: "",
+      refresh_token: "",
+      expires_at_ms: "",
+      device_id: "",
+      account_uuid: "",
+      rate_limit_tier: "",
+      cookie: "Cookie: other=1; sessionKey=sk-ant-sid01-example; theme=dark",
+      user_email: "",
+    });
+
+    expect(result.cookie).toBe("sk-ant-sid01-example");
+  });
+
+  it("normalizes raw claudecode credential JSON before submit", () => {
+    const result = normalizeCredentialJson("claudecode", {
+      cookie: "sessionKey=sk-ant-sid01-raw; other=1",
+    });
+
+    expect(result).toEqual({ cookie: "sk-ant-sid01-raw" });
   });
 });

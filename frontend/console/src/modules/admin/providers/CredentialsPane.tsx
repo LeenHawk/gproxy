@@ -13,6 +13,7 @@ import {
   buildCredentialJson,
   credentialValuesFromJson,
   emptyCredentialValuesForChannel,
+  normalizeCredentialJson,
 } from "./channel-forms";
 import { CredentialsTab } from "./CredentialsTab";
 import type { CredentialFormState } from "./index";
@@ -113,6 +114,7 @@ export function CredentialsPane({
       } else {
         credential = buildCredentialJson(selectedProvider.channel, credentialForm.values);
       }
+      credential = normalizeCredentialJson(selectedProvider.channel, credential);
       if (credentialForm.editingIndex !== null) {
         await apiVoid("/admin/credentials/delete", {
           method: "POST",

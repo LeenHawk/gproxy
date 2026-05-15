@@ -9,6 +9,7 @@
 #### Fixed
 
 - **ClaudeCode cookie bootstrap JSON stream parsing.** Cookie/profile bootstrap now accepts Claude.ai responses that prepend a standalone JSON object before the real `account` payload, so profile switching still extracts the subscribed organization.
+- **ClaudeCode credential cookie input.** The admin console now normalizes pasted `Cookie:` headers and `sessionKey=...` strings to the raw session key before saving, so cookie bootstrap sends a usable Claude.ai session cookie.
 - **OpenAI image endpoint request transforms.** OpenAI-compatible `/v1/images/generations` and `/v1/images/edits` bodies now convert through the raw request-body path before routing to Responses/Gemini backends, avoiding local 500s on Codex image-generation compatibility calls.
 
 ### 简体中文
@@ -16,6 +17,7 @@
 #### 修复
 
 - **ClaudeCode cookie bootstrap JSON stream 解析.** cookie / profile bootstrap 现在能接受 Claude.ai 在真实 `account` payload 前返回独立 JSON 对象的响应,切换 profile 时仍能提取订阅组织。
+- **ClaudeCode 凭证 cookie 输入.** 管理控制台现在会把粘贴的 `Cookie:` header 或 `sessionKey=...` 字符串规范化成裸 session key 后再保存,确保 cookie bootstrap 发出可用的 Claude.ai session cookie。
 - **OpenAI 图像端点请求转换.** OpenAI 兼容的 `/v1/images/generations` 和 `/v1/images/edits` 请求体现在会按原始 body 转换后再路由到 Responses / Gemini 后端,避免 Codex 图像生成兼容调用在本地转换阶段返回 500。
 
 ## v1.0.21
