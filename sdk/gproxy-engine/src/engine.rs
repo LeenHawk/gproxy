@@ -24,6 +24,13 @@ fn is_stream_aggregation_route(
     _src_protocol: ProtocolKind,
     _dst_protocol: ProtocolKind,
 ) -> bool {
+    src_operation.can_be_stream_driven() && !src_operation.is_stream() && dst_operation.is_stream()
+}
+
+fn request_transform_uses_nonstream_destination(
+    src_operation: OperationFamily,
+    dst_operation: OperationFamily,
+) -> bool {
     src_operation == OperationFamily::GenerateContent
         && dst_operation == OperationFamily::StreamGenerateContent
 }
@@ -1171,8 +1178,10 @@ impl GproxyEngine {
             }
         };
 
-        let force_stream_aggregation =
+        let stream_response_aggregation =
             is_stream_aggregation_route(request.operation, dst_op, request.protocol, dst_proto);
+        let request_transform_as_nonstream =
+            request_transform_uses_nonstream_destination(request.operation, dst_op);
 
         // Transform request if needed
         let (body, query_override) = if needs_transform {
@@ -1181,7 +1190,7 @@ impl GproxyEngine {
             match gproxy_protocol::transform::dispatch::transform_request(
                 request.operation,
                 request.protocol,
-                if force_stream_aggregation {
+                if request_transform_as_nonstream {
                     request.operation
                 } else {
                     dst_op
@@ -1328,13 +1337,13 @@ impl GproxyEngine {
 
         // 1. Normalize upstream response (channel-specific fixups)
         let normalized_body = provider.normalize_response(&prepared, response.body);
-        let response_transform_dst_op = if force_stream_aggregation {
+        let response_transform_dst_op = if request_transform_as_nonstream {
             request.operation
         } else {
             dst_op
         };
         let normalized_nonstream_body =
-            if force_stream_aggregation && (200..=299).contains(&response.status) {
+            if stream_response_aggregation && (200..=299).contains(&response.status) {
                 aggregate_stream_body(dst_proto, &normalized_body).map_err(attach_meta_upstream)?
             } else {
                 normalized_body
@@ -1359,13 +1368,13 @@ impl GproxyEngine {
         // `{"detail":{"code":"deactivated_workspace"}}`), the helper falls
         // back to forwarding raw bytes so the error information isn't lost.
         //
-        // Additionally: when `force_stream_aggregation` maps to the same
-        // source protocol (e.g. codex `(GenerateContent, OpenAiResponse)`
-        // upgraded to `(StreamGenerateContent, OpenAiResponse)`), the
-        // stream-to-nonstream aggregation already produces a body in the
-        // client's target shape. Running a further protocol transform
-        // with `src == dst` has no matching arm and would error out, so
-        // skip it.
+        // Additionally: when a non-stream request is intentionally transformed
+        // using its original operation while the upstream route is stream-driven
+        // (e.g. codex `(GenerateContent, OpenAiResponse)` upgraded to
+        // `(StreamGenerateContent, OpenAiResponse)`), stream-to-nonstream
+        // aggregation already produces a body in the client's target shape.
+        // Running a further protocol transform with `src == dst` has no
+        // matching arm and would error out, so skip it.
         let is_success_status = (200..=299).contains(&response.status);
         let same_protocol_aggregation =
             request.protocol == dst_proto && response_transform_dst_op == request.operation;
@@ -2314,10 +2323,11 @@ mod tests {
 
     use bytes::Bytes;
     use futures_util::StreamExt;
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     use super::{
-        WsMessage, classify_openai_ws_probe_message, is_stream_aggregation_route,
+        WsMessage, aggregate_stream_body, classify_openai_ws_probe_message,
+        is_stream_aggregation_route, request_transform_uses_nonstream_destination,
         rewrite_model_field_in_body, validate_credential_json, wrap_upstream_response_stream,
     };
     use gproxy_channel::response::{UpstreamBodyStream, UpstreamError};
@@ -2405,6 +2415,97 @@ mod tests {
             ProtocolKind::OpenAiResponse,
             ProtocolKind::OpenAiResponse,
         ));
+    }
+
+    #[test]
+    fn stream_aggregation_treats_openai_image_to_responses_as_compatible() {
+        assert!(is_stream_aggregation_route(
+            OperationFamily::CreateImage,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAi,
+            ProtocolKind::OpenAiResponse,
+        ));
+    }
+
+    #[test]
+    fn request_transform_uses_nonstream_destination_only_for_text_generation() {
+        assert!(request_transform_uses_nonstream_destination(
+            OperationFamily::GenerateContent,
+            OperationFamily::StreamGenerateContent,
+        ));
+        assert!(!request_transform_uses_nonstream_destination(
+            OperationFamily::CreateImage,
+            OperationFamily::StreamGenerateContent,
+        ));
+    }
+
+    #[test]
+    fn nonstream_image_route_aggregates_responses_sse_before_image_transform() {
+        let events = [
+            json!({
+                "type": "response.output_item.done",
+                "item": {
+                    "id": "ig_1",
+                    "type": "image_generation_call",
+                    "status": "generating",
+                    "action": "generate",
+                    "result": "iVBORw0KGgo="
+                },
+                "output_index": 0,
+                "sequence_number": 1
+            }),
+            json!({
+                "type": "response.completed",
+                "response": {
+                    "id": "resp_1",
+                    "created_at": 1u64,
+                    "metadata": {},
+                    "model": "gpt-5.5",
+                    "object": "response",
+                    "output": [],
+                    "parallel_tool_calls": true,
+                    "temperature": 1.0,
+                    "tool_choice": {"type": "image_generation"},
+                    "tools": [{"type": "image_generation"}],
+                    "top_p": 0.98,
+                    "status": "completed"
+                },
+                "sequence_number": 2
+            }),
+        ];
+        let mut sse = String::new();
+        for event in events {
+            sse.push_str("data: ");
+            sse.push_str(&serde_json::to_string(&event).expect("serialize event"));
+            sse.push_str("\n\n");
+        }
+
+        let aggregated = if is_stream_aggregation_route(
+            OperationFamily::CreateImage,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAi,
+            ProtocolKind::OpenAiResponse,
+        ) {
+            aggregate_stream_body(ProtocolKind::OpenAiResponse, sse.as_bytes())
+                .expect("aggregate upstream responses stream")
+        } else {
+            sse.into_bytes()
+        };
+
+        let transformed = gproxy_protocol::transform::dispatch::transform_response(
+            OperationFamily::CreateImage,
+            ProtocolKind::OpenAi,
+            OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiResponse,
+            aggregated,
+        )
+        .expect("convert aggregated response to OpenAI image response");
+        let body: Value = serde_json::from_slice(&transformed).expect("parse image response");
+
+        assert_eq!(
+            body.pointer("/data/0/b64_json").and_then(Value::as_str),
+            Some("iVBORw0KGgo=")
+        );
     }
 
     /// Passthrough path with raw capture enabled: every upstream chunk
