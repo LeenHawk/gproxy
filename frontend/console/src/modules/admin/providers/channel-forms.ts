@@ -376,7 +376,27 @@ export function buildCredentialJson(
   channel: string,
   values: Record<string, string>,
 ): Record<string, unknown> {
-  return buildObjectFromFields(credentialFieldsForChannel(channel), values);
+  return normalizeCredentialJson(
+    channel,
+    buildObjectFromFields(credentialFieldsForChannel(channel), values),
+  );
+}
+
+export function normalizeCredentialJson(
+  channel: string,
+  credential: Record<string, unknown>,
+): Record<string, unknown> {
+  if (channel !== "claudecode") {
+    return credential;
+  }
+  const cookie = credential.cookie;
+  if (typeof cookie !== "string") {
+    return credential;
+  }
+  return {
+    ...credential,
+    cookie: normalizeClaudeCodeCookie(cookie),
+  };
 }
 
 function buildObjectFromFields(
@@ -412,4 +432,20 @@ function buildObjectFromFields(
     result[field.key] = raw;
   }
   return result;
+}
+
+function normalizeClaudeCodeCookie(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    return trimmed;
+  }
+  const header = trimmed.replace(/^cookie:\s*/i, "");
+  const sessionKey = header
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.toLowerCase().startsWith("sessionkey="));
+  if (!sessionKey) {
+    return header;
+  }
+  return sessionKey.slice("sessionKey=".length).trim().replace(/^"|"$/g, "");
 }
