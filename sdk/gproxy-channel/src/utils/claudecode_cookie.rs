@@ -370,7 +370,7 @@ async fn fetch_org_info(
             String::from_utf8_lossy(&body[..body.len().min(400)])
         )));
     }
-    let value: serde_json::Value = serde_json::from_slice(&body).map_err(|e| {
+    let value = parse_bootstrap_response(&body).map_err(|e| {
         UpstreamError::Channel(format!(
             "bootstrap parse error: {e}: body preview: {}",
             String::from_utf8_lossy(&body[..body.len().min(400)])
@@ -488,6 +488,36 @@ async fn fetch_org_info(
         })
 }
 
+fn parse_bootstrap_response(body: &[u8]) -> Result<serde_json::Value, serde_json::Error> {
+    // Claude.ai may prepend a standalone usage/profile object before the
+    // actual bootstrap payload. Treat the body as a JSON value stream and
+    // prefer the value that carries account data.
+    let stream = serde_json::Deserializer::from_slice(body).into_iter::<serde_json::Value>();
+    let mut first = None;
+    let mut account_payload = None;
+
+    for value in stream {
+        let value = value?;
+        if account_payload.is_none() && bootstrap_payload_has_account(&value) {
+            account_payload = Some(value);
+        } else if first.is_none() {
+            first = Some(value);
+        }
+    }
+
+    account_payload.or(first).ok_or_else(|| {
+        serde_json::from_slice::<serde_json::Value>(body)
+            .expect_err("empty bootstrap response should fail JSON parsing")
+    })
+}
+
+fn bootstrap_payload_has_account(value: &serde_json::Value) -> bool {
+    value
+        .get("account")
+        .and_then(serde_json::Value::as_object)
+        .is_some()
+}
+
 fn build_cookie_headers(
     cookie: &str,
     claude_ai_base_url: &str,
@@ -574,4 +604,28 @@ fn track_exchange(tracked: &mut Vec<UpstreamRequestMeta>, info: ExchangeInfo<'_>
         total_latency_ms: info.start.elapsed().as_millis() as u64,
         credential_index: None,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_bootstrap_response_prefers_account_payload_from_json_stream() {
+        let body = r#"{"durationForPre3":2,"noActionListPre1":{"2025-11-27":1}}
+{"account":{"email_address":"user@example.com","memberships":[{"organization":{"uuid":"org-json-stream","capabilities":["claude_pro"],"rate_limit_tier":"default_claude_ai"}}]}}"#;
+
+        let value =
+            parse_bootstrap_response(body.as_bytes()).expect("json stream bootstrap should parse");
+
+        assert_eq!(value["account"]["email_address"], "user@example.com");
+        assert_eq!(
+            value["account"]["memberships"][0]["organization"]["uuid"],
+            "org-json-stream"
+        );
+        assert_eq!(
+            value["account"]["memberships"][0]["organization"]["rate_limit_tier"],
+            "default_claude_ai"
+        );
+    }
 }

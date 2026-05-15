@@ -1,5 +1,21 @@
 # Release Notes
 
+## v1.0.22
+
+> ClaudeCode cookie bootstrap handles Claude.ai profile/bootstrap JSON streams.
+
+### English
+
+#### Fixed
+
+- **ClaudeCode cookie bootstrap JSON stream parsing.** Cookie/profile bootstrap now accepts Claude.ai responses that prepend a standalone JSON object before the real `account` payload, so profile switching still extracts the subscribed organization.
+
+### 简体中文
+
+#### 修复
+
+- **ClaudeCode cookie bootstrap JSON stream 解析.** cookie / profile bootstrap 现在能接受 Claude.ai 在真实 `account` payload 前返回独立 JSON 对象的响应,切换 profile 时仍能提取订阅组织。
+
 ## v1.0.21
 
 > Protocol packaging is split out, provider/admin behavior is tightened, and several channel compatibility fixes land together.
