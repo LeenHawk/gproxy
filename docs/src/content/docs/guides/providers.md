@@ -34,6 +34,7 @@ the subset you need.
 | `deepseek` | api.deepseek.com | OpenAI-compatible DeepSeek. |
 | `groq` | api.groq.com | |
 | `openrouter` | openrouter.ai | |
+| `vercel` | Vercel AI Gateway | OpenAI Responses / Chat Completions / Models / Embeddings plus Anthropic Messages. |
 | `nvidia` | NVIDIA NIM endpoints | |
 | `custom` | Any OpenAI-compatible upstream | Use this for self-hosted or third-party gateways. |
 

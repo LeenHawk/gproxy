@@ -18,9 +18,9 @@ GPROXY exposes a unified, **OpenAI / Anthropic / Gemini compatible** HTTP
 surface on top of many upstream LLM providers, and adds the primitives
 you need to run it as a shared service:
 
-- **Multi-provider routing** — OpenAI, Anthropic, Vertex / Gemini,
-  DeepSeek, Groq, OpenRouter, NVIDIA, Claude Code, Codex, Antigravity,
-  and any OpenAI-compatible custom endpoint.
+- **Multi-provider routing** — OpenAI, Anthropic, Vercel AI Gateway,
+  Vertex / Gemini, DeepSeek, Groq, OpenRouter, NVIDIA, Claude Code, Codex,
+  Antigravity, and any OpenAI-compatible custom endpoint.
 - **Two routing modes** — aggregated `/v1/...` (provider encoded in the
   model name) and scoped `/{provider}/v1/...` (provider in the URL).
 - **Same-protocol passthrough** — minimal-parsing fast path when the

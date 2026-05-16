@@ -90,6 +90,7 @@ Declared in `sdk/gproxy-sdk/Cargo.toml`:
 | `deepseek` | `gproxy-channel/deepseek` + `gproxy-engine/deepseek` | DeepSeek channel. |
 | `groq` | `gproxy-channel/groq` + `gproxy-engine/groq` | Groq channel. |
 | `openrouter` | `gproxy-channel/openrouter` + `gproxy-engine/openrouter` | OpenRouter channel. |
+| `vercel` | `gproxy-channel/vercel` + `gproxy-engine/vercel` | Vercel AI Gateway channel. |
 | `custom` | `gproxy-channel/custom` + `gproxy-engine/custom` | Custom OpenAI-compatible channel. |
 
 The SDK layer does **not** expose a `redis` feature; the workspace uses

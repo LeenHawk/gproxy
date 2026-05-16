@@ -207,6 +207,76 @@ export const SUFFIX_GROUPS_BY_PROTOCOL: Record<SuffixProtocol, SuffixGroup[]> = 
   gemini: GEMINI_GROUPS,
 };
 
+const VERCEL_GATEWAY_SOURCE_GROUP: SuffixGroup = {
+  key: "vercel_gateway_source",
+  label: "Vercel Gateway Source",
+  entries: [
+    {
+      suffix: "-via-openai",
+      label: "providerOptions.gateway.only: openai",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["openai"] }],
+    },
+    {
+      suffix: "-via-anthropic",
+      label: "providerOptions.gateway.only: anthropic",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["anthropic"] }],
+    },
+    {
+      suffix: "-via-google",
+      label: "providerOptions.gateway.only: google",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["google"] }],
+    },
+    {
+      suffix: "-via-vertex",
+      label: "providerOptions.gateway.only: vertex",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["vertex"] }],
+    },
+    {
+      suffix: "-via-bedrock",
+      label: "providerOptions.gateway.only: bedrock",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["bedrock"] }],
+    },
+    {
+      suffix: "-via-groq",
+      label: "providerOptions.gateway.only: groq",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["groq"] }],
+    },
+    {
+      suffix: "-via-deepseek",
+      label: "providerOptions.gateway.only: deepseek",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["deepseek"] }],
+    },
+    {
+      suffix: "-via-xai",
+      label: "providerOptions.gateway.only: xai",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["xai"] }],
+    },
+    {
+      suffix: "-via-mistral",
+      label: "providerOptions.gateway.only: mistral",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["mistral"] }],
+    },
+    {
+      suffix: "-via-cohere",
+      label: "providerOptions.gateway.only: cohere",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["cohere"] }],
+    },
+    {
+      suffix: "-via-perplexity",
+      label: "providerOptions.gateway.only: perplexity",
+      actions: [{ kind: "set", path: "providerOptions.gateway.only", value: ["perplexity"] }],
+    },
+  ],
+};
+
+export function suffixGroupsForChannel(
+  protocol: SuffixProtocol,
+  channel: string | undefined,
+): SuffixGroup[] {
+  const baseGroups = SUFFIX_GROUPS_BY_PROTOCOL[protocol];
+  return channel === "vercel" ? [...baseGroups, VERCEL_GATEWAY_SOURCE_GROUP] : baseGroups;
+}
+
 export const SUFFIX_PROTOCOL_LABELS: Record<SuffixProtocol, string> = {
   claude: "Claude (Anthropic)",
   openai_response: "OpenAI Responses API",

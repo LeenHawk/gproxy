@@ -6,6 +6,10 @@
 
 ### English
 
+#### Added
+
+- **Vercel AI Gateway channel.** Added a `vercel` channel for OpenAI Chat Completions, Responses, Models, Embeddings, and Anthropic Messages / Count Tokens, plus console support for Vercel gateway source aliases via `providerOptions.gateway.only`.
+
 #### Fixed
 
 - **ClaudeCode cookie bootstrap JSON stream parsing.** Cookie/profile bootstrap now accepts Claude.ai responses that prepend a standalone JSON object before the real `account` payload, so profile switching still extracts the subscribed organization.
@@ -14,6 +18,10 @@
 - **OpenAI image endpoint response aggregation.** Non-stream OpenAI-compatible image requests that route through Responses streaming now aggregate upstream SSE before converting back to `/v1/images/generations`, so successful Codex image generations no longer return 500 during response conversion.
 
 ### 简体中文
+
+#### 新增
+
+- **Vercel AI Gateway 渠道.** 新增 `vercel` 渠道,支持 OpenAI Chat Completions、Responses、Models、Embeddings 以及 Anthropic Messages / Count Tokens;控制台后缀别名也支持通过 `providerOptions.gateway.only` 选择 Vercel gateway 来源。
 
 #### 修复
 

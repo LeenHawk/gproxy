@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import { Button, Label, Select } from "../../../components/ui";
 import type { MemoryModelRow } from "../../../lib/types/admin";
 import {
-  SUFFIX_GROUPS_BY_PROTOCOL,
   SUFFIX_PROTOCOL_LABELS,
+  suffixGroupsForChannel,
   suffixProtocolForChannel,
   type SuffixActionSetBody,
   type SuffixProtocol,
@@ -42,7 +42,7 @@ export function SuffixVariantDialog({
   /// Map of group key → selected suffix entry index (as string, "" = none).
   const [suffixSelections, setSuffixSelections] = useState<Record<string, string>>({});
 
-  const suffixGroups = SUFFIX_GROUPS_BY_PROTOCOL[suffixProtocol];
+  const suffixGroups = suffixGroupsForChannel(suffixProtocol, providerChannel);
 
   const { combinedSuffix, combinedActions } = useMemo(() => {
     let suffix = "";

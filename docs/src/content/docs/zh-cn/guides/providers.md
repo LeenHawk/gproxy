@@ -33,6 +33,7 @@ Provider  ──(channel)──►  上游协议实现
 | `deepseek` | api.deepseek.com | OpenAI 兼容的 DeepSeek。 |
 | `groq` | api.groq.com | |
 | `openrouter` | openrouter.ai | |
+| `vercel` | Vercel AI Gateway | 支持 OpenAI Responses / Chat Completions / Models / Embeddings 以及 Anthropic Messages。 |
 | `nvidia` | NVIDIA NIM 端点 | |
 | `custom` | 任意 OpenAI 兼容上游 | 自建或第三方网关常用。 |
 
