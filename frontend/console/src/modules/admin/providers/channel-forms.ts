@@ -391,6 +391,43 @@ export function buildCredentialJson(
   );
 }
 
+export function parseCredentialImport(
+  channel: string,
+  rawInput: string,
+): Record<string, unknown>[] {
+  const source = rawInput.trim();
+  if (source === "") {
+    return [];
+  }
+
+  const fullJson = tryParseJson(source);
+  if (fullJson.ok) {
+    return credentialsFromJsonValue(channel, fullJson.value);
+  }
+
+  const credentials: Record<string, unknown>[] = [];
+  let cursor = 0;
+  while (cursor < source.length) {
+    const jsonStart = findLineJsonStart(source, cursor);
+    if (jsonStart === -1) {
+      appendRawCredentialLines(channel, source.slice(cursor), credentials);
+      break;
+    }
+
+    appendRawCredentialLines(channel, source.slice(cursor, jsonStart), credentials);
+    const jsonEnd = findJsonValueEnd(source, jsonStart);
+    const segment = source.slice(jsonStart, jsonEnd);
+    const parsed = tryParseJson(segment);
+    if (!parsed.ok) {
+      throw new Error(`Invalid credential JSON: ${parsed.message}`);
+    }
+    credentials.push(...credentialsFromJsonValue(channel, parsed.value));
+    cursor = jsonEnd;
+  }
+
+  return credentials;
+}
+
 export function normalizeCredentialJson(
   channel: string,
   credential: Record<string, unknown>,
@@ -441,6 +478,119 @@ function buildObjectFromFields(
     result[field.key] = raw;
   }
   return result;
+}
+
+function rawCredentialForChannel(channel: string, raw: string): Record<string, unknown> {
+  if (channel === "claudecode") {
+    return normalizeCredentialJson(channel, { cookie: raw });
+  }
+  if (channel === "chatgpt") {
+    return { access_token: raw };
+  }
+  return { api_key: raw };
+}
+
+function appendRawCredentialLines(
+  channel: string,
+  raw: string,
+  credentials: Record<string, unknown>[],
+) {
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed !== "") {
+      credentials.push(rawCredentialForChannel(channel, trimmed));
+    }
+  }
+}
+
+function credentialsFromJsonValue(
+  channel: string,
+  value: unknown,
+): Record<string, unknown>[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => credentialsFromJsonValue(channel, item));
+  }
+  if (isPlainObject(value)) {
+    return [normalizeCredentialJson(channel, value)];
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return [rawCredentialForChannel(channel, value.trim())];
+  }
+  throw new Error("Credential JSON entries must be objects or non-empty strings");
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+type JsonParseResult =
+  | { ok: true; value: unknown }
+  | { ok: false; message: string };
+
+function tryParseJson(source: string): JsonParseResult {
+  try {
+    return { ok: true, value: JSON.parse(source) };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function findLineJsonStart(source: string, from: number): number {
+  for (let index = from; index < source.length; index += 1) {
+    const char = source[index];
+    if ((char === "{" || char === "[") && isFirstNonWhitespaceOnLine(source, index)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function isFirstNonWhitespaceOnLine(source: string, index: number): boolean {
+  const lineStart = source.lastIndexOf("\n", index - 1) + 1;
+  return source.slice(lineStart, index).trim() === "";
+}
+
+function findJsonValueEnd(source: string, start: number): number {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{" || char === "[") {
+      stack.push(char === "{" ? "}" : "]");
+      continue;
+    }
+    if (char === "}" || char === "]") {
+      const expected = stack.pop();
+      if (expected !== char) {
+        throw new Error("Invalid credential JSON: mismatched brackets");
+      }
+      if (stack.length === 0) {
+        return index + 1;
+      }
+    }
+  }
+
+  throw new Error("Invalid credential JSON: incomplete JSON value");
 }
 
 function normalizeClaudeCodeCookie(raw: string): string {

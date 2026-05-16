@@ -8,6 +8,7 @@ export const KNOWN_DOWNSTREAM_REQUEST_PATHS = [
   "/admin/providers/delete",
   "/admin/credentials/query",
   "/admin/credentials/upsert",
+  "/admin/credentials/batch-upsert",
   "/admin/credentials/delete",
   "/admin/credential-statuses/query",
   "/admin/credential-statuses/update",
