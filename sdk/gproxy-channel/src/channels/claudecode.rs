@@ -154,10 +154,7 @@ fn build_claudecode_authorize_url(
 async fn exchange_claudecode_code_for_tokens(
     client: &wreq::Client,
     settings: &ClaudeCodeSettings,
-    api_base_url: &str,
-    claude_ai_base_url: &str,
-    redirect_uri: &str,
-    code_verifier: &str,
+    oauth_state: &ClaudeCodeOAuthState,
     code: &str,
     state: &str,
 ) -> Result<ClaudeCodeTokenResponse, UpstreamError> {
@@ -165,20 +162,20 @@ async fn exchange_claudecode_code_for_tokens(
         "grant_type=authorization_code&client_id={}&code={}&redirect_uri={}&code_verifier={}&state={}",
         crate::utils::oauth::percent_encode(CLAUDECODE_OAUTH_CLIENT_ID),
         crate::utils::oauth::percent_encode(code),
-        crate::utils::oauth::percent_encode(redirect_uri),
-        crate::utils::oauth::percent_encode(code_verifier),
+        crate::utils::oauth::percent_encode(&oauth_state.redirect_uri),
+        crate::utils::oauth::percent_encode(&oauth_state.code_verifier),
         crate::utils::oauth::percent_encode(state),
     );
     let response = client
         .post(format!(
             "{}/v1/oauth/token",
-            api_base_url.trim_end_matches('/')
+            oauth_state.api_base_url.trim_end_matches('/')
         ))
         .header("anthropic-version", CLAUDECODE_API_VERSION)
         .header("anthropic-beta", CLAUDECODE_OAUTH_BETA)
         .header("content-type", "application/x-www-form-urlencoded")
         .header("accept", "application/json, text/plain, */*")
-        .header("origin", claude_ai_base_url)
+        .header("origin", &oauth_state.claude_ai_base_url)
         .header("user-agent", settings.claude_cli_user_agent())
         .body(body)
         .send()
@@ -1525,10 +1522,7 @@ impl Channel for ClaudeCodeChannel {
             let token = exchange_claudecode_code_for_tokens(
                 client,
                 settings,
-                &oauth_state.api_base_url,
-                &oauth_state.claude_ai_base_url,
-                &oauth_state.redirect_uri,
-                &oauth_state.code_verifier,
+                &oauth_state,
                 &code,
                 &state_id,
             )
