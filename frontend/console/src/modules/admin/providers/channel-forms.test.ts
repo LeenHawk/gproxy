@@ -19,6 +19,20 @@ describe("buildChannelSettingsJson", () => {
     expect(result).toEqual({ base_url: "https://api.openai.com" });
   });
 
+  it("exposes vercel ai gateway settings and credential schema", () => {
+    expect(defaultSettingsForChannel("vercel")).toEqual({
+      base_url: "https://ai-gateway.vercel.sh",
+      user_agent: "",
+    });
+    expect(settingsFieldsForChannel("vercel").map((field) => field.key)).toContain("base_url");
+    expect(credentialFieldsForChannel("vercel").map((field) => field.key)).toEqual(["api_key"]);
+    expect(
+      buildCredentialJson("vercel", {
+        api_key: "test-vercel-key",
+      }),
+    ).toEqual({ api_key: "test-vercel-key" });
+  });
+
   it("exposes the full codex oauth credential schema", () => {
     expect(credentialFieldsForChannel("codex").map((field) => field.key)).toEqual([
       "access_token",

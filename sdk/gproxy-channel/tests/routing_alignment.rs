@@ -3,7 +3,8 @@ use gproxy_channel::channels::{
     aistudio::AiStudioChannel, anthropic::AnthropicChannel, antigravity::AntigravityChannel,
     claudecode::ClaudeCodeChannel, codex::CodexChannel, deepseek::DeepSeekChannel,
     geminicli::GeminiCliChannel, groq::GroqChannel, nvidia::NvidiaChannel,
-    openrouter::OpenRouterChannel, vertex::VertexChannel, vertexexpress::VertexExpressChannel,
+    openrouter::OpenRouterChannel, vercel::VercelChannel, vertex::VertexChannel,
+    vertexexpress::VertexExpressChannel,
 };
 use gproxy_channel::routing::{RouteImplementation, RouteKey};
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -184,4 +185,40 @@ fn codex_groq_nvidia_and_deepseek_use_local_count_tokens() {
         assert_local(&table, OperationFamily::CountToken, ProtocolKind::Claude);
         assert_local(&table, OperationFamily::CountToken, ProtocolKind::Gemini);
     }
+}
+
+#[test]
+fn vercel_routes_documented_openai_compatible_endpoints() {
+    let table = VercelChannel.routing_table();
+
+    assert_passthrough(
+        &table,
+        OperationFamily::GenerateContent,
+        ProtocolKind::OpenAiChatCompletion,
+    );
+    assert_passthrough(
+        &table,
+        OperationFamily::StreamGenerateContent,
+        ProtocolKind::OpenAiChatCompletion,
+    );
+    assert_passthrough(&table, OperationFamily::ModelList, ProtocolKind::OpenAi);
+    assert_passthrough(&table, OperationFamily::ModelGet, ProtocolKind::OpenAi);
+    assert_passthrough(&table, OperationFamily::Embedding, ProtocolKind::OpenAi);
+
+    assert!(
+        table
+            .resolve(&RouteKey::new(
+                OperationFamily::GenerateContent,
+                ProtocolKind::OpenAiResponse,
+            ))
+            .is_none()
+    );
+    assert!(
+        table
+            .resolve(&RouteKey::new(
+                OperationFamily::CountToken,
+                ProtocolKind::OpenAi,
+            ))
+            .is_none()
+    );
 }

@@ -73,6 +73,7 @@ export function ProvidersModule({
         "deepseek",
         "groq",
         "openrouter",
+        "vercel",
         "custom",
       ].map((value) => ({ value, label: value })),
     [],

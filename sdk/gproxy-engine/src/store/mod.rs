@@ -196,6 +196,8 @@ impl ProviderStore {
             "groq" => add!(self, groq::GroqChannel, config),
             #[cfg(feature = "openrouter")]
             "openrouter" => add!(self, openrouter::OpenRouterChannel, config),
+            #[cfg(feature = "vercel")]
+            "vercel" => add!(self, vercel::VercelChannel, config),
             #[cfg(feature = "custom")]
             "custom" => add!(self, custom::CustomChannel, config),
             _ => Err(UpstreamError::Channel(format!(

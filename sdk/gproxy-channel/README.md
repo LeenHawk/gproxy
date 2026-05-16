@@ -4,7 +4,7 @@
 [![docs.rs](https://docs.rs/gproxy-channel/badge.svg)](https://docs.rs/gproxy-channel)
 [![license](https://img.shields.io/crates/l/gproxy-channel.svg)](https://github.com/LeenHawk/gproxy)
 
-Single-channel LLM client layer for Rust. Provides the `Channel` trait, 14
+Single-channel LLM client layer for Rust. Provides the `Channel` trait, 15
 pre-built channel implementations (OpenAI, Anthropic, Gemini, Vertex, and
 friends), strongly typed credential / request / response types, credential
 health tracking, a routing table system, and an `execute_once` single-request
@@ -20,7 +20,7 @@ send → normalize_response → classify_response in one call.
 | Crate | Layer | What it covers |
 |---|---|---|
 | [`gproxy-protocol`] | L0 | Wire types + cross-protocol transforms |
-| `gproxy-channel` (this crate) | L1 | `Channel` trait + 14 channels + `execute_once` |
+| `gproxy-channel` (this crate) | L1 | `Channel` trait + 15 channels + `execute_once` |
 | [`gproxy-engine`] | L2 | Multi-channel `GproxyEngine`, provider store, retry, affinity |
 | [`gproxy-sdk`] | facade | Re-exports the three layers under canonical names |
 
@@ -36,7 +36,7 @@ compiled binary.
 
 `openai`, `anthropic`, `aistudio`, `vertex`, `vertexexpress`, `geminicli`,
 `claudecode`, `codex`, `antigravity`, `nvidia`, `deepseek`, `groq`,
-`openrouter`, `custom`
+`openrouter`, `vercel`, `custom`
 
 Example — only the OpenAI channel compiles in, nothing else:
 
@@ -91,11 +91,11 @@ version you can drive against real OpenAI.
 - **`Channel` trait** — implement once per upstream provider. Declares the
   channel's routing table, HTTP request construction, response
   classification, OAuth flow (if any), and optional local routes.
-- **14 built-in channels** — OpenAI (`/v1/chat/completions` and
+- **15 built-in channels** — OpenAI (`/v1/chat/completions` and
   `/v1/responses`), Anthropic Claude, Google AI Studio (Gemini), Vertex
   (service-account JWT + Vertex Express API-key), Gemini CLI (OAuth),
   Claude Code (session cookie), Codex, Antigravity, NVIDIA, DeepSeek,
-  Groq, OpenRouter, and a generic `custom` channel.
+  Groq, OpenRouter, Vercel AI Gateway, and a generic `custom` channel.
 - **Credential types** — `ChannelCredential` trait + per-channel concrete
   types (API keys, OAuth token bundles, cookie sessions, GCP service
   accounts).
@@ -134,6 +134,7 @@ version you can drive against real OpenAI.
 | `deepseek` | via `all-channels` | DeepSeek |
 | `groq` | via `all-channels` | Groq |
 | `openrouter` | via `all-channels` | OpenRouter |
+| `vercel` | via `all-channels` | Vercel AI Gateway |
 | `custom` | via `all-channels` | Generic OpenAI-compatible channel |
 
 ## License
