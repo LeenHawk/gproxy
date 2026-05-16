@@ -6,6 +6,7 @@ import {
   credentialFieldsForChannel,
   defaultSettingsForChannel,
   normalizeCredentialJson,
+  parseCredentialImport,
   settingsFieldsForChannel,
   settingsValuesFromJson,
 } from "./channel-forms";
@@ -135,5 +136,48 @@ describe("buildChannelSettingsJson", () => {
     });
 
     expect(result).toEqual({ cookie: "sk-ant-sid01-raw" });
+  });
+
+  it("parses one raw API key per line for credential import", () => {
+    expect(parseCredentialImport("openai", "sk-one\n\n  sk-two  ")).toEqual([
+      { api_key: "sk-one" },
+      { api_key: "sk-two" },
+    ]);
+  });
+
+  it("parses multiple multiline JSON credential objects", () => {
+    const input = `
+{
+  "api_key": "sk-one"
+}
+{
+  "api_key": "sk-two",
+  "label": "backup"
+}
+`;
+
+    expect(parseCredentialImport("openai", input)).toEqual([
+      { api_key: "sk-one" },
+      { api_key: "sk-two", label: "backup" },
+    ]);
+  });
+
+  it("parses JSON arrays with object and string credentials", () => {
+    expect(parseCredentialImport("openai", `[{"api_key":"sk-one"}, "sk-two"]`)).toEqual([
+      { api_key: "sk-one" },
+      { api_key: "sk-two" },
+    ]);
+  });
+
+  it("normalizes raw claudecode cookie lines during credential import", () => {
+    expect(
+      parseCredentialImport("claudecode", "Cookie: other=1; sessionKey=sk-ant-sid01-line"),
+    ).toEqual([{ cookie: "sk-ant-sid01-line" }]);
+  });
+
+  it("rejects incomplete multiline JSON credentials", () => {
+    expect(() => parseCredentialImport("openai", `{"api_key": "sk-one"`)).toThrow(
+      /Invalid credential JSON/,
+    );
   });
 });

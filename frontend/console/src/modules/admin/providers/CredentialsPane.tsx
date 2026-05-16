@@ -14,6 +14,7 @@ import {
   credentialValuesFromJson,
   emptyCredentialValuesForChannel,
   normalizeCredentialJson,
+  parseCredentialImport,
 } from "./channel-forms";
 import { CredentialsTab } from "./CredentialsTab";
 import type { CredentialFormState } from "./index";
@@ -93,28 +94,18 @@ export function CredentialsPane({
       return;
     }
     try {
-      let credential: Record<string, unknown>;
+      let credentials: Record<string, unknown>[];
       if (credentialForm.editingIndex === null && credentialForm.rawJson.trim()) {
-        const raw = credentialForm.rawJson.trim();
-        if (raw.startsWith("{")) {
-          credential = JSON.parse(raw);
-        } else {
-          // Plain string — wrap into the channel's primary credential field.
-          // claudecode/codex expect a cookie, chatgpt expects an access_token
-          // (the chatgpt.com session JWT), others expect an api_key.
-          const channel = selectedProvider.channel;
-          if (channel === "claudecode") {
-            credential = { cookie: raw };
-          } else if (channel === "chatgpt") {
-            credential = { access_token: raw };
-          } else {
-            credential = { api_key: raw };
-          }
-        }
+        credentials = parseCredentialImport(selectedProvider.channel, credentialForm.rawJson);
       } else {
-        credential = buildCredentialJson(selectedProvider.channel, credentialForm.values);
+        credentials = [buildCredentialJson(selectedProvider.channel, credentialForm.values)];
       }
-      credential = normalizeCredentialJson(selectedProvider.channel, credential);
+      credentials = credentials.map((credential) =>
+        normalizeCredentialJson(selectedProvider.channel, credential),
+      );
+      if (credentials.length === 0) {
+        throw new Error(t("providers.credentials.emptyImport"));
+      }
       if (credentialForm.editingIndex !== null) {
         await apiVoid("/admin/credentials/delete", {
           method: "POST",
@@ -125,15 +116,29 @@ export function CredentialsPane({
           }),
         });
       }
-      await apiJson("/admin/credentials/upsert", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          provider_name: selectedProvider.name,
-          credential,
-        }),
-      });
-      notify("success", t("providers.credentials.saved"));
+      const payloads = credentials.map((credential) => ({
+        provider_name: selectedProvider.name,
+        credential,
+      }));
+      if (payloads.length === 1) {
+        await apiJson("/admin/credentials/upsert", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payloads[0]),
+        });
+      } else {
+        await apiJson("/admin/credentials/batch-upsert", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payloads),
+        });
+      }
+      notify(
+        "success",
+        payloads.length === 1
+          ? t("providers.credentials.saved")
+          : t("providers.credentials.savedCount", { count: payloads.length }),
+      );
       await onProviderScopedReload(selectedProvider);
       await onReloadProviders();
       setCredentialForm({
