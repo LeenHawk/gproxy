@@ -3,7 +3,8 @@ use gproxy_channel::channels::{
     aistudio::AiStudioChannel, anthropic::AnthropicChannel, antigravity::AntigravityChannel,
     claudecode::ClaudeCodeChannel, codex::CodexChannel, deepseek::DeepSeekChannel,
     geminicli::GeminiCliChannel, groq::GroqChannel, nvidia::NvidiaChannel,
-    openrouter::OpenRouterChannel, vertex::VertexChannel, vertexexpress::VertexExpressChannel,
+    openrouter::OpenRouterChannel, vercel::VercelChannel, vertex::VertexChannel,
+    vertexexpress::VertexExpressChannel,
 };
 use gproxy_channel::routing::{RouteImplementation, RouteKey};
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
@@ -103,6 +104,29 @@ fn deepseek_keeps_native_claude_and_rejects_responses_native() {
         OperationFamily::GenerateContent,
         ProtocolKind::OpenAiChatCompletion,
     );
+}
+
+#[test]
+fn vercel_keeps_native_openai_and_claude_surfaces() {
+    let table = VercelChannel.routing_table();
+    assert_passthrough(
+        &table,
+        OperationFamily::GenerateContent,
+        ProtocolKind::OpenAiResponse,
+    );
+    assert_passthrough(
+        &table,
+        OperationFamily::GenerateContent,
+        ProtocolKind::OpenAiChatCompletion,
+    );
+    assert_passthrough(
+        &table,
+        OperationFamily::GenerateContent,
+        ProtocolKind::Claude,
+    );
+    assert_passthrough(&table, OperationFamily::CountToken, ProtocolKind::Claude);
+    assert_passthrough(&table, OperationFamily::Embedding, ProtocolKind::OpenAi);
+    assert_passthrough(&table, OperationFamily::ModelList, ProtocolKind::OpenAi);
 }
 
 #[test]

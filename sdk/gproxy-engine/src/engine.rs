@@ -353,6 +353,8 @@ pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billin
         "groq" => groq::GroqChannel.model_pricing(),
         #[cfg(feature = "openrouter")]
         "openrouter" => openrouter::OpenRouterChannel.model_pricing(),
+        #[cfg(feature = "vercel")]
+        "vercel" => vercel::VercelChannel.model_pricing(),
         #[cfg(feature = "custom")]
         "custom" => custom::CustomChannel.model_pricing(),
         _ => return None,
@@ -408,6 +410,8 @@ pub fn validate_credential_json(
         "groq" => validate!(groq::GroqCredential),
         #[cfg(feature = "openrouter")]
         "openrouter" => validate!(openrouter::OpenRouterCredential),
+        #[cfg(feature = "vercel")]
+        "vercel" => validate!(vercel::VercelCredential),
         #[cfg(feature = "custom")]
         "custom" => validate!(custom::CustomCredential),
         _ => Err(UpstreamError::Channel(format!(
@@ -647,6 +651,8 @@ impl GproxyEngineBuilder {
             "groq" => add!(self, groq::GroqChannel, config),
             #[cfg(feature = "openrouter")]
             "openrouter" => add!(self, openrouter::OpenRouterChannel, config),
+            #[cfg(feature = "vercel")]
+            "vercel" => add!(self, vercel::VercelChannel, config),
             #[cfg(feature = "custom")]
             "custom" => add!(self, custom::CustomChannel, config),
             _ => Err(UpstreamError::Channel(format!(

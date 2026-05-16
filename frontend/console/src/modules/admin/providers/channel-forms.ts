@@ -50,6 +50,7 @@ export const ALL_CHANNEL_IDS = [
   "deepseek",
   "groq",
   "openrouter",
+  "vercel",
 ] as const;
 
 /// Common settings fields appended to every channel so sanitize_rules
@@ -224,6 +225,13 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
     ],
   },
+  vercel: {
+    defaults: { base_url: "https://ai-gateway.vercel.sh", user_agent: "" },
+    fields: [
+      { key: "base_url", label: "base_url", type: "text" },
+      { key: "user_agent", label: "user_agent", type: "text", optional: true },
+    ],
+  },
   custom: {
     defaults: { base_url: "", user_agent: "" },
     fields: [
@@ -306,6 +314,7 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
   deepseek: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   groq: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   openrouter: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  vercel: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   custom: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
 };
 

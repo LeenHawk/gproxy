@@ -75,6 +75,7 @@ assert_eq!(providers.len(), 1);
 | `deepseek` | `["gproxy-provider/deepseek"]` | DeepSeek 渠道 feature。 |
 | `groq` | `["gproxy-provider/groq"]` | Groq 渠道 feature。 |
 | `openrouter` | `["gproxy-provider/openrouter"]` | OpenRouter 渠道 feature。 |
+| `vercel` | `["gproxy-provider/vercel"]` | Vercel AI Gateway 渠道 feature。 |
 | `custom` | `["gproxy-provider/custom"]` | 自定义兼容渠道 feature。 |
 | `redis` | 未在 `sdk/gproxy-sdk/Cargo.toml` 或 `sdk/gproxy-provider/Cargo.toml` 的 `[features]` 中声明。 | 当前 SDK 层没有 `redis` feature flag；workspace 顶层存在 `redis` 依赖，但它不是这里的 feature。 |
 

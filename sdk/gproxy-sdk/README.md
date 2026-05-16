@@ -86,6 +86,7 @@ cargo add gproxy-sdk --no-default-features --features openai
 | `deepseek` | `gproxy-channel/deepseek`, `gproxy-engine/deepseek` |
 | `groq` | `gproxy-channel/groq`, `gproxy-engine/groq` |
 | `openrouter` | `gproxy-channel/openrouter`, `gproxy-engine/openrouter` |
+| `vercel` | `gproxy-channel/vercel`, `gproxy-engine/vercel` |
 | `custom` | `gproxy-channel/custom`, `gproxy-engine/custom` |
 
 ## License

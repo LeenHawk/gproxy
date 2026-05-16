@@ -24,6 +24,8 @@ pub mod nvidia;
 pub mod openai;
 #[cfg(feature = "openrouter")]
 pub mod openrouter;
+#[cfg(feature = "vercel")]
+pub mod vercel;
 #[cfg(feature = "vertex")]
 pub mod vertex;
 #[cfg(feature = "vertexexpress")]

@@ -16,9 +16,9 @@ React 控制台 —— 全部塞进一个静态二进制里。
 GPROXY 在多家上游 LLM 供应商之上暴露一个统一的、**OpenAI / Anthropic /
 Gemini 兼容**的 HTTP 接口，并提供把它作为共享服务运行所需的一切基础设施：
 
-- **多供应商路由** —— OpenAI、Anthropic、Vertex / Gemini、DeepSeek、
-  Groq、OpenRouter、NVIDIA、Claude Code、Codex、Antigravity，以及任意
-  OpenAI 兼容的自定义端点。
+- **多供应商路由** —— OpenAI、Anthropic、Vercel AI Gateway、Vertex /
+  Gemini、DeepSeek、Groq、OpenRouter、NVIDIA、Claude Code、Codex、
+  Antigravity，以及任意 OpenAI 兼容的自定义端点。
 - **两种路由模式** —— 聚合 `/v1/...`（供应商名编码在 model 字段里）
   和限定作用域 `/{provider}/v1/...`（供应商在 URL 里）。
 - **同协议透传** —— 当客户端和上游使用相同协议时，走最小解析的快路径。

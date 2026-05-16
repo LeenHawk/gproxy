@@ -75,6 +75,7 @@ Features declared in `sdk/gproxy-sdk/Cargo.toml`:
 | `deepseek` | `["gproxy-provider/deepseek"]` | DeepSeek channel feature. |
 | `groq` | `["gproxy-provider/groq"]` | Groq channel feature. |
 | `openrouter` | `["gproxy-provider/openrouter"]` | OpenRouter channel feature. |
+| `vercel` | `["gproxy-provider/vercel"]` | Vercel AI Gateway channel feature. |
 | `custom` | `["gproxy-provider/custom"]` | Custom compatibility channel feature. |
 | `redis` | Not declared in `[features]` of either `sdk/gproxy-sdk/Cargo.toml` or `sdk/gproxy-provider/Cargo.toml`. | The SDK layer currently has no `redis` feature flag; the workspace root has a `redis` dependency, but it is not a feature here. |
 
