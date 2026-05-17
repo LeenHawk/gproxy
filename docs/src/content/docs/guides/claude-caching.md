@@ -217,12 +217,13 @@ sending.
   cached portion, you'll evict the cache every call. Put rewrites on
   fields the cache prefix doesn't touch, or place breakpoints *after*
   the rewritten content.
-- **`claudecode` vs. `anthropic`.** The two channels implement the
-  same cache feature set; `claudecode` additionally supports a
-  `prelude_text` setting that injects an organization-wide system
-  block. If you use both a prelude and a `system` breakpoint, the
-  breakpoint still lands at the correct position after the prelude is
-  inserted — it's evaluated on the final canonical body.
+- **Claude-compatible channels.** `anthropic`, `claudecode`, and
+  Vercel's Claude-shaped requests implement the same cache controls.
+  `claudecode` additionally supports a `prelude_text` setting that
+  injects an organization-wide system block. If you use both a prelude
+  and a `system` breakpoint, the breakpoint still lands at the correct
+  position after the prelude is inserted — it's evaluated on the final
+  canonical body.
 - **Minimum cacheable size.** Anthropic enforces a minimum prefix
   length for caching; very short prompts won't actually be cached
   even if a breakpoint is present. Check Anthropic's

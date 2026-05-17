@@ -29,9 +29,11 @@ const EDITOR_FIELDS = new Set([
   "rewrite_rules",
 ]);
 
-/// Channels that show the Anthropic-specific editors (cache breakpoints,
-/// beta headers). claudecode additionally gets the prelude editor.
-const ANTHROPIC_CHANNELS = new Set(["anthropic", "claudecode"]);
+/// Channels that send Claude-shaped request bodies and can use cache
+/// breakpoints. Vercel exposes this through its Anthropic-compatible surface.
+const CLAUDE_CACHE_CHANNELS = new Set(["anthropic", "claudecode", "vercel"]);
+const ANTHROPIC_BETA_CHANNELS = new Set(["anthropic", "claudecode"]);
+const SYSTEM_PRELUDE_CHANNELS = new Set(["claudecode"]);
 
 export function ConfigTab({
   form,
@@ -103,7 +105,9 @@ export function ConfigTab({
     onChange({ settings: { ...form.settings, [key]: value } });
   };
 
-  const isAnthropic = ANTHROPIC_CHANNELS.has(form.channel);
+  const usesClaudeCacheEditors = CLAUDE_CACHE_CHANNELS.has(form.channel);
+  const supportsAnthropicBetaHeaders = ANTHROPIC_BETA_CHANNELS.has(form.channel);
+  const supportsSystemPrelude = SYSTEM_PRELUDE_CHANNELS.has(form.channel);
   const isClaudeCode = form.channel === "claudecode";
 
   const fieldLabel = (field: { key: string; label: string }) => {
@@ -196,8 +200,8 @@ export function ConfigTab({
         ))}
       </div>
 
-      {/* Anthropic-specific: cache breakpoints */}
-      {isAnthropic ? (
+      {/* Claude-compatible: cache breakpoints */}
+      {usesClaudeCacheEditors ? (
         <div className="mt-6">
           <CacheBreakpointsEditor
             value={form.settings.cache_breakpoints ?? "[]"}
@@ -208,7 +212,7 @@ export function ConfigTab({
       ) : null}
 
       {/* Anthropic-specific: beta headers */}
-      {isAnthropic ? (
+      {supportsAnthropicBetaHeaders ? (
         <div className="mt-6">
           <BetaHeadersEditor
             value={form.settings.extra_beta_headers ?? "[]"}
@@ -219,8 +223,8 @@ export function ConfigTab({
         </div>
       ) : null}
 
-      {/* ClaudeCode-specific: prelude text */}
-      {isClaudeCode ? (
+      {/* Claude-compatible: system prelude */}
+      {supportsSystemPrelude ? (
         <div className="mt-6">
           <PreludeTextEditor
             value={form.settings.prelude_text ?? ""}

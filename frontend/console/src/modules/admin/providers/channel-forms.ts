@@ -230,6 +230,9 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
     fields: [
       { key: "base_url", label: "base_url", type: "text" },
       { key: "user_agent", label: "user_agent", type: "text", optional: true },
+      { key: "enable_magic_cache", label: "enable_magic_cache", type: "boolean", optional: true },
+      { key: "flatten_system_before_cache", label: "flatten_system_before_cache", type: "boolean", optional: true },
+      { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
     ],
   },
   custom: {

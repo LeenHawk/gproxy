@@ -191,10 +191,11 @@ beta —— GPROXY 会在转发前自动加上。
   同时配了 [请求改写规则](/zh-cn/guides/rewrite-rules/)去改动被缓存前缀
   里的文本，每次请求都会让缓存失效。改写要么放在缓存前缀碰不到的字段上，
   要么把断点放在被改写内容*之后*。
-- **`claudecode` 对比 `anthropic`。** 两者的缓存能力集完全相同；
-  `claudecode` 额外支持 `prelude_text` 设置，可以注入一段组织级的系统
-  内容块。如果同时用到 prelude 和 `system` 断点，断点仍然会落在 prelude
-  注入之后的正确位置 —— 它是在最终规范化过的请求体上计算的。
+- **Claude 兼容渠道。** `anthropic`、`claudecode` 以及 Vercel 的
+  Claude 形态请求都支持同一套缓存控制；`claudecode` 额外支持
+  `prelude_text` 设置，可以注入一段组织级的系统内容块。如果同时用到
+  prelude 和 `system` 断点，断点仍然会落在 prelude 注入之后的正确位置
+  —— 它是在最终规范化过的请求体上计算的。
 - **最小可缓存长度。** Anthropic 对可缓存前缀有最小长度限制；太短的
   提示即使带了断点也不会真的进缓存。当前阈值请参考 Anthropic 的
   [提示缓存文档](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)。
