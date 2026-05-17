@@ -1,3 +1,5 @@
+import { DEFAULT_CLAUDECODE_FINGERPRINT } from "./channel-constants";
+
 type FieldType = "text" | "boolean" | "integer" | "textarea" | "json" | "select";
 
 export type ChannelField = {
@@ -16,23 +18,6 @@ type ChannelSettingsConfig = {
 type ChannelCredentialConfig = {
   fields: ChannelField[];
 };
-
-const DEFAULT_CLAUDECODE_FINGERPRINT = JSON.stringify(
-  {
-    cli_version: "2.1.112",
-    user_type: "external",
-    entrypoint: "cli",
-    stainless_lang: "js",
-    stainless_package_version: "0.81.0",
-    stainless_runtime: "node",
-    stainless_runtime_version: "v22.20.0",
-    stainless_os: "Linux",
-    stainless_arch: "x64",
-    stainless_timeout: "600",
-  },
-  null,
-  2,
-);
 
 export const ALL_CHANNEL_IDS = [
   "custom",

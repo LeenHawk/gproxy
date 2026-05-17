@@ -16,6 +16,7 @@ import type { ProviderFormState } from "./index";
 import {
   BetaHeadersEditor,
   CacheBreakpointsEditor,
+  ClaudeCodeFingerprintEditor,
   PreludeTextEditor,
   SanitizeRulesEditor,
 } from "./settings-editors";
@@ -24,6 +25,7 @@ import {
 const EDITOR_FIELDS = new Set([
   "cache_breakpoints",
   "extra_beta_headers",
+  "fingerprint",
   "prelude_text",
   "sanitize_rules",
   "rewrite_rules",
@@ -199,6 +201,16 @@ export function ConfigTab({
           </div>
         ))}
       </div>
+
+      {isClaudeCode ? (
+        <div className="mt-6">
+          <ClaudeCodeFingerprintEditor
+            value={form.settings.fingerprint ?? "{}"}
+            onChange={(v) => updateSetting("fingerprint", v)}
+            t={t}
+          />
+        </div>
+      ) : null}
 
       {/* Claude-compatible: cache breakpoints */}
       {usesClaudeCacheEditors ? (
