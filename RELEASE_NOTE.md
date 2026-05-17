@@ -14,6 +14,7 @@
 
 - **ClaudeCode cookie bootstrap JSON stream parsing.** Cookie/profile bootstrap now accepts Claude.ai responses that prepend a standalone JSON object before the real `account` payload, so profile switching still extracts the subscribed organization.
 - **ClaudeCode credential cookie input.** The admin console now normalizes pasted `Cookie:` headers and `sessionKey=...` strings to the raw session key before saving, so cookie bootstrap sends a usable Claude.ai session cookie.
+- **ClaudeCode fingerprint editor.** The admin console now renders `fingerprint` as a localized client-fingerprint editor instead of a raw JSON textarea, with explicit fields for Claude Code and `x-stainless-*` request identity values.
 - **OpenAI image endpoint request transforms.** OpenAI-compatible `/v1/images/generations` and `/v1/images/edits` bodies now convert through the raw request-body path before routing to Responses/Gemini backends, avoiding local 500s on Codex image-generation compatibility calls.
 - **OpenAI image endpoint response aggregation.** Non-stream OpenAI-compatible image requests that route through Responses streaming now aggregate upstream SSE before converting back to `/v1/images/generations`, so successful Codex image generations no longer return 500 during response conversion.
 - **ClaudeCode Responses stream aggregation usage.** Non-stream ClaudeCode requests routed to OpenAI Responses streaming now preserve Responses usage counts while returning Claude Messages usage with explicit null stop metadata, `global` inference geography, and no empty `server_tool_use` object.
@@ -28,6 +29,7 @@
 
 - **ClaudeCode cookie bootstrap JSON stream 解析.** cookie / profile bootstrap 现在能接受 Claude.ai 在真实 `account` payload 前返回独立 JSON 对象的响应,切换 profile 时仍能提取订阅组织。
 - **ClaudeCode 凭证 cookie 输入.** 管理控制台现在会把粘贴的 `Cookie:` header 或 `sessionKey=...` 字符串规范化成裸 session key 后再保存,确保 cookie bootstrap 发出可用的 Claude.ai session cookie。
+- **ClaudeCode 指纹编辑器.** 管理控制台现在把 `fingerprint` 渲染成本地化的客户端指纹编辑器,不再只是原始 JSON 文本框;Claude Code 和 `x-stainless-*` 请求身份字段都有独立输入项。
 - **OpenAI 图像端点请求转换.** OpenAI 兼容的 `/v1/images/generations` 和 `/v1/images/edits` 请求体现在会按原始 body 转换后再路由到 Responses / Gemini 后端,避免 Codex 图像生成兼容调用在本地转换阶段返回 500。
 - **OpenAI 图像端点响应聚合.** 路由到 Responses streaming 的非流式 OpenAI 兼容图像请求现在会先聚合上游 SSE,再转换回 `/v1/images/generations` 响应,避免 Codex 成功生成图片后在响应转换阶段返回 500。
 - **ClaudeCode Responses stream 聚合用量.** 路由到 OpenAI Responses streaming 的非流式 ClaudeCode 请求现在会保留 Responses usage 计数,同时返回带显式 null stop 元数据、`global` 推理区域且不含空 `server_tool_use` 对象的 Claude Messages usage。

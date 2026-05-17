@@ -1,6 +1,46 @@
 /// Constants and types shared across provider settings editors.
 
 // ---------------------------------------------------------------------------
+// ClaudeCode fingerprint
+// ---------------------------------------------------------------------------
+
+export const CLAUDECODE_FINGERPRINT_FIELDS = [
+  "cli_version",
+  "user_type",
+  "entrypoint",
+  "stainless_lang",
+  "stainless_package_version",
+  "stainless_runtime",
+  "stainless_runtime_version",
+  "stainless_os",
+  "stainless_arch",
+  "stainless_timeout",
+] as const;
+
+export type ClaudeCodeFingerprintKey = (typeof CLAUDECODE_FINGERPRINT_FIELDS)[number];
+export type ClaudeCodeFingerprint = Partial<Record<ClaudeCodeFingerprintKey, string>> &
+  Record<string, unknown>;
+
+export const DEFAULT_CLAUDECODE_FINGERPRINT_OBJECT: Record<ClaudeCodeFingerprintKey, string> = {
+  cli_version: "2.1.112",
+  user_type: "external",
+  entrypoint: "cli",
+  stainless_lang: "js",
+  stainless_package_version: "0.81.0",
+  stainless_runtime: "node",
+  stainless_runtime_version: "v22.20.0",
+  stainless_os: "Linux",
+  stainless_arch: "x64",
+  stainless_timeout: "600",
+};
+
+export const DEFAULT_CLAUDECODE_FINGERPRINT = JSON.stringify(
+  DEFAULT_CLAUDECODE_FINGERPRINT_OBJECT,
+  null,
+  2,
+);
+
+// ---------------------------------------------------------------------------
 // Cache breakpoint types
 // ---------------------------------------------------------------------------
 
