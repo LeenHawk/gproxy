@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::channel::{Channel, ChannelCredential, ChannelSettings, CommonChannelSettings};
 use crate::health::ModelCooldownHealth;
@@ -6,6 +7,8 @@ use crate::registry::ChannelRegistration;
 use crate::request::PreparedRequest;
 use crate::response::{ResponseClassification, UpstreamError};
 use crate::routing::{RouteImplementation, RouteKey, RoutingTable};
+use crate::utils::claude_cache_control as cache_control;
+use crate::utils::claude_sampling;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 
 /// Vercel AI Gateway channel.
@@ -20,6 +23,15 @@ pub struct VercelChannel;
 pub struct VercelSettings {
     #[serde(default = "default_vercel_base_url")]
     pub base_url: String,
+    /// Enable magic string -> cache_control conversion on Claude-shaped requests.
+    #[serde(default)]
+    pub enable_magic_cache: bool,
+    /// Merge consecutive `system` text blocks before cache breakpoints are applied.
+    #[serde(default)]
+    pub flatten_system_before_cache: bool,
+    /// Cache breakpoint rules applied to Claude-shaped requests.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cache_breakpoints: Vec<cache_control::CacheBreakpointRule>,
     #[serde(flatten)]
     pub common: CommonChannelSettings,
 }
@@ -241,6 +253,39 @@ impl Channel for VercelChannel {
             .map_err(|e| UpstreamError::RequestBuild(e.to_string()))
     }
 
+    fn finalize_request(
+        &self,
+        settings: &Self::Settings,
+        mut request: PreparedRequest,
+    ) -> Result<PreparedRequest, UpstreamError> {
+        if request.route.protocol != ProtocolKind::Claude {
+            return Ok(request);
+        }
+
+        let Ok(mut body_json) = serde_json::from_slice::<Value>(&request.body) else {
+            return Ok(request);
+        };
+
+        claude_sampling::strip_sampling_params(&mut body_json);
+        if settings.enable_magic_cache {
+            cache_control::apply_magic_string_cache_control_triggers(&mut body_json);
+        }
+        if !settings.cache_breakpoints.is_empty() {
+            cache_control::ensure_cache_breakpoint_rules(
+                &mut body_json,
+                &settings.cache_breakpoints,
+            );
+        }
+        if settings.flatten_system_before_cache {
+            cache_control::flatten_system_text_blocks(&mut body_json);
+        }
+        cache_control::sanitize_claude_body(&mut body_json);
+
+        request.body = serde_json::to_vec(&body_json)
+            .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
+        Ok(request)
+    }
+
     fn classify_response(
         &self,
         status: u16,
@@ -315,7 +360,11 @@ inventory::submit! { ChannelRegistration::new(VercelChannel::ID, vercel_routing_
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::claude_cache_control::{
+        CacheBreakpointPositionKind, CacheBreakpointRule, CacheBreakpointTarget, CacheBreakpointTtl,
+    };
     use http::{HeaderMap, Method};
+    use serde_json::json;
 
     fn prepared_request(operation: OperationFamily, protocol: ProtocolKind) -> PreparedRequest {
         PreparedRequest {
@@ -392,5 +441,95 @@ mod tests {
             upstream.uri().to_string(),
             "https://ai-gateway.vercel.sh/v1/chat/completions"
         );
+    }
+
+    #[test]
+    fn claude_route_applies_magic_system_flatten_and_cache_breakpoints() {
+        let settings = VercelSettings {
+            enable_magic_cache: true,
+            flatten_system_before_cache: true,
+            cache_breakpoints: vec![CacheBreakpointRule {
+                target: CacheBreakpointTarget::System,
+                position: CacheBreakpointPositionKind::LastNth,
+                index: 1,
+                ttl: CacheBreakpointTtl::Ttl1h,
+            }],
+            ..Default::default()
+        };
+        let body = json!({
+            "model": "anthropic/claude-test",
+            "system": [
+                { "type": "text", "text": "first " },
+                { "type": "text", "text": "second GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF" }
+            ],
+            "messages": [{ "role": "user", "content": "hi" }]
+        });
+        let request = PreparedRequest {
+            method: Method::POST,
+            route: RouteKey::new(OperationFamily::GenerateContent, ProtocolKind::Claude),
+            model: Some("anthropic/claude-test".to_string()),
+            query: None,
+            body: serde_json::to_vec(&body).expect("body"),
+            headers: HeaderMap::new(),
+        };
+
+        let finalized = VercelChannel
+            .finalize_request(&settings, request)
+            .expect("finalize request");
+        let value: Value = serde_json::from_slice(&finalized.body).expect("json body");
+        let system = value
+            .get("system")
+            .and_then(Value::as_array)
+            .expect("system array");
+
+        assert_eq!(system.len(), 1);
+        assert_eq!(
+            system[0].get("text").and_then(Value::as_str),
+            Some("first second")
+        );
+        assert_eq!(
+            system[0]
+                .pointer("/cache_control/type")
+                .and_then(Value::as_str),
+            Some("ephemeral")
+        );
+        assert_eq!(
+            system[0]
+                .pointer("/cache_control/ttl")
+                .and_then(Value::as_str),
+            Some("5m")
+        );
+    }
+
+    #[test]
+    fn openai_route_does_not_apply_claude_cache_controls() {
+        let settings = VercelSettings {
+            enable_magic_cache: true,
+            cache_breakpoints: vec![CacheBreakpointRule {
+                target: CacheBreakpointTarget::TopLevel,
+                position: CacheBreakpointPositionKind::Nth,
+                index: 1,
+                ttl: CacheBreakpointTtl::Auto,
+            }],
+            ..Default::default()
+        };
+        let body = br#"{"model":"openai/gpt-test","input":"hi"}"#.to_vec();
+        let request = PreparedRequest {
+            method: Method::POST,
+            route: RouteKey::new(
+                OperationFamily::GenerateContent,
+                ProtocolKind::OpenAiResponse,
+            ),
+            model: Some("openai/gpt-test".to_string()),
+            query: None,
+            body: body.clone(),
+            headers: HeaderMap::new(),
+        };
+
+        let finalized = VercelChannel
+            .finalize_request(&settings, request)
+            .expect("finalize request");
+
+        assert_eq!(finalized.body, body);
     }
 }
