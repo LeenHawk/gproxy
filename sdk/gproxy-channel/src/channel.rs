@@ -131,7 +131,7 @@ pub trait Channel: Send + Sync + 'static {
         false
     }
 
-    /// Attempt to refresh a credential after an auth failure (401/403).
+    /// Attempt to refresh a credential after an auth failure (401/402/403).
     /// Called when upstream returns AuthDead. Returns `true` if the credential
     /// was updated and the request should be retried once more.
     /// Default: no refresh capability, returns `false`.

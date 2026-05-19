@@ -152,7 +152,7 @@ impl Channel for AcmeChannel {
     ) -> ResponseClassification {
         match status {
             429 | 500..=599 => ResponseClassification::RetryableWithCooldown,
-            401 | 403       => ResponseClassification::DisableCredential,
+            401 | 402 | 403       => ResponseClassification::DisableCredential,
             _               => ResponseClassification::Pass,
         }
     }
