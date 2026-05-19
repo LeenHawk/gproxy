@@ -49,7 +49,7 @@ pub enum RetryableUpstreamResponse {
 pub enum ResponseClassification {
     /// 2xx — request succeeded.
     Success,
-    /// 401/403 — credential permanently invalid.
+    /// 401/402/403 — credential permanently invalid.
     AuthDead,
     /// 429 — rate limited, retry with another credential.
     RateLimited { retry_after_ms: Option<u64> },

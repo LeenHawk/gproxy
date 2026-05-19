@@ -1339,7 +1339,7 @@ impl Channel for ClaudeCodeChannel {
     ) -> ResponseClassification {
         match status {
             200..=299 => ResponseClassification::Success,
-            401 | 403 => ResponseClassification::AuthDead,
+            401 | 402 | 403 => ResponseClassification::AuthDead,
             429 => {
                 let retry_after_ms = parse_claudecode_rate_limit(headers);
                 ResponseClassification::RateLimited { retry_after_ms }

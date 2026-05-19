@@ -43,7 +43,7 @@ impl CredentialHealth for SimpleHealth {
     }
 
     fn record_error(&mut self, status: u16, _model: Option<&str>, _retry_after_ms: Option<u64>) {
-        if status == 401 || status == 403 {
+        if status == 401 || status == 402 || status == 403 {
             self.dead = true;
         }
     }
@@ -111,7 +111,7 @@ impl CredentialHealth for ModelCooldownHealth {
     }
 
     fn record_error(&mut self, status: u16, model: Option<&str>, retry_after_ms: Option<u64>) {
-        if status == 401 || status == 403 {
+        if status == 401 || status == 402 || status == 403 {
             self.dead = true;
             return;
         }
@@ -160,6 +160,15 @@ mod tests {
             dead: true,
             ..Default::default()
         };
+        assert_eq!(health.status(None), "unavailable");
+    }
+
+    #[test]
+    fn model_cooldown_health_treats_payment_required_as_dead() {
+        let mut health = ModelCooldownHealth::default();
+        health.record_error(402, None, None);
+
+        assert!(!health.is_available(None));
         assert_eq!(health.status(None), "unavailable");
     }
 }

@@ -173,7 +173,7 @@ pub struct RetryContext<'a, C: Channel> {
 /// without `retry-after`. If 429 includes `retry-after`, the credential
 /// is marked with a cooldown and skipped immediately.
 ///
-/// On 401/403 (AuthDead), calls `channel.refresh_credential` to attempt
+/// On 401/402/403 (AuthDead), calls `channel.refresh_credential` to attempt
 /// a token refresh. If refresh succeeds, retries once. If the retry also
 /// fails with AuthDead, the credential is marked dead.
 ///

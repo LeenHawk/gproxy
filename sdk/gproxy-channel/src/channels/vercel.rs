@@ -294,7 +294,7 @@ impl Channel for VercelChannel {
     ) -> ResponseClassification {
         match status {
             200..=299 => ResponseClassification::Success,
-            401 | 403 => ResponseClassification::AuthDead,
+            401 | 402 | 403 => ResponseClassification::AuthDead,
             429 => {
                 let retry_after = headers
                     .get("retry-after")
@@ -418,6 +418,13 @@ mod tests {
             uri_path(OperationFamily::Embedding, ProtocolKind::OpenAi),
             "/v1/embeddings"
         );
+    }
+
+    #[test]
+    fn payment_required_is_auth_dead() {
+        let classification = VercelChannel.classify_response(402, &HeaderMap::new(), b"");
+
+        assert_eq!(classification, ResponseClassification::AuthDead);
     }
 
     #[test]
