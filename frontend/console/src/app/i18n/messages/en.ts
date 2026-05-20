@@ -416,7 +416,7 @@ export const enMessages: Record<string, string> = {
   "table.cache_creation_5m": "Cache 5m",
   "table.cache_creation_1h": "Cache 1h",
   "table.cost": "Cost",
-  "field.credential_id": "Credential",
+  "field.credential_id": "Credential ID",
   "field.provider_id": "Provider",
   "field.user_id": "User",
   "field.user_key_id": "User Key",

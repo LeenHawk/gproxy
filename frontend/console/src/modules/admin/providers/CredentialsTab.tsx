@@ -131,7 +131,7 @@ export function CredentialsTab({
                 <div key={credentialKey} className="card-shell">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="font-semibold">#{row.index} · {summary.primary}</div>
+                      <div className="font-semibold">#{row.id} · {summary.primary}</div>
                       <button
                         type="button"
                         className="badge-button"
