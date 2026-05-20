@@ -416,7 +416,7 @@ export const zhMessages: Record<string, string> = {
   "table.cache_creation_5m": "缓存 5m",
   "table.cache_creation_1h": "缓存 1h",
   "table.cost": "花费",
-  "field.credential_id": "凭证",
+  "field.credential_id": "凭证 ID",
   "field.provider_id": "Provider",
   "field.user_id": "用户",
   "field.user_key_id": "用户 Key",

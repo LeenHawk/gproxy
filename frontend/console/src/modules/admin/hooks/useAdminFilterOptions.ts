@@ -108,7 +108,7 @@ export function useAdminFilterOptions({
         { value: "", label: `${t("common.all")} ${t("providers.tab.credentials")}` },
         ...filtered.map((row) => ({
           value: String(row.id),
-          label: `${row.provider} #${row.index}`,
+          label: `${row.provider} #${row.id}`,
         })),
       ];
     },
