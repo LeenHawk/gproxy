@@ -756,7 +756,7 @@ impl Channel for CodexChannel {
     ) -> ResponseClassification {
         match status {
             200..=299 => ResponseClassification::Success,
-            401 | 402 | 403 => ResponseClassification::AuthDead,
+            401..=403 => ResponseClassification::AuthDead,
             429 => {
                 // Credits exhausted → credential is dead.
                 if headers

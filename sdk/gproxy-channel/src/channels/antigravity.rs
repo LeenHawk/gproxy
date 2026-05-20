@@ -702,7 +702,7 @@ impl Channel for AntigravityChannel {
     ) -> ResponseClassification {
         match status {
             200..=299 => ResponseClassification::Success,
-            401 | 402 | 403 => ResponseClassification::AuthDead,
+            401..=403 => ResponseClassification::AuthDead,
             429 | 503 => classify_google_quota_response(headers, body),
             500..=502 | 504..=599 => ResponseClassification::TransientError,
             _ => ResponseClassification::PermanentError,

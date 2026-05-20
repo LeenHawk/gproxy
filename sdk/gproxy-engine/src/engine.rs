@@ -1092,7 +1092,7 @@ impl GproxyEngine {
                 gproxy_channel::http_client::send_request(&self.client, http_request).await?;
             meta.url = response.url.clone();
 
-            if matches!(response.status, 401 | 402 | 403) {
+            if matches!(response.status, 401..=403) {
                 tracing::warn!(
                     provider = provider_name,
                     status = response.status,
@@ -2228,7 +2228,7 @@ fn classify_openai_ws_probe_message(message: &WsMessage) -> Option<String> {
         WsMessage::Text(text) => {
             match serde_json::from_str::<OpenAiCreateResponseWebSocketServerMessage>(text) {
                 Ok(OpenAiCreateResponseWebSocketServerMessage::WrappedError(event))
-                    if matches!(event.status, Some(401 | 402 | 403)) =>
+                    if matches!(event.status, Some(401..=403)) =>
                 {
                     event
                         .error

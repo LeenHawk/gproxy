@@ -707,7 +707,7 @@ impl Channel for GeminiCliChannel {
     ) -> ResponseClassification {
         match status {
             200..=299 => ResponseClassification::Success,
-            401 | 402 | 403 => ResponseClassification::AuthDead,
+            401..=403 => ResponseClassification::AuthDead,
             429 | 499 => classify_google_quota_response(headers, body),
             500..=599 => ResponseClassification::TransientError,
             _ => ResponseClassification::PermanentError,
