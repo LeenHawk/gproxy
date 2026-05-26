@@ -98,6 +98,16 @@ describe("buildChannelSettingsJson", () => {
     ]);
   });
 
+  it("uses current antigravity defaults", () => {
+    expect(defaultSettingsForChannel("antigravity")).toMatchObject({
+      base_url: "https://cloudcode-pa.googleapis.com",
+      user_agent: "antigravity/2.0.1 (Windows; AMD64)",
+      oauth_authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
+      oauth_token_url: "https://oauth2.googleapis.com/token",
+      oauth_userinfo_url: "https://www.googleapis.com/oauth2/v1/userinfo?alt=json",
+    });
+  });
+
   it("omits optional empty credential fields", () => {
     const result = buildCredentialJson("codex", {
       access_token: "token",
