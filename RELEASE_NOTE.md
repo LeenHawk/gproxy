@@ -12,6 +12,7 @@
 
 #### Fixed
 
+- **Antigravity channel refresh.** The built-in Antigravity channel now defaults to the production Cloud Code endpoint, advertises a current `antigravity/2.0.1` user agent, requests the `aicode` OAuth scope, honors configured OAuth authorize/token/userinfo URLs, keeps image-generation / tiered model ids from `fetchAvailableModels` visible in normalized Gemini model-list responses, avoids forwarding Gemini pagination query params to `fetchAvailableModels`, sends count-token requests with Antigravity's `{"request": ...}` wrapper, and no longer advertises the unsupported embedding route.
 - **ClaudeCode cookie bootstrap JSON stream parsing.** Cookie/profile bootstrap now accepts Claude.ai responses that prepend a standalone JSON object before the real `account` payload, so profile switching still extracts the subscribed organization.
 - **ClaudeCode credential cookie input.** The admin console now normalizes pasted `Cookie:` headers and `sessionKey=...` strings to the raw session key before saving, so cookie bootstrap sends a usable Claude.ai session cookie.
 - **ClaudeCode fingerprint editor.** The admin console now renders `fingerprint` as a localized client-fingerprint editor instead of a raw JSON textarea, with explicit fields for Claude Code and `x-stainless-*` request identity values.
@@ -28,6 +29,7 @@
 
 #### 修复
 
+- **Antigravity 渠道刷新.** 内置 Antigravity 渠道现在默认使用正式 Cloud Code 端点,发送当前 `antigravity/2.0.1` User-Agent,OAuth scope 加上 `aicode`,后端会实际使用配置里的 OAuth authorize/token/userinfo URL,会把 `fetchAvailableModels` 中的生图 / tiered model id 保留到标准 Gemini 模型列表响应里,不会再把 Gemini 分页 query 透传给 `fetchAvailableModels`,count-token 请求会使用 Antigravity 实际接受的 `{"request": ...}` wrapper,并且不再暴露不支持的 embedding 路由。
 - **ClaudeCode cookie bootstrap JSON stream 解析.** cookie / profile bootstrap 现在能接受 Claude.ai 在真实 `account` payload 前返回独立 JSON 对象的响应,切换 profile 时仍能提取订阅组织。
 - **ClaudeCode 凭证 cookie 输入.** 管理控制台现在会把粘贴的 `Cookie:` header 或 `sessionKey=...` 字符串规范化成裸 session key 后再保存,确保 cookie bootstrap 发出可用的 Claude.ai session cookie。
 - **ClaudeCode 指纹编辑器.** 管理控制台现在把 `fingerprint` 渲染成本地化的客户端指纹编辑器,不再只是原始 JSON 文本框;Claude Code 和 `x-stainless-*` 请求身份字段都有独立输入项。

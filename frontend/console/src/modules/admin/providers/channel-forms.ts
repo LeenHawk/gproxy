@@ -120,8 +120,8 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
   },
   antigravity: {
     defaults: {
-      base_url: "https://daily-cloudcode-pa.sandbox.googleapis.com",
-      user_agent: "antigravity/1.15.8 (Windows; AMD64)",
+      base_url: "https://cloudcode-pa.googleapis.com",
+      user_agent: "antigravity/2.0.1 (Windows; AMD64)",
       oauth_authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
       oauth_token_url: "https://oauth2.googleapis.com/token",
       oauth_userinfo_url: "https://www.googleapis.com/oauth2/v1/userinfo?alt=json",

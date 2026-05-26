@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
 use dashmap::DashMap;
@@ -21,7 +21,7 @@ use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
 use crate::utils::google_quota::classify_google_quota_response;
 use tracing::Instrument;
 
-const DEFAULT_VERSION: &str = "2.15.8";
+const DEFAULT_VERSION: &str = "2.0.1";
 const DEFAULT_PLATFORM: &str = "Windows";
 const DEFAULT_ARCH: &str = "AMD64";
 const ANTIGRAVITY_REQUEST_NAMESPACE: uuid::Uuid =
@@ -30,7 +30,7 @@ const ANTIGRAVITY_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth
 const ANTIGRAVITY_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const ANTIGRAVITY_REDIRECT_URI: &str = "http://localhost:51121/oauth-callback";
 const ANTIGRAVITY_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
-const ANTIGRAVITY_OAUTH_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/experimentsandconfigs";
+const ANTIGRAVITY_OAUTH_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/experimentsandconfigs https://www.googleapis.com/auth/aicode";
 const ANTIGRAVITY_OAUTH_STATE_TTL_MS: u64 = 600_000;
 
 fn antigravity_model_pricing() -> &'static [crate::billing::ModelPrice] {
@@ -75,6 +75,7 @@ fn prune_antigravity_oauth_states(now_unix_ms: u64) {
 }
 
 fn build_antigravity_authorize_url(
+    authorize_url: &str,
     redirect_uri: &str,
     state: &str,
     code_challenge: &str,
@@ -90,11 +91,12 @@ fn build_antigravity_authorize_url(
         .append_pair("code_challenge_method", "S256")
         .append_pair("code_challenge", code_challenge)
         .append_pair("state", state);
-    format!("{}?{}", ANTIGRAVITY_AUTH_URL, serializer.finish())
+    format!("{}?{}", authorize_url, serializer.finish())
 }
 
 async fn exchange_antigravity_code_for_tokens(
     client: &wreq::Client,
+    token_url: &str,
     code: &str,
     redirect_uri: &str,
     code_verifier: &str,
@@ -108,7 +110,7 @@ async fn exchange_antigravity_code_for_tokens(
         crate::utils::oauth::percent_encode(code_verifier),
     );
     let response = client
-        .post(ANTIGRAVITY_TOKEN_URL)
+        .post(token_url)
         .header("content-type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -131,10 +133,11 @@ async fn exchange_antigravity_code_for_tokens(
 
 async fn fetch_antigravity_user_email(
     client: &wreq::Client,
+    userinfo_url: &str,
     access_token: &str,
 ) -> Result<Option<String>, UpstreamError> {
     let response = client
-        .get(ANTIGRAVITY_USERINFO_URL)
+        .get(userinfo_url)
         .header("Authorization", format!("Bearer {access_token}"))
         .send()
         .await
@@ -268,6 +271,12 @@ pub struct AntigravitySettings {
     pub base_url: String,
     #[serde(default = "default_antigravity_api_version")]
     pub api_version: String,
+    #[serde(default = "default_antigravity_oauth_authorize_url")]
+    pub oauth_authorize_url: String,
+    #[serde(default = "default_antigravity_oauth_token_url")]
+    pub oauth_token_url: String,
+    #[serde(default = "default_antigravity_oauth_userinfo_url")]
+    pub oauth_userinfo_url: String,
     /// Common fields shared with every other channel: user_agent,
     /// max_retries_on_429, sanitize_rules, rewrite_rules. Flattened
     /// so the TOML / JSON wire format is unchanged.
@@ -276,11 +285,23 @@ pub struct AntigravitySettings {
 }
 
 fn default_antigravity_base_url() -> String {
-    "https://daily-cloudcode-pa.sandbox.googleapis.com".to_string()
+    "https://cloudcode-pa.googleapis.com".to_string()
 }
 
 fn default_antigravity_api_version() -> String {
     "v1internal".to_string()
+}
+
+fn default_antigravity_oauth_authorize_url() -> String {
+    ANTIGRAVITY_AUTH_URL.to_string()
+}
+
+fn default_antigravity_oauth_token_url() -> String {
+    ANTIGRAVITY_TOKEN_URL.to_string()
+}
+
+fn default_antigravity_oauth_userinfo_url() -> String {
+    ANTIGRAVITY_USERINFO_URL.to_string()
 }
 
 impl AntigravitySettings {
@@ -563,13 +584,6 @@ impl Channel for AntigravityChannel {
                 OperationFamily::StreamGenerateContent,
                 ProtocolKind::Gemini,
             ),
-            pass(OperationFamily::Embedding, ProtocolKind::Gemini),
-            xform(
-                OperationFamily::Embedding,
-                ProtocolKind::OpenAi,
-                OperationFamily::Embedding,
-                ProtocolKind::Gemini,
-            ),
             xform(
                 OperationFamily::Compact,
                 ProtocolKind::OpenAi,
@@ -594,23 +608,27 @@ impl Channel for AntigravityChannel {
         settings: &Self::Settings,
         request: &PreparedRequest,
     ) -> Result<http::Request<Vec<u8>>, UpstreamError> {
-        let is_model_op = matches!(
-            request.route.operation,
-            OperationFamily::ModelList | OperationFamily::ModelGet
-        );
-
-        // For ModelList/ModelGet, use a simple empty body POST instead of envelope wrapping.
-        let (method, final_body) = if is_model_op {
-            let body = serde_json::to_vec(&json!({}))
-                .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
-            (http::Method::POST, body)
-        } else {
-            let wrapped = code_assist_envelope::wrap_request(
-                &request.body,
-                request.model.as_deref(),
-                &credential.project_id,
-            )?;
-            (request.method.clone(), wrapped)
+        let (method, final_body) = match request.route.operation {
+            // For ModelList/ModelGet, use a simple empty body POST instead of envelope wrapping.
+            OperationFamily::ModelList | OperationFamily::ModelGet => {
+                let body = serde_json::to_vec(&json!({}))
+                    .map_err(|e| UpstreamError::RequestBuild(e.to_string()))?;
+                (http::Method::POST, body)
+            }
+            // Antigravity's count endpoint expects only a `request` wrapper,
+            // unlike generate/stream endpoints that require model/project ids.
+            OperationFamily::CountToken => {
+                let wrapped = wrap_count_tokens_request(&request.body)?;
+                (request.method.clone(), wrapped)
+            }
+            _ => {
+                let wrapped = code_assist_envelope::wrap_request(
+                    &request.body,
+                    request.model.as_deref(),
+                    &credential.project_id,
+                )?;
+                (request.method.clone(), wrapped)
+            }
         };
 
         let mut url = format!(
@@ -618,7 +636,15 @@ impl Channel for AntigravityChannel {
             settings.base_url(),
             antigravity_request_path(request)?
         );
-        crate::utils::url::append_query(&mut url, request.query.as_deref());
+        let upstream_query = if matches!(
+            request.route.operation,
+            OperationFamily::ModelList | OperationFamily::ModelGet
+        ) {
+            None
+        } else {
+            request.query.as_deref()
+        };
+        crate::utils::url::append_query(&mut url, upstream_query);
 
         // Determine requestType based on model name
         let request_type = request
@@ -746,35 +772,22 @@ impl Channel for AntigravityChannel {
         client: &'a wreq::Client,
         credential: &'a mut Self::Credential,
     ) -> impl std::future::Future<Output = Result<bool, UpstreamError>> + Send + 'a {
-        let client = client.clone();
-        let span = tracing::info_span!("refresh_credential", channel = "antigravity");
-        async move {
-            if credential.refresh_token.is_empty() {
-                return Ok(false);
-            }
-            let result = oauth2_refresh::refresh_oauth2_token(
-                &client,
-                "https://oauth2.googleapis.com/token",
-                &credential.client_id,
-                &credential.client_secret,
-                &credential.refresh_token,
-            )
-            .await?;
-            credential.access_token = result.access_token;
-            credential.expires_at_ms = result.expires_at_ms;
-            if let Some(rt) = result.refresh_token {
-                credential.refresh_token = rt;
-            }
-            tracing::info!("credential refreshed");
-            Ok(true)
-        }
-        .instrument(span)
+        refresh_antigravity_credential(client, ANTIGRAVITY_TOKEN_URL, credential)
+    }
+
+    fn refresh_credential_with_settings<'a>(
+        &'a self,
+        client: &'a wreq::Client,
+        settings: &'a Self::Settings,
+        credential: &'a mut Self::Credential,
+    ) -> impl std::future::Future<Output = Result<bool, UpstreamError>> + Send + 'a {
+        refresh_antigravity_credential(client, &settings.oauth_token_url, credential)
     }
 
     fn oauth_start<'a>(
         &'a self,
         _client: &'a wreq::Client,
-        _settings: &'a Self::Settings,
+        settings: &'a Self::Settings,
         params: &'a BTreeMap<String, String>,
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Option<OAuthFlow>, UpstreamError>> + Send + 'a>,
@@ -789,8 +802,12 @@ impl Channel for AntigravityChannel {
             let state = crate::utils::oauth::generate_state();
             let code_verifier = crate::utils::oauth::generate_code_verifier();
             let code_challenge = crate::utils::oauth::generate_code_challenge(&code_verifier);
-            let authorize_url =
-                build_antigravity_authorize_url(&redirect_uri, &state, &code_challenge);
+            let authorize_url = build_antigravity_authorize_url(
+                &settings.oauth_authorize_url,
+                &redirect_uri,
+                &state,
+                &code_challenge,
+            );
 
             antigravity_oauth_states().insert(
                 state.clone(),
@@ -852,6 +869,7 @@ impl Channel for AntigravityChannel {
 
             let token = exchange_antigravity_code_for_tokens(
                 client,
+                &settings.oauth_token_url,
                 &code,
                 &oauth_state.redirect_uri,
                 &oauth_state.code_verifier,
@@ -886,7 +904,9 @@ impl Channel for AntigravityChannel {
                 oauth_state.project_id.as_deref(),
             )
             .await?;
-            let user_email = fetch_antigravity_user_email(client, &access_token).await?;
+            let user_email =
+                fetch_antigravity_user_email(client, &settings.oauth_userinfo_url, &access_token)
+                    .await?;
             let expires_at_ms = crate::utils::oauth::current_unix_ms()
                 .saturating_add(token.expires_in.unwrap_or(3600).saturating_mul(1000));
 
@@ -911,8 +931,69 @@ impl Channel for AntigravityChannel {
     }
 }
 
+fn refresh_antigravity_credential<'a>(
+    client: &'a wreq::Client,
+    token_url: &'a str,
+    credential: &'a mut AntigravityCredential,
+) -> impl std::future::Future<Output = Result<bool, UpstreamError>> + Send + 'a {
+    let client = client.clone();
+    let span = tracing::info_span!("refresh_credential", channel = "antigravity");
+    async move {
+        if credential.refresh_token.is_empty() {
+            return Ok(false);
+        }
+        let result = oauth2_refresh::refresh_oauth2_token(
+            &client,
+            token_url,
+            &credential.client_id,
+            &credential.client_secret,
+            &credential.refresh_token,
+        )
+        .await?;
+        credential.access_token = result.access_token;
+        credential.expires_at_ms = result.expires_at_ms;
+        if let Some(rt) = result.refresh_token {
+            credential.refresh_token = rt;
+        }
+        tracing::info!("credential refreshed");
+        Ok(true)
+    }
+    .instrument(span)
+}
+
+fn wrap_count_tokens_request(body: &[u8]) -> Result<Vec<u8>, UpstreamError> {
+    let mut inner: Value = serde_json::from_slice(body).map_err(|e| {
+        UpstreamError::RequestBuild(format!("json parse for countTokens wrap: {e}"))
+    })?;
+
+    if let Some(obj) = inner.as_object_mut() {
+        obj.remove("model");
+    }
+    ensure_content_roles(&mut inner);
+
+    serde_json::to_vec(&json!({ "request": inner }))
+        .map_err(|e| UpstreamError::RequestBuild(format!("countTokens wrap serialize: {e}")))
+}
+
+fn ensure_content_roles(body: &mut Value) {
+    let Some(contents) = body
+        .as_object_mut()
+        .and_then(|obj| obj.get_mut("contents"))
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    for content in contents {
+        let Some(obj) = content.as_object_mut() else {
+            continue;
+        };
+        if !obj.contains_key("role") {
+            obj.insert("role".to_string(), Value::String("user".to_string()));
+        }
+    }
+}
+
 fn antigravity_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
-    let model = request.model.as_deref().unwrap_or_default();
     match request.route.operation {
         OperationFamily::ModelList | OperationFamily::ModelGet => {
             Ok("/v1internal:fetchAvailableModels".to_string())
@@ -924,14 +1005,6 @@ fn antigravity_request_path(request: &PreparedRequest) -> Result<String, Upstrea
             // events unless `alt=sse` is explicitly set; without it the
             // upstream rejects with `400 INVALID_ARGUMENT`.
             Ok("/v1internal:streamGenerateContent?alt=sse".to_string())
-        }
-        OperationFamily::Embedding => {
-            let model = if model.starts_with("models/") {
-                model.to_string()
-            } else {
-                format!("models/{model}")
-            };
-            Ok(format!("/v1beta/{model}:embedContent"))
         }
         _ => Err(UpstreamError::Channel(format!(
             "unsupported antigravity request route: ({}, {})",
@@ -951,12 +1024,22 @@ fn antigravity_routing_table() -> RoutingTable {
 /// Extract models from an `fetchAvailableModels` response.
 ///
 /// The response contains either `{"models": {"model-id": {...}, ...}}` (object)
-/// or `{"models": [{"id": "...", ...}, ...]}` (array).
+/// or `{"models": [{"id": "...", ...}, ...]}` (array). Newer Antigravity
+/// responses can also expose model ids through purpose-specific fields such as
+/// `image_generation_model_ids` and `tiered_model_ids`; keep those models visible
+/// even when they are absent from the main `models` map.
 fn extract_available_models(payload: &Value) -> Vec<Value> {
-    let mut models = Vec::new();
+    let mut model_meta = BTreeMap::<String, Value>::new();
+    let mut model_methods = BTreeMap::<String, BTreeSet<&'static str>>::new();
+
     if let Some(models_obj) = payload.get("models").and_then(Value::as_object) {
-        for (model_id, model_meta) in models_obj {
-            models.push(build_model_entry(model_id.as_str(), model_meta));
+        for (model_id, meta) in models_obj {
+            let id = normalize_model_id(model_id);
+            model_methods
+                .entry(id.clone())
+                .or_default()
+                .extend(default_generation_methods());
+            model_meta.insert(id, meta.clone());
         }
     } else if let Some(models_arr) = payload.get("models").and_then(Value::as_array) {
         for item in models_arr {
@@ -965,14 +1048,61 @@ fn extract_available_models(payload: &Value) -> Vec<Value> {
                 .and_then(Value::as_str)
                 .or_else(|| item.get("name").and_then(Value::as_str))
             {
-                let normalized = normalize_model_id(id);
-                models.push(build_model_entry(&normalized, item));
+                let id = normalize_model_id(id);
+                model_methods
+                    .entry(id.clone())
+                    .or_default()
+                    .extend(default_generation_methods());
+                model_meta.insert(id, item.clone());
             } else if let Some(value) = item.as_str() {
-                let normalized = normalize_model_id(value);
-                models.push(build_model_entry(&normalized, &Value::Null));
+                add_available_model_id(&mut model_methods, value, default_generation_methods());
             }
         }
     }
+
+    add_model_ids_from_fields(
+        payload,
+        &[
+            "default_agent_model_id",
+            "defaultAgentModelId",
+            "agent_model_sorts",
+            "agentModelSorts",
+            "battle_mode_model_sorts",
+            "battleModeModelSorts",
+            "command_model_ids",
+            "commandModelIds",
+            "tab_model_ids",
+            "tabModelIds",
+            "mquery_model_ids",
+            "mqueryModelIds",
+            "web_search_model_ids",
+            "webSearchModelIds",
+            "commit_message_model_ids",
+            "commitMessageModelIds",
+            "audio_transcription_model_ids",
+            "audioTranscriptionModelIds",
+            "tiered_model_ids",
+            "tieredModelIds",
+        ],
+        &mut model_methods,
+        default_generation_methods(),
+    );
+    add_model_ids_from_fields(
+        payload,
+        &["image_generation_model_ids", "imageGenerationModelIds"],
+        &mut model_methods,
+        image_generation_methods(),
+    );
+
+    let mut models = model_methods
+        .into_iter()
+        .filter(|(model_id, _)| !is_embedding_model_id(model_id))
+        .map(|(model_id, methods)| {
+            let meta = model_meta.get(&model_id).unwrap_or(&Value::Null);
+            build_model_entry(&model_id, meta, &methods)
+        })
+        .collect::<Vec<_>>();
+
     models.sort_by(|a, b| {
         let a_name = a.get("name").and_then(Value::as_str).unwrap_or_default();
         let b_name = b.get("name").and_then(Value::as_str).unwrap_or_default();
@@ -986,6 +1116,75 @@ fn extract_available_models(payload: &Value) -> Vec<Value> {
     models
 }
 
+fn default_generation_methods() -> BTreeSet<&'static str> {
+    BTreeSet::from(["countTokens", "generateContent", "streamGenerateContent"])
+}
+
+fn image_generation_methods() -> BTreeSet<&'static str> {
+    BTreeSet::from(["countTokens", "generateContent", "streamGenerateContent"])
+}
+
+fn is_embedding_model_id(model_id: &str) -> bool {
+    let lower = model_id.to_ascii_lowercase();
+    lower.contains("embedding") || lower.contains("embed")
+}
+
+fn add_model_ids_from_fields(
+    payload: &Value,
+    field_names: &[&str],
+    models: &mut BTreeMap<String, BTreeSet<&'static str>>,
+    methods: BTreeSet<&'static str>,
+) {
+    for field in field_names {
+        if let Some(value) = payload.get(*field) {
+            add_model_ids_from_value(models, value, &methods);
+        }
+    }
+}
+
+fn add_model_ids_from_value(
+    models: &mut BTreeMap<String, BTreeSet<&'static str>>,
+    value: &Value,
+    methods: &BTreeSet<&'static str>,
+) {
+    match value {
+        Value::String(model_id) => add_available_model_id(models, model_id, methods.clone()),
+        Value::Array(values) => {
+            for value in values {
+                add_model_ids_from_value(models, value, methods);
+            }
+        }
+        Value::Object(object) => {
+            let direct_model_id = object
+                .get("model_id")
+                .and_then(Value::as_str)
+                .or_else(|| object.get("modelId").and_then(Value::as_str))
+                .or_else(|| object.get("id").and_then(Value::as_str))
+                .or_else(|| object.get("name").and_then(Value::as_str));
+            if let Some(model_id) = direct_model_id {
+                add_available_model_id(models, model_id, methods.clone());
+            } else {
+                for value in object.values() {
+                    add_model_ids_from_value(models, value, methods);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn add_available_model_id(
+    models: &mut BTreeMap<String, BTreeSet<&'static str>>,
+    model_id: &str,
+    methods: BTreeSet<&'static str>,
+) {
+    let model_id = normalize_model_id(model_id);
+    if model_id.is_empty() {
+        return;
+    }
+    models.entry(model_id).or_default().extend(methods);
+}
+
 fn normalize_model_id(model: &str) -> String {
     model
         .trim()
@@ -994,23 +1193,20 @@ fn normalize_model_id(model: &str) -> String {
         .to_string()
 }
 
-fn build_model_entry(model_id: &str, meta: &Value) -> Value {
+fn build_model_entry(model_id: &str, meta: &Value, methods: &BTreeSet<&'static str>) -> Value {
     let display_name = meta
         .get("displayName")
         .and_then(Value::as_str)
         .or_else(|| meta.get("display_name").and_then(Value::as_str))
         .unwrap_or(model_id);
+    let methods = methods.iter().copied().collect::<Vec<_>>();
 
     let mut obj = json!({
         "name": format!("models/{model_id}"),
         "baseModelId": model_id,
         "version": "1",
         "displayName": display_name,
-        "supportedGenerationMethods": [
-            "generateContent",
-            "countTokens",
-            "streamGenerateContent"
-        ]
+        "supportedGenerationMethods": methods
     });
 
     if let Some(limit) = meta.get("maxTokens").and_then(Value::as_u64) {
@@ -1060,6 +1256,230 @@ fn available_models_to_get_response(body: &[u8], target: &str) -> Vec<u8> {
             }
         }))
         .unwrap_or_else(|_| body.to_vec()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model_methods(model: &Value) -> Vec<String> {
+        model
+            .get("supportedGenerationMethods")
+            .and_then(Value::as_array)
+            .expect("methods")
+            .iter()
+            .map(|value| value.as_str().expect("method").to_string())
+            .collect()
+    }
+
+    #[test]
+    fn fetch_available_models_includes_grouped_capability_models() {
+        let payload = json!({
+            "models": {
+                "gemini-2.5-pro": {
+                    "displayName": "Gemini 2.5 Pro",
+                    "maxTokens": 1048576,
+                    "maxOutputTokens": 65536
+                }
+            },
+            "image_generation_model_ids": ["gemini-2.5-flash-image-preview"],
+            "embedding_model_ids": ["gemini-embedding-001"],
+            "tiered_model_ids": {
+                "paid": ["gemini-3-flash-preview"]
+            },
+            "agent_model_sorts": [
+                { "modelId": "gemini-2.5-flash", "sort": 10 }
+            ]
+        });
+
+        let models = extract_available_models(&payload);
+        let by_name = models
+            .iter()
+            .map(|model| {
+                (
+                    model
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .expect("name")
+                        .to_string(),
+                    model,
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        assert!(by_name.contains_key("models/gemini-2.5-pro"));
+        assert!(by_name.contains_key("models/gemini-2.5-flash-image-preview"));
+        assert!(!by_name.contains_key("models/gemini-embedding-001"));
+        assert!(by_name.contains_key("models/gemini-3-flash-preview"));
+        assert!(by_name.contains_key("models/gemini-2.5-flash"));
+
+        assert_eq!(
+            model_methods(by_name["models/gemini-2.5-flash-image-preview"]),
+            vec![
+                "countTokens".to_string(),
+                "generateContent".to_string(),
+                "streamGenerateContent".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn fetch_available_models_get_finds_category_only_models() {
+        let body = serde_json::to_vec(&json!({
+            "imageGenerationModelIds": ["gemini-2.5-flash-image-preview"]
+        }))
+        .expect("serialize");
+
+        let response =
+            available_models_to_get_response(&body, "models/gemini-2.5-flash-image-preview");
+        let model: Value = serde_json::from_slice(&response).expect("model response");
+
+        assert_eq!(
+            model.get("name").and_then(Value::as_str),
+            Some("models/gemini-2.5-flash-image-preview")
+        );
+        assert_eq!(
+            model_methods(&model),
+            vec![
+                "countTokens".to_string(),
+                "generateContent".to_string(),
+                "streamGenerateContent".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn settings_accept_oauth_endpoint_overrides() {
+        let settings: AntigravitySettings = serde_json::from_value(json!({
+            "oauth_authorize_url": "https://auth.example.test/authorize",
+            "oauth_token_url": "https://auth.example.test/token",
+            "oauth_userinfo_url": "https://auth.example.test/userinfo"
+        }))
+        .expect("settings");
+
+        assert_eq!(
+            settings.oauth_authorize_url,
+            "https://auth.example.test/authorize"
+        );
+        assert_eq!(settings.oauth_token_url, "https://auth.example.test/token");
+        assert_eq!(
+            settings.oauth_userinfo_url,
+            "https://auth.example.test/userinfo"
+        );
+
+        let authorize_url = build_antigravity_authorize_url(
+            &settings.oauth_authorize_url,
+            "http://localhost/callback",
+            "state-value",
+            "challenge-value",
+        );
+        assert!(authorize_url.starts_with("https://auth.example.test/authorize?"));
+        assert!(authorize_url.contains("state=state-value"));
+        assert!(authorize_url.contains("code_challenge=challenge-value"));
+    }
+
+    #[test]
+    fn model_list_does_not_forward_gemini_pagination_to_fetch_available_models() {
+        let channel = AntigravityChannel;
+        let settings = AntigravitySettings::default();
+        let credential = AntigravityCredential {
+            access_token: "token".to_string(),
+            refresh_token: "refresh".to_string(),
+            expires_at_ms: 0,
+            project_id: "project".to_string(),
+            client_id: default_antigravity_client_id(),
+            client_secret: default_antigravity_client_secret(),
+            user_email: None,
+        };
+        let request = PreparedRequest {
+            method: http::Method::GET,
+            route: RouteKey::new(OperationFamily::ModelList, ProtocolKind::Gemini),
+            model: None,
+            query: Some("pageSize=28&pageToken=abc".to_string()),
+            body: Vec::new(),
+            headers: http::HeaderMap::new(),
+        };
+
+        let prepared = channel
+            .prepare_request(&credential, &settings, &request)
+            .expect("prepare request");
+
+        assert_eq!(prepared.uri().path(), "/v1internal:fetchAvailableModels");
+        assert_eq!(prepared.uri().query(), None);
+        assert_eq!(prepared.body(), &serde_json::to_vec(&json!({})).unwrap());
+    }
+
+    #[test]
+    fn count_tokens_uses_request_only_wrapper() {
+        let channel = AntigravityChannel;
+        let settings = AntigravitySettings::default();
+        let credential = AntigravityCredential {
+            access_token: "token".to_string(),
+            refresh_token: "refresh".to_string(),
+            expires_at_ms: 0,
+            project_id: "project".to_string(),
+            client_id: default_antigravity_client_id(),
+            client_secret: default_antigravity_client_secret(),
+            user_email: None,
+        };
+        let body = serde_json::to_vec(&json!({
+            "model": "gemini-2.5-flash",
+            "contents": [{ "parts": [{ "text": "count these words" }] }]
+        }))
+        .expect("serialize");
+        let request = PreparedRequest {
+            method: http::Method::POST,
+            route: RouteKey::new(OperationFamily::CountToken, ProtocolKind::Gemini),
+            model: Some("gemini-2.5-flash".to_string()),
+            query: None,
+            body,
+            headers: http::HeaderMap::new(),
+        };
+
+        let prepared = channel
+            .prepare_request(&credential, &settings, &request)
+            .expect("prepare request");
+        let body_json: Value = serde_json::from_slice(prepared.body()).expect("json body");
+
+        assert_eq!(prepared.uri().path(), "/v1internal:countTokens");
+        assert_eq!(body_json.get("model"), None);
+        assert_eq!(body_json.get("project"), None);
+        assert_eq!(body_json.get("user_prompt_id"), None);
+        assert_eq!(
+            body_json
+                .pointer("/request/contents/0/role")
+                .and_then(Value::as_str),
+            Some("user")
+        );
+        assert_eq!(
+            body_json
+                .pointer("/request/contents/0/parts/0/text")
+                .and_then(Value::as_str),
+            Some("count these words")
+        );
+    }
+
+    #[test]
+    fn embedding_routes_are_not_advertised() {
+        let table = AntigravityChannel.routing_table();
+
+        assert!(
+            table
+                .resolve(&RouteKey::new(
+                    OperationFamily::Embedding,
+                    ProtocolKind::Gemini
+                ))
+                .is_none()
+        );
+        assert!(
+            table
+                .resolve(&RouteKey::new(
+                    OperationFamily::Embedding,
+                    ProtocolKind::OpenAi
+                ))
+                .is_none()
+        );
     }
 }
 
