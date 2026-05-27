@@ -1819,7 +1819,7 @@ fn clean_kiro_schema(value: &mut Value) {
         Value::Object(object) => {
             object.remove("additionalProperties");
             if let Some(required) = object.get("required")
-                && !required.as_array().is_some_and(|items| !items.is_empty())
+                && required.as_array().is_none_or(|items| items.is_empty())
             {
                 object.remove("required");
             }
@@ -2399,18 +2399,14 @@ fn emit_kiro_stream_event(state: &mut KiroStreamState, event: KiroEvent, out: &m
                 }
             }
         }
-        "messageMetadataEvent" => {
-            if state.parts.conversation_id.is_none() {
-                state.parts.conversation_id = payload
-                    .get("conversationId")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-            }
+        "messageMetadataEvent" if state.parts.conversation_id.is_none() => {
+            state.parts.conversation_id = payload
+                .get("conversationId")
+                .and_then(Value::as_str)
+                .map(str::to_string);
         }
-        "metadataEvent" => {
-            if state.parts.usage.is_none() {
-                state.parts.usage = payload.get("tokenUsage").cloned();
-            }
+        "metadataEvent" if state.parts.usage.is_none() => {
+            state.parts.usage = payload.get("tokenUsage").cloned();
         }
         "invalidStateEvent" | "InternalServerException" | "internalServerException" => {
             let message = payload
@@ -2886,18 +2882,14 @@ fn apply_kiro_event(parts: &mut KiroResponseParts, event: KiroEvent) {
                 parts.reasoning_content.push_str(&delta);
             }
         }
-        "messageMetadataEvent" => {
-            if parts.conversation_id.is_none() {
-                parts.conversation_id = payload
-                    .get("conversationId")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-            }
+        "messageMetadataEvent" if parts.conversation_id.is_none() => {
+            parts.conversation_id = payload
+                .get("conversationId")
+                .and_then(Value::as_str)
+                .map(str::to_string);
         }
-        "metadataEvent" => {
-            if parts.usage.is_none() {
-                parts.usage = payload.get("tokenUsage").cloned();
-            }
+        "metadataEvent" if parts.usage.is_none() => {
+            parts.usage = payload.get("tokenUsage").cloned();
         }
         "invalidStateEvent" | "InternalServerException" | "internalServerException" => {
             parts.error = payload
@@ -2910,7 +2902,7 @@ fn apply_kiro_event(parts: &mut KiroResponseParts, event: KiroEvent) {
     }
 }
 
-fn kiro_event_payload<'a>(event: &'a KiroEvent) -> &'a Value {
+fn kiro_event_payload(event: &KiroEvent) -> &Value {
     event
         .event_type
         .as_deref()
