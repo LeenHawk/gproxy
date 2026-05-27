@@ -19,6 +19,8 @@ use gproxy_channel::request::PreparedRequest;
 use gproxy_channel::response::UpstreamError;
 use gproxy_channel::routing::RouteKey;
 
+type RawResponseNormalizer = Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ExecutionTransformPlan {
     /// Operation family whose request body schema should be produced before
@@ -1763,7 +1765,7 @@ impl GproxyEngine {
                 None
             };
 
-        let raw_normalizer: Option<Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>> = if dst_op
+        let raw_normalizer: Option<RawResponseNormalizer> = if dst_op
             == OperationFamily::StreamGenerateContent
             && dst_proto == ProtocolKind::OpenAiResponse
         {
@@ -1876,7 +1878,7 @@ fn wrap_upstream_response_stream(
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
     model_override: Option<String>,
     mut usage_observer: Option<gproxy_channel::usage::StreamUsageObserver>,
-    raw_normalizer: Option<Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>>,
+    raw_normalizer: Option<RawResponseNormalizer>,
 ) -> ExecuteBodyStream {
     // Helper pins the try_stream's Ok type so the macro can infer its
     // error type from the `?` uses below — without it, rustc can't
@@ -2409,7 +2411,7 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{
-        WsMessage, aggregate_stream_body, classify_openai_ws_probe_message,
+        RawResponseNormalizer, WsMessage, aggregate_stream_body, classify_openai_ws_probe_message,
         execution_transform_plan, rewrite_model_field_in_body, validate_credential_json,
         wrap_upstream_response_stream,
     };
@@ -2685,15 +2687,14 @@ mod tests {
     async fn wrap_response_stream_applies_raw_normalizer_before_yielding() {
         let raw_capture = Arc::new(Mutex::new(Vec::new()));
         let upstream = mock_upstream_stream(vec![b"raw-a", b"raw-b"]);
-        let normalizer: Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync> =
-            Arc::new(|chunk: Vec<u8>| {
-                if chunk.is_empty() {
-                    return b"tail".to_vec();
-                }
-                let mut out = b"norm:".to_vec();
-                out.extend(chunk);
-                out
-            });
+        let normalizer: RawResponseNormalizer = Arc::new(|chunk: Vec<u8>| {
+            if chunk.is_empty() {
+                return b"tail".to_vec();
+            }
+            let mut out = b"norm:".to_vec();
+            out.extend(chunk);
+            out
+        });
 
         let mut stream = wrap_upstream_response_stream(
             upstream,
