@@ -4,7 +4,7 @@
 [![docs.rs](https://docs.rs/gproxy-channel/badge.svg)](https://docs.rs/gproxy-channel)
 [![license](https://img.shields.io/crates/l/gproxy-channel.svg)](https://github.com/LeenHawk/gproxy)
 
-Single-channel LLM client layer for Rust. Provides the `Channel` trait, 15
+Single-channel LLM client layer for Rust. Provides the `Channel` trait, 16
 pre-built channel implementations (OpenAI, Anthropic, Gemini, Vertex, and
 friends), strongly typed credential / request / response types, credential
 health tracking, a routing table system, and an `execute_once` single-request
@@ -20,7 +20,7 @@ send → normalize_response → classify_response in one call.
 | Crate | Layer | What it covers |
 |---|---|---|
 | [`gproxy-protocol`] | L0 | Wire types + cross-protocol transforms |
-| `gproxy-channel` (this crate) | L1 | `Channel` trait + 15 channels + `execute_once` |
+| `gproxy-channel` (this crate) | L1 | `Channel` trait + 16 channels + `execute_once` |
 | [`gproxy-engine`] | L2 | Multi-channel `GproxyEngine`, provider store, retry, affinity |
 | [`gproxy-sdk`] | facade | Re-exports the three layers under canonical names |
 
@@ -36,7 +36,7 @@ compiled binary.
 
 `openai`, `anthropic`, `aistudio`, `vertex`, `vertexexpress`, `geminicli`,
 `claudecode`, `codex`, `antigravity`, `nvidia`, `deepseek`, `groq`,
-`openrouter`, `vercel`, `custom`
+`openrouter`, `vercel`, `kiro`, `custom`
 
 Example — only the OpenAI channel compiles in, nothing else:
 

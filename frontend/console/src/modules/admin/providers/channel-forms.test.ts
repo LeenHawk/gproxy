@@ -4,6 +4,7 @@ import {
   buildChannelSettingsJson,
   buildCredentialJson,
   credentialFieldsForChannel,
+  credentialValuesFromJson,
   defaultSettingsForChannel,
   normalizeCredentialJson,
   parseCredentialImport,
@@ -105,6 +106,73 @@ describe("buildChannelSettingsJson", () => {
       oauth_authorize_url: "https://accounts.google.com/o/oauth2/v2/auth",
       oauth_token_url: "https://oauth2.googleapis.com/token",
       oauth_userinfo_url: "https://www.googleapis.com/oauth2/v1/userinfo?alt=json",
+    });
+  });
+
+  it("exposes kiro runtime auth settings and token credentials", () => {
+    expect(defaultSettingsForChannel("kiro")).toMatchObject({
+      base_url: "https://q.us-east-1.amazonaws.com",
+      rest_base_url: "https://codewhisperer.us-east-1.amazonaws.com",
+      profile_arn: "",
+      agent_mode: "",
+      origin: "",
+      agent_task_type: "",
+      amz_target: "",
+      scope_prefix: "",
+      auth_base_url: "https://prod.us-east-1.auth.desktop.kiro.dev",
+      auth_portal_url: "https://app.kiro.dev",
+      oauth_redirect_uri: "http://localhost:3128",
+      idc_redirect_uri: "http://127.0.0.1/oauth/callback",
+    });
+    expect(credentialFieldsForChannel("kiro").map((field) => field.key)).toEqual([
+      "access_token",
+      "refresh_token",
+      "profile_arn",
+      "expires_at_ms",
+      "auth_method",
+      "provider",
+      "client_id",
+      "client_secret",
+      "region",
+    ]);
+    expect(parseCredentialImport("kiro", "kiro-token")).toEqual([
+      { access_token: "kiro-token" },
+    ]);
+  });
+
+  it("normalizes Kiro camelCase OAuth credential fields", () => {
+    expect(
+      normalizeCredentialJson("kiro", {
+        accessToken: "access-1",
+        refreshToken: "refresh-1",
+        profileArn: "arn:profile",
+        expiresAtMs: 1776493967337,
+        authMethod: "IdC",
+        clientId: "client-1",
+        clientSecret: "secret-1",
+        region: "us-east-1",
+      }),
+    ).toMatchObject({
+      access_token: "access-1",
+      refresh_token: "refresh-1",
+      profile_arn: "arn:profile",
+      expires_at_ms: 1776493967337,
+      auth_method: "IdC",
+      client_id: "client-1",
+      client_secret: "secret-1",
+      region: "us-east-1",
+    });
+
+    expect(
+      credentialValuesFromJson("kiro", {
+        accessToken: "access-1",
+        refreshToken: "refresh-1",
+        clientId: "client-1",
+      }),
+    ).toMatchObject({
+      access_token: "access-1",
+      refresh_token: "refresh-1",
+      client_id: "client-1",
     });
   });
 

@@ -200,6 +200,8 @@ impl ProviderStore {
             "vercel" => add!(self, vercel::VercelChannel, config),
             #[cfg(feature = "custom")]
             "custom" => add!(self, custom::CustomChannel, config),
+            #[cfg(feature = "kiro")]
+            "kiro" => add!(self, kiro::KiroChannel, config),
             _ => Err(UpstreamError::Channel(format!(
                 "unknown channel: {}",
                 config.channel

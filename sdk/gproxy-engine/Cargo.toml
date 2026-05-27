@@ -17,7 +17,8 @@ all-channels = [
     "gproxy-channel/all-channels",
     "openai", "anthropic", "aistudio", "vertexexpress",
     "vertex", "geminicli", "claudecode", "codex", "chatgpt",
-    "antigravity", "nvidia", "deepseek", "groq", "openrouter", "vercel", "custom"
+    "antigravity", "nvidia", "deepseek", "groq", "openrouter", "vercel", "custom",
+    "kiro"
 ]
 openai = ["gproxy-channel/openai"]
 anthropic = ["gproxy-channel/anthropic"]
@@ -35,6 +36,7 @@ groq = ["gproxy-channel/groq"]
 openrouter = ["gproxy-channel/openrouter"]
 vercel = ["gproxy-channel/vercel"]
 custom = ["gproxy-channel/custom"]
+kiro = ["gproxy-channel/kiro"]
 
 [dependencies]
 gproxy-protocol = { workspace = true }
