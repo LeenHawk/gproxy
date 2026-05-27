@@ -2,41 +2,59 @@
 
 ## v1.0.22
 
-> ClaudeCode cookie bootstrap handles Claude.ai profile/bootstrap JSON streams, and OpenAI image endpoints aggregate Codex Responses streams correctly.
+> Vercel and Kiro join the built-in channel set, while Antigravity, Vertex, ClaudeCode, image streaming, and the provider console get a broad compatibility pass.
 
 ### English
 
 #### Added
 
 - **Vercel AI Gateway channel.** Added a `vercel` channel for OpenAI Chat Completions, Responses, Models, Embeddings, and Anthropic Messages / Count Tokens, plus console support for Vercel gateway source aliases via `providerOptions.gateway.only`. Vercel's Claude-shaped requests also support `enable_magic_cache`, `flatten_system_before_cache`, and `cache_breakpoints`.
+- **Kiro / Amazon Q Runtime channel.** Added a `kiro` channel backed by Kiro IDE 0.12.224's `POST /generateAssistantResponse` Smithy shape. Kiro-specific request conversion and AWS eventstream parsing stay inside `kiro.rs`; the channel supports non-streaming and streaming text generation through OpenAI Responses / Chat Completions, Claude Messages, and Gemini `generateContent` / `streamGenerateContent`, parses Kiro model-list responses, queries Kiro usage/quota through `getUsageLimits`, and uses local token counting.
+- **Credential import improvements.** Provider credentials can now be imported from one-key-per-line text, JSON objects, JSON arrays, or concatenated JSON payloads, with raw tokens mapped into the correct channel-specific credential field.
 
 #### Fixed
 
 - **Antigravity channel refresh.** The built-in Antigravity channel now defaults to the production Cloud Code endpoint, advertises a current `antigravity/2.0.1` user agent, requests the `aicode` OAuth scope, honors configured OAuth authorize/token/userinfo URLs, keeps image-generation / tiered model ids from `fetchAvailableModels` visible in normalized Gemini model-list responses, avoids forwarding Gemini pagination query params to `fetchAvailableModels`, sends count-token requests with Antigravity's `{"request": ...}` wrapper, and no longer advertises the unsupported embedding route.
+- **Vertex OpenAI compatibility.** Vertex model-list/model-get now route OpenAI clients through Gemini response conversion and send empty GET bodies to Google. Vertex OpenAI chat-completions also normalizes request bodies and accepts model ids returned by the model list.
 - **ClaudeCode cookie bootstrap JSON stream parsing.** Cookie/profile bootstrap now accepts Claude.ai responses that prepend a standalone JSON object before the real `account` payload, so profile switching still extracts the subscribed organization.
 - **ClaudeCode credential cookie input.** The admin console now normalizes pasted `Cookie:` headers and `sessionKey=...` strings to the raw session key before saving, so cookie bootstrap sends a usable Claude.ai session cookie.
-- **ClaudeCode fingerprint editor.** The admin console now renders `fingerprint` as a localized client-fingerprint editor instead of a raw JSON textarea, with explicit fields for Claude Code and `x-stainless-*` request identity values.
 - **OpenAI image endpoint request transforms.** OpenAI-compatible `/v1/images/generations` and `/v1/images/edits` bodies now convert through the raw request-body path before routing to Responses/Gemini backends, avoiding local 500s on Codex image-generation compatibility calls.
 - **OpenAI image endpoint response aggregation.** Non-stream OpenAI-compatible image requests that route through Responses streaming now aggregate upstream SSE before converting back to `/v1/images/generations`, so successful Codex image generations no longer return 500 during response conversion.
 - **ClaudeCode Responses stream aggregation usage.** Non-stream ClaudeCode requests routed to OpenAI Responses streaming now preserve Responses usage counts while returning Claude Messages usage with explicit null stop metadata, `global` inference geography, and no empty `server_tool_use` object.
 - **Vercel credential health on payment failures.** Vercel AI Gateway `402 Payment Required` responses now invalidate the credential like `401` / `403`, allowing retry rotation to skip exhausted keys.
+- **Provider console fixes.** Credential rows now show stable credential ids, request-log filters use the same ids, deleting rewrite rules persists immediately, and cache breakpoint TTL tags returned as `ttl5m` / `ttl1h` render as `5m` / `1h` instead of `auto`.
+
+#### Changed
+
+- **ClaudeCode fingerprint editor.** The admin console now renders `fingerprint` as a localized client-fingerprint editor instead of a raw JSON textarea, with explicit fields for Claude Code and `x-stainless-*` request identity values.
+- **Channel response classification.** Channel response handling now exposes richer success/auth/rate-limit/transient/permanent classification so providers can invalidate or rotate credentials for provider-specific failures.
+- **Dependency refresh.** Updated the npm documentation/tooling dependency set, including Astro.
 
 ### 简体中文
 
 #### 新增
 
 - **Vercel AI Gateway 渠道.** 新增 `vercel` 渠道,支持 OpenAI Chat Completions、Responses、Models、Embeddings 以及 Anthropic Messages / Count Tokens;控制台后缀别名也支持通过 `providerOptions.gateway.only` 选择 Vercel gateway 来源。Vercel 的 Claude 形态请求也支持 `enable_magic_cache`、`flatten_system_before_cache`、`cache_breakpoints` 设置。
+- **Kiro / Amazon Q Runtime 渠道.** 新增基于 Kiro IDE 0.12.224 `POST /generateAssistantResponse` Smithy 形状的 `kiro` 渠道。Kiro 专有请求转换和 AWS eventstream 解析都收在 `kiro.rs` 内,支持通过 OpenAI Responses / Chat Completions、Claude Messages、Gemini `generateContent` / `streamGenerateContent` 做非流式与流式文本生成,解析 Kiro 模型列表响应,通过 `getUsageLimits` 查询 Kiro usage/quota,并使用本地 token 计数。
+- **凭证导入增强.** Provider 凭证现在支持按行粘贴 key、JSON object、JSON array 或连续 JSON payload 导入,原始 token 会按渠道自动写入正确的凭证字段。
 
 #### 修复
 
 - **Antigravity 渠道刷新.** 内置 Antigravity 渠道现在默认使用正式 Cloud Code 端点,发送当前 `antigravity/2.0.1` User-Agent,OAuth scope 加上 `aicode`,后端会实际使用配置里的 OAuth authorize/token/userinfo URL,会把 `fetchAvailableModels` 中的生图 / tiered model id 保留到标准 Gemini 模型列表响应里,不会再把 Gemini 分页 query 透传给 `fetchAvailableModels`,count-token 请求会使用 Antigravity 实际接受的 `{"request": ...}` wrapper,并且不再暴露不支持的 embedding 路由。
+- **Vertex OpenAI 兼容性.** Vertex 的 model-list/model-get 现在会把 OpenAI 客户端路由到 Gemini 响应转换,并向 Google 发送空 GET body;Vertex OpenAI chat-completions 也会规范化请求体,并接受模型列表返回的模型 ID。
 - **ClaudeCode cookie bootstrap JSON stream 解析.** cookie / profile bootstrap 现在能接受 Claude.ai 在真实 `account` payload 前返回独立 JSON 对象的响应,切换 profile 时仍能提取订阅组织。
 - **ClaudeCode 凭证 cookie 输入.** 管理控制台现在会把粘贴的 `Cookie:` header 或 `sessionKey=...` 字符串规范化成裸 session key 后再保存,确保 cookie bootstrap 发出可用的 Claude.ai session cookie。
-- **ClaudeCode 指纹编辑器.** 管理控制台现在把 `fingerprint` 渲染成本地化的客户端指纹编辑器,不再只是原始 JSON 文本框;Claude Code 和 `x-stainless-*` 请求身份字段都有独立输入项。
 - **OpenAI 图像端点请求转换.** OpenAI 兼容的 `/v1/images/generations` 和 `/v1/images/edits` 请求体现在会按原始 body 转换后再路由到 Responses / Gemini 后端,避免 Codex 图像生成兼容调用在本地转换阶段返回 500。
 - **OpenAI 图像端点响应聚合.** 路由到 Responses streaming 的非流式 OpenAI 兼容图像请求现在会先聚合上游 SSE,再转换回 `/v1/images/generations` 响应,避免 Codex 成功生成图片后在响应转换阶段返回 500。
 - **ClaudeCode Responses stream 聚合用量.** 路由到 OpenAI Responses streaming 的非流式 ClaudeCode 请求现在会保留 Responses usage 计数,同时返回带显式 null stop 元数据、`global` 推理区域且不含空 `server_tool_use` 对象的 Claude Messages usage。
 - **Vercel 支付失败时的凭证健康状态.** Vercel AI Gateway 返回 `402 Payment Required` 时现在会像 `401` / `403` 一样将凭证判为失效,让重试轮换跳过额度耗尽的 key。
+- **Provider 控制台修复.** 凭证列表现在展示稳定 credential id,请求日志筛选也使用同一套 id;删除 rewrite rule 会立即持久化;API 返回的 `ttl5m` / `ttl1h` cache breakpoint 会显示为 `5m` / `1h`,不再误显示成 `auto`。
+
+#### 调整
+
+- **ClaudeCode 指纹编辑器.** 管理控制台现在把 `fingerprint` 渲染成本地化的客户端指纹编辑器,不再只是原始 JSON 文本框;Claude Code 和 `x-stainless-*` 请求身份字段都有独立输入项。
+- **渠道响应分类.** Channel response handling 现在能返回更细的 success/auth/rate-limit/transient/permanent 分类,让 provider 可以按上游特定错误失效或轮换凭证。
+- **依赖刷新.** 更新 npm 文档 / 工具链依赖,包含 Astro。
 
 ## v1.0.21
 
