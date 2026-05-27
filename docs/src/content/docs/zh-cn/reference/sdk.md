@@ -86,6 +86,7 @@ assert_eq!(providers.len(), 1);
 | `groq` | `gproxy-channel/groq` + `gproxy-engine/groq` | Groq 通道。 |
 | `openrouter` | `gproxy-channel/openrouter` + `gproxy-engine/openrouter` | OpenRouter 通道。 |
 | `vercel` | `gproxy-channel/vercel` + `gproxy-engine/vercel` | Vercel AI Gateway 通道。 |
+| `kiro` | `gproxy-channel/kiro` + `gproxy-engine/kiro` | Kiro / Amazon Q Runtime 通道。 |
 | `custom` | `gproxy-channel/custom` + `gproxy-engine/custom` | 自定义 OpenAI 兼容通道。 |
 
 SDK 层**没有** `redis` feature；只有完整 server 会用到 Redis。

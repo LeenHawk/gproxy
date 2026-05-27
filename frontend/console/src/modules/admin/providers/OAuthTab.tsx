@@ -33,7 +33,7 @@ export function OAuthTab({
     <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
       <Card title={labels.start}>
         <p className="text-sm text-muted">{labels.startHint}</p>
-        <div className="flex gap-2">
+        <div className="mt-4 flex gap-2">
           <Button onClick={onStart}>{labels.start}</Button>
           {flow?.authorize_url ? (
             <Button variant="neutral" onClick={onOpenAuthorize}>

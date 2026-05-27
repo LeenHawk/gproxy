@@ -18,6 +18,8 @@ pub mod deepseek;
 pub mod geminicli;
 #[cfg(feature = "groq")]
 pub mod groq;
+#[cfg(feature = "kiro")]
+pub mod kiro;
 #[cfg(feature = "nvidia")]
 pub mod nvidia;
 #[cfg(feature = "openai")]

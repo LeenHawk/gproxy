@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-description = "Single-channel LLM client layer: Channel trait, 14 concrete channels (OpenAI, Anthropic, Gemini, Vertex, ...), credential/request/response types, and the execute_once single-attempt pipeline. L1 layer of the gproxy SDK."
+description = "Single-channel LLM client layer: Channel trait, concrete channels (OpenAI, Anthropic, Gemini, Vertex, Kiro, ...), credential/request/response types, and the execute_once single-attempt pipeline. L1 layer of the gproxy SDK."
 homepage.workspace = true
 repository.workspace = true
 readme = "README.md"
@@ -24,6 +24,7 @@ all-channels = [
     "openai", "anthropic", "aistudio", "vertexexpress",
     "vertex", "geminicli", "claudecode", "codex",
     "antigravity", "nvidia", "deepseek", "groq", "openrouter", "vercel", "custom",
+    "kiro",
     "chatgpt"
 ]
 openai = []
@@ -42,6 +43,7 @@ groq = []
 openrouter = []
 vercel = []
 custom = []
+kiro = []
 
 [dependencies]
 gproxy-protocol = { workspace = true }

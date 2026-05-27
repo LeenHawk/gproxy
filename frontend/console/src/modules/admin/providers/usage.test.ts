@@ -8,6 +8,7 @@ describe("providers usage helpers", () => {
     expect(supportsCredentialUsageChannel("claudecode")).toBe(true);
     expect(supportsCredentialUsageChannel("geminicli")).toBe(true);
     expect(supportsCredentialUsageChannel("antigravity")).toBe(true);
+    expect(supportsCredentialUsageChannel("kiro")).toBe(true);
     expect(supportsCredentialUsageChannel("openai")).toBe(false);
   });
 
@@ -29,5 +30,20 @@ describe("providers usage helpers", () => {
       { name: "primary", percent: 25, resetAt: "2026-04-08T12:00:00Z" },
       { name: "secondary", percent: 40, resetAt: "2026-04-08T18:00:00Z" },
     ]);
+  });
+
+  it("parses kiro usage breakdown rows", () => {
+    const rows = parseLiveUsageRows("kiro", {
+      usageBreakdownList: [
+        {
+          displayName: "Credit",
+          currentUsageWithPrecision: 0.02,
+          usageLimitWithPrecision: 50,
+          nextDateReset: 1780272000,
+        },
+      ],
+    });
+
+    expect(rows).toEqual([{ name: "Credit", percent: 0.04, resetAt: 1780272000000 }]);
   });
 });

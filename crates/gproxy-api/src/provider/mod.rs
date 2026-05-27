@@ -51,7 +51,10 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/{provider}/v1/images/generations", post(handler::proxy))
         .route("/{provider}/v1/images/edits", post(handler::proxy))
         .route("/{provider}/v1/models", get(handler::proxy))
-        .route("/{provider}/v1/models/{*model_id}", get(handler::proxy))
+        .route(
+            "/{provider}/v1/models/{*model_id}",
+            get(handler::proxy).post(handler::proxy),
+        )
         .route("/{provider}/v1beta/models", get(handler::proxy))
         // `/{provider}/v1beta/models/{*target}` must exist as an explicit POST route
         // (not just under the catch-all below) because the WebSocket router registers
@@ -72,7 +75,10 @@ pub fn router(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route("/v1/images/generations", post(handler::proxy_unscoped))
         .route("/v1/images/edits", post(handler::proxy_unscoped))
         .route("/v1/models", get(handler::proxy_unscoped))
-        .route("/v1/models/{*model_id}", get(handler::proxy_unscoped))
+        .route(
+            "/v1/models/{*model_id}",
+            get(handler::proxy_unscoped).post(handler::proxy_unscoped),
+        )
         // Unscoped Gemini v1beta routes (model in path carries provider prefix)
         .route("/v1beta/models", get(handler::proxy_unscoped))
         .route("/v1beta/{*target}", post(handler::proxy_unscoped));

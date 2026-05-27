@@ -34,6 +34,7 @@ Provider  ──(channel)──►  上游协议实现
 | `groq` | api.groq.com | |
 | `openrouter` | openrouter.ai | |
 | `vercel` | Vercel AI Gateway | 支持 OpenAI Responses / Chat Completions / Models / Embeddings 以及 Anthropic Messages。 |
+| `kiro` | Kiro IDE 的 Amazon Q Runtime | 标准 chat 与 streaming 入口在 channel 内转换到 Kiro `generateAssistantResponse`；模型列表和 quota 走 Kiro REST 端点；token 计数走本地。 |
 | `nvidia` | NVIDIA NIM 端点 | |
 | `custom` | 任意 OpenAI 兼容上游 | 自建或第三方网关常用。 |
 

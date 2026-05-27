@@ -29,6 +29,7 @@ groq = ["gproxy-channel/groq", "gproxy-engine/groq"]
 openrouter = ["gproxy-channel/openrouter", "gproxy-engine/openrouter"]
 vercel = ["gproxy-channel/vercel", "gproxy-engine/vercel"]
 custom = ["gproxy-channel/custom", "gproxy-engine/custom"]
+kiro = ["gproxy-channel/kiro", "gproxy-engine/kiro"]
 
 [dependencies]
 gproxy-protocol = { workspace = true }

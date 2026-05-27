@@ -7,6 +7,7 @@ use bytes::Bytes;
 use futures_util::Stream;
 use futures_util::StreamExt;
 use gproxy_protocol::kinds::{OperationFamily, ProtocolKind};
+use http::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::Instrument;
@@ -357,6 +358,8 @@ pub fn built_in_model_prices(channel: &str) -> Option<Vec<gproxy_channel::billin
         "vercel" => vercel::VercelChannel.model_pricing(),
         #[cfg(feature = "custom")]
         "custom" => custom::CustomChannel.model_pricing(),
+        #[cfg(feature = "kiro")]
+        "kiro" => kiro::KiroChannel.model_pricing(),
         _ => return None,
     };
     Some(prices.to_vec())
@@ -414,6 +417,8 @@ pub fn validate_credential_json(
         "vercel" => validate!(vercel::VercelCredential),
         #[cfg(feature = "custom")]
         "custom" => validate!(custom::CustomCredential),
+        #[cfg(feature = "kiro")]
+        "kiro" => validate!(kiro::KiroCredential),
         _ => Err(UpstreamError::Channel(format!(
             "unknown channel: {channel}"
         ))),
@@ -655,6 +660,8 @@ impl GproxyEngineBuilder {
             "vercel" => add!(self, vercel::VercelChannel, config),
             #[cfg(feature = "custom")]
             "custom" => add!(self, custom::CustomChannel, config),
+            #[cfg(feature = "kiro")]
+            "kiro" => add!(self, kiro::KiroChannel, config),
             _ => Err(UpstreamError::Channel(format!(
                 "unknown channel: {}",
                 config.channel
@@ -1595,7 +1602,7 @@ impl GproxyEngine {
                 ));
             }
         };
-        let response = provider_result.response;
+        let mut response = provider_result.response;
         let credential_updates = provider_result.credential_updates;
         let used_credential_index = provider_result.credential_index;
         let attempt_meta = provider_result.attempt_meta;
@@ -1756,6 +1763,28 @@ impl GproxyEngine {
                 None
             };
 
+        let raw_normalizer: Option<Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>> = if dst_op
+            == OperationFamily::StreamGenerateContent
+            && dst_proto == ProtocolKind::OpenAiResponse
+        {
+            Some({
+                let store = self.store.clone();
+                let provider_name = request.provider.clone();
+                let prepared = prepared.clone();
+                Arc::new(move |body: Vec<u8>| {
+                    store
+                        .get_runtime(&provider_name)
+                        .map(|runtime| runtime.normalize_response(&prepared, body.clone()))
+                        .unwrap_or(body)
+                })
+            })
+        } else {
+            None
+        };
+        if raw_normalizer.is_some() {
+            response.headers.remove(CONTENT_TYPE);
+        }
+
         let transformer = if needs_response_transform {
             Some(
                 gproxy_protocol::transform::dispatch::create_stream_response_transformer(
@@ -1798,6 +1827,7 @@ impl GproxyEngine {
             && raw_capture.is_none()
             && model_override.is_none()
             && usage_observer.is_none()
+            && raw_normalizer.is_none()
         {
             ExecuteBody::Stream(response.body)
         } else {
@@ -1807,6 +1837,7 @@ impl GproxyEngine {
                 raw_capture.clone(),
                 model_override,
                 usage_observer,
+                raw_normalizer,
             ))
         };
 
@@ -1845,6 +1876,7 @@ fn wrap_upstream_response_stream(
     raw_capture: Option<Arc<std::sync::Mutex<Vec<u8>>>>,
     model_override: Option<String>,
     mut usage_observer: Option<gproxy_channel::usage::StreamUsageObserver>,
+    raw_normalizer: Option<Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync>>,
 ) -> ExecuteBodyStream {
     // Helper pins the try_stream's Ok type so the macro can infer its
     // error type from the `?` uses below — without it, rustc can't
@@ -1870,10 +1902,19 @@ fn wrap_upstream_response_stream(
                 buf.extend_from_slice(&chunk);
             }
 
-            // Feed raw upstream bytes into the usage observer (keyed on
-            // the upstream protocol). Must happen before the transformer
-            // rewrites the bytes into downstream format, otherwise
-            // cross-protocol transforms can drop or zero out cache fields.
+            let chunk = if let Some(normalizer) = &raw_normalizer {
+                let normalized = normalizer(chunk.to_vec());
+                if normalized.is_empty() {
+                    continue;
+                }
+                Bytes::from(normalized)
+            } else {
+                chunk
+            };
+
+            // Feed the upstream-protocol bytes into the usage observer. For
+            // non-standard upstream streams this runs after the channel's raw
+            // normalizer has converted the bytes into the declared protocol.
             if let Some(obs) = usage_observer.as_mut() {
                 obs.observe_chunk(&chunk);
             }
@@ -1901,11 +1942,37 @@ fn wrap_upstream_response_stream(
         }
 
         if let Some(mut t) = transformer {
+            if let Some(normalizer) = &raw_normalizer {
+                let tail = normalizer(Vec::new());
+                if !tail.is_empty() {
+                    let mut out = t.push_chunk(&tail)?;
+                    if let Some(ref alias) = model_override {
+                        rewrite_model_field_in_body(&mut out, alias);
+                    }
+                    if !out.is_empty() {
+                        yield Bytes::from(out);
+                    }
+                    if let Some(obs) = usage_observer.as_mut() {
+                        obs.observe_chunk(&tail);
+                    }
+                }
+            }
             let mut tail = t.finish()?;
             if let Some(ref alias) = model_override {
                 rewrite_model_field_in_body(&mut tail, alias);
             }
             if !tail.is_empty() {
+                yield Bytes::from(tail);
+            }
+        } else if let Some(normalizer) = &raw_normalizer {
+            let mut tail = normalizer(Vec::new());
+            if let Some(ref alias) = model_override {
+                rewrite_model_field_in_body(&mut tail, alias);
+            }
+            if !tail.is_empty() {
+                if let Some(obs) = usage_observer.as_mut() {
+                    obs.observe_chunk(&tail);
+                }
                 yield Bytes::from(tail);
             }
         }
@@ -2568,8 +2635,14 @@ mod tests {
         let raw_capture = Arc::new(Mutex::new(Vec::new()));
         let upstream = mock_upstream_stream(vec![b"hello ", b"world"]);
 
-        let mut stream =
-            wrap_upstream_response_stream(upstream, None, Some(raw_capture.clone()), None, None);
+        let mut stream = wrap_upstream_response_stream(
+            upstream,
+            None,
+            Some(raw_capture.clone()),
+            None,
+            None,
+            None,
+        );
 
         let mut client_bytes = Vec::new();
         while let Some(item) = stream.next().await {
@@ -2596,7 +2669,7 @@ mod tests {
     async fn wrap_response_stream_pure_passthrough_yields_chunks_unchanged() {
         let upstream = mock_upstream_stream(vec![b"chunk-a", b"chunk-b"]);
 
-        let mut stream = wrap_upstream_response_stream(upstream, None, None, None, None);
+        let mut stream = wrap_upstream_response_stream(upstream, None, None, None, None, None);
 
         let mut chunks = Vec::new();
         while let Some(item) = stream.next().await {
@@ -2606,6 +2679,38 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].as_ref(), b"chunk-a");
         assert_eq!(chunks[1].as_ref(), b"chunk-b");
+    }
+
+    #[tokio::test]
+    async fn wrap_response_stream_applies_raw_normalizer_before_yielding() {
+        let raw_capture = Arc::new(Mutex::new(Vec::new()));
+        let upstream = mock_upstream_stream(vec![b"raw-a", b"raw-b"]);
+        let normalizer: Arc<dyn Fn(Vec<u8>) -> Vec<u8> + Send + Sync> =
+            Arc::new(|chunk: Vec<u8>| {
+                if chunk.is_empty() {
+                    return b"tail".to_vec();
+                }
+                let mut out = b"norm:".to_vec();
+                out.extend(chunk);
+                out
+            });
+
+        let mut stream = wrap_upstream_response_stream(
+            upstream,
+            None,
+            Some(raw_capture.clone()),
+            None,
+            None,
+            Some(normalizer),
+        );
+
+        let mut client_bytes = Vec::new();
+        while let Some(item) = stream.next().await {
+            client_bytes.extend_from_slice(&item.expect("stream error"));
+        }
+
+        assert_eq!(client_bytes, b"norm:raw-anorm:raw-btail");
+        assert_eq!(raw_capture.lock().unwrap().as_slice(), b"raw-araw-b");
     }
 
     #[test]

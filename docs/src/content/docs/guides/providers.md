@@ -35,6 +35,7 @@ the subset you need.
 | `groq` | api.groq.com | |
 | `openrouter` | openrouter.ai | |
 | `vercel` | Vercel AI Gateway | OpenAI Responses / Chat Completions / Models / Embeddings plus Anthropic Messages. |
+| `kiro` | Amazon Q Runtime for Kiro IDE | Standard chat and streaming entry points converted in-channel to Kiro `generateAssistantResponse`; model list and quota use Kiro REST endpoints; count tokens is local. |
 | `nvidia` | NVIDIA NIM endpoints | |
 | `custom` | Any OpenAI-compatible upstream | Use this for self-hosted or third-party gateways. |
 

@@ -158,8 +158,31 @@ function parseAntigravityUsage(payload: Record<string, unknown>): LiveUsageRow[]
   return rows;
 }
 
+function parseKiroUsage(payload: Record<string, unknown>): LiveUsageRow[] {
+  const rows: LiveUsageRow[] = [];
+  const breakdowns = Array.isArray(payload.usageBreakdownList) ? payload.usageBreakdownList : [];
+  for (const item of breakdowns) {
+    const breakdown = asRecord(item);
+    if (!breakdown) {
+      continue;
+    }
+    const current =
+      asNumber(breakdown.currentUsageWithPrecision) ?? asNumber(breakdown.currentUsage);
+    const limit = asNumber(breakdown.usageLimitWithPrecision) ?? asNumber(breakdown.usageLimit);
+    const percent = current !== null && limit !== null && limit > 0 ? (current / limit) * 100 : null;
+    const displayName =
+      typeof breakdown.displayName === "string" && breakdown.displayName.trim()
+        ? breakdown.displayName.trim()
+        : typeof breakdown.resourceType === "string" && breakdown.resourceType.trim()
+          ? breakdown.resourceType.trim()
+          : "usage";
+    pushLiveRow(rows, displayName, percent, toResetAt(breakdown.nextDateReset));
+  }
+  return rows;
+}
+
 export function supportsCredentialUsageChannel(channel: string): boolean {
-  return ["codex", "claudecode", "geminicli", "antigravity"].includes(
+  return ["codex", "claudecode", "geminicli", "antigravity", "kiro"].includes(
     channel.trim().toLowerCase(),
   );
 }
@@ -178,6 +201,8 @@ export function parseLiveUsageRows(channel: string, payload: unknown): LiveUsage
       return parseGeminiCliUsage(root);
     case "antigravity":
       return parseAntigravityUsage(root);
+    case "kiro":
+      return parseKiroUsage(root);
     default:
       return [];
   }

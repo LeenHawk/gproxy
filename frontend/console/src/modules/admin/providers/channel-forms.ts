@@ -36,6 +36,7 @@ export const ALL_CHANNEL_IDS = [
   "groq",
   "openrouter",
   "vercel",
+  "kiro",
 ] as const;
 
 /// Common settings fields appended to every channel so sanitize_rules
@@ -220,6 +221,38 @@ export const SETTINGS_CHANNEL_CONFIG: Record<string, ChannelSettingsConfig> = {
       { key: "cache_breakpoints", label: "cache_breakpoints", type: "json", optional: true },
     ],
   },
+  kiro: {
+    defaults: {
+      base_url: "https://q.us-east-1.amazonaws.com",
+      rest_base_url: "https://codewhisperer.us-east-1.amazonaws.com",
+      user_agent: "",
+      profile_arn: "",
+      agent_mode: "",
+      origin: "",
+      agent_task_type: "",
+      amz_target: "",
+      scope_prefix: "",
+      auth_base_url: "https://prod.us-east-1.auth.desktop.kiro.dev",
+      auth_portal_url: "https://app.kiro.dev",
+      oauth_redirect_uri: "http://localhost:3128",
+      idc_redirect_uri: "http://127.0.0.1/oauth/callback",
+    },
+    fields: [
+      { key: "base_url", label: "base_url", type: "text" },
+      { key: "rest_base_url", label: "rest_base_url", type: "text" },
+      { key: "user_agent", label: "user_agent", type: "text", optional: true },
+      { key: "profile_arn", label: "profile_arn", type: "text", optional: true },
+      { key: "agent_mode", label: "agent_mode", type: "text", optional: true },
+      { key: "origin", label: "origin", type: "text", optional: true },
+      { key: "agent_task_type", label: "agent_task_type", type: "text", optional: true },
+      { key: "amz_target", label: "amz_target", type: "text", optional: true },
+      { key: "scope_prefix", label: "scope_prefix", type: "text", optional: true },
+      { key: "auth_base_url", label: "auth_base_url", type: "text", optional: true },
+      { key: "auth_portal_url", label: "auth_portal_url", type: "text", optional: true },
+      { key: "oauth_redirect_uri", label: "oauth_redirect_uri", type: "text", optional: true },
+      { key: "idc_redirect_uri", label: "idc_redirect_uri", type: "text", optional: true },
+    ],
+  },
   custom: {
     defaults: { base_url: "", user_agent: "" },
     fields: [
@@ -303,6 +336,19 @@ export const CREDENTIAL_CHANNEL_CONFIG: Record<string, ChannelCredentialConfig> 
   groq: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   openrouter: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
   vercel: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
+  kiro: {
+    fields: [
+      { key: "access_token", label: "access_token", type: "textarea" },
+      { key: "refresh_token", label: "refresh_token", type: "textarea", optional: true },
+      { key: "profile_arn", label: "profile_arn", type: "text", optional: true },
+      { key: "expires_at_ms", label: "expires_at_ms", type: "integer", optional: true },
+      { key: "auth_method", label: "auth_method", type: "text", optional: true },
+      { key: "provider", label: "provider", type: "text", optional: true },
+      { key: "client_id", label: "client_id", type: "text", optional: true },
+      { key: "client_secret", label: "client_secret", type: "text", optional: true },
+      { key: "region", label: "region", type: "text", optional: true },
+    ],
+  },
   custom: { fields: [{ key: "api_key", label: "api_key", type: "textarea" }] },
 };
 
@@ -348,8 +394,9 @@ export function credentialValuesFromJson(
   value: Record<string, unknown>,
 ): Record<string, string> {
   const current = emptyCredentialValuesForChannel(channel);
+  const normalized = normalizeCredentialJson(channel, value);
   for (const field of credentialFieldsForChannel(channel)) {
-    const raw = value[field.key];
+    const raw = normalized[field.key];
     if (raw === undefined || raw === null) {
       continue;
     }
@@ -420,6 +467,9 @@ export function normalizeCredentialJson(
   channel: string,
   credential: Record<string, unknown>,
 ): Record<string, unknown> {
+  if (channel === "kiro") {
+    return normalizeKiroCredential(credential);
+  }
   if (channel !== "claudecode") {
     return credential;
   }
@@ -431,6 +481,25 @@ export function normalizeCredentialJson(
     ...credential,
     cookie: normalizeClaudeCodeCookie(cookie),
   };
+}
+
+function normalizeKiroCredential(credential: Record<string, unknown>): Record<string, unknown> {
+  const aliases: Array<[string, string]> = [
+    ["accessToken", "access_token"],
+    ["refreshToken", "refresh_token"],
+    ["profileArn", "profile_arn"],
+    ["expiresAtMs", "expires_at_ms"],
+    ["authMethod", "auth_method"],
+    ["clientId", "client_id"],
+    ["clientSecret", "client_secret"],
+  ];
+  let result = credential;
+  for (const [from, to] of aliases) {
+    if (result[to] === undefined && result[from] !== undefined) {
+      result = { ...result, [to]: result[from] };
+    }
+  }
+  return result;
 }
 
 function buildObjectFromFields(
@@ -473,6 +542,9 @@ function rawCredentialForChannel(channel: string, raw: string): Record<string, u
     return normalizeCredentialJson(channel, { cookie: raw });
   }
   if (channel === "chatgpt") {
+    return { access_token: raw };
+  }
+  if (channel === "kiro") {
     return { access_token: raw };
   }
   return { api_key: raw };

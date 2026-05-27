@@ -10,7 +10,11 @@ import type {
   ProviderRoutingTemplateParams,
   ProviderWrite,
 } from "../../lib/types/admin";
-import { buildChannelSettingsJson, defaultSettingsForChannel } from "./providers/channel-forms";
+import {
+  ALL_CHANNEL_IDS,
+  buildChannelSettingsJson,
+  defaultSettingsForChannel,
+} from "./providers/channel-forms";
 import {
   buildRoutingDocument,
   createRoutingRuleDraft,
@@ -57,25 +61,7 @@ export function ProvidersModule({
   const [activeTab, setActiveTab] = useState<ProviderWorkspaceTab>("config");
 
   const channelOptions = useMemo(
-    () =>
-      [
-        "openai",
-        "anthropic",
-        "aistudio",
-        "vertex",
-        "vertexexpress",
-        "geminicli",
-        "antigravity",
-        "claudecode",
-        "codex",
-        "chatgpt",
-        "nvidia",
-        "deepseek",
-        "groq",
-        "openrouter",
-        "vercel",
-        "custom",
-      ].map((value) => ({ value, label: value })),
+    () => ALL_CHANNEL_IDS.map((value) => ({ value, label: value })),
     [],
   );
 

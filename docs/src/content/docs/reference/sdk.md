@@ -91,6 +91,7 @@ Declared in `sdk/gproxy-sdk/Cargo.toml`:
 | `groq` | `gproxy-channel/groq` + `gproxy-engine/groq` | Groq channel. |
 | `openrouter` | `gproxy-channel/openrouter` + `gproxy-engine/openrouter` | OpenRouter channel. |
 | `vercel` | `gproxy-channel/vercel` + `gproxy-engine/vercel` | Vercel AI Gateway channel. |
+| `kiro` | `gproxy-channel/kiro` + `gproxy-engine/kiro` | Kiro / Amazon Q Runtime channel. |
 | `custom` | `gproxy-channel/custom` + `gproxy-engine/custom` | Custom OpenAI-compatible channel. |
 
 The SDK layer does **not** expose a `redis` feature; the workspace uses
