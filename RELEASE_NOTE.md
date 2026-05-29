@@ -11,6 +11,7 @@
 - **Vercel AI Gateway channel.** Added a `vercel` channel for OpenAI Chat Completions, Responses, Models, Embeddings, and Anthropic Messages / Count Tokens, plus console support for Vercel gateway source aliases via `providerOptions.gateway.only`. Vercel's Claude-shaped requests also support `enable_magic_cache`, `flatten_system_before_cache`, and `cache_breakpoints`.
 - **Kiro / Amazon Q Runtime channel.** Added a `kiro` channel backed by Kiro IDE 0.12.224's `POST /generateAssistantResponse` Smithy shape. Kiro-specific request conversion and AWS eventstream parsing stay inside `kiro.rs`; the channel supports non-streaming and streaming text generation through OpenAI Responses / Chat Completions, Claude Messages, and Gemini `generateContent` / `streamGenerateContent`, parses Kiro model-list responses, queries Kiro usage/quota through `getUsageLimits`, and uses local token counting.
 - **Credential import improvements.** Provider credentials can now be imported from one-key-per-line text, JSON objects, JSON arrays, or concatenated JSON payloads, with raw tokens mapped into the correct channel-specific credential field.
+- **Claude Opus 4.8 support.** Claude protocol types now recognize `claude-opus-4-8`, accept mid-conversation `system` messages in Claude `messages`, and keep Opus 4.8 on the adaptive-thinking / sampling-stripped path required by current Claude releases. Built-in Anthropic and ClaudeCode pricing tables also include Opus 4.8.
 
 #### Fixed
 
@@ -27,6 +28,7 @@
 #### Changed
 
 - **ClaudeCode fingerprint editor.** The admin console now renders `fingerprint` as a localized client-fingerprint editor instead of a raw JSON textarea, with explicit fields for Claude Code and `x-stainless-*` request identity values.
+- **Removed frontend default-pricing autofill.** The Models tab no longer ships a generated frontend pricing lookup table or an `Apply Default Pricing` button. Leave `pricing_json` empty to use the provider channel's built-in pricing table, or enter explicit override pricing in the editor.
 - **Channel response classification.** Channel response handling now exposes richer success/auth/rate-limit/transient/permanent classification so providers can invalidate or rotate credentials for provider-specific failures.
 - **Dependency refresh.** Updated the npm documentation/tooling dependency set, including Astro.
 
@@ -37,6 +39,7 @@
 - **Vercel AI Gateway 渠道.** 新增 `vercel` 渠道,支持 OpenAI Chat Completions、Responses、Models、Embeddings 以及 Anthropic Messages / Count Tokens;控制台后缀别名也支持通过 `providerOptions.gateway.only` 选择 Vercel gateway 来源。Vercel 的 Claude 形态请求也支持 `enable_magic_cache`、`flatten_system_before_cache`、`cache_breakpoints` 设置。
 - **Kiro / Amazon Q Runtime 渠道.** 新增基于 Kiro IDE 0.12.224 `POST /generateAssistantResponse` Smithy 形状的 `kiro` 渠道。Kiro 专有请求转换和 AWS eventstream 解析都收在 `kiro.rs` 内,支持通过 OpenAI Responses / Chat Completions、Claude Messages、Gemini `generateContent` / `streamGenerateContent` 做非流式与流式文本生成,解析 Kiro 模型列表响应,通过 `getUsageLimits` 查询 Kiro usage/quota,并使用本地 token 计数。
 - **凭证导入增强.** Provider 凭证现在支持按行粘贴 key、JSON object、JSON array 或连续 JSON payload 导入,原始 token 会按渠道自动写入正确的凭证字段。
+- **Claude Opus 4.8 支持.** Claude 协议类型现在识别 `claude-opus-4-8`,允许 Claude `messages` 中出现中途 `system` 消息,并让 Opus 4.8 继续走当前 Claude 版本需要的 adaptive thinking / 清理 sampling 参数路径。内置 Anthropic 和 ClaudeCode 价格表也加入了 Opus 4.8。
 
 #### 修复
 
@@ -53,6 +56,7 @@
 #### 调整
 
 - **ClaudeCode 指纹编辑器.** 管理控制台现在把 `fingerprint` 渲染成本地化的客户端指纹编辑器,不再只是原始 JSON 文本框;Claude Code 和 `x-stainless-*` 请求身份字段都有独立输入项。
+- **移除前端默认价格自动填充.** Models 标签不再内置生成出来的前端价格查找表,也不再显示 `Apply Default Pricing` 按钮。`pricing_json` 留空时继续使用 provider channel 的内置价格表;需要覆盖价格时直接在编辑器里填写。
 - **渠道响应分类.** Channel response handling 现在能返回更细的 success/auth/rate-limit/transient/permanent 分类,让 provider 可以按上游特定错误失效或轮换凭证。
 - **依赖刷新.** 更新 npm 文档 / 工具链依赖,包含 Astro。
 

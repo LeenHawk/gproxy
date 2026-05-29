@@ -25,12 +25,12 @@ use tracing::Instrument;
 /// Claude Code channel (Anthropic Messages API with OAuth).
 pub struct ClaudeCodeChannel;
 
-const DEFAULT_CLAUDECODE_VERSION: &str = "2.1.112";
+const DEFAULT_CLAUDECODE_VERSION: &str = "2.1.154";
 const DEFAULT_CLAUDECODE_ENTRYPOINT: &str = "cli";
 const DEFAULT_CLAUDECODE_USER_TYPE: &str = "external";
-// Anthropic JS SDK (Stainless-generated) default header values, matching the
-// ones observed on real `claude-cli` 2.1.112 + `@anthropic-ai/sdk@0.81.0`
-// traffic. All are overridable via `ClaudeCodeSettings::fingerprint`.
+// Anthropic JS SDK (Stainless-generated) default header values. The CLI
+// version tracks the current public Claude Code release; lower-level Stainless
+// fields stay overridable via `ClaudeCodeSettings::fingerprint`.
 const DEFAULT_STAINLESS_LANG: &str = "js";
 const DEFAULT_STAINLESS_PACKAGE_VERSION: &str = "0.81.0";
 const DEFAULT_STAINLESS_RUNTIME: &str = "node";
