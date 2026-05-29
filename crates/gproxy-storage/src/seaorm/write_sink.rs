@@ -588,7 +588,7 @@ impl SeaOrmStorage {
         for q in batch.user_quotas_upsert.values() {
             let now = OffsetDateTime::now_utc();
             let model = user_token_usage::ActiveModel {
-                id: Set(0),
+                id: NotSet,
                 user_id: Set(q.user_id),
                 quota: Set(q.quota),
                 cost_used: Set(q.cost_used),
@@ -726,4 +726,54 @@ impl SeaOrmStorage {
 fn unix_ms_to_datetime(ms: i64) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp_nanos(ms as i128 * 1_000_000)
         .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::repository::QuotaRepository;
+    use crate::seaorm::SeaOrmStorage;
+    use crate::write::UserQuotaWrite;
+
+    #[tokio::test]
+    async fn upsert_user_quota_generates_distinct_primary_keys() {
+        let storage = SeaOrmStorage::connect("sqlite::memory:", None)
+            .await
+            .expect("connect storage");
+        storage.sync().await.expect("sync schema");
+
+        let first_user = storage
+            .create_user("alice", "password", true, false)
+            .await
+            .expect("create first user");
+        let second_user = storage
+            .create_user("bob", "password", true, false)
+            .await
+            .expect("create second user");
+
+        storage
+            .upsert_user_quota(UserQuotaWrite {
+                user_id: first_user,
+                quota: 10.0,
+                cost_used: 1.0,
+            })
+            .await
+            .expect("upsert first quota");
+        storage
+            .upsert_user_quota(UserQuotaWrite {
+                user_id: second_user,
+                quota: 20.0,
+                cost_used: 2.0,
+            })
+            .await
+            .expect("upsert second quota without primary-key collision");
+
+        let mut rows = storage.list_user_quotas().await.expect("list quotas");
+        rows.sort_by_key(|row| row.user_id);
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].user_id, first_user);
+        assert_eq!(rows[0].quota, 10.0);
+        assert_eq!(rows[1].user_id, second_user);
+        assert_eq!(rows[1].quota, 20.0);
+    }
 }
