@@ -3,7 +3,7 @@
 //! `finalize_request`.
 //!
 //! Rules:
-//!   - Full-strip models (e.g. `claude-opus-4-6`): remove `temperature`,
+//!   - Full-strip models (e.g. `claude-opus-4-8`): remove `temperature`,
 //!     `top_p`, and `top_k` unconditionally.
 //!   - Other models: if `temperature` is present, remove `top_p` only.
 
@@ -27,10 +27,10 @@ fn generate_content_request(body: &str, model: &str) -> PreparedRequest {
     }
 }
 
-// ── Full-strip model: claude-opus-4-6 ────────────────────────────────
+// ── Full-strip model: claude-opus-4-8 ────────────────────────────────
 
-const OPUS_46_PAYLOAD: &str = r#"{
-    "model": "claude-opus-4-6",
+const OPUS_48_PAYLOAD: &str = r#"{
+    "model": "claude-opus-4-8",
     "max_tokens": 1024,
     "messages": [{"role": "user", "content": "hi"}],
     "temperature": 0.7,
@@ -58,9 +58,9 @@ fn assert_all_sampling_stripped(body_bytes: &[u8]) {
 }
 
 #[test]
-fn anthropic_channel_strips_all_for_opus_46() {
+fn anthropic_channel_strips_all_for_opus_48() {
     let settings = AnthropicSettings::default();
-    let prepared = generate_content_request(OPUS_46_PAYLOAD, "claude-opus-4-6");
+    let prepared = generate_content_request(OPUS_48_PAYLOAD, "claude-opus-4-8");
 
     let finalized = AnthropicChannel
         .finalize_request(&settings, prepared)
@@ -70,9 +70,9 @@ fn anthropic_channel_strips_all_for_opus_46() {
 }
 
 #[test]
-fn claudecode_channel_strips_all_for_opus_46() {
+fn claudecode_channel_strips_all_for_opus_48() {
     let settings = ClaudeCodeSettings::default();
-    let prepared = generate_content_request(OPUS_46_PAYLOAD, "claude-opus-4-6");
+    let prepared = generate_content_request(OPUS_48_PAYLOAD, "claude-opus-4-8");
 
     let finalized = ClaudeCodeChannel
         .finalize_request(&settings, prepared)

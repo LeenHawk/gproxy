@@ -37,7 +37,7 @@ const SAMPLING_TOLERANT_MODELS: &[&str] = &[
 /// - **Models in [`SAMPLING_TOLERANT_MODELS`]**: if `temperature` is
 ///   present, strip `top_p` only (the two interact poorly on Claude).
 ///   `temperature` and `top_k` are left untouched.
-/// - **All other models** (including unknown / future models): strip
+/// - **All other models** (including Opus 4.7+, unknown, and future models): strip
 ///   `temperature`, `top_p`, and `top_k` unconditionally — the
 ///   conservative default.
 ///
@@ -70,12 +70,12 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    // ── Full-strip model (opus-4-6) ──────────────────────────────────
+    // ── Full-strip model (opus-4-8) ──────────────────────────────────
 
     #[test]
-    fn opus_46_strips_all_three() {
+    fn opus_48_strips_all_three() {
         let mut body = json!({
-            "model": "claude-opus-4-6",
+            "model": "claude-opus-4-8",
             "messages": [{"role": "user", "content": "hi"}],
             "temperature": 0.7,
             "top_p": 0.9,
@@ -93,9 +93,9 @@ mod tests {
     }
 
     #[test]
-    fn opus_46_variant_id_strips_all_three() {
+    fn opus_48_variant_id_strips_all_three() {
         let mut body = json!({
-            "model": "claude-opus-4-6-20260205",
+            "model": "claude-opus-4-8-20260528",
             "messages": [],
             "temperature": 0.5,
             "top_p": 0.8,

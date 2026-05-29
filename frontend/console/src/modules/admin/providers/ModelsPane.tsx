@@ -379,7 +379,6 @@ export function ModelsPane({
         displayName: t("common.displayName"),
         enabled: t("common.enabled"),
         pricingJsonHint: t("models.pricingJson.hint"),
-        applyDefaultPricing: t("models.applyDefaultPricing"),
         pull: t("models.pull"),
         pullLoading: t("models.pull.loading"),
         pullEmpty: t("models.pull.empty"),
