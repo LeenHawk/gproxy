@@ -225,7 +225,6 @@ impl Channel for AnthropicChannel {
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(&url)
-            .header("x-api-key", &credential.api_key)
             .header("anthropic-version", "2023-06-01");
 
         // File operations: don't force Content-Type to application/json
@@ -241,7 +240,27 @@ impl Channel for AnthropicChannel {
         for (key, value) in request.headers.iter() {
             builder = builder.header(key, value);
         }
-        crate::utils::http_headers::replace_header(&mut builder, "x-api-key", &credential.api_key)?;
+        if anthropic_uses_openai_bearer_auth(request) {
+            let headers = builder.headers_mut().ok_or_else(|| {
+                UpstreamError::RequestBuild("request builder missing headers".to_string())
+            })?;
+            headers.remove("x-api-key");
+            crate::utils::http_headers::replace_header(
+                &mut builder,
+                "Authorization",
+                format!("Bearer {}", credential.api_key),
+            )?;
+        } else {
+            let headers = builder.headers_mut().ok_or_else(|| {
+                UpstreamError::RequestBuild("request builder missing headers".to_string())
+            })?;
+            headers.remove("Authorization");
+            crate::utils::http_headers::replace_header(
+                &mut builder,
+                "x-api-key",
+                &credential.api_key,
+            )?;
+        }
         crate::utils::http_headers::replace_header(
             &mut builder,
             "anthropic-version",
@@ -358,6 +377,19 @@ impl Channel for AnthropicChannel {
     }
 }
 
+fn anthropic_uses_openai_bearer_auth(request: &PreparedRequest) -> bool {
+    matches!(
+        (request.route.operation, request.route.protocol),
+        (
+            OperationFamily::ModelList | OperationFamily::ModelGet,
+            ProtocolKind::OpenAi
+        ) | (
+            OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent,
+            ProtocolKind::OpenAiChatCompletion
+        )
+    )
+}
+
 fn anthropic_request_path(request: &PreparedRequest) -> Result<String, UpstreamError> {
     match request.route.operation {
         OperationFamily::FileUpload => Ok("/v1/files".to_string()),
@@ -424,6 +456,34 @@ mod tests {
         }
     }
 
+    fn assert_bearer_auth(request: &http::Request<Vec<u8>>) {
+        assert_eq!(
+            request
+                .headers()
+                .get("Authorization")
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer test-key")
+        );
+        assert!(
+            request.headers().get("x-api-key").is_none(),
+            "OpenAI-compatible Anthropic routes must not send x-api-key"
+        );
+    }
+
+    fn assert_x_api_key_auth(request: &http::Request<Vec<u8>>) {
+        assert_eq!(
+            request
+                .headers()
+                .get("x-api-key")
+                .and_then(|v| v.to_str().ok()),
+            Some("test-key")
+        );
+        assert!(
+            request.headers().get("Authorization").is_none(),
+            "Claude-native Anthropic routes must not forward Authorization"
+        );
+    }
+
     #[test]
     fn chat_completions_passthrough_uses_chat_completions_path() {
         let settings = AnthropicSettings::default();
@@ -441,6 +501,49 @@ mod tests {
                 .expect("prepare request");
 
             assert_eq!(upstream.uri().path(), "/v1/chat/completions");
+            assert_bearer_auth(&upstream);
         }
+    }
+
+    #[test]
+    fn openai_model_routes_use_bearer_auth() {
+        let settings = AnthropicSettings::default();
+        let credential = AnthropicCredential {
+            api_key: "test-key".to_string(),
+        };
+
+        let list_request = prepared_request(OperationFamily::ModelList, ProtocolKind::OpenAi);
+        let list_upstream = AnthropicChannel
+            .prepare_request(&credential, &settings, &list_request)
+            .expect("prepare model list request");
+        assert_eq!(list_upstream.uri().path(), "/v1/models");
+        assert_bearer_auth(&list_upstream);
+
+        let get_request = prepared_request(OperationFamily::ModelGet, ProtocolKind::OpenAi);
+        let get_upstream = AnthropicChannel
+            .prepare_request(&credential, &settings, &get_request)
+            .expect("prepare model get request");
+        assert_eq!(get_upstream.uri().path(), "/v1/models/claude-test");
+        assert_bearer_auth(&get_upstream);
+    }
+
+    #[test]
+    fn claude_native_routes_keep_x_api_key_auth() {
+        let settings = AnthropicSettings::default();
+        let credential = AnthropicCredential {
+            api_key: "test-key".to_string(),
+        };
+
+        let mut request = prepared_request(OperationFamily::GenerateContent, ProtocolKind::Claude);
+        request.headers.insert(
+            "Authorization",
+            http::HeaderValue::from_static("Bearer client-key"),
+        );
+        let upstream = AnthropicChannel
+            .prepare_request(&credential, &settings, &request)
+            .expect("prepare Claude request");
+
+        assert_eq!(upstream.uri().path(), "/v1/messages");
+        assert_x_api_key_auth(&upstream);
     }
 }
