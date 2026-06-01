@@ -24,6 +24,7 @@
 - **Responses partial output-item tolerance.** Responses stream output items that arrive as partial/provider-specific JSON are now preserved as raw items instead of failing deserialization with `missing field output`, fixing Codex model tests when stream is disabled and preventing stream conversion from stalling on those frames.
 - **ClaudeCode Responses stream aggregation usage.** Non-stream ClaudeCode requests routed to OpenAI Responses streaming now preserve Responses usage counts while returning Claude Messages usage with explicit null stop metadata, `global` inference geography, and no empty `server_tool_use` object.
 - **Vercel credential health on payment failures.** Vercel AI Gateway `402 Payment Required` responses now invalidate the credential like `401` / `403`, allowing retry rotation to skip exhausted keys.
+- **Pulled model import upserts.** Batch-importing pulled provider models now reuses existing `(provider_id, model_id)` rows instead of inserting with freshly generated ids, avoiding unique-constraint failures on repeated imports.
 - **Provider console fixes.** Credential rows now show stable credential ids, request-log filters use the same ids, deleting rewrite rules persists immediately, and cache breakpoint TTL tags returned as `ttl5m` / `ttl1h` render as `5m` / `1h` instead of `auto`.
 
 #### Changed
@@ -53,6 +54,7 @@
 - **Responses partial output item 兼容.** Responses stream 里以 partial / provider-specific JSON 到达的 output item 现在会按原始 item 保留,不再因为 `missing field output` 反序列化失败;Codex 模型测试关闭流式时不再因此 500,流式转换也不会卡在这类帧上。
 - **ClaudeCode Responses stream 聚合用量.** 路由到 OpenAI Responses streaming 的非流式 ClaudeCode 请求现在会保留 Responses usage 计数,同时返回带显式 null stop 元数据、`global` 推理区域且不含空 `server_tool_use` 对象的 Claude Messages usage。
 - **Vercel 支付失败时的凭证健康状态.** Vercel AI Gateway 返回 `402 Payment Required` 时现在会像 `401` / `403` 一样将凭证判为失效,让重试轮换跳过额度耗尽的 key。
+- **拉取模型导入 upsert.** 批量导入 provider 拉取到的模型时,现在会复用已有 `(provider_id, model_id)` 行,不再用新生成的 id 盲插入,避免重复导入触发唯一键失败。
 - **Provider 控制台修复.** 凭证列表现在展示稳定 credential id,请求日志筛选也使用同一套 id;删除 rewrite rule 会立即持久化;API 返回的 `ttl5m` / `ttl1h` cache breakpoint 会显示为 `5m` / `1h`,不再误显示成 `auto`。
 
 #### 调整
