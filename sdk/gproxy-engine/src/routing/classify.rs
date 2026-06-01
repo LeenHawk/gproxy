@@ -112,9 +112,7 @@ pub fn classify_route(
             ProtocolKind::Claude,
         ));
     }
-    if normalized_path == "/responses/input_tokens"
-        || normalized_path == "/responses/input_tokens/count"
-    {
+    if normalized_path == "/responses/input_tokens" {
         return Ok(Classification::new(
             OperationFamily::CountToken,
             ProtocolKind::OpenAi,

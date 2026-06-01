@@ -383,7 +383,7 @@ fn deepseek_request_path(request: &PreparedRequest) -> Result<String, UpstreamEr
             "/models/{}",
             request.model.as_deref().unwrap_or_default()
         )),
-        OperationFamily::CountToken => Ok("/responses/input_tokens/count".to_string()),
+        OperationFamily::CountToken => Ok("/responses/input_tokens".to_string()),
         OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
             match request.route.protocol {
                 // DeepSeek exposes an Anthropic-compatible endpoint under
