@@ -21,6 +21,7 @@
 - **ClaudeCode credential cookie input.** The admin console now normalizes pasted `Cookie:` headers and `sessionKey=...` strings to the raw session key before saving, so cookie bootstrap sends a usable Claude.ai session cookie.
 - **OpenAI image endpoint request transforms.** OpenAI-compatible `/v1/images/generations` and `/v1/images/edits` bodies now convert through the raw request-body path before routing to Responses/Gemini backends, avoiding local 500s on Codex image-generation compatibility calls.
 - **OpenAI image endpoint response aggregation.** Non-stream OpenAI-compatible image requests that route through Responses streaming now aggregate upstream SSE before converting back to `/v1/images/generations`, so successful Codex image generations no longer return 500 during response conversion.
+- **Responses partial output-item tolerance.** Responses stream output items that arrive as partial/provider-specific JSON are now preserved as raw items instead of failing deserialization with `missing field output`, fixing Codex model tests when stream is disabled and preventing stream conversion from stalling on those frames.
 - **ClaudeCode Responses stream aggregation usage.** Non-stream ClaudeCode requests routed to OpenAI Responses streaming now preserve Responses usage counts while returning Claude Messages usage with explicit null stop metadata, `global` inference geography, and no empty `server_tool_use` object.
 - **Vercel credential health on payment failures.** Vercel AI Gateway `402 Payment Required` responses now invalidate the credential like `401` / `403`, allowing retry rotation to skip exhausted keys.
 - **Provider console fixes.** Credential rows now show stable credential ids, request-log filters use the same ids, deleting rewrite rules persists immediately, and cache breakpoint TTL tags returned as `ttl5m` / `ttl1h` render as `5m` / `1h` instead of `auto`.
@@ -49,6 +50,7 @@
 - **ClaudeCode 凭证 cookie 输入.** 管理控制台现在会把粘贴的 `Cookie:` header 或 `sessionKey=...` 字符串规范化成裸 session key 后再保存,确保 cookie bootstrap 发出可用的 Claude.ai session cookie。
 - **OpenAI 图像端点请求转换.** OpenAI 兼容的 `/v1/images/generations` 和 `/v1/images/edits` 请求体现在会按原始 body 转换后再路由到 Responses / Gemini 后端,避免 Codex 图像生成兼容调用在本地转换阶段返回 500。
 - **OpenAI 图像端点响应聚合.** 路由到 Responses streaming 的非流式 OpenAI 兼容图像请求现在会先聚合上游 SSE,再转换回 `/v1/images/generations` 响应,避免 Codex 成功生成图片后在响应转换阶段返回 500。
+- **Responses partial output item 兼容.** Responses stream 里以 partial / provider-specific JSON 到达的 output item 现在会按原始 item 保留,不再因为 `missing field output` 反序列化失败;Codex 模型测试关闭流式时不再因此 500,流式转换也不会卡在这类帧上。
 - **ClaudeCode Responses stream 聚合用量.** 路由到 OpenAI Responses streaming 的非流式 ClaudeCode 请求现在会保留 Responses usage 计数,同时返回带显式 null stop 元数据、`global` 推理区域且不含空 `server_tool_use` 对象的 Claude Messages usage。
 - **Vercel 支付失败时的凭证健康状态.** Vercel AI Gateway 返回 `402 Payment Required` 时现在会像 `401` / `403` 一样将凭证判为失效,让重试轮换跳过额度耗尽的 key。
 - **Provider 控制台修复.** 凭证列表现在展示稳定 credential id,请求日志筛选也使用同一套 id;删除 rewrite rule 会立即持久化;API 返回的 `ttl5m` / `ttl1h` cache breakpoint 会显示为 `5m` / `1h`,不再误显示成 `auto`。
