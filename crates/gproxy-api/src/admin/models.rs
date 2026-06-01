@@ -5,9 +5,9 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use gproxy_sdk::engine::engine::{ExecuteBody, ExecuteRequest};
 use gproxy_server::{AppState, MemoryModel, OperationFamily, ProtocolKind};
-use gproxy_storage::Scope;
 use gproxy_storage::repository::ModelRepository;
-use std::collections::BTreeSet;
+use gproxy_storage::{ModelWrite, Scope};
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 /// Resolve a single provider_id to its name via storage query.
@@ -54,6 +54,85 @@ fn scope_matches<T: PartialEq>(scope: &Option<Scope<T>>, value: &T) -> bool {
         Some(Scope::Eq(v)) => v == value,
         Some(Scope::In(vs)) => vs.contains(value),
     }
+}
+
+fn duplicate_model_key_error(item: &ModelWrite) -> HttpError {
+    HttpError::bad_request(format!(
+        "model '{}' already exists for provider_id {}",
+        item.model_id, item.provider_id
+    ))
+}
+
+fn model_id_collision_error(item: &ModelWrite, existing: &MemoryModel) -> HttpError {
+    HttpError::bad_request(format!(
+        "model id {} already belongs to provider_id {} model '{}', cannot use it for provider_id {} model '{}'",
+        item.id, existing.provider_id, existing.model_id, item.provider_id, item.model_id
+    ))
+}
+
+fn normalize_manual_model_write(
+    existing_models: &[MemoryModel],
+    mut item: ModelWrite,
+) -> Result<ModelWrite, HttpError> {
+    if let Some(existing_by_key) = existing_models
+        .iter()
+        .find(|m| m.provider_id == item.provider_id && m.model_id == item.model_id)
+    {
+        if existing_by_key.id != item.id {
+            return Err(duplicate_model_key_error(&item));
+        }
+        item.id = existing_by_key.id;
+    }
+    Ok(item)
+}
+
+fn normalize_batch_model_write(
+    existing_models: &[MemoryModel],
+    mut item: ModelWrite,
+) -> Result<ModelWrite, HttpError> {
+    let existing_by_id = existing_models.iter().find(|m| m.id == item.id);
+    let existing_by_key = existing_models
+        .iter()
+        .find(|m| m.provider_id == item.provider_id && m.model_id == item.model_id);
+
+    if let (Some(by_id), Some(by_key)) = (existing_by_id, existing_by_key) {
+        if by_id.id != by_key.id {
+            return Err(model_id_collision_error(&item, by_id));
+        }
+    }
+
+    if let Some(existing) = existing_by_key {
+        item.id = existing.id;
+        return Ok(item);
+    }
+
+    if let Some(existing) = existing_by_id {
+        return Err(model_id_collision_error(&item, existing));
+    }
+
+    Ok(item)
+}
+
+fn normalize_batch_model_writes(
+    existing_models: &[MemoryModel],
+    items: Vec<ModelWrite>,
+) -> Result<Vec<ModelWrite>, HttpError> {
+    let mut deduped = BTreeMap::<(i64, String), ModelWrite>::new();
+    let mut ids = BTreeMap::<i64, (i64, String)>::new();
+    for item in items {
+        let item = normalize_batch_model_write(existing_models, item)?;
+        let key = (item.provider_id, item.model_id.clone());
+        if let Some(existing_key) = ids.insert(item.id, key.clone()) {
+            if existing_key != key {
+                return Err(HttpError::bad_request(format!(
+                    "model id {} appears multiple times in batch",
+                    item.id
+                )));
+            }
+        }
+        deduped.insert(key, item);
+    }
+    Ok(deduped.into_values().collect())
 }
 
 pub async fn query_models(
@@ -109,6 +188,8 @@ pub async fn upsert_model(
     Json(payload): Json<gproxy_storage::ModelWrite>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
+    let existing_models = state.models();
+    let payload = normalize_manual_model_write(&existing_models, payload)?;
 
     // Validate pricing_json up front so we reject malformed input before
     // writing to the DB.
@@ -176,6 +257,8 @@ pub async fn batch_upsert_models(
     Json(items): Json<Vec<gproxy_storage::ModelWrite>>,
 ) -> Result<Json<AckResponse>, HttpError> {
     authorize_admin(&headers, &state)?;
+    let existing_models = state.models();
+    let items = normalize_batch_model_writes(&existing_models, items)?;
 
     // Pre-pass: validate every item's pricing_json before writing any of
     // them. Rejecting a batch halfway would leave the DB in a partial
@@ -357,13 +440,100 @@ pub async fn pull_models(
 mod tests {
     use std::sync::Arc;
 
+    use super::{normalize_batch_model_writes, normalize_manual_model_write};
+    use axum::http::StatusCode;
     use gproxy_sdk::channel::billing::{BillingContext, BillingMode};
     use gproxy_sdk::engine::engine::Usage;
     use gproxy_server::{AppState, AppStateBuilder, GlobalConfig, MemoryModel};
     use gproxy_storage::{
-        SeaOrmStorage,
+        ModelWrite, SeaOrmStorage,
         repository::{ModelRepository, UserRepository},
     };
+
+    fn memory_model(id: i64, provider_id: i64, model_id: &str) -> MemoryModel {
+        MemoryModel {
+            id,
+            provider_id,
+            model_id: model_id.to_string(),
+            display_name: None,
+            enabled: true,
+            pricing: None,
+        }
+    }
+
+    fn model_write(id: i64, provider_id: i64, model_id: &str) -> ModelWrite {
+        ModelWrite {
+            id,
+            provider_id,
+            model_id: model_id.to_string(),
+            display_name: None,
+            enabled: true,
+            pricing_json: None,
+        }
+    }
+
+    #[test]
+    fn batch_model_write_retargets_existing_provider_model_key() {
+        let existing = vec![memory_model(10, 7, "gpt-test")];
+        let normalized =
+            normalize_batch_model_writes(&existing, vec![model_write(99, 7, "gpt-test")])
+                .expect("normalize batch");
+
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(normalized[0].id, 10);
+        assert_eq!(normalized[0].provider_id, 7);
+        assert_eq!(normalized[0].model_id, "gpt-test");
+    }
+
+    #[test]
+    fn batch_model_write_rejects_generated_id_collision() {
+        let existing = vec![memory_model(10, 7, "old-model")];
+        let err = normalize_batch_model_writes(&existing, vec![model_write(10, 7, "new-model")])
+            .expect_err("id collision must fail");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("already belongs"));
+    }
+
+    #[test]
+    fn batch_model_write_dedupes_duplicate_provider_model_keys() {
+        let mut first = model_write(1, 7, "gpt-test");
+        first.display_name = Some("first".to_string());
+        let mut second = model_write(2, 7, "gpt-test");
+        second.display_name = Some("second".to_string());
+
+        let normalized =
+            normalize_batch_model_writes(&[], vec![first, second]).expect("normalize batch");
+
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(normalized[0].id, 2);
+        assert_eq!(normalized[0].display_name.as_deref(), Some("second"));
+    }
+
+    #[test]
+    fn batch_model_write_rejects_duplicate_ids_in_batch() {
+        let err = normalize_batch_model_writes(
+            &[],
+            vec![
+                model_write(10, 7, "first-model"),
+                model_write(10, 7, "second-model"),
+            ],
+        )
+        .expect_err("duplicate ids must fail");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("appears multiple times"));
+    }
+
+    #[test]
+    fn manual_model_write_rejects_duplicate_provider_model_key() {
+        let existing = vec![memory_model(10, 7, "gpt-test")];
+        let err = normalize_manual_model_write(&existing, model_write(99, 7, "gpt-test"))
+            .expect_err("manual duplicate must fail");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("already exists"));
+    }
 
     async fn build_test_state_for_pricing() -> Arc<AppState> {
         let storage = Arc::new(
