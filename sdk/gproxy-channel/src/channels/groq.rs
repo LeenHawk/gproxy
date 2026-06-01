@@ -286,7 +286,7 @@ fn groq_request_path(request: &PreparedRequest) -> Result<String, UpstreamError>
             "/v1/models/{}",
             request.model.as_deref().unwrap_or_default()
         )),
-        OperationFamily::CountToken => Ok("/v1/responses/input_tokens/count".to_string()),
+        OperationFamily::CountToken => Ok("/v1/responses/input_tokens".to_string()),
         OperationFamily::GenerateContent | OperationFamily::StreamGenerateContent => {
             match request.route.protocol {
                 ProtocolKind::OpenAiResponse => Ok("/v1/responses".to_string()),
