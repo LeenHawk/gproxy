@@ -63,13 +63,6 @@ fn duplicate_model_key_error(item: &ModelWrite) -> HttpError {
     ))
 }
 
-fn model_id_collision_error(item: &ModelWrite, existing: &MemoryModel) -> HttpError {
-    HttpError::bad_request(format!(
-        "model id {} already belongs to provider_id {} model '{}', cannot use it for provider_id {} model '{}'",
-        item.id, existing.provider_id, existing.model_id, item.provider_id, item.model_id
-    ))
-}
-
 fn normalize_manual_model_write(
     existing_models: &[MemoryModel],
     mut item: ModelWrite,
@@ -86,53 +79,37 @@ fn normalize_manual_model_write(
     Ok(item)
 }
 
-fn normalize_batch_model_write(
-    existing_models: &[MemoryModel],
-    mut item: ModelWrite,
-) -> Result<ModelWrite, HttpError> {
-    let existing_by_id = existing_models.iter().find(|m| m.id == item.id);
-    let existing_by_key = existing_models
-        .iter()
-        .find(|m| m.provider_id == item.provider_id && m.model_id == item.model_id);
-
-    if let (Some(by_id), Some(by_key)) = (existing_by_id, existing_by_key) {
-        if by_id.id != by_key.id {
-            return Err(model_id_collision_error(&item, by_id));
-        }
-    }
-
-    if let Some(existing) = existing_by_key {
-        item.id = existing.id;
-        return Ok(item);
-    }
-
-    if let Some(existing) = existing_by_id {
-        return Err(model_id_collision_error(&item, existing));
-    }
-
-    Ok(item)
-}
-
 fn normalize_batch_model_writes(
     existing_models: &[MemoryModel],
     items: Vec<ModelWrite>,
 ) -> Result<Vec<ModelWrite>, HttpError> {
-    let mut deduped = BTreeMap::<(i64, String), ModelWrite>::new();
-    let mut ids = BTreeMap::<i64, (i64, String)>::new();
+    let mut deduped_by_key = BTreeMap::<(i64, String), ModelWrite>::new();
     for item in items {
-        let item = normalize_batch_model_write(existing_models, item)?;
-        let key = (item.provider_id, item.model_id.clone());
-        if let Some(existing_key) = ids.insert(item.id, key.clone()) {
-            if existing_key != key {
-                return Err(HttpError::bad_request(format!(
-                    "model id {} appears multiple times in batch",
-                    item.id
-                )));
-            }
-        }
-        deduped.insert(key, item);
+        deduped_by_key.insert((item.provider_id, item.model_id.clone()), item);
     }
-    Ok(deduped.into_values().collect())
+
+    let mut used_ids: BTreeSet<i64> = existing_models.iter().map(|m| m.id).collect();
+    let mut next_id = used_ids.iter().next_back().copied().unwrap_or(0).max(0) + 1;
+    let mut normalized = Vec::with_capacity(deduped_by_key.len());
+
+    for ((provider_id, model_id), mut item) in deduped_by_key {
+        if let Some(existing) = existing_models
+            .iter()
+            .find(|m| m.provider_id == provider_id && m.model_id == model_id)
+        {
+            item.id = existing.id;
+        } else if item.id <= 0 || !used_ids.insert(item.id) {
+            while used_ids.contains(&next_id) {
+                next_id += 1;
+            }
+            item.id = next_id;
+            used_ids.insert(item.id);
+            next_id += 1;
+        }
+        normalized.push(item);
+    }
+
+    Ok(normalized)
 }
 
 pub async fn query_models(
@@ -486,13 +463,30 @@ mod tests {
     }
 
     #[test]
-    fn batch_model_write_rejects_generated_id_collision() {
+    fn batch_model_write_assigns_fresh_id_on_generated_id_collision() {
         let existing = vec![memory_model(10, 7, "old-model")];
-        let err = normalize_batch_model_writes(&existing, vec![model_write(10, 7, "new-model")])
-            .expect_err("id collision must fail");
+        let normalized =
+            normalize_batch_model_writes(&existing, vec![model_write(10, 7, "new-model")])
+                .expect("normalize batch");
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
-        assert!(err.message.contains("already belongs"));
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(normalized[0].id, 11);
+        assert_eq!(normalized[0].model_id, "new-model");
+    }
+
+    #[test]
+    fn batch_model_write_retargets_existing_key_even_when_generated_id_collides() {
+        let existing = vec![
+            memory_model(10, 7, "old-model"),
+            memory_model(20, 7, "gpt-test"),
+        ];
+        let normalized =
+            normalize_batch_model_writes(&existing, vec![model_write(10, 7, "gpt-test")])
+                .expect("normalize batch");
+
+        assert_eq!(normalized.len(), 1);
+        assert_eq!(normalized[0].id, 20);
+        assert_eq!(normalized[0].model_id, "gpt-test");
     }
 
     #[test]
@@ -511,18 +505,20 @@ mod tests {
     }
 
     #[test]
-    fn batch_model_write_rejects_duplicate_ids_in_batch() {
-        let err = normalize_batch_model_writes(
+    fn batch_model_write_assigns_fresh_ids_for_duplicate_ids_in_batch() {
+        let normalized = normalize_batch_model_writes(
             &[],
             vec![
                 model_write(10, 7, "first-model"),
                 model_write(10, 7, "second-model"),
             ],
         )
-        .expect_err("duplicate ids must fail");
+        .expect("normalize batch");
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
-        assert!(err.message.contains("appears multiple times"));
+        assert_eq!(normalized.len(), 2);
+        assert_ne!(normalized[0].id, normalized[1].id);
+        assert_eq!(normalized[0].id, 10);
+        assert_eq!(normalized[1].id, 1);
     }
 
     #[test]
