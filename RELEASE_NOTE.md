@@ -24,6 +24,7 @@
 - **Responses partial output-item tolerance.** Responses stream output items that arrive as partial/provider-specific JSON are now preserved as raw items instead of failing deserialization with `missing field output`, fixing Codex model tests when stream is disabled and preventing stream conversion from stalling on those frames.
 - **Responses-to-Claude system prompts.** OpenAI Responses/Codex requests converted to Claude Messages now move leading `system` / `developer` input items into Claude's top-level `system` field instead of sending unsupported system-role messages.
 - **Claude-to-Codex system prompts.** Claude Messages requests routed through Codex now merge top-level, message-role, and mid-conversation system prompts into Responses `instructions` instead of emitting unsupported system-role input messages.
+- **Claude-to-Codex tool ids.** Claude `toolu_...` tool-use ids are now mapped to Responses-safe `fc_...` item ids and `call_...` call ids, while tool results keep the correct call pairing.
 - **ClaudeCode Responses stream aggregation usage.** Non-stream ClaudeCode requests routed to OpenAI Responses streaming now preserve Responses usage counts while returning Claude Messages usage with explicit null stop metadata, `global` inference geography, and no empty `server_tool_use` object.
 - **Vercel credential health on payment failures.** Vercel AI Gateway `402 Payment Required` responses now invalidate the credential like `401` / `403`, allowing retry rotation to skip exhausted keys.
 - **Pulled model import upserts.** Batch-importing pulled provider models now reuses existing `(provider_id, model_id)` rows instead of inserting with freshly generated ids, avoiding unique-constraint failures on repeated imports.
@@ -58,6 +59,7 @@
 - **Responses partial output item 兼容.** Responses stream 里以 partial / provider-specific JSON 到达的 output item 现在会按原始 item 保留,不再因为 `missing field output` 反序列化失败;Codex 模型测试关闭流式时不再因此 500,流式转换也不会卡在这类帧上。
 - **Responses 转 Claude system prompt.** OpenAI Responses / Codex 请求转换到 Claude Messages 时,开头的 `system` / `developer` input item 现在会进入 Claude 顶层 `system` 字段,不再发送上游不接受的 system-role message。
 - **Claude 转 Codex system prompt.** 通过 Codex 渠道转发的 Claude Messages 请求现在会把顶层、message-role 和 mid-conversation system prompt 合并到 Responses `instructions`,不再生成 Codex 不接受的 system-role input message。
+- **Claude 转 Codex tool id.** Claude 的 `toolu_...` tool-use id 现在会映射成 Responses 可接受的 `fc_...` item id 和 `call_...` call id,同时保持 tool result 的正确配对。
 - **ClaudeCode Responses stream 聚合用量.** 路由到 OpenAI Responses streaming 的非流式 ClaudeCode 请求现在会保留 Responses usage 计数,同时返回带显式 null stop 元数据、`global` 推理区域且不含空 `server_tool_use` 对象的 Claude Messages usage。
 - **Vercel 支付失败时的凭证健康状态.** Vercel AI Gateway 返回 `402 Payment Required` 时现在会像 `401` / `403` 一样将凭证判为失效,让重试轮换跳过额度耗尽的 key。
 - **拉取模型导入 upsert.** 批量导入 provider 拉取到的模型时,现在会复用已有 `(provider_id, model_id)` 行,不再用新生成的 id 盲插入,避免重复导入触发唯一键失败。
