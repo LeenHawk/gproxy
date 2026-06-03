@@ -382,6 +382,64 @@ fn json_fingerprint_text(value: &Value) -> String {
     }
 }
 
+fn codex_input_role(value: &Value) -> Option<&str> {
+    value
+        .as_object()
+        .and_then(|object| object.get("role"))
+        .and_then(Value::as_str)
+}
+
+fn codex_instruction_role(role: &str) -> bool {
+    role.eq_ignore_ascii_case("system") || role.eq_ignore_ascii_case("developer")
+}
+
+fn collect_codex_text(value: &Value, parts: &mut Vec<String>) {
+    match value {
+        Value::String(text) => {
+            if !text.is_empty() {
+                parts.push(text.clone());
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_codex_text(item, parts);
+            }
+        }
+        Value::Object(object) => {
+            if let Some(text) = object.get("text").and_then(Value::as_str)
+                && !text.is_empty()
+            {
+                parts.push(text.to_string());
+                return;
+            }
+            if let Some(content) = object.get("content") {
+                collect_codex_text(content, parts);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn codex_instruction_text(value: &Value) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(content) = value.get("content") {
+        collect_codex_text(content, &mut parts);
+    } else {
+        collect_codex_text(value, &mut parts);
+    }
+    (!parts.is_empty()).then(|| parts.join("\n"))
+}
+
+fn append_codex_instruction(instructions: &mut String, text: String) {
+    if text.is_empty() {
+        return;
+    }
+    if !instructions.is_empty() {
+        instructions.push('\n');
+    }
+    instructions.push_str(&text);
+}
+
 fn normalize_codex_request_body(body: &[u8], is_stream: bool) -> Vec<u8> {
     let Ok(mut body_json) = serde_json::from_slice::<Value>(body) else {
         return body.to_vec();
@@ -401,16 +459,11 @@ fn normalize_codex_request_body(body: &[u8], is_stream: bool) -> Vec<u8> {
     map.remove("truncation");
     map.insert("stream".to_string(), Value::Bool(is_stream));
 
-    if map
+    let mut instructions = map
         .get("instructions")
-        .is_some_and(|value| !value.is_string())
-    {
-        map.insert("instructions".to_string(), Value::String(String::new()));
-    }
-
-    if !map.contains_key("instructions") {
-        map.insert("instructions".to_string(), Value::String(String::new()));
-    }
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
 
     if let Some(input) = map.get("input")
         && let Some(text) = input.as_str()
@@ -426,6 +479,21 @@ fn normalize_codex_request_body(body: &[u8], is_stream: bool) -> Vec<u8> {
             ]),
         );
     }
+    if let Some(Value::Array(items)) = map.get_mut("input") {
+        let mut retained = Vec::with_capacity(items.len());
+        for item in std::mem::take(items) {
+            if codex_input_role(&item).is_some_and(codex_instruction_role) {
+                if let Some(text) = codex_instruction_text(&item) {
+                    append_codex_instruction(&mut instructions, text);
+                }
+                continue;
+            }
+            retained.push(item);
+        }
+        *items = retained;
+    }
+
+    map.insert("instructions".to_string(), Value::String(instructions));
 
     serde_json::to_vec(&body_json).unwrap_or_else(|_| body.to_vec())
 }
@@ -1106,6 +1174,67 @@ mod tests {
 
         assert_eq!(body_json.get("stream").and_then(Value::as_bool), Some(true));
         assert_eq!(body_json.get("store").and_then(Value::as_bool), Some(false));
+    }
+
+    #[test]
+    fn finalize_request_lifts_system_and_developer_input_to_instructions() {
+        let channel = CodexChannel;
+        let settings = CodexSettings::default();
+        let request = PreparedRequest {
+            method: http::Method::POST,
+            route: RouteKey::new(
+                OperationFamily::StreamGenerateContent,
+                ProtocolKind::OpenAiResponse,
+            ),
+            model: Some("gpt-5.5".to_string()),
+            query: None,
+            body: serde_json::to_vec(&json!({
+                "model": "gpt-5.5",
+                "instructions": "Follow platform policy.",
+                "input": [
+                    {
+                        "type": "message",
+                        "role": "system",
+                        "content": [
+                            { "type": "input_text", "text": "Use repository conventions." }
+                        ]
+                    },
+                    {
+                        "type": "message",
+                        "role": "developer",
+                        "content": "Keep the response concise."
+                    },
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": "hi"
+                    }
+                ]
+            }))
+            .expect("serialize request"),
+            headers: http::HeaderMap::new(),
+        };
+
+        let finalized = channel
+            .finalize_request(&settings, request)
+            .expect("finalize request");
+        let body_json: Value =
+            serde_json::from_slice(&finalized.body).expect("finalized request json");
+
+        assert_eq!(
+            body_json.get("instructions").and_then(Value::as_str),
+            Some(
+                "Follow platform policy.\nUse repository conventions.\nKeep the response concise."
+            )
+        );
+        let roles = body_json
+            .get("input")
+            .and_then(Value::as_array)
+            .expect("input array")
+            .iter()
+            .filter_map(|item| item.get("role").and_then(Value::as_str))
+            .collect::<Vec<_>>();
+        assert_eq!(roles, vec!["user"]);
     }
 
     #[test]
