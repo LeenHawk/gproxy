@@ -390,7 +390,7 @@ fn codex_input_role(value: &Value) -> Option<&str> {
 }
 
 fn codex_instruction_role(role: &str) -> bool {
-    role.eq_ignore_ascii_case("system") || role.eq_ignore_ascii_case("developer")
+    role.eq_ignore_ascii_case("system")
 }
 
 fn collect_codex_text(value: &Value, parts: &mut Vec<String>) {
@@ -1177,7 +1177,7 @@ mod tests {
     }
 
     #[test]
-    fn finalize_request_lifts_system_and_developer_input_to_instructions() {
+    fn finalize_request_lifts_system_input_to_instructions_and_keeps_developer() {
         let channel = CodexChannel;
         let settings = CodexSettings::default();
         let request = PreparedRequest {
@@ -1223,9 +1223,7 @@ mod tests {
 
         assert_eq!(
             body_json.get("instructions").and_then(Value::as_str),
-            Some(
-                "Follow platform policy.\nUse repository conventions.\nKeep the response concise."
-            )
+            Some("Follow platform policy.\nUse repository conventions.")
         );
         let roles = body_json
             .get("input")
@@ -1234,7 +1232,7 @@ mod tests {
             .iter()
             .filter_map(|item| item.get("role").and_then(Value::as_str))
             .collect::<Vec<_>>();
-        assert_eq!(roles, vec!["user"]);
+        assert_eq!(roles, vec!["developer", "user"]);
     }
 
     #[test]
