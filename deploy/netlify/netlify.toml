@@ -7,6 +7,9 @@
 
 [build]
   publish = "public"
+  # Edge functions live in deploy/netlify/edge-functions/ (not Netlify's default
+  # netlify/edge-functions), so point at the directory explicitly.
+  edge_functions = "edge-functions"
 
 # Route every request to the gproxy edge function. The function name matches the
 # file basename in deploy/netlify/edge-functions/ (gproxy.ts → "gproxy").

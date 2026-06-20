@@ -309,12 +309,19 @@ jobs:
         run: cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
 
       # Each script regenerates that platform's wasm-bindgen glue in-place (the
-      # _lib dirs are gitignored build output).
+      # _lib / generated dirs are gitignored build output). All build-only — no
+      # platform credentials are used here.
       - name: Generate platform bundles
         run: |
           bash deploy/cloudflare/build.sh
           bash deploy/vercel/build.sh
           bash deploy/eopages/build.sh
+          bash deploy/netlify/build.sh
+          bash deploy/supabase/build.sh
+          # deno: deploy/deno/build.sh also *deploys* (needs a token), so generate
+          # the deno-target glue inline here for a build-only bundle.
+          wasm-bindgen --target deno --out-dir deploy/deno/pkg target/wasm32-unknown-unknown/release/gproxy.wasm
+          perl -0pi -e 's/instantiateStreaming\(fetch\(wasmUrl\)/instantiateStreaming(globalThis.fetch(wasmUrl)/' deploy/deno/pkg/gproxy.js
 
       - name: Package edge bundles
         run: |
@@ -323,6 +330,14 @@ jobs:
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-cloudflare.zip cloudflare -x 'cloudflare/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-vercel.zip vercel -x 'vercel/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-eopages.zip eopages/gproxy eopages/NOTES.md)
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-netlify.zip netlify -x 'netlify/build.sh')
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-supabase.zip supabase -x 'supabase/build.sh')
+          # deno: compact upload root (main.ts path-fixed to ./pkg + the glue)
+          rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg
+          cp deploy/deno/pkg/gproxy.js deploy/deno/pkg/gproxy.d.ts \
+             deploy/deno/pkg/gproxy_bg.wasm deploy/deno/pkg/gproxy_bg.wasm.d.ts deploy/deno/bundle/pkg/
+          sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts > deploy/deno/bundle/main.ts
+          (cd deploy/deno/bundle && zip -9 -r ../../../edge-dist/gproxy-edge-deno.zip .)
           (cd edge-dist && for f in *.zip gproxy.wasm; do shasum -a 256 "$f" > "$f.sha256"; done)
           ls -la edge-dist
 
