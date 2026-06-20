@@ -4,6 +4,8 @@ name: release
 # images. Side effects (attach to GitHub Release, push to GHCR) only happen on a
 # published Release — workflow_dispatch just builds-and-validates.
 on:
+  push:
+    branches: [feat/v1-to-v2-migration]   # TEMP: verify release on the PR branch
   workflow_dispatch:
   release:
     types: [published]
