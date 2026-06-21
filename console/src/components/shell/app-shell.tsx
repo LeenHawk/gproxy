@@ -39,21 +39,14 @@ function Brand({ compact }: { compact?: boolean }) {
   const { t } = useTranslation();
   return (
     <div className="flex h-14 items-center gap-2 px-4 font-semibold">
-      {/* v1 brand mark: teal (--accent #0f766e) rounded square + white G monogram. */}
-      <svg viewBox="0 0 32 32" className="size-7 shrink-0" role="img" aria-label="GPROXY">
-        <rect width="32" height="32" rx="8" fill="#0f766e" />
-        <text
-          x="16"
-          y="23"
-          textAnchor="middle"
-          fontFamily="ui-sans-serif, system-ui, sans-serif"
-          fontSize="20"
-          fontWeight="800"
-          fill="#ffffff"
-        >
-          G
-        </text>
-      </svg>
+      {/* v1 brand mark: the GPROXY globe (shared favicon asset under public/). */}
+      <img
+        src={`${import.meta.env.BASE_URL}favicon-96x96.png`}
+        className="size-7 shrink-0 rounded"
+        width={28}
+        height={28}
+        alt="GPROXY"
+      />
       <span className={compact ? "hidden" : "font-bold tracking-wide"}>{t("app.name")}</span>
     </div>
   );
