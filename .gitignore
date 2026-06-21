@@ -14,9 +14,6 @@ __pycache__/
 # ── Deno Deploy ──
 .deno_cache
 
-# ── Alibaba Cloud ESA local dev output ──
-.dev/
-
 # ── wasm-bindgen build output (regenerated; never commit) ──
 pkg/
 

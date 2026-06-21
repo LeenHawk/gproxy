@@ -5,7 +5,6 @@ crate root focused on Rust source and shared build outputs.
 
 - `cloudflare/` - Cloudflare Workers entry and wrangler config.
 - `deno/` - Deno Deploy entry.
-- `esa/` - Alibaba Cloud ESA feasibility notes and probes.
 - `eopages/` - Tencent EdgeOne Pages spike and entry. The old Tencent EdgeOne
   TEO/CDN probe was removed; Pages is the only EdgeOne target kept here.
 - `netlify/` - Netlify Edge Function entry, config, and minimal publish dir.
