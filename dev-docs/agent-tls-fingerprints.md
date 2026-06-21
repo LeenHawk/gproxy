@@ -48,7 +48,7 @@ emulation，请求会失败，不会静默降级到默认 TLS。这样可以避�
 | `copilotcli` | rustls | HTTP/1.1 | `t13d1011h1_61a7ad8aa9b6_*` | model-path rustls profile |
 | `kiro` | rustls/aws-lc | HTTP/1.1, no ALPN | `t13d101000_61a7ad8aa9b6_3fcd1a44f3e3` | rustls-style subset |
 
-UA 与 TLS profile 要一起维护。请求头目标在 `docs/agent-request-headers.md`，本页只记录
+UA 与 TLS profile 要一起维护。请求头目标在 `dev-docs/agent-request-headers.md`，本页只记录
 transport 指纹。
 
 ## 3. 保真边界
@@ -171,7 +171,7 @@ Console 通过 `GET /admin/tls-presets` 读取静态 preset。preset 是可存�
 
 1. 重抓真实模型路径的 TLS、UA、HTTP2。
 2. 确认它不是登录、usage、遥测或内部检查路径。
-3. 更新 `docs/agent-request-headers.md` 的 UA/header 目标。
+3. 更新 `dev-docs/agent-request-headers.md` 的 UA/header 目标。
 4. 更新对应 `src/channel/bulletins/<channel>/fingerprint.rs`。
 5. 如果要暴露给 Console，更新 `src/api/tls_presets.rs`。
 6. 跑 native `upstream-wreq` 相关测试，至少覆盖 profile 可以构建。
@@ -258,7 +258,7 @@ These are model-call paths, not login, usage, telemetry, or internal check paths
 | `kiro` | rustls/aws-lc | HTTP/1.1, no ALPN | `t13d101000_61a7ad8aa9b6_3fcd1a44f3e3` | rustls-style subset |
 
 Maintain UA and TLS profile together. Header targets live in
-`docs/agent-request-headers.md`; this page covers transport fingerprints.
+`dev-docs/agent-request-headers.md`; this page covers transport fingerprints.
 
 ## 3. Fidelity Limits
 
@@ -389,7 +389,7 @@ When adding or updating a profile:
 
 1. Re-capture the real model path TLS, UA, and HTTP2.
 2. Confirm it is not login, usage, telemetry, or an internal check path.
-3. Update `docs/agent-request-headers.md` for UA/header targets.
+3. Update `dev-docs/agent-request-headers.md` for UA/header targets.
 4. Update `src/channel/bulletins/<channel>/fingerprint.rs`.
 5. If it should be exposed in Console, update `src/api/tls_presets.rs`.
 6. Run native `upstream-wreq` tests, at least covering that the profile builds.

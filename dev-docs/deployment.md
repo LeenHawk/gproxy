@@ -133,7 +133,7 @@ edge 管理面当前有三类显式降级：
 | `/admin/login-flows/cookie` | 501 `not_implemented` | Claude Code cookie 登录依赖 native wreq/TLS 行为。 |
 | `/admin/credentials/{id}/usage` | 501 `not_implemented` | 实时上游用量查询依赖 native 路径。 |
 
-其它控制面和门户路径应通过 edge dispatcher 提供。详见 `docs/edge-deploy.md`。
+其它控制面和门户路径应通过 edge dispatcher 提供。详见 `dev-docs/edge-deploy.md`。
 
 ## 开发模式
 
@@ -317,7 +317,7 @@ The edge admin surface currently has three explicit downgrades:
 | `/admin/credentials/{id}/usage` | 501 `not_implemented` | Live upstream usage fetch depends on the native path. |
 
 Other control-plane and portal paths should be served through the edge
-dispatcher. See `docs/edge-deploy.md`.
+dispatcher. See `dev-docs/edge-deploy.md`.
 
 ## Development Mode
 

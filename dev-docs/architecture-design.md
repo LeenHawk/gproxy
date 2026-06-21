@@ -307,7 +307,7 @@ secrets and writes a plaintext bundle, so exported files must be protected.
 The temporary `migrate-v1` feature reads a legacy v1 SQLite database, maps
 control-plane rows into the v2 bundle shape, and imports them into v2. The boot
 hook only runs before persistence opens the default SQLite file. See
-`docs/v1-to-v2-migration.md`.
+`dev-docs/v1-to-v2-migration.md`.
 
 ## Self-Update
 
@@ -646,7 +646,7 @@ secrets and writes a plaintext bundle, so exported files must be protected.
 The temporary `migrate-v1` feature reads a legacy v1 SQLite database, maps
 control-plane rows into the v2 bundle shape, and imports them into v2. The boot
 hook only runs before persistence opens the default SQLite file. See
-`docs/v1-to-v2-migration.md`.
+`dev-docs/v1-to-v2-migration.md`.
 
 ## Self-Update
 

@@ -181,7 +181,7 @@ Kiro 当前不是 SigV4。不要注入 `x-amz-date`、`x-amz-security-token` 或
 4. 对动态头确认关联关系，例如 Codex 的 session/window/turn metadata，Claude 的
    session id 与 CCH body metadata。
 5. 更新 `src/channel/bulletins/<channel>/` 的注入逻辑。
-6. 更新本页和 `docs/agent-tls-fingerprints.md` 中的 UA/TLS 对应关系。
+6. 更新本页和 `dev-docs/agent-tls-fingerprints.md` 中的 UA/TLS 对应关系。
 7. 跑对应 channel 的单测，至少覆盖 header 注入和不应注入的反例。
 
 请求头伪装和 TLS/HTTP2 指纹要一起维护。只更新 UA 不更新 fingerprint，或只更新
@@ -379,7 +379,7 @@ When upgrading a real CLI:
 4. Confirm dynamic relationships, such as Codex session/window/turn metadata or
    Claude session id plus CCH body metadata.
 5. Update `src/channel/bulletins/<channel>/` injection logic.
-6. Update this page and `docs/agent-tls-fingerprints.md` together.
+6. Update this page and `dev-docs/agent-tls-fingerprints.md` together.
 7. Run channel tests covering header injection and negative cases where headers
    must not be injected.
 

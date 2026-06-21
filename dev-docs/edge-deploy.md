@@ -320,11 +320,11 @@ curl -i "$EDGE_URL/openai/v1/models"
 | Supabase 500 / 找不到 wasm | 确认使用 `deploy/supabase/build.sh` 生成内联 bundle，并且部署时没有 `--use-api`。 |
 | EdgeOne 预览 401 `eo_time missing` | 使用部署输出里的 `eo_token` / `eo_time` query，并保存重定向后的 cookie。 |
 | `/healthz` 匿名 401 | 正常；ops 端点是 admin-gated。 |
-| console 页面能打开但 API 失败 | 确认 console 静态资源与 edge API 同源，或按 `docs/deployment.md` 配置同源反代。 |
+| console 页面能打开但 API 失败 | 确认 console 静态资源与 edge API 同源，或按 `dev-docs/deployment.md` 配置同源反代。 |
 
 ## 相关页面
 
-- `docs/deployment.md`：console 静态资源部署形态。
+- `dev-docs/deployment.md`：console 静态资源部署形态。
 - `deploy/README.md`：部署目录清单。
 - `deploy/<platform>/NOTES.md`：平台实测记录和约束。
 
@@ -670,10 +670,10 @@ Without a key, the expected result is gproxy's JSON 401, not a platform static
 | Supabase 500 / wasm not found | Use `deploy/supabase/build.sh` to generate the inline bundle and deploy without `--use-api`. |
 | EdgeOne preview 401 `eo_time missing` | Use the `eo_token` / `eo_time` query from deployment output and keep redirected cookies. |
 | Anonymous `/healthz` returns 401 | Normal; ops endpoints are admin-gated. |
-| Console loads but API fails | Ensure console static assets and edge API are same-origin, or configure same-origin reverse proxy as in `docs/deployment.md`. |
+| Console loads but API fails | Ensure console static assets and edge API are same-origin, or configure same-origin reverse proxy as in `dev-docs/deployment.md`. |
 
 ## Related Pages
 
-- `docs/deployment.md`: console static asset deployment shapes.
+- `dev-docs/deployment.md`: console static asset deployment shapes.
 - `deploy/README.md`: deployment directory inventory.
 - `deploy/<platform>/NOTES.md`: platform-specific field notes and constraints.

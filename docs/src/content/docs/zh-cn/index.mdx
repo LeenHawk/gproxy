@@ -1,0 +1,58 @@
+---
+title: GPROXY v2
+description: gproxy v2 重写版的文档站。
+template: splash
+hero:
+  tagline: 单 crate Rust LLM 网关，支持 native server 和 edge worker，围绕 Operation 做协议转换，并内嵌控制台。
+  actions:
+    - text: 先看概览
+      link: /zh-cn/introduction/what-is-gproxy/
+      icon: right-arrow
+    - text: 本地跑起来
+      link: /zh-cn/getting-started/quick-start/
+      icon: rocket
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/LeenHawk/gproxy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## 文档地图
+
+<CardGrid stagger>
+	<Card title="介绍" icon="document">
+		了解 v2 改了什么，为什么重写成单 crate，以及一次请求如何穿过 pipeline。
+	</Card>
+	<Card title="快速上手" icon="rocket">
+		安装二进制、导入开发快照、打开内嵌控制台，并发送第一个 OpenAI-compatible 请求。
+	</Card>
+	<Card title="使用指南" icon="puzzle">
+		配置 provider、route、user、quota、rewrite rule、Claude cache hint、agent 兼容性和可观测性。
+	</Card>
+	<Card title="参考手册" icon="seti:config">
+		查询环境变量、配置导入导出结构、路由行为、价格、存储后端、优雅停机和 SDK 边界。
+	</Card>
+</CardGrid>
+
+## 主要入口
+
+<LinkCard
+	title="GPROXY v2 是什么?"
+	description="从产品层面解释 v2 重写，以及从 v1 继承下来的核心概念。"
+	href="/zh-cn/introduction/what-is-gproxy/"
+/>
+
+<LinkCard
+	title="架构"
+	description="当前 AppState、控制面快照、Operation、transform、process rule、channel 和存储的结构图。"
+	href="/zh-cn/introduction/architecture/"
+/>
+
+<LinkCard
+	title="从 v1 迁移"
+	description="如何把 v1 SQLite 部署中的数据迁入 v2 persistence model。"
+	href="/zh-cn/deployment/v1-to-v2/"
+/>

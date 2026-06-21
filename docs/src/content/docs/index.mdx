@@ -1,0 +1,62 @@
+---
+title: GPROXY v2
+description: The documentation site for the gproxy v2 rewrite.
+template: splash
+hero:
+  tagline: A single-crate Rust LLM gateway for native servers and edge workers, with operation-oriented protocol transforms and an embedded console.
+  actions:
+    - text: Start with the overview
+      link: /introduction/what-is-gproxy/
+      icon: right-arrow
+    - text: Run locally
+      link: /getting-started/quick-start/
+      icon: rocket
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/LeenHawk/gproxy
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Documentation Map
+
+<CardGrid stagger>
+	<Card title="Introduction" icon="document">
+		Read what changed in v2, why the rewrite is a single crate, and how a request moves
+		through the pipeline.
+	</Card>
+	<Card title="Getting Started" icon="rocket">
+		Install the binary, import a development snapshot, open the embedded console, and
+		send the first OpenAI-compatible request.
+	</Card>
+	<Card title="Guides" icon="puzzle">
+		Configure providers, routes, users, quotas, rewrite rules, Claude cache hints,
+		agent compatibility, and observability.
+	</Card>
+	<Card title="Reference" icon="seti:config">
+		Check environment variables, config import/export shape, routing behavior, pricing,
+		storage backends, shutdown semantics, and SDK boundaries.
+	</Card>
+</CardGrid>
+
+## Primary Paths
+
+<LinkCard
+	title="What is GPROXY v2?"
+	description="A product-level overview of the v2 rewrite and the concepts carried forward from v1."
+	href="/introduction/what-is-gproxy/"
+/>
+
+<LinkCard
+	title="Architecture"
+	description="A current-state map of AppState, control-plane snapshots, operations, transforms, process rules, channels, and storage."
+	href="/introduction/architecture/"
+/>
+
+<LinkCard
+	title="Migration from v1"
+	description="How to move data from a v1 SQLite deployment into the v2 persistence model."
+	href="/deployment/v1-to-v2/"
+/>

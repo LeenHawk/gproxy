@@ -19,12 +19,12 @@ channel、rule set、billing、quota、observability 和 self-update。
 
 | 主题 | 当前文档 |
 | --- | --- |
-| 系统架构、模块边界、请求生命周期 | `docs/architecture-design.md` |
-| 日常开发命令、feature、CI/release | `docs/developers/README.md` |
-| console 与 API 的部署关系 | `docs/deployment.md` |
-| edge wasm 平台部署 | `docs/edge-deploy.md` |
-| v1 SQLite 迁移 | `docs/v1-to-v2-migration.md` |
-| 通用 transform rule 的未定稿设计问题 | `docs/generic-transform-rule-design-notes.md` |
+| 系统架构、模块边界、请求生命周期 | `dev-docs/architecture-design.md` |
+| 日常开发命令、feature、CI/release | `dev-docs/developers/README.md` |
+| console 与 API 的部署关系 | `dev-docs/deployment.md` |
+| edge wasm 平台部署 | `dev-docs/edge-deploy.md` |
+| v1 SQLite 迁移 | `dev-docs/v1-to-v2-migration.md` |
+| 通用 transform rule 的未定稿设计问题 | `dev-docs/generic-transform-rule-design-notes.md` |
 
 历史上，本计划确立过几个仍然有效的方向：
 
@@ -57,12 +57,12 @@ Use these current documents instead:
 
 | Topic | Current document |
 | --- | --- |
-| System architecture, module boundaries, request lifecycle | `docs/architecture-design.md` |
-| Developer commands, features, CI/release | `docs/developers/README.md` |
-| Console/API deployment relationship | `docs/deployment.md` |
-| Edge wasm platform deployment | `docs/edge-deploy.md` |
-| v1 SQLite migration | `docs/v1-to-v2-migration.md` |
-| Unresolved generic transform-rule design questions | `docs/generic-transform-rule-design-notes.md` |
+| System architecture, module boundaries, request lifecycle | `dev-docs/architecture-design.md` |
+| Developer commands, features, CI/release | `dev-docs/developers/README.md` |
+| Console/API deployment relationship | `dev-docs/deployment.md` |
+| Edge wasm platform deployment | `dev-docs/edge-deploy.md` |
+| v1 SQLite migration | `dev-docs/v1-to-v2-migration.md` |
+| Unresolved generic transform-rule design questions | `dev-docs/generic-transform-rule-design-notes.md` |
 
 The old plan established several directions that remain valid:
 

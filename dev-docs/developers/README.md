@@ -7,7 +7,7 @@ the v2 rewrite is not a multi-crate Cargo workspace: it is one Rust crate with a
 native binary, a wasm/edge library surface, and a separate React console that is
 embedded into the native build.
 
-Use the root `README.md` for product-facing setup, `docs/architecture-design.md`
+Use the root `README.md` for product-facing setup, `dev-docs/architecture-design.md`
 for the system model, and this page for the commands and boundaries that matter
 while changing the repository.
 
@@ -36,7 +36,8 @@ while changing the repository.
 |-- assets/console/         # generated embed target for rust-embed
 |-- deploy/                 # platform entries and build scripts for edge wasm
 |-- upstream_docs/          # provider protocol/reference material
-`-- docs/                   # architecture, deployment, and implementation docs
+|-- docs/                   # Astro/Starlight documentation website
+`-- dev-docs/               # source developer docs used to generate the site
 ```
 
 The native server and edge worker share the same application state and request
@@ -147,7 +148,7 @@ should deploy those prebuilt bundles or locally generated equivalents; do not
 point platform "build from Git" flows at the source checkout and expect cargo to
 exist there.
 
-See `docs/edge-deploy.md` for platform-specific deploy notes.
+See `dev-docs/edge-deploy.md` for platform-specific deploy notes.
 
 ## Appwrite
 
@@ -194,11 +195,11 @@ needs a new primitive.
 
 ## Related Pages
 
-- `docs/architecture-design.md` - v2 architecture and request lifecycle.
-- `docs/deployment.md` - console deployment shapes.
-- `docs/edge-deploy.md` - edge wasm deployment model and platform notes.
-- `docs/v1-to-v2-migration.md` - migration behavior from v1 data.
-- `docs/generic-transform-rule-design-notes.md` - current transform rule design
+- `dev-docs/architecture-design.md` - v2 architecture and request lifecycle.
+- `dev-docs/deployment.md` - console deployment shapes.
+- `dev-docs/edge-deploy.md` - edge wasm deployment model and platform notes.
+- `dev-docs/v1-to-v2-migration.md` - migration behavior from v1 data.
+- `dev-docs/generic-transform-rule-design-notes.md` - current transform rule design
   notes and unresolved schema questions.
 - `deploy/README.md` - short inventory of deployment target directories.
 
@@ -214,7 +215,7 @@ gproxy is licensed under AGPL-3.0-or-later.
 workspace：它是一个 Rust crate，同时提供 native binary、wasm/edge library surface，
 以及一个独立的 React console，console 构建后会嵌入 native binary。
 
-产品级安装和使用看根目录 `README.md`；系统模型看 `docs/architecture-design.md`；
+产品级安装和使用看根目录 `README.md`；系统模型看 `dev-docs/architecture-design.md`；
 修改仓库时需要的命令和边界看本页。
 
 ## 仓库结构
@@ -242,7 +243,8 @@ workspace：它是一个 Rust crate，同时提供 native binary、wasm/edge lib
 |-- assets/console/         # generated embed target for rust-embed
 |-- deploy/                 # platform entries and build scripts for edge wasm
 |-- upstream_docs/          # provider protocol/reference material
-`-- docs/                   # architecture, deployment, and implementation docs
+|-- docs/                   # Astro/Starlight documentation website
+`-- dev-docs/               # source developer docs used to generate the site
 ```
 
 native server 和 edge worker 共享同一套应用状态与请求处理概念。平台相关代码应留在边界：
@@ -343,7 +345,7 @@ release workflow 会为 Cloudflare、EdgeOne Pages、Netlify、Supabase、Appwri
 Deno Deploy 打包可部署 bundle。edge 平台应该部署这些预构建 bundle，或部署本地生成的等价
 bundle；不要让平台从源码 checkout 里现编 cargo。
 
-平台细节看 `docs/edge-deploy.md`。
+平台细节看 `dev-docs/edge-deploy.md`。
 
 ## Appwrite
 
@@ -385,11 +387,11 @@ policy 和 preset 优先放在前端/配置边界，除非 runtime 真正需要�
 
 ## 相关页面
 
-- `docs/architecture-design.md`：v2 架构和请求生命周期。
-- `docs/deployment.md`：console 部署形态。
-- `docs/edge-deploy.md`：edge wasm 部署模型和平台注意事项。
-- `docs/v1-to-v2-migration.md`：v1 数据迁移行为。
-- `docs/generic-transform-rule-design-notes.md`：当前通用转换规则设计笔记和未决 schema 问题。
+- `dev-docs/architecture-design.md`：v2 架构和请求生命周期。
+- `dev-docs/deployment.md`：console 部署形态。
+- `dev-docs/edge-deploy.md`：edge wasm 部署模型和平台注意事项。
+- `dev-docs/v1-to-v2-migration.md`：v1 数据迁移行为。
+- `dev-docs/generic-transform-rule-design-notes.md`：当前通用转换规则设计笔记和未决 schema 问题。
 - `deploy/README.md`：部署目标目录清单。
 
 ## 许可证

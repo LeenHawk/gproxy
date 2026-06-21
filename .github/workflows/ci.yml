@@ -47,6 +47,26 @@ jobs:
       - name: Build
         run: pnpm build
 
+  docs:
+    name: Docs (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
   backend:
     name: Backend (fmt · clippy · test · edge-wasm)
     runs-on: ubuntu-latest
