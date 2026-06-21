@@ -71,3 +71,7 @@ samples/
 
 # ── channel-probe capture output (tools/channel-probe run output; never commit) ──
 probe-out/
+
+# ── Local/generated planning archives ──
+/docs/plans/
+/docs/superpowers/
