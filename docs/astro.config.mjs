@@ -8,7 +8,7 @@ export default defineConfig({
     starlight({
       title: 'GPROXY v2',
       description:
-        'The gproxy v2 documentation site: architecture, deployment, migration, edge runtime, and agent compatibility.',
+        'The GPROXY v2 documentation site: architecture, deployment, migration, edge runtime, and agent compatibility.',
       favicon: '/favicon.ico',
       head: [
         {

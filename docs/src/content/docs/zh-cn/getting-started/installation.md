@@ -1,9 +1,9 @@
 ---
 title: 安装
-description: 通过 release 二进制、Docker 镜像、源码构建或 edge bundle 安装 gproxy v2。
+description: 通过 release 二进制、Docker 镜像、源码构建或 edge bundle 安装 GPROXY v2。
 ---
 
-gproxy v2 是一个单 Rust crate，native 产物是名为 `gproxy` 的二进制。同一个 crate
+GPROXY v2 是一个单 Rust crate，native 产物是名为 `gproxy` 的二进制。同一个 crate
 也可以编译成 edge WebAssembly runtime。native 形态下，React Console 不是独立服务：
 构建 `console/` 后，静态文件会同步到 `assets/console/`，再被编进二进制。
 
@@ -45,7 +45,7 @@ docker run --rm -p 8787:8787 \
 
 ## 从源码构建
 
-开发 gproxy，或 release 尚未包含目标平台时，使用源码构建。
+开发 GPROXY，或 release 尚未包含目标平台时，使用源码构建。
 
 前置条件：
 

@@ -3,7 +3,7 @@ name = "gproxy"
 version = "2.0.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
-description = "gproxy v2 — high-performance LLM proxy (rewrite)"
+description = "GPROXY v2 — high-performance LLM proxy (rewrite)"
 
 [lib]
 name = "gproxy"

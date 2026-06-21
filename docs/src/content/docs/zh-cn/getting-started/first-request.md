@@ -1,9 +1,9 @@
 ---
 title: 第一条请求
-description: 通过 gproxy v2 发送 OpenAI、Claude 和 Gemini 兼容请求。
+description: 通过 GPROXY v2 发送 OpenAI、Claude 和 Gemini 兼容请求。
 ---
 
-gproxy v2 暴露 OpenAI、Anthropic 和 Gemini 兼容 HTTP surface。调用方使用 user API
+GPROXY v2 暴露 OpenAI、Anthropic 和 Gemini 兼容 HTTP surface。调用方使用 user API
 key 鉴权；provider、route、route member、alias、rule、permission、quota 和
 credential 决定请求转发到哪里。
 
@@ -32,7 +32,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-聚合模型列表由 gproxy 自己的 snapshot 返回：
+聚合模型列表由 GPROXY 自己的 snapshot 返回：
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \

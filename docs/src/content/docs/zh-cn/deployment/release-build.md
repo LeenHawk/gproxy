@@ -1,6 +1,6 @@
 ---
 title: Release 构建
-description: 构建带内嵌 Console 的生产级 gproxy v2 native 二进制。
+description: 构建带内嵌 Console 的生产级 GPROXY v2 native 二进制。
 ---
 
 native release 构建由一个单 crate Rust build 和一个可选 Console 资产构建组成。

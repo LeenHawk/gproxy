@@ -19,7 +19,7 @@
   "aliases": [{ "id": 1, "alias": "claude-sonnet-4-5", "route_id": 1 }],
   "rule_sets": [{ "id": 1, "name": "dev-prelude", "enabled": true, "description": null }],
   "rules": [
-    { "id": 1, "rule_set_id": 1, "kind": "system_text", "config_json": { "text": "You are routed by gproxy." }, "filter_model_pattern": null, "filter_operation_keys": null, "sort_order": 0, "enabled": true }
+    { "id": 1, "rule_set_id": 1, "kind": "system_text", "config_json": { "text": "You are routed by GPROXY." }, "filter_model_pattern": null, "filter_operation_keys": null, "sort_order": 0, "enabled": true }
   ],
   "provider_rule_sets": [{ "id": 1, "provider_id": 1, "rule_set_id": 1, "sort_order": 0, "enabled": true }]
 }

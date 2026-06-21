@@ -1,6 +1,6 @@
 {
   "title": "更新",
-  "subtitle": "檢查並套用此 gproxy 執行個體的二進位更新。",
+  "subtitle": "檢查並套用此 GPROXY 執行個體的二進位更新。",
   "check": {
     "button": "檢查更新",
     "current": "目前版本",
@@ -27,7 +27,7 @@
     "downloading": "正在下載更新…",
     "staged": "已暫存",
     "failed": "失敗",
-    "stagedRestartNotice": "新的二進位檔案已暫存。請重新啟動 gproxy 服務以使更新生效。",
+    "stagedRestartNotice": "新的二進位檔案已暫存。請重新啟動 GPROXY 服務以使更新生效。",
     "failedError": "錯誤"
   },
   "channel": {

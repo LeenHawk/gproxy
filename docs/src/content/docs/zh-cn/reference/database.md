@@ -3,7 +3,7 @@ title: 数据库后端
 description: native 与 edge 持久化后端、schema 行为、secret 存储和运维取舍。
 ---
 
-gproxy v2 有一个 persistence trait 和多个后端。native 部署可以使用 file
+GPROXY v2 有一个 persistence trait 和多个后端。native 部署可以使用 file
 后端或 SeaORM database 后端。edge 部署在 wasm bundle 中使用面向
 libSQL/Turso 的后端。
 
@@ -81,7 +81,7 @@ JSON 列在 Rust record 中以 JSON-like value 表示；后端需要时以 text 
 `GPROXY_MASTER_KEY` 控制 v2 sealed-secret 模式。它必须是标准 base64，解码后正好 32 字节。
 
 - 设置后，provider credential 和 user API-key ciphertext 会在存储前密封。
-- 缺失时，gproxy 进入明文模式并打印警告。
+- 缺失时，GPROXY 进入明文模式并打印警告。
 - 用户密码是 Argon2 hash；恢复覆盖会先重新 hash 再存储。
 
 export 会把 secret 解密到 JSON bundle 中，以支持 `export | import`

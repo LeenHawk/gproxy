@@ -1,6 +1,6 @@
 ---
 title: Docker
-description: Run the published gproxy v2 Docker image with persistent data and optional database DSNs.
+description: Run the published GPROXY v2 Docker image with persistent data and optional database DSNs.
 ---
 
 The official image is `ghcr.io/leenhawk/gproxy`. It is a thin runtime image

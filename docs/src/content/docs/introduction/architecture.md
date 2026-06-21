@@ -1,9 +1,9 @@
 ---
 title: Architecture
-description: The current gproxy v2 runtime architecture and request lifecycle.
+description: The current GPROXY v2 runtime architecture and request lifecycle.
 ---
 
-gproxy v2 is a single Rust crate with two runtime surfaces:
+GPROXY v2 is a single Rust crate with two runtime surfaces:
 
 - a native binary in `src/main.rs`, served by Axum and native upstream clients;
 - a wasm library entry in `src/lib.rs` / `src/http/edge/`, used by edge platform

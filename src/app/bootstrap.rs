@@ -97,7 +97,7 @@ async fn ensure_default_org(db: &dyn PersistenceBackend) -> anyhow::Result<i64> 
 fn print_admin_banner(admin_user: &str, password: &str) {
     let line = "=".repeat(60);
     println!(
-        "{line}\n gproxy first-boot admin created\n   user:     {admin_user}\n   password: {password}\n Change it after first login. Shown ONCE — not stored in plaintext.\n{line}"
+        "{line}\n GPROXY first-boot admin created\n   user:     {admin_user}\n   password: {password}\n Change it after first login. Shown ONCE — not stored in plaintext.\n{line}"
     );
 }
 

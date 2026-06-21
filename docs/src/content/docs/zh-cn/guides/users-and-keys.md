@@ -1,6 +1,6 @@
 ---
 title: 用户与 API Key
-description: 在 gproxy v2 中管理组织、团队、用户、管理员会话、用户门户和用户 API key。
+description: 在 GPROXY v2 中管理组织、团队、用户、管理员会话、用户门户和用户 API key。
 ---
 
 网关流量通过用户 API key 认证为某个 user。Console 和用户门户通过用户名/密码登录，并使用服务端 session。

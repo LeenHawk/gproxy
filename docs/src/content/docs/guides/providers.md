@@ -1,6 +1,6 @@
 ---
 title: Providers and Channels
-description: Configure upstream providers, credentials, routing capabilities, proxies, TLS profiles, and scoped provider access in gproxy v2.
+description: Configure upstream providers, credentials, routing capabilities, proxies, TLS profiles, and scoped provider access in GPROXY v2.
 ---
 
 A **provider** is one named upstream endpoint. It binds a stable name to a
@@ -60,7 +60,7 @@ master key is configured.
 
 ## Aggregated and Scoped Access
 
-gproxy v2 supports two ways to reach an upstream:
+GPROXY v2 supports two ways to reach an upstream:
 
 | Mode | URL shape | Resolution |
 | --- | --- | --- |

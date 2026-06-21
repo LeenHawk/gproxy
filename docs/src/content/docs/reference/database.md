@@ -3,7 +3,7 @@ title: Database Backends
 description: Native and edge persistence backends, schema behavior, secret storage, and operational tradeoffs.
 ---
 
-gproxy v2 has one persistence trait with multiple backends. Native deployments
+GPROXY v2 has one persistence trait with multiple backends. Native deployments
 can use the file backend or the SeaORM database backend. Edge deployments use a
 libSQL/Turso-oriented backend in the wasm bundle.
 
@@ -15,7 +15,7 @@ cache backend is separate from persistence.
 
 | Backend | Select with | Notes |
 | --- | --- | --- |
-| SeaORM database | `GPROXY_PERSISTENCE=db` | Default native backend. Supports SQLite, PostgreSQL, and MySQL through SeaORM features. If `GPROXY_DSN` is omitted, gproxy derives `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`. |
+| SeaORM database | `GPROXY_PERSISTENCE=db` | Default native backend. Supports SQLite, PostgreSQL, and MySQL through SeaORM features. If `GPROXY_DSN` is omitted, GPROXY derives `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`. |
 | File backend | `GPROXY_PERSISTENCE=file` | Stores one JSON file per logical table under `GPROXY_DATA_DIR`. It is single-instance only and takes an exclusive advisory lock on `.gproxy.lock`. |
 
 Native `db` is the recommended backend for multi-instance deployments. Redis
@@ -92,7 +92,7 @@ for exactly 32 decoded bytes.
 
 - If set, provider credentials and user API-key ciphertext are sealed before
   storage.
-- If absent, gproxy runs in plaintext mode and logs a warning.
+- If absent, GPROXY runs in plaintext mode and logs a warning.
 - User passwords are Argon2 hashes; the recovery override rehashes the supplied
   password before storing it.
 

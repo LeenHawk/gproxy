@@ -1,9 +1,9 @@
 # Console 部署形态
 
-gproxy v2 的 `console/` 是一份 Vite 构建出来的静态 SPA，默认挂在
+GPROXY v2 的 `console/` 是一份 Vite 构建出来的静态 SPA，默认挂在
 `/console/`。它不是单独的后端服务；页面里的 API 请求使用相对路径，例如
 `/admin/*`、`/user/*`、`/healthz`、`/version`、`/metrics`。因此最稳妥的部署模型是：
-**console 静态资源和 gproxy API 对浏览器保持同源**。
+**console 静态资源和 GPROXY API 对浏览器保持同源**。
 
 后端 HTTP 面分为四类：
 
@@ -61,18 +61,18 @@ cargo build --release
 ## 形态 1：独立静态托管 + 同源反代
 
 如果你不想把 console 编进二进制，可以把 `console/dist/` 放到 Nginx、Caddy、
-S3+CDN 或其它静态资源系统，但浏览器看到的域名仍应把 API 路径反代回 gproxy。
+S3+CDN 或其它静态资源系统，但浏览器看到的域名仍应把 API 路径反代回 GPROXY。
 
 示意：
 
 ```text
 https://gproxy.example.com/console/*  -> static dist/
-https://gproxy.example.com/admin/*    -> gproxy native/edge API
-https://gproxy.example.com/user/*     -> gproxy native/edge API
-https://gproxy.example.com/v1/*       -> gproxy gateway
-https://gproxy.example.com/healthz    -> gproxy ops endpoint
-https://gproxy.example.com/version    -> gproxy ops endpoint
-https://gproxy.example.com/metrics    -> gproxy ops endpoint
+https://gproxy.example.com/admin/*    -> GPROXY native/edge API
+https://gproxy.example.com/user/*     -> GPROXY native/edge API
+https://gproxy.example.com/v1/*       -> GPROXY gateway
+https://gproxy.example.com/healthz    -> GPROXY ops endpoint
+https://gproxy.example.com/version    -> GPROXY ops endpoint
+https://gproxy.example.com/metrics    -> GPROXY ops endpoint
 ```
 
 这个形态仍然是同源部署，cookie、CSRF、`fetch(..., { credentials: "include" })`
@@ -116,9 +116,9 @@ edge wasm worker 可以服务网关、`/admin/*` 和 `/user/*`。推荐做法是
 
 ```text
 https://edge.example.com/console/*  -> platform static assets
-https://edge.example.com/admin/*    -> gproxy wasm worker
-https://edge.example.com/user/*     -> gproxy wasm worker
-https://edge.example.com/v1/*       -> gproxy wasm worker
+https://edge.example.com/admin/*    -> GPROXY wasm worker
+https://edge.example.com/user/*     -> GPROXY wasm worker
+https://edge.example.com/v1/*       -> GPROXY wasm worker
 ```
 
 edge 入口在 `src/http/edge/` 中直接按 path 分发，不走 native Axum router。它的控制面
@@ -173,11 +173,11 @@ pnpm dev
 
 # Console Deployment Shapes
 
-The gproxy v2 `console/` is a static SPA built by Vite and mounted at
+The GPROXY v2 `console/` is a static SPA built by Vite and mounted at
 `/console/` by default. It is not a separate backend service. API calls inside
 the SPA use relative paths such as `/admin/*`, `/user/*`, `/healthz`,
 `/version`, and `/metrics`. The safest deployment model is therefore:
-**serve the console static assets and the gproxy API from the same browser
+**serve the console static assets and the GPROXY API from the same browser
 origin**.
 
 The backend HTTP surface has four groups:
@@ -240,18 +240,18 @@ should have the fewest moving parts.
 
 If you do not want to embed the console in the binary, place `console/dist/` in
 Nginx, Caddy, S3+CDN, or another static asset system, but keep the browser-facing
-domain routing API paths back to gproxy.
+domain routing API paths back to GPROXY.
 
 Example:
 
 ```text
 https://gproxy.example.com/console/*  -> static dist/
-https://gproxy.example.com/admin/*    -> gproxy native/edge API
-https://gproxy.example.com/user/*     -> gproxy native/edge API
-https://gproxy.example.com/v1/*       -> gproxy gateway
-https://gproxy.example.com/healthz    -> gproxy ops endpoint
-https://gproxy.example.com/version    -> gproxy ops endpoint
-https://gproxy.example.com/metrics    -> gproxy ops endpoint
+https://gproxy.example.com/admin/*    -> GPROXY native/edge API
+https://gproxy.example.com/user/*     -> GPROXY native/edge API
+https://gproxy.example.com/v1/*       -> GPROXY gateway
+https://gproxy.example.com/healthz    -> GPROXY ops endpoint
+https://gproxy.example.com/version    -> GPROXY ops endpoint
+https://gproxy.example.com/metrics    -> GPROXY ops endpoint
 ```
 
 This remains a same-origin deployment. Cookies, CSRF, and
@@ -298,9 +298,9 @@ Recommended deployment keeps console static assets on the same edge domain:
 
 ```text
 https://edge.example.com/console/*  -> platform static assets
-https://edge.example.com/admin/*    -> gproxy wasm worker
-https://edge.example.com/user/*     -> gproxy wasm worker
-https://edge.example.com/v1/*       -> gproxy wasm worker
+https://edge.example.com/admin/*    -> GPROXY wasm worker
+https://edge.example.com/user/*     -> GPROXY wasm worker
+https://edge.example.com/v1/*       -> GPROXY wasm worker
 ```
 
 The edge entry in `src/http/edge/` dispatches directly by path and does not run

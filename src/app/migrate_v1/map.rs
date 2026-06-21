@@ -33,7 +33,7 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
         id: Some(DEFAULT_ORG_ID),
         name: DEFAULT_ORG_NAME.to_string(),
         enabled: true,
-        description: Some("migrated from gproxy v1".to_string()),
+        description: Some("migrated from GPROXY v1".to_string()),
     });
 
     for u in &data.users {

@@ -1,9 +1,9 @@
 ---
 title: What is GPROXY v2?
-description: A high-level overview of the gproxy v2 rewrite and what it is designed to do.
+description: A high-level overview of the GPROXY v2 rewrite and what it is designed to do.
 ---
 
-**GPROXY v2** is the rewrite of the gproxy LLM gateway. It keeps the original
+**GPROXY v2** is the rewrite of the GPROXY LLM gateway. It keeps the original
 goal from v1: one HTTP entry point for many LLM providers, with routing,
 credentials, user API keys, policy, usage accounting, and a browser console.
 The implementation shape is different: v2 is one Rust crate that can build a

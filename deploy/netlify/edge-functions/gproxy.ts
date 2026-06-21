@@ -1,4 +1,4 @@
-// gproxy v2 — Netlify Edge Function entry.
+// GPROXY v2 — Netlify Edge Function entry.
 //
 // Netlify Edge Functions run on Deno Deploy infrastructure, so the same
 // wasm-bindgen `--target deno` glue used for the Supabase / Deno Deploy entries

@@ -1,6 +1,6 @@
 ---
 title: 从 v1 迁移到 v2
-description: 将 v1 SQLite 部署迁移到 gproxy v2，并理解行为差异。
+description: 将 v1 SQLite 部署迁移到 GPROXY v2，并理解行为差异。
 ---
 
 v2 带有一个临时 v1 SQLite 迁移器，使常见单机部署可以替换二进制后直接启动。启动时，

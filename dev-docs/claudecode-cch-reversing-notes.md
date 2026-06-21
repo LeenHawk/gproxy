@@ -197,7 +197,7 @@ xxh64(body_bytes, 0x4d659218e32a3268) & 0xfffff
 - 不要把 seed 当成永久常量；它可能随 Claude Code 版本变化。
 - 不要用 pretty JSON 验证最终值；hash 对原始 bytes 敏感。
 
-## 对 gproxy 的含义
+## 对 GPROXY 的含义
 
 如果要在 `claudecode` 渠道实现这个逻辑，签名必须放在所有 transform / process / rule 改写之后、请求发出之前。
 
@@ -428,7 +428,7 @@ algorithm is confirmed.
 - Do not assume the seed is permanent; it may change across Claude Code versions.
 - Do not use pretty JSON to verify the final value; the hash is byte-sensitive.
 
-## Meaning For gproxy
+## Meaning For GPROXY
 
 In the `claudecode` channel, signing must happen after all transform / process /
 rule mutations and immediately before the upstream request is sent.

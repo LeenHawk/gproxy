@@ -1,6 +1,6 @@
 {
   "title": "Updates",
-  "subtitle": "Check for and apply binary updates to this gproxy instance.",
+  "subtitle": "Check for and apply binary updates to this GPROXY instance.",
   "check": {
     "button": "Check for updates",
     "current": "Current version",
@@ -27,7 +27,7 @@
     "downloading": "Downloading update…",
     "staged": "Staged",
     "failed": "Failed",
-    "stagedRestartNotice": "A new binary has been staged. Restart the gproxy service for the update to take effect.",
+    "stagedRestartNotice": "A new binary has been staged. Restart the GPROXY service for the update to take effect.",
     "failedError": "Error"
   },
   "channel": {

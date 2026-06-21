@@ -1,4 +1,4 @@
-# gproxy v2 — Netlify site config.
+# GPROXY v2 — Netlify site config.
 #
 # A minimal `public/` dir is published (Netlify requires a publish dir even
 # when the site's only job is to host an edge function). All traffic is routed
@@ -11,7 +11,7 @@
   # netlify/edge-functions), so point at the directory explicitly.
   edge_functions = "edge-functions"
 
-# Route every request to the gproxy edge function. The function name matches the
+# Route every request to the `gproxy` edge function. The function name matches the
 # file basename in deploy/netlify/edge-functions/ (gproxy.ts → "gproxy").
 [[edge_functions]]
   path = "/*"

@@ -1,4 +1,4 @@
-# gproxy
+# GPROXY
 
 **单个 Rust 二进制的高性能、多供应商 LLM 代理** —— 内嵌 React 控制台、多租户鉴权,
 同一套引擎可**原生 / Docker / 边缘(WebAssembly)** 三种形态运行。
@@ -13,7 +13,7 @@
 
 ## 它做什么
 
-gproxy 在众多上游 LLM 供应商之上,暴露统一的 **OpenAI / Anthropic / Gemini 兼容**
+GPROXY 在众多上游 LLM 供应商之上,暴露统一的 **OpenAI / Anthropic / Gemini 兼容**
 HTTP 接口,并补齐把它当共享服务运行所需的一切:
 
 - **多供应商路由** —— OpenAI、Anthropic、Gemini/Vertex、DeepSeek、Groq、OpenRouter、
@@ -70,7 +70,7 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 
 ## 配置
 
-gproxy 用**环境变量**配置;运行期配置进数据库,通过 `/console` 管理。
+GPROXY 用**环境变量**配置;运行期配置进数据库,通过 `/console` 管理。
 
 | 变量 | 默认 | 用途 |
 |---|---|---|

@@ -1,6 +1,6 @@
 ---
 title: Migrating From v1 To v2
-description: Migrate a v1 SQLite deployment to gproxy v2 and understand what changes.
+description: Migrate a v1 SQLite deployment to GPROXY v2 and understand what changes.
 ---
 
 v2 includes a temporary v1 SQLite migrator so common single-node deployments can

@@ -1,12 +1,12 @@
-# gproxy on Appwrite Functions (deno-2.0 runtime, via wasm)
+# GPROXY on Appwrite Functions (deno-2.0 runtime, via wasm)
 
-gproxy runs on Appwrite Functions as a **Deno** function that serves the
+GPROXY runs on Appwrite Functions as a **Deno** function that serves the
 **pre-built edge wasm** — Appwrite never compiles Rust. `main.ts` bridges
 Appwrite's `context.req` → the wasm `fetch` export → `context.res`. This is the
 same wasm that runs on Netlify / Supabase / Deno Deploy.
 
 > **Why not the native Rust runtime?** Appwrite's `rust-1.83` runtime can't build
-> gproxy: it compiles your crate with **Cargo 1.83** (gproxy is edition 2024 /
+> GPROXY: it compiles your crate with **Cargo 1.83** (GPROXY is edition 2024 /
 > needs ≥1.85), expects the crate named `handler`, builds with default features,
 > and caps build time at ~10 min — all fatal for a crate this size with BoringSSL.
 > The wasm/deno path sidesteps every one of those (deploys in ~20 s). **Verified
@@ -36,4 +36,4 @@ appwrite functions create-variable --function-id gproxy-wasm \
 
 The function dir must contain `main.ts` + the generated `gproxy.js` +
 `gproxy_wasm_inline.ts` (self-contained). Invoke via the executions API or a
-function domain; the gproxy router serves the request by path.
+function domain; the GPROXY router serves the request by path.

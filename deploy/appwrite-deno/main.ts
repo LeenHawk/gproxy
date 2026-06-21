@@ -1,4 +1,4 @@
-// gproxy on Appwrite Functions — **deno-2.0 runtime** (pre-built wasm, no cargo).
+// GPROXY on Appwrite Functions — **deno-2.0 runtime** (pre-built wasm, no cargo).
 //
 // This wraps the SAME wasm-bindgen `--target deno` edge build that runs on
 // Netlify / Supabase / Deno Deploy. Appwrite's open-runtimes deno runtime calls
@@ -16,7 +16,7 @@ import { fetch as wasmFetch, init } from "./gproxy.js";
 
 function reqEnv(name: string): string {
   const v = Deno.env.get(name);
-  if (!v) throw new Error(`gproxy: missing required env ${name}`);
+  if (!v) throw new Error(`GPROXY: missing required env ${name}`);
   return v;
 }
 function optEnv(name: string): string | undefined {

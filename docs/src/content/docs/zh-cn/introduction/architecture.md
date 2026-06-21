@@ -1,9 +1,9 @@
 ---
 title: 架构概览
-description: gproxy v2 当前运行时架构和请求生命周期。
+description: GPROXY v2 当前运行时架构和请求生命周期。
 ---
 
-gproxy v2 是一个 Rust crate，但有两个运行时出口：
+GPROXY v2 是一个 Rust crate，但有两个运行时出口：
 
 - `src/main.rs` 中的 native binary，由 Axum 和 native upstream client 提供服务；
 - `src/lib.rs` / `src/http/edge/` 中的 wasm library entry，用于 edge 平台 bundle。

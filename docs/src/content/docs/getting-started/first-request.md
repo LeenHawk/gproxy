@@ -1,9 +1,9 @@
 ---
 title: First Request
-description: Send OpenAI, Claude, and Gemini compatible requests through gproxy v2.
+description: Send OpenAI, Claude, and Gemini compatible requests through GPROXY v2.
 ---
 
-gproxy v2 exposes OpenAI, Anthropic, and Gemini-compatible HTTP surfaces. A user
+GPROXY v2 exposes OpenAI, Anthropic, and Gemini-compatible HTTP surfaces. A user
 API key authenticates the caller; providers, routes, route members, aliases,
 rules, permissions, quotas, and credentials decide where the request goes.
 
@@ -32,7 +32,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-Aggregated model list routes are served by gproxy's own snapshot:
+Aggregated model list routes are served by GPROXY's own snapshot:
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \

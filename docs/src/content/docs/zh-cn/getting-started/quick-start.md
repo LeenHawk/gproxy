@@ -1,9 +1,9 @@
 ---
 title: 快速开始
-description: 本地启动 gproxy v2，导入最小配置 bundle，打开 Console，并发出第一条请求。
+description: 本地启动 GPROXY v2，导入最小配置 bundle，打开 Console，并发出第一条请求。
 ---
 
-这页会启动一个带内嵌 Console 的本地 native gproxy v2 实例，并导入一个最小 JSON
+这页会启动一个带内嵌 Console 的本地 native GPROXY v2 实例，并导入一个最小 JSON
 bundle。这里使用当前 v2 配置模型：运行时设置来自 CLI flag 或环境变量；provider、
 route、user、key、rule 等控制面记录存在 persistence 中，可通过 JSON 导入。
 
@@ -49,7 +49,7 @@ cp docs/public/examples/import-dev.json ./import-dev.local.json
 `import-dev.local.json` 包含明文上游凭证和 user API key。只放本地，不要提交。
 :::
 
-## 3. 启动 gproxy
+## 3. 启动 GPROXY
 
 用本地 data 目录启动 native 二进制，并让 first-boot hook 在空 store 时导入 bundle：
 
@@ -74,7 +74,7 @@ GPROXY_ADMIN_PASSWORD=change-me-please \
 `GPROXY_IMPORT_FILE` 只在 providers 和 users 都为空时导入。store 已有数据后，这个环境变量会被跳过。
 
 `GPROXY_ADMIN_USER=dev` 让恢复覆盖开关指向导入 bundle 中的 admin 用户。只要设置着
-`GPROXY_ADMIN_PASSWORD`，gproxy 每次启动都会强制 upsert 这个 admin 用户。首次登录后如果
+`GPROXY_ADMIN_PASSWORD`，GPROXY 每次启动都会强制 upsert 这个 admin 用户。首次登录后如果
 不希望宿主机继续拥有重置密码路径，应移除它。
 
 如需加密保存 secret，设置 `GPROXY_MASTER_KEY`，值必须是标准 base64 编码的 32 字节。

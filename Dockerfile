@@ -1,4 +1,4 @@
-# gproxy v2 runtime image.
+# GPROXY v2 runtime image.
 #
 # Built by .github/workflows/release.yml (the `docker-build` job) from a
 # *prebuilt* Linux binary — NOT from source. The binary is compiled and

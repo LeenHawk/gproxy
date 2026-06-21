@@ -1,9 +1,9 @@
 ---
 title: Quick Start
-description: Start gproxy v2 locally, seed a small config bundle, open Console, and make the first request.
+description: Start GPROXY v2 locally, seed a small config bundle, open Console, and make the first request.
 ---
 
-This guide starts a local native gproxy v2 instance with an embedded console and
+This guide starts a local native GPROXY v2 instance with an embedded console and
 a minimal import bundle. It uses the current v2 config model: runtime settings
 come from CLI flags or environment variables, while provider, route, user, key,
 and rule records live in persistence and can be imported as JSON.
@@ -54,7 +54,7 @@ The example bundle creates:
 keys. Keep it local and do not commit it.
 :::
 
-## 3. Start gproxy
+## 3. Start GPROXY
 
 Start the native binary with a local data directory and ask the first-boot hook
 to import the bundle if the store is empty:

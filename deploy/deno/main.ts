@@ -1,4 +1,4 @@
-// gproxy v2 — Deno Deploy production entry.
+// GPROXY v2 — Deno Deploy production entry.
 //
 // Loads the wasm-bindgen `deno`-target glue from ../../pkg (regenerated, never
 // committed — see the build recipe below), wires the storage credentials from

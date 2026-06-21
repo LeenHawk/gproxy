@@ -185,7 +185,7 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
             "id": e.id,
             "object": "model",
             "created": 0,
-            "owned_by": "gproxy",
+            "owned_by": "GPROXY",
         }),
         Provider::Claude => json!({
             "id": e.id,

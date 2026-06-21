@@ -1,4 +1,4 @@
-// gproxy v2 — Supabase Edge Function entry.
+// GPROXY v2 — Supabase Edge Function entry.
 //
 // Loads the wasm-bindgen `deno`-target glue colocated in this function dir
 // (gproxy.js + gproxy_bg.wasm — regenerated from the crate, see the build

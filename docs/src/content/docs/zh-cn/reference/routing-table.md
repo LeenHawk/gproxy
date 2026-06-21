@@ -3,12 +3,12 @@ title: 路由表
 description: v2 如何用持久化 routing_rules 表达 passthrough、transform、local 和 unsupported。
 ---
 
-gproxy v2 的 routing table 是每个 provider 一份的持久化矩阵。每行把一个
+GPROXY v2 的 routing table 是每个 provider 一份的持久化矩阵。每行把一个
 入站 `(operation, kind)` 映射到一种实现：
 
 - `passthrough`：不改变 wire dialect，直接转发给选中的 provider；
 - `transform_to`：发送上游前转换到另一个 operation/kind，支持时再把响应转回；
-- `local`：在 gproxy 内部处理，不调用上游；
+- `local`：在 GPROXY 内部处理，不调用上游；
 - `unsupported`：拒绝该单元格。
 
 请求时只读取已存储且启用的行。没有匹配行就视为 unsupported。channel

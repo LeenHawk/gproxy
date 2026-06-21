@@ -378,7 +378,7 @@ jobs:
           cp target/wasm32-unknown-unknown/release/gproxy.wasm "$stage/gproxy.wasm"
           rm -rf "$stage"/*/.temp "$stage"/*/.netlify "$stage"/*/.wrangler "$stage"/*/.edgeone 2>/dev/null || true
           {
-            echo "# gproxy — deploy artifacts (auto-generated, do not edit)"
+            echo "# GPROXY — deploy artifacts (auto-generated, do not edit)"
             echo
             echo "Prebuilt, ready-to-deploy edge bundles. **No source** — wasm + glue +"
             echo "each platform's entry + config. The main README's one-click buttons point"

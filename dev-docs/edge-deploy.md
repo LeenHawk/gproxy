@@ -1,6 +1,6 @@
 # Edge wasm 部署
 
-gproxy v2 的 edge 版本是同一个 Rust crate 编译出来的 `wasm32-unknown-unknown`
+GPROXY v2 的 edge 版本是同一个 Rust crate 编译出来的 `wasm32-unknown-unknown`
 library。平台入口只负责三件事：加载 wasm-bindgen glue，调用 Rust 导出的
 `init(...)` 建立 `AppState`，然后把每个请求交给 wasm `fetch`。
 
@@ -309,7 +309,7 @@ curl -i "$EDGE_URL/v1/models"
 curl -i "$EDGE_URL/openai/v1/models"
 ```
 
-预期是未带 key 时返回 gproxy 的 JSON 401，而不是平台静态 404 或函数初始化错误。
+预期是未带 key 时返回 GPROXY 的 JSON 401，而不是平台静态 404 或函数初始化错误。
 
 ## 常见问题
 
@@ -332,7 +332,7 @@ curl -i "$EDGE_URL/openai/v1/models"
 
 # Edge Wasm Deployment
 
-The edge build of gproxy v2 is the same Rust crate compiled as a
+The edge build of GPROXY v2 is the same Rust crate compiled as a
 `wasm32-unknown-unknown` library. Platform entry code does only three things:
 load wasm-bindgen glue, call the Rust-exported `init(...)` to build `AppState`,
 and forward each request to the wasm `fetch`.
@@ -658,7 +658,7 @@ curl -i "$EDGE_URL/v1/models"
 curl -i "$EDGE_URL/openai/v1/models"
 ```
 
-Without a key, the expected result is gproxy's JSON 401, not a platform static
+Without a key, the expected result is GPROXY's JSON 401, not a platform static
 404 or function initialization error.
 
 ## Troubleshooting

@@ -416,7 +416,7 @@ mod tests {
             body: Bytes::from_static(br#"{"input":"hi"}"#),
         };
         let req = CodexChannel.prepare(ctx).unwrap().request;
-        // A codex-aware client's protocol headers pass through verbatim — gproxy
+        // A codex-aware client's protocol headers pass through verbatim — GPROXY
         // does NOT regenerate them (so they stay consistent with turn-metadata).
         assert_eq!(req.headers().get("session-id").unwrap(), id);
         assert_eq!(req.headers().get("thread-id").unwrap(), id);
@@ -429,7 +429,7 @@ mod tests {
             req.headers().get("x-codex-beta-features").unwrap(),
             "terminal_resize_reflow,memories"
         );
-        // gproxy still owns auth/originator/UA.
+        // GPROXY still owns auth/originator/UA.
         assert_eq!(req.headers().get("originator").unwrap(), "codex_exec");
     }
 

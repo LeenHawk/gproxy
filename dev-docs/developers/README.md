@@ -2,7 +2,7 @@
 
 ## English
 
-This page is the day-to-day entry point for working on gproxy v2. Unlike v1,
+This page is the day-to-day entry point for working on GPROXY v2. Unlike v1,
 the v2 rewrite is not a multi-crate Cargo workspace: it is one Rust crate with a
 native binary, a wasm/edge library surface, and a separate React console that is
 embedded into the native build.
@@ -152,7 +152,7 @@ See `dev-docs/edge-deploy.md` for platform-specific deploy notes.
 
 ## Appwrite
 
-`deploy/appwrite-deno/` runs gproxy as an Appwrite Deno function by serving the
+`deploy/appwrite-deno/` runs GPROXY as an Appwrite Deno function by serving the
 prebuilt wasm module and forwarding Appwrite's request/response objects through
 the wasm `fetch` export. Appwrite's Rust runtime is not the supported path for
 v2 because it cannot build this edition 2024 crate within the platform limits.
@@ -205,13 +205,13 @@ needs a new primitive.
 
 ## License
 
-gproxy is licensed under AGPL-3.0-or-later.
+GPROXY is licensed under AGPL-3.0-or-later.
 
 ## 中文
 
 # 开发者指南
 
-这页是日常开发 gproxy v2 的入口。和 v1 不同，v2 重写版不是多 crate 的 Cargo
+这页是日常开发 GPROXY v2 的入口。和 v1 不同，v2 重写版不是多 crate 的 Cargo
 workspace：它是一个 Rust crate，同时提供 native binary、wasm/edge library surface，
 以及一个独立的 React console，console 构建后会嵌入 native binary。
 
@@ -349,7 +349,7 @@ bundle；不要让平台从源码 checkout 里现编 cargo。
 
 ## Appwrite
 
-`deploy/appwrite-deno/` 通过 Appwrite Deno function 运行 gproxy：它加载预构建 wasm
+`deploy/appwrite-deno/` 通过 Appwrite Deno function 运行 GPROXY：它加载预构建 wasm
 module，并把 Appwrite 的 request/response 对象转发给 wasm `fetch` export。Appwrite 的
 Rust runtime 不是 v2 支持路径，因为平台无法在限制内构建 edition 2024 crate。
 
@@ -396,4 +396,4 @@ policy 和 preset 优先放在前端/配置边界，除非 runtime 真正需要�
 
 ## 许可证
 
-gproxy 使用 AGPL-3.0-or-later 许可证。
+GPROXY 使用 AGPL-3.0-or-later 许可证。

@@ -3,7 +3,7 @@ title: Pricing
 description: v2 如何存储模型价格、估算 quota admission 成本并结算最终 usage cost。
 ---
 
-gproxy v2 的 pricing 属于 provider model。权威配置是
+GPROXY v2 的 pricing 属于 provider model。权威配置是
 `provider_models.pricing_json`；当前没有单独的价格表。
 
 pricing 和 quota 相关但不是同一层：
@@ -77,7 +77,7 @@ cost =
 ## 运行时查找
 
 control-plane snapshot 会按 provider id 缓存 provider models。admission
-和 settlement 时，gproxy 用 `(provider_id, upstream_model_id)` 精确查找
+和 settlement 时，GPROXY 用 `(provider_id, upstream_model_id)` 精确查找
 对应 model，并解析该 model 的 `pricing_json`。
 
 当前 v2 pricing lookup 没有 glob、prefix 或 `"default"` model fallback。
@@ -92,7 +92,7 @@ control-plane snapshot 会按 provider id 缓存 provider models。admission
 - 估算值按选中 provider model 的 token pricing 计价；
 - 估算为 0 时跳过 pending quota 预扣。
 
-对带 quota 的 scope，gproxy 会把估算的 micro-dollar cost 加到
+对带 quota 的 scope，GPROXY 会把估算的 micro-dollar cost 加到
 `qp:{scope}:{id}` cache key。这些 pending counter 有 15 分钟 TTL，因此
 charge 和 refund 之间进程崩溃也会自愈。
 
@@ -143,4 +143,4 @@ JSON import/export 使用同样的 `provider_models` input shape：
 }
 ```
 
-admin mutation 后，gproxy 会 invalidates control-plane snapshot，使新请求读取更新后的 model 和 pricing 行。
+admin mutation 后，GPROXY 会 invalidates control-plane snapshot，使新请求读取更新后的 model 和 pricing 行。

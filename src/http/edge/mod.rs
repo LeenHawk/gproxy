@@ -165,7 +165,7 @@ pub async fn init(
 #[wasm_bindgen]
 pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
     let Some(state) = STATE.get() else {
-        return service_unavailable("gproxy edge not initialised: call init() first");
+        return service_unavailable("GPROXY edge not initialised: call init() first");
     };
 
     // §7.2 lazy snapshot refresh: edge has no pub/sub listener, so poll the

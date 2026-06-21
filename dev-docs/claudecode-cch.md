@@ -26,7 +26,7 @@ CCH 只对最终上游路径精确等于 `POST /v1/messages` 的模型调用生�
 3. Claude body 整形，例如 cache-control hygiene 和 sampling 参数清理；
 4. 可选的 magic cache 触发改写。
 
-因此 CCH 必须覆盖 gproxy 自己最终要发送的 body bytes，而不是客户端原始 body。
+因此 CCH 必须覆盖 GPROXY 自己最终要发送的 body bytes，而不是客户端原始 body。
 
 ## metadata.user_id
 
@@ -151,7 +151,7 @@ Before CCH runs, the request has already completed:
    stripping;
 4. optional magic-cache trigger rewriting.
 
-CCH must therefore cover the final body bytes that gproxy itself is about to
+CCH must therefore cover the final body bytes that GPROXY itself is about to
 send, not the client's original body.
 
 ## metadata.user_id

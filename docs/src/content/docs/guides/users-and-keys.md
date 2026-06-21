@@ -1,6 +1,6 @@
 ---
 title: Users and API Keys
-description: Manage organizations, teams, users, admin sessions, portal access, and user API keys in gproxy v2.
+description: Manage organizations, teams, users, admin sessions, portal access, and user API keys in GPROXY v2.
 ---
 
 Gateway traffic authenticates as a user through a user API key. Console and

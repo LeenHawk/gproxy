@@ -3,14 +3,14 @@ title: Routing Table
 description: How v2 stores per-provider routing rules for passthrough, transform, local handling, and unsupported operations.
 ---
 
-In gproxy v2, routing is a persisted per-provider matrix. Each row maps an
+In GPROXY v2, routing is a persisted per-provider matrix. Each row maps an
 incoming `(operation, kind)` pair to one implementation:
 
 - `passthrough` forwards to the selected provider without changing the wire
   dialect;
 - `transform_to` converts the request to another operation/kind before sending
   it upstream and converts the response back when supported;
-- `local` handles the request inside gproxy without an upstream call;
+- `local` handles the request inside GPROXY without an upstream call;
 - `unsupported` rejects the cell.
 
 At request time, only stored and enabled rows are consulted. If no row matches,

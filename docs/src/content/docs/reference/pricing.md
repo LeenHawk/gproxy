@@ -3,7 +3,7 @@ title: Pricing
 description: How v2 stores model prices, estimates quota admission cost, and settles final usage cost.
 ---
 
-gproxy v2 pricing is per provider model. The authoritative configuration is
+GPROXY v2 pricing is per provider model. The authoritative configuration is
 `provider_models.pricing_json`; there is no separate price table.
 
 Pricing and quotas are related but separate:
@@ -78,7 +78,7 @@ Image pricing is per generated image, not per million tokens.
 ## Runtime lookup
 
 The control-plane snapshot caches provider models by provider id. During
-admission and settlement, gproxy resolves pricing by exact
+admission and settlement, GPROXY resolves pricing by exact
 `(provider_id, upstream_model_id)` lookup in that snapshot and parses the
 model's `pricing_json`.
 
@@ -96,7 +96,7 @@ Before an upstream request is sent, quota admission uses a best-effort estimate:
 - the estimate is priced with the selected provider model's token pricing;
 - if the estimate is zero, pending quota pre-deduct is skipped.
 
-For quota-bearing scopes, gproxy adds the estimated micro-dollar cost to cache
+For quota-bearing scopes, GPROXY adds the estimated micro-dollar cost to cache
 keys named like `qp:{scope}:{id}`. These pending counters have a 15-minute TTL
 so a crash between charge and refund self-heals.
 
@@ -108,7 +108,7 @@ Successful content-generation responses settle exactly once:
 - native streaming responses attach a guard so normal end, upstream interruption,
   or client drop all settle once;
 - if upstream usage is present in the response, it is used;
-- otherwise gproxy falls back to local counting where the compiled feature set
+- otherwise GPROXY falls back to local counting where the compiled feature set
   supports it.
 
 The settled request writes a `usages` row with token counts, source, end state,
@@ -148,5 +148,5 @@ JSON import/export uses the same `provider_models` input shape:
 }
 ```
 
-After admin mutations, gproxy invalidates the control-plane snapshot so new
+After admin mutations, GPROXY invalidates the control-plane snapshot so new
 requests see the updated model and pricing rows.

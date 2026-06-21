@@ -83,7 +83,7 @@ fn lock_data_dir(data_dir: &std::path::Path) -> anyhow::Result<std::fs::File> {
     match lock.try_lock() {
         Ok(()) => {}
         Err(std::fs::TryLockError::WouldBlock) => anyhow::bail!(
-            "data dir {} is already in use by another gproxy process; \
+            "data dir {} is already in use by another GPROXY process; \
              the file backend is single-instance — use --persistence=db \
              to share state across instances",
             data_dir.display()
@@ -93,7 +93,7 @@ fn lock_data_dir(data_dir: &std::path::Path) -> anyhow::Result<std::fs::File> {
                 path = %path.display(),
                 error = %e,
                 "data-dir lock unsupported on this filesystem; concurrent \
-                 gproxy processes on this dir WILL corrupt data"
+                 GPROXY processes on this dir WILL corrupt data"
             );
         }
     }

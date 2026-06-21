@@ -1,4 +1,4 @@
-# gproxy v2 架构
+# GPROXY v2 架构
 
 v2 是一次重写，不再沿用 v1 的多 crate / SDK 分发结构。当前仓库是一个 Rust crate，
 同时产出 native binary 和 wasm library；React console 是独立的 `pnpm` 应用，构建后嵌入
@@ -349,7 +349,7 @@ Project rules live in `CLAUDE.md` and apply to architecture work:
 
 ## English
 
-# gproxy v2 Architecture
+# GPROXY v2 Architecture
 
 v2 is a rewrite. It does not keep the v1 multi-crate / SDK distribution shape.
 The current repository is one Rust crate that builds both a native binary and a

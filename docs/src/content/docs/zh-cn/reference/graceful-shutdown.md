@@ -3,7 +3,7 @@ title: 优雅关闭
 description: native 关闭信号、请求 drain、stream settlement，以及当前不保证的行为。
 ---
 
-gproxy v2 native server 在顶层 HTTP server 外使用 Axum 的
+GPROXY v2 native server 在顶层 HTTP server 外使用 Axum 的
 `with_graceful_shutdown`。它监听：
 
 - 所有 Tokio 支持的 native 平台上的 `Ctrl+C` / SIGINT；
@@ -17,7 +17,7 @@ future 完成。
 1. 二进制构建 persistence、cache、control-plane snapshot、HTTP client、channel registry 和 router。
 2. server bind 配置的地址。
 3. `axum::serve(...).with_graceful_shutdown(shutdown_signal())` 等待关闭信号。
-4. 收到信号后，gproxy 打印 `shutdown signal received`。
+4. 收到信号后，GPROXY 打印 `shutdown signal received`。
 5. Axum graceful shutdown 停止接受新工作，并按 Axum/Tokio 行为等待 in-flight request future。
 6. server future 完成后，`main` 返回。
 

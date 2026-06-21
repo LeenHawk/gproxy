@@ -1,4 +1,4 @@
-# gproxy
+# GPROXY
 
 **A high-performance, multi-provider LLM proxy in a single Rust binary** — with
 an embedded React console, multi-tenant auth, and the same engine compiled to run
@@ -14,7 +14,7 @@ English · [简体中文](README.zh_CN.md)
 
 ## What it does
 
-gproxy exposes a unified **OpenAI / Anthropic / Gemini-compatible** HTTP surface
+GPROXY exposes a unified **OpenAI / Anthropic / Gemini-compatible** HTTP surface
 on top of many upstream LLM providers, and adds everything you need to run it as a
 shared service:
 
@@ -75,7 +75,7 @@ Pre-built binaries (linux/macOS/windows, x86_64 + aarch64) ship on every
 
 ## Configure
 
-gproxy is configured by **environment variables**; live config then lives in the
+GPROXY is configured by **environment variables**; live config then lives in the
 database and is managed through `/console`.
 
 | Variable | Default | Purpose |

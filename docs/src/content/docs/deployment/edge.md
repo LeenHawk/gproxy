@@ -1,6 +1,6 @@
 ---
 title: Edge Wasm Deployment
-description: Deploy prebuilt gproxy v2 WebAssembly bundles to supported edge platforms.
+description: Deploy prebuilt GPROXY v2 WebAssembly bundles to supported edge platforms.
 ---
 
 The edge runtime is the same single Rust crate compiled as a

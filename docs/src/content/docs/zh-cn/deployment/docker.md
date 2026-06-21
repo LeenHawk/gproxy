@@ -1,6 +1,6 @@
 ---
 title: Docker
-description: 使用发布的 gproxy v2 Docker 镜像，配置持久化数据和可选数据库 DSN。
+description: 使用发布的 GPROXY v2 Docker 镜像，配置持久化数据和可选数据库 DSN。
 ---
 
 官方镜像是 `ghcr.io/leenhawk/gproxy`。它是基于预构建 Linux 二进制的轻量 runtime

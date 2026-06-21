@@ -3,7 +3,7 @@ title: TOML Config
 description: Compatibility note for the v1 TOML seed file and the supported v2 JSON import/export format.
 ---
 
-gproxy v2 does not read a `gproxy.toml` seed file on the native serve path. The
+GPROXY v2 does not read a `gproxy.toml` seed file on the native serve path. The
 v1 `GPROXY_CONFIG` / TOML bootstrap model has been replaced by:
 
 - startup CLI flags and environment variables for process-level settings;

@@ -1,4 +1,4 @@
-// gproxy v2 — Cloudflare Workers (module worker) entry.
+// GPROXY v2 — Cloudflare Workers (module worker) entry.
 //
 // Cloudflare Workers use a static-wasm-module model: a
 // statically-imported `.wasm` is bundled by wrangler as a `WebAssembly.Module`

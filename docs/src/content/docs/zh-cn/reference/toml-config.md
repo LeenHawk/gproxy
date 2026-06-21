@@ -3,7 +3,7 @@ title: TOML 配置
 description: v1 TOML seed 文件的兼容说明，以及 v2 支持的 JSON import/export 格式。
 ---
 
-gproxy v2 的 native serve 路径不读取 `gproxy.toml` seed 文件。v1 的
+GPROXY v2 的 native serve 路径不读取 `gproxy.toml` seed 文件。v1 的
 `GPROXY_CONFIG` / TOML bootstrap 模型已经被替换为：
 
 - 启动时的 CLI 参数和环境变量，用于进程级设置；

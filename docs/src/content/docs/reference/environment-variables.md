@@ -1,9 +1,9 @@
 ---
 title: Environment Variables
-description: Runtime, bootstrap, storage, update, and development environment variables supported by gproxy v2.
+description: Runtime, bootstrap, storage, update, and development environment variables supported by GPROXY v2.
 ---
 
-gproxy v2 is configured at process startup by CLI flags and environment
+GPROXY v2 is configured at process startup by CLI flags and environment
 variables. The native binary uses `clap`; for flags that declare an environment
 variable, the explicit CLI flag wins over the environment value.
 
@@ -30,23 +30,23 @@ console, admin API, or JSON import/export.
 | --- | --- | --- |
 | `GPROXY_PERSISTENCE` | `db` | Native persistence backend: `db` or `file`. `db` uses SeaORM and defaults to a SQLite file if no DSN is supplied. `file` stores one JSON file per table and is single-instance only. |
 | `GPROXY_DATA_DIR` | `./data` | Data directory. Used by the file backend, the default SQLite DSN, v1 migration backup/temp files, and self-update staging. |
-| `GPROXY_DSN` | Generated | Database DSN for `GPROXY_PERSISTENCE=db`. If omitted, gproxy uses `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`. |
+| `GPROXY_DSN` | Generated | Database DSN for `GPROXY_PERSISTENCE=db`. If omitted, GPROXY uses `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`. |
 | `GPROXY_REDIS_URL` | Empty | Redis URL for the shared cache backend when the binary is built with the `cache-redis` feature. If omitted, the native default is in-process memory cache. |
-| `GPROXY_MASTER_KEY` | Empty | Standard base64-encoded 32-byte key used to open and seal stored secrets. If absent, gproxy runs in plaintext-secret mode and logs a warning. This variable is env-only; there is no CLI flag. |
+| `GPROXY_MASTER_KEY` | Empty | Standard base64-encoded 32-byte key used to open and seal stored secrets. If absent, GPROXY runs in plaintext-secret mode and logs a warning. This variable is env-only; there is no CLI flag. |
 
 ## Upstream and routing support
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `GPROXY_UPSTREAM_PROXY_URL` | Empty | Native outbound proxy URL for upstream provider requests. Provider or credential proxy settings can override it. Edge deployments ignore this native HTTP-client setting. |
-| `GPROXY_IMPORT_FILE` | Empty | Serve-path first-boot import hook. If set and the store has no providers and no users, gproxy imports this JSON bundle before admin bootstrap. It is skipped once the store is populated. |
+| `GPROXY_IMPORT_FILE` | Empty | Serve-path first-boot import hook. If set and the store has no providers and no users, GPROXY imports this JSON bundle before admin bootstrap. It is skipped once the store is populated. |
 
 ## Admin bootstrap
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `GPROXY_ADMIN_USER` | `admin` | Admin username used by first-boot bootstrap and by the recovery override. |
-| `GPROXY_ADMIN_PASSWORD` | Empty | If set, force-upserts/resets the named admin user on every startup. The password must satisfy the same policy as the admin API. Remove it after recovery. If unset and the users table is empty, gproxy creates an admin with a random password and prints it once. |
+| `GPROXY_ADMIN_PASSWORD` | Empty | If set, force-upserts/resets the named admin user on every startup. The password must satisfy the same policy as the admin API. Remove it after recovery. If unset and the users table is empty, GPROXY creates an admin with a random password and prints it once. |
 
 There is no `GPROXY_ADMIN_API_KEY` bootstrap variable in the current v2 native
 path. User API keys are generated or managed through the admin/portal APIs, or

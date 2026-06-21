@@ -1,4 +1,4 @@
-//! gproxy v2 binary: parse CLI/env config, wire persistence + state + router, serve.
+//! GPROXY v2 binary: parse CLI/env config, wire persistence + state + router, serve.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use gproxy::store::cache::CacheBackend;
 use gproxy::store::persistence::PersistenceBackend;
 
 #[derive(Parser)]
-#[command(name = "gproxy", version, about = "gproxy v2 LLM proxy")]
+#[command(name = "gproxy", version, about = "GPROXY v2 LLM proxy")]
 struct Cli {
     /// Bind host (IPv6 must use bracket notation, e.g. [::1]).
     #[arg(long, env = "GPROXY_HOST", default_value = "127.0.0.1")]
@@ -395,7 +395,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     #[cfg(not(feature = "upstream-wreq"))]
-    compile_error!("a native gproxy binary requires the `upstream-wreq` feature");
+    compile_error!("a native GPROXY binary requires the `upstream-wreq` feature");
     #[cfg(feature = "upstream-wreq")]
     let upstream: Arc<dyn UpstreamClient> = Arc::new(
         gproxy::http::client::WreqClient::with_proxy_url(config.upstream.proxy_url.as_deref())?,
@@ -452,7 +452,7 @@ async fn main() -> anyhow::Result<()> {
     let app = http::server::router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;
-    tracing::info!("gproxy v2 listening on http://{bind}");
+    tracing::info!("GPROXY v2 listening on http://{bind}");
     // ConnectInfo carries the socket peer into handlers — the anchor the
     // trusted-proxy client-IP resolution verifies forwarding headers against.
     axum::serve(

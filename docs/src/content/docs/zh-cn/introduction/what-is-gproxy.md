@@ -1,9 +1,9 @@
 ---
 title: GPROXY v2 是什么?
-description: gproxy v2 重写版的高层介绍，以及它要解决的问题。
+description: GPROXY v2 重写版的高层介绍，以及它要解决的问题。
 ---
 
-**GPROXY v2** 是 gproxy LLM 网关的重写版。它延续 v1 的目标：用一个 HTTP
+**GPROXY v2** 是 GPROXY LLM 网关的重写版。它延续 v1 的目标：用一个 HTTP
 入口接入多个 LLM provider，并提供路由、凭证、用户 API key、策略、用量计费和浏览器控制台。
 v2 的实现形态不同：它是一个 Rust crate，同时构建 native server binary 和 edge runtime
 可用的 wasm library。

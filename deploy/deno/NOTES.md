@@ -7,7 +7,7 @@ verified?
 
 ## STATUS: `GPROXY_WASM_LIVE`
 
-gproxy v2's wasm edge build is live on Deno Deploy:
+GPROXY v2's wasm edge build is live on Deno Deploy:
 
 ```text
 Production URL: https://gproxy-deno.leenhawk20.deno.net

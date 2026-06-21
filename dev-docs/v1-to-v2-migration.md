@@ -1,4 +1,4 @@
-# gproxy v1 到 v2 迁移
+# GPROXY v1 到 v2 迁移
 
 v2 带有一个临时的 v1 SQLite 迁移器，目标是让常见单机部署可以
 **替换二进制后直接启动**：v2 在启动时识别旧的 `data/gproxy.db`，只读导出
@@ -68,7 +68,7 @@ gproxy --data-dir ./data --host 0.0.0.0 --port 8787
 WARN v1 database detected - migrating to v2 in place (original backed up)
 INFO v1 -> v2 migration complete report=Report { providers: 6, credentials: 6, models: 400, ... }
 WARN v1 database backed up; v2 database is now live at .../data/gproxy.db
-INFO gproxy v2 listening on http://0.0.0.0:8787
+INFO GPROXY v2 listening on http://0.0.0.0:8787
 ```
 
 迁移是幂等的。第一次成功后，`gproxy.db` 已经是 v2 schema，后续启动会直接跳过。
@@ -211,7 +211,7 @@ systemctl start gproxy
 
 ## English
 
-# Migrating From gproxy v1 To v2
+# Migrating From GPROXY v1 To v2
 
 v2 includes a temporary v1 SQLite migrator so common single-node deployments can
 **replace the binary and start directly**. On startup, v2 detects an old
@@ -288,7 +288,7 @@ Startup logs should include messages like:
 WARN v1 database detected - migrating to v2 in place (original backed up)
 INFO v1 -> v2 migration complete report=Report { providers: 6, credentials: 6, models: 400, ... }
 WARN v1 database backed up; v2 database is now live at .../data/gproxy.db
-INFO gproxy v2 listening on http://0.0.0.0:8787
+INFO GPROXY v2 listening on http://0.0.0.0:8787
 ```
 
 The migration is idempotent. After the first successful run, `gproxy.db` is v2

@@ -1,6 +1,6 @@
 ---
 title: Provider 与 Channel
-description: 在 gproxy v2 中配置上游 Provider、凭据、Operation 路由能力、代理、TLS 指纹和 scoped 访问。
+description: 在 GPROXY v2 中配置上游 Provider、凭据、Operation 路由能力、代理、TLS 指纹和 scoped 访问。
 ---
 
 **Provider** 是一个命名的上游端点。它把稳定名称绑定到 channel 适配器、设置、凭据池、模型目录、路由规则和可选的请求处理规则集。
@@ -47,7 +47,7 @@ Credential 行属于 provider。它包含 `kind`、密封后的 `secret_json`、
 
 ## Aggregated 与 Scoped 访问
 
-gproxy v2 支持两种访问上游的方式：
+GPROXY v2 支持两种访问上游的方式：
 
 | 模式 | URL 形状 | 解析方式 |
 | --- | --- | --- |

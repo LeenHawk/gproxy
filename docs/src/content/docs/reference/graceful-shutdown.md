@@ -3,7 +3,7 @@ title: Graceful Shutdown
 description: Native shutdown signals, request draining, stream settlement, and what is not currently guaranteed.
 ---
 
-The native gproxy v2 server uses Axum's `with_graceful_shutdown` around the
+The native GPROXY v2 server uses Axum's `with_graceful_shutdown` around the
 top-level HTTP server. It listens for:
 
 - `Ctrl+C` / SIGINT on all native platforms supported by Tokio;
@@ -19,7 +19,7 @@ Axum drive in-flight services to completion.
 2. The server binds the configured address.
 3. `axum::serve(...).with_graceful_shutdown(shutdown_signal())` waits for a
    shutdown signal.
-4. On signal, gproxy logs `shutdown signal received`.
+4. On signal, GPROXY logs `shutdown signal received`.
 5. Axum graceful shutdown stops accepting new work and waits for in-flight
    request futures according to Axum/Tokio behavior.
 6. When the server future completes, `main` returns.

@@ -1,6 +1,6 @@
 ---
 title: Edge Wasm 部署
-description: 将预构建的 gproxy v2 WebAssembly bundle 部署到支持的 edge 平台。
+description: 将预构建的 GPROXY v2 WebAssembly bundle 部署到支持的 edge 平台。
 ---
 
 edge runtime 是同一个单 Rust crate 用 `--no-default-features --features edge` 编译出的

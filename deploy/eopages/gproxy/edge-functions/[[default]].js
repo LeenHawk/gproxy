@@ -1,4 +1,4 @@
-// gproxy v2 — EdgeOne Pages edge-function entry: ROOT catch-all.
+// GPROXY v2 — EdgeOne Pages edge-function entry: ROOT catch-all.
 //
 // Every path (aggregated /v1/*, scoped /{provider}/v1/*, and the admin-gated
 // ops endpoints /healthz /version /metrics) routes to the wasm fetch dispatch

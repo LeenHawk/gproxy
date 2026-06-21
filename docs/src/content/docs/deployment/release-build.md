@@ -1,6 +1,6 @@
 ---
 title: Release Build
-description: Build a production gproxy v2 native binary with the embedded console.
+description: Build a production GPROXY v2 native binary with the embedded console.
 ---
 
 The native release build is a single-crate Rust build plus an optional console

@@ -67,7 +67,7 @@ fn short_sha(sha: &str) -> String {
 /// Built from compile-time `cfg` so it always matches the binary in hand.
 pub fn current_target_triple() -> String {
     // env::consts gives os/arch; map to the conventional Rust triple. This
-    // covers the platforms gproxy ships; an unmatched combo falls back to a
+    // covers the platforms GPROXY ships; an unmatched combo falls back to a
     // best-effort `arch-os` string that simply won't match any artifact (→
     // NoArtifact, which is the correct, safe outcome).
     let arch = std::env::consts::ARCH;
