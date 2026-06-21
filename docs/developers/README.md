@@ -113,12 +113,14 @@ Each `deploy/<platform>/` holds the hand-written entry + config; the
 
 Deploy commands + per-platform gotchas: **[../edge-deploy.md](../edge-deploy.md)**.
 
-## Appwrite adapter
+## Appwrite (deno-2.0, via wasm)
 
-`deploy/appwrite/` wraps gproxy's native router as an Appwrite **Rust 1.83**
-function (`main(context) -> Response`). It builds `AppState` once per instance
-from env (`GPROXY_DSN`, …) and drives one request through `router.oneshot()`.
-See [deploy/appwrite/NOTES.md](../../deploy/appwrite/NOTES.md).
+`deploy/appwrite-deno/main.ts` runs gproxy on Appwrite Functions as a **Deno**
+function that serves the pre-built edge wasm (Appwrite never compiles Rust). It
+bridges `context.req` → the wasm `fetch` export → `context.res`. The native
+`rust-1.83` runtime can't build gproxy (Cargo 1.83 vs edition 2024, `handler`
+crate name, default features, ~10 min build cap) — the wasm path sidesteps all of
+it. See [deploy/appwrite-deno/NOTES.md](../../deploy/appwrite-deno/NOTES.md).
 
 ## License
 

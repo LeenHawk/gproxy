@@ -20,8 +20,14 @@ __pycache__/
 # ── wasm-bindgen build output (regenerated; never commit) ──
 pkg/
 
-# ── Appwrite adapter crate build output ──
-deploy/appwrite/target/
+# ── Appwrite Functions (deno-2.0, wasm) build output + CLI working files.
+#    Only main.ts + build.sh + NOTES.md are hand-written source. ──
+deploy/appwrite-deno/gproxy.js
+deploy/appwrite-deno/gproxy.d.ts
+deploy/appwrite-deno/gproxy_wasm_inline.ts
+deploy/appwrite-deno/gproxy_bg.wasm
+appwrite.config.json
+.appwriteignore
 
 # ── Upstream API docs snapshots (separate nested git repo; never commit here) ──
 /upstream_docs/
