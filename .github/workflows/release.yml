@@ -323,6 +323,7 @@ jobs:
           bash deploy/eopages/build.sh
           bash deploy/netlify/build.sh
           bash deploy/supabase/build.sh
+          bash deploy/appwrite-deno/build.sh
           # deno: deploy/deno/build.sh also *deploys* (needs a token), so generate
           # the deno-target glue inline here for a build-only bundle.
           wasm-bindgen --target deno --out-dir deploy/deno/pkg target/wasm32-unknown-unknown/release/gproxy.wasm
@@ -337,6 +338,7 @@ jobs:
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-eopages.zip eopages/gproxy eopages/NOTES.md)
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-netlify.zip netlify -x 'netlify/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-supabase.zip supabase -x 'supabase/build.sh')
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-appwrite-deno.zip appwrite-deno -x 'appwrite-deno/build.sh' 'appwrite-deno/NOTES.md')
           # deno: compact upload root (main.ts path-fixed to ./pkg + the glue)
           rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg
           cp deploy/deno/pkg/gproxy.js deploy/deno/pkg/gproxy.d.ts \
@@ -358,6 +360,41 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: edge-dist/*
+
+      # Refresh the orphan `deploy` branch with the freshly-built, ready-to-deploy
+      # bundles (artifacts only — no source). The README one-click buttons point
+      # at this branch. Force-pushed as a single fresh snapshot each release.
+      - name: Refresh deploy branch
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          stage="$(mktemp -d)"
+          for p in cloudflare vercel netlify supabase appwrite-deno; do
+            cp -r "deploy/$p" "$stage/$p"
+            rm -f "$stage/$p/build.sh" "$stage/$p/NOTES.md"
+          done
+          mkdir -p "$stage/eopages" && cp -r deploy/eopages/gproxy/. "$stage/eopages/"
+          cp -r deploy/deno/bundle "$stage/deno"
+          cp target/wasm32-unknown-unknown/release/gproxy.wasm "$stage/gproxy.wasm"
+          rm -rf "$stage"/*/.temp "$stage"/*/.netlify "$stage"/*/.vercel "$stage"/*/.wrangler "$stage"/*/.edgeone 2>/dev/null || true
+          {
+            echo "# gproxy — deploy artifacts (auto-generated, do not edit)"
+            echo
+            echo "Prebuilt, ready-to-deploy edge bundles. **No source** — wasm + glue +"
+            echo "each platform's entry + config. The main README's one-click buttons point"
+            echo "here. Regenerated from \`${GITHUB_SHA}\` on every release."
+            echo "See the main branch \`deploy/\` + \`docs/edge-deploy.md\` for how each deploys."
+          } > "$stage/README.md"
+          cd "$stage"
+          git init -q
+          git checkout -q -b deploy
+          git add -A
+          git -c user.email="github-actions[bot]@users.noreply.github.com" \
+              -c user.name="github-actions[bot]" \
+              commit -q -m "deploy: prebuilt edge bundles @ ${GITHUB_SHA}"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" deploy
 
   docker-build:
     name: docker ${{ matrix.variant }}-${{ matrix.arch }}
