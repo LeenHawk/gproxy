@@ -1,197 +1,125 @@
-# Agent CLI TLS 指纹 + User-Agent 参考
+# Agent CLI TLS 指纹参考
 
-> 用途:为 gproxy **TLS 伪装功能**(`providers.tls_fingerprint`,见架构设计 §7.4)提供真实客户端的指纹/UA 目标。
-> 采集日期:2026-06-09 · 脚本:[`scripts/capture_tls_fp.py`](../scripts/capture_tls_fp.py)(被动抓 JA3/JA4)、[`scripts/capture_tls_ua.py`](../scripts/capture_tls_ua.py)(MITM 抓 UA)、[`scripts/capture_h2_fp.py`](../scripts/capture_h2_fp.py)(MITM 抓 HTTP/2 指纹)。
-> 方法:本地 HTTP `CONNECT` 代理。指纹来自 ClientHello;UA / HTTP2 通过临时 CA 终止 TLS 后读 HTTP 头与帧。
-> 采集命令:`env HTTPS_PROXY/https_proxy/HTTP_PROXY/http_proxy=http://127.0.0.1:8888 no_proxy= NO_PROXY= NODE_EXTRA_CA_CERTS=/tmp/fpca.pem SSL_CERT_FILE=/tmp/fpca.pem <cli> <一次性提问>`
+v1 只有全局 `GPROXY_SPOOF` / `spoof_emulation` 这类浏览器 TLS preset。v2 的模型更细：
 
-## 1. 指纹汇总
+- agent channel 可以有内置的 TLS/HTTP2 emulation；
+- provider 可以配置默认 `tls_fingerprint`；
+- credential 可以覆盖 provider 的 `tls_fingerprint`；
+- upstream client pool 按 `(proxy, fingerprint)` 缓存 native `wreq` client。
 
-| 渠道 | TLS 栈 | ciphers | TLS1.3 位置 | ALPN | PQC | JA3 (MD5) | JA4 |
-|---|---|---|---|---|---|---|---|
-| **claude** | Node / OpenSSL(裁剪) | 17 | 最前 | `http/1.1` | — | `d871d02cecbde59abbf8f4806134addf` | `t13d1714h1_5b57614c22b0_43ade6aba3df` |
-| **codex** ①(辅助/认证) | OpenSSL 3.5(Rust native-tls) | 30 | 最前 | 无 | ✓ | `27718d56688425cd36a401c66147c4ee` | `t13d301100_1d37bd780c83_8e6e362c5eac` |
-| **codex** ②(**模型路径**) | rustls/hyper(h2) | 10 | 最前 | `h2` | — | `bc73760f6b846b84e33ae3072ef4e9c1` | `t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3` |
-| **gemini** | 系统 OpenSSL 3.5(全量) | 52 | 最前 | 无 | ✓ | `944d1e1858cd278718f8a46b65d3212f` | `t13d521100_b262b3658495_8e6e362c5eac` |
-| **agy**(Antigravity) | Go `crypto/tls` | 13 | **最后** | 模型`无`/遥测`h2,http/1.1` | ✓×3 | `03117a8ed39ef02427ebbc39f121275c` | 模型`t13d131100_f57a46bbacb6_ab7e3b40a677`(h1)/遥测`t13d1312h2_…` |
-| **copilot** ①(`api.github.com` 内部) | 系统 OpenSSL 3.5(全量) | 52 | 最前 | `http/1.1` | ✓ | `d67b094811e5145139d7cea5f014309f` | `t13d5212h1_b262b3658495_8e6e362c5eac` |
-| **copilot** ②(**模型路径**) | rustls | 10 | 最前 | `http/1.1` | — | 随机(扩展乱序) | `t13d1011h1_61a7ad8aa9b6_*`(JA4_c 可变) |
-| **kiro-cli** | rustls / aws-lc | 10 | 最前 | 无 | — | `49ae0c94…` / `8ed2b010…`(不稳定,见注) | `t13d101000_61a7ad8aa9b6_3fcd1a44f3e3` |
+这页记录 agent CLI 模型路径的目标指纹、v2 当前能复刻的边界，以及
+`tls_fingerprint` JSON 的维护格式。
 
-## 2. User-Agent 汇总
+实现位置：
 
-> 均在各自**模型路径**连接上抓取(claude `/v1/messages`、codex `/v1/responses`、gemini `cloudcode-pa…/v1internal:streamGenerateContent`、copilot `api.individual.githubcopilot.com`、kiro `codewhispererstreaming`)。gemini/copilot 经**转发型 MITM**([`scripts/capture_fwd_mitm.py`](../scripts/capture_fwd_mitm.py))抓到。
+- `src/channel/bulletins/*/fingerprint.rs`：channel 内置 profile。
+- `src/channel/mod.rs`：`Channel::default_emulation`。
+- `src/channel/resolve.rs`：credential 覆盖 provider 的解析规则。
+- `src/http/client/fingerprint.rs`：JSON blob 到 `wreq::Emulation` 的映射。
+- `src/http/client/pool.rs`：按 `(proxy, fingerprint)` 复用 upstream client。
+- `src/api/tls_presets.rs`：Console preset 列表。
 
-| 渠道 | 模型路径 UA(**伪装用这个**) | 端点 |
-|---|---|---|
-| **claude** | `claude-cli/2.1.162 (external, cli)` | `POST api.anthropic.com/v1/messages` |
-| **codex** | `codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.137.0)` | `POST …/v1/responses` |
-| **gemini** | `GeminiCLI-tui/0.46.0/<model> (linux; x64; terminal) google-api-nodejs-client/9.15.1`(`<model>` = `gemini-2.5-pro`/`gemini-2.5-flash`) | `POST cloudcode-pa.googleapis.com/v1internal:streamGenerateContent` |
-| **agy** | `antigravity/cli/1.0.6 linux/amd64` | `POST (daily-)cloudcode-pa.googleapis.com/v1internal:*` |
-| **copilot** | `copilot/1.0.61 (linux v24.16.0) term/unknown` | `api.individual.githubcopilot.com` |
-| **kiro-cli** | `aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererstreaming/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI` | `POST runtime.us-east-1.kiro.dev/` |
+## 1. 生效边界
 
-> claude 括号内随**入口**变:纯终端 `cli`、`-p`/SDK `sdk-cli`、VSCode 扩展 `claude-vscode, agent-sdk/…`——伪装终端 CLI 用 `(external, cli)`。agy 的 `codeium-language-server` 是 `antigravity-unleash.goog` 注册端点 UA(非模型);模型端点 `(daily-)cloudcode-pa.googleapis.com` 才是 `antigravity/cli/1.0.6 linux/amd64`(代码里 `antigravity/2.22.2 windows/amd64` 是桌面 app,非 CLI)。
-> 其它路径 UA(非模型):claude bootstrap `claude-code/2.1.162`、遥测 `axios/1.15.2`;copilot 内部 `api.github.com` 校验同 UA;gemini token 校验 `google-api-nodejs-client/9.15.1`;kiro 非流式 `api/codewhispererruntime/…`、遥测 `aws-sdk-rust/1.3.15`。
+TLS emulation 只适用于 native + `upstream-wreq` 构建。edge wasm 使用平台 `fetch`，
+不能控制 ClientHello、HTTP2 SETTINGS 或本地代理栈。
 
-## 3. 伪装注意事项
+生效优先级：
 
-- **优先用 JA4,不用 JA3**:`kiro` 的 JA3 两次采集不同(`49ae0c94` vs `8ed2b010`),因 rustls/aws-lc **随机化扩展顺序**;但 JA4 因排序而稳定。`codex` 单进程内存在 **两套 TLS 客户端**(native-OpenSSL 30 套件 + rustls/h2 10 套件),JA3 随抓到哪条连接而变。伪装匹配应以 JA4 为基准。
-- **均不像浏览器**:六者全部无 GREASE、无 cipher 乱序,是 OpenSSL / Node / Go / rustls 原生画像。`wreq` 内置多为浏览器(Chrome/Firefox/Safari/OkHttp)preset,要伪装成这些 agent 需**自定义 TLS 配置**,而非现成 preset。
-- **指纹会聚类**:`gemini` 与 `copilot` 的 `JA4_b/JA4_c`(`b262b3658495_8e6e362c5eac`)逐字节相同,仅 ALPN 不同;`codex②` 与 `kiro` 的 `JA4_b/JA4_c`(`61a7ad8aa9b6_3fcd1a44f3e3`)相同(都是 rustls)。同库即同尾巴。
-- **UA 与指纹要配套伪装**:仅改 TLS 指纹而 UA 不符,或反之,都会露馅。注意部分 UA(gemini/copilot)抓自认证/内部路径,模型路径可能不同。
-- **HTTP/2 层也要对齐**(详见 §6):**模型路径只有 `codex`(rustls/hyper)走 h2**;`agy` 模型路径是 **HTTP/1.1**(h2 仅用于它的遥测/oauth/更新端点);`claude`、`gemini`、`copilot`、`kiro` 模型路径也都只 HTTP/1.1。伪装 h2 客户端(codex)时只对 TLS 不对 h2,Akamai 指纹一样会暴露。
+1. credential `tls_fingerprint`
+2. provider `tls_fingerprint`
+3. channel `default_emulation()`
+4. 默认 `wreq` client
 
----
+只要 provider 或 credential 明确配置了 `tls_fingerprint`，但该 JSON 不能映射为可用
+emulation，请求会失败，不会静默降级到默认 TLS。这样可以避免“以为在伪装，实际没伪装”的
+运行状态。
 
-## 4. 各渠道明细
+## 2. 模型路径目标
 
-### claude — `2.1.162`(Node/OpenSSL · `api.anthropic.com`)
-- **模型 UA**: `claude-cli/2.1.162 (external, cli)`(模型 `/v1/messages`;bootstrap/遥测用 `claude-code/2.1.162`)
-- **JA3**: `d871d02cecbde59abbf8f4806134addf` · **JA4**: `t13d1714h1_5b57614c22b0_43ade6aba3df`
-  ```
-  771,4865-4866-4867-49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-156-157-47-53,0-23-65281-10-11-35-16-5-13-18-51-45-43-21,29-23-24,0
-  ```
-- ciphers(17):`1301 1302 1303 c02b c02f c02c c030 cca9 cca8 c009 c013 c00a c014 009c 009d 002f 0035`
-- extensions(14):`00 17 ff01 0a 0b 23 10 05 0d 12 33 2d 2b 15`(含 padding `0x15`) · curves:`x25519,P-256,P-384` · ec_pt_fmts:`0` · ALPN:`http/1.1`
+下表记录的是模型调用路径，不是登录、usage、遥测或内部检查路径。
 
-### codex — `0.137.0`(双 TLS 栈 · `chatgpt.com`)
-- **UA**: `codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color`
-- **① native-tls/OpenSSL 3.5** — JA3 `27718d56688425cd36a401c66147c4ee` · JA4 `t13d301100_1d37bd780c83_8e6e362c5eac`
-  ```
-  771,4866-4867-4865-49196-49200-159-52393-52392-52394-49195-49199-158-49188-49192-107-49187-49191-103-49162-49172-57-49161-49171-51-157-156-61-60-53-47,65281-0-11-10-35-22-23-13-43-45-51,4588-29-23-30-24-25-256-257,0-1-2
-  ```
-  ciphers(30):OpenSSL 默认前 30 · ext(11):`ff01 00 0b 0a 23 16 17 0d 2b 2d 33` · curves:`MLKEM768,x25519,P-256,x448,P-384,P-521,ffdhe2048,ffdhe3072` · ec_pt_fmts:`0,1,2` · ALPN:无
-- **② rustls / h2** — JA3 `bc73760f6b846b84e33ae3072ef4e9c1` · JA4 `t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3`
-  ciphers(10):`1302 1301 1303 c02c c02b cca9 c030 c02f cca8 00ff`(AEAD+SCSV) · ALPN:`h2`
+| Channel | 真实客户端栈 | 模型路径协议 | 目标 JA4 | 内置 profile |
+| --- | --- | --- | --- | --- |
+| `claudecode` | Node/OpenSSL | HTTP/1.1 | `t13d1714h1_5b57614c22b0_43ade6aba3df` | `src/channel/bulletins/claudecode/fingerprint.rs` |
+| `codex` | rustls/hyper | HTTP/2 | `t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3` | `src/channel/bulletins/codex/fingerprint.rs` |
+| `geminicli` | system OpenSSL | HTTP/1.1 | `t13d521100_b262b3658495_8e6e362c5eac` | best-effort subset |
+| `antigravity` | Go `crypto/tls` | HTTP/1.1, no ALPN | `t13d131100_f57a46bbacb6_ab7e3b40a677` | best-effort, TLS1.3 order preserved |
+| `copilotcli` | rustls | HTTP/1.1 | `t13d1011h1_61a7ad8aa9b6_*` | model-path rustls profile |
+| `kiro` | rustls/aws-lc | HTTP/1.1, no ALPN | `t13d101000_61a7ad8aa9b6_3fcd1a44f3e3` | rustls-style subset |
 
-### gemini(系统 OpenSSL 3.5 · 模型路径 `cloudcode-pa.googleapis.com`)
-- **UA**: 模型 `GeminiCLI-tui/0.46.0/<model> (linux; x64; terminal) google-api-nodejs-client/9.15.1`;认证 `google-api-nodejs-client/9.15.1`
-- **JA3**: `944d1e1858cd278718f8a46b65d3212f` · **JA4**: `t13d521100_b262b3658495_8e6e362c5eac`
-  ```
-  771,4866-4867-4865-49199-49195-49200-49196-158-49191-103-49192-107-163-159-52393-52392-52394-49325-49311-49245-49249-49239-49235-162-49324-49310-49244-49248-49238-49234-49188-106-49187-64-49162-49172-57-56-49161-49171-51-50-157-49309-49233-156-49308-49232-61-60-53-47,65281-0-11-10-35-22-23-13-43-45-51,4588-29-23-30-24-25-256-257,0-1-2
-  ```
-- ciphers(52):系统 OpenSSL **全量**(含 ARIA/CAMELLIA/CCM/DHE) · ext(11):同 codex① · ec_pt_fmts:`0,1,2` · ALPN:无 · **HTTP/1.1**
-- ✅ **已确认**:模型路径(`cloudcode-pa.googleapis.com/v1internal:streamGenerateContent`)与认证路径**同一 52-cipher OpenSSL 栈**——之前"疑非模型客户端"的存疑已排除。整条都是 http/1.1。
+UA 与 TLS profile 要一起维护。请求头目标在 `docs/agent-request-headers.md`，本页只记录
+transport 指纹。
 
-### agy — Antigravity CLI(Go `crypto/tls`)
-- **模型 UA**: `antigravity/cli/1.0.6 linux/amd64`(端点 `(daily-)cloudcode-pa.googleapis.com/v1internal:*`,**HTTP/1.1**)
-- 其它 UA:注册端点 `antigravity-unleash.goog` → `codeium-language-server`;oauth/更新/存储等 → `Go-http-client/1.1`、`Go-http-client/2.0`
-- **模型 JA4**: `t13d131100_f57a46bbacb6_ab7e3b40a677`(h1,无 ALPN)· 遥测端点 JA4 `t13d1312h2_…`(h2),JA3 `03117a8ed39ef02427ebbc39f121275c`
-  ```
-  771,49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-4865-4866-4867,0-11-65281-23-18-5-10-13-50-16-43-51,4588-4587-4589-29-23-24-25,0
-  ```
-- ciphers(13):`c02b c02f c02c c030 cca9 cca8 c009 c013 c00a c014 1301 1302 1303`(TLS1.3 在**末尾** = Go 特征) · ext:`00 0b ff01 17 12 05 0a 0d 32 10 2b 33` · curves:`0x11ec/0x11eb/0x11ed(三个 PQC 混合),x25519,P-256,P-384,P-521` · ALPN:模型端点**不发**(走 h1),遥测端点发 `h2,http/1.1`
-- 注:代码里 `antigravity/2.22.2 windows/amd64` 是 **Antigravity 桌面 app**(Windows),与本 CLI 不同。
+## 3. 保真边界
 
-### copilot — GitHub Copilot CLI(系统 OpenSSL 3.5 · `api.github.com`)
-- **UA**: `undici`(`/copilot_internal/user` 内部校验;模型调用 UA 或不同)
-- **JA3**: `d67b094811e5145139d7cea5f014309f` · **JA4**: `t13d5212h1_b262b3658495_8e6e362c5eac`
-  ```
-  771,4866-4867-4865-49199-49195-49200-49196-158-49191-103-49192-107-163-159-52393-52392-52394-49325-49311-49245-49249-49239-49235-162-49324-49310-49244-49248-49238-49234-49188-106-49187-64-49162-49172-57-56-49161-49171-51-50-157-49309-49233-156-49308-49232-61-60-53-47,65281-0-11-10-35-16-22-23-13-43-45-51,4588-29-23-30-24-25-256-257,0-1-2
-  ```
-- ciphers(52):与 gemini 完全相同 · ext(12):`ff01 00 0b 0a 23 10 16 17 0d 2b 2d 33`(比 gemini 多 ALPN `0x10`) · ec_pt_fmts:`0,1,2` · ALPN:`http/1.1`
+v2 native transport 使用 `wreq`，底层可配置项不是任意 TLS 字节流。可以稳定控制：
 
-### kiro-cli — `2.6.1` / Amazon Kiro·Q(rustls/aws-lc · `oidc.us-east-1.amazonaws.com`)
-- **UA**: `aws-sdk-rust/1.3.10 os/linux lang/rust/1.92.0`(产品 UA / CONNECT:`kiro-cli-linux-x86_64-2.6.1`)
-- **JA3**: `49ae0c94…` / `8ed2b010…`(扩展顺序随机,**不稳定**) · **JA4**: `t13d101000_61a7ad8aa9b6_3fcd1a44f3e3`(稳定)
-  ```
-  771,4866-4865-4867-49196-49195-52393-49200-49199-52392-255,5-51-0-43-23-13-11-10-35-45,29-23-24,0
-  ```
-- ciphers(10):`1302 1301 1303 c02c c02b cca9 c030 c02f cca8 00ff`(AEAD+SCSV `0x00ff`) · ext(10):`05 33 00 2b 17 0d 0b 0a 23 2d` · curves:`x25519,P-256,P-384`(无 PQC) · ALPN:无
+- UA/default headers；
+- ALPN；
+- GREASE 开关；
+- TLS 版本范围；
+- BoringSSL 支持的 cipher / curve / sigalg token list；
+- 部分 extension 顺序；
+- HTTP2 SETTINGS、SETTINGS 顺序、connection window、pseudo-header 顺序。
 
----
+不能保证逐字节复刻：
 
-## 5. `tls_fingerprint` JSON 草案(wreq 映射)
+- system OpenSSL 的 52 cipher 全量列表；
+- ARIA、CAMELLIA、CCM、DHE、静态 RSA-CBC 等 BoringSSL 不发的套件；
+- `x448`、`ffdhe`、部分实验 sigalg；
+- Go 和 rustls/aws-lc 的扩展集细节；
+- 自定义 PQC group；
+- JA3 中受扩展乱序影响的 hash。
 
-> 落库到 `providers.tls_fingerprint`(JSON 文本)。当前客户端为 **`wreq 6.0.0-rc.28`(BoringSSL)**;字段对应 `wreq::tls::TlsOptions` 与默认头。
+因此文档和代码都优先使用 JA4 判断大类。`geminicli` 这类 OpenSSL 全量栈只能做到
+“UA 精确 + ALPN/HTTP1 精确 + AEAD 子集近似”，不能承诺 JA4 完全相同。
 
-**Schema / wreq 字段对应**
+## 4. HTTP/2 指纹
 
-| JSON 键 | wreq 映射 | 说明 |
-|---|---|---|
-| `headers.user-agent` | `default_headers` | UA,**可精确伪装** |
-| `tls.alpn_protocols` | `alpn_protocols` | ALPN,可精确 |
-| `tls.grease_enabled` | `grease_enabled` | 这些客户端**均为 `false`**(无 GREASE) |
-| `tls.min/max_tls_version` | `min_tls_version`/`max_tls_version` | 均 `tls1.2`~`tls1.3` |
-| `tls.cipher_list` | `cipher_list` | BoringSSL cipher token,`:` 分隔 |
-| `tls.curves_list` | `curves_list` | 椭圆曲线/组 |
-| `tls.sigalgs_list` | `sigalgs_list` | 签名算法 |
-| `tls.extension_permutation` | `extension_permutation` | 扩展顺序(仅能排列 BoringSSL 已发的扩展) |
-| `tls.preserve_tls13_cipher_list` | `preserve_tls13_cipher_list` | 控制 TLS1.3 套件顺序 |
-| `http2.*` | `Http2Options`(见 §6) | `enable_push`/`initial_window_size`/`initial_connection_window_size`/`max_frame_size`/`max_header_list_size`/`header_table_size`/`max_concurrent_streams`/`headers_pseudo_order`/`settings_order`/`priorities` |
-| `http2: false` | `http1_only`(`claude`/`kiro`) | 只用 HTTP/1.1 的渠道,**不要**协商 h2 |
-| `_reference` / `_fidelity` / `_unsupported` | — | 仅注释,加载时忽略 |
+模型路径里当前只有 `codex` 走 HTTP/2。它的 Akamai h2 指纹目标是：
 
-> ⚠️ **BoringSSL 保真度上限(重要)**:wreq 用 BoringSSL,**无法逐字节复刻**非 BoringSSL 栈的握手。可精确的:**UA、ALPN、关闭 GREASE、AEAD 套件顺序、标准曲线/sigalgs**。**无法复刻的**:OpenSSL 全量套件(ARIA/CAMELLIA/CCM/DHE/静态 RSA-CBC)、`x448`、`ffdhe`、`ed448` 及 `0x081x` 实验 sigalgs、`agy` 的自定义 PQC 组(`0x11eb/0x11ed`)、OpenSSL 特有扩展(`padding` 之外 BoringSSL 不发的)。因此 **gemini / copilot①(api.github.com 内部)/ codex① 的 JA3/JA4 基本不可复刻**;agy / kiro / codex② / **copilot②(模型路径,rustls)** / claude 可做到 JA4_a/_b 接近,JA4_c 可能有差。**结论:伪装以「UA 精确 + ALPN + 关 GREASE + 套件近似」为目标,JA3/JA4 完全对齐需换非 BoringSSL 后端。**
-
-### claude(保真度:高)
-```json
-{
-  "headers": { "user-agent": "claude-cli/2.1.162 (external, cli)" },
-  "tls": {
-    "alpn_protocols": ["http/1.1"],
-    "grease_enabled": false,
-    "min_tls_version": "tls1.2", "max_tls_version": "tls1.3",
-    "cipher_list": "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA",
-    "curves_list": "X25519:P-256:P-384",
-    "sigalgs_list": "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512:rsa_pkcs1_sha1"
-  },
-  "http2": false,
-  "_reference": { "ja4": "t13d1714h1_5b57614c22b0_43ade6aba3df", "ja3_md5": "d871d02cecbde59abbf8f4806134addf", "model_ua": "claude-cli/2.1.162 (external, cli)" },
-  "_fidelity": "high",
-  "_unsupported": "claude 全程 HTTP/1.1(http2:false);padding/SCT 扩展 BoringSSL 也发,套件全为 BoringSSL 已知,JA4_c 可能小差。注意模型路径 UA 是 claude-cli/...,与 bootstrap 的 claude-code/... 不同。"
-}
+```text
+2:0;4:2097152;5:16384;6:16384|5177345|0|m,s,a,p
 ```
 
-### agy / Antigravity CLI(模型路径=h1 · 保真度:中)
-```json
-{
-  "headers": { "user-agent": "antigravity/cli/1.0.6 linux/amd64" },
-  "tls": {
-    "alpn_protocols": [],
-    "grease_enabled": false,
-    "min_tls_version": "tls1.2", "max_tls_version": "tls1.3",
-    "cipher_list": "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
-    "curves_list": "X25519MLKEM768:X25519:P-256:P-384:P-521",
-    "sigalgs_list": "rsa_pss_rsae_sha256:ecdsa_secp256r1_sha256:ed25519:rsa_pss_rsae_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha256:rsa_pkcs1_sha384:rsa_pkcs1_sha512:ecdsa_secp384r1_sha384:ecdsa_secp521r1_sha512",
-    "preserve_tls13_cipher_list": true
-  },
-  "http2": false,
-  "_reference": { "ja4": "t13d131100_f57a46bbacb6_ab7e3b40a677", "model_endpoint": "(daily-)cloudcode-pa.googleapis.com/v1internal:*", "note": "模型路径 h1、不发 ALPN;遥测/oauth/更新端点才走 h2(t13d1312h2,Akamai 2:0;4:4194304;5:1048576;6:10485760|1073741824|0|a,m,p,s)" },
-  "_fidelity": "medium",
-  "_unsupported": "模型路径 = HTTP/1.1(http2:false)。Go 把 TLS1.3 套件放末尾,BoringSSL 排序不同;自定义 PQC 组 0x11eb/0x11ed 无法复刻。代码当前 UA antigravity/2.22.2 windows/amd64 是桌面 app,应改 antigravity/cli/1.0.6 linux/amd64。"
-}
-```
+对应 v2 设置：
 
-### kiro-cli(保真度:中,rustls)
-```json
-{
-  "headers": { "user-agent": "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererstreaming/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI" },
-  "tls": {
-    "alpn_protocols": [],
-    "grease_enabled": false,
-    "min_tls_version": "tls1.2", "max_tls_version": "tls1.3",
-    "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305",
-    "curves_list": "X25519:P-256:P-384",
-    "sigalgs_list": "ecdsa_secp384r1_sha384:ecdsa_secp256r1_sha256:ed25519:rsa_pss_rsae_sha512:rsa_pss_rsae_sha384:rsa_pss_rsae_sha256:rsa_pkcs1_sha512:rsa_pkcs1_sha384:rsa_pkcs1_sha256"
-  },
-  "http2": false,
-  "_reference": { "ja4": "t13d101000_61a7ad8aa9b6_3fcd1a44f3e3", "ja3_md5": "随机(扩展乱序),以 JA4 为准" },
-  "_fidelity": "medium",
-  "_unsupported": "kiro 全程 HTTP/1.1(含 codewhispererstreaming 模型流式,http2:false);rustls 扩展集极简,BoringSSL 会多发 session_ticket/status_request/SCT 等 → JA4_c 偏差。模型 UA 为 codewhispererstreaming;非流式 runtime 用 api/codewhispererruntime;遥测用裸 aws-sdk-rust/1.3.15。"
-}
-```
+| 字段 | 值 |
+| --- | --- |
+| `enable_push` | `false` |
+| `initial_window_size` | `2097152` |
+| `initial_connection_window_size` | `5242880` |
+| `max_frame_size` | `16384` |
+| `max_header_list_size` | `16384` |
+| `headers_pseudo_order` | `[":method", ":scheme", ":authority", ":path"]` |
+| `settings_order` | `[2, 4, 5, 6]` |
 
-### codex(保真度:中;模型路径=②号 rustls/hyper,走 h2)
+`claudecode`、`geminicli`、`antigravity`、`copilotcli`、`kiro` 的模型路径都按
+HTTP/1.1 处理。Antigravity 的遥测/OAuth 可能走 h2，但不是模型路径，不应该污染模型
+channel profile。
+
+## 5. `tls_fingerprint` JSON 草案
+
+存储字段：
+
+- provider: `providers.tls_fingerprint`
+- credential: `credentials.tls_fingerprint`
+
+JSON 顶层只识别三个运行字段：`headers`、`tls`、`http2`。`_reference`、`_fidelity`、
+`_unsupported` 这类下划线字段可作为注释保存；解析器会忽略它们。
+
 ```json
 {
-  "headers": { "user-agent": "codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.137.0)" },
+  "headers": {
+    "user-agent": "codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color"
+  },
   "tls": {
     "alpn_protocols": ["h2"],
     "grease_enabled": false,
-    "min_tls_version": "tls1.2", "max_tls_version": "tls1.3",
-    "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305",
+    "min_tls_version": "tls1.2",
+    "max_tls_version": "tls1.3",
+    "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-AES256-GCM-SHA384",
     "curves_list": "X25519:P-256:P-384"
   },
   "http2": {
@@ -203,81 +131,294 @@
     "headers_pseudo_order": [":method", ":scheme", ":authority", ":path"],
     "settings_order": [2, 4, 5, 6]
   },
-  "_reference": { "ja4": "t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3", "ja3_md5": "bc73760f6b846b84e33ae3072ef4e9c1", "h2_akamai": "2:0;4:2097152;5:16384;6:16384|5177345|0|m,s,a,p", "model_path": "/v1/responses" },
-  "_fidelity": "medium",
-  "_unsupported": "codex 模型路径(/v1/responses)= rustls/hyper + h2(此处采用)。另有一套 native-OpenSSL 30 套件(含 x448/ffdhe)仅用于辅助/认证,不可复刻、也非模型路径。"
-}
-```
-
-### gemini(模型路径已确认 · 保真度:低 — 全量 OpenSSL,不可复刻)
-```json
-{
-  "headers": { "user-agent": "GeminiCLI-tui/0.46.0/gemini-2.5-pro (linux; x64; terminal) google-api-nodejs-client/9.15.1" },
-  "tls": {
-    "alpn_protocols": [],
-    "grease_enabled": false,
-    "min_tls_version": "tls1.2", "max_tls_version": "tls1.3",
-    "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305",
-    "curves_list": "X25519MLKEM768:X25519:P-256:P-384:P-521"
+  "_reference": {
+    "channel": "codex",
+    "ja4": "t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3"
   },
-  "http2": false,
-  "_reference": { "ja4": "t13d521100_b262b3658495_8e6e362c5eac", "model_endpoint": "cloudcode-pa.googleapis.com/v1internal:streamGenerateContent", "model_ua_var": "<model> = gemini-2.5-pro | gemini-2.5-flash" },
-  "_fidelity": "low",
-  "_unsupported": "模型路径已确认 = 系统 OpenSSL 全量 52 套件(含 ARIA/CAMELLIA/CCM/DHE/静态RSA-CBC)+ x448/ffdhe + ed448/0x081x sigalgs + ec_point_formats(0,1,2),BoringSSL 无法发出 → JA3/JA4 不可复刻;UA 与 http1 可精确。模型路径 = 认证路径同一 TLS 栈。"
+  "_fidelity": "medium"
 }
 ```
 
-### copilot(模型路径已确认 · 保真度:中 — rustls,与早前 52 套件 OpenSSL 不同)
+字段说明：
+
+| JSON key | 作用 |
+| --- | --- |
+| `headers` | 默认请求头。通常只放 UA；channel 代码仍会在每个请求上注入 auth/protocol headers。 |
+| `tls.alpn_protocols` | `["h2"]`、`["http/1.1"]` 或 `[]`。空数组表示不发送 ALPN。 |
+| `tls.grease_enabled` | 这些 CLI 样本通常为 `false`。 |
+| `tls.min_tls_version` / `tls.max_tls_version` | `tls1.0` 到 `tls1.3`。 |
+| `tls.cipher_list` | BoringSSL token，冒号分隔。 |
+| `tls.curves_list` | curve/group 列表。 |
+| `tls.sigalgs_list` | 签名算法列表。 |
+| `tls.preserve_tls13_cipher_list` | 保持 TLS1.3 cipher 顺序，主要用于 Go 样式近似。 |
+| `tls.extension_permutation` | u16 extension id 数组，只能排列 BoringSSL 实际会发的 extension。 |
+| `http2` object | 启用并设置 HTTP/2 指纹。 |
+| `http2: false` | 对解析器是 no-op；HTTP/1.1 由 `tls.alpn_protocols` 决定。 |
+
+Console 通过 `GET /admin/tls-presets` 读取静态 preset。preset 是可存储的精简 blob，
+不是完整抓包记录；channel 内置 profile 的 Rust 源仍是运行时默认行为的准绳。
+
+## 6. 内置 profile 维护
+
+每个 agent channel 的 `fingerprint.rs` 应只描述 transport profile，不负责 auth header
+或协议 header。UA 是否放进 emulation 要看使用方式：
+
+- channel 内置 `default_emulation()` 通常不放 UA，因为 auth 模块会逐请求注入 UA；
+- Console preset 可以带 `headers.user-agent`，因为它是一个独立可存储 blob；
+- 如果 provider/credential 配置了 `tls_fingerprint`，它会覆盖 channel 内置 profile。
+
+新增或更新 profile 时：
+
+1. 重抓真实模型路径的 TLS、UA、HTTP2。
+2. 确认它不是登录、usage、遥测或内部检查路径。
+3. 更新 `docs/agent-request-headers.md` 的 UA/header 目标。
+4. 更新对应 `src/channel/bulletins/<channel>/fingerprint.rs`。
+5. 如果要暴露给 Console，更新 `src/api/tls_presets.rs`。
+6. 跑 native `upstream-wreq` 相关测试，至少覆盖 profile 可以构建。
+
+可用的重点测试：
+
+```bash
+cargo test --features full channel_default_emulations_build
+cargo test --features full tls_presets_valid
+cargo test --features full fingerprint
+```
+
+## 7. 采集注意事项
+
+采集命令应固定真实模型路径和一次性 prompt。常用脚本：
+
+```bash
+python3 scripts/capture_tls_fp.py 8888 proxy
+python3 scripts/capture_h2_fp.py 8888 /tmp/fpca.pem
+python3 scripts/capture_fwd_mitm.py 8889 /tmp/fpca.pem
+```
+
+经验规则：
+
+- 先分清模型路径和非模型路径；Codex、Copilot、Kiro 都有不止一套网络画像。
+- 优先记录 JA4，JA3 容易受 extension order 影响。
+- 记录 ALPN 和 HTTP2 SETTINGS；只看 TLS 不够。
+- 脱敏 token、cookie、prompt 和账户信息。
+- 升级真实 CLI 后不要只更新 UA；同步复核 header、TLS、HTTP2 和 body shaping。
+
+## English
+
+# Agent CLI TLS Fingerprint Reference
+
+v1 had global browser-style TLS presets such as `GPROXY_SPOOF` /
+`spoof_emulation`. v2 is more granular:
+
+- agent channels can provide built-in TLS/HTTP2 emulation;
+- providers can configure a default `tls_fingerprint`;
+- credentials can override the provider `tls_fingerprint`;
+- the upstream client pool caches native `wreq` clients by `(proxy, fingerprint)`.
+
+This page records the model-path targets for agent CLI fingerprints, the fidelity
+limits of current v2, and the maintained `tls_fingerprint` JSON format.
+
+Implementation locations:
+
+- `src/channel/bulletins/*/fingerprint.rs`: built-in channel profiles.
+- `src/channel/mod.rs`: `Channel::default_emulation`.
+- `src/channel/resolve.rs`: credential-over-provider resolution.
+- `src/http/client/fingerprint.rs`: JSON blob to `wreq::Emulation` mapping.
+- `src/http/client/pool.rs`: upstream client reuse keyed by `(proxy, fingerprint)`.
+- `src/api/tls_presets.rs`: Console preset list.
+
+## 1. Scope
+
+TLS emulation applies only to native builds with `upstream-wreq`. Edge wasm uses
+platform `fetch` and cannot control ClientHello, HTTP2 SETTINGS, or local proxy
+transport behavior.
+
+Priority:
+
+1. credential `tls_fingerprint`
+2. provider `tls_fingerprint`
+3. channel `default_emulation()`
+4. default `wreq` client
+
+If a provider or credential explicitly configures `tls_fingerprint` but the JSON
+does not map to usable emulation, the request fails. It does not silently fall
+back to default TLS, which prevents a hidden "configured but not actually
+emulating" state.
+
+## 2. Model-Path Targets
+
+These are model-call paths, not login, usage, telemetry, or internal check paths.
+
+| Channel | Real client stack | Model-path protocol | Target JA4 | Built-in profile |
+| --- | --- | --- | --- | --- |
+| `claudecode` | Node/OpenSSL | HTTP/1.1 | `t13d1714h1_5b57614c22b0_43ade6aba3df` | `src/channel/bulletins/claudecode/fingerprint.rs` |
+| `codex` | rustls/hyper | HTTP/2 | `t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3` | `src/channel/bulletins/codex/fingerprint.rs` |
+| `geminicli` | system OpenSSL | HTTP/1.1 | `t13d521100_b262b3658495_8e6e362c5eac` | best-effort subset |
+| `antigravity` | Go `crypto/tls` | HTTP/1.1, no ALPN | `t13d131100_f57a46bbacb6_ab7e3b40a677` | best-effort, TLS1.3 order preserved |
+| `copilotcli` | rustls | HTTP/1.1 | `t13d1011h1_61a7ad8aa9b6_*` | model-path rustls profile |
+| `kiro` | rustls/aws-lc | HTTP/1.1, no ALPN | `t13d101000_61a7ad8aa9b6_3fcd1a44f3e3` | rustls-style subset |
+
+Maintain UA and TLS profile together. Header targets live in
+`docs/agent-request-headers.md`; this page covers transport fingerprints.
+
+## 3. Fidelity Limits
+
+v2 native transport uses `wreq`. Its configurable surface is not an arbitrary
+TLS byte stream. It can reliably control:
+
+- UA/default headers;
+- ALPN;
+- GREASE flag;
+- TLS version range;
+- BoringSSL-supported cipher / curve / sigalg token lists;
+- some extension ordering;
+- HTTP2 SETTINGS, SETTINGS order, connection window, and pseudo-header order.
+
+It cannot guarantee byte-exact reproduction of:
+
+- full 52-cipher system OpenSSL lists;
+- ARIA, CAMELLIA, CCM, DHE, static RSA-CBC, and other suites BoringSSL does not
+  send;
+- `x448`, `ffdhe`, and some experimental sigalgs;
+- Go and rustls/aws-lc extension-set details;
+- custom PQC groups;
+- JA3 hashes affected by extension ordering.
+
+Docs and code therefore prefer JA4 for class-level matching. For clients such as
+`geminicli` that use full OpenSSL, v2 can do "exact UA + exact ALPN/HTTP1 +
+approximate AEAD subset", but not guaranteed exact JA4.
+
+## 4. HTTP/2 Fingerprint
+
+Only `codex` currently uses HTTP/2 on the model path. Its Akamai h2 target is:
+
+```text
+2:0;4:2097152;5:16384;6:16384|5177345|0|m,s,a,p
+```
+
+Mapped v2 settings:
+
+| Field | Value |
+| --- | --- |
+| `enable_push` | `false` |
+| `initial_window_size` | `2097152` |
+| `initial_connection_window_size` | `5242880` |
+| `max_frame_size` | `16384` |
+| `max_header_list_size` | `16384` |
+| `headers_pseudo_order` | `[":method", ":scheme", ":authority", ":path"]` |
+| `settings_order` | `[2, 4, 5, 6]` |
+
+`claudecode`, `geminicli`, `antigravity`, `copilotcli`, and `kiro` model paths
+are treated as HTTP/1.1. Antigravity telemetry/OAuth may use h2, but that is not
+the model path and should not pollute the model channel profile.
+
+## 5. `tls_fingerprint` JSON Draft
+
+Storage fields:
+
+- provider: `providers.tls_fingerprint`
+- credential: `credentials.tls_fingerprint`
+
+Only three runtime top-level keys are recognized: `headers`, `tls`, and `http2`.
+Underscore-prefixed keys such as `_reference`, `_fidelity`, and `_unsupported`
+can be stored as comments; the parser ignores them.
+
 ```json
 {
-  "headers": { "user-agent": "copilot/1.0.61 (linux v24.16.0) term/unknown" },
+  "headers": {
+    "user-agent": "codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color"
+  },
   "tls": {
-    "alpn_protocols": ["http/1.1"],
+    "alpn_protocols": ["h2"],
     "grease_enabled": false,
-    "min_tls_version": "tls1.2", "max_tls_version": "tls1.3",
-    "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305",
+    "min_tls_version": "tls1.2",
+    "max_tls_version": "tls1.3",
+    "cipher_list": "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-AES256-GCM-SHA384",
     "curves_list": "X25519:P-256:P-384"
   },
-  "http2": false,
-  "_reference": { "ja4": "t13d1011h1_61a7ad8aa9b6_(可变)", "model_endpoint": "api.individual.githubcopilot.com", "note": "JA4_c 随扩展乱序变化,以 JA4_a+JA4_b 为准;ja4_a=t13d1011h1, ja4_b=61a7ad8aa9b6(rustls)" },
-  "_fidelity": "medium",
-  "_unsupported": "copilot 双栈:模型路径(api.individual.githubcopilot.com)= rustls/http1(此处采用,JA4 t13d1011h1_61a7ad8aa9b6,JA4_c 随机);内部 api.github.com 校验路径才是 52 套件系统 OpenSSL。rustls 扩展乱序 → JA3 不稳定,以 JA4_a/_b 为准。"
+  "http2": {
+    "enable_push": false,
+    "initial_window_size": 2097152,
+    "initial_connection_window_size": 5242880,
+    "max_frame_size": 16384,
+    "max_header_list_size": 16384,
+    "headers_pseudo_order": [":method", ":scheme", ":authority", ":path"],
+    "settings_order": [2, 4, 5, 6]
+  },
+  "_reference": {
+    "channel": "codex",
+    "ja4": "t13d1011h2_61a7ad8aa9b6_3fcd1a44f3e3"
+  },
+  "_fidelity": "medium"
 }
 ```
 
-### codex①-OpenSSL(辅助/认证路径,非模型路径 · 保真度:低 — 仅参考)
-```json
-{
-  "_reference": { "ja4": "t13d301100_1d37bd780c83_8e6e362c5eac", "note": "codex 的 native-OpenSSL 30 套件,仅辅助/认证连接;模型路径见上文 codex(rustls/h2),此项一般无需伪装。" },
-  "_fidelity": "low"
-}
+Field meanings:
+
+| JSON key | Meaning |
+| --- | --- |
+| `headers` | Default request headers. Usually only UA; channel code still injects auth/protocol headers per request. |
+| `tls.alpn_protocols` | `["h2"]`, `["http/1.1"]`, or `[]`. Empty array means send no ALPN. |
+| `tls.grease_enabled` | Usually `false` for these CLI samples. |
+| `tls.min_tls_version` / `tls.max_tls_version` | `tls1.0` through `tls1.3`. |
+| `tls.cipher_list` | BoringSSL tokens separated by colons. |
+| `tls.curves_list` | Curve/group list. |
+| `tls.sigalgs_list` | Signature algorithm list. |
+| `tls.preserve_tls13_cipher_list` | Preserve TLS1.3 cipher order, mainly for Go-style approximation. |
+| `tls.extension_permutation` | Array of u16 extension ids; can only reorder extensions BoringSSL actually sends. |
+| `http2` object | Enables and configures the HTTP/2 fingerprint. |
+| `http2: false` | No-op for the parser; HTTP/1.1 is controlled by `tls.alpn_protocols`. |
+
+Console reads static presets from `GET /admin/tls-presets`. A preset is a
+minimal storable blob, not a full capture log. The Rust channel built-in profile
+is still the runtime default source of truth.
+
+## 6. Maintaining Built-In Profiles
+
+Each agent channel's `fingerprint.rs` should describe transport profile only. It
+should not own auth headers or protocol headers. Whether UA belongs in emulation
+depends on usage:
+
+- channel built-in `default_emulation()` usually does not include UA because the
+  auth module injects UA per request;
+- Console presets can include `headers.user-agent` because they are standalone
+  stored blobs;
+- a provider/credential `tls_fingerprint` overrides the channel built-in
+  profile.
+
+When adding or updating a profile:
+
+1. Re-capture the real model path TLS, UA, and HTTP2.
+2. Confirm it is not login, usage, telemetry, or an internal check path.
+3. Update `docs/agent-request-headers.md` for UA/header targets.
+4. Update `src/channel/bulletins/<channel>/fingerprint.rs`.
+5. If it should be exposed in Console, update `src/api/tls_presets.rs`.
+6. Run native `upstream-wreq` tests, at least covering that the profile builds.
+
+Useful tests:
+
+```bash
+cargo test --features full channel_default_emulations_build
+cargo test --features full tls_presets_valid
+cargo test --features full fingerprint
 ```
 
----
+## 7. Capture Notes
 
-## 6. HTTP/2 指纹层
+Capture commands should pin the real model path and a one-shot prompt. Common
+scripts:
 
-> Akamai 格式:`SETTINGS|WINDOW_UPDATE|PRIORITY|伪头序`。脚本:[`scripts/capture_h2_fp.py`](../scripts/capture_h2_fp.py)(服务端 ALPN 给 `h2`,解析裸帧 + HPACK 伪头序)。均在**登录后的模型路径**连接上抓取。
+```bash
+python3 scripts/capture_tls_fp.py 8888 proxy
+python3 scripts/capture_h2_fp.py 8888 /tmp/fpca.pem
+python3 scripts/capture_fwd_mitm.py 8889 /tmp/fpca.pem
+```
 
-| 渠道 | 走 h2? | Akamai HTTP/2 指纹 | 伪头序 | 备注 |
-|---|---|---|---|---|
-| **claude** | ❌ 仅 HTTP/1.1 | — | — | 模型 `/v1/messages`、bootstrap、遥测、MCP 全部 http/1.1(直连 api.anthropic.com 亦同) |
-| **codex** | ✅ h2(rustls/hyper) | `2:0;4:2097152;5:16384;6:16384\|5177345\|0\|m,s,a,p` | :method :scheme :authority :path | 模型 `/v1/responses`;无 push/无 priority,2MiB 初始窗口 |
-| **agy** | ⚠️ 模型 h1 / 遥测 h2 | (遥测端点)`2:0;4:4194304;5:1048576;6:10485760\|1073741824\|0\|a,m,p,s` | :authority :method :path :scheme | **模型 `(daily-)cloudcode-pa` 是 http/1.1**;h2 仅遥测/oauth/更新端点(Go net/http2) |
-| **gemini** | ❌ 仅 HTTP/1.1 | — | — | 模型 `cloudcode-pa…/v1internal:streamGenerateContent` 为 http/1.1 |
-| **copilot** | ❌ 仅 HTTP/1.1 | — | — | 模型 `api.individual.githubcopilot.com` 为 http/1.1(rustls 栈) |
-| **kiro-cli** | ❌ 仅 HTTP/1.1 | — | — | 含 `codewhispererstreaming` 模型流式调用也是 http/1.1 |
+Rules of thumb:
 
-**解读**
-- **codex** = Rust `hyper`/`h2`:`SETTINGS` 只发 `ENABLE_PUSH=0 / INITIAL_WINDOW_SIZE=2MiB / MAX_FRAME_SIZE=16KiB / MAX_HEADER_LIST_SIZE=16KiB`(无 header_table_size、无 max_concurrent_streams),伪头序 `m,s,a,p`。
-- **agy** 的 h2(仅遥测/oauth/更新端点)= Go `net/http2`:`INITIAL_WINDOW_SIZE=4MiB / MAX_FRAME_SIZE=1MiB / MAX_HEADER_LIST_SIZE=10MiB`,连接级 `WINDOW_UPDATE=1GiB`,伪头序 `a,m,p,s`——Go 标志性 h2 指纹。**但其模型端点 `(daily-)cloudcode-pa` 走 h1、不发 ALPN**(JA4 `t13d131100_…`)。
-- **claude、gemini、copilot、kiro、agy 的模型路径都只用 HTTP/1.1**(均已在模型连接确认)→ JSON 里用 `"http2": false`(`http1_only`)。**模型路径只有 codex 走 h2**(agy 的 h2 只出现在它的遥测/oauth/更新端点,非模型)。
-- gemini/copilot 的模型路径经**转发型 MITM**([`scripts/capture_fwd_mitm.py`](../scripts/capture_fwd_mitm.py),转发真上游 + 被动嗅探 + 镜像客户端 ALPN)抓到;copilot 需 `GH_TOKEN`(`gh auth token`)跳过其绕代理的 OAuth 校验。
-- wreq `Http2Options` 可完整复刻 **codex** 模型路径的 h2 层(`headers_pseudo_order` + `settings_order` + 各窗口/帧值),见 §5 codex 草案的 `http2` 块;agy 的 h2 仅其非模型端点,模型路径用 `http2:false`。
-
----
-
-## 7. 备注
-
-- SNI 随目标主机变化;JA3/JA4 的 cipher/extension/curve 才是栈特征。**指纹与目标主机无关**:claude 对 `api.anthropic.com`、`gproxy.lin.pub`、`api.githubcopilot.com` 的握手完全一致(JA4 `t13d1714h1`),只有 SNI 不同。
-- 复现:`python3 scripts/capture_h2_fp.py 8888 /tmp/fpca.pem`(终止式,抓 h2/UA)或 `scripts/capture_fwd_mitm.py 8889 /tmp/fpca.pem`(转发式,适合需真上游响应才往下走的渠道,如 gemini/copilot);被动 JA3/JA4 用 `scripts/capture_tls_fp.py 8888 proxy`。详见各脚本头注释。
+- Separate model paths from non-model paths; Codex, Copilot, and Kiro each have
+  more than one network profile.
+- Prefer JA4; JA3 is more sensitive to extension order.
+- Record ALPN and HTTP2 SETTINGS; TLS alone is insufficient.
+- Redact tokens, cookies, prompts, and account information.
+- When upgrading a real CLI, update more than UA. Re-check headers, TLS, HTTP2,
+  and body shaping together.

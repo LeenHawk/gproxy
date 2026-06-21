@@ -208,3 +208,233 @@ systemctl start gproxy
 
 这套迁移代码明确标注为 `MIGRATE-V1 (remove in 2.1)`。不要把 v1 数据库直接带到
 2.1 或更高版本；先用包含迁移器的 v2 版本完成一次迁移，再升级。
+
+## English
+
+# Migrating From gproxy v1 To v2
+
+v2 includes a temporary v1 SQLite migrator so common single-node deployments can
+**replace the binary and start directly**. On startup, v2 detects an old
+`data/gproxy.db`, exports the v1 control-plane configuration in read-only mode,
+creates a new v2 database, and moves the old database next to it as a backup.
+
+This is a transition feature and is planned for removal in **2.1**. Instances
+still running v1 should first upgrade to a v2 build that includes the
+`migrate-v1` feature, complete the migration, and only then move to later v2
+versions.
+
+## Supported Scope
+
+Automatic migration runs only on the service startup path and only when all of
+these conditions are true:
+
+- the binary includes the default `migrate-v1` feature;
+- no `import`, `export`, `update`, `migrate-v1`, or similar subcommand is being
+  executed;
+- persistence is `db` and the target DSN is a real SQLite file;
+- the SQLite file exists and looks like v1 schema: it has `global_settings` and
+  `providers`, but not v2 `orgs`, `routes`, or `schema_migrations`.
+
+The default v2 configuration matches this path: `GPROXY_PERSISTENCE=db`, and
+without `GPROXY_DSN` it uses `<data_dir>/gproxy.db`, which is also the v1 default
+database path.
+
+Cases that do not auto-migrate:
+
+| Case | Result |
+| --- | --- |
+| Fresh install without `gproxy.db` | Creates a normal v2 database. |
+| Target is already a v2 database | Skips migration. |
+| `--persistence=file` | Does not migrate; file backend is not a v1 SQLite-compatible target. |
+| PostgreSQL / MySQL DSN | Does not run startup migration; use explicit `migrate-v1 --to <dsn>`. |
+| `sqlite::memory:` | Does not migrate; there is no file to take over. |
+
+## Recommended Upgrade Path
+
+Stop v1 before starting v2. If v1 uses WAL, the migrator can read `-wal` content
+and move sidecar files during the database swap, but only if the old process has
+stopped writing.
+
+```bash
+# 1. Stop the v1 process
+systemctl stop gproxy
+
+# 2. Make an extra manual backup for rollback outside the migrator
+cp data/gproxy.db data/gproxy.db.manualbak
+
+# 3. Replace the binary with v2
+install -m 0755 gproxy-v2 /usr/local/bin/gproxy
+
+# 4. Start v2 with the same data directory
+GPROXY_DATA_DIR=./data \
+GPROXY_HOST=0.0.0.0 \
+GPROXY_PORT=8787 \
+gproxy
+```
+
+If you previously used CLI flags, you can keep using them:
+
+```bash
+gproxy --data-dir ./data --host 0.0.0.0 --port 8787
+```
+
+After success, `data/gproxy.db` is the new v2 database and the old v1 database is
+moved to `data/gproxy.db.v1.bak`. If that name already exists, the migrator uses
+the next available name such as `gproxy.db.v1.bak.2` or `gproxy.db.v1.bak.3`.
+
+Startup logs should include messages like:
+
+```text
+WARN v1 database detected - migrating to v2 in place (original backed up)
+INFO v1 -> v2 migration complete report=Report { providers: 6, credentials: 6, models: 400, ... }
+WARN v1 database backed up; v2 database is now live at .../data/gproxy.db
+INFO gproxy v2 listening on http://0.0.0.0:8787
+```
+
+The migration is idempotent. After the first successful run, `gproxy.db` is v2
+schema and later starts skip migration. If the process is interrupted during the
+swap window, the next start attempts to complete the temporary file swap or
+restore the backup as the source and migrate again.
+
+## Encryption
+
+v1 used `DATABASE_SECRET_KEY` as the encryption key name. If v1 encrypted
+`credentials.secret_json` or `user_keys.api_key_ciphertext`, provide the same
+value during migration:
+
+```bash
+DATABASE_SECRET_KEY='<v1 database secret>' \
+GPROXY_MASTER_KEY='<base64-encoded 32-byte v2 master key, optional>' \
+gproxy --data-dir ./data
+```
+
+The migrator:
+
+1. opens v1 secrets with `DATABASE_SECRET_KEY`;
+2. imports the plaintext configuration into a v2 bundle;
+3. writes it through the v2 import path.
+
+`GPROXY_MASTER_KEY` is the v2 sealing key and must be a standard base64-encoded
+32-byte value. When set, imported credentials and API keys are sealed using v2
+rules. When absent, v2 runs in plaintext mode and logs a warning.
+
+If the v1 database contains `enc:v2:` or JSON encryption envelopes and the
+correct `DATABASE_SECRET_KEY` is missing, migration fails and the original
+database is not replaced.
+
+## Explicit Offline Migration
+
+Use the `migrate-v1` subcommand when migrating to PostgreSQL/MySQL or when you
+want to inspect migration size first:
+
+```bash
+# Read-only scan of the v1 database; does not write target
+gproxy migrate-v1 --from ./data/gproxy.db --dry-run
+
+# Import into the current default db target from --persistence/--data-dir/--dsn
+gproxy --data-dir ./data migrate-v1 --from ./data/gproxy.db
+
+# Explicit import to PostgreSQL
+gproxy migrate-v1 \
+  --from ./old/gproxy.db \
+  --to 'postgres://gproxy:secret@db.internal:5432/gproxy'
+```
+
+Offline migration does not replace files or create `.v1.bak`. It reads only the
+v1 SQLite file passed by `--from` and writes the mapped v2 bundle into the target
+DSN. The target should be an empty v2 control-plane database to avoid provider,
+route, or user id collisions.
+
+## Migrated Data
+
+v2 migrates control-plane configuration only, not runtime history.
+
+| v1 data | v2 result |
+| --- | --- |
+| `users` | `users`, all attached to a synthetic `default` organization. |
+| `user_keys` | `user_keys`, decrypted and rewritten by the v2 import path. |
+| `providers` | `providers`, preserving id, name, channel, label, settings. |
+| `credentials` | `credentials`, decrypted and re-sealed, default weight 100. |
+| `models` | `provider_models`, preserving provider, model id, display name, enabled. |
+| Same `model_id` | One synthetic v2 route with multiple route members. |
+| `user_quotas` | `quotas`, user scope. |
+| `user_model_permissions` | `route_permissions`, preserving v1 model globs as v2 route globs. |
+| `user_rate_limits` | `rate_limits`, preserving v1 model pattern as route pattern. |
+| `global_settings` | `instance_settings`, including proxy, logging, usage, update-channel preferences. |
+
+Not migrated:
+
+- usage billing history;
+- upstream/downstream request logs;
+- file records;
+- credential health state;
+- individual custom rules from v1 `routing_json`.
+
+These do not affect control-plane startup. v2 begins recording them into new
+tables after migration.
+
+## Behavior Differences
+
+v2's routing model is not identical to v1. The migrator preserves callability as
+much as possible, but it does not pretend old semantics are exactly the same.
+
+| Difference | Explanation |
+| --- | --- |
+| Model becomes route | Each unique `model_id` becomes one v2 route with the same name. |
+| Same model across providers | v1 tended to let later entries override; v2 keeps all members and applies the route strategy. |
+| Default route strategy | Synthetic routes use `failover`; members start with weight 100 and tier 0. |
+| Provider routing | v1 `routing_json` is not translated; v2 seeds channel defaults instead. |
+| Unknown channel | Provider and credential migrate, but default routing seed warns; fix the channel in Console. |
+| Pricing model | v1 tiered/flex/scale/priority pricing collapses into v2 flat `input`, `output`, `cache_read`, `cache_creation`. |
+| TLS spoof | The exact v1 `spoof_emulation` string becomes a v2 instance-setting boolean. |
+
+After migration, review provider channel, route members, routing rules, and
+pricing carefully.
+
+## Verification Checklist
+
+Start v2 and check at least:
+
+```bash
+gproxy --data-dir ./data --host 127.0.0.1 --port 8787
+```
+
+- Console login works and the admin user exists.
+- provider, credential, model, route, user, and user-key counts look right.
+- each migrated provider has default routing rules; unknown channels are fixed.
+- important model pricing is correct in Console.
+- one migrated user key can call the aggregated entry:
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H 'Authorization: Bearer <migrated-user-key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"<route-name>","messages":[{"role":"user","content":"ping"}]}'
+```
+
+## Rollback
+
+Migration does not modify the v1 source content; the automatic path only moves
+it to a backup file. To roll back:
+
+```bash
+systemctl stop gproxy
+rm -f data/gproxy.db data/gproxy.db-wal data/gproxy.db-shm
+mv data/gproxy.db.v1.bak data/gproxy.db
+
+# Restore sidecar backups too if present
+[ -f data/gproxy.db.v1.bak-wal ] && mv data/gproxy.db.v1.bak-wal data/gproxy.db-wal
+[ -f data/gproxy.db.v1.bak-shm ] && mv data/gproxy.db.v1.bak-shm data/gproxy.db-shm
+
+# Switch back to the v1 binary, then start
+systemctl start gproxy
+```
+
+If the migrator used a backup name such as `gproxy.db.v1.bak.2`, restore that
+actual file instead.
+
+## Upgrade Window
+
+The migration code is explicitly marked `MIGRATE-V1 (remove in 2.1)`. Do not
+carry a v1 database directly into 2.1 or later. First complete migration with a
+v2 version that still includes the migrator, then upgrade.

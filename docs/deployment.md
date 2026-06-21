@@ -168,3 +168,188 @@ pnpm dev
 
 生产环境优先使用“内嵌 native”或“同源反代”。这两个形态和当前 console 的相对 API
 路径完全匹配，cookie 与 CSRF 规则也最简单。
+
+## English
+
+# Console Deployment Shapes
+
+The gproxy v2 `console/` is a static SPA built by Vite and mounted at
+`/console/` by default. It is not a separate backend service. API calls inside
+the SPA use relative paths such as `/admin/*`, `/user/*`, `/healthz`,
+`/version`, and `/metrics`. The safest deployment model is therefore:
+**serve the console static assets and the gproxy API from the same browser
+origin**.
+
+The backend HTTP surface has four groups:
+
+| Path | Purpose | Auth |
+| --- | --- | --- |
+| `/console/*` | Admin/user portal SPA assets | None; the page logs in later |
+| `/admin/*` | Admin API, login, CRUD, observability, self-update | Admin session or admin API key |
+| `/user/*` | User portal API | Session |
+| `/v1/*`, `/{provider}/v1/*`, `/v1beta/*` | LLM gateway | User API key |
+| `/healthz`, `/version`, `/metrics` | Ops endpoints | Admin |
+
+## Build Output
+
+```bash
+cd console
+pnpm install --frozen-lockfile
+pnpm build
+```
+
+`pnpm build` runs three steps:
+
+1. `tsc -b` type checking.
+2. `vite build`, producing `console/dist/` with `/console/` as the base path.
+3. `node scripts/sync-to-embed.mjs`, syncing `dist/` into `../assets/console/`.
+
+`assets/console/` is the native binary embed directory compiled through
+`rust-embed`. It is build output and should not be maintained by hand.
+
+## Shape 0: Embedded In The Native Binary
+
+This is the default production shape. Build the console before building the Rust
+binary:
+
+```bash
+cd console
+pnpm install --frozen-lockfile
+pnpm build
+cd ..
+
+cargo build --release
+```
+
+After the native instance starts:
+
+- `/` permanently redirects to `/console`;
+- `/console`, `/console/`, and `/console/<route>` return the SPA;
+- hash-named static files under `assets/` use long-lived caching;
+- `index.html` uses `no-cache`;
+- the SPA and API are same-origin, so CORS is unnecessary.
+
+If the console has not been built, `assets/console/` contains only placeholders
+and `/console` returns a clear `console assets not embedded` error. Backend
+compilation and gateway APIs still work.
+
+Use this for single-node installs, Docker, VMs, and production deployments that
+should have the fewest moving parts.
+
+## Shape 1: Separate Static Hosting With Same-Origin Reverse Proxy
+
+If you do not want to embed the console in the binary, place `console/dist/` in
+Nginx, Caddy, S3+CDN, or another static asset system, but keep the browser-facing
+domain routing API paths back to gproxy.
+
+Example:
+
+```text
+https://gproxy.example.com/console/*  -> static dist/
+https://gproxy.example.com/admin/*    -> gproxy native/edge API
+https://gproxy.example.com/user/*     -> gproxy native/edge API
+https://gproxy.example.com/v1/*       -> gproxy gateway
+https://gproxy.example.com/healthz    -> gproxy ops endpoint
+https://gproxy.example.com/version    -> gproxy ops endpoint
+https://gproxy.example.com/metrics    -> gproxy ops endpoint
+```
+
+This remains a same-origin deployment. Cookies, CSRF, and
+`fetch(..., { credentials: "include" })` follow normal browser rules and do not
+need `GPROXY_CORS_ORIGINS`.
+
+The current Vite base path is `/console/`. To mount the SPA at site root, change
+`console/vite.config.ts` and rebuild.
+
+## Shape 2: Cross-Origin API
+
+The backend supports an explicit CORS allow-list:
+
+```bash
+GPROXY_CORS_ORIGINS=https://console.example.com,https://ops.example.com
+```
+
+When enabled, the native `/admin/*` and `/user/*` routers:
+
+- allow only the exact listed origins, never `*`;
+- allow credentialed CORS;
+- allow `content-type`, `authorization`, and `x-api-key`;
+- use `SameSite=None; Secure` session cookies for cross-site sessions;
+- include allowed origins in CSRF checks.
+
+The current console frontend still uses relative paths in `api()`. If you serve
+`dist/` directly from `https://console.example.com/console/`, the browser will
+request `https://console.example.com/admin/*`; it will not automatically call
+`https://api.example.com/admin/*`.
+
+Cross-origin support is mainly for:
+
+- a custom console build or shell with an absolute API base URL;
+- a static hosting layer that forwards `/admin`, `/user`, and related paths to
+  the backend while keeping the browser Origin;
+- non-console browser clients.
+
+For the normal console, prefer embedded native or same-origin reverse proxy.
+
+## Shape 3: Edge Same-Origin Static Assets
+
+The edge wasm worker can serve gateway traffic, `/admin/*`, and `/user/*`.
+Recommended deployment keeps console static assets on the same edge domain:
+
+```text
+https://edge.example.com/console/*  -> platform static assets
+https://edge.example.com/admin/*    -> gproxy wasm worker
+https://edge.example.com/user/*     -> gproxy wasm worker
+https://edge.example.com/v1/*       -> gproxy wasm worker
+```
+
+The edge entry in `src/http/edge/` dispatches directly by path and does not run
+the native Axum router. Its control plane uses libSQL/Turso persistence and
+Upstash or libSQL KV for cache. Platform glue calls `init()` with Turso,
+Upstash, and optional `GPROXY_MASTER_KEY` values.
+
+The edge admin surface currently has three explicit downgrades:
+
+| Endpoint | Edge behavior | Reason |
+| --- | --- | --- |
+| `/admin/update/*` | 501 `not_implemented` | Self-update only applies to the native binary. |
+| `/admin/login-flows/cookie` | 501 `not_implemented` | Claude Code cookie login depends on native wreq/TLS behavior. |
+| `/admin/credentials/{id}/usage` | 501 `not_implemented` | Live upstream usage fetch depends on the native path. |
+
+Other control-plane and portal paths should be served through the edge
+dispatcher. See `docs/edge-deploy.md`.
+
+## Development Mode
+
+Backend:
+
+```bash
+GPROXY_INSECURE_COOKIES=1 cargo run --features full
+```
+
+Frontend:
+
+```bash
+cd console
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+`console/vite.config.ts` currently proxies `/admin`, `/healthz`, `/version`, and
+`/metrics` to `http://127.0.0.1:8787`, rewriting Origin to satisfy CSRF checks.
+
+To test `/user/*` portal paths through the Vite dev server, add a `/user` proxy
+there as well, or test through the embedded console path.
+
+## Choosing A Deployment Shape
+
+| Shape | Static asset location | API same-origin | Needs CORS | Use case |
+| --- | --- | --- | --- | --- |
+| Embedded native | `assets/console/` compiled into the binary | Yes | No | Default production, Docker, VM. |
+| Same-origin reverse proxy | External static hosting | Yes | No | Independent frontend asset release with one domain. |
+| Cross-origin API | External hosting or custom frontend | No | Yes | Custom console/API base or other browser clients. |
+| Edge same-origin | Edge platform static assets | Yes | No | Pure edge deployment with shared Turso/Upstash. |
+
+Production should usually choose embedded native or same-origin reverse proxy.
+Both match the current console's relative API paths and keep cookie/CSRF behavior
+simple.

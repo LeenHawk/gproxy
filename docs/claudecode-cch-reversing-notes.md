@@ -202,3 +202,236 @@ xxh64(body_bytes, 0x4d659218e32a3268) & 0xfffff
 如果要在 `claudecode` 渠道实现这个逻辑，签名必须放在所有 transform / process / rule 改写之后、请求发出之前。
 
 实现时应对最终要发送的 body 做签名，而不是对解析后的某个字段、首条消息或规范化 JSON 做签名。
+
+## English
+
+# Claude Code CCH Reverse-Engineering Notes
+
+This note records how the Claude Code `cch` algorithm was confirmed. The main
+lesson is not "guess a hash"; it is separating the same request at different
+layers.
+
+## Conclusion
+
+Claude Code 2.1.162 `cch` is not `sha256(first user message)[:5]`.
+
+The observed form is:
+
+```text
+cch = xxh64(final_raw_body_with_cch_00000, seed=0x4d659218e32a3268) & 0xfffff
+```
+
+The result is formatted as five lowercase hex digits and replaces
+`cch=00000;` in the billing header.
+
+Because the input is the final raw body, `model`, `system`, `messages`, `tools`,
+`tool_choice`, and similar fields all affect the result. URL, HTTP headers, and
+OAuth token do not.
+
+## Key Lesson
+
+The readable JS bundle inside Claude Code does not necessarily show the final
+body that reaches the network.
+
+The easy trap is `OTEL_LOG_RAW_API_BODIES`: it captures the SDK-layer raw body,
+where the header may still contain:
+
+```text
+x-anthropic-billing-header: ...; cch=00000;
+```
+
+The real `cch` is patched later. SDK raw-body logs prove only that the
+placeholder exists at that layer; they do not prove the final wire body still
+contains `00000`.
+
+Separate three layers:
+
+1. **Bundle / readable source layer**: find who creates the billing header,
+   placeholder, version, and entrypoint.
+2. **SDK raw body layer**: confirm the approximate JSON before the SDK sends it.
+3. **Wire body layer**: inspect the actual body sent to `api.anthropic.com`; this
+   layer decides the algorithm.
+
+## Capture Path
+
+### 1. Find The Billing Header Generator
+
+Search bundle strings for:
+
+```text
+x-anthropic-billing-header
+cch=00000
+cc_version
+cc_entrypoint
+```
+
+This confirms Claude Code first creates a placeholder header instead of knowing
+the final checksum upfront.
+
+### 2. Use Raw Body Logs For The SDK Layer
+
+Use `OTEL_LOG_RAW_API_BODIES` to capture the SDK-layer body. Seeing
+`cch=00000` there is not enough; it only means the rewrite has not happened yet.
+
+If raw body and wire body differ, trust the wire body.
+
+### 3. Capture The Wire Body
+
+Use local MITM / debug proxy to capture the real `POST /v1/messages` body.
+Redact:
+
+- `Authorization`;
+- OAuth token;
+- cookies;
+- real user prompts.
+
+The wire body should show `cch` changed from `00000` to a five-digit hex value.
+
+### 4. Run Minimal Variable Experiments
+
+Do not rely on one prompt. Change at least:
+
+- user message;
+- model;
+- `max_tokens`;
+- adding/removing `tools`;
+- JSON field order or serialization shape;
+- fixed `CLAUDE_CODE_SESSION_ID`.
+
+The goal is to rule out bad hypotheses. If fixed session still changes with the
+body, it is not a stable session token. If changing `tools` changes `cch`, it is
+not a hash of only message text.
+
+## Binary Decompilation Path
+
+After confirming wire body differs from SDK body, go back to the binary. The JS
+bundle alone is not enough because Claude Code is a Bun-packed ELF.
+
+First confirm the entry:
+
+```bash
+readlink -f /home/linhuan/.local/bin/claude
+file /home/linhuan/.local/share/claude/versions/2.1.162
+readelf -S /home/linhuan/.local/share/claude/versions/2.1.162
+```
+
+The observed target:
+
+- `/home/linhuan/.local/bin/claude` points to `versions/2.1.162`;
+- the target is ELF;
+- it contains a `.bun` section;
+- `.bun` contains readable JS bundle data plus native/bytecode-related content.
+
+Analyze in two steps:
+
+1. Search `.bun` / strings for readable logic and confirm who creates the
+   placeholder.
+2. Search disassembly for the native path that replaces `cch=00000`.
+
+### 1. Use String Anchors
+
+Useful anchors:
+
+```text
+cch=00000
+/v1/messages
+"system":[
+x-anthropic-billing-header
+xxhash / XXH64 constants
+```
+
+The readable bundle shows a helper creating a string like:
+
+```text
+x-anthropic-billing-header: cc_version=2.1.162.<suffix>; cc_entrypoint=sdk-cli; cch=00000;
+```
+
+This only proves placeholder shape, not the final algorithm.
+
+### 2. Cross-Reference `cch=00000`
+
+In a disassembler, search xrefs around `cch=00000`, `/v1/messages`, and
+`"system":[`. The important code path scans the final body and replaces five
+characters before sending.
+
+Claude Code 2.1.162 showed this shape:
+
+1. find `cch=00000` in body;
+2. initialize XXH64 state;
+3. feed full body bytes to the hash;
+4. finalize;
+5. take low 20 bits;
+6. write five hex characters back.
+
+Approximate offsets observed in that version:
+
+```text
+0x2e06693  search/handling around cch=00000
+0x2e06757  initialize XXH64 state
+0x2e067b6  feed full body bytes
+0x2917fe0  XXH64 finalize, with XXH64-prime-style operations
+0x2e06878  write five hex digits
+0x2e0687e  continue send path
+```
+
+These offsets only apply to Claude Code 2.1.162. Re-find them for other
+versions; do not hard-code offsets outside these notes.
+
+### 3. Identify XXH64 By Behavior
+
+The binary may not expose friendly function names. The evidence for XXH64 is:
+
+- state init and update shape match XXH64;
+- finalize phase has XXH64 prime / avalanche-style mixing;
+- recomputing on the same wire body exactly matches the final `cch`.
+
+The third point matters most. Decompilation gives candidate algorithms; exact
+wire-body recomputation confirms the answer.
+
+### 4. Watch Trigger Conditions
+
+The rewrite path does not trigger for arbitrary JSON. In 2.1.162 it checks
+conditions like:
+
+- target is `/v1/messages`;
+- body contains `"system":[`;
+- a billing header is near the front of system;
+- billing header contains `cch=00000`.
+
+Pretty JSON, different field order, or non-array `system` may not hit the same
+native rewrite path. Verify with compact raw bodies from the real client.
+
+## Verification
+
+To verify, take the same final body and replace the real billing header value
+back to:
+
+```text
+cch=00000;
+```
+
+Then compute:
+
+```text
+xxh64(body_bytes, 0x4d659218e32a3268) & 0xfffff
+```
+
+Format as five lowercase hex digits. If it matches the wire body `cch`, the
+algorithm is confirmed.
+
+## Pitfalls
+
+- Do not treat SDK raw body as wire body.
+- Do not derive the formula from one prompt.
+- Do not hash only the first user message.
+- Do not ignore `tools`; they are in the final body and affect `cch`.
+- Do not assume the seed is permanent; it may change across Claude Code versions.
+- Do not use pretty JSON to verify the final value; the hash is byte-sensitive.
+
+## Meaning For gproxy
+
+In the `claudecode` channel, signing must happen after all transform / process /
+rule mutations and immediately before the upstream request is sent.
+
+The implementation should sign the final body bytes to be sent, not a parsed
+field, first message, or normalized JSON abstraction.
