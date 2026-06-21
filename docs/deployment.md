@@ -1,85 +1,170 @@
 # Console 部署形态
 
-gproxy v2 的管理/门户前端(`console/`)是一份静态 SPA(basepath `/console`),可按四种形态分发。
-后端 API 面:`/admin/*`(管理区,require admin)、`/user/*`(门户,require session)、网关
-`/v1/*`·`/{provider}/v1/*`、ops `/healthz`·`/version`·`/metrics`。
+gproxy v2 的 `console/` 是一份 Vite 构建出来的静态 SPA，默认挂在
+`/console/`。它不是单独的后端服务；页面里的 API 请求使用相对路径，例如
+`/admin/*`、`/user/*`、`/healthz`、`/version`、`/metrics`。因此最稳妥的部署模型是：
+**console 静态资源和 gproxy API 对浏览器保持同源**。
 
-## 构建
+后端 HTTP 面分为四类：
+
+| 路径 | 用途 | 鉴权 |
+| --- | --- | --- |
+| `/console/*` | 管理/门户 SPA 静态资源 | 无，页面内再登录 |
+| `/admin/*` | 管理 API、登录、CRUD、观测、自更新 | admin session 或 admin API key |
+| `/user/*` | 用户门户 API | session |
+| `/v1/*`、`/{provider}/v1/*`、`/v1beta/*` | LLM 网关 | user API key |
+| `/healthz`、`/version`、`/metrics` | 运维端点 | admin |
+
+## 构建产物
 
 ```bash
 cd console
 pnpm install --frozen-lockfile
-pnpm build      # tsc -b && vite build && node scripts/sync-to-embed.mjs
+pnpm build
 ```
 
-`pnpm build` 产出 `console/dist/`(版本号取自 `../Cargo.toml`,commit 取自 `git rev-parse`),并
-`sync-to-embed.mjs` 把 `dist/` 同步到 `../assets/console/`(供 rust-embed;该目录已 gitignore)。
+`pnpm build` 会执行三步：
 
----
+1. `tsc -b` 类型检查。
+2. `vite build` 生成 `console/dist/`，base path 为 `/console/`。
+3. `node scripts/sync-to-embed.mjs` 同步 `dist/` 到 `../assets/console/`。
 
-## 形态 0 — 嵌入(默认,rust-embed)
+`assets/console/` 是 native 二进制的嵌入目录，由 `rust-embed` 编进最终二进制。
+这个目录是构建产物，不应该手工维护。
 
-`pnpm build` 后,`cargo build --features full` 把 `assets/console/` 编进二进制;运行 native 实例即
-在 `/console` 提供 SPA(`src/http/server/console.rs`,无扩展名路径 SPA fallback 到 `index.html`)。
-**SPA 与 API 同源** → cookie / 同源 CSRF 天然工作,无需任何额外配置。单文件分发,首选。
+## 形态 0：内嵌到 native 二进制
 
-> 未构建前端时 `assets/console/` 只有 `.gitkeep`,`/console` 返回占位文本,不影响 `cargo build`。
-
-## 形态 1 — 独立静态产物 · 同源反代
-
-把 `dist/` 托管到任意静态主机(Nginx / S3+CDN / …),并由反代让**静态资源与 API 同域**:
-`/admin`、`/user`、`/healthz`、`/version`、`/metrics`(以及网关路径)反代到 gproxy 实例。
-
-- SPA 在 `/console`(Vite `base: '/console/'`);若要挂在站点根,需改 `vite.config.ts` 的 `base` 重新构建。
-- 同源 → cookie / CSRF 直接可用,**无需 CORS**。
-
-## 形态 2 — 独立静态产物 · 跨域直连(依赖 B2)
-
-console 托管在 A 域、API 在 B 域。需要后端 **B2 CORS**:
+这是默认生产形态。先构建 console，再构建 Rust 二进制：
 
 ```bash
-# gproxy 实例
-GPROXY_CORS_ORIGINS=https://console.example.com   # 逗号分隔多个;必须是完整 scheme://host[:port]
+cd console
+pnpm install --frozen-lockfile
+pnpm build
+cd ..
+
+cargo build --release
 ```
 
-启用后:
-- CorsLayer 对白名单 origin 放行(凭证式 CORS,显式 origin,绝不 `*`);预检 OPTIONS 自动应答。
-- 会话 cookie 自动切到 **`SameSite=None; Secure`**(跨站 XHR 才会携带)→ **两端都必须 HTTPS**。
-- 同源 CSRF 检查对白名单 origin(**scheme 精确匹配**,`http://` 不满足 `https://` 白名单项)放行。
-- 前端 `api()` 默认 `credentials:"include"`,无需改动。
+运行 native 实例后：
 
-> ⚠️ 安全:仅把可信的、HTTPS 的 console 源加入 `GPROXY_CORS_ORIGINS`。详见提交 `b33d41a` 的安全评审。
+- `/` 永久重定向到 `/console`；
+- `/console`、`/console/` 和 `/console/<route>` 返回 SPA；
+- `assets/` 下的 hash 静态文件使用长期缓存；
+- `index.html` 使用 `no-cache`；
+- SPA 与 API 完全同源，不需要 CORS。
 
-## 形态 3 — edge 平台同域静态资源
+如果没有构建 console，`assets/console/` 只有占位文件，`/console` 会返回明确的
+`console assets not embedded` 错误；这不影响后端编译或网关 API。
 
-把 `dist/` 作为 edge 平台静态资源(Cloudflare Workers assets / Vercel / Netlify / **EdgeOne Pages**)
-随 worker 一起部署,与 edge worker **同源** → cookie/CSRF 天然工作,不依赖 CORS。
+适用场景：单机、Docker、普通 VM、需要最少部署部件的生产环境。
 
-> **edge 管理面(F8/B6,已完成)**:edge(wasm)worker 现经 `src/http/admin_api/` 跨目标 dispatcher
-> **服务完整 `/admin/*` 与 `/user/*`**(CRUD / authz / 可观测 / auth 登录登出 / 特殊 CRUD
-> credentials·user-keys·users / 门户 /user/* / OAuth·device login-flows),认证/会话/口令/密封/审计
-> 全在 edge 跑。**三项显式降级(返回 501 `not_implemented`)**:`/admin/update/*`(自更新,native-only)、
-> `/admin/login-flows/cookie`(claudecode cookie 登录需 wreq 浏览器 TLS)、`/admin/credentials/{id}/usage`
-> (上游实时用量需 wreq)。这三项需 native 实例。其余纯 edge 部署即可提供完整管理区/门户(SPA 由平台
-> 静态资源托管,同源 cookie/CSRF/审计 天然工作)。edge 与 native 可共享同一 Turso + Upstash 后端。
+## 形态 1：独立静态托管 + 同源反代
 
----
+如果你不想把 console 编进二进制，可以把 `console/dist/` 放到 Nginx、Caddy、
+S3+CDN 或其它静态资源系统，但浏览器看到的域名仍应把 API 路径反代回 gproxy。
+
+示意：
+
+```text
+https://gproxy.example.com/console/*  -> static dist/
+https://gproxy.example.com/admin/*    -> gproxy native/edge API
+https://gproxy.example.com/user/*     -> gproxy native/edge API
+https://gproxy.example.com/v1/*       -> gproxy gateway
+https://gproxy.example.com/healthz    -> gproxy ops endpoint
+https://gproxy.example.com/version    -> gproxy ops endpoint
+https://gproxy.example.com/metrics    -> gproxy ops endpoint
+```
+
+这个形态仍然是同源部署，cookie、CSRF、`fetch(..., { credentials: "include" })`
+都按默认浏览器规则工作，不需要设置 `GPROXY_CORS_ORIGINS`。
+
+注意：当前 Vite 配置的 base path 是 `/console/`。如果要把 SPA 挂在站点根路径，
+需要修改 `console/vite.config.ts` 的 `base` 后重新构建。
+
+## 形态 2：跨域 API
+
+后端支持显式 CORS 白名单：
+
+```bash
+GPROXY_CORS_ORIGINS=https://console.example.com,https://ops.example.com
+```
+
+启用后，native `/admin/*` 和 `/user/*` router 会：
+
+- 只允许白名单里的完整 origin，不能使用 `*`；
+- 允许 credentialed CORS；
+- 允许 `content-type`、`authorization`、`x-api-key` 请求头；
+- 让 session cookie 使用跨站场景需要的 `SameSite=None; Secure`；
+- 将白名单 origin 纳入 CSRF 放行逻辑。
+
+但当前 console 前端的 `api()` 使用相对路径，没有内置 API base URL 配置。也就是说，
+把 `dist/` 直接放到 `https://console.example.com/console/` 时，浏览器会请求
+`https://console.example.com/admin/*`，不会自动去请求 `https://api.example.com/admin/*`。
+
+因此跨域能力主要适用于：
+
+- 自定义 console 构建或外壳，把 API path 改成绝对后端 URL；
+- 静态托管层把 `/admin`、`/user` 等路径转发到后端，同时保留浏览器 Origin；
+- 非 console 的浏览器客户端。
+
+普通 console 部署优先选择内嵌或同源反代。
+
+## 形态 3：edge 同源静态资源
+
+edge wasm worker 可以服务网关、`/admin/*` 和 `/user/*`。推荐做法是让 edge 平台同时
+托管 console 静态资源，并保持同一域名：
+
+```text
+https://edge.example.com/console/*  -> platform static assets
+https://edge.example.com/admin/*    -> gproxy wasm worker
+https://edge.example.com/user/*     -> gproxy wasm worker
+https://edge.example.com/v1/*       -> gproxy wasm worker
+```
+
+edge 入口在 `src/http/edge/` 中直接按 path 分发，不走 native Axum router。它的控制面
+使用 libSQL/Turso 持久化，缓存使用 Upstash 或 libSQL KV。`init()` 由平台胶水代码传入
+Turso、Upstash 和可选 `GPROXY_MASTER_KEY`。
+
+edge 管理面当前有三类显式降级：
+
+| 端点 | edge 行为 | 原因 |
+| --- | --- | --- |
+| `/admin/update/*` | 501 `not_implemented` | 自更新只适用于 native 二进制。 |
+| `/admin/login-flows/cookie` | 501 `not_implemented` | Claude Code cookie 登录依赖 native wreq/TLS 行为。 |
+| `/admin/credentials/{id}/usage` | 501 `not_implemented` | 实时上游用量查询依赖 native 路径。 |
+
+其它控制面和门户路径应通过 edge dispatcher 提供。详见 `docs/edge-deploy.md`。
 
 ## 开发模式
 
+后端：
+
 ```bash
-cd console && pnpm dev    # Vite dev server
-# 后端:GPROXY_INSECURE_COOKIES=1 cargo run --features full   (本地明文 HTTP)
+GPROXY_INSECURE_COOKIES=1 cargo run --features full
 ```
 
-Vite dev server 把 `/admin`、`/user`、`/healthz`、`/version`、`/metrics` 代理到 `http://127.0.0.1:8787`
-(同源,cookie 直接可用)。
+前端：
 
-## 部署形态 × 依赖速查
+```bash
+cd console
+pnpm install --frozen-lockfile
+pnpm dev
+```
 
-| 形态 | 同源? | 需 B2 CORS | 需 HTTPS | 管理区/门户可用 |
-|---|---|---|---|---|
-| 0 嵌入(默认) | 是 | 否 | 否(建议) | ✅ |
-| 1 静态 · 同源反代 | 是 | 否 | 建议 | ✅ |
-| 2 静态 · 跨域直连 | 否 | ✅ | ✅(SameSite=None) | ✅ |
-| 3 edge 平台同域 | 是 | 否 | 建议 | ✅ 完整(除 self-update / cookie 登录 / cred-usage 三项 501 降级) |
+当前 `console/vite.config.ts` 代理 `/admin`、`/healthz`、`/version` 和 `/metrics`
+到 `http://127.0.0.1:8787`，并把 Origin 改写成后端地址以通过 CSRF 检查。
+
+如果你要在 Vite dev server 中测试 `/user/*` 门户路径，需要同步给 Vite 添加 `/user`
+代理，或者改用内嵌 console 路径测试门户功能。
+
+## 部署选择
+
+| 形态 | 静态资源位置 | API 是否同源 | 是否需要 CORS | 适用场景 |
+| --- | --- | --- | --- | --- |
+| 内嵌 native | `assets/console/` 编进二进制 | 是 | 否 | 默认生产部署、Docker、VM。 |
+| 同源反代 | 外部静态托管 | 是 | 否 | 前端资产独立发布，但域名统一。 |
+| 跨域 API | 外部静态托管或自定义前端 | 否 | 是 | 自定义 console/API base 或其它浏览器客户端。 |
+| edge 同源 | edge 平台静态资源 | 是 | 否 | 纯 edge 部署，共享 Turso/Upstash。 |
+
+生产环境优先使用“内嵌 native”或“同源反代”。这两个形态和当前 console 的相对 API
+路径完全匹配，cookie 与 CSRF 规则也最简单。

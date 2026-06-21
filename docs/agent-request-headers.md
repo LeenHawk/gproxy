@@ -1,215 +1,188 @@
-# Agent CLI 请求头采集(模型路径) + 动态头清单
+# Agent CLI 请求头参考
 
-> 用途:为 gproxy 各渠道**请求头伪装**(不止 UA)提供真实 CLI 的完整头集合。
-> 采集日期:2026-06-12 · 脚本:[`scripts/capture_headers.py`](../scripts/capture_headers.py)(转发型 MITM,dump 全部有序请求头)。
-> **所有 `Authorization`/`Bearer`/AWS SigV4/`x-amz-security-token` 值已脱敏。**
-> 标注:**[静态]** 可直接注入;**[动态]** 每请求/每会话变化,需反编译生成逻辑;**[凭证]** 鉴权,非伪装;**[传输]** http 客户端自动加(Host/Content-Length/Accept-Encoding/Connection)。
+这页记录 v2 中 agent 类 channel 的请求头伪装目标。它不是运行时配置说明，而是维护
+`src/channel/bulletins/*` 时用的对照表：哪些头由 gproxy 注入，哪些头来自凭证，哪些头
+由传输层自动生成，哪些动态头需要保持关联。
 
----
+采集脚本：
 
-## claudecode — `POST api.anthropic.com/v1/messages?beta=true`
+- `scripts/capture_headers.py`：转发型 MITM，记录有序 HTTP headers。
+- `scripts/capture_fwd_mitm.py`：需要真实上游响应才能继续执行的 channel 使用。
 
-| 头 | 值 / 形态 | 类 |
-|---|---|---|
-| `anthropic-version` | `2023-06-01` | 静态 |
-| `anthropic-dangerous-direct-browser-access` | `true` | 静态 |
-| `x-app` | `cli` | 静态 |
-| `anthropic-beta` | `claude-code-20250219,context-1m-2025-08-07,interleaved-thinking-2025-05-14,thinking-token-count-2026-05-13,context-management-2025-06-27,prompt-caching-scope-2026-01-05,mid-conversation-system-2026-04-07,advisor-tool-2026-03-01,effort-2025-11-24`(默认集 + 转发入站的 beta) | 静态(+合并) |
-| `X-Stainless-Lang` | `js` | 静态 |
-| `X-Stainless-Runtime` | `node` | 静态 |
-| `X-Stainless-Runtime-Version` | `v24.3.0`(node 版本) | 半静态 |
-| `X-Stainless-Package-Version` | `0.94.0`(`@anthropic-ai/sdk` 版本;**会随 SDK 升级漂移**,cpa 抄的是旧的 0.74.0) | 半静态 |
-| `X-Stainless-OS` | `Linux`(平台:MacOS/Windows/Linux) | 平台 |
-| `X-Stainless-Arch` | `x64`(平台:x64/arm64) | 平台 |
-| `X-Stainless-Timeout` | `600` | 静态 |
-| `Accept` / `Content-Type` | `application/json` | 静态 |
-| `User-Agent` | `claude-cli/2.1.162 (external, cli)` | 静态 |
-| **`X-Stainless-Retry-Count`** | `0`,重试递增 | **动态(计数器)** |
-| **`X-Claude-Code-Session-Id`** | UUIDv4,**每会话**(会话内稳定) | **动态** |
-| **`x-client-request-id`** | UUID,**每请求**,**仅 `api.anthropic.com` 加**(走代理则无) | **动态** ⚠️待反编译 |
-| `Authorization` | `Bearer …` | 凭证 |
+采集样本中的 `Authorization`、Bearer token、cookie、AWS/OIDC token 都必须脱敏后再写入
+文档。
 
-> gproxy 现有 claudecode 已注入大部分(x-stainless-* / x-app / anthropic-beta / session-id)。需核对:`X-Stainless-Package-Version` 是否跟到 0.94.0、`anthropic-beta` 默认集是否最新。
+## 分类规则
 
-## codex — `POST chatgpt.com/backend-api/codex/responses`(h2)
+| 类别 | 含义 | 文档处理 |
+| --- | --- | --- |
+| 静态 | 固定值或随 channel 版本固定 | 写入 channel 代码或默认 fingerprint。 |
+| 半静态 | 随 CLI/SDK/Node/OS 版本漂移 | 写明采集版本，升级时复核。 |
+| 动态 | 每请求、每会话或每机器变化 | 记录生成关系，不能写死。 |
+| 凭证 | OAuth/API token/cookie | 只说明来源，不记录真实值。 |
+| 传输 | `Host`、`Content-Length`、`Accept-Encoding`、`Transfer-Encoding` 等 | 通常交给 HTTP client。 |
 
-| 头 | 值 / 形态 | 类 |
-|---|---|---|
-| `accept` | `text/event-stream` | 静态 |
-| `content-type` | `application/json` | 静态 |
-| `originator` | `codex_exec` | 静态 |
-| `user-agent` | `codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.137.0)` | 静态 |
-| `x-codex-beta-features` | `terminal_resize_reflow,memories` | 静态 |
-| **`session-id`** | UUIDv7 | **动态** |
-| **`thread-id`** | UUIDv7(本次 = session-id 同值) | **动态** |
-| **`x-client-request-id`** | UUIDv7(本次 = session-id 同值) | **动态** ⚠️ |
-| **`x-codex-window-id`** | `<session-uuidv7>:0` | **动态** |
-| **`x-codex-turn-metadata`** | JSON:`{session_id, thread_id, thread_source:"user", turn_id:<另一UUIDv7>, workspaces:{<cwd>:{latest_git_commit_hash, has_changes}}, sandbox:"seccomp", turn_started_at_unix_ms:<ms时间戳>, request_kind:"turn", window_id}` | **动态(最复杂)** ⚠️⚠️ |
-| `authorization` | `Bearer …` | 凭证 |
+## claudecode
 
-> ⚠️ **codex 最难**:`session-id/thread-id/window-id/x-client-request-id` 共享**一个会话级 UUIDv7**,`turn_id` 是**每轮新 UUIDv7**;`x-codex-turn-metadata` 还内嵌 **unix 毫秒时间戳 + 当前目录 git commit hash + has_changes + sandbox**。gproxy 现有 codex 注入了 session/thread/x-client-request-id/originator,但**缺** `x-codex-turn-metadata` / `x-codex-window-id` / `x-codex-beta-features`(codex 新增)。turn-metadata 的 git 字段代理侧无法真实获知,需伪造或省略——**需反编译确认服务端是否校验**。
+目标：`POST https://api.anthropic.com/v1/messages?beta=true`
 
-## geminicli — `POST cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`
+实现位置：
 
-| 头 | 值 / 形态 | 类 |
-|---|---|---|
-| `Content-Type` | `application/json` | 静态 |
-| `User-Agent` | `GeminiCLI-tui/0.46.0/<model> (linux; x64; terminal) google-api-nodejs-client/9.15.1` | 静态(模型动态) |
-| `x-goog-api-client` | `gl-node/22.20.0`(node 版本) | 半静态 |
-| `Accept` | `*/*` | 静态 |
-| `Authorization` | `Bearer …` | 凭证 |
+- `src/channel/bulletins/claudecode/auth.rs`
+- `src/channel/bulletins/claudecode/cch.rs`
+- `src/channel/bulletins/claudecode/mod.rs`
 
-> ✅ **干净**:无 UUID/会话动态头。除凭证外都可静态注入。
+| 头 | 目标形态 | v2 行为 |
+| --- | --- | --- |
+| `authorization` | `Bearer <access_token>` | 从 Claude Code OAuth/cookie secret 注入。 |
+| `anthropic-version` | `2023-06-01` | 静态注入。 |
+| `anthropic-beta` | OAuth marker + client beta，去重 | `oauth-2025-04-20` 放在最前；转发客户端 beta。 |
+| `anthropic-dangerous-direct-browser-access` | `true` | 静态注入。 |
+| `x-app` | `cli` | 静态注入。 |
+| `user-agent` | `claude-cli/2.1.162 (external, cli)` | 静态注入。 |
+| `x-claude-code-session-id` | UUIDv4 形状，会话相关 | 由 `cch::session_id` 派生，和 body `metadata.user_id.session_id` 相同。 |
+| `x-client-request-id` | UUID，每请求 | 仅默认 `api.anthropic.com` 的模型调用注入。 |
+| `x-stainless-*` | JS SDK 指纹头 | 静态注入；升级 Claude Code SDK 时需要复核版本。 |
 
-## antigravity — `POST (daily-)cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`
+注意：
 
-| 头 | 值 / 形态 | 类 |
-|---|---|---|
-| `User-Agent` | `antigravity/cli/1.0.6 linux/amd64` | 静态 |
-| `Content-Type` | `application/json` | 静态 |
-| `Transfer-Encoding` | `chunked`(流式请求体) | 传输 |
-| `Accept-Encoding` | `gzip` | 传输 |
-| `Authorization` | `Bearer …` | 凭证 |
+- CCH 只对精确 `POST /v1/messages` 生效，不作用于
+  `POST /v1/messages/count_tokens`。
+- `x-stainless-package-version` 和 `x-stainless-runtime-version` 是最容易随
+  Claude Code 版本漂移的字段。当前代码仍按已实现常量注入，采集到新版后应和测试一起更新。
 
-> ✅ **已抓真实推理调用 `streamGenerateContent` 确认**:除凭证只有 UA + Content-Type(Host/Transfer-Encoding/Accept-Encoding 由 http 客户端加)。**没有 `requestId` / `requestType` / `Accept`** —— 代码原本注入的这三个(从旧版 mined)真实 1.0.6 CLI 不发,已移除。无动态 id 头。
+## codex
 
-## copilotcli — `api.individual.githubcopilot.com`(`/models`、`/mcp/readonly`、chat)
+目标：`POST https://chatgpt.com/backend-api/codex/responses`
 
-| 头 | 值 / 形态 | 类 |
-|---|---|---|
-| `user-agent` | `copilot/1.0.61 (linux v24.16.0) term/unknown` | 静态 |
-| `copilot-integration-id` | `copilot-developer-cli` | 静态 |
-| `editor-version` | `copilot/1.0.61` | 静态 |
-| `openai-intent` | `conversation-agent` | 静态 |
-| `x-github-api-version` | `2026-06-01` | 静态 |
-| `x-initiator` | `user` | 静态 |
-| `x-mcp-host` | `copilot-cli`(仅 mcp 调用) | 静态 |
-| `x-mcp-tools` | `get_file_contents,search_code,…`(仅 mcp 调用) | 静态 |
-| `accept` | `application/json`(chat 加 `, text/event-stream`) | 静态 |
-| `accept-encoding` | `zstd,gzip,deflate,br` | 静态 |
-| **`x-client-machine-id`** | UUIDv4,**每机器持久**(生成一次存本地) | **动态** ⚠️ |
-| **`x-interaction-id`** | UUIDv4,**每次交互** | **动态** ⚠️ |
-| `authorization` | `Bearer …` | 凭证 |
+实现位置：
 
-## kiro — Kiro CLI(`*.kiro.dev`,AWS-JSON 1.0 Smithy,**Bearer** 非 SigV4)
+- `src/channel/bulletins/codex/auth.rs`
+- `src/channel/bulletins/codex/mod.rs`
+- `src/channel/bulletins/codex/fingerprint.rs`
 
-> 2026-06-16 用 mitmproxy 实抓本地 `kiro-cli-chat`(GitHub 登录)。**纠正上一版**:不是老 Amazon Q 的 `q.us-east-1.amazonaws.com` + SigV4,而是 **Kiro 产品**的 `*.kiro.dev` 双 host + AWS-JSON 1.0 Smithy + **Bearer token**。两个服务两个 host:
+| 头 | 目标形态 | v2 行为 |
+| --- | --- | --- |
+| `authorization` | `Bearer <access_token>` | 从 Codex OAuth secret 注入。 |
+| `accept` | `text/event-stream` | 静态注入；body 会强制 `stream:true`。 |
+| `content-type` | `application/json` | 静态注入。 |
+| `originator` | `codex_exec` | 静态注入，需和 UA 同步。 |
+| `user-agent` | `codex_exec/0.137.0 ...` | 静态注入。 |
+| `session-id` | UUIDv7，会话级 | 如果客户端已提供则保留；否则 v2 生成 fallback。 |
+| `x-client-request-id` | 通常等于 `session-id` | 如果客户端已提供则保留；否则与 fallback `session-id` 同值。 |
+| `thread-id` | UUIDv7 | 允许从客户端转发；v2 不强制生成。 |
+| `x-codex-window-id` | `<thread-id>:0` | 允许从客户端转发。 |
+| `x-codex-beta-features` | 功能列表 | 允许从客户端转发。 |
+| `x-codex-turn-metadata` | JSON，含 turn id、时间、workspace、sandbox 等 | 允许从客户端转发。 |
+| `chatgpt-account-id` | account id | 从 `id_token` claim 解出后注入。 |
 
-| 操作 | host / `x-amz-target` |
-|---|---|
-| 模型列表 | `POST https://management.{region}.kiro.dev/?origin=KIRO_CLI&profileArn=<arn>` · `AmazonCodeWhispererService.ListAvailableModels` |
-| 聊天 | `POST https://runtime.{region}.kiro.dev/` · `AmazonCodeWhispererStreamingService.GenerateAssistantResponse` |
-| 用量 | `management.{region}.kiro.dev` · `AmazonCodeWhispererService.GetUsageLimits`(未抓,二进制确认) |
-| 登录 | `prod.us-east-1.auth.desktop.kiro.dev` |
+v2 的策略是：gproxy 负责认证、UA、originator 和 body normalization；Codex-aware
+客户端自己提供的 session/turn metadata 头优先保留，因为这些头内部有关联关系。
+当普通 OpenAI Responses 客户端没有这些头时，v2 只补齐 backend 必需的
+`session-id` 与 `x-client-request-id` 配对。
 
-公共头(两个操作一致):
+## geminicli
 
-| 头 | 值 / 形态 | 类 |
-|---|---|---|
-| `content-type` | `application/x-amz-json-1.0` | 静态 |
-| `x-amz-target` | `AmazonCodeWhisperer{Service\|StreamingService}.<Op>` | 静态(按操作) |
-| `user-agent` / `x-amz-user-agent` | `aws-sdk-rust/1.3.15 ua/2.1 api/codewhisperer{runtime\|streaming}/0.1.16551 … md/appVersion-2.6.1 app/AmazonQ-For-CLI` | 静态(管理面=`runtime`,运行面=`streaming`) |
-| `x-amzn-codewhisperer-optout` | `false` | 静态 |
-| `authorization` | `Bearer <kiro.dev token>`(**非 SigV4,无 `x-amz-date`/`x-amz-security-token`**) | 凭证 |
-| **`amz-sdk-invocation-id`** | UUIDv4 / 每请求 | 动态(AWS SDK 自带) |
-| `amz-sdk-request` | `attempt=1; max=3` | 静态 |
-| `accept` / `accept-encoding` | `*/*` / `gzip` | 静态 |
+目标：`POST https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`
 
-> ⚠️ **没有 `x-amzn-kiro-agent-mode`**(真实请求不带,v2 之前误加);`origin` = **`KIRO_CLI`**(不是 v1 的 `AI_EDITOR`)。
+实现位置：
 
-模型列表 body / resp:
-```
-REQ : {"origin":"KIRO_CLI","profileArn":"arn:aws:codewhisperer:us-east-1:<acct>:profile/<id>"}
-RESP: {"defaultModel":{"modelId":"auto"},"models":[{"modelId":"claude-sonnet-4.5","modelName":…,"tokenLimits":…},…]}
-真实模型:auto / claude-sonnet-4.5 / claude-sonnet-4 / claude-haiku-4.5 / deepseek-3.2 / minimax-m2.5 / minimax-m2.1 / glm-5 / qwen3-coder-next
-```
-聊天:body = `{"conversationState":{conversationId,history,currentMessage,…}}`;resp = AWS 事件流(`assistantResponseEvent` 等帧)。
+- `src/channel/bulletins/geminicli/auth.rs`
+- `src/channel/bulletins/geminicli/mod.rs`
 
-**登录 = 四种凭证 kind**(2026-06-16 反编译 `kiro-cli`/`fig_auth` 实证,枚举字面量 `social | idc | builderId | external_idp`)。`kiro-cli login` 菜单实为 `Use with Google / GitHub / Builder ID / Your Organization`(后者 = idc);**external_idp 不是菜单项**(见下 (d))。共同点:成功后凭证 `access_token` 注入 `Authorization: Bearer`(60s 提前刷新 skew);凭证存 SQLite `auth_kv(key,value)`,**Linux 无 keyring**。
+| 头 | 目标形态 | v2 行为 |
+| --- | --- | --- |
+| `authorization` | `Bearer <access_token>` | 从 Gemini CLI OAuth secret 注入。 |
+| `content-type` | `application/json` | 静态注入。 |
+| `accept` | `*/*` | 静态注入。 |
+| `user-agent` | `GeminiCLI-tui/0.46.0/<model> (linux; x64; terminal) google-api-nodejs-client/9.15.1` | 按上游模型生成。 |
+| `x-goog-api-client` | `gl-node/22.20.0` | 静态注入。 |
 
-**(a) social — GitHub / Google**(device-code,实抓):
-```
-① POST prod.{region}.auth.desktop.kiro.dev/oauth/device/authorization
-   body {"clientId":"Kiro-CLI","loginProvider":"Github"}  (或 "Google")
-   resp {deviceCode,userCode,verificationUriComplete:"https://app.kiro.dev/account/device?user_code=…&login_provider=Github",
-         intervalInMilliseconds:5000, expiresInMilliseconds:300000}
-② POST …/oauth/device/poll  {"deviceCode","clientId":"Kiro-CLI"}
-   pending {"status":"authorization_pending"} → done {"status":"authorized", accessToken, refreshToken, profileArn, identityProvider}
-③ 刷新 POST …/refreshToken  {"refreshToken": rt}  (无 clientId/secret)
-凭证存 {access_token, refresh_token, profile_arn, provider}。
-```
+Gemini CLI 模型路径没有已知 session/request id 类动态头。模型名是 UA 的一部分，修改
+模型映射时要保留这个关系。
 
-**(b) builderId / (c) idc — AWS SSO-OIDC**(authcode+PKCE,host `https://oidc.{region}.amazonaws.com`,REST-JSON,**无 x-amz-target / 无 SigV4**)。两者同一套代码,仅 `start_url`+`region` 不同(builderId=`view.awsapps.com/start`+`us-east-1`;idc=自配 `auth.idc.start-url`+`auth.idc.region`):
-```
-① RegisterClient POST /client/register
-   {clientName:"Kiro-CLI", clientType:"public", scopes:[codewhisperer:completions/analysis/conversations],
-    grantTypes:["authorization_code","refresh_token"], redirectUris:[loopback], issuerUrl:start_url}
-   → {clientId, clientSecret}
-② 浏览器 GET /authorize?response_type=code&client_id&redirect_uri&scopes=<空格join,plural!>&state&code_challenge&code_challenge_method=S256
-③ CreateToken POST /token  {grantType:"authorization_code", clientId, clientSecret, code, redirectUri, codeVerifier} → {accessToken, refreshToken, expiresIn}
-刷新 POST /token {grantType:"refresh_token", clientId, clientSecret, refreshToken}
-凭证存 {access_token, refresh_token, expires_at_ms, client_id, client_secret, region, start_url}。
-```
-> ⚠️ `scopes`(**plural**,空格 join)是 SSO-OIDC `/authorize` 的非标准约定;PKCE 默认流,device-code 仅为浏览器打不开时的回退。`scopePrefix` 设置默认 `codewhisperer`。**`kirocli:odic:token` 等是 SQLite KEY,不是 scope。**
+## antigravity
 
-**(d) external_idp — 运营方自配 OIDC**(authcode+PKCE,public client,**无动态注册/无 client_secret**)。⚠️ **不是 `kiro-cli login` 的菜单项**——它由组织的"统一登录门户"(app.kiro.dev)回调里带回的 IdP 元数据自动触发(二进制:`Using unified auth portal for login`、`External IdP metadata extracted from callback`),菜单只有上面三项 + "Use with Your Organization"(=idc)。**v2 不实现**,仅留此 RE 记录:
-```
-① discovery GET {issuer_url}/.well-known/openid-configuration → {authorization_endpoint, token_endpoint}
-② 浏览器 GET {authorization_endpoint}?response_type=code&client_id&redirect_uri&scope=<configured+offline_access>&state&code_challenge&code_challenge_method=S256
-③ 交换 POST {token_endpoint}  (application/x-www-form-urlencoded)  grant_type=authorization_code&code&redirect_uri&code_verifier&client_id → {access_token, refresh_token, expires_in}
-刷新 POST {token_endpoint}  grant_type=refresh_token&refresh_token&client_id
-```
+目标：`POST https://(daily-)cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`
 
-> **v2 现状**:模型列表(`76162e0`)+ 聊天/用量(`11b804b`)走 `*.kiro.dev` Smithy。**菜单的三种登录已实现**:social GitHub/Google 走 `device_start`(`params.login_provider`);builderId/idc 走 `authcode_start`/`authcode_exchange`(`params.auth_method`,PKCE-only);两路 `refresh` 按凭证形态分派(`client_id`+`client_secret`→SSO-OIDC;否则 social)。代码:`src/channel/bulletins/kiro/auth/{social,sso_oidc}.rs`。**external_idp 故意不做**(非菜单项,门户驱动)。Console 向导四项对齐 kiro-cli 菜单(GitHub/Google/Builder ID/Your Organization)。**E2E 待真实账号验证。**
+实现位置：
 
----
+- `src/channel/bulletins/antigravity/auth.rs`
+- `src/channel/bulletins/antigravity/mod.rs`
 
-## 需反编译的动态头(汇总,给反编译同学)
+| 头 | 目标形态 | v2 行为 |
+| --- | --- | --- |
+| `authorization` | `Bearer <access_token>` | 从 Antigravity OAuth secret 注入。 |
+| `content-type` | `application/json` | 静态注入。 |
+| `user-agent` | `antigravity/cli/1.0.6 linux/amd64` | 静态注入。 |
 
-| 渠道 | 头 | 形态 | 关联/难点 |
-|---|---|---|---|
-| claudecode | `X-Claude-Code-Session-Id` | UUIDv4 / 每会话 | 简单 |
-| claudecode | `x-client-request-id` | UUID / 每请求(仅 api.anthropic.com) | 简单 |
-| **codex** | `session-id`/`thread-id`/`x-client-request-id`/`x-codex-window-id` | **UUIDv7,会话级同源** | window-id 末尾 `:0` |
-| **codex** | `x-codex-turn-metadata` | **JSON,内嵌 turn UUIDv7 + unix-ms + git commit + has_changes + sandbox** | **最复杂,需确认服务端校验强度** |
-| copilot | `x-client-machine-id` | UUIDv4 / 每机器持久 | 存本地复用 |
-| copilot | `x-interaction-id` | UUIDv4 / 每交互 | 简单 |
-| kiro | `amz-sdk-invocation-id` | UUIDv4 / 每请求 | AWS SDK 自带(Bearer,**无** `x-amz-date`/SigV4) |
+真实 CLI 模型调用是极简头集合。不要额外注入旧笔记里的 `requestId`、
+`requestType` 或 `accept`，这些不是当前 CLI 模型路径会发的头。
 
-**最关键反编译目标:codex 的 `x-codex-turn-metadata`**(JSON 结构 + UUIDv7 + 时间戳 + git 状态)和会话级 UUIDv7 的生成/复用规律。其余(gemini/antigravity)无动态伪装头。
+## copilotcli
 
----
+目标：GitHub Copilot CLI chat/model API。
 
-## 生成机制(源码 + 反编译确认)
+实现位置：
 
-> codex 直接读开源源码 `samples/codex/codex-rs/`;claude/copilot/agy/kiro-cli 反编译四个原生二进制确认。
+- `src/channel/bulletins/copilotcli/auth.rs`
+- `src/channel/bulletins/copilotcli/mod.rs`
+- `src/channel/bulletins/copilotcli/usage.rs`
 
-### codex(源码确认 · `samples/codex/codex-rs/`)
-- **session-id / thread-id**:`Uuid::now_v7()`,**会话级**(进程启动时各生成一个 v7;`codex exec` 单发模式下我抓到三者同值)。`protocol/src/session_id.rs:20`、`thread_id.rs:18`。
-- **x-client-request-id** = `thread_id`(`codex-api/src/endpoint/responses.rs:92`)。
-- **x-codex-window-id** = `<thread_id>:0`,`:0` 是 auto-compact 窗口计数器(`core/src/client.rs:639`)。
-- **x-codex-turn-metadata**(`core/src/turn_metadata.rs`):
-  - `turn_id` = **每轮新 `Uuid::now_v7()`**;`turn_started_at_unix_ms` = `SystemTime::now()` 毫秒(`core/src/turn_timing.rs:183`)。
-  - `workspaces.<cwd>.latest_git_commit_hash` = **`git rev-parse HEAD`**;`has_changes` = **`git status --porcelain` 非空**(`git-utils/src/info.rs:164/281`,异步 enrich)。
-  - `sandbox`=权限档标签、`request_kind`=`"turn"`、`window_id` 同上。
-- **originator**:`CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR` 覆盖,默认 `codex_cli_rs`(`login/src/auth/default_client.rs:36`)→ **`codex exec` 走 exec 路径把它设成 `codex_exec`**(交互式 TUI 就是默认 `codex_cli_rs`)。
-- **user-agent** = `{originator}/{CARGO_PKG_VERSION} ({os_info}; {arch}) {terminal} (suffix)`,suffix 来自 `USER_AGENT_SUFFIX`。
-- **x-codex-beta-features**:ModelClient 配置串,会话级常量。
-- **gproxy 复刻要点**:生成一个会话级 UUIDv7(复用给 session/thread/window/x-client-request-id)、每轮新 UUIDv7(turn_id)、毫秒时间戳、turn-metadata JSON。**git 字段代理拿不到客户端真实 cwd**——伪造或省略 `workspaces`,需观察后端是否报错(后端闭源,只能试)。
+| 头 | 目标形态 | v2 行为 |
+| --- | --- | --- |
+| `authorization` | `Bearer <copilot_token>` | 先用 GitHub token 换 Copilot token，再注入。 |
+| `content-type` | `application/json` | 静态注入。 |
+| `user-agent` | `copilot/1.0.61 (linux v24.16.0) term/unknown` | 静态注入。 |
+| `copilot-integration-id` | `copilot-developer-cli` | 静态注入。 |
+| `editor-version` | `copilot/1.0.61` | 静态注入。 |
+| `openai-intent` | `conversation-agent` | 静态注入。 |
+| `x-github-api-version` | `2026-06-01` | 静态注入。 |
+| `x-client-machine-id` | UUIDv4，每机器稳定 | 从 credential 派生，随凭证稳定。 |
+| `x-interaction-id` | UUIDv4，每交互 | 每次请求生成。 |
+| `x-initiator` | `user` 或 `agent` | 根据 body 中是否已有 assistant/tool turn 判断。 |
 
-### claude(反编译 `~/.local/bin/claude`,Bun 打包 JS)
-- **x-claude-code-session-id** = `crypto.randomUUID()`(**UUIDv4**),**每进程/会话**一个。gproxy 现已生成。
-- **x-client-request-id**:`@anthropic-ai/sdk`(Stainless)每请求生成的 UUID,**仅直连 api.anthropic.com 时加**。
-- **x-stainless-***:SDK 自动注入;`x-stainless-package-version` = SDK 版本(**抓到 0.94.0,gproxy 代码里是 0.81.0,该升**),`runtime-version` = node 版本(`v24.3.0`),`os`/`arch` = 运行平台,`retry-count` 重试递增。
-- 机制简单:**UUIDv4 + SDK 默认头**,无复杂结构。
+Copilot 的 usage/token-exchange 路径不是模型路径，头集合不同，不要把 usage 头复制到
+chat 请求里。
 
-### copilot(反编译 copilot-linux-x64,Bun 打包 JS)
-- **x-client-machine-id** = `crypto.randomUUID()`(**UUIDv4**),**持久化复用**(每机器一次,存本地配置)→ gproxy 按账号/凭证生成一次并复用即可。
-- **x-interaction-id** = `crypto.randomUUID()`(**UUIDv4**),**每次交互**。
-- 其余(`copilot-integration-id`/`editor-version`/`openai-intent`/`x-github-api-version`/`x-initiator`)全静态。
+## kiro
 
-### agy(反编译 `~/.local/bin/agy`,Go)
-- 模型路径(cloudcode-pa)**无任何动态 id 头**;UA `antigravity/cli/1.0.6 linux/amd64` 静态。✅ 无需生成逻辑。
+目标：Kiro CLI 的 `*.kiro.dev` Smithy/AWS-JSON 1.0 服务。
 
-### kiro-cli(2026-06-16 mitmproxy 实抓 `~/.local/bin/kiro-cli-chat`,Rust + AWS SDK)
-- **纠正旧结论**:不是 SigV4。`kiro-cli`(Kiro 产品,GitHub 登录)走 `*.kiro.dev` 双 host + AWS-JSON 1.0 Smithy + **Bearer token**——详见上面 kiro 小节。动态头只有 `amz-sdk-invocation-id`(UUIDv4/请求);**无** `x-amz-date`/`x-amz-security-token`/SigV4。**无** `x-amzn-kiro-agent-mode`;`x-amzn-codewhisperer-optout: false`;`origin: KIRO_CLI`。
+实现位置：
+
+- `src/channel/bulletins/kiro/mod.rs`
+- `src/channel/bulletins/kiro/model_list.rs`
+- `src/channel/bulletins/kiro/usage.rs`
+- `src/channel/bulletins/kiro/auth/*`
+
+| 头 | 目标形态 | v2 行为 |
+| --- | --- | --- |
+| `authorization` | `Bearer <access_token>` | social、Builder ID 或 IDC 登录 secret 刷新后注入。 |
+| `content-type` | `application/x-amz-json-1.0` | 静态注入。 |
+| `accept` | `*/*` | 静态注入。 |
+| `user-agent` | `aws-sdk-rust/... api/codewhispererstreaming/... app/AmazonQ-For-CLI` | runtime/model 路径注入 streaming UA。 |
+| `x-amz-user-agent` | 同 UA | 静态注入。 |
+| `x-amz-target` | Smithy operation | 按 runtime、model list、usage 操作选择。 |
+| `x-amzn-codewhisperer-optout` | `false` | 静态注入。 |
+| `amz-sdk-request` | `attempt=1; max=3` | 静态注入。 |
+| `amz-sdk-invocation-id` | UUIDv4，每请求 | 每次请求生成。 |
+
+Kiro 当前不是 SigV4。不要注入 `x-amz-date`、`x-amz-security-token` 或
+`x-amzn-kiro-agent-mode`。
+
+## 更新流程
+
+升级某个真实 CLI 后，按这个顺序更新：
+
+1. 用相同 prompt 采集模型路径 headers，并保存脱敏样本。
+2. 区分模型路径、登录路径、usage 路径和遥测路径，不要混用。
+3. 标出静态、半静态、动态、凭证、传输头。
+4. 对动态头确认关联关系，例如 Codex 的 session/window/turn metadata，Claude 的
+   session id 与 CCH body metadata。
+5. 更新 `src/channel/bulletins/<channel>/` 的注入逻辑。
+6. 更新本页和 `docs/agent-tls-fingerprints.md` 中的 UA/TLS 对应关系。
+7. 跑对应 channel 的单测，至少覆盖 header 注入和不应注入的反例。
+
+请求头伪装和 TLS/HTTP2 指纹要一起维护。只更新 UA 不更新 fingerprint，或只更新
+fingerprint 不更新 UA，都会让模型路径呈现不一致的客户端画像。

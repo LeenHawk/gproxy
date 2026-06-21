@@ -1,116 +1,210 @@
-# gproxy v1 → v2 迁移指南
+# gproxy v1 到 v2 迁移
 
-> 目标:**替换二进制即用**。把 v2 二进制覆盖 v1,按原方式启动,v2 自动把旧的 `data/gproxy.db` 升级成 v2 库,无需任何手动步骤。
->
-> ⚠️ 本迁移是一次性临时能力,计划在 **2.1 版本移除**。请在升级到 2.1 之前完成迁移。
+v2 带有一个临时的 v1 SQLite 迁移器，目标是让常见单机部署可以
+**替换二进制后直接启动**：v2 在启动时识别旧的 `data/gproxy.db`，只读导出
+v1 控制面配置，生成新的 v2 数据库，再把旧库备份到旁边。
 
-## 1. 它做什么
+这个能力是过渡功能，计划在 **2.1** 移除。仍在 v1 上运行的实例应先升级到
+带 `migrate-v1` feature 的 v2 版本并完成迁移，再进入后续 v2 版本。
 
-v2 默认使用 **db 后端**,默认库就是 `<data_dir>/gproxy.db`(与 v1 同名同路径)。启动时如果发现该文件是一个 **v1 数据库**(且 v2 store 尚未建立),v2 会:
+## 支持范围
 
-1. 只读读取 v1 `gproxy.db`;
-2. 在临时文件里建一个全新的 v2 库,导入 v1 的**配置**;
-3. 原子换库:把 v1 库改名为 `gproxy.db.v1.bak`(连同 `-wal/-shm`),把新 v2 库放到 `gproxy.db`;
-4. 继续正常启动并服务。
+自动迁移只在服务启动路径上触发，并且必须满足这些条件：
 
-幂等:迁移完成后 `gproxy.db` 已是 v2,之后每次启动都自动跳过。v1 原库始终只读,保留为 `gproxy.db.v1.bak` 备份。
+- 二进制包含默认 feature 集中的 `migrate-v1`。
+- 没有执行 `import`、`export`、`update`、`migrate-v1` 等子命令。
+- 持久化后端是 `db`，目标 DSN 是一个真实的 SQLite 文件。
+- SQLite 文件存在，且看起来是 v1 schema：包含 `global_settings` 和
+  `providers`，但没有 v2 的 `orgs`、`routes` 或 `schema_migrations`。
 
-## 2. 标准升级步骤(推荐:开箱即用)
+默认 v2 配置正好满足这个路径：`GPROXY_PERSISTENCE=db`，未设置
+`GPROXY_DSN` 时会使用 `<data_dir>/gproxy.db`。这也是 v1 默认数据库路径。
+
+不会自动迁移的情况：
+
+| 情况 | 结果 |
+| --- | --- |
+| 新安装，没有 `gproxy.db` | 正常创建 v2 数据库。 |
+| 目标已经是 v2 数据库 | 跳过迁移。 |
+| `--persistence=file` | 不触发迁移；file 后端不是 v1 SQLite 兼容目标。 |
+| PostgreSQL / MySQL DSN | 不触发启动迁移；需要显式 `migrate-v1 --to <dsn>`。 |
+| `sqlite::memory:` | 不触发迁移；没有可接管的文件。 |
+
+## 推荐升级路径
+
+停掉 v1 后再启动 v2。v1 使用 WAL 时，迁移器会读取 `-wal` 内容并在换库时一并移动
+sidecar 文件，但前提是旧进程已经停止，不再写入数据库。
 
 ```bash
-# 1) 停掉 v1 进程(确保旧库已落盘,无进程占用)
-systemctl stop gproxy        # 或你的启动方式
+# 1. 停掉 v1 进程
+systemctl stop gproxy
 
-# 2) 用 v2 二进制覆盖 v1 二进制
-cp gproxy-v2 /usr/local/bin/gproxy
-
-# 3) (可选但强烈建议)先手动备份一份
+# 2. 额外做一份人工备份，便于脱离迁移器回退
 cp data/gproxy.db data/gproxy.db.manualbak
 
-# 4) 像以前一样启动 v2(指向同一个 data 目录)
+# 3. 换成 v2 二进制
+install -m 0755 gproxy-v2 /usr/local/bin/gproxy
+
+# 4. 用原 data 目录启动 v2
+GPROXY_DATA_DIR=./data \
+GPROXY_HOST=0.0.0.0 \
+GPROXY_PORT=8787 \
+gproxy
+```
+
+如果你之前用 CLI 参数启动，也可以继续使用：
+
+```bash
 gproxy --data-dir ./data --host 0.0.0.0 --port 8787
-#   或沿用环境变量:GPROXY_DATA_DIR / GPROXY_HOST / GPROXY_PORT
 ```
 
-启动日志里会看到:
+迁移成功后，`data/gproxy.db` 是新的 v2 数据库，旧的 v1 数据库被移动为
+`data/gproxy.db.v1.bak`。如果这个备份名已经存在，迁移器会使用
+`gproxy.db.v1.bak.2`、`gproxy.db.v1.bak.3` 这样的下一个可用文件名。
 
-```
-WARN v1 database detected — migrating to v2 in place (original backed up)
-INFO v1 → v2 migration complete report=Report { providers: 6, credentials: 6, models: 400, ... }
+启动日志会包含类似信息：
+
+```text
+WARN v1 database detected - migrating to v2 in place (original backed up)
+INFO v1 -> v2 migration complete report=Report { providers: 6, credentials: 6, models: 400, ... }
 WARN v1 database backed up; v2 database is now live at .../data/gproxy.db
 INFO gproxy v2 listening on http://0.0.0.0:8787
 ```
 
-完成。`data/` 下现在是 v2 的 `gproxy.db`,外加 `gproxy.db.v1.bak`(你的旧库)。
+迁移是幂等的。第一次成功后，`gproxy.db` 已经是 v2 schema，后续启动会直接跳过。
+如果进程在换库窗口中断，下一次启动会尝试完成未完成的临时文件交换，或者把备份恢复为
+源库后重新迁移。
 
-## 3. 加密库(设置过 `DATABASE_SECRET_KEY`)
+## 加密配置
 
-如果 v1 用 `DATABASE_SECRET_KEY` 加密了凭证/密钥:
-
-- 迁移时把同一个 `DATABASE_SECRET_KEY` 提供给 v2(env),v2 会用它**解密** v1 secrets。
-- 如果你想让 v2 也加密存储,另外设置 v2 的主密钥 `GPROXY_MASTER_KEY`(base64 的 32 字节),v2 会用它**重新封装**。
-- 不设 `GPROXY_MASTER_KEY` 则 v2 以明文存储(会有 WARN 提示)。
+v1 的加密密钥名是 `DATABASE_SECRET_KEY`。如果 v1 曾经用它加密
+`credentials.secret_json` 或 `user_keys.api_key_ciphertext`，迁移时必须继续提供
+同一个值：
 
 ```bash
-DATABASE_SECRET_KEY='<v1 的密钥>' \
-GPROXY_MASTER_KEY='<v2 的 base64 32字节主密钥,可选>' \
+DATABASE_SECRET_KEY='<v1 database secret>' \
+GPROXY_MASTER_KEY='<base64-encoded 32-byte v2 master key, optional>' \
 gproxy --data-dir ./data
 ```
 
-v1 未加密(未设 `DATABASE_SECRET_KEY`)则无需任何密钥。
+迁移器会：
 
-## 4. 显式 / 离线迁移(可选)
+1. 用 `DATABASE_SECRET_KEY` 解开 v1 secret。
+2. 把明文配置导入 v2 bundle。
+3. 通过 v2 的 import 路径重新写入目标库。
 
-不想走自动路径,或要迁到 Postgres/MySQL,用 `migrate-v1` 子命令:
+`GPROXY_MASTER_KEY` 是 v2 的密封密钥，必须是标准 base64 编码后的 32 字节值。
+设置后，导入的凭证和 API key 会按 v2 规则重新封装；不设置时，v2 会以明文模式
+运行并在启动日志中警告。
+
+如果 v1 数据库里存在 `enc:v2:` 或 JSON 加密 envelope，但迁移时没有提供正确的
+`DATABASE_SECRET_KEY`，迁移会失败，不会替换原库。
+
+## 显式离线迁移
+
+需要迁到 PostgreSQL/MySQL，或者想先查看迁移规模时，使用 `migrate-v1` 子命令：
 
 ```bash
-# 先看会迁移多少(只读,不写)
+# 只读扫描 v1 数据库，不写目标库
 gproxy migrate-v1 --from ./data/gproxy.db --dry-run
 
-# 迁到指定目标库(默认 --to 为当前 db dsn)
-gproxy migrate-v1 --from ./old/gproxy.db --to 'postgres://user:pass@host/gproxy'
+# 导入当前默认 db 目标；默认目标来自 --persistence/--data-dir/--dsn
+gproxy --data-dir ./data migrate-v1 --from ./data/gproxy.db
+
+# 显式导入到 PostgreSQL
+gproxy migrate-v1 \
+  --from ./old/gproxy.db \
+  --to 'postgres://gproxy:secret@db.internal:5432/gproxy'
 ```
 
-`migrate-v1` 不做换文件动作,直接把 v1 配置导入 `--to` 指向的 v2 库;目标应为空库。
+离线迁移不会替换文件，也不会创建 `.v1.bak`。它只读取 `--from` 指向的 v1
+SQLite 文件，并把映射后的 v2 bundle 写入目标 DSN。目标库应当是空的 v2
+控制面库，避免与已有 provider、route、user id 冲突。
 
-## 5. 迁移了什么
+## 迁移内容
 
-| 迁移 | 说明 |
-|---|---|
-| providers / credentials | credentials 的 secret 会解密→(可选)重新封装 |
-| models | → v2 `provider_models`(含计价,见下) |
-| 路由解析 | 每个 v1 model 合成一个 v2 route(route 名 = 模型名)+ 成员;聚合入口 `/v1/...` 按模型名解析与 v1 一致 |
-| 转换规则 | 按 provider 的**渠道默认**重新生成 v2 `routing_rules`(见 §6 注意) |
-| users / user_keys | 所有用户挂到一个合成的 `default` 组织(v2 用户需要 org);api key 原样保留 |
-| user_quotas | → v2 `quotas`(scope=user) |
-| user_model_permissions / user_rate_limits | → v2 `route_permissions` / `rate_limits`(model 通配符当 route 通配符) |
-| global_settings | → v2 `instance_settings`(host/port/dsn 等运行期项改由 CLI/env) |
+v2 只迁移控制面配置，不迁移运行时历史数据。
 
-**不迁移**(运营数据):usage 计费历史、downstream/upstream 请求日志、文件记录、凭证健康状态。迁移后从 0 开始记账/记日志。
+| v1 数据 | v2 结果 |
+| --- | --- |
+| `users` | `users`，所有用户挂到合成组织 `default`。 |
+| `user_keys` | `user_keys`，API key 解密后由 v2 import 路径重新写入。 |
+| `providers` | `providers`，保留 id、name、channel、label、settings。 |
+| `credentials` | `credentials`，secret 解密后重新封装，默认 weight 为 100。 |
+| `models` | `provider_models`，保留 provider、model id、display name、enabled。 |
+| 同名 `model_id` | 合成同一个 v2 route，多个 provider model 变成多个 route member。 |
+| `user_quotas` | `quotas`，scope 为 user。 |
+| `user_model_permissions` | `route_permissions`，v1 model glob 按 v2 route glob 继承。 |
+| `user_rate_limits` | `rate_limits`，route pattern 继承 v1 model pattern。 |
+| `global_settings` | `instance_settings`，迁移 proxy、日志、usage、update channel 等运行偏好。 |
 
-## 6. 已知差异与注意事项
+不迁移：
 
-- **未知渠道**:v2 没有的 v1 渠道(例如旧的 `chatgpt`)会照常迁移 provider/凭证,但**不会**生成路由规则,启动日志会 WARN 列出。需在 Console 里把该 provider 的 channel 改成 v2 支持的渠道后才能工作。
-- **转换规则用渠道默认**:v1 `providers.routing_json` 的词表与 v2 不同,故迁移**不逐条翻译**,而是按渠道默认重建 v2 `routing_rules`。若你在 v1 手改过某 provider 的 routing,迁移后需在 Console 复核。
-- **计价收敛**:v1 的分档/flex/scale/priority 计价被收敛为 v2 的单档 `{input,output,cache_read,cache_creation}`(取第一档基础价)。请在 Console 核对计价。
-- **同名模型跨 provider**:v1 是"后加载者胜",v2 会合成一个**多成员 route**(自动负载均衡)——行为更强,不丢功能。
+- usage 计费历史；
+- upstream/downstream 请求日志；
+- 文件记录；
+- 凭证健康状态；
+- v1 `routing_json` 的逐条自定义规则。
 
-## 7. 验证
+这些数据不会影响控制面启动，但迁移后会从 v2 的新表重新开始记录。
 
-启动后在 Console 检查:providers / models / users / keys 数量与 v1 一致;用一个迁移过来的 user key 打一次聚合 `/v1/...` 模型调用看是否正常解析。
+## 行为差异
 
-## 8. 回滚
+v2 的路由模型和 v1 不完全相同，迁移器会尽量保留可调用性，但不会假装旧语义完全相等。
 
-迁移不可逆地把 `gproxy.db` 变成了 v2,但 v1 原库完好保留:
+| 差异 | 说明 |
+| --- | --- |
+| 路由由 model 变成 route | 每个唯一 `model_id` 合成一个 v2 route，route 名等于 model id。 |
+| 同名模型跨 provider | v1 倾向于后加载者覆盖；v2 会保留所有成员，并按 route 策略执行。 |
+| route 默认策略 | 合成 route 使用 `failover`，成员初始 weight 为 100、tier 为 0。 |
+| provider routing | 不翻译 v1 `routing_json`，而是按 v2 channel 默认规则重新 seed。 |
+| 未知 channel | provider 和 credential 会迁移，但默认 routing seed 会警告；需要在 console 中改成 v2 支持的 channel。 |
+| 计价模型 | v1 tiered/flex/scale/priority 价格会收敛成 v2 扁平的 `input`、`output`、`cache_read`、`cache_creation`。 |
+| TLS spoof | v1 的具体 `spoof_emulation` 字符串在 instance settings 中收敛成 v2 布尔开关。 |
+
+迁移后建议重点复核 provider channel、route 成员、routing rules 和价格。
+
+## 验证清单
+
+启动 v2 后，至少检查这些项：
+
+```bash
+gproxy --data-dir ./data --host 127.0.0.1 --port 8787
+```
+
+- Console 能登录，admin 用户存在。
+- providers、credentials、models、routes、users、user keys 数量符合预期。
+- 每个迁移过来的 provider 有默认 routing rules；未知 channel 已修正。
+- 重要模型的 pricing 在 Console 中符合预期。
+- 用迁移过来的 user key 调一次聚合入口：
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H 'Authorization: Bearer <migrated-user-key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"<route-name>","messages":[{"role":"user","content":"ping"}]}'
+```
+
+## 回滚
+
+迁移不会修改 v1 源库内容；自动路径只是把它移动到备份文件。要回滚：
 
 ```bash
 systemctl stop gproxy
 rm -f data/gproxy.db data/gproxy.db-wal data/gproxy.db-shm
 mv data/gproxy.db.v1.bak data/gproxy.db
-# (如有)同时还原 .v1.bak-wal / .v1.bak-shm 为 gproxy.db-wal / -shm
+
+# 如果存在 sidecar 备份，也一起还原
+[ -f data/gproxy.db.v1.bak-wal ] && mv data/gproxy.db.v1.bak-wal data/gproxy.db-wal
+[ -f data/gproxy.db.v1.bak-shm ] && mv data/gproxy.db.v1.bak-shm data/gproxy.db-shm
+
 # 换回 v1 二进制后启动
+systemctl start gproxy
 ```
 
-## 9. 升级到 2.1 之前
+如果迁移器使用了 `gproxy.db.v1.bak.2` 这样的备份名，按实际文件名还原即可。
 
-本迁移代码在 2.1 版本移除。务必在升级到 2.1 之前完成 v1→v2 迁移;2.1 起 v2 将不再识别 v1 库。
+## 升级窗口
+
+这套迁移代码明确标注为 `MIGRATE-V1 (remove in 2.1)`。不要把 v1 数据库直接带到
+2.1 或更高版本；先用包含迁移器的 v2 版本完成一次迁移，再升级。

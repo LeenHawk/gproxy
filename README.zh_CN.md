@@ -6,7 +6,7 @@
 [English](README.md) · 简体中文
 
 - 🪪 **许可证:** AGPL-3.0-or-later · 🐳 **镜像:** `ghcr.io/leenhawk/gproxy`
-- 🦀 **构建目标:** 原生二进制 · Docker · 边缘 wasm(Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite / Vercel)
+- 🦀 **构建目标:** 原生二进制 · Docker · 边缘 wasm(Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite)
 - 🖥️ **控制台:** 内置,路径 `/console`
 
 ---
@@ -44,22 +44,22 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 
 ### ☁️ Serverless 边缘(WebAssembly)
 
-同一套路由可作为 wasm 边缘函数跑在七个平台上。**预构建、即点即部署**的产物在
+同一套路由可作为 wasm 边缘函数跑在六个平台上。**预构建、即点即部署**的产物在
 [**`deploy` 分支**](https://github.com/LeenHawk/gproxy/tree/deploy)(平台侧没有 cargo,
 无需工具链)。边缘函数需要外部 **Turso** 控制面库(+ 可选 **Upstash** 缓存);完整步骤见
 **[docs/edge-deploy.md](docs/edge-deploy.md)**。
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
 | 平台 | 产物 | 部署 |
 |---|---|---|
 | Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | 一键按钮 ☝️ / `wrangler deploy` |
-| Deno Deploy | — | `deploy/deno/build.sh` |
-| Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | `netlify deploy --prod` |
-| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy`(Docker/eszip) |
-| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy` |
-| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions`(deno-2.0,wasm) |
-| Vercel Edge | [`deploy/vercel`](https://github.com/LeenHawk/gproxy/tree/deploy/vercel) | `vercel deploy --prod`(需 Pro 套餐) |
+| Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | 一键按钮 ☝️ / `netlify deploy --prod` |
+| Deno Deploy | — | `deploy/deno/build.sh`(CLI) |
+| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy`(Docker/eszip,CLI) |
+| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy`(CLI) |
+| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions`(deno-2.0,CLI) |
 
 ### 📦 原生二进制
 

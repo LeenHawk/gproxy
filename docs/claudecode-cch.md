@@ -1,45 +1,119 @@
-# ClaudeCode CCH
+# Claude Code CCH
 
-`claudecode` 渠道在发送到 `/v1/messages` 前,对最终请求 body 计算 CCH
-(`x-anthropic-billing-header` 里的校验和),并注入 `metadata.user_id`。
-实现见 [`src/channel/bulletins/claudecode/cch.rs`](../src/channel/bulletins/claudecode/cch.rs),
-由 [`mod.rs`](../src/channel/bulletins/claudecode/mod.rs) 的 `prepare` 调用。
+`claudecode` channel 需要复刻 Claude Code 在 `POST /v1/messages` 请求体里写入的
+`x-anthropic-billing-header`。这个 header 不是普通 HTTP header，而是插入到
+Claude Messages body 的 `system[0].text` 中，并带一个 5 位 `cch` 校验值。
+
+v2 的实现位置：
+
+- `src/channel/bulletins/claudecode/mod.rs`：决定哪些请求需要注入 CCH。
+- `src/channel/bulletins/claudecode/cch.rs`：生成 `metadata.user_id`、billing
+  block、session id 和 checksum。
+- `src/channel/bulletins/claudecode/auth.rs`：注入 OAuth bearer、`x-claude-code-session-id`
+  和 Stainless/Claude CLI 请求头。
+
+## 生效范围
+
+CCH 只对最终上游路径精确等于 `POST /v1/messages` 的模型调用生效。
+
+不要用前缀匹配。`POST /v1/messages/count_tokens` 虽然也在 Claude Messages API
+下面，但 Anthropic 会拒绝额外的 `metadata` 字段，所以 v2 明确跳过该路径。
+
+请求进入 CCH 前已经完成：
+
+1. inbound operation classify；
+2. OpenAI/Gemini 到 Claude Messages 的协议转换；
+3. Claude body 整形，例如 cache-control hygiene 和 sampling 参数清理；
+4. 可选的 magic cache 触发改写。
+
+因此 CCH 必须覆盖 gproxy 自己最终要发送的 body bytes，而不是客户端原始 body。
 
 ## metadata.user_id
 
-真实 `claude-cli` 把三元组以 **JSON 字符串**塞进 `metadata.user_id`:
+Claude Code 的 `metadata.user_id` 是一个 JSON 字符串，不是对象：
 
 ```json
-"metadata": { "user_id": "{\"device_id\":\"<64-hex>\",\"account_uuid\":\"\",\"session_id\":\"<uuidv4>\"}" }
+{
+  "metadata": {
+    "user_id": "{\"device_id\":\"<device>\",\"account_uuid\":\"<account>\",\"session_id\":\"<session>\"}"
+  }
+}
 ```
 
-- `device_id`:取凭证 `secret.device_id`(operator 字段),无则空串。
-- `account_uuid`:取 `secret.account_uuid`(cookie 引导时写入),无则空串。
-- `session_id`:每请求生成的 UUIDv4,**与 `x-claude-code-session-id` 头同值**。
+字段来源：
 
-## CCH 算法
+| 字段 | v2 来源 |
+| --- | --- |
+| `device_id` | credential secret 中的稳定设备 id；缺失时按凭证派生。 |
+| `account_uuid` | Claude Code OAuth/cookie 登录得到的账号 id；缺失时为空串。 |
+| `session_id` | `cch::session_id(...)` 生成，同时作为 `x-claude-code-session-id` HTTP header。 |
 
-1. 在 `system[0]` 插入 billing header text block,先写占位值:
+`session_id` 不是每次完全随机。v2 用 `(device_id, system, first message, hour)` 选择
+最多 1000 个稳定槽位，再生成 v4 形状 UUID。这样同一凭证不会无限增长会话 id 数量，
+同时相近会话能保持稳定。
+
+## Billing Block
+
+`cch::apply` 会在 `system` 前面写入 billing text block：
 
 ```text
 x-anthropic-billing-header: cc_version=2.1.162.553; cc_entrypoint=cli; cch=00000;
 ```
 
-(`cc_version` = CLI 版本 `2.1.162` + build suffix `553`;`cc_entrypoint` 纯终端为 `cli`,VSCode 入口为 `claude-vscode`。)
+如果请求已经带有旧的 billing block，v2 会原地替换，而不是追加第二个 block。这样
+重代理 Claude Code 请求时不会重复插入。
 
-2. 用最终要发送的完整 JSON body 计算:
+如果原始 `system` 是字符串，v2 会把它转换成 Claude block 数组：
 
-```text
-cch = xxh64(body_bytes_with_cch_00000, seed=0x4d659218e32a3268) & 0xfffff
+```json
+[
+  { "type": "text", "text": "x-anthropic-billing-header: ..." },
+  { "type": "text", "text": "<original system text>" }
+]
 ```
 
-3. 格式化为 5 位小写 hex,**原地字节替换** header 里的 `cch=00000;`。
+## Checksum
 
-CCH 覆盖整个最终 body,所以 `tools`、`system`、`messages`、`model` 等字段都会影响结果。HTTP header、URL、OAuth token 不参与计算。校验和算在**网关自己序列化的最终 bytes** 上(自洽:服务端重算收到的 body 即匹配)。
+算法来自 Claude Code 2.1.162 wire body 验证：
 
-> 已用真实 `claude-cli` 2.1.162 wire body 验证:`real cch = fab34` == 重算值;单测 `cch_matches_known_vector` 锁定算法(已知向量 `b3b78`)。
+```text
+cch = xxh64(final_body_bytes_with_cch_00000, seed=0x4d659218e32a3268) & 0xfffff
+```
 
-## 旁注
+结果格式化为 5 位小写 hex，然后覆盖 `cch=00000;` 中的五个 `0`。
 
-- `x-client-request-id`:Stainless SDK 每请求加,**仅直连 `api.anthropic.com`** 时注入(走自建 base_url 不加)。
-- 仅 `POST /v1/messages*` 触发 CCH;其它路径(如 count_tokens GET)原样转发。非 JSON-object body 也原样转发。
+关键点：
+
+- 输入是最终 JSON bytes，不是某个字段。
+- `model`、`system`、`messages`、`tools`、`tool_choice` 都会影响结果。
+- HTTP URL、HTTP headers、OAuth token 不参与计算。
+- JSON 序列化形态会影响结果，所以实现对 `serde_json::to_vec` 的实际输出签名。
+- 真实值写回后，服务端可以把它归零再重算并匹配。
+
+## Header 关系
+
+CCH body 里的 `session_id` 必须和 HTTP header
+`x-claude-code-session-id` 使用同一个值。
+
+当上游 base URL 是默认 `https://api.anthropic.com` 且请求是 `POST /v1/messages` 时，
+v2 还会生成 `x-client-request-id`。自定义 base URL 不注入这个 header，保持和
+真实 SDK 行为一致。
+
+## 验证
+
+相关单测在 `src/channel/bulletins/claudecode/cch.rs` 和
+`src/channel/bulletins/claudecode/mod.rs`：
+
+- `cch_matches_known_vector` 固定已知 body 的 `b3b78` 向量。
+- `apply_injects_metadata_and_valid_cch` 验证 metadata、billing block 和回算结果。
+- `apply_replaces_existing_billing_block` 验证重代理时不会重复插入。
+- `count_tokens_skips_cch_metadata_injection` 防止 `count_tokens` 被误判为模型路径。
+
+修改 Claude Code channel 时，至少跑：
+
+```bash
+cargo test --features full claudecode
+```
+
+如果升级 Claude Code 版本，需要重新确认 `cc_version`、entrypoint、seed、SDK header
+集合和 wire body 行为。不要只相信 SDK raw-body 日志；最终 wire body 才是判断依据。

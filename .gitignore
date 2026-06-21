@@ -48,11 +48,6 @@ deploy/netlify/edge-functions/_lib/gproxy.d.ts
 deploy/netlify/edge-functions/_lib/gproxy_wasm_inline.ts
 .netlify/
 
-# ── Vercel Edge Function build output (regenerated from the crate; never
-#    commit — only api/index.ts + vercel.json + package.json are hand-written) ──
-deploy/vercel/api/_lib/
-.vercel/
-
 # ── Cloudflare Workers build output (regenerated from the crate; never commit —
 #    only src/worker.js + wrangler.toml + build.sh are hand-written source) ──
 deploy/cloudflare/src/_lib/

@@ -1,6 +1,6 @@
 // gproxy v2 — Cloudflare Workers (module worker) entry.
 //
-// Cloudflare Workers use the SAME static-wasm-module model as Vercel Edge: a
+// Cloudflare Workers use a static-wasm-module model: a
 // statically-imported `.wasm` is bundled by wrangler as a `WebAssembly.Module`
 // (no `?module` suffix on CF), and runtime byte compilation of arbitrary
 // buffers is forbidden. So this entry reuses the wasm-bindgen `--target web`
@@ -14,7 +14,7 @@
 // straight to `WebAssembly.instantiate(module, imports)` (no fetch of the
 // .wasm), satisfying the Workers sandbox.
 //
-// Unlike Vercel (process.env) / Netlify (Netlify.env), a module worker receives
+// Unlike Netlify (Netlify.env), a module worker receives
 // its bindings via the `env` ARGUMENT of `fetch(request, env, ctx)` — secrets
 // set with `wrangler secret put` and `[vars]` from wrangler.toml both land
 // there. So `ensureReady` reads creds from `env`, NOT a global.

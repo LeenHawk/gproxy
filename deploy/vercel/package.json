@@ -1,6 +1,0 @@
-{
-  "private": true,
-  "name": "gproxy-vercel-edge",
-  "version": "0.0.0",
-  "description": "gproxy v2 wasm edge build — Vercel Edge Function entry"
-}

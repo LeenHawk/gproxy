@@ -7,7 +7,7 @@ an embedded React console, multi-tenant auth, and the same engine compiled to ru
 English · [简体中文](README.zh_CN.md)
 
 - 🪪 **License:** AGPL-3.0-or-later · 🐳 **Image:** `ghcr.io/leenhawk/gproxy`
-- 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite / Vercel)
+- 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite)
 - 🖥️ **Console:** built in, served at `/console`
 
 ---
@@ -48,23 +48,23 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 
 ### ☁️ Serverless edge (WebAssembly)
 
-The same router runs as a wasm edge function on seven platforms. Prebuilt,
+The same router runs as a wasm edge function on six platforms. Prebuilt,
 ready-to-deploy bundles live on the [**`deploy` branch**](https://github.com/LeenHawk/gproxy/tree/deploy)
 (no toolchain needed — the platforms have no cargo). Edge functions need an
 external **Turso** control-plane DB (+ optional **Upstash** cache); full
 walkthrough in **[docs/edge-deploy.md](docs/edge-deploy.md)**.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
 | Platform | Bundle | Deploy |
 |---|---|---|
 | Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | one-click button ☝️ / `wrangler deploy` |
-| Deno Deploy | — | `deploy/deno/build.sh` |
-| Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | `netlify deploy --prod` |
-| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy` (Docker/eszip) |
-| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy` |
-| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions` (deno-2.0, wasm) |
-| Vercel Edge | [`deploy/vercel`](https://github.com/LeenHawk/gproxy/tree/deploy/vercel) | `vercel deploy --prod` (needs Pro plan) |
+| Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | one-click button ☝️ / `netlify deploy --prod` |
+| Deno Deploy | — | `deploy/deno/build.sh` (CLI) |
+| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy` (Docker/eszip, CLI) |
+| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy` (CLI) |
+| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions` (deno-2.0, CLI) |
 
 ### 📦 Native binary
 

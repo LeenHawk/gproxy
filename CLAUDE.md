@@ -21,7 +21,7 @@
 - 提交信息**不加** AI co-author 行。
 
 ## 部署产物 / `deploy` 分支
-- 边缘平台(Cloudflare / Vercel / Netlify / Supabase / EdgeOne / Appwrite-deno …)
+- 边缘平台(Cloudflare / Netlify / Supabase / EdgeOne / Appwrite-deno …)
   的**预构建产物**(wasm + wasm-bindgen glue + 入口 + 平台配置,**即点即部署**)
   放在孤儿分支 **`deploy`** —— **只放产物,不放 Rust 源码**。
 - README 的**一键部署按钮指向 `deploy` 分支的子目录**(各平台构建环境没有 cargo,

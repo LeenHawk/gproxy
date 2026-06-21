@@ -319,7 +319,6 @@ jobs:
       - name: Generate platform bundles
         run: |
           bash deploy/cloudflare/build.sh
-          bash deploy/vercel/build.sh
           bash deploy/eopages/build.sh
           bash deploy/netlify/build.sh
           bash deploy/supabase/build.sh
@@ -334,7 +333,6 @@ jobs:
           mkdir -p edge-dist
           cp target/wasm32-unknown-unknown/release/gproxy.wasm edge-dist/gproxy.wasm
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-cloudflare.zip cloudflare -x 'cloudflare/build.sh')
-          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-vercel.zip vercel -x 'vercel/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-eopages.zip eopages/gproxy eopages/NOTES.md)
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-netlify.zip netlify -x 'netlify/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-supabase.zip supabase -x 'supabase/build.sh')
@@ -371,14 +369,14 @@ jobs:
         run: |
           set -euo pipefail
           stage="$(mktemp -d)"
-          for p in cloudflare vercel netlify supabase appwrite-deno; do
+          for p in cloudflare netlify supabase appwrite-deno; do
             cp -r "deploy/$p" "$stage/$p"
             rm -f "$stage/$p/build.sh" "$stage/$p/NOTES.md"
           done
           mkdir -p "$stage/eopages" && cp -r deploy/eopages/gproxy/. "$stage/eopages/"
           cp -r deploy/deno/bundle "$stage/deno"
           cp target/wasm32-unknown-unknown/release/gproxy.wasm "$stage/gproxy.wasm"
-          rm -rf "$stage"/*/.temp "$stage"/*/.netlify "$stage"/*/.vercel "$stage"/*/.wrangler "$stage"/*/.edgeone 2>/dev/null || true
+          rm -rf "$stage"/*/.temp "$stage"/*/.netlify "$stage"/*/.wrangler "$stage"/*/.edgeone 2>/dev/null || true
           {
             echo "# gproxy — deploy artifacts (auto-generated, do not edit)"
             echo

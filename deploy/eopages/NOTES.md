@@ -141,7 +141,7 @@ GET /wasmtest -> 200  "5"
 **EdgeOne Pages edge functions expose the `WebAssembly` global AND allow
 `WebAssembly.instantiate(bytes, imports)` (runtime byte/buffer compilation)** —
 the same capability tier as Netlify / Supabase / Deno, and MORE permissive than
-Vercel / Cloudflare (which forbid buffer instantiation and require a static
+Cloudflare (which forbids buffer instantiation and requires a static
 `?module` import). So the base64-inline glue approach is the right model.
 
 ## Step 4 — Real gproxy wasm: **LIVE** ✅ (after shrink + lazy explicit routes)

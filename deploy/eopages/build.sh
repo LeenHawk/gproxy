@@ -9,7 +9,7 @@
 # `WebAssembly.instantiate(bytes, imports)` (runtime byte compilation from a
 # buffer). That is the SAME capability tier as Netlify / Supabase / Deno, so we
 # reuse the deno-target glue + the base64-inline trick rather than the
-# static-`?module`-import model that Vercel / Cloudflare require.
+# static-`?module`-import model that Cloudflare requires.
 #
 # Run from the crate root (/home/linhuan/gproxy/v2):
 #   cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge

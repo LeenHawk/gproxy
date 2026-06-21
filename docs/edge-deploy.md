@@ -1,63 +1,329 @@
-# 边缘(wasm)部署 —— 无需 cargo
+# Edge wasm 部署
 
-边缘平台(Cloudflare / Vercel / Netlify / EdgeOne Pages / Supabase / Deno)的构建
-环境**没有 Rust/cargo 工具链**,而 `deploy/*/` 下的 wasm-bindgen glue(`_lib/` 等)
-是 **gitignore 的生成产物**(clone 出来不含)。
+gproxy v2 的 edge 版本是同一个 Rust crate 编译出来的 `wasm32-unknown-unknown`
+library。平台入口只负责三件事：加载 wasm-bindgen glue，调用 Rust 导出的
+`init(...)` 建立 `AppState`，然后把每个请求交给 wasm `fetch`。
 
-所以部署模型是:**在有 cargo 的地方构建一次 → 把预构建产物拿去发**。
+不要让边缘平台从源码仓库现编 Rust。多数平台没有 cargo，仓库里的 wasm-bindgen glue
+目录又是 gitignored 构建产物。正确模型是：
 
-> ⚠️ 不要把平台的「连 Git 仓库自动构建」指向本仓库源码 —— 它既没有 cargo,
-> 也没有 `_lib` glue,必然失败。永远部署**预构建包**。
-
----
-
-## 1. 拿到预构建包
-
-**方式 A — CI Release 产物(推荐)**
-每次 GitHub Release,`release.yml` 的 `build-edge` job 产出(并附到 Release):
-
-- `gproxy-edge-cloudflare.zip` / `gproxy-edge-vercel.zip` / `gproxy-edge-eopages.zip`
-- 裸 `gproxy.wasm`(+ 每个文件的 `.sha256`)
-
-解压后每个目录已含 `_lib/` glue + wasm,直接部署。
-
-**方式 B — 本地构建(机器上有 cargo)**
-```bash
-cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
-bash deploy/<平台>/build.sh        # 重新生成该平台的 _lib glue(eopages 还会过 wasm-opt)
+```text
+有 Rust 工具链的机器/CI 构建 wasm -> 生成平台 bundle -> 上传预构建 bundle
 ```
 
----
+## 运行时依赖
 
-## 2. 各平台部署(平台侧零 cargo)
+edge 运行时没有本地 SQLite、PostgreSQL 或 MySQL 直连能力。控制面依赖 HTTP 数据服务：
 
-从预构建包所在目录执行:
+| 变量 | 必需 | 用途 |
+| --- | --- | --- |
+| `TURSO_URL` | 是 | libSQL/Turso 控制面数据库。 |
+| `TURSO_TOKEN` | 是 | Turso 访问令牌。 |
+| `UPSTASH_URL` | 否 | Upstash Redis cache；缺省时回退到 libSQL KV。 |
+| `UPSTASH_TOKEN` | 否 | Upstash 访问令牌。 |
+| `GPROXY_MASTER_KEY` | 否 | base64 32 字节主密钥，用于解开已封装 secret。 |
 
-| 平台 | 命令 | 凭证 |
-|---|---|---|
-| Cloudflare Workers | `cd cloudflare && npx wrangler deploy` | `CLOUDFLARE_API_TOKEN`(+ account id) |
-| Vercel Edge | `cd vercel && npx vercel deploy --prod --token "$VERCEL_TOKEN"` | `VERCEL_TOKEN`(+ org/project) |
-| Netlify Edge | `cd netlify && npx netlify deploy --prod` | `NETLIFY_AUTH_TOKEN`(+ site id) |
-| Supabase | `supabase functions deploy gproxy --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --network-id host`（**Docker/eszip 路径,见下方注**） | `SUPABASE_ACCESS_TOKEN` |
-| EdgeOne Pages | `npx edgeone pages deploy deploy/eopages/gproxy --name <proj> -t "$EDGEONE_PAGES_API_TOKEN"` | EdgeOne Pages API token |
-| Deno Deploy | `bash deploy/deno/build.sh`(**这条自带 cargo 构建 + 部署,需在有 cargo 的机器跑**) | `DENO_DEPLOY_TOKEN` |
+这些是运行时 secret，应放在平台的 secret/env 系统里，不写进源码或 bundle。
 
-各平台的实测记录见 `deploy/<平台>/NOTES.md`。
+## 获取预构建 bundle
 
----
+推荐使用 GitHub Release 附带的 edge artifacts。发布流程会构建 wasm，并把平台入口、
+配置、glue 和校验文件打包成 zip。下载后解压即可用平台 CLI 部署。
 
-## 3. 注意
+本地构建适合验证或临时发布：
 
-- **打包覆盖**:`build-edge` 现在打包全部 6 个平台(cloudflare / vercel / eopages / deno / netlify / supabase)+ 裸 wasm,均为 build-only、不含任何 key。
-- **Supabase 必须走 Docker/eszip 路径**:`functions deploy --use-api`(无 Docker 那条)只上传 `.ts/.js`,不传 sibling `.wasm` → 运行时崩(500);改内联 base64 后 ~8.4MB 又超 `--use-api` 请求体上限(413)。**不加 `--use-api`** 走本地 Docker 把函数 bundle 成 eszip(压到 ~4.7MB)才能上。本机用 podman 顶 Docker:
-  ```bash
-  systemctl --user start podman.socket
-  export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
-  cd deploy && supabase functions deploy gproxy --project-ref "$REF" --no-verify-jwt --network-id host
-  #                                                  ^ --network-id host 绕开 WSL2 netavark/nftables 启动报错
-  ```
-  Supabase 的 Docker 只是**本地打包工具**,函数本身跑在它托管的 Deno 上,不是你的容器。
-- **eopages / EdgeOne**:glue 用懒加载 `__gproxy_load()`,实例化推迟到首个请求,绕开 ~15s import 预算 → **未过 wasm-opt 的包也能部署**(实测 Deploy Success)。`*.edgeone.run` 域名带预览保护(`?eo_token=&eo_time=`,控制台签发)。
-- **Vercel 套餐体积上限**:edge function 打包后 ~1.81MB(gzip),**Hobby 套餐上限 1MB**(Pro 2MB、Enterprise 4MB)→ Hobby 部署直接被拒。wasm-opt 那点优化压不到 1MB 以下,要发 Vercel 得上 Pro。
-- **netlify**:默认 edge functions 目录是 `netlify/edge-functions`,本仓库是 `edge-functions/` → `netlify.toml` 里已加 `[build] edge_functions = "edge-functions"`,否则函数不被打包(返回静态 404)。
-- **console(管理面 SPA)** 是另一套静态产物,部署形态见 `docs/deployment.md`。
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+
+bash deploy/<platform>/build.sh
+```
+
+`wasm-bindgen-cli` 必须匹配 `Cargo.lock` 里的 `wasm-bindgen` crate 版本。当前锁定版本为
+`0.2.123`。
+
+## 平台能力分组
+
+不同平台接受 wasm 的方式不同，bundle 生成脚本也不同：
+
+| 分组 | 平台 | bundle 形态 |
+| --- | --- | --- |
+| 静态 wasm module | Cloudflare Workers | `wasm-bindgen --target web`，平台把 `.wasm` 打成 `WebAssembly.Module`。 |
+| inline/base64 runtime instantiate | Netlify、Supabase、EdgeOne Pages、Appwrite Deno | `wasm-bindgen --target deno`，把 wasm base64 内联进 bundle。 |
+| Deno Deploy compact upload | Deno Deploy | `wasm-bindgen --target deno`，上传 `main.ts` + `pkg/`。 |
+
+Cloudflare 不允许任意 buffer 的 runtime wasm compile，所以走静态 module。Netlify、
+Supabase、EdgeOne、Appwrite Deno 可在运行时 `WebAssembly.instantiate(bytes, imports)`，
+因此用自包含的 base64 bundle，避免 sibling `.wasm` 在平台打包时丢失。
+
+## 通用本地构建
+
+从仓库根目录执行：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+```
+
+然后按平台生成 glue：
+
+```bash
+bash deploy/cloudflare/build.sh
+bash deploy/netlify/build.sh
+bash deploy/supabase/build.sh
+bash deploy/eopages/build.sh
+bash deploy/appwrite-deno/build.sh
+```
+
+`deploy/deno/build.sh` 是例外：它会自己执行 cargo build，并直接调用新的 Deno Deploy
+CLI 发布到目标 app。
+
+## Cloudflare Workers
+
+生成 bundle：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+bash deploy/cloudflare/build.sh
+```
+
+设置 secret：
+
+```bash
+cd deploy/cloudflare
+echo -n "$TURSO_URL" | wrangler secret put TURSO_URL
+echo -n "$TURSO_TOKEN" | wrangler secret put TURSO_TOKEN
+echo -n "$UPSTASH_URL" | wrangler secret put UPSTASH_URL
+echo -n "$UPSTASH_TOKEN" | wrangler secret put UPSTASH_TOKEN
+echo -n "$GPROXY_MASTER_KEY" | wrangler secret put GPROXY_MASTER_KEY
+```
+
+部署：
+
+```bash
+wrangler deploy
+```
+
+`wrangler.toml` 通过 `CompiledWasm` rule 把 `_lib/gproxy_bg.wasm` 打包成
+`WebAssembly.Module`。入口文件 `src/worker.js` 在首次请求时懒初始化 Rust `AppState`。
+
+## Netlify Edge Functions
+
+生成自包含 bundle：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+bash deploy/netlify/build.sh
+```
+
+设置站点环境变量：
+
+```bash
+cd deploy/netlify
+netlify env:set TURSO_URL "$TURSO_URL"
+netlify env:set TURSO_TOKEN "$TURSO_TOKEN"
+netlify env:set UPSTASH_URL "$UPSTASH_URL"
+netlify env:set UPSTASH_TOKEN "$UPSTASH_TOKEN"
+netlify env:set GPROXY_MASTER_KEY "$GPROXY_MASTER_KEY"
+```
+
+部署：
+
+```bash
+netlify deploy --prod
+```
+
+`netlify.toml` 已把 edge functions 目录指向仓库使用的 `edge-functions/`。生成的
+`_lib/` 目录只作为 import 模块存在，不是单独函数。
+
+## Supabase Edge Functions
+
+生成自包含 bundle：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+bash deploy/supabase/build.sh
+```
+
+设置 secret：
+
+```bash
+cd deploy/supabase
+supabase secrets set \
+  TURSO_URL="$TURSO_URL" \
+  TURSO_TOKEN="$TURSO_TOKEN" \
+  UPSTASH_URL="$UPSTASH_URL" \
+  UPSTASH_TOKEN="$UPSTASH_TOKEN" \
+  GPROXY_MASTER_KEY="$GPROXY_MASTER_KEY" \
+  --project-ref "$SUPABASE_PROJECT_REF"
+```
+
+部署：
+
+```bash
+supabase functions deploy gproxy \
+  --project-ref "$SUPABASE_PROJECT_REF" \
+  --no-verify-jwt \
+  --network-id host
+```
+
+不要使用 `--use-api`。Supabase 的 API 上传路径不会带上 sibling wasm；改成内联后又可能
+超过请求体限制。默认 deploy 路径会用本地 Docker/eszip 打包，函数运行时仍然是
+Supabase 托管的 Deno，不是你的容器。
+
+如果本机用 Podman 代替 Docker：
+
+```bash
+systemctl --user start podman.socket
+export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+```
+
+WSL2/netavark 环境下 `--network-id host` 可避开本地打包网络问题。
+
+## EdgeOne Pages
+
+生成 bundle：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+bash deploy/eopages/build.sh
+```
+
+部署：
+
+```bash
+edgeone pages deploy deploy/eopages/gproxy \
+  --name <project-name> \
+  -t "$EDGEONE_PAGES_API_TOKEN" \
+  -e production
+```
+
+设置环境变量：
+
+```bash
+edgeone pages env set TURSO_URL "$TURSO_URL" -t "$EDGEONE_PAGES_API_TOKEN"
+edgeone pages env set TURSO_TOKEN "$TURSO_TOKEN" -t "$EDGEONE_PAGES_API_TOKEN"
+edgeone pages env set UPSTASH_URL "$UPSTASH_URL" -t "$EDGEONE_PAGES_API_TOKEN"
+edgeone pages env set UPSTASH_TOKEN "$UPSTASH_TOKEN" -t "$EDGEONE_PAGES_API_TOKEN"
+edgeone pages env set GPROXY_MASTER_KEY "$GPROXY_MASTER_KEY" -t "$EDGEONE_PAGES_API_TOKEN"
+```
+
+EdgeOne Pages 需要 `edgeone` CLI `>= 1.5.9`，旧版本的 root catch-all 路由有已验证 bug。
+当前 bundle 使用 `edge-functions/[[default]].js` 接住所有路径，`/` 静态首页仍由平台精确匹配。
+
+预览域名 `*.edgeone.run` 会带 `eo_token` / `eo_time` 保护。用 curl 验证时需要携带部署输出里的
+query，并跟随重定向保存 cookie。
+
+## Deno Deploy
+
+`deploy/deno/build.sh` 是构建并部署脚本：
+
+```bash
+set -a
+source ./.env
+set +a
+bash deploy/deno/build.sh
+```
+
+需要：
+
+```bash
+DENO_DEPLOY_TOKEN=...
+DENO_DEPLOY_PROJECT=gproxy-deno     # 可选，默认 gproxy-deno
+DENO_DEPLOY_ORG=leenhawk20          # 可选，默认 leenhawk20
+```
+
+脚本会创建 compact upload root：`main.ts` + `pkg/` + `deno.json`，然后使用新的
+Deno Deploy CLI 模块：
+
+```bash
+deno run -A https://jsr.io/@deno/deploy/0.0.99/main.ts --prod <upload-root>
+```
+
+不要走旧的 Deploy Classic `deployctl` 路径；新项目创建已经被 Deno 官方阻断。
+
+## Appwrite Functions
+
+Appwrite 使用 `deno-2.0` runtime 跑预构建 wasm，不使用 Appwrite 的 Rust runtime。
+
+生成 bundle：
+
+```bash
+cargo build --lib --target wasm32-unknown-unknown --release \
+  --no-default-features --features edge
+bash deploy/appwrite-deno/build.sh
+```
+
+配置 CLI：
+
+```bash
+appwrite client --endpoint https://<region>.cloud.appwrite.io/v1 \
+  --project-id <PROJECT_ID> \
+  --key <API_KEY>
+```
+
+创建并部署函数：
+
+```bash
+appwrite functions create \
+  --function-id gproxy-wasm \
+  --name gproxy-wasm \
+  --runtime deno-2.0 \
+  --execute any
+
+appwrite push functions --function-id gproxy-wasm --activate
+```
+
+设置环境变量：
+
+```bash
+appwrite functions create-variable --function-id gproxy-wasm \
+  --variable-id TURSO_URL --key TURSO_URL --value "$TURSO_URL"
+```
+
+`TURSO_TOKEN` 必填；`UPSTASH_URL`、`UPSTASH_TOKEN`、`GPROXY_MASTER_KEY` 可选。
+
+Appwrite 的 `rust-1.83` runtime 不能作为 v2 路径：Cargo 版本不满足 edition 2024，
+平台期望 crate 名为 `handler`，并且默认 feature/构建时限也不适合这个项目。
+
+## 验证
+
+edge ops 端点和 native 一样需要 admin 鉴权。匿名访问 `/healthz`、`/version`、`/metrics`
+应该返回 401，而不是公开健康信息。
+
+```bash
+curl -i "$EDGE_URL/healthz"
+
+curl -i "$EDGE_URL/healthz" \
+  -H "Authorization: Bearer <admin-user-api-key>"
+```
+
+网关路径也应进入 pipeline 并要求 user API key：
+
+```bash
+curl -i "$EDGE_URL/v1/models"
+curl -i "$EDGE_URL/openai/v1/models"
+```
+
+预期是未带 key 时返回 gproxy 的 JSON 401，而不是平台静态 404 或函数初始化错误。
+
+## 常见问题
+
+| 问题 | 处理 |
+| --- | --- |
+| 平台自动从 Git 构建失败 | 不要让平台现编 Rust；部署 release artifact 或本地生成的 bundle。 |
+| `missing required env var: TURSO_URL` | 平台运行时 secret 没配置，或 Netlify/EdgeOne 初始化发生在 env 注入前；确认使用当前懒初始化入口。 |
+| Supabase 500 / 找不到 wasm | 确认使用 `deploy/supabase/build.sh` 生成内联 bundle，并且部署时没有 `--use-api`。 |
+| EdgeOne 预览 401 `eo_time missing` | 使用部署输出里的 `eo_token` / `eo_time` query，并保存重定向后的 cookie。 |
+| `/healthz` 匿名 401 | 正常；ops 端点是 admin-gated。 |
+| console 页面能打开但 API 失败 | 确认 console 静态资源与 edge API 同源，或按 `docs/deployment.md` 配置同源反代。 |
+
+## 相关页面
+
+- `docs/deployment.md`：console 静态资源部署形态。
+- `deploy/README.md`：部署目录清单。
+- `deploy/<platform>/NOTES.md`：平台实测记录和约束。

@@ -3,7 +3,7 @@
 # entry, then patch the glue so the worker injects the bundler-provided
 # `WebAssembly.Module` instead of fetching the .wasm by URL at runtime.
 #
-# Cloudflare Workers use the SAME static-wasm-module model as Vercel Edge: you
+# Cloudflare Workers use a static-wasm-module model: you
 # `import wasm from "./gproxy_bg.wasm"` and wrangler bundles it as a
 # `WebAssembly.Module` (no `?module` suffix, no runtime byte compilation). The
 # web-target default export (`__wbg_init`) routes a `WebAssembly.Module` straight
