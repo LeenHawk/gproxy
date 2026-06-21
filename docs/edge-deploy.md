@@ -58,5 +58,6 @@ bash deploy/<平台>/build.sh        # 重新生成该平台的 _lib glue(eopage
   ```
   Supabase 的 Docker 只是**本地打包工具**,函数本身跑在它托管的 Deno 上,不是你的容器。
 - **eopages / EdgeOne**:glue 用懒加载 `__gproxy_load()`,实例化推迟到首个请求,绕开 ~15s import 预算 → **未过 wasm-opt 的包也能部署**(实测 Deploy Success)。`*.edgeone.run` 域名带预览保护(`?eo_token=&eo_time=`,控制台签发)。
+- **Vercel 套餐体积上限**:edge function 打包后 ~1.81MB(gzip),**Hobby 套餐上限 1MB**(Pro 2MB、Enterprise 4MB)→ Hobby 部署直接被拒。wasm-opt 那点优化压不到 1MB 以下,要发 Vercel 得上 Pro。
 - **netlify**:默认 edge functions 目录是 `netlify/edge-functions`,本仓库是 `edge-functions/` → `netlify.toml` 里已加 `[build] edge_functions = "edge-functions"`,否则函数不被打包(返回静态 404)。
 - **console(管理面 SPA)** 是另一套静态产物,部署形态见 `docs/deployment.md`。
