@@ -1,0 +1,41 @@
+{
+  "title": "設定",
+  "subtitle": "執行個體設定與行為",
+  "sections": {
+    "identity": "身份",
+    "outbound": "對外代理",
+    "usageLogging": "用量與日誌",
+    "retention": "保留策略",
+    "tokenizer": "分詞器"
+  },
+  "fields": {
+    "instanceName": "執行個體名稱",
+    "proxy": "HTTP 代理位址",
+    "spoofEmulation": "偽裝模擬",
+    "enableUsage": "啟用用量追蹤",
+    "enableUpstreamLog": "啟用上游日誌",
+    "enableUpstreamLogBody": "記錄上游請求/回應體",
+    "enableDownstreamLog": "啟用下游日誌",
+    "enableDownstreamLogBody": "記錄下游請求/回應體",
+    "disableLogRedaction": "停用日誌遮蔽",
+    "enableTokenizerDownload": "啟用分詞器下載",
+    "retentionDays": "日誌保留天數"
+  },
+  "spoof": {
+    "inherit": "繼承自路由",
+    "on": "一律開啟",
+    "off": "一律關閉"
+  },
+  "retention": {
+    "forever": "留空表示永久保留日誌"
+  },
+  "warnings": {
+    "sensitive": "警告：已啟用一個或多個敏感選項。日誌可能包含未遮蔽的內容或請求/回應體，其中可能含有密鑰與個人資料。請僅在排查問題時啟用這些選項。"
+  },
+  "save": "儲存設定",
+  "saved": "設定已儲存",
+  "form": {
+    "nameRequired": "執行個體名稱為必填"
+  },
+  "empty": "尚無執行個體設定。點擊儲存以建立初始設定。"
+}

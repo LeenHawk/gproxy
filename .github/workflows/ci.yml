@@ -1,82 +1,96 @@
-name: ci
+name: CI
 
 on:
-  pull_request:
-    branches:
-      - main
-      - master
-      - dev
   push:
-    branches:
-      - main
-      - master
-      - dev
+    branches: [main]
+  pull_request:
 
-permissions:
-  contents: read
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  rust-quality:
-    name: Rust Quality
+  console:
+    name: Console (typecheck · test · build · i18n)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: console
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: i18n parity
+        run: pnpm i18n:check
+
+      # Builds the SPA and syncs dist/ -> ../assets/console (reads version from
+      # ../Cargo.toml + git short SHA). assets/console is gitignored, so this only
+      # validates the build succeeds.
+      - name: Build
+        run: pnpm build
+
+  docs:
+    name: Docs (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  backend:
+    name: Backend (fmt · clippy · test · edge-wasm)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
+      - uses: actions/checkout@v4
 
-      - name: Set up Rust
+      - name: Rust toolchain (stable + clippy/rustfmt + wasm target)
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: clippy, rustfmt
+          targets: wasm32-unknown-unknown
 
-      - name: Cache Rust builds
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
 
-      # The Rust binary embeds the built console via rust-embed pointed at
-      # `apps/gproxy/web/console`. CI doesn't actually build the console
-      # for cargo lints, so drop a tiny placeholder so rust-embed has
-      # something to walk and the workspace compiles.
-      - name: Prepare console embed placeholder
-        run: |
-          mkdir -p apps/gproxy/web/console
-          echo "<!doctype html><title>ci</title>" > apps/gproxy/web/console/index.html
-
-      - name: cargo fmt
+      - name: Format check
         run: cargo fmt --all --check
 
-      - name: cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings -A clippy::too_many_arguments
+      - name: Clippy (deny warnings)
+        run: cargo clippy --features full --all-targets -- -D warnings
 
-      - name: cargo test
-        run: cargo test --workspace --all-targets --no-fail-fast
+      - name: Tests
+        run: cargo test --features full
 
-  frontend-quality:
-    name: Frontend Quality
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          submodules: recursive
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          run_install: false
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: lts/*
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: typecheck
-        run: pnpm --filter @gproxy/console typecheck
-
-      - name: test
-        run: pnpm --filter @gproxy/console test
+      # Canonical edge build: lib-only, no default features, edge feature, wasm
+      # target (the native deps must NOT leak into the worker).
+      - name: Edge wasm check
+        run: cargo check --lib --no-default-features --features edge --target wasm32-unknown-unknown

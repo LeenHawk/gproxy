@@ -1,0 +1,2 @@
+# Marks console/ as its own pnpm workspace root so pnpm never traverses up to
+# the v1 repo's workspace at /home/linhuan/gproxy (which would pollute it).

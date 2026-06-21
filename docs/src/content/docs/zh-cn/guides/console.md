@@ -1,67 +1,61 @@
 ---
-title: 内嵌控制台
-description: GPROXY 二进制内自带的 React 控制台。
+title: Console
+description: 使用 v2 React console 管理 provider、route、rule、identity、settings、usage、logs 和 portal 工作流。
 ---
 
-GPROXY 把一整个 **React 控制台**打包进了发布二进制。服务启动后，控制台
-就挂载在 `/console` —— 不需要单独跑或部署前端进程。
+v2 console 是 `console/` 下的 React app。native binary 从 `/console` 提供构建后的静态资源；本地开发时 Vite dev server 代理后端路由。
 
-## 访问控制台
+Console 调用的 admin/user API 与 edge runtime 使用的是同一套 dispatcher：
 
-1. 启动 GPROXY (参见 [快速开始](/zh-cn/getting-started/quick-start/))。
-2. 浏览器访问 `http://<host>:<port>/console`。
-3. 使用任一启用用户的用户名/密码登录。若该用户 `is_admin = true`，
-   你会看到管理员视图。
+| Surface | 用途 |
+| --- | --- |
+| `/admin/*` | 管理控制面、观测、settings、update 和运维端点。 |
+| `/user/*` | 用户门户中的 account、key、limit、audit 和 usage。 |
+| `/healthz`、`/version`、`/metrics` | 需要 admin 的 ops endpoints。 |
+| `/v1/*`、`/v1beta/*`、`/{provider}/v1/*` | 网关流量，使用用户 API key 认证。 |
 
-登录走 `POST /login`，返回一个**会话 token**，由 UI 保存，后续请求
-以 `Authorization: Bearer <session_token>` 携带。
+## 本地开发
 
-## 控制台能做什么
-
-- **供应商** —— 创建、编辑、禁用；通过通道感知的结构化编辑器修改 settings 和
-  credentials；查看每个凭证的健康状态。
-- **模型** —— 浏览某个供应商下的模型列表，编辑价格、启停、定义别名，
-  或使用 **Pull Models** 从上游拉取真实的模型列表。
-- **用户** —— 创建用户，签发/吊销 API key，重置密码，切换 admin 身份。
-- **权限 / 限流 / 配额** —— 针对三种访问控制机制 (见
-  [权限、限流与配额](/zh-cn/guides/permissions/)) 提供的按用户编辑器。
-- **可观测性** —— 用量仪表盘、上下游请求日志 (若开启)、健康历史。
-- **设置** —— 全局代理设置、日志开关、升级源、TOML 重写规则与脱敏规则编辑器。
-
-## 重新构建控制台
-
-控制台源码在 `frontend/console/` 下。修改之后：
+本地 HTTP 开发时，后端需要允许 insecure cookies：
 
 ```bash
-cd frontend/console
-pnpm install
-pnpm build
+GPROXY_INSECURE_COOKIES=1 cargo run --features full
 ```
 
-`pnpm build` 会把产物写入 server crate 通过 `include_dir!` 嵌入的目录。
-前端构建完成后再构建二进制：
+然后启动 console：
 
 ```bash
-cargo build -p gproxy --release
-```
-
-运行时无需挂载任何静态文件目录 —— 资源全部嵌入在可执行文件里。
-
-## 以开发模式运行控制台
-
-若需要高效迭代前端，可以让 Vite dev server 指向一个运行中的后端：
-
-```bash
-cd frontend/console
-pnpm install
+cd console
 pnpm dev
 ```
 
-设置 Vite dev 代理把 `/admin/*`、`/v1/*`、`/login` 转发到本地 `gproxy`
-实例即可。
+`console/vite.config.ts` 会把 `/admin`、`/healthz`、`/version`、`/metrics`
+代理到 `http://127.0.0.1:8787`，并改写 origin 以通过 CSRF 检查。生产 native
+二进制会从同一 origin 提供构建后的 console 和 `/user/*` portal API。
 
-## 放到反向代理后
+## 主要管理区域
 
-控制台的鉴权方式是用户名/密码 + bearer token —— 它本身不对接外部 SSO。
-若需要 SSO，请把 GPROXY 放在反向代理后面，在代理层做鉴权，仅对认证后的
-会话放行 `/console` 和 `/admin/*`；LLM 路由继续走 API-key 流程。
+| 区域 | 管理内容 |
+| --- | --- |
+| Providers | Provider、credential、TLS preset、provider model、上游模型拉取、routing rules、provider rule-set attachment。 |
+| Routes | Aggregated route name、alias、route member、strategy 和 route settings。 |
+| Rules | 可复用 rule set 和具体 process rule。 |
+| Users | Org、team、user、key、permission、rate limit 和 quota。 |
+| Usage | Usage row、rollup、downstream/upstream request log、audit log、credential status。 |
+| Settings | Instance settings、proxy、logging、usage、tokenizer download、retention、update channel。 |
+| Update | 支持 native self-update 的运行时状态。 |
+
+## Build and Embed
+
+native 生产构建前运行：
+
+```bash
+cd console
+pnpm build
+```
+
+Build 会运行 TypeScript、Vite 和 `scripts/sync-to-embed.mjs`，把 `console/dist/` 复制到 `assets/console/`，供 `rust-embed` 编译进 binary。如果没有执行这一步，后端仍可编译，但只会提供 placeholder embed directory。
+
+## 配置哲学
+
+Console 应尽量承载 provider-specific policy。对 transform 行为来说，这意味着 wizard 和 template 应生成 generic 或已有 rule config。后端 process engine 保持宽松，并以 Operation 为组织中心。

@@ -1,133 +1,133 @@
 ---
-title: 路由表 (Routing Table)
-description: 每个通道如何声明它响应哪些 (operation, protocol) 组合 —— 以及是透传、翻译、本地处理还是拒绝。
+title: 路由表
+description: v2 如何用持久化 routing_rules 表达 passthrough、transform、local 和 unsupported。
 ---
 
-**路由表 (routing table)** 是每个通道的路由映射。它接收一个被分类成
-`(OperationFamily, ProtocolKind)` 对的请求，然后告诉 GPROXY 以下四件事之一：
+GPROXY v2 的 routing table 是每个 provider 一份的持久化矩阵。每行把一个
+入站 `(operation, kind)` 映射到一种实现：
 
-- **`Passthrough` (透传)** —— 请求原样转发到上游（两端协议相同；GPROXY 只
-  改写模型名、头和认证信封）。
-- **`TransformTo { destination }` (翻译)** —— 进入协议 `transform` 层，先把
-  请求翻译成另一个 `(operation, protocol)` 再转发。响应走反向翻译。
-- **`Local` (本地处理)** —— 请求完全在 GPROXY 内部处理，永远不打上游。
-  用于 `*-only` 预设下的 `model_list` / `model_get`。
-- **`Unsupported` (不支持)** —— 当前通道不支持该路由，返回 501。
+- `passthrough`：不改变 wire dialect，直接转发给选中的 provider；
+- `transform_to`：发送上游前转换到另一个 operation/kind，支持时再把响应转回；
+- `local`：在 GPROXY 内部处理，不调用上游；
+- `unsupported`：拒绝该单元格。
 
-每个通道都有 `fn routing_table(&self) -> RoutingTable` 方法。该方法返回
-的是通道的**默认**路由表 —— 除非操作员在控制台里按供应商粒度覆盖，否则
-引擎直接使用它。
+请求时只读取已存储且启用的行。没有匹配行就视为 unsupported。channel
+默认值只在创建 provider 或操作员重置 provider routing rules 时物化为真实
+`routing_rules` 行。
 
-定义在 [`sdk/gproxy-channel/src/routing.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/routing.rs)。
+## 存储行结构
 
-## Route key
+`routing_rules` 行属于一个 provider：
 
-```rust
-pub struct RouteKey {
-    pub operation: OperationFamily,
-    pub protocol:  ProtocolKind,
+| 字段 | 说明 |
+| --- | --- |
+| `provider_id` | 由哪个 provider 的 channel 和 credential 处理请求。 |
+| `operation` | provider-neutral operation 字符串，例如 `generate_content`、`stream_generate_content`、`list_models`、`count_tokens`、`create_image` 或 `create_embedding`。 |
+| `kind` | 入站 wire kind。content generation 使用具体 dialect：`open_ai_responses`、`open_ai_chat_completions`、`claude_messages`、`gemini_generate_content`。其它 operation 使用 provider family：`open_ai`、`claude`、`gemini`。 |
+| `implementation` | `passthrough`、`transform_to`、`local` 或 `unsupported`。 |
+| `dest_operation` | `transform_to` 的目标 operation；可为空，表示保持原 operation。 |
+| `dest_kind` | `transform_to` 的目标 wire kind。transform 行缺少 `dest_kind` 时会被视为 unsupported。 |
+| `sort_order` | 编译启用行时的顺序。实际唯一键仍是 `(provider_id, operation, kind)`。 |
+| `enabled` | 禁用行会被忽略。 |
+
+数据库对 `(provider_id, operation, kind)` 建唯一约束。
+
+## Operation 词表
+
+当前 operation enum 值：
+
+| Operation | 分组 | 说明 |
+| --- | --- | --- |
+| `list_models`, `get_model` | Models | 模型列表/获取端点。 |
+| `count_tokens` | Count tokens | provider token counting 端点。 |
+| `generate_content`, `stream_generate_content` | Generate content | OpenAI Chat Completions、OpenAI Responses、Claude Messages、Gemini generateContent dialect。 |
+| `create_image`, `edit_image` | Images | OpenAI-shaped 图片生成/编辑 operation；只有已实现的路径才可转换。 |
+| `create_embedding` | Embeddings | OpenAI 和 Gemini embedding shape。 |
+| `compact_content` | Compact | agent 工作流使用的 compact endpoint。 |
+| `create_conversation` | Conversation | OpenAI conversation-shaped operation。 |
+
+content-generation operation 必须使用 content-generation kind。非 content
+operation 使用 provider family kind。
+
+## 示例行
+
+把 OpenAI Responses 流量 passthrough 到 OpenAI provider：
+
+```json
+{
+  "provider_id": 1,
+  "operation": "generate_content",
+  "kind": "open_ai_responses",
+  "implementation": "passthrough",
+  "dest_operation": null,
+  "dest_kind": null,
+  "sort_order": 0,
+  "enabled": true
 }
 ```
 
-### Operation family
+接受客户端 Claude Messages，并转换成 OpenAI Responses 发给上游：
 
-`OperationFamily` (定义在 `gproxy-protocol`) 是路由代表的那种调用的
-协议无关种类。完整列表：
-
-| Family | 含义 |
-| --- | --- |
-| `model_list` | 列出模型。 |
-| `model_get` | 按 id 取单个模型。 |
-| `count_tokens` | token 计数接口。 |
-| `compact` | "压缩"对话 (Claude Code compact)。 |
-| `generate_content` | 非流式 chat / message / generate 调用。 |
-| `stream_generate_content` | 流式 chat / message / generate 调用。 |
-| `create_image` / `stream_create_image` | 图片生成。 |
-| `create_image_edit` / `stream_create_image_edit` | 图片编辑。 |
-| `openai_response_websocket` | OpenAI Responses WebSocket。 |
-| `gemini_live` | Gemini Live 双向会话。 |
-| `embeddings` | 向量接口。 |
-| `file_upload` / `file_list` / `file_get` / `file_content` / `file_delete` | 文件接口。 |
-
-### Protocol kind
-
-`ProtocolKind` 是具体的 wire 方言：
-
-| Kind | 含义 |
-| --- | --- |
-| `openai` | OpenAI —— 在选定具体 API 之前的 umbrella。 |
-| `openai_chat_completions` | OpenAI **Chat Completions** API。 |
-| `openai_response` | OpenAI **Responses** API。 |
-| `claude` | Anthropic Messages API。 |
-| `gemini` | Google Gemini `generateContent`。 |
-| `gemini_ndjson` | Gemini NDJSON 流式 (语义上与 `gemini` 相同)。 |
-
-## 示例：Anthropic 通道的默认路由表
-
-精简自 [`channels/anthropic.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channels/anthropic.rs)：
-
-```rust
-let pass  = |op, proto| (RouteKey::new(op, proto), RouteImplementation::Passthrough);
-let xform = |op, proto, dst_op, dst_proto| (
-    RouteKey::new(op, proto),
-    RouteImplementation::TransformTo {
-        destination: RouteKey::new(dst_op, dst_proto),
-    },
-);
-
-let routes = vec![
-    // 原生 Claude 路由 —— 透传。
-    pass(OperationFamily::GenerateContent, ProtocolKind::Claude),
-    pass(OperationFamily::StreamGenerateContent, ProtocolKind::Claude),
-
-    // OpenAI Chat Completions 客户端 → 进入时翻译成 Claude。
-    xform(
-        OperationFamily::GenerateContent,   ProtocolKind::OpenAiChatCompletion,
-        OperationFamily::GenerateContent,   ProtocolKind::Claude,
-    ),
-    // …
-];
+```json
+{
+  "provider_id": 1,
+  "operation": "generate_content",
+  "kind": "claude_messages",
+  "implementation": "transform_to",
+  "dest_operation": "generate_content",
+  "dest_kind": "open_ai_responses",
+  "sort_order": 10,
+  "enabled": true
+}
 ```
 
-每一行的读法是：*"当**客户端**发来 `(operation, protocol)`，做 X"*。
-`TransformTo` 里的 destination 是**上游**最终看到的 `(op, proto)` 对。
+在本地回答模型列表：
 
-## 透传 vs. 翻译
+```json
+{
+  "provider_id": 1,
+  "operation": "list_models",
+  "kind": "open_ai",
+  "implementation": "local",
+  "dest_operation": null,
+  "dest_kind": null,
+  "sort_order": 20,
+  "enabled": true
+}
+```
 
-两者的差别体现在热路径上：
+## 默认 seed 与 reset
 
-- **`Passthrough`** 是最小解析的快路径。请求 body 原样转发，只动模型名、
-  header 和认证 —— 同协议路由便宜就在这儿，详见
-  [供应商与通道](/zh-cn/guides/providers/)。
-- **`TransformTo`** 会走 `gproxy_protocol::transform` 里的协议转换，产出
-  上游能接受的新 body。响应走反向转换（包括流式响应逐 chunk 改写）。
+每个 channel 在代码中暴露默认 routing table。通过 admin API 创建 provider
+时，会把该 channel 声明的单元格 seed 到 `routing_rules`。
+reset endpoint 会按 provider 的 channel 重新计算默认值：
 
-## `Local` 模型列表路由
+```text
+POST /admin/providers/{provider_id}/routing-rules/reset
+```
 
-`*-only` 预设（例如 `chat-completions-only` / `response-only` /
-`claude-only` / `gemini-only`）会把 `model_list` 和 `model_get` 设为
-`Local`。这类请求完全从本地 `models` 表响应 —— GPROXY 永远不会打上游。
+reset 会覆盖 channel 声明的默认单元格。它不会为 channel 未声明的单元格凭空增加支持，也不会删除默认表外的 operator 自定义行。
 
-具体而言，当通道的路由表把某条路由设为 `Local` 时，handler 会调用
-`Channel::handle_local(...)`。该方法直接根据内存里的模型快照构造协议
-对应的响应 body。
+原始 JSON bundle import 不会调用 provider 创建 helper。如果 bundle 需要
+routing 行，请显式包含 `routing_rules` 数组，或导入后通过 admin API reset provider。
 
-对于 `*-like` / 透传预设，`model_list` 仍然是 `Passthrough`，但 GPROXY 在
-上游响应回来之后会与本地 `models` 表**合并**（原因与细节见
-[模型与别名](/zh-cn/guides/models/)）。
+## 请求流程
 
-## 操作员什么时候关心它
+1. HTTP path 被分类成 `OperationKey`。
+2. route 或 scoped-provider 选择 candidate provider 和上游 model id。
+3. 编译该 provider 启用的 `routing_rules`。
+4. 应用 dispatch decision：
+   - `passthrough`：保留入站 request target/body shape；
+   - `transform_to`：合成目标 provider-relative target，并运行 transform 层；
+   - `local`：调用 channel local handler；
+   - 缺行或 `unsupported`：返回不支持的 operation 错误。
 
-大多数用户根本不会动路由表 —— 通道自带的默认值已经够用。你会想覆盖它
-通常是因为：
+## Routes 与 routing rules 的区别
 
-- **强制本地模型列表** —— 当某个上游返回一个巨大的模型列表，你不想把它
-  暴露给客户端时。
-- **禁用 (`Unsupported`)** 某个上游技术上支持但你不希望开放的能力
-  （比如在一个 OpenAI 供应商上关掉图片生成）。
-- **接线改造** —— 例如把 OpenAI Responses 的流量通过翻译重定向到一个
-  Chat Completions 上游。
+`routes` 和 `route_members` 决定一个逻辑模型名由哪个 provider/model
+candidate 处理。`routing_rules` 决定被选中的 provider 是否能处理该入站
+wire operation，以及请求要如何改形。
 
-供应商级的覆盖可以在控制台的供应商工作区里编辑，以 JSON
-(`RoutingTableDocument`) 形式保存。schema 限制每个
-`(operation, protocol)` 对只能有一条规则。
+例如，alias 可以把 `default-chat` 解析到 route `main`，route `main`
+选择 provider `openai-main` 的 `gpt-4.1-mini`。随后该 provider 的
+`routing_rules` 决定 Claude Messages 请求是否能转换成 OpenAI 上游 dialect。

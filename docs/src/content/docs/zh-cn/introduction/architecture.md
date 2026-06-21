@@ -1,108 +1,111 @@
 ---
 title: 架构概览
-description: GPROXY 工作空间结构 —— apps、crates 与 SDK 分层，以及一次请求是如何被处理的。
+description: GPROXY v2 当前运行时架构和请求生命周期。
 ---
 
-GPROXY 是一个 Cargo 工作空间，按三层组织：
+GPROXY v2 是一个 Rust crate，但有两个运行时出口：
 
-1. **Apps** —— 可运行的二进制 (`gproxy`、`gproxy-recorder`)。
-2. **Crates** —— 主程序组合使用的服务端组件 (`gproxy-core`、`gproxy-storage`、
-   `gproxy-api`、`gproxy-server`)。
-3. **SDK** —— 可在服务外独立复用的框架无关库 (`gproxy-protocol`、
-   `gproxy-channel`、`gproxy-engine`、`gproxy-sdk`)。
+- `src/main.rs` 中的 native binary，由 Axum 和 native upstream client 提供服务；
+- `src/lib.rs` / `src/http/edge/` 中的 wasm library entry，用于 edge 平台 bundle。
 
-## 工作空间布局
+它仍然是分层设计。和 v1 的区别是打包方式，不是工程纪律：v2 在一个仓库里继续分离
+protocol type、transform、请求编排、channel、storage、admin 和部署边界。
+
+## 仓库布局
 
 ```text
-gproxy/
-├── apps/
-│   ├── gproxy/              # 主二进制 (HTTP 服务 + 控制台宿主)
-│   └── gproxy-recorder/     # 上游流量录制工具 (开发/调试)
-├── crates/
-│   ├── gproxy-core/         # 配置、身份、策略、配额、路由类型
-│   ├── gproxy-storage/      # SeaORM 存储 + 加密 + schema 同步
-│   ├── gproxy-api/          # 管理与用户 HTTP API、鉴权、登录、CORS
-│   └── gproxy-server/       # 把上述部分组装在一起的 Axum 服务
-├── sdk/
-│   ├── gproxy-protocol/     # L0：OpenAI/Claude/Gemini 协议类型和 transform
-│   ├── gproxy-channel/      # L1：Channel trait、各通道实现、凭证、计费、
-│   │                        #     工具函数、健康状态
-│   ├── gproxy-engine/       # L2：GproxyEngine、ProviderStore、路由、
-│   │                        #     重试、凭证亲和性、后端 trait
-│   └── gproxy-sdk/          # 重导出上述三层的伞 crate
-├── frontend/console/        # React 控制台，构建时嵌入到二进制
-└── docs/                    # 本文档站
+.
+|-- Cargo.toml              # 一个 crate：lib + bin
+|-- src/
+|   |-- main.rs             # native CLI、config、AppState、Axum server
+|   |-- lib.rs              # shared module surface 和 wasm export
+|   |-- app/                # bootstrap、snapshot、import/export、v1 migration
+|   |-- protocol/           # Operation taxonomy 和 provider wire model
+|   |-- transform/          # 按 operation 组织的协议转换
+|   |-- process/            # provider rule-set 编译与应用
+|   |-- channel/            # 上游适配器和 registry
+|   |-- pipeline/           # 请求生命周期编排
+|   |-- http/               # native server、edge adapter、admin API dispatcher
+|   |-- store/              # cache 和 persistence backend
+|   `-- admin/ billing/ credentials/ health/ tokenize/ selfupdate/ usage/
+|-- console/                # React 控制台，独立构建
+|-- assets/console/         # 生成的 console embed 目标
+|-- deploy/                 # edge 和平台打包入口
+|-- docs/                   # Starlight 文档网站
+`-- dev-docs/               # 开发者/source 笔记，用作参考材料
 ```
 
 ## 请求生命周期
 
-高层视角下，一个 LLM 请求会经过这些阶段：
+一次常规生成请求经过：
 
 ```text
-                ┌─────────────────────────────────────────────┐
-HTTP 请求   ──► │  gproxy-server (Axum)                       │
-                │    ├── 鉴权：API key → 用户身份              │
-                │    ├── 协议分类 (OpenAI / Claude / Gemini)   │
-                │    └── handler 分发                         │
-                └───────────────┬─────────────────────────────┘
-                                │
-                                ▼
-                ┌─────────────────────────────────────────────┐
-                │  gproxy-engine :: routing                   │
-                │    permission → rewrite → alias → execute   │
-                └───────────────┬─────────────────────────────┘
-                                │ 解析出的 (provider, model)
-                                ▼
-                ┌─────────────────────────────────────────────┐
-                │  gproxy-engine :: GproxyEngine              │
-                │    ├── channel.prepare_request(...)         │
-                │    ├── 调用上游 HTTP                         │
-                │    ├── 重试 + 健康状态更新                   │
-                │    └── 用量记账                              │
-                └───────────────┬─────────────────────────────┘
-                                │
-                                ▼
-                          上游 LLM API
+HTTP request
+  -> classify operation and inbound wire kind
+  -> authenticate user API key
+  -> normalize model name and alias
+  -> resolve route or scoped provider
+  -> enforce route permissions, rate limits, and quota admission
+  -> select route member and credential
+  -> transform protocol if inbound and upstream wire kinds differ
+  -> apply provider rule sets
+  -> prepare upstream request in channel
+  -> send request through native or fetch client
+  -> classify provider response
+  -> fail over or settle usage
+  -> shape response and transform back if needed
+  -> log request, usage, quota deltas, and health state
 ```
 
-1. **鉴权。** 请求携带 API key (`Authorization: Bearer …`)。API 层解析为 `User`，
-   检查用户与该 key 是否启用，并把身份附加到请求上下文。
-2. **分类。** 路由层识别协议 (OpenAI Chat / OpenAI Responses / Claude / Gemini) 及
-   路由类型 (`model_list` / `model_get` / chat 调用 …)。
-3. **模型解析。** `permission → rewrite → alias → execute` 是唯一规范的顺序
-   (详见*使用指南 → 模型与别名*)，别名、权限 glob 匹配、通道级重写规则都在这里生效。
-4. **路由。** 对于 `*-only` 预设，`model_list` 和 `model_get` 直接由本地 `models`
-   表响应，不会打到上游。对于 `*-like` / 透传预设，仍会调用上游，但响应会与本地
-   `models` 表**合并**，让管理员注册过的条目始终可见。
-5. **执行。** `GproxyEngine::execute` 让解析得到的通道准备上游请求，发起调用，
-   处理重试，并更新每个凭证的健康状态。
-6. **记账。** 用量通过 sink 异步写出，由后台 worker 批量写入存储。
+`pipeline::execute` 是中心编排器。它把分类、认证、预处理、路由解析、鉴权、balance、
+transform、failover 和 settle 分给小模块处理。
 
-## 后台 Worker
+## Operation-first 协议模型
 
-`apps/gproxy/src/workers/mod.rs` 拉起一组长期任务：
+v2 不把 provider family 当成主要文档和代码模型。中心概念是：
 
-| Worker | 职责 |
+| 类型 | 作用 |
 | --- | --- |
-| `UsageSink` | 消费用量消息并批量写入存储。 |
-| `HealthBroadcaster` | 对每个凭证的健康状态变化做 debounce。 |
-| `QuotaReconciler` | 周期性从实际用量重算 `cost_used`。 |
-| `RateLimitGC` | 清理过期的限流计数器。 |
+| `OperationGroup` | 大类能力：models、count tokens、generate content、images、embeddings、compact、conversation。 |
+| `Operation` | 具体动作，例如 `ListModels`、`GenerateContent`、`CreateEmbedding`、`CompactContent`。 |
+| `OperationKind` | 这个 operation 的 provider wire shape，例如 OpenAI Responses 或 Claude Messages。 |
+| `OperationKey` | `(operation, kind)`，被 routing rule 和 transform 使用。 |
 
-它们都参与优雅关机 —— 详见 [优雅关机](/zh-cn/reference/graceful-shutdown/)。
+因此 content generation 下有多个 OpenAI kind：OpenAI Responses 和 Chat Completions
+是不同的 native wire shape，不只是两个名字。
 
-## 存储
+## Transform、Process、Channel
 
-`gproxy-storage` 基于 **SeaORM + SQLx**，支持 **SQLite**、**PostgreSQL** 和
-**MySQL**。当设置了 `DATABASE_SECRET_KEY` 时，供应商凭证、用户密码和 API 密钥
-会以 **XChaCha20-Poly1305** 加密后落盘。
+三层必须分开：
 
-内嵌控制台、管理 HTTP API 和 TOML 种子配置写入的是同一份 schema —— TOML
-文件只在**首次**初始化 (数据库为空) 时被读取。详见
-[TOML 配置](/zh-cn/reference/toml-config/)。
+- **Transform** 按 operation 改协议形状。route 执行需要时，它在 OpenAI、Claude、Gemini
+  wire model 之间转换。
+- **Process** 在 transform 之后、channel 看到请求之前应用配置化请求改写规则。engine 应保持宽松；
+  provider-specific preset 应优先放在配置和 console 里，除非 runtime 真正需要新 primitive。
+- **Channel** 负责上游访问：endpoint、auth、request prepare、response disposition、可选 stream
+  decode、OAuth refresh、usage endpoint 和 native TLS/HTTP2 profile。
 
-## SDK 边界
+## AppState 与快照
 
-`sdk/` 下的 crate 刻意不依赖数据库、HTTP 服务和 Axum。这种隔离正是
-`gproxy-sdk` 可以被嵌入到完全不同的应用里的原因。更多细节参见
-[Rust SDK](/zh-cn/reference/sdk/)。
+每个请求拿到一个轻量 clone 的 `AppState`。热路径读取
+`ArcSwap<ControlPlaneSnapshot>`，其中包含 provider、route、rule 和 identity 记录。
+控制面写入会更新 persistence，重建本地 snapshot，并在 cache backend 支持时发布 invalidation。
+
+native 实例可使用 memory/Redis cache 与 file/db persistence。edge 实例使用 fetch-compatible
+client，以及 libSQL/Turso、REST 风格共享存储等平台友好的 persistence/cache backend。
+
+## 运行时边界
+
+| 运行时 | 边界 |
+| --- | --- |
+| Native | CLI/env config、Axum server、内嵌 console assets、native wreq client pool、可选 self-update。 |
+| Edge | wasm entry、fetch adapter、平台环境；默认不嵌入 console binary assets。 |
+| Console | `console/` 中的 React SPA；构建产物同步到 `assets/console/` 给 native embedding。 |
+| Documentation | `docs/` 中的 Starlight 站点；开发/source 笔记放在 `dev-docs/`。 |
+
+## 下一步
+
+- 在[供应商与通道](/zh-cn/guides/providers/)中配置上游。
+- 在[模型与别名](/zh-cn/guides/models/)中理解对外模型路由。
+- 在[发行版构建](/zh-cn/deployment/release-build/)和
+  [Edge Wasm](/zh-cn/deployment/edge/)中部署 native 与 edge build。

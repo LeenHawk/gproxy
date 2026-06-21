@@ -1,0 +1,6 @@
+{
+  "deploy": {
+    "org": "leenhawk20",
+    "app": "gproxy-deno"
+  }
+}

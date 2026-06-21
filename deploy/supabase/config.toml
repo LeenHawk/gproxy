@@ -1,0 +1,11 @@
+# Supabase project config for the GPROXY v2 edge deploy.
+#
+# Only the GPROXY Edge Function is managed from this repo. The project ref is
+# supplied at deploy time via `--project-ref "$SUPABASE_PROJECT_REF"` (kept in
+# the gitignored .env), so `project_id` here is a placeholder for local tooling.
+project_id = "gproxy"
+
+[functions.gproxy]
+# Public health/version probes — callable without a Supabase JWT.
+verify_jwt = false
+entrypoint = "./functions/gproxy/index.ts"

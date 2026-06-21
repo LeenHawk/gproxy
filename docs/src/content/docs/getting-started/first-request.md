@@ -1,194 +1,146 @@
 ---
 title: First Request
-description: Send your first LLM request through GPROXY using the OpenAI, Claude, or Gemini compatible surface.
+description: Send OpenAI, Claude, and Gemini compatible requests through GPROXY v2.
 ---
 
-GPROXY accepts traffic on the standard OpenAI / Anthropic / Gemini HTTP
-shapes. Point any client library at your GPROXY base URL, authenticate with
-a **user** API key, and you're done.
+GPROXY v2 exposes OpenAI, Anthropic, and Gemini-compatible HTTP surfaces. A user
+API key authenticates the caller; providers, routes, route members, aliases,
+rules, permissions, quotas, and credentials decide where the request goes.
 
-Before the first request though, you need to understand **how GPROXY picks
-the upstream provider**, because there are two different routing modes and
-they affect how you write the `model` field.
+The two routing modes matter before you write the `model` field.
 
-## Two routing modes
+## Aggregated Routing
 
-### Aggregated endpoint — `/v1/...`, `/v1beta/...`
-
-One base URL fans out to every provider. The provider must be encoded
-**into the model name** using a `provider/model` prefix (or by being
-implied by an alias):
+Aggregated routes live at `/v1/*` and `/v1beta/*`. In this mode the requested
+model name resolves through v2 route data:
 
 ```text
-POST /v1/chat/completions
-{ "model": "openai-main/gpt-4.1-mini", ... }
+client model -> alias or route name -> route member -> provider credential
 ```
 
-- `openai-main` is the provider name as defined in your config.
-- `gpt-4.1-mini` is the upstream model id.
-- Gemini-style URI paths work the same way:
-  `/v1beta/models/openai-main/gpt-4.1-mini:generateContent`.
-- If the `model` you send matches an **alias**, you don't need a prefix —
-  the alias already resolves to a `(provider, model)` pair.
-
-### Scoped endpoint — `/{provider}/v1/...`
-
-The provider name is in the URL path, so the `model` field holds the raw
-upstream id with no prefix:
-
-```text
-POST /openai-main/v1/chat/completions
-{ "model": "gpt-4.1-mini", ... }
-```
-
-This form is the closest thing to "pretend GPROXY is the upstream directly"
-and is the simplest drop-in for clients that hard-code a base URL and model
-name together.
-
-:::tip
-Pick whichever fits your client. A single GPROXY instance serves **both**
-forms simultaneously — they coexist for every protocol (OpenAI / Claude /
-Gemini).
-:::
-
-## Examples
-
-All examples below assume:
-
-- GPROXY is listening on `http://127.0.0.1:8787`
-- Admin key `sk-admin-1` (from the [Quick Start](/getting-started/quick-start/))
-- Provider `openai-main` exposes `gpt-4.1-mini`
-
-### OpenAI Chat Completions
-
-Aggregated `/v1`:
+For the quick-start bundle, the route name is `main`:
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer sk-admin-1" \
+  -H "Authorization: Bearer sk-dev-local" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai-main/gpt-4.1-mini",
+    "model": "main",
     "messages": [
-      { "role": "user", "content": "Say hello in one short sentence." }
+      { "role": "user", "content": "Say hello." }
     ]
   }'
 ```
 
-Scoped `/openai-main/v1`:
+Aggregated model list routes are served by GPROXY's own snapshot:
+
+```bash
+curl http://127.0.0.1:8787/v1/models \
+  -H "Authorization: Bearer sk-dev-local"
+```
+
+The list contains route and alias names the key is allowed to see, not a raw
+dump of every upstream provider model.
+
+## Scoped Provider Routing
+
+Scoped routes live at `/{provider}/v1/*` and `/{provider}/v1beta/*`. In this
+mode the provider comes from the URL and the model is the upstream model id:
 
 ```bash
 curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
-  -H "Authorization: Bearer sk-admin-1" \
+  -H "Authorization: Bearer sk-dev-local" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4.1-mini",
     "messages": [
-      { "role": "user", "content": "Say hello in one short sentence." }
+      { "role": "user", "content": "Say hello." }
     ]
   }'
 ```
 
-If you've defined an alias (for example `chat-default`), you can use it on
-either endpoint without a prefix — the alias resolves to a concrete
-`(provider, model)` pair internally:
+Scoped mode bypasses route balancing. It still authenticates the user key,
+checks permission against the provider name, applies provider rules, selects a
+credential, rewrites compatible request bodies, logs according to instance
+settings, and settles usage.
 
-```json
-{ "model": "chat-default", "messages": [ ... ] }
-```
+## Claude Messages
 
-The non-stream response has its `"model"` field rewritten back to the
-alias the client sent; streaming chunks are rewritten per chunk inside
-the engine.
-
-### Anthropic Messages
+Claude-compatible calls use the Anthropic message shape. If the request is
+aggregated, use a route or alias name:
 
 ```bash
 curl http://127.0.0.1:8787/v1/messages \
-  -H "x-api-key: sk-admin-1" \
+  -H "x-api-key: sk-dev-local" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic-main/claude-3-5-sonnet-latest",
+    "model": "main",
     "max_tokens": 256,
-    "messages": [ { "role": "user", "content": "Hello" } ]
+    "messages": [
+      { "role": "user", "content": "Hello from Claude format." }
+    ]
   }'
 ```
 
-Or, using the scoped form:
+For scoped mode, place the provider in the path and use the upstream model id:
 
 ```bash
-curl http://127.0.0.1:8787/anthropic-main/v1/messages \
-  -H "x-api-key: sk-admin-1" \
+curl http://127.0.0.1:8787/claude-main/v1/messages \
+  -H "x-api-key: sk-dev-local" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "claude-3-5-sonnet-latest",
+    "model": "claude-sonnet-4-5",
     "max_tokens": 256,
-    "messages": [ { "role": "user", "content": "Hello" } ]
+    "messages": [
+      { "role": "user", "content": "Hello from Claude format." }
+    ]
   }'
 ```
 
-### Gemini generateContent
+The exact model id must exist upstream or be accepted by that provider. v2 keeps
+scoped model validation intentionally lax and lets the provider answer.
 
-Aggregated — the provider prefix is embedded into the `models/...` path
-segment:
+## Gemini generateContent
+
+Gemini carries the model in the path. Aggregated requests use a route or alias
+inside the `models/...` segment:
 
 ```bash
-curl "http://127.0.0.1:8787/v1beta/models/vertex-main/gemini-1.5-flash:generateContent" \
-  -H "x-goog-api-key: sk-admin-1" \
+curl "http://127.0.0.1:8787/v1beta/models/main:generateContent" \
+  -H "x-goog-api-key: sk-dev-local" \
   -H "Content-Type: application/json" \
-  -d '{ "contents": [ { "parts": [ { "text": "Hello" } ] } ] }'
+  -d '{
+    "contents": [
+      { "parts": [ { "text": "Hello from Gemini format." } ] }
+    ]
+  }'
 ```
 
-Scoped:
+Scoped requests use the provider path prefix. The example below assumes you
+have created a Gemini-capable provider named `aistudio-main`:
 
 ```bash
-curl "http://127.0.0.1:8787/vertex-main/v1beta/models/gemini-1.5-flash:generateContent" \
-  -H "x-goog-api-key: sk-admin-1" \
+curl "http://127.0.0.1:8787/aistudio-main/v1beta/models/gemini-1.5-flash:generateContent" \
+  -H "x-goog-api-key: sk-dev-local" \
   -H "Content-Type: application/json" \
-  -d '{ "contents": [ { "parts": [ { "text": "Hello" } ] } ] }'
+  -d '{
+    "contents": [
+      { "parts": [ { "text": "Hello from Gemini format." } ] }
+    ]
+  }'
 ```
 
-## Listing models
+## Common Errors
 
-Both endpoints serve the standard list route:
+| Symptom | Meaning |
+| --- | --- |
+| `401` | Missing, unknown, or disabled user API key. |
+| `403` | The key is valid but lacks permission for the route or provider name. |
+| `404` or unknown route | Aggregated mode could not resolve the requested route or alias. |
+| `429` | Rate limit exceeded. |
+| `402` | Quota precheck failed. |
+| `413` | Request body exceeded the shared native/edge body limit. |
 
-```bash
-# Aggregated — returns models from every provider the user can see.
-curl http://127.0.0.1:8787/v1/models \
-  -H "Authorization: Bearer sk-admin-1"
-
-# Scoped — returns only models on openai-main.
-curl http://127.0.0.1:8787/openai-main/v1/models \
-  -H "Authorization: Bearer sk-admin-1"
-```
-
-Aliases show up as first-class entries alongside real models, filtered by
-the requesting user's permissions. `GET /v1/models/{id}` resolves
-individual entries (including aliases).
-
-## What gets logged
-
-If `enable_usage = true` (see the [TOML Config reference](/reference/toml-config/))
-GPROXY records per-request usage — tokens, cost, user, provider, model —
-asynchronously through the `UsageSink` worker. You can inspect it from
-the console or query the admin API.
-
-If `enable_upstream_log` or `enable_downstream_log` are on, the request
-and response envelopes are captured too; body capture is a separate flag
-so you can keep the metadata lightweight in production.
-
-## Troubleshooting
-
-- **`401 unauthorized`** — The API key is missing, unknown, or disabled.
-- **`400` / `provider prefix`** — You hit `/v1` without a `provider/` prefix
-  and the `model` didn't match an alias. Either add the prefix, use a
-  scoped path, or define an alias for that name.
-- **`403 forbidden: model`** — The user has no permission matching the
-  requested model. Check `[[permissions]]` or the console's *Permissions*
-  tab.
-- **`429 rate_limited`** — A user/model rate limit kicked in. See
-  [Permissions, Rate Limits & Quotas](/guides/permissions/).
-- **`402 quota_exceeded`** — The user's cost quota is spent. Top it up
-  from the console or the admin API.
+Every gateway response includes `x-gproxy-request-id` for correlation with logs.

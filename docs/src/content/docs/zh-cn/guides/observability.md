@@ -1,74 +1,70 @@
 ---
-title: 可观测性
-description: GPROXY 中的用量记账、请求日志与健康状态追踪。
+title: Observability
+description: 理解 v2 的 usage、request log、audit log、credential health、settings、retention 和 Prometheus metrics。
 ---
 
-GPROXY 捕获三条互相独立的运维数据流：**用量 (usage)**、**请求日志** 与
-**健康状态 (health)**。每一条都有各自的开关，并由各自的后台 worker 写入，
-保证热路径不受影响。
+v2 把运维数据写入 persistence backend，这样 native、多实例和 edge 部署可以共享同一视图。热路径设置加载在 control-plane snapshot 中。
 
-## 用量记账
+## Request ID
 
-当 `enable_usage = true` 时 (全局设置或 TOML 的 `[global]` 块)，
-每一次完成的请求都会产生一条用量记录，至少包含：
+每个网关请求都会生成 request id。Usage、downstream log、upstream log 都带这个 id，因此可以在表和 console 视图之间关联一次调用。
 
-- 用户、供应商、通道
-- 路由类型 (chat / responses / messages / generateContent / …)
-- 模型 id 及别名 (若使用)
-- 输入 / 输出 / 总 token
-- 成本 (USD)，先按别名查价，未命中再按真实模型查
+## Usage
 
-记录被推入 channel，由 `UsageSink` worker 消费并**批量**写入存储，
-避免高并发场景下数据库成为瓶颈。
+Usage 记录包含：
 
-关机时 sink 会排空缓冲、再写最后一批后退出 —— 详见
-[优雅关机](/zh-cn/reference/graceful-shutdown/)。
+- request id 和时间；
+- route name、provider id、credential id；
+- org、team、user、user key id；
+- operation 和 kind；
+- model；
+- input、output、cache-read、cache-creation tokens；
+- cost；
+- latency 和 usage source。
 
-控制台的用量仪表盘与 `/admin/usages` 接口均读自这张表。
+Usage 由 `instance_settings.enable_usage` 控制，默认开启。结算还会更新 quota 和 token-limit counter。
 
-## 上下游日志
+## Request Logs
 
-请求日志由两对独立开关控制：
+请求日志分为 downstream 和 upstream 两条流：
 
-| 开关 | 捕获内容 |
+| Setting | 捕获内容 |
 | --- | --- |
-| `enable_upstream_log` | 上游 HTTP 信封 (URL、状态、header、耗时)。 |
-| `enable_upstream_log_body` | 同时捕获上游请求/响应 **body**。 |
-| `enable_downstream_log` | 下游 (面向客户端) HTTP 信封。 |
-| `enable_downstream_log_body` | 同时捕获下游请求/响应 **body**。 |
+| `enable_downstream_log` | 面向客户端的 method、path、query、status、headers。 |
+| `enable_downstream_log_body` | Downstream request 和 response body。 |
+| `enable_upstream_log` | Provider URL、method、status、latency、headers。 |
+| `enable_upstream_log_body` | Upstream request 和 response body。 |
 
-存入前 header 会根据全局的**脱敏规则 (sanitize rules)** 过滤，避免 API key
-等机密泄漏到日志表。body 捕获代价较高 —— 生产环境建议仅在排障时开启。
+默认开启 redaction。`disable_log_redaction` 可用于调试，但可能暴露 secret，不应随意开启。
 
-控制台在*可观测性 → 请求*中提供了这两条流，可按用户、供应商、模型、状态、
-时间段过滤。
+## Audit Logs
 
-## 健康状态
+Admin 和 portal 的 mutation path 会写 audit row，包含 actor id/name、action、target、status 和 source IP。它用于回答“谁改了控制面”，而不是调试 LLM payload。
 
-GPROXY 为每个供应商的每个凭证在内存中维护健康状态：
+## Credential Health
 
-- **Healthy** —— 默认，参与负载分配。
-- **Cooldown** —— 在一次可重试失败后暂时跳过 (如上游限流或短暂 5xx)。
-- **Disabled** —— 跳过直到管理员重新启用，通常在出现 401/403 鉴权错误时触发。
+Credential status 行跟踪每个 credential/channel pair：
 
-`HealthBroadcaster` worker 会对这些更新做 **debounce** —— 一阵失败只写一次
-数据库 —— 并持久化，重启后控制台仍能看到当前状态。
+- `health_kind`；
+- 可选结构化 `health_json`；
+- `checked_at`；
+- `last_error`。
 
-## 数据落在哪里
+Pipeline 和 channel response classifier 决定 credential 应该重试、cooldown，还是视为 auth-dead。Console 通过 `/admin/credential-statuses` 展示当前状态。
 
-以上三条流全部落在配置的数据库中 (默认 SQLite)。不依赖任何外部系统 ——
-用 SQL 客户端就能查询。
+## Metrics
 
-你大概率关心的表：
+`/metrics` 需要 admin，并从持久化聚合数据渲染 Prometheus text，不使用进程本地 counter。当前指标包括：
 
-- `usages` —— 每一次完成请求一行，由 sink 聚合。
-- `upstream_requests` / `downstream_requests` —— 请求信封与可选 body，取决于开关。
-- `provider_health` —— 每个凭证最近的健康状态。
+- `gproxy_requests_total`
+- `gproxy_tokens_total`
+- `gproxy_upstream_latency_ms`
+- `gproxy_credential_health`
+- `gproxy_quota_total`
+- `gproxy_quota_used`
 
-## 轮转与清理
+这种设计让 native 多实例和 edge 部署中的 metrics 仍然有全局意义；进程本地 counter 在这些场景里会误导。
 
-GPROXY 不自带日志轮转。因为数据都在数据库里，直接用定时 SQL 作业处理即可 ——
-比如在 PostgreSQL 上执行
-`DELETE FROM upstream_requests WHERE created_at < NOW() - INTERVAL '14 days'`。
-`QuotaReconciler` 只会读用量行来重算 `cost_used`；只要保留账单审计所需窗口，
-清理旧的用量是安全的。
+## Retention
+
+`instance_settings.retention_days` 控制 usage 和 request-log row 清理。`None` 或非正数表示永久保留。Retention 只应清理 logs 和 usage 数据，不应删除业务/控制面记录。

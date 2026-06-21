@@ -1,63 +1,80 @@
 ---
-title: What is GPROXY?
-description: A high-level overview of the GPROXY LLM proxy server and what it is designed to do.
+title: What is GPROXY v2?
+description: A high-level overview of the GPROXY v2 rewrite and what it is designed to do.
 ---
 
-**GPROXY** is a high-performance LLM proxy server written in Rust. It exposes a
-unified, OpenAI / Anthropic / Gemini compatible HTTP surface on top of many
-upstream providers, while adding the primitives you need to run it as a shared
-service: users, API keys, model permissions, rate limits, cost quotas, usage
-logging, and an embedded browser console.
+**GPROXY v2** is the rewrite of the GPROXY LLM gateway. It keeps the original
+goal from v1: one HTTP entry point for many LLM providers, with routing,
+credentials, user API keys, policy, usage accounting, and a browser console.
+The implementation shape is different: v2 is one Rust crate that can build a
+native server binary and a wasm library for edge runtimes.
 
-It ships as a **single static binary** (with an embedded React console) and an
-optional **Rust SDK** for developers who want to reuse the engine in their own
-applications.
+The v2 design is intentionally operation-oriented. Protocol behavior is grouped
+by capability, such as model listing, token counting, content generation,
+embeddings, images, compacting, and conversations. Provider families still
+matter at the wire boundary, but they are not the organizing unit for routing or
+transforms.
 
-## What it is good at
+## What v2 Is Good At
 
-- **Fanning out to many upstreams from one endpoint.** A single GPROXY instance
-  can route to OpenAI, Anthropic, Vertex / Gemini, DeepSeek, Groq, OpenRouter,
-  NVIDIA, Claude Code, Codex, Antigravity, custom OpenAI-compatible endpoints,
-  and more — each configured as an independent *provider*.
-- **Multi-tenant access control.** Issue API keys to individual users, gate
-  them with glob-style model permissions, apply RPM / RPD / token rate limits
-  per model pattern, and enforce USD-denominated quotas with a reconciler
-  running in the background.
-- **Cross-protocol translation.** A client speaking the OpenAI Chat
-  Completions format can be routed to an Anthropic or Gemini upstream (and
-  vice versa) through the protocol `transform` layer.
-- **Same-protocol passthrough.** When the client and upstream speak the same
-  protocol, GPROXY forwards bytes with minimal parsing for low-overhead,
-  high-throughput operation.
-- **Operational visibility.** Structured upstream / downstream logs (with
-  optional body capture), per-request usage accounting, model health tracking,
-  and a web console that surfaces all of it.
+- **One gateway for multiple providers.** Providers are configured as channel
+  instances with settings, credentials, health state, optional TLS fingerprints,
+  and rule sets.
+- **OpenAI, Claude, and Gemini-compatible traffic.** v2 classifies inbound
+  requests by operation and wire kind, then either keeps same-protocol traffic
+  light or transforms requests into the selected provider-native format.
+- **Multi-tenant access.** Users, organizations, teams, user API keys, route
+  permissions, rate limits, and quotas are part of the control plane.
+- **Operational routing.** A public model name can resolve to an aggregate
+  route, route members, upstream model ids, and credentials. Failover and
+  health state live around this route execution path.
+- **Native and edge deployments.** The native binary uses Axum and wreq. The
+  wasm build uses fetch-compatible transports with libSQL/Turso and Upstash-style
+  backends where the platform supports them.
+- **Embedded administration.** The React console is built separately and can be
+  embedded into the native binary or served as static files next to the API.
 
-## What it is not
+## What Changed From v1
 
-- It is **not a model host.** GPROXY does not run inference itself; it talks
-  to real upstream providers over HTTP.
-- It is **not a load balancer for web traffic generally.** It understands
-  LLM protocols (OpenAI, Claude, Gemini) and is optimized for them.
-- It does **not ship a managed UI behind SSO.** Authentication for the
-  embedded console is a username + password that issues a bearer session
-  token; integrate it behind your own reverse proxy if you need more.
+v1 was organized as a Cargo workspace with app crates, server crates, and SDK
+crates. v2 collapses that into one crate with clear module boundaries under
+`src/`. This is not a downgrade in layering; it is a packaging decision that
+keeps the native binary, wasm library, and shared runtime code in one place.
 
-## Core concepts at a glance
+The most important conceptual changes are:
 
-| Concept | What it means in GPROXY |
+| Area | v1 shape | v2 shape |
+| --- | --- | --- |
+| Repository | Workspace with apps, crates, and SDK packages | One crate with native and wasm outputs |
+| Protocol matrix | Provider-family language appears in more places | Operation / OperationGroup first |
+| Config flow | TOML/database-oriented v1 control plane | Import/export snapshots plus persistence backends |
+| Console | Separate frontend embedded at build time | React console remains separate but is synced into `assets/console` |
+| Edge | Not the primary runtime shape | First-class wasm library and platform bundles |
+
+## Core Concepts
+
+| Concept | Meaning in v2 |
 | --- | --- |
-| **Provider** | A configured upstream (name + channel + settings + credentials). |
-| **Channel** | The code that speaks a specific upstream protocol (OpenAI, Anthropic, Gemini, …). |
-| **Model** | A forwardable model id on a provider. May carry pricing. |
-| **Alias** | A friendly name that resolves to a real `(provider, model)` pair. |
-| **User** | An account with one or more API keys, permissions, limits, and quota. |
-| **Permission** | A `(user, provider, model_pattern)` tuple granting routable access. |
-| **Rate limit** | RPM / RPD / token ceilings scoped to a user + model pattern. |
-| **Quota** | A cost ceiling (USD) enforced across all usage for a user. |
+| Provider | A configured upstream adapter: channel id, settings, credentials, optional proxy and TLS behavior. |
+| Channel | The code that prepares provider-native requests and classifies provider-native responses. |
+| Operation | A capability such as `GenerateContent`, `ListModels`, `CreateEmbedding`, or `CountTokens`. |
+| Route | A public model entry that selects one or more provider/upstream model members. |
+| Alias | A user-facing model name that maps to a route. |
+| Rule set | Ordered request mutation rules applied after protocol transform and before channel send. |
+| Snapshot | The hot-path control-plane view read by request execution. |
+| Cache backend | Ephemeral/shared coordination, sessions, counters, invalidation, and locks. |
+| Persistence backend | Durable control-plane records, logs, usage, audit, and metrics. |
 
-## Where to go next
+## What It Is Not
 
-- **Install and run** — [Installation](/getting-started/installation/)
-- **Boot a working config in 5 minutes** — [Quick Start](/getting-started/quick-start/)
-- **Understand the internals** — [Architecture](/introduction/architecture/)
+GPROXY v2 is not a model host; it does not run inference. It is not a generic
+reverse proxy; it understands LLM protocol operations. It is also not a managed
+hosted SaaS console; the embedded console is part of your deployment and should
+sit behind your own network and operational controls.
+
+## Next Steps
+
+- Read the current-state [Architecture](/introduction/architecture/).
+- Install and run v2 from [Installation](/getting-started/installation/).
+- Import a local development snapshot in [Quick Start](/getting-started/quick-start/).
+- Migrate an existing v1 deployment with [v1 to v2 Migration](/deployment/v1-to-v2/).

@@ -1,0 +1,82 @@
+{
+  "nav": {
+    "keys": "API 密钥",
+    "usage": "用量",
+    "limits": "额度限制",
+    "account": "账户"
+  },
+  "pages": {
+    "keys": { "title": "我的 API 密钥", "subtitle": "管理您的个人 API 密钥。" },
+    "usage": { "title": "我的用量", "subtitle": "查看您的请求历史和用量汇总。" },
+    "limits": { "title": "我的限制", "subtitle": "您的生效配额、速率限制和路由权限。" },
+    "account": { "title": "账户", "subtitle": "您的个人信息和密码。" }
+  },
+  "keys": {
+    "title": "API 密钥",
+    "add": "生成密钥",
+    "empty": "暂无 API 密钥。",
+    "label": "标签",
+    "prefix": "前缀",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "enable": "启用",
+    "disable": "禁用",
+    "disableConfirm": "禁用该 API 密钥？使用它的客户端将被拒绝。",
+    "delete": "删除密钥",
+    "deleteConfirm": "删除该 API 密钥？使用它的客户端将停止工作。",
+    "created": "API 密钥已创建——请立即复制，仅显示一次。",
+    "copied": "已复制",
+    "copyFailed": "复制失败"
+  },
+  "usage": {
+    "empty": "暂无使用记录。",
+    "at": "时间",
+    "operation": "操作",
+    "model": "模型",
+    "tokens": "Token 数",
+    "cost": "费用",
+    "latency": "延迟",
+    "loadMore": "加载更多",
+    "route": "路由",
+    "clearFilters": "清除筛选",
+    "preset": {
+      "1h": "最近 1 小时",
+      "24h": "最近 24 小时",
+      "7d": "最近 7 天",
+      "all": "全部"
+    }
+  },
+  "limits": {
+    "quota": "配额",
+    "costUsed": "已用",
+    "rpm": "每分钟请求数",
+    "rpd": "每日请求数",
+    "totalTokens": "总 Token 数",
+    "rateLimits": "速率限制",
+    "permissions": "路由权限",
+    "routePattern": "路由模式",
+    "noQuota": "未设置配额。",
+    "noRateLimits": "未设置速率限制。",
+    "noPermissions": "未设置路由权限。",
+    "source": {
+      "user": "用户",
+      "team": "团队",
+      "org": "组织"
+    }
+  },
+  "account": {
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认新密码",
+    "changePassword": "修改密码",
+    "mismatch": "两次输入的新密码不一致。",
+    "tooShort": "新密码至少需要 12 个字符。",
+    "changed": "密码修改成功。",
+    "identity": {
+      "title": "账户资料",
+      "name": "姓名",
+      "org": "组织",
+      "team": "团队"
+    }
+  }
+}

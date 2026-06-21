@@ -1,0 +1,41 @@
+{
+  "title": "设置",
+  "subtitle": "实例配置与行为",
+  "sections": {
+    "identity": "身份",
+    "outbound": "出站代理",
+    "usageLogging": "用量与日志",
+    "retention": "保留策略",
+    "tokenizer": "分词器"
+  },
+  "fields": {
+    "instanceName": "实例名称",
+    "proxy": "HTTP 代理地址",
+    "spoofEmulation": "伪装仿真",
+    "enableUsage": "启用用量追踪",
+    "enableUpstreamLog": "启用上游日志",
+    "enableUpstreamLogBody": "记录上游请求/响应体",
+    "enableDownstreamLog": "启用下游日志",
+    "enableDownstreamLogBody": "记录下游请求/响应体",
+    "disableLogRedaction": "禁用日志脱敏",
+    "enableTokenizerDownload": "启用分词器下载",
+    "retentionDays": "日志保留天数"
+  },
+  "spoof": {
+    "inherit": "继承自路由",
+    "on": "始终开启",
+    "off": "始终关闭"
+  },
+  "retention": {
+    "forever": "留空表示永久保留日志"
+  },
+  "warnings": {
+    "sensitive": "警告：已启用一个或多个敏感选项。日志可能包含未脱敏内容或请求/响应体，其中可能含有密钥和个人信息。请仅在排查问题时启用这些选项。"
+  },
+  "save": "保存设置",
+  "saved": "设置已保存",
+  "form": {
+    "nameRequired": "实例名称不能为空"
+  },
+  "empty": "暂无实例配置。点击保存以创建初始配置。"
+}

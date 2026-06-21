@@ -1,0 +1,19 @@
+name = "gproxy"
+main = "src/worker.js"
+compatibility_date = "2025-05-01"
+
+# `account_id` is not a secret. Sourced from CLOUDFLARE_ACCOUNT_ID in CI/local;
+# wrangler also reads CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN from the env.
+
+# Bundle the wasm-bindgen artifact as a `WebAssembly.Module` so the static
+# `import wasm from "./_lib/gproxy_bg.wasm"` in src/worker.js resolves.
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+
+# Storage credentials are set as encrypted secrets (NOT vars):
+#   echo -n "$VALUE" | wrangler secret put TURSO_URL   (and TURSO_TOKEN,
+#   UPSTASH_URL, UPSTASH_TOKEN). They arrive via the `env` arg of fetch().
+
+[observability]
+enabled = true

@@ -1,0 +1,43 @@
+{
+  "orgs": {
+    "title": "组织", "new": "新建组织", "empty": "还没有组织。",
+    "name": "名称", "description": "描述", "enabled": "启用",
+    "create": "创建组织", "edit": "编辑组织",
+    "delete": "删除组织", "deleteConfirm": "删除组织「{{name}}」及其团队、用户和访问规则?",
+    "tabs": { "teams": "团队", "access": "访问控制" }
+  },
+  "teams": {
+    "add": "添加团队", "empty": "该组织下还没有团队。",
+    "name": "名称", "enabled": "启用", "edit": "编辑团队",
+    "delete": "移除团队", "deleteConfirm": "移除团队「{{name}}」?",
+    "access": "团队访问控制"
+  },
+  "users": {
+    "title": "用户", "new": "新建用户", "empty": "还没有用户。",
+    "name": "用户名", "org": "组织", "team": "团队", "noTeam": "— 无 —",
+    "password": "密码", "passwordKeep": "留空则保留当前密码。",
+    "passwordPolicy": "至少 12 个字符。", "hasPassword": "已设密码", "noPassword": "未设密码（禁止登录）",
+    "enabled": "启用", "isAdmin": "管理员",
+    "create": "创建用户", "edit": "编辑用户",
+    "delete": "删除用户", "deleteConfirm": "删除用户「{{name}}」及其 API 密钥和访问规则?",
+    "tabs": { "keys": "API 密钥", "access": "访问控制" }
+  },
+  "keys": {
+    "title": "API 密钥", "add": "生成密钥", "empty": "还没有 API 密钥。",
+    "label": "显示名", "prefix": "前缀", "enabled": "启用",
+    "delete": "删除密钥", "deleteConfirm": "删除此 API 密钥？使用它的客户端将停止工作。",
+    "created": "API 密钥已生成——请立即复制，仅展示一次。",
+    "copied": "已复制", "copyFailed": "复制失败", "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
+  },
+  "access": {
+    "permissions": "路由权限", "permissionsHint": "此 scope 可调用的路由/别名 glob 模式（org→team→user 取并集；任意位置均不匹配则拒绝）。",
+    "addPermission": "添加权限", "routePattern": "路由模式", "noPermissions": "此 scope 暂无路由权限。",
+    "rateLimits": "限流规则", "rateLimitsHint": "按 scope 设定限流；org/team/user 中最严格的生效。",
+    "addRateLimit": "添加限流", "rpm": "RPM", "rpd": "RPD", "totalTokens": "总 token 数", "noRateLimits": "此 scope 暂无限流规则。",
+    "quota": "配额", "quotaHint": "此 scope 的费用上限（十进制）。cost_used 由计费系统累积。",
+    "quotaTotal": "配额总量", "costUsed": "已用", "setQuota": "设置配额", "clearQuota": "清除配额", "noQuota": "未设置配额。",
+    "deletePermission": "删除权限", "deleteRateLimit": "删除限流",
+    "deletePermissionConfirm": "删除此路由权限?", "deleteRateLimitConfirm": "删除此限流规则?",
+    "deleteQuotaConfirm": "清除此 scope 的配额?"
+  }
+}

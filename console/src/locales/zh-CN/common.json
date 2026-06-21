@@ -1,0 +1,68 @@
+{
+  "app": {
+    "name": "GPROXY"
+  },
+  "nav": {
+    "dashboard": "仪表盘",
+    "providers": "供应商",
+    "routes": "负载均衡",
+    "orgs": "组织",
+    "users": "用户",
+    "usage": "统计",
+    "rules": "规则",
+    "settings": "设置",
+    "title": "导航",
+    "openMenu": "打开菜单",
+    "myAccount": "我的账户",
+    "adminConsole": "管理控制台",
+    "collapse": "收起",
+    "expand": "展开",
+    "update": "更新"
+  },
+  "actions": {
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "deleted": "已删除",
+    "edit": "编辑",
+    "close": "关闭",
+    "copy": "复制",
+    "copied": "已复制"
+  },
+  "login": {
+    "title": "登录 GPROXY",
+    "subtitle": "管理控制台",
+    "username": "用户名",
+    "password": "密码",
+    "submit": "登录",
+    "required": "必填",
+    "failed": "用户名或密码错误",
+    "throttled": "尝试次数过多,请 {{seconds}} 秒后重试。"
+  },
+  "user": {
+    "signedInAs": "当前登录",
+    "logout": "退出登录",
+    "menu": "账户",
+    "logoutFailed": "退出登录失败,请重试"
+  },
+  "theme": {
+    "label": "主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "lang": {
+    "label": "语言"
+  },
+  "errors": {
+    "network": "网络错误——服务是否可达?",
+    "internal": "服务器错误"
+  },
+  "dashboard": {
+    "placeholder": "仪表盘将在 F4 阶段提供。"
+  },
+  "json": {
+    "invalid": "JSON 无效",
+    "format": "格式化"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "nav": {
+    "keys": "API 金鑰",
+    "usage": "用量",
+    "limits": "額度限制",
+    "account": "帳戶"
+  },
+  "pages": {
+    "keys": { "title": "我的 API 金鑰", "subtitle": "管理您的個人 API 金鑰。" },
+    "usage": { "title": "我的用量", "subtitle": "查看您的請求歷史和用量彙總。" },
+    "limits": { "title": "我的限制", "subtitle": "您的生效配額、速率限制和路由權限。" },
+    "account": { "title": "帳戶", "subtitle": "您的個人資訊和密碼。" }
+  },
+  "keys": {
+    "title": "API 金鑰",
+    "add": "產生金鑰",
+    "empty": "尚無 API 金鑰。",
+    "label": "標籤",
+    "prefix": "前綴",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "enable": "啟用",
+    "disable": "停用",
+    "disableConfirm": "停用該 API 金鑰？使用它的用戶端將被拒絕。",
+    "delete": "刪除金鑰",
+    "deleteConfirm": "刪除該 API 金鑰？使用它的用戶端將停止運作。",
+    "created": "API 金鑰已建立——請立即複製，僅顯示一次。",
+    "copied": "已複製",
+    "copyFailed": "複製失敗"
+  },
+  "usage": {
+    "empty": "尚無使用記錄。",
+    "at": "時間",
+    "operation": "操作",
+    "model": "模型",
+    "tokens": "Token 數",
+    "cost": "費用",
+    "latency": "延遲",
+    "loadMore": "載入更多",
+    "route": "路由",
+    "clearFilters": "清除篩選",
+    "preset": {
+      "1h": "最近 1 小時",
+      "24h": "最近 24 小時",
+      "7d": "最近 7 天",
+      "all": "全部"
+    }
+  },
+  "limits": {
+    "quota": "配額",
+    "costUsed": "已用",
+    "rpm": "每分鐘請求數",
+    "rpd": "每日請求數",
+    "totalTokens": "總 Token 數",
+    "rateLimits": "速率限制",
+    "permissions": "路由權限",
+    "routePattern": "路由模式",
+    "noQuota": "未設定配額。",
+    "noRateLimits": "未設定速率限制。",
+    "noPermissions": "未設定路由權限。",
+    "source": {
+      "user": "使用者",
+      "team": "團隊",
+      "org": "組織"
+    }
+  },
+  "account": {
+    "currentPassword": "目前密碼",
+    "newPassword": "新密碼",
+    "confirmPassword": "確認新密碼",
+    "changePassword": "變更密碼",
+    "mismatch": "兩次輸入的新密碼不一致。",
+    "tooShort": "新密碼至少需要 12 個字元。",
+    "changed": "密碼變更成功。",
+    "identity": {
+      "title": "帳戶資料",
+      "name": "姓名",
+      "org": "組織",
+      "team": "團隊"
+    }
+  }
+}

@@ -1,156 +1,152 @@
 ---
 title: Pricing
-description: How GPROXY prices a request — token costs, mode variants, and how admin edits reach the billing engine.
+description: How v2 stores model prices, estimates quota admission cost, and settles final usage cost.
 ---
 
-Every request GPROXY handles is priced at response time and the result is
-stored in the `usages.cost` column. This page documents the pricing data
-model, where the values live, and how admin edits propagate into the
-billing engine.
+GPROXY v2 pricing is per provider model. The authoritative configuration is
+`provider_models.pricing_json`; there is no separate price table.
 
-## The `ModelPrice` shape
+Pricing and quotas are related but separate:
 
-A single JSON blob — `models.pricing_json` — is the authoritative source of
-pricing for a given `(provider_id, model_id)` row. It mirrors the
-`gproxy_sdk::provider::billing::ModelPrice` struct defined in
-[`sdk/gproxy-channel/src/billing.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/billing.rs):
+- pricing describes how much one provider model costs;
+- quotas describe how much an org, team, or user is allowed to spend.
+
+An unpriced model still runs. Missing, null, or malformed pricing fields parse
+as zero, so usage is recorded but cost is `0`.
+
+## `pricing_json` shape
+
+Token prices are per 1,000,000 tokens. String decimals are preferred because
+money is handled with decimal arithmetic, but JSON numbers are accepted.
 
 ```json
 {
-  "price_each_call": 0.005,
-  "price_tiers": [
-    {
-      "input_tokens_up_to": 200000,
-      "price_input_tokens": 3.0,
-      "price_output_tokens": 15.0,
-      "price_cache_read_input_tokens": 0.3,
-      "price_cache_creation_input_tokens": 3.75,
-      "price_cache_creation_input_tokens_5min": 3.75,
-      "price_cache_creation_input_tokens_1h": 6.0
-    }
-  ],
-  "flex_price_tiers": [],
-  "scale_price_tiers": [],
-  "priority_price_tiers": []
+  "input": "3.00",
+  "output": "15.00",
+  "cache_read": "0.30",
+  "cache_creation": "3.75"
 }
 ```
 
-Fields:
+Supported keys:
 
-- `price_each_call` — flat USD fee per request, regardless of tokens.
-- `price_tiers[]` — per-token prices bucketed by `input_tokens_up_to`.
-  All token prices are **per 1,000,000 tokens**. The first tier whose
-  `input_tokens_up_to` is >= the summed input-side token count (input +
-  cache read + cache creation) is selected.
-- `flex_price_each_call` / `flex_price_tiers` — override for OpenAI
-  `service_tier: "flex"`.
-- `scale_price_each_call` / `scale_price_tiers` — override for
-  `service_tier: "scale"`.
-- `priority_price_each_call` / `priority_price_tiers` — override for
-  OpenAI `service_tier: "priority"` and Anthropic `speed: "fast"`.
+| Key | Meaning |
+| --- | --- |
+| `input` | Per-million input token price. |
+| `output` | Per-million output token price. |
+| `cache_read` | Per-million cache-read token price. |
+| `cache_creation` | Per-million cache-creation token price. |
+| `image` | Either a flat per-image price or a tier object for image operations. |
 
-`model_id` and `display_name` live in their own columns on the `models`
-table and are **not** stored inside the JSON blob; they are stamped back
-onto the parsed `ModelPrice` at load time.
+The token cost formula is:
 
-## Where pricing lives
-
-- **Built-in JSON** — each channel ships a default price table at
-  [`sdk/gproxy-channel/src/channels/pricing/*.json`](https://github.com/LeenHawk/gproxy/tree/main/sdk/gproxy-channel/src/channels/pricing).
-  These are compiled into the binary via `include_str!` and seeded into
-  the DB on first run of each provider.
-- **DB (`models.pricing_json`)** — the authoritative source at runtime.
-  Admin edits write here, bootstrap seeds from the built-in JSON only
-  when a row is missing.
-- **In-memory `MemoryModel.pricing`** — a parsed `ModelPrice` cloned from
-  the DB into the routing service on boot and on every admin mutation.
-- **Billing engine** — `ProviderInstance.model_pricing` is an
-  `ArcSwap<Vec<ModelPrice>>` owned by the SDK's `ProviderStore`. It is
-  updated via `engine.set_model_pricing(provider_name, prices)`.
-
-## How admin edits reach billing
-
-When an admin upserts a model via the console or
-`POST /admin/models/upsert`:
-
-1. Handler validates `pricing_json` by parsing it into `ModelPrice`.
-   Malformed JSON is rejected with `400 Bad Request` before the DB
-   write.
-2. `storage.upsert_model(...)` persists the row.
-3. `state.upsert_model_in_memory(...)` swaps the new
-   `MemoryModel.pricing` into the routing service.
-4. `state.push_pricing_to_engine(provider_name)` rebuilds the per-provider
-   `Vec<ModelPrice>` from the memory snapshot and calls
-   `engine.set_model_pricing(...)`.
-5. The next billing call (whether from the same request or an unrelated
-   concurrent one) reads the new prices from the `ArcSwap`.
-
-There is **no caching layer between admin write and billing read** — the
-push is synchronous and the ArcSwap swap is lock-free. Last writer wins.
-
-## Billing mode selection
-
-`BillingContext.mode` is set from the request body:
-
-| Channel           | Signal in request body                         | Mode       |
-|-------------------|------------------------------------------------|------------|
-| `openai`          | `service_tier: "flex"`                         | `Flex`     |
-| `openai`          | `service_tier: "scale"`                        | `Scale`    |
-| `openai`          | `service_tier: "priority"`                     | `Priority` |
-| `anthropic`       | `speed: "fast"`                                | `Priority` |
-| `claudecode`      | `speed: "fast"`                                | `Priority` |
-| anything else     | —                                              | `Default`  |
-
-When `mode` is not `Default`, the engine looks for a mode-specific tier
-array (`flex_price_tiers`, etc.) on the exact model first, then on the
-`default` model row. If none exists, it falls back to `price_tiers`.
-
-## Token pricing formula
-
-For the selected tier, each non-null price field contributes:
-
-```
-amount = tokens × unit_price ÷ 1_000_000
+```text
+cost =
+  input_tokens * input / 1_000_000
++ output_tokens * output / 1_000_000
++ cache_read_tokens * cache_read / 1_000_000
++ cache_creation_tokens * cache_creation / 1_000_000
 ```
 
-Summed across `input_tokens`, `output_tokens`, `cache_read_input_tokens`,
-`cache_creation_input_tokens`, `cache_creation_input_tokens_5min`, and
-`cache_creation_input_tokens_1h`.
+## Image pricing
 
-The tier is selected by `effective_input_tokens(usage)` which is
-`input + cache_read + cache_creation + cache_creation_5min + cache_creation_1h`.
+For image operations, `image` can be a scalar per-image price:
 
-## Price matching: exact → `default` fallback
+```json
+{ "image": "0.04" }
+```
 
-Price lookup is strict string matching on `model_id`:
+It can also be a tier object. Lookup order is:
 
-1. Find an exact-match `ModelPrice` row where `model_id == request_model_id`.
-2. If missing, fall back to a row with `model_id == "default"`.
-3. If neither exists, billing returns `None` and `usages.cost` is `0.0`.
+1. `"{size}/{quality}"`;
+2. `"{size}"`;
+3. `"default"`;
+4. zero if no tier matches.
 
-There is **no regex, prefix, or glob matching**. If you want a shared
-tier across many models, define a `default` row in the pricing JSON and
-let unspecified models fall back to it.
+```json
+{
+  "image": {
+    "1024x1024": "0.04",
+    "1792x1024/hd": "0.12",
+    "default": "0.02"
+  }
+}
+```
 
-## Legacy columns
+Image pricing is per generated image, not per million tokens.
 
-The `models` table still has `price_each_call` and `price_tiers_json`
-columns — they are remnants of the pre-v1 pricing shape. The runtime
-does not read or write them; they are kept only so the one-shot
-`backfill_legacy_pricing_json` helper can migrate rows from older
-deployments on first boot. A later release will drop them via an
-explicit `ALTER TABLE`.
+## Runtime lookup
 
-## Where to look when pricing is wrong
+The control-plane snapshot caches provider models by provider id. During
+admission and settlement, GPROXY resolves pricing by exact
+`(provider_id, upstream_model_id)` lookup in that snapshot and parses the
+model's `pricing_json`.
 
-- **Expected price not applied** — check that `models.pricing_json` is
-  populated for the row. Rows with `NULL pricing_json` bill `0.0`.
-- **Admin edit had no effect** — check server logs for
-  `push_pricing_to_engine: provider not registered in engine store` —
-  that warn means the admin mutation went to the DB but the engine's
-  provider store has no matching entry, usually because the provider
-  was renamed after the model was created.
-- **Wrong tier selected** — the tier selector uses the sum of
-  `input_tokens + cache_* tokens`, not `input_tokens` alone. A request
-  with mostly cached prompt tokens can cross a tier boundary even
-  though the billable input is small.
+There is no glob, prefix, or `"default"` model fallback in the current v2
+pricing lookup. Configure pricing on each provider model row that should bill
+non-zero cost.
+
+## Admission estimates
+
+Before an upstream request is sent, quota admission uses a best-effort estimate:
+
+- estimated input tokens are the request body length used by the current
+  pending-cost estimator;
+- output, cache, and image components are not estimated;
+- the estimate is priced with the selected provider model's token pricing;
+- if the estimate is zero, pending quota pre-deduct is skipped.
+
+For quota-bearing scopes, GPROXY adds the estimated micro-dollar cost to cache
+keys named like `qp:{scope}:{id}`. These pending counters have a 15-minute TTL
+so a crash between charge and refund self-heals.
+
+## Settlement
+
+Successful content-generation responses settle exactly once:
+
+- non-streaming and fully buffered responses settle inline;
+- native streaming responses attach a guard so normal end, upstream interruption,
+  or client drop all settle once;
+- if upstream usage is present in the response, it is used;
+- otherwise GPROXY falls back to local counting where the compiled feature set
+  supports it.
+
+The settled request writes a `usages` row with token counts, source, end state,
+latency, route/provider/user dimensions, and cost. Quota reconciliation then:
+
+1. refunds the exact pending micro-dollar estimate;
+2. atomically increments `quotas.cost_used` for each quota-bearing scope by the
+   actual settled cost.
+
+Embedding and image operations have their own provider-shaped settlement path.
+Model list/get, token-count, compact, and conversation operations are not
+currently billed by the content-generation settlement path.
+
+## Where operators edit prices
+
+Use the console or the provider-model admin endpoint:
+
+```text
+GET  /admin/providers/{provider_id}/models
+POST /admin/providers/{provider_id}/models
+```
+
+JSON import/export uses the same `provider_models` input shape:
+
+```json
+{
+  "id": 1,
+  "provider_id": 1,
+  "model_id": "gpt-4.1-mini",
+  "display_name": "GPT-4.1 mini",
+  "pricing_json": {
+    "input": "0.40",
+    "output": "1.60"
+  },
+  "variants_json": null,
+  "enabled": true
+}
+```
+
+After admin mutations, GPROXY invalidates the control-plane snapshot so new
+requests see the updated model and pricing rows.

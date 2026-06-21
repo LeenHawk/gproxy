@@ -1,0 +1,203 @@
+{
+  "title": "Providers",
+  "new": "New provider",
+  "empty": "No providers yet — create one to start routing traffic.",
+  "tabs": {
+    "settings": "Settings",
+    "credentials": "Credentials",
+    "models": "Models"
+  },
+  "fields": {
+    "name": "Name",
+    "label": "Label",
+    "channel": "Channel",
+    "strategy": "Credential strategy",
+    "proxyUrl": "Outbound proxy URL",
+    "enabled": "Enabled",
+    "baseUrl": "Base URL",
+    "circuitBreaker": "Circuit breaker (optional)",
+    "consecutiveFailures": "Consecutive failures",
+    "cooldownSecs": "Cooldown (secs)",
+    "location": "Location (vertex)",
+    "profileArn": "Profile ARN (kiro)",
+    "enableMagicCache": "Magic-string cache",
+    "tlsProfile": "TLS fingerprint",
+    "weight": "Weight",
+    "kind": "Kind",
+    "rpm": "RPM limit",
+    "tpm": "TPM limit",
+    "credLabel": "Label"
+  },
+  "strategy": {
+    "round_robin": "Round robin",
+    "sticky": "Sticky"
+  },
+  "family": {
+    "api_key": "API key",
+    "oauth_tokens": "OAuth subscription",
+    "service_account": "Service account",
+    "github_token": "GitHub token"
+  },
+  "form": {
+    "create": "Create provider",
+    "edit": "Edit provider",
+    "required": "Required",
+    "baseUrlRequired": "Required for custom channel",
+    "baseUrlHint": "Leave empty to use the channel's built-in default.",
+    "enableMagicCacheHint": "Strip embedded magic trigger strings and stamp Claude cache_control (auto / 5m / 1h).",
+    "saved": "Saved",
+    "channelLocked": "Channel is fixed after creation."
+  },
+  "tls": {
+    "custom": "Custom",
+    "title": "TLS fingerprint",
+    "preset": "Preset",
+    "default": "Channel default",
+    "customExisting": "Custom (existing)",
+    "jsonHint": "Pick a preset to fill, or edit the JSON for a custom fingerprint",
+    "apply": "Apply",
+    "invalid": "Invalid JSON",
+    "edit": "Edit"
+  },
+  "delete": {
+    "provider": "Delete provider",
+    "providerConfirm": "This deletes provider \"{{name}}\" together with its credential pool's availability. Routes referencing it will fail over or error.",
+    "credential": "Delete credential",
+    "credentialConfirm": "This permanently deletes credential \"{{name}}\". The upstream account is not affected."
+  },
+  "creds": {
+    "add": "Add credential",
+    "oauth": "Connect via OAuth",
+    "manual": "Add manually",
+    "empty": "No credentials yet.",
+    "edit": "Edit credential",
+    "secretKept": "Leave empty to keep the stored secret.",
+    "hasSecret": "secret stored",
+    "noSecret": "no secret",
+    "unnamed": "credential #{{id}}",
+    "bulk": {
+      "button": "Bulk import",
+      "title": "Bulk import credentials",
+      "textareaLabel": "API keys (one per line)",
+      "textareaHint": "One key per line. Optional: key,label or key<TAB>label. Lines starting with # are ignored.",
+      "import": "Import {{count}} key(s)",
+      "importing": "Importing {{done}}/{{total}}…",
+      "summary": "Created {{created}}, failed {{failed}}, skipped {{dupes}} duplicate(s)",
+      "close": "Close",
+      "empty": "No valid lines"
+    }
+  },
+  "secret": {
+    "apiKey": "API key",
+    "saJson": "Service-account JSON",
+    "tokensJson": "Token JSON",
+    "githubToken": "GitHub token",
+    "saInvalid": "Must be JSON containing client_email and private_key",
+    "tokensHint": "Paste tokens exported from the official client. expires_at_ms is unix milliseconds.",
+    "geminiHint": "project_id is required for this channel (the OAuth wizard resolves it automatically)."
+  },
+  "wizard": {
+    "title": "Connect {{channel}}",
+    "mode": {
+      "authcode": "Authorization code",
+      "device": "Device code",
+      "cookie": "Cookie"
+    },
+    "credName": "Credential label (optional)",
+    "start": "Start",
+    "starting": "Starting…",
+    "openAuthorize": "Open authorization page",
+    "pasteLabel": "Paste the full callback URL",
+    "pasteHint": "Approve in the browser, then copy the URL you were redirected to (it carries code and state).",
+    "pasteInvalid": "Not a callback URL — it must contain code and state, and must not be the authorization URL itself.",
+    "complete": "Complete",
+    "completing": "Completing…",
+    "failed": "Login failed — start over.",
+    "done": "Credential created.",
+    "deviceIntro": "Enter this code at",
+    "waiting": "Waiting for authorization…",
+    "geminiMode": "Login mode",
+    "geminiCallback": "Callback URL",
+    "geminiCodeOnly": "Code only",
+    "pasteCodeLabel": "Paste the authorization code",
+    "pasteCodeHint": "Approve in the browser, then copy the authorization code shown and paste it here.",
+    "kiroMethod": "Kiro login method",
+    "kiroMethods": {
+      "builderId": "AWS Builder ID",
+      "idc": "AWS IAM Identity Center"
+    },
+    "kiroStartUrl": "Start URL",
+    "kiroRegion": "Region",
+    "kiroStartUrlHint": "Your organization's AWS access portal URL (https://….awsapps.com/start).",
+    "cookieLabel": "claude.ai cookie",
+    "cookieHint": "Paste the full Cookie header or just sessionKey=…; only sessionKey is used.",
+    "cookieInvalid": "No sessionKey found in the pasted text."
+  },
+  "health": {
+    "title": "Health",
+    "unknown": "no events",
+    "asOf": "as of {{time}}",
+    "breaker": "breaker open",
+    "recovered": "healthy",
+    "rate_limited": "rate-limited",
+    "auth_dead": "auth dead",
+    "until": "until {{time}}"
+  },
+  "usage": {
+    "title": "Upstream usage",
+    "open": "Usage",
+    "fetch": "Fetch now",
+    "refresh": "Refresh",
+    "sparingly": "Queries the upstream account live — some upstreams rate-limit this; use sparingly.",
+    "unsupported": "This channel exposes no usage endpoint.",
+    "plan": "Plan",
+    "credits": "Credits",
+    "raw": "Raw response",
+    "resets": "resets {{time}}",
+    "window": {
+      "five_hour": "5-hour window",
+      "seven_day": "7-day window",
+      "primary": "Primary",
+      "secondary": "Secondary"
+    }
+  },
+  "models": {
+    "title": "Models",
+    "add": "Add model",
+    "empty": "No models registered. Aggregated /v1/models lists alias/route names; per-provider model rows feed routing and pricing.",
+    "edit": "Edit model",
+    "modelId": "Model ID",
+    "displayName": "Display name",
+    "enabled": "Enabled",
+    "modelIdHint": "Upstream model id, or an arbitrary id you expose (need not exist upstream).",
+    "pricing": "Pricing (per 1M tokens)",
+    "price": {
+      "input": "Input",
+      "output": "Output",
+      "cache_read": "Cache read",
+      "cache_creation": "Cache write",
+      "image": "Image (per image)"
+    },
+    "pricingHint": "Leave blank for free / token-only. Decimal values.",
+    "variants": "Variants",
+    "variantsHint": "Suffixes expand one model into many (e.g. -thinking, -32k). One per line.",
+    "exposeBase": "Expose the base model too",
+    "delete": "Delete model",
+    "deleteConfirm": "Delete model \"{{name}}\" and all its variants?",
+    "imageTiered": "Tiered — edit via API",
+    "pull": "Pull",
+    "pullTitle": "Pull models from upstream",
+    "pulling": "Pulling from upstream…",
+    "pullError": "Couldn't pull models",
+    "pullEmpty": "Upstream returned no models.",
+    "pullCount": "{{total}} total · {{fresh}} new",
+    "selectAll": "Select all new",
+    "selectNone": "Clear",
+    "alreadyAdded": "Added",
+    "import": "Import {{count}}",
+    "imported": "Imported {{count}} model(s)",
+    "pullSearch": "Search models…",
+    "pullShown": "showing {{shown}} of {{total}}",
+    "pullNoMatch": "No models match your search."
+  }
+}

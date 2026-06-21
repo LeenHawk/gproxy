@@ -1,0 +1,198 @@
+{
+  "title": "規則",
+  "subtitle": "規則集、轉換規則與供應商路由",
+  "tabs": {
+    "routingRules": "路由規則",
+    "ruleSets": "規則集"
+  },
+  "ruleSet": {
+    "name": "規則集名稱",
+    "enabled": "啟用",
+    "description": "描述",
+    "add": "新增規則集",
+    "empty": "尚無規則集。",
+    "deleteConfirm": "確認刪除此規則集？其中所有規則也將一併刪除，且掛載它的所有 provider 引用都會失效。"
+  },
+  "rule": {
+    "kind": "規則類型",
+    "sortOrder": "排序",
+    "enabled": "啟用",
+    "filterModelPattern": "模型過濾模式",
+    "filterOperationKeys": "操作鍵過濾",
+    "configJson": "設定",
+    "add": "新增規則",
+    "empty": "此規則集尚無規則。",
+    "deleteConfirm": "確認刪除此規則？",
+    "rawJson": "原始 JSON",
+    "list": "規則",
+    "switchToRaw": "以 JSON 編輯",
+    "switchToStructured": "以表單編輯",
+    "rawJsonError": "請修正 JSON 錯誤後再切換回表單"
+  },
+  "kind": {
+    "system_text": "系統文字",
+    "rewrite": "改寫",
+    "sanitize": "清洗",
+    "cache_breakpoint": "快取斷點",
+    "header": "請求標頭"
+  },
+  "config": {
+    "text": "文字",
+    "position": "位置",
+    "path": "JSON 路徑",
+    "action": "操作",
+    "value": "值",
+    "pattern": "模式（正規表示式）",
+    "replacement": "替換內容",
+    "target": "目標",
+    "index": "索引",
+    "indexHint": ">0:正數第 N 條;<0:倒數第 N 條;0 無效",
+    "ttl": "TTL（秒）",
+    "name": "標頭名稱",
+    "mode": "模式",
+    "positionOptions": {
+      "prepend": "前置",
+      "append": "附加"
+    },
+    "actionOptions": {
+      "set": "設定",
+      "delete": "刪除",
+      "merge": "合併"
+    },
+    "targetOptions": {
+      "system": "系統",
+      "tools": "工具",
+      "last_message": "最後一則訊息"
+    },
+    "modeOptions": {
+      "override": "覆寫",
+      "merge": "合併"
+    },
+    "noTtl": "無 TTL"
+  },
+  "operation": {
+    "list_models": "列出模型",
+    "get_model": "取得模型",
+    "count_tokens": "統計 Token",
+    "generate_content": "產生內容",
+    "stream_generate_content": "串流產生內容",
+    "create_image": "建立圖像",
+    "edit_image": "編輯圖像",
+    "create_embedding": "建立嵌入",
+    "compact_content": "壓縮內容",
+    "create_conversation": "建立對話"
+  },
+  "implementation": {
+    "passthrough": "直通",
+    "transform_to": "轉換為",
+    "local": "本地",
+    "unsupported": "不支援"
+  },
+  "providerRuleSet": {
+    "ruleSet": "規則集",
+    "sortOrder": "排序",
+    "enabled": "啟用",
+    "attach": "附加規則集",
+    "unattach": "解除附加",
+    "unattachConfirm": "確認將此規則集從供應商中解除？",
+    "empty": "此供應商尚未附加任何規則集。"
+  },
+  "common": {
+    "save": "儲存",
+    "cancel": "取消",
+    "reset": "重設"
+  },
+  "validation": {
+    "nameRequired": "名稱不能為空",
+    "sortOrderRequired": "排序必須為有效數字",
+    "configTextRequired": "文字不能為空",
+    "configPathRequired": "路徑不能為空",
+    "configActionRequired": "操作不能為空",
+    "configPatternRequired": "模式不能為空",
+    "configTargetRequired": "目標不能為空",
+    "configHeaderNameRequired": "標頭名稱不能為空",
+    "configInvalid": "設定 JSON 無效",
+    "filterJsonInvalid": "操作鍵過濾必須為有效 JSON",
+    "cacheIndexZero": "索引不能為 0(無意義)"
+  },
+  "protocolKind": {
+    "open_ai_responses": "OpenAI Responses",
+    "open_ai_chat_completions": "OpenAI Chat Completions",
+    "claude_messages": "Claude Messages",
+    "gemini_generate_content": "Gemini Generate Content",
+    "open_ai": "OpenAI",
+    "claude": "Claude",
+    "gemini": "Gemini"
+  },
+  "kindDesc": {
+    "system_text": "在系統提示前置或附加文字。",
+    "cache_breakpoint": "標記 Claude 快取斷點（系統 / 工具 / 最後一則訊息）。",
+    "rewrite": "在請求體中設定/刪除/合併一個 JSON 欄位。",
+    "sanitize": "對序列化後的請求體進行正規表示式查找替換。",
+    "header": "新增或合併一個出站 HTTP 標頭。"
+  },
+  "pipeline": {
+    "title": "生效管線",
+    "caption": "該 provider 實際執行的規則，依執行順序排列。規則依 kind 順序執行：系統文字 → 快取 → 改寫 → 清洗 → 標頭。",
+    "empty": "此 provider 尚無任何適用規則。",
+    "fromSet": "來自 {{name}}",
+    "allRequests": "所有請求"
+  },
+  "usage": {
+    "private": "私有",
+    "shared": "共用 · {{count}} 個 provider",
+    "unused": "未使用",
+    "usedBy": "被使用於",
+    "filterAll": "全部",
+    "filterPrivate": "私有",
+    "filterShared": "共用",
+    "sharedWarning": "此規則集已附加至另外 {{count}} 個 provider，此處修改將影響所有。",
+    "clone": "複製",
+    "cloneSuffix": " 複本"
+  },
+  "filter": {
+    "modelGlobLabel": "模型過濾（glob）",
+    "modelGlobPlaceholder": "例如 claude-*  ·  *-thinking  （空 = 所有模型）",
+    "modelGlobHelp": "Glob 比對，非正規表示式。* 比對任意字串，? 比對單一字元。",
+    "operationsLabel": "操作過濾",
+    "operationsHelp": "為空則比對所有操作。",
+    "noModels": "此 provider 未定義任何模型。"
+  },
+  "rewriteValue": {
+    "typeLabel": "值類型",
+    "type": {
+      "string": "字串", "number": "數字", "boolean": "布林值",
+      "null": "Null", "json": "JSON（陣列/物件）"
+    },
+    "invalid": "無效的 JSON"
+  },
+  "sanitizeTemplate": {
+    "fillFrom": "從範本填入"
+  },
+  "createAndAttach": "新建規則集",
+  "attachExisting": "附加已有規則集",
+  "advanced": "進階（原始 JSON）",
+  "tabs2": { "rules": "規則" },
+  "orderHint": "規則依 kind 順序執行（系統文字→快取→改寫→清洗→標頭），sort_order 只排同 kind 的規則。",
+  "routing": {
+    "title": "路由",
+    "caption": "該 provider 對每個 操作 × 入站協議 的路由。預設值在建立時按通道初始化——可編輯某列、新增規則或刪除。「重設預設」按通道重新計算。",
+    "add": "新增路由",
+    "addTitle": "新增路由",
+    "editTitle": "編輯路由",
+    "behavior": "行為",
+    "destKind": "目標協議",
+    "delete": "刪除",
+    "deleteConfirm": "刪除這條路由規則?",
+    "resetAll": "重設預設",
+    "resetConfirm": "按通道預設重新計算所有路由規則?你對預設格的修改會被覆寫。",
+    "resetDone": "已恢復路由預設",
+    "empty": "尚無路由規則。",
+    "initialize": "初始化預設",
+    "columns": {
+      "operation": "操作",
+      "kind": "入站協議",
+      "behavior": "行為"
+    }
+  }
+}

@@ -1,61 +1,100 @@
 ---
-title: 发行版构建
-description: 如何生成 GPROXY 的生产二进制 —— 包括内嵌控制台。
+title: Release 构建
+description: 构建带内嵌 Console 的生产级 GPROXY v2 native 二进制。
 ---
 
-生产构建 = 一次 Cargo release 构建 + 一次前端构建。两个步骤都是幂等的，
-可以放进 CI。
+native release 构建由一个单 crate Rust build 和一个可选 Console 资产构建组成。
+release workflow 会执行两者：先构建 `console/`，上传同步后的 `assets/console/`，再为各
+native target 构建 `--bin gproxy`。
 
-## 1. 构建内嵌控制台 (若有变更)
+## 构建 Console
 
-如果你改过 `frontend/console/` 下的任何内容，先构建控制台，再构建二进制：
+Console 源码、翻译、路由或样式变更后执行：
 
 ```bash
-cd frontend/console
-pnpm install
+cd console
+pnpm install --frozen-lockfile
 pnpm build
-cd ../..
+cd ..
 ```
 
-`pnpm build` 会把产物写到 server crate 通过 `include_dir!` 嵌入的目录 ——
-无需单独部署静态文件。
+`pnpm build` 会执行：
 
-如果没改前端可以跳过这一步 —— 上一次构建的产物会被本次 Cargo 构建自动拾取。
+1. `tsc -b`
+2. `vite build`
+3. `node ./scripts/sync-to-embed.mjs`
 
-## 2. 构建 Rust 二进制
+最后一步把 `console/dist/` 复制到 `assets/console/`。native server 通过
+`rust-embed` 嵌入该目录，并在 `/console` 提供服务。
+
+## 构建 native 二进制
+
+从仓库根目录执行：
 
 ```bash
-cargo build -p gproxy --release
+cargo build --release --bin gproxy
 ```
 
-产物位于 `target/release/gproxy`。它静态链接 Rust 标准库，但默认依赖系统的
-OpenSSL / TLS 栈 (除非你启用 `rustls` 相关 feature)。
+输出位置：
 
-## 3. strip 并打包 (可选)
+```text
+target/release/gproxy
+```
 
-若要减小分发体积：
+指定 target：
 
 ```bash
-strip target/release/gproxy
+cargo build --release --bin gproxy --target x86_64-unknown-linux-gnu
 ```
 
-之后直接分发该 strip 过的二进制即可 —— 除 `libc` 和 TLS 栈外无运行时依赖。
+release workflow 会构建 Linux glibc、Linux musl、macOS、Windows 和 Android
+目标，并对部分二进制执行 `--help` smoke check。
 
-## 4. 首次启动
+## 运行时配置
 
-首次启动时 GPROXY 会：
+二进制通过 CLI flag 和环境变量配置。v2 没有 TOML runtime config 文件。
 
-- 若 `GPROXY_DATA_DIR` 不存在则创建。
-- 若未设置 `GPROXY_DSN`，在数据目录下生成 SQLite 文件。
-- 若数据库为空，导入种子 TOML (`GPROXY_CONFIG`)。
-- 必要时从 `GPROXY_ADMIN_*` bootstrap 管理员，自动生成的凭证会**打印一次**。
-- 启动 HTTP 服务与 worker set。
+常用设置：
 
-具体首次启动的细节见 [快速开始](/zh-cn/getting-started/quick-start/)。
+| CLI | Env | 默认 |
+| --- | --- | --- |
+| `--host` | `GPROXY_HOST` | `127.0.0.1` |
+| `--port` | `GPROXY_PORT` | `8787` |
+| `--persistence` | `GPROXY_PERSISTENCE` | `db` |
+| `--data-dir` | `GPROXY_DATA_DIR` | `./data` |
+| `--dsn` | `GPROXY_DSN` | `<data-dir>/gproxy.db` SQLite |
+| `--redis-url` | `GPROXY_REDIS_URL` | 进程内 memory cache |
+| `--admin-user` | `GPROXY_ADMIN_USER` | `admin` |
+| `--admin-password` | `GPROXY_ADMIN_PASSWORD` | 需要时生成随机 first-boot 密码 |
 
-## CI 建议
+`GPROXY_MASTER_KEY` 只能通过环境变量设置。需要 v2 对 credentials 和 user API keys
+做 at-rest sealing 时，它必须是标准 base64 编码的 32 字节。
 
-- 缓存 `~/.cargo` 与 `target/` 目录 —— 工作空间依赖很多，冷构建最耗时的就是重新下载。
-- 同样缓存 pnpm store 下的 `frontend/console/node_modules`。
-- 在 PR 上跑 `cargo test -p gproxy` 和 `pnpm test` (如已配置)；`release` 构建留给 tag 触发的流水线。
-- 打 tag 时可从 `RELEASE_NOTE.md` 生成发布说明，并把 strip 过的二进制作为构建产物附加上去。
+## 打包二进制
+
+简单 archive：
+
+```bash
+mkdir -p dist
+cp target/release/gproxy dist/gproxy
+cp README.md dist/
+(cd dist && zip -9 ../gproxy-local.zip gproxy README.md)
+shasum -a 256 gproxy-local.zip > gproxy-local.zip.sha256
+```
+
+release workflow 可能会对部分 Linux 和 Windows artifact 做 UPX 压缩。macOS artifact
+使用 `codesign --sign -` 做 ad hoc 签名。
+
+## 首次启动
+
+native server 启动时会：
+
+1. 创建 `GPROXY_DATA_DIR`；
+2. 根据 `GPROXY_MASTER_KEY` 创建 secret cipher；
+3. 在满足默认 v1-to-v2 条件时自动迁移 v1 SQLite 数据库；
+4. 打开配置的 persistence backend；
+5. 仅在 providers 和 users 为空时导入 `GPROXY_IMPORT_FILE`；
+6. 确保或恢复 admin 用户；
+7. 启动 cache、upstream transport、snapshot、router、Console 和 gateway。
+
+用 `./gproxy --help` 查看当前构建的完整 flag。

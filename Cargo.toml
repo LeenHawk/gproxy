@@ -1,155 +1,140 @@
-[workspace]
-resolver = "2"
-members = [
-  "sdk/gproxy-sdk",
-  "sdk/gproxy-protocol",
-  "sdk/gproxy-channel",
-  "sdk/gproxy-engine",
-  "crates/gproxy-core",
-  "crates/gproxy-storage",
-  "crates/gproxy-api",
-  "crates/gproxy-server",
-  "apps/gproxy",
-  "apps/gproxy-recorder",
-]
-
-# Release strategy for the SDK crates on crates.io:
-#
-# The four public SDK crates — gproxy-protocol, gproxy-channel,
-# gproxy-engine, gproxy-sdk — follow **lock-step versioning** against
-# `workspace.package.version` below. Bumping that single field bumps
-# all four, which matches the way they reference each other via
-# `{ workspace = true }` in each crate's `[dependencies]` section and
-# avoids the per-crate bookkeeping that independent versioning would
-# require.
-#
-# Tooling: use `cargo release` (or `release-plz` once we opt in) to
-# automate the workspace-wide bump + publish sequence. Publish order
-# respects the dependency DAG:
-#   1. gproxy-protocol   (no internal deps)
-#   2. gproxy-channel    (depends on gproxy-protocol)
-#   3. gproxy-engine     (depends on gproxy-protocol + gproxy-channel)
-#   4. gproxy-sdk        (facade, depends on all three)
-#
-# Manual publish recipe (until the tooling is wired in):
-#
-#   cargo publish -p gproxy-protocol
-#   sleep 30                            # let the registry index update
-#   cargo publish -p gproxy-channel
-#   sleep 30
-#   cargo publish -p gproxy-engine
-#   sleep 30
-#   cargo publish -p gproxy-sdk
-#
-# Pre-flight verification:
-#
-#   cargo publish -p gproxy-protocol --dry-run    # works standalone
-#   cargo package -p gproxy-channel --list        # lists what would ship
-#   cargo package -p gproxy-engine --list
-#   cargo package -p gproxy-sdk --list
-#
-# Note: `cargo publish --dry-run` for gproxy-channel / -engine / -sdk
-# will FAIL with "no matching package named `gproxy-protocol` found"
-# until gproxy-protocol is actually published, because cargo strips
-# the `path` from the published manifest and tries to resolve the dep
-# through the registry. Use `cargo package --list` to verify the
-# tarball contents locally; the full registry-side verification only
-# becomes possible after the upstream crate has landed on crates.io.
-#
-# The app-side crates (gproxy-core, gproxy-storage, gproxy-api,
-# gproxy-server, apps/gproxy, apps/gproxy-recorder) are private
-# (`publish = false` or not listed in crates.io) and inherit the same
-# workspace version purely for convenience — they are not published.
-#
-# This resolves Open Question §7 from the SDK layer refactor spec
-# (docs/superpowers/specs/2026-04-13-sdk-layer-refactor-design.md).
-[workspace.package]
-version = "1.0.22"
+[package]
+name = "gproxy"
+version = "2.0.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
-authors = ["LeenHawk <leenhawk@leenhawk.com>"]
-description = "A high-performance LLM proxy server written in Rust."
-homepage = "https://gproxy.leenhawk.com"
-repository = "https://github.com/LeenHawk/gproxy"
-readme = "README.md"
+description = "GPROXY v2 — high-performance LLM proxy (rewrite)"
 
-[workspace.dependencies]
-# Internal SDK crates. Each declaration carries both `path` (for local
-# development builds) and `version` (needed at `cargo publish` time —
-# crates.io rejects path-only internal deps). Keep the version string
-# in lock-step with `workspace.package.version` above.
-gproxy-sdk = { path = "sdk/gproxy-sdk", version = "1.0.22" }
-gproxy-protocol = { path = "sdk/gproxy-protocol", version = "1.0.22" }
-gproxy-channel = { path = "sdk/gproxy-channel", version = "1.0.22", default-features = false }
-gproxy-engine = { path = "sdk/gproxy-engine", version = "1.0.22", default-features = false }
+[lib]
+name = "gproxy"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
-# Internal App crates
-gproxy-core = { path = "crates/gproxy-core" }
-gproxy-storage = { path = "crates/gproxy-storage" }
-gproxy-api = { path = "crates/gproxy-api" }
-gproxy-server = { path = "crates/gproxy-server" }
+[[bin]]
+name = "gproxy"
+path = "src/main.rs"
 
-# External dependencies
-arc-swap = "1"
+[workspace]
+
+# ── deps compiled on BOTH native and wasm32 ──────────────────────────────────
+[dependencies]
 anyhow = "1"
 argon2 = "0.5"
-async-stream = "0.3"
-axum = { version = "0.8", features = ["http2", "json", "ws"] }
+async-trait = "0.1"
+arc-swap = "1"
 base64 = "0.22"
+blake3 = "1"
 bytes = "1"
-chacha20poly1305 = { version = "0.10", features = ["std"] }
-clap = { version = "4", features = ["derive", "env"] }
-dashmap = "6"
-ed25519-dalek = "2"
+chacha20poly1305 = "0.11.0-rc.3"
+futures-core = "0.3"
 futures-util = "0.3"
-getrandom = "0.4"
+# Single RNG source for DEK/nonce/PKCE/ids across native + wasm. Native uses the
+# default OS backend; wasm enables the `js` backend (see the wasm target table).
+getrandom = "0.2"
 http = "1"
-http-body-util = "0.1"
-inventory = "0.3"
-jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
-mime_guess = "2"
-mimalloc = { version = "0.1", default-features = false }
-rand = "0.10"
+httpdate = "1"
 regex = "1"
-rust-embed = "8"
-sea-orm = { version = "2.0.0-rc.37", features = ["macros", "runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres", "with-time", "with-uuid", "with-json", "schema-sync", "entity-registry"] }
-sea-orm-migration = { version = "2.0.0-rc.37", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-mysql", "sqlx-postgres", "with-time", "with-uuid", "with-json"] }
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# URL-encoded query-string parsing (admin_api query helper; wasm-safe pure-Rust).
+serde_urlencoded = "0.7"
+# claudecode CCH (x-anthropic-billing-header checksum): xxh64 over the final body.
+xxhash-rust = { version = "0.8", features = ["xxh64"] }
 sha2 = "0.11"
-subtle = "2"
-sqlx = { version = "0.8", default-features = false, features = ["sqlite", "mysql", "postgres"] }
 thiserror = "2"
-tiktoken-rs = "0.11"
-time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
-tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "net"] }
-tokio-tungstenite = "0.29"
-toml = "1"
-tower = "0.5"
-tower-http = { version = "0.6", features = ["limit"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-url = "2"
-uuid = { version = "1", features = ["serde", "v4", "v5", "v7"] }
-wreq = { version = "6.0.0-rc.28", features = ["json", "cookies", "socks", "stream", "deflate", "gzip", "zstd", "brotli", "ws", "multipart"] }
-wreq-util = "3.0.0-rc.10"
-zip = "8"
+dashmap = "6"
 
-# Recorder-specific
-chrono = { version = "0.4", features = ["serde"] }
-hyper = { version = "1", features = ["http1", "http2", "server"] }
-hyper-util = { version = "0.1", features = ["tokio", "server-auto", "client-legacy"] }
-rcgen = "0.14"
-rustls = "0.23"
-rustls-pemfile = "2"
-tokio-rustls = "0.26"
-tokio-socks = "0.5"
-webpki-roots = "1"
+# ── native-only ───────────────────────────────────────────────────────────────
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = { version = "0.8", features = ["http2", "json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
+# §16.2 overload protection: bounded in-flight concurrency + load-shed → 503.
+tower = { version = "0.5", default-features = false, features = ["util", "limit", "load-shed"] }
+tower-http = { version = "0.6", features = ["cors"] }
+clap = { version = "4", features = ["derive", "env"] }
+redis = { version = "1", features = ["tokio-comp", "connection-manager"], optional = true }
+sea-orm = { version = "2.0.0-rc.40", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-postgres", "sqlx-mysql"], optional = true }
+# MIGRATE-V1 (remove in 2.1): read-only reader for the legacy v1 SQLite DB during
+# the one-shot v1→v2 startup migration. Only the `sqlite` driver is needed; the
+# write path goes through the normal `persist-db` backend.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"], optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+wreq = { version = "6.0.0-rc.28", features = ["json", "stream", "gzip", "brotli", "zstd", "deflate"], optional = true }
+wreq-util = { version = "3.0.0-rc.11", optional = true }
+tiktoken-rs = { version = "0.12", optional = true }
+tokenizers = { version = "0.23", optional = true, default-features = false, features = ["onig"] }
+# self-update (§19, native-only). semver: `releases`-channel version compare.
+# ed25519-dalek: verify the signed release manifest with an embedded public key
+# (already in the tree via jsonwebtoken; pinned here as a direct dep). self-replace:
+# atomic Unix/Windows binary swap.
+semver = "1"
+ed25519-dalek = "2"
+self-replace = "1"
+# Console SPA embedding (§9; spec 2026-06-13-console-design.md B1). Native-only:
+# wasm/edge builds never embed the console (size-sensitive).
+rust-embed = { version = "8", features = ["include-exclude"] }
+mime_guess = "2"
+
+# ── wasm32-only ───────────────────────────────────────────────────────────────
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+axum = { version = "0.8", default-features = false, features = ["json"] }
+# Two getrandom majors coexist on wasm: jsonwebtoken/p256/p384 → 0.2 (js
+# feature); chacha20poly1305 0.11 (crypto-common 0.2) → 0.4 (wasm_js feature,
+# paired with the --cfg getrandom_backend rustflag in .cargo/config.toml).
+getrandom = { version = "0.2", features = ["js"] }
+getrandom_v04 = { version = "0.4", package = "getrandom", features = ["wasm_js"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Headers", "Request", "RequestInit", "RequestMode", "Response", "ResponseInit", "WorkerGlobalScope"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+http-body-util = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
+# Native test-only: drive `server::router` end-to-end via `oneshot` and read
+# response bodies. On wasm these are real deps (edge.rs); here they are tests-only.
+tower = { version = "0.5", default-features = false, features = ["util"] }
+http-body-util = "0.1"
+
+# ── features ──────────────────────────────────────────────────────────────────
+# Production builds compile only the backends they use; dev builds use
+# `--all-features` (or `full`). default = native zero-extra-dep baseline.
+[features]
+default = ["cache-memory", "persist-db", "persist-file", "upstream-wreq", "count-local", "migrate-v1"]
+
+# cache backends (native)
+cache-memory = []
+cache-redis = ["dep:redis"]
+# persistence backends (native)
+persist-file = []
+persist-db = ["dep:sea-orm"]
+# MIGRATE-V1 (remove in 2.1): one-shot v1→v2 startup data migration. Pulls the
+# read-only sqlx sqlite reader; the write path reuses `persist-db`. Shipped in the
+# default/full feature sets so a v2 binary dropped in place auto-migrates v1 data.
+migrate-v1 = ["dep:sqlx", "persist-db"]
+# outbound transport (native)
+upstream-wreq = ["dep:wreq", "dep:wreq-util"]
+# local token counting: tiktoken + HF tokenizers registry (native only)
+count-local = ["dep:tiktoken-rs", "dep:tokenizers"]
+
+# edge (wasm) backends — code-only gates (deps are wasm-target)
+cache-libsql = []
+cache-upstash = []
+persist-libsql = []
+upstream-fetch = []
+edge = ["cache-libsql", "cache-upstash", "persist-libsql", "upstream-fetch"]
+
+# dev convenience: all native backends
+full = ["cache-memory", "cache-redis", "persist-file", "persist-db", "upstream-wreq", "count-local", "migrate-v1"]
+
 
 [profile.release]
-strip = true
 opt-level = "z"
-lto = true
+lto = "fat"
 codegen-units = 1
 panic = "abort"
+strip = true

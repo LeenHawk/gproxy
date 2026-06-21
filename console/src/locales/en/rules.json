@@ -1,0 +1,198 @@
+{
+  "title": "Rules",
+  "subtitle": "Rule sets, transformation rules, and provider routing",
+  "tabs": {
+    "routingRules": "Routing Rules",
+    "ruleSets": "Rule Sets"
+  },
+  "ruleSet": {
+    "name": "Rule Set Name",
+    "enabled": "Enabled",
+    "description": "Description",
+    "add": "Add Rule Set",
+    "empty": "No rule sets defined yet.",
+    "deleteConfirm": "Delete this rule set? All rules within it will also be removed, and any provider attachments to it will break."
+  },
+  "rule": {
+    "kind": "Rule Kind",
+    "sortOrder": "Sort Order",
+    "enabled": "Enabled",
+    "filterModelPattern": "Filter Model Pattern",
+    "filterOperationKeys": "Filter Operation Keys",
+    "configJson": "Configuration",
+    "add": "Add Rule",
+    "empty": "No rules in this set.",
+    "deleteConfirm": "Delete this rule?",
+    "rawJson": "Raw JSON",
+    "list": "Rules",
+    "switchToRaw": "Edit as JSON",
+    "switchToStructured": "Edit as Form",
+    "rawJsonError": "Fix JSON errors to switch back to structured view"
+  },
+  "kind": {
+    "system_text": "System Text",
+    "rewrite": "Rewrite",
+    "sanitize": "Sanitize",
+    "cache_breakpoint": "Cache Breakpoint",
+    "header": "Header"
+  },
+  "config": {
+    "text": "Text",
+    "position": "Position",
+    "path": "JSON Path",
+    "action": "Action",
+    "value": "Value",
+    "pattern": "Pattern (regex)",
+    "replacement": "Replacement",
+    "target": "Target",
+    "index": "Index",
+    "indexHint": ">0: Nth from start; <0: Nth from end; 0 is invalid",
+    "ttl": "TTL (seconds)",
+    "name": "Header Name",
+    "mode": "Mode",
+    "positionOptions": {
+      "prepend": "Prepend",
+      "append": "Append"
+    },
+    "actionOptions": {
+      "set": "Set",
+      "delete": "Delete",
+      "merge": "Merge"
+    },
+    "targetOptions": {
+      "system": "System",
+      "tools": "Tools",
+      "last_message": "Last Message"
+    },
+    "modeOptions": {
+      "override": "Override",
+      "merge": "Merge"
+    },
+    "noTtl": "No TTL"
+  },
+  "operation": {
+    "list_models": "List Models",
+    "get_model": "Get Model",
+    "count_tokens": "Count Tokens",
+    "generate_content": "Generate Content",
+    "stream_generate_content": "Stream Generate Content",
+    "create_image": "Create Image",
+    "edit_image": "Edit Image",
+    "create_embedding": "Create Embedding",
+    "compact_content": "Compact Content",
+    "create_conversation": "Create Conversation"
+  },
+  "implementation": {
+    "passthrough": "Passthrough",
+    "transform_to": "Transform To",
+    "local": "Local",
+    "unsupported": "Unsupported"
+  },
+  "providerRuleSet": {
+    "ruleSet": "Rule Set",
+    "sortOrder": "Sort Order",
+    "enabled": "Enabled",
+    "attach": "Attach Rule Set",
+    "unattach": "Detach",
+    "unattachConfirm": "Detach this rule set from the provider?",
+    "empty": "No rule sets attached to this provider."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "reset": "Reset"
+  },
+  "validation": {
+    "nameRequired": "Name is required",
+    "sortOrderRequired": "Sort order must be a valid number",
+    "configTextRequired": "Text is required",
+    "configPathRequired": "Path is required",
+    "configActionRequired": "Action is required",
+    "configPatternRequired": "Pattern is required",
+    "configTargetRequired": "Target is required",
+    "configHeaderNameRequired": "Header name is required",
+    "configInvalid": "Configuration has invalid JSON",
+    "filterJsonInvalid": "Filter operation keys must be valid JSON",
+    "cacheIndexZero": "Index cannot be 0"
+  },
+  "protocolKind": {
+    "open_ai_responses": "OpenAI Responses",
+    "open_ai_chat_completions": "OpenAI Chat Completions",
+    "claude_messages": "Claude Messages",
+    "gemini_generate_content": "Gemini Generate Content",
+    "open_ai": "OpenAI",
+    "claude": "Claude",
+    "gemini": "Gemini"
+  },
+  "kindDesc": {
+    "system_text": "Prepend or append text to the system prompt.",
+    "cache_breakpoint": "Mark a Claude cache breakpoint (system / tools / last message).",
+    "rewrite": "Set, delete, or merge a JSON field in the request body.",
+    "sanitize": "Regex find-and-replace over the serialized request body.",
+    "header": "Add or merge an outgoing HTTP header."
+  },
+  "pipeline": {
+    "title": "Effective pipeline",
+    "caption": "What this provider actually runs, in execution order. Rules run by kind: system text → cache → rewrite → sanitize → header.",
+    "empty": "No rules apply to this provider yet.",
+    "fromSet": "from {{name}}",
+    "allRequests": "all requests"
+  },
+  "usage": {
+    "private": "Private",
+    "shared": "Shared · {{count}} providers",
+    "unused": "Unused",
+    "usedBy": "Used by",
+    "filterAll": "All",
+    "filterPrivate": "Private",
+    "filterShared": "Shared",
+    "sharedWarning": "This rule set is attached to {{count}} other providers. Changes here affect all of them.",
+    "clone": "Clone",
+    "cloneSuffix": " copy"
+  },
+  "filter": {
+    "modelGlobLabel": "Model filter (glob)",
+    "modelGlobPlaceholder": "e.g. claude-*  ·  *-thinking  (empty = all models)",
+    "modelGlobHelp": "Glob, not regex. * matches any run of chars, ? matches one.",
+    "operationsLabel": "Operation filter",
+    "operationsHelp": "Empty = all operations.",
+    "noModels": "No models defined on this provider."
+  },
+  "rewriteValue": {
+    "typeLabel": "Value type",
+    "type": {
+      "string": "String", "number": "Number", "boolean": "Boolean",
+      "null": "Null", "json": "JSON (array/object)"
+    },
+    "invalid": "Invalid JSON"
+  },
+  "sanitizeTemplate": {
+    "fillFrom": "Fill from template"
+  },
+  "createAndAttach": "New rule set",
+  "attachExisting": "Attach existing",
+  "advanced": "Advanced (raw JSON)",
+  "tabs2": { "rules": "Rules" },
+  "orderHint": "Rules run by kind (system text → cache → rewrite → sanitize → header). Sort order only orders rules of the same kind.",
+  "routing": {
+    "title": "Routing",
+    "caption": "How this provider routes each operation × inbound protocol. Defaults were initialized from the channel at creation — edit a row, add a rule, or delete one. Reset defaults recomputes them from the channel.",
+    "add": "Add route",
+    "addTitle": "Add route",
+    "editTitle": "Edit route",
+    "behavior": "Behavior",
+    "destKind": "Destination protocol",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this routing rule?",
+    "resetAll": "Reset defaults",
+    "resetConfirm": "Recompute all routing rules from the channel defaults? Your edits to the default cells will be overwritten.",
+    "resetDone": "Routing defaults restored",
+    "empty": "No routing rules yet.",
+    "initialize": "Initialize defaults",
+    "columns": {
+      "operation": "Operation",
+      "kind": "Inbound protocol",
+      "behavior": "Behavior"
+    }
+  }
+}

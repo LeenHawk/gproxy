@@ -1,79 +1,69 @@
 ---
-title: Embedded Console
-description: The built-in React console shipped inside the GPROXY binary.
+title: Console
+description: Use the v2 React console to manage providers, routes, rules, identity, settings, usage, logs, and portal workflows.
 ---
 
-GPROXY bundles a full **React console** into the release binary. When
-the server starts, it serves the console at `/console` — there is no
-separate frontend process to run or deploy.
+The v2 console is a React app in `console/`. The native binary serves its built
+output from `/console`, and the Vite dev server proxies backend routes during
+local development.
 
-## Accessing the console
+The console talks to the same admin and user APIs that the edge runtime uses:
 
-1. Start GPROXY (see [Quick Start](/getting-started/quick-start/)).
-2. Open `http://<host>:<port>/console` in a browser.
-3. Log in with a username / password belonging to any enabled user. If
-   the user is `is_admin = true`, you get the administrative views.
+| Surface | Purpose |
+| --- | --- |
+| `/admin/*` | Admin control plane, observability, settings, update, and operations. |
+| `/user/*` | User portal account, key, limit, audit, and usage views. |
+| `/healthz`, `/version`, `/metrics` | Admin-gated ops endpoints. |
+| `/v1/*`, `/v1beta/*`, `/{provider}/v1/*` | Gateway traffic, authenticated by user API key. |
 
-Login hits `POST /login`, which returns a **session token**. The UI
-stores it and sends it on subsequent requests as
-`Authorization: Bearer <session_token>`.
+## Local Development
 
-## What you can do from the console
-
-- **Providers** — create, edit, disable; edit settings and credentials
-  with channel-aware structured editors; watch per-credential health.
-- **Models** — list models per provider, edit pricing, toggle enable
-  state, define aliases, and use **Pull Models** to import the upstream's
-  live model list.
-- **Users** — create users, issue and revoke API keys, reset passwords,
-  toggle admin status.
-- **Permissions / Rate limits / Quotas** — per-user editors for the
-  three access-control mechanisms (see
-  [Permissions, Rate Limits & Quotas](/guides/permissions/)).
-- **Observability** — usage dashboards, upstream / downstream request
-  logs (when enabled), and health history.
-- **Settings** — global proxy settings, logging toggles, self-update,
-  and TOML rewrite-rule / sanitization editors.
-
-## Rebuilding the console
-
-The console source lives under `frontend/console/`. If you change it:
+Run the backend with insecure cookies only for local HTTP:
 
 ```bash
-cd frontend/console
-pnpm install
-pnpm build
+GPROXY_INSECURE_COOKIES=1 cargo run --features full
 ```
 
-`pnpm build` writes assets into the path that the server crate embeds via
-`include_dir!`. After rebuilding the frontend, rebuild the binary:
+Then run the console:
 
 ```bash
-cargo build -p gproxy --release
-```
-
-There are no runtime static files to mount — the assets ship inside the
-executable.
-
-## Running the console in dev mode
-
-For tight front-end iteration, you can run Vite's dev server against a
-running backend:
-
-```bash
-cd frontend/console
-pnpm install
+cd console
 pnpm dev
 ```
 
-Set the Vite dev proxy to point at your local `gproxy` instance so
-`/admin/*`, `/v1/*`, and `/login` round-trip against the real backend.
+`console/vite.config.ts` proxies `/admin`, `/healthz`, `/version`, and
+`/metrics` to `http://127.0.0.1:8787` and rewrites origin for CSRF checks. The
+production native binary serves the built console and `/user/*` portal APIs
+from the same origin.
 
-## Putting the console behind a reverse proxy
+## Main Admin Areas
 
-The console authenticates with a username/password and bearer token — it
-does not integrate with external SSO on its own. If you need SSO, put
-GPROXY behind a reverse proxy that terminates auth and forwards
-requests. Restrict `/console` and `/admin/*` to authenticated sessions
-at the proxy level, and continue to use the API-key flow for LLM
-routes.
+| Area | What it manages |
+| --- | --- |
+| Providers | Provider records, credentials, TLS presets, provider models, upstream model pull, routing rules, provider rule-set attachments. |
+| Routes | Aggregated route names, aliases, route members, strategies, and route settings. |
+| Rules | Reusable rule sets and individual process rules. |
+| Users | Orgs, teams, users, keys, permissions, rate limits, and quotas. |
+| Usage | Usage rows, rollups, downstream/upstream request logs, audit logs, credential statuses. |
+| Settings | Instance settings, proxy, logging, usage, tokenizer download, retention, update channel. |
+| Update | Native self-update state where supported. |
+
+## Build and Embed
+
+For production native builds:
+
+```bash
+cd console
+pnpm build
+```
+
+The build runs TypeScript, Vite, and `scripts/sync-to-embed.mjs`, which copies
+`console/dist/` into `assets/console/` for `rust-embed`. If that step has not
+run, the backend still compiles but only serves the placeholder embed directory.
+
+## Configuration Philosophy
+
+The console should carry provider-specific policy as presets wherever possible.
+For transform behavior, that means wizards and templates should generate generic
+or existing rule config. The backend process engine remains permissive and
+operation-oriented.

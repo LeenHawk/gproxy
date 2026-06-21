@@ -1,144 +1,124 @@
 ---
 title: 快速开始
-description: 5 分钟内用一个供应商、一个用户和一个 API 密钥把 GPROXY 跑起来。
+description: 本地启动 GPROXY v2，导入最小配置 bundle，打开 Console，并发出第一条请求。
 ---
 
-本页帮你从零跑到一个真正可用的 GPROXY：连接上游、创建管理员账号，以及一个可以发请求的用户 API key。
+这页会启动一个带内嵌 Console 的本地 native GPROXY v2 实例，并导入一个最小 JSON
+bundle。这里使用当前 v2 配置模型：运行时设置来自 CLI flag 或环境变量；provider、
+route、user、key、rule 等控制面记录存在 persistence 中，可通过 JSON 导入。
 
-## 1. 编写种子 TOML 配置
+## 1. 构建或安装
 
-`GPROXY_CONFIG` 指向的 TOML 文件只在**首次**启动时使用 —— 它负责初始化数据库。
-之后数据库就是唯一的事实来源，所有修改都走控制台或管理 API。
-
-把下面内容保存为 `gproxy.toml`。它会建立一个上游供应商、一个真实模型，
-以及一个带**通配权限**的 **admin 用户** —— 足以立即登录控制台并发起请求。
-
-```toml
-[global]
-host = "127.0.0.1"
-port = 8787
-dsn = "sqlite://./data/gproxy.db?mode=rwc"
-data_dir = "./data"
-
-[[providers]]
-name = "openai-main"
-channel = "openai"
-settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-your-upstream-key" }
-]
-
-[[models]]
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-display_name = "GPT-4.1 mini"
-enabled = true
-price_each_call = 0.0
-
-# 管理员账号 —— 用于登录控制台和访问 /admin/* API。
-[[users]]
-name = "admin"
-password = "change-me"
-is_admin = true
-enabled = true
-
-[[users.keys]]
-api_key = "sk-admin-1"
-label = "default"
-enabled = true
-
-# 通配权限：admin 可以调用任意供应商上的任意模型。
-[[permissions]]
-user_name = "admin"
-model_pattern = "*"
-```
-
-:::tip
-只要种子里已经存在 `is_admin = true` 且至少有一张启用 key 的用户 (例如
-上面这个)，就会**完全跳过** `GPROXY_ADMIN_*` bootstrap。非 admin 的普通
-用户之后可以在控制台里创建。
-:::
-
-该文件支持的全部字段见 [TOML 配置参考](/zh-cn/reference/toml-config/)。
-
-## 2. 启动 GPROXY
-
-把 GPROXY 指向种子 TOML 的三种等价写法，任选其一：
+可以使用 release 二进制、Docker 镜像或本地源码构建。源码构建并嵌入 Console：
 
 ```bash
-# (a) 环境变量
-GPROXY_CONFIG=./gproxy.toml ./gproxy
+cd console
+pnpm install --frozen-lockfile
+pnpm build
+cd ..
 
-# (b) 命令行参数
-./gproxy --config ./gproxy.toml
-
-# (c) 默认发现 —— 如果文件名就是 `gproxy.toml`
-# 且位于当前工作目录，可以完全不传参数
-./gproxy
+cargo build --release --bin gproxy
 ```
 
-每个设置都同时支持环境变量和 `--flag`，命令行参数优先。常用项：
+二进制位于 `target/release/gproxy`。
 
-| Flag | 环境变量 | 默认 |
-|------|----------|------|
-| `--config` | `GPROXY_CONFIG` | `gproxy.toml` |
-| `--host` | `GPROXY_HOST` | `127.0.0.1` |
-| `--port` | `GPROXY_PORT` | `8787` |
-| `--dsn` | `GPROXY_DSN` | `--data-dir` 下的 sqlite |
-| `--data-dir` | `GPROXY_DATA_DIR` | `./data` |
+## 2. 准备开发导入 bundle
 
-完整列表见 `./gproxy --help` 或
-[环境变量参考](/zh-cn/reference/environment-variables/)。
+docs site 带有开发 bundle：`docs/public/examples/import-dev.json`。写入真实上游 key
+前，先复制到 docs 目录外：
 
-首次启动时 GPROXY 会：
+```bash
+cp docs/public/examples/import-dev.json ./import-dev.local.json
+```
 
-1. 自动创建 `./data/gproxy.db` (SQLite)。
-2. 把种子 TOML 导入数据库。
-3. 在 `127.0.0.1:8787` 启动 HTTP 服务。
+编辑复制后的文件并替换：
 
-因为种子里已经定义了管理员账号，**不需要**再设置 `GPROXY_ADMIN_USER` /
-`GPROXY_ADMIN_PASSWORD` / `GPROXY_ADMIN_API_KEY`。这三个环境变量只在种子
-没有管理员时才会被用到。
+- `sk-REPLACE`：OpenAI-compatible 上游 key。
+- `sk-ant-REPLACE`：Anthropic-compatible 上游 key；仅测试 Claude provider 时需要。
 
-:::tip
-如果你不使用种子 TOML，可以改为设置上述三个环境变量 (或传
-`--admin-user` / `--admin-password` / `--admin-api-key`)，让 GPROXY
-在首次启动时 bootstrap 一个管理员。未设置时 GPROXY 会自动生成密码
-和 API key 并**打印一次** —— 请立刻记下。
+示例 bundle 会创建：
+
+- org `default`；
+- admin user `dev`；
+- user API key `sk-dev-local`；
+- provider `openai-main`；
+- route `main`，指向上游模型 `gpt-4.1-mini`；
+- default org 的 wildcard route permission。
+
+:::caution
+`import-dev.local.json` 包含明文上游凭证和 user API key。只放本地，不要提交。
 :::
 
-## 3. 打开控制台
+## 3. 启动 GPROXY
 
-浏览器访问 **<http://127.0.0.1:8787/console>**，用 `admin` / `change-me`
-登录，你应当看到：
+用本地 data 目录启动 native 二进制，并让 first-boot hook 在空 store 时导入 bundle：
 
-- 种子里的 `openai-main` 供应商。
-- `gpt-4.1-mini` 出现在它的模型列表中。
-- 用户 `admin`，附带 key `sk-admin-1` 与一条通配权限。
+```bash
+GPROXY_DATA_DIR=./data \
+GPROXY_IMPORT_FILE=./import-dev.local.json \
+GPROXY_ADMIN_USER=dev \
+GPROXY_ADMIN_PASSWORD=change-me-please \
+./target/release/gproxy
+```
 
-之后可以在控制台的*用户*标签页中创建非 admin 的普通用户并限定其模型访问 ——
-详见 [用户与 API 密钥](/zh-cn/guides/users-and-keys/) 和
-[权限、限流与配额](/zh-cn/guides/permissions/)。
+常用默认值：
 
-## 4. 发送第一个请求
+| 设置 | 默认值 |
+| --- | --- |
+| `GPROXY_HOST` | `127.0.0.1` |
+| `GPROXY_PORT` | `8787` |
+| `GPROXY_PERSISTENCE` | `db` |
+| `GPROXY_DATA_DIR` | `./data` |
+| `GPROXY_DSN` | 未设置时为 `<data-dir>/gproxy.db` SQLite |
 
-现在可以发一个真正的请求了。管理员的 API key 和普通用户的 key 一样能用在
-LLM 路由上。
+`GPROXY_IMPORT_FILE` 只在 providers 和 users 都为空时导入。store 已有数据后，这个环境变量会被跳过。
 
-完整示例 (包括如何使用模型别名、以及 Claude / Gemini 兼容接口的用法) 请见
-[发送第一个请求](/zh-cn/getting-started/first-request/)。
+`GPROXY_ADMIN_USER=dev` 让恢复覆盖开关指向导入 bundle 中的 admin 用户。只要设置着
+`GPROXY_ADMIN_PASSWORD`，GPROXY 每次启动都会强制 upsert 这个 admin 用户。首次登录后如果
+不希望宿主机继续拥有重置密码路径，应移除它。
 
-## 5. 通过别名实现强制思考 / effort 变体
+如需加密保存 secret，设置 `GPROXY_MASTER_KEY`，值必须是标准 base64 编码的 32 字节。
+不设置时，v2 使用明文 secret 模式并输出 warning。
 
-GPROXY **不会**把"强制思考"做成服务端开关 —— 任何你希望客户端直接调用的
-变体 (比如固定高 effort 的 `gpt-5-thinking-high`，或者固定开启 1024
-思考 token 的 `claude-thinking-low`) 都是在控制台*模型*标签页里，作为
-**带后缀预设的别名**创建出来的。
+## 4. 打开 Console
 
-每个后缀预设会附加一小组 body 重写规则：例如给每个 Claude 请求强制塞入
-`"thinking": { "type": "enabled", "budget_tokens": 32768 }`，或者给每个
-Chat Completions 请求固定 `"reasoning_effort": "high"`。客户端调用别名
-名，请求在分发到上游之前就会自动改写。
+打开 <http://127.0.0.1:8787/console>。
 
-完整别名管道见 [模型与别名](/zh-cn/guides/models/)，后缀预设底层生成的
-具体规则见 [重写规则](/zh-cn/guides/rewrite-rules/)。
+开发 bundle 的用户是 `dev`，上面的启动命令会把 admin 密码设置为
+`change-me-please`。Console 中可查看和管理 providers、credentials、routes、route
+members、route permissions、rate limits、quotas、usage、logs 和 update settings。
+
+## 5. 发起 gateway 请求
+
+使用导入的 user key：
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer sk-dev-local" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "main",
+    "messages": [
+      { "role": "user", "content": "Say hello in one short sentence." }
+    ]
+  }'
+```
+
+聚合入口 `/v1` 会把 `main` 解析成 v2 route。选中的 route member 会在转发前把上游模型改写为
+`gpt-4.1-mini`。
+
+provider scoped 请求使用 `/{provider}/v1/...`：
+
+```bash
+curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
+  -H "Authorization: Bearer sk-dev-local" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4.1-mini",
+    "messages": [
+      { "role": "user", "content": "Say hello in one short sentence." }
+    ]
+  }'
+```
+
+继续阅读 [第一条请求](/zh-cn/getting-started/first-request/)，了解这两种路径背后的路由规则。

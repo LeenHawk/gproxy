@@ -1,55 +1,71 @@
 ---
-title: GPROXY 是什么?
-description: 关于 GPROXY LLM 代理服务器及其设计目标的高层介绍。
+title: GPROXY v2 是什么?
+description: GPROXY v2 重写版的高层介绍，以及它要解决的问题。
 ---
 
-**GPROXY** 是一个用 Rust 编写的高性能 LLM 代理服务器。它在多家上游供应商之上
-暴露一个统一的、OpenAI / Anthropic / Gemini 兼容的 HTTP 接口，并额外提供
-把它作为共享服务运行所需的一切基础设施：用户、API 密钥、模型权限、限流、
-成本配额、用量记录，以及一个内嵌的浏览器控制台。
+**GPROXY v2** 是 GPROXY LLM 网关的重写版。它延续 v1 的目标：用一个 HTTP
+入口接入多个 LLM provider，并提供路由、凭证、用户 API key、策略、用量计费和浏览器控制台。
+v2 的实现形态不同：它是一个 Rust crate，同时构建 native server binary 和 edge runtime
+可用的 wasm library。
 
-它以**单个静态二进制**的形式发布 (React 控制台已内嵌)，同时提供可选的
-**Rust SDK** 供开发者在自己的应用中复用引擎。
+v2 的设计中心是 operation，而不是 provider family。协议行为按能力组织，例如模型列表、
+token 计数、内容生成、embedding、image、compact 和 conversation。provider family 仍然在
+wire boundary 上有意义，但不再是路由和 transform 的组织方式。
 
-## 它擅长做什么
+## v2 擅长什么
 
-- **单入口扇出到多上游。** 一个 GPROXY 实例可以把请求路由到
-  OpenAI、Anthropic、Vertex / Gemini、DeepSeek、Groq、OpenRouter、NVIDIA、
-  Claude Code、Codex、Antigravity、自定义 OpenAI 兼容端点等 —— 每一个都配置为
-  独立的*供应商* (provider)。
-- **多租户访问控制。** 为每个用户下发 API 密钥，用 glob 模型权限控制访问范围，
-  按模型 pattern 施加 RPM / RPD / token 限流，按美元金额执行配额 —— 后台还有
-  专门的协调任务保证数据自洽。
-- **跨协议翻译。** 使用 OpenAI Chat Completions 的客户端可以路由到 Anthropic 或
-  Gemini 上游 (反之亦然)，通过协议 `transform` 层完成请求和响应的格式转换。
-- **同协议透传。** 当客户端与上游使用相同协议时，GPROXY 以最小解析开销转发字节，
-  追求低延迟高吞吐。
-- **可观测性。** 结构化的上下游请求日志 (body 可选)、按请求的用量统计、
-  模型健康状态追踪 —— 全部在控制台中可视化。
+- **一个网关接多个 provider。** provider 是配置化的 channel instance，带 settings、
+  credentials、health state、可选 TLS fingerprint 和 rule set。
+- **OpenAI、Claude、Gemini 兼容流量。** v2 按 operation 和 wire kind 分类入口请求；
+  同协议请求保持轻路径，跨协议请求转换成目标 provider 的 native 格式。
+- **多租户访问控制。** user、org、team、user API key、route permission、rate limit 和
+  quota 都属于控制面。
+- **运行时路由。** 对外模型名可以解析到 route、route member、upstream model id 和
+  credential；failover 与 health state 围绕这个执行路径工作。
+- **native 与 edge 部署。** native binary 使用 Axum 和 wreq；wasm build 使用 fetch
+  兼容 transport，并按平台能力接入 libSQL/Turso、Upstash 等后端。
+- **内嵌管理控制台。** React console 单独构建，可以嵌入 native binary，也可以作为同源静态资源
+  和 API 一起部署。
+
+## 相比 v1 改了什么
+
+v1 是 Cargo workspace，分 app crate、server crate 和 SDK crate。v2 把这些收敛到一个
+crate，并在 `src/` 下保持清晰模块边界。这不是取消分层，而是打包形态变化：native binary、
+wasm library 和共享 runtime 代码都在一个地方演进。
+
+核心变化如下：
+
+| 领域 | v1 形态 | v2 形态 |
+| --- | --- | --- |
+| 仓库结构 | apps、crates、SDK 组成的 workspace | 一个 crate，同时产出 native 和 wasm |
+| 协议矩阵 | 更多地方按 provider family 描述 | 以 Operation / OperationGroup 为中心 |
+| 配置流 | TOML/database 控制面 | import/export snapshot 加 persistence backend |
+| Console | 单独 frontend，在 build 时嵌入 | React console 仍独立构建，同步到 `assets/console` |
+| Edge | 不是主要运行时形态 | wasm library 和平台 bundle 是一等目标 |
+
+## 核心概念
+
+| 概念 | v2 中的含义 |
+| --- | --- |
+| Provider | 一个上游适配配置：channel id、settings、credentials、可选 proxy 和 TLS 行为。 |
+| Channel | 准备 provider-native 请求并分类 provider-native 响应的代码。 |
+| Operation | `GenerateContent`、`ListModels`、`CreateEmbedding`、`CountTokens` 等能力。 |
+| Route | 对外公开的模型入口，选择一个或多个 provider/upstream model member。 |
+| Alias | 映射到 route 的用户侧模型名。 |
+| Rule set | protocol transform 之后、channel send 之前应用的有序请求改写规则。 |
+| Snapshot | 请求热路径读取的控制面视图。 |
+| Cache backend | session、counter、invalidation、lock 等临时/共享协调数据。 |
+| Persistence backend | 控制面记录、日志、用量、审计和指标的持久真相源。 |
 
 ## 它不是什么
 
-- 它**不是模型宿主。** GPROXY 自己不做推理，只通过 HTTP 调用真正的上游供应商。
-- 它**不是通用的 Web 负载均衡器。** 它理解 LLM 协议 (OpenAI / Claude / Gemini)
-  并针对它们做了优化。
-- 它**没有自带 SSO。** 内嵌控制台使用用户名 + 密码登录并签发 bearer session token；
-  如果你需要 SSO，请把 GPROXY 放在反向代理之后。
+GPROXY v2 不是模型宿主，不运行推理；它也不是通用反向代理，而是理解 LLM protocol
+operation 的网关。它也不是托管 SaaS 控制台；内嵌 console 属于你的部署，应放在自己的网络和
+运维控制边界内。
 
-## 核心概念速览
+## 下一步
 
-| 概念 | 在 GPROXY 中的含义 |
-| --- | --- |
-| **Provider (供应商)** | 一个已配置的上游 (名称 + channel + settings + credentials)。 |
-| **Channel (通道)** | 某个上游协议的代码实现 (OpenAI / Anthropic / Gemini…)。 |
-| **Model (模型)** | 供应商上可转发的具体模型 ID，可附带定价。 |
-| **Alias (别名)** | 指向一个 `(provider, model)` 真实条目的友好名。 |
-| **User (用户)** | 拥有一个或多个 API 密钥、权限、限流和配额的账号。 |
-| **Permission (权限)** | `(user, provider, model_pattern)` 三元组。 |
-| **Rate limit (限流)** | 按 `(user, model_pattern)` 作用的 RPM / RPD / token 上限。 |
-| **Quota (配额)** | 按用户汇总的美元成本上限。 |
-
-## 接下来
-
-- **安装并运行** —— [安装](/zh-cn/getting-started/installation/)
-- **5 分钟拉起可用配置** —— [快速开始](/zh-cn/getting-started/quick-start/)
-- **理解内部结构** —— [架构概览](/zh-cn/introduction/architecture/)
+- 读当前状态的[架构](/zh-cn/introduction/architecture/)。
+- 按[安装](/zh-cn/getting-started/installation/)运行 v2。
+- 在[快速开始](/zh-cn/getting-started/quick-start/)中导入本地开发快照。
+- 用 [v1 到 v2 迁移](/zh-cn/deployment/v1-to-v2/)迁移已有 v1 部署。

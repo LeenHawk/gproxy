@@ -1,16 +1,77 @@
 /target
-/samples
-/v2
-
-.claude
-.codex
-
-docs/superpowers/
-docs/node_modules/
-docs/dist/
-docs/.astro/
+/data
+*.db
+*.db-*
 node_modules/
-apps/gproxy/web/console/*
-!apps/gproxy/web/console/.gitkeep
+dist/
+__pycache__/
+.DS_Store
 
-data
+# test-only secrets — never commit
+.env
+.env.*
+
+# ── Deno Deploy ──
+.deno_cache
+
+# ── wasm-bindgen build output (regenerated; never commit) ──
+pkg/
+
+# ── Appwrite Functions (deno-2.0, wasm) build output + CLI working files.
+#    Only main.ts + build.sh + NOTES.md are hand-written source. ──
+deploy/appwrite-deno/gproxy.js
+deploy/appwrite-deno/gproxy.d.ts
+deploy/appwrite-deno/gproxy_wasm_inline.ts
+deploy/appwrite-deno/gproxy_bg.wasm
+appwrite.config.json
+.appwriteignore
+
+# ── Upstream API docs snapshots (separate nested git repo; never commit here) ──
+/upstream_docs/
+
+# ── Supabase Edge Function build output (regenerated from the crate; never
+#    commit — only index.ts + config.toml are hand-written source) ──
+deploy/supabase/functions/gproxy/gproxy.js
+deploy/supabase/functions/gproxy/gproxy.d.ts
+deploy/supabase/functions/gproxy/gproxy_bg.wasm
+deploy/supabase/functions/gproxy/gproxy_bg.wasm.d.ts
+deploy/supabase/functions/gproxy/gproxy_wasm_inline.ts
+deploy/supabase/.temp/
+
+# ── Netlify Edge Function build output (regenerated from the crate; never
+#    commit — only gproxy.ts + netlify.toml + public/ are hand-written source) ──
+deploy/netlify/edge-functions/_lib/gproxy.js
+deploy/netlify/edge-functions/_lib/gproxy.d.ts
+deploy/netlify/edge-functions/_lib/gproxy_wasm_inline.ts
+.netlify/
+
+# ── Cloudflare Workers build output (regenerated from the crate; never commit —
+#    only src/worker.js + wrangler.toml + build.sh are hand-written source) ──
+deploy/cloudflare/src/_lib/
+.wrangler/
+
+# ── EdgeOne Pages build output (regenerated from the crate by
+#    deploy/eopages/build.sh; never commit — only explicit route entries,
+#    index.html, build.sh, the trivial/ probe + NOTES.md are hand-written) ──
+deploy/eopages/gproxy/edge-functions/_lib/
+# `edgeone pages link` artifacts (project IDs + pulled env) — never commit
+.edgeone/
+deploy/eopages/**/.edgeone/
+deploy/eopages/**/.env
+
+# ── Local sample projects
+samples/
+
+# ── Console embed output (build artefacts; only .gitkeep is tracked) ──
+/assets/console/*
+!/assets/console/.gitkeep
+
+# ── channel-probe capture output (tools/channel-probe run output; never commit) ──
+probe-out/
+
+# ── Local/generated planning archives ──
+/dev-docs/plans/
+/dev-docs/superpowers/
+
+# ── Astro/Starlight docs build metadata ──
+/docs/.astro/

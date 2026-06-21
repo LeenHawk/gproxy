@@ -1,0 +1,43 @@
+{
+  "orgs": {
+    "title": "Organizations", "new": "New organization", "empty": "No organizations yet.",
+    "name": "Name", "description": "Description", "enabled": "Enabled",
+    "create": "Create organization", "edit": "Edit organization",
+    "delete": "Delete organization", "deleteConfirm": "Delete organization \"{{name}}\" and its teams, users, and access rules?",
+    "tabs": { "teams": "Teams", "access": "Access" }
+  },
+  "teams": {
+    "add": "Add team", "empty": "No teams in this organization.",
+    "name": "Name", "enabled": "Enabled", "edit": "Edit team",
+    "delete": "Remove team", "deleteConfirm": "Remove team \"{{name}}\"?",
+    "access": "Team access"
+  },
+  "users": {
+    "title": "Users", "new": "New user", "empty": "No users yet.",
+    "name": "Name", "org": "Organization", "team": "Team", "noTeam": "— none —",
+    "password": "Password", "passwordKeep": "Leave blank to keep the current password.",
+    "passwordPolicy": "At least 12 characters.", "hasPassword": "password set", "noPassword": "no password (login disabled)",
+    "enabled": "Enabled", "isAdmin": "Administrator",
+    "create": "Create user", "edit": "Edit user",
+    "delete": "Delete user", "deleteConfirm": "Delete user \"{{name}}\" with its API keys and access rules?",
+    "tabs": { "keys": "API keys", "access": "Access" }
+  },
+  "keys": {
+    "title": "API keys", "add": "Generate key", "empty": "No API keys.",
+    "label": "Label", "prefix": "Prefix", "enabled": "Enabled",
+    "delete": "Delete key", "deleteConfirm": "Delete this API key? Clients using it stop working.",
+    "created": "API key created — copy it now, it is shown only once.",
+    "copied": "Copied", "copyFailed": "Copy failed", "rotateHint": "Keys can't be edited — to rotate, generate a new one and delete the old."
+  },
+  "access": {
+    "permissions": "Route permissions", "permissionsHint": "Glob patterns on route/alias names this scope may call (union across org→team→user; no match anywhere = denied).",
+    "addPermission": "Add permission", "routePattern": "Route pattern", "noPermissions": "No route permissions for this scope.",
+    "rateLimits": "Rate limits", "rateLimitsHint": "Per-scope limits; the strictest of org/team/user applies.",
+    "addRateLimit": "Add rate limit", "rpm": "RPM", "rpd": "RPD", "totalTokens": "Total tokens", "noRateLimits": "No rate limits for this scope.",
+    "quota": "Quota", "quotaHint": "Cost ceiling for this scope (decimal). cost_used is accumulated by billing.",
+    "quotaTotal": "Quota total", "costUsed": "Used", "setQuota": "Set quota", "clearQuota": "Clear quota", "noQuota": "No quota set.",
+    "deletePermission": "Delete permission", "deleteRateLimit": "Delete rate limit",
+    "deletePermissionConfirm": "Delete this route permission?", "deleteRateLimitConfirm": "Delete this rate limit?",
+    "deleteQuotaConfirm": "Clear the quota for this scope?"
+  }
+}

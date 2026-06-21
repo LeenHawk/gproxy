@@ -1,185 +1,113 @@
 ---
-title: Request Rewrite Rules
-description: Rewrite or strip arbitrary JSON fields in the request body before it reaches upstream — with model / operation / protocol filters.
+title: Rewrite Rules
+description: Use v2 rule sets to mutate provider-native JSON bodies and headers after protocol transform and before upstream send.
 ---
 
-GPROXY lets you rewrite or delete fields in the **request body** before
-it leaves for the upstream provider. This is the escape hatch you reach
-for when a client won't stop sending `temperature: 1.0` to a model that
-rejects it, when you need to force `stream_options.include_usage = true`,
-or when a specific provider needs a non-standard field injected.
-
-:::note
-This page is about `rewrite_rules` — **arbitrary JSON field**
-manipulation. For rewriting the **text content** of system prompts and
-messages with regex pattern → replacement pairs, see
-[Message Rewrite Rules](/guides/message-rewrite/). The two features are
-independent and can coexist on the same provider.
-:::
-
-Rewrite rules are defined per **provider** and live in the provider's
-settings JSON. They are applied in the handler layer **before** alias
-resolution, using the model name the client sent — so filters that
-match on the alias name still work.
-
-Implementation: [`sdk/gproxy-channel/src/utils/rewrite.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/rewrite.rs).
-
-## The rule shape
-
-```jsonc
-{
-  "path":   "temperature",               // dot-notation into the JSON body
-  "action": { "type": "set", "value": 0.7 },
-  "filter": {                            // optional — AND logic
-    "model_pattern": "gpt-4*",
-    "operations":    ["generate_content", "stream_generate_content"],
-    "protocols":     ["openai_chat_completions"]
-  }
-}
-```
-
-- **`path`** — dot-notation address into the JSON body. `temperature`,
-  `stream_options.include_usage`, `metadata.tenant`, and so on. Missing
-  intermediate keys are auto-created for `set`.
-- **`action.type`** — either `set` (with a `value`) or `remove`.
-- **`filter`** (optional) — restricts which requests the rule fires on.
-  All specified dimensions must match (AND logic). An omitted dimension
-  matches everything.
-
-The rule list is applied **in order**, so a later rule can overwrite an
-earlier one on the same path.
-
-## Action semantics
-
-### `set`
-
-Walks the path, creating intermediate objects if they don't exist, and
-writes `value` at the leaf. `value` is any JSON value — scalar, object,
-or array. If an intermediate key exists but is not an object (e.g. the
-client sent `"a": "string"` and you rewrite `a.b.c`), GPROXY overwrites
-it with a fresh object.
-
-```jsonc
-// Force include_usage = true on every OpenAI stream.
-{
-  "path":   "stream_options.include_usage",
-  "action": { "type": "set", "value": true },
-  "filter": { "protocols": ["openai_chat_completions"] }
-}
-```
-
-### `remove`
-
-Walks to the parent and deletes the leaf key. Missing paths are a
-silent no-op.
-
-```jsonc
-// Strip temperature for clients that always send 1.0.
-{
-  "path":   "temperature",
-  "action": { "type": "remove" }
-}
-```
-
-## Filter semantics
-
-| Dimension | Meaning | Matching |
-| --- | --- | --- |
-| `model_pattern` | Glob against the model name the client sent. | `*` (any run of chars), `?` (exactly one char). See [the glob tests](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/rewrite.rs) for exact behavior. |
-| `operations` | Allowlist of `OperationFamily` values. | Rule fires only if the current operation is in the list. |
-| `protocols` | Allowlist of `ProtocolKind` values. | Rule fires only if the current protocol is in the list. |
-
-The `model_pattern` is matched against the **original** model name the
-client sent — *before* alias resolution and *before* any provider prefix
-stripping. That means a filter on `chat-default` matches requests that
-asked for the alias `chat-default`, not requests that asked for the
-underlying real model.
-
-## Where it fits in the pipeline
-
-The canonical order is:
+Rewrite rules in v2 live in reusable **rule sets**. A rule set can attach to one
+or more providers through `provider_rule_sets`, and the provider's attached
+rules run after protocol transform and before channel request preparation.
 
 ```text
-permission  →  rewrite  →  alias  →  execute
+client request
+  -> classify / auth / route / balance
+  -> protocol transform to provider-native body
+  -> process rule sets
+  -> channel shape_request
+  -> channel prepare / upstream send
 ```
 
-Rewrite runs **after** permission check (so denied requests don't mutate
-anything) and **before** alias resolution (so filters see the alias name
-the client typed).
+This page covers the current specialized rule kinds. The intended design
+direction is a single generic `locate + actions (+ limit)` engine with console
+presets for provider-specific tasks. Until that lands, v2 uses the rule kinds
+below.
 
-## Worked examples
+## Rule Set Model
 
-### 1. Force a sampling cap on a specific model family
+| Record | Purpose |
+| --- | --- |
+| `rule_sets` | Named reusable collection. |
+| `rules` | Rule rows inside a set. |
+| `provider_rule_sets` | Attachment of a set to a provider with `sort_order`. |
 
-```jsonc
+During snapshot rebuild, enabled rule sets are compiled. Unparsable rules warn
+and skip. Provider attachments are flattened in attachment order, then sorted by
+fixed kind order.
+
+## Common Rule Fields
+
+Every rule row has:
+
+- `kind`: one of `system_text`, `cache_breakpoint`, `rewrite`, `sanitize`,
+  `header`.
+- `config_json`: kind-specific config.
+- `filter_model_pattern`: optional glob against the prefix-stripped upstream
+  model name.
+- `filter_operation_keys`: optional list of `Operation` values such as
+  `generate_content` or `stream_generate_content`.
+- `sort_order` and `enabled`.
+
+Filters are ANDed. Omitted filters match everything.
+
+## `rewrite`
+
+`rewrite` mutates a JSON body path:
+
+```json
 {
-  "path":   "temperature",
-  "action": { "type": "set", "value": 0.7 },
-  "filter": { "model_pattern": "o3*" }
+  "path": "stream_options.include_usage",
+  "action": "set",
+  "value_json": true
 }
 ```
 
-### 2. Inject a required `metadata.tenant` on every call
+Supported actions are:
 
-```jsonc
+| Action | Behavior |
+| --- | --- |
+| `set` | Creates missing object parents and writes `value_json` at the leaf. |
+| `delete` | Removes an object key or array element if present. Missing paths are skipped. |
+| `merge` | Shallow-merges an object `value_json` into an existing object at the path. |
+
+Paths are dot-separated. Object keys and numeric array indexes are supported,
+for example `messages.0.content`. This is intentionally simple and fail-soft.
+
+## `sanitize`
+
+`sanitize` applies a Rust regex replacement over the serialized request body:
+
+```json
 {
-  "path":   "metadata.tenant",
-  "action": { "type": "set", "value": "acme-prod" }
+  "pattern": "\\binternal-tool\\b",
+  "replacement": "tool"
 }
 ```
 
-Intermediate objects are auto-created, so you don't need to pre-set
-`metadata` separately.
+It is broad and byte-level after JSON serialization, so use precise patterns.
+For structured changes, prefer `rewrite`. In the future generic model,
+sanitization maps to `locate.match + replace_text`.
 
-### 3. Drop a field only for Claude clients
+## `header`
 
-```jsonc
+`header` sets or merges a request header:
+
+```json
 {
-  "path":   "thinking",
-  "action": { "type": "remove" },
-  "filter": { "protocols": ["claude"] }
+  "name": "anthropic-beta",
+  "value": "extended-cache-ttl-2025-04-11",
+  "mode": "merge"
 }
 ```
 
-### 4. Rewrite `stream_options` only on streaming OpenAI calls
+`override` replaces the header. `merge` comma-appends with de-duplication, which
+is useful for list-valued headers such as `anthropic-beta`.
 
-```jsonc
-{
-  "path":   "stream_options",
-  "action": {
-    "type":  "set",
-    "value": { "include_usage": true }
-  },
-  "filter": {
-    "operations": ["stream_generate_content"],
-    "protocols":  ["openai_chat_completions"]
-  }
-}
+## Fixed Apply Order
+
+Rules apply in this fixed order, regardless of attachment order:
+
+```text
+system_text -> cache_breakpoint -> rewrite -> sanitize -> header
 ```
 
-## Ordering and YAGNI
-
-- Rules are applied **in order**. If two rules touch the same path, the
-  later one wins.
-- Non-object bodies (empty GETs, arrays, null) are skipped silently —
-  the rules are only meaningful for JSON-object request bodies.
-- Regex is **not** supported; `model_pattern` is a simple glob.
-- There is no way to read an existing value and compute a new one —
-  this is a set/remove system, not a scripting language. If you find
-  yourself wanting conditionals on the *value*, consider handling it
-  client-side or proposing a dedicated channel extension.
-
-## Where to configure
-
-Two places:
-
-- **Seed TOML** — provider `settings.rewrite_rules` is a JSON array on
-  the provider entry. It's easiest to assemble the rules in the console
-  and export the TOML, rather than hand-writing the JSON.
-- **Embedded console** — *Providers → {your provider} → Settings*
-  exposes a typed editor for the rewrite rule list. Edits take effect
-  on the next request; no reload needed.
-
-Channels that currently expose `rewrite_rules` in their settings
-include OpenAI-compatible, Anthropic, Claude Code, and most of the
-other channel types.
+Within each kind, set and rule sort order is preserved. A bad or non-applicable
+rule should not break traffic; it warns and skips.

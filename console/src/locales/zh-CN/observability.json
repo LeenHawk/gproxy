@@ -1,0 +1,115 @@
+{
+  "dashboard": {
+    "title": "仪表盘",
+    "subtitle": "用量概览与系统健康",
+    "range": {
+      "label": "时间范围",
+      "7d": "近 7 天",
+      "30d": "近 30 天",
+      "24h": "近 24 小时",
+      "1h": "近 1 小时"
+    }
+  },
+  "usage": {
+    "title": "用量",
+    "explorer": "用量明细",
+    "filters": {
+      "title": "筛选",
+      "from": "开始时间",
+      "to": "结束时间",
+      "provider": "供应商",
+      "user": "用户",
+      "route": "路由",
+      "model": "模型",
+      "reset": "重置筛选"
+    },
+    "columns": {
+      "at": "时间",
+      "operation": "操作",
+      "kind": "类型",
+      "model": "模型",
+      "provider": "供应商",
+      "route": "路由",
+      "inputTokens": "输入 tokens",
+      "outputTokens": "输出 tokens",
+      "cost": "费用",
+      "latency": "延迟",
+      "source": "来源",
+      "ended": "结束状态"
+    },
+    "loadMore": "加载更多",
+    "empty": "当前筛选条件下暂无用量记录。",
+    "presets": {
+      "all": "全部",
+      "1h": "1 小时",
+      "24h": "24 小时",
+      "7d": "7 天"
+    },
+    "tab": {
+      "usage": "用量",
+      "audit": "审计",
+      "logs": "日志"
+    }
+  },
+  "logs": {
+    "title": "请求详情",
+    "downstream": "下行请求",
+    "upstream": "上行请求",
+    "empty": "未找到日志记录。",
+    "notCaptured": "日志未捕获——请求或响应日志可能未启用。",
+    "headers": "请求头",
+    "body": "正文",
+    "responseBody": "响应正文",
+    "attempt": "第 {{n}} 次"
+  },
+  "audit": {
+    "title": "审计日志",
+    "columns": {
+      "at": "时间",
+      "actor": "操作者",
+      "action": "操作",
+      "target": "目标",
+      "status": "状态",
+      "sourceIp": "来源 IP"
+    },
+    "limit": {
+      "100": "100",
+      "500": "500",
+      "1000": "1000",
+      "label": "条数"
+    },
+    "empty": "暂无审计记录。"
+  },
+  "health": {
+    "loadError": "加载健康状态失败",
+    "title": "凭证健康",
+    "allHealthy": "所有凭证状态正常",
+    "noEvents": "暂无健康事件",
+    "breaker": "熔断器开启",
+    "recovered": "已恢复",
+    "rate_limited": "被限速",
+    "auth_dead": "认证失效",
+    "unknown": "未知",
+    "checkedAt": "检查于 {{time}}",
+    "lastError": "最近错误"
+  },
+  "chart": {
+    "metric": {
+      "requests": "请求数",
+      "input_tokens": "输入 tokens",
+      "output_tokens": "输出 tokens",
+      "cost": "费用（$）"
+    },
+    "noData": "所选时间范围内暂无数据。"
+  },
+  "statistics": "统计",
+  "logsList": {
+    "empty": "暂无请求日志——在设置里开启上行/下行日志。",
+    "columns": {
+      "at": "时间",
+      "method": "方法",
+      "path": "路径",
+      "status": "状态"
+    }
+  }
+}

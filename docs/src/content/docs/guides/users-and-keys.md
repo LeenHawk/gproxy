@@ -1,114 +1,81 @@
 ---
-title: Users & API Keys
-description: How users, API keys, and admin accounts work in gproxy.
+title: Users and API Keys
+description: Manage organizations, teams, users, admin sessions, portal access, and user API keys in GPROXY v2.
 ---
 
-GPROXY is multi-tenant out of the box. Every request must authenticate as
-a **user**, and every user carries one or more **API keys**.
+Gateway traffic authenticates as a user through a user API key. Console and
+portal sessions authenticate with username/password and server-side sessions.
 
-## The data model
+v2 uses a three-level identity hierarchy:
 
 ```text
-User
-├── name            (unique)
-├── password        (Argon2 PHC; optional; used for the console login)
-├── is_admin        (bool)
-├── enabled         (bool)
-└── keys[]
-    ├── api_key     (secret; hashed + encrypted at rest when
-    │                DATABASE_SECRET_KEY is set)
-    ├── label       (free-form)
-    └── enabled     (bool)
+Org
+`-- Team
+    `-- User
+        |-- password       optional, for console / portal login
+        |-- is_admin       grants /admin access
+        `-- UserKey[]      API keys for gateway traffic
 ```
 
-A user can exist without any keys (they still log into the console) and a
-key can exist without a password (programmatic-only user). The `is_admin`
-flag gates access to the `/admin/*` routes and to the administrative views
-in the console.
+Users can be programmatic-only, interactive-only, or both.
 
-## Creating users in the seed TOML
+## Identity Records
 
-```toml
-[[users]]
-name = "alice"
-password = "plain-or-argon2-phc"
-enabled = true
+| Record | Purpose |
+| --- | --- |
+| `orgs` | Tenant boundary. An org can be disabled. |
+| `teams` | Optional grouping inside an org. A user can belong to one team. |
+| `users` | Login identity and API-key owner. |
+| `user_keys` | Gateway API keys, indexed by digest in the control-plane snapshot. |
 
-[[users.keys]]
-api_key = "sk-user-alice-1"
-label = "default"
-enabled = true
+The hot path only indexes enabled users and enabled keys. Org and team rows are
+also loaded so authorization can fail closed when a parent scope is disabled.
 
-[[users.keys]]
-api_key = "sk-user-alice-ci"
-label = "ci-runner"
-enabled = true
-```
+## Admin Users
 
-`password` accepts either plain text (which GPROXY will hash with Argon2 on
-import) or a direct Argon2 PHC string (`$argon2id$…`), so you can bring
-pre-hashed credentials in from an external system.
+`is_admin` gates `/admin/*`, `/healthz`, `/version`, and `/metrics`. Admin users
+can manage providers, routes, users, rule sets, settings, usage, logs, and
+updates from the console.
 
-## The bootstrap admin
+Non-admin users use the portal under `/user/*` for their own keys, limits,
+security, audit, and usage views.
 
-On startup, if the seed TOML does not define any user with `is_admin =
-true` **and** at least one enabled key, gproxy will bootstrap an admin
-account from these environment variables:
+## API Keys
 
-- `GPROXY_ADMIN_USER` (default `admin`)
-- `GPROXY_ADMIN_PASSWORD` — if unset, a password is generated and logged
-  once
-- `GPROXY_ADMIN_API_KEY` — if unset, a key is generated and logged once
+User keys are stored with:
 
-This is the "I just want to run the binary" path. Grab the logged values
-the first time, paste them into your password manager, and you're in.
+- encrypted or sealed key material for display/export flows;
+- a digest for hot-path lookup;
+- a label;
+- an enabled flag.
 
-## Authentication surfaces
+The console only shows the plaintext key at creation time. Runtime requests can
+present the key through the credential shape of the inbound protocol, such as:
 
-| Surface | Credential | Where |
-| --- | --- | --- |
-| LLM routes (`/v1/...`, `/v1beta/...`) | User API key | Depends on the protocol — `Authorization: Bearer …`, `x-api-key: …`, `x-goog-api-key: …`. |
-| Console | Username + password | `POST /login` returns a bearer session token; the UI stores it and sends it as `Authorization: Bearer <session_token>`. |
-| Admin API | Admin user API key | `Authorization: Bearer <admin api key>`. |
+- `Authorization: Bearer <key>` for OpenAI-style clients;
+- `x-api-key: <key>` for Claude-style clients;
+- `x-goog-api-key: <key>` for Gemini-style clients.
 
-The console and admin API share the same router; the difference is
-whether the authenticated user has `is_admin = true`.
+The pipeline authenticates the key before route resolution and reads the matched
+identity from `ControlPlaneSnapshot.keys_by_digest`, avoiding a persistence hit
+on every request.
 
-## Managing users at runtime
+## Sessions and Cookies
 
-Once the database is live, create and edit users from the console's
-*Users* tab, or call the admin API directly. All admin endpoints are
-**command-style**: `POST` with a JSON body. There is no REST-shaped
-verb-on-path layer.
+Console login creates an httpOnly session cookie backed by the cache backend.
+Local plain-HTTP development requires `GPROXY_INSECURE_COOKIES=1`. For
+cross-site deployments, configure explicit credentialed CORS origins rather
+than relying on wildcard CORS.
 
-User CRUD:
+CSRF checks are same-origin by default. The Vite dev server proxies admin,
+user, health, version, and metrics routes to the backend so same-origin cookies
+work during local development.
 
-- `POST /admin/users/query` — body `{}` or `{"id":{"eq":1}}` / `{"name":{"eq":"alice"}}`
-- `POST /admin/users/upsert` — body is a `UserWrite` (insert if `id == 0`, update otherwise)
-- `POST /admin/users/delete` — body `{"id": <user_id>}`
-- `POST /admin/users/batch-upsert` — body is `[UserWrite, …]`
-- `POST /admin/users/batch-delete` — body is `[<user_id>, …]`
+## Secret Storage
 
-User keys:
+`GPROXY_MASTER_KEY` enables secret sealing. With a master key, provider
+credentials and user-key material are stored as envelopes. Without it, v2 runs
+in plaintext compatibility mode and warns at startup/runtime. Existing plaintext
+rows remain readable; sealed rows cannot be opened in plaintext mode.
 
-- `POST /admin/user-keys/query` — body `{}` or `{"user_id":{"eq":<user_id>}}`
-- `POST /admin/user-keys/generate` — body `{"user_id": <user_id>, "label": "..."}`; the response carries the freshly generated `api_key` (plain text, shown only once)
-- `POST /admin/user-keys/update-enabled` — body `{"id": <key_id>, "enabled": true|false}`
-- `POST /admin/user-keys/delete` — body `{"id": <key_id>}`
-
-Per-user quotas:
-
-- `POST /admin/user-quotas/query` / `POST /admin/user-quotas/upsert`
-
-All endpoints expect `Authorization: Bearer <admin api key>`.
-
-Revoking a key takes effect immediately — the next request presenting it
-will fail auth.
-
-## At-rest encryption
-
-When `DATABASE_SECRET_KEY` is set at startup, GPROXY enables the database
-encryptor: user passwords and API keys (as well as provider credentials)
-are encrypted with **XChaCha20-Poly1305** before being written to the
-database. Losing the key means losing access to the ciphertext —
-back it up out-of-band.
+Back up the master key. Losing it means sealed secrets cannot be recovered.

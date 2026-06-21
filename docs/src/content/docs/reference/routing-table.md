@@ -1,147 +1,143 @@
 ---
 title: Routing Table
-description: How each channel declares which (operation, protocol) pairs it serves — and whether to passthrough, transform, handle locally, or reject.
+description: How v2 stores per-provider routing rules for passthrough, transform, local handling, and unsupported operations.
 ---
 
-A **routing table** is the per-channel routing map. It takes an incoming
-request, classified into a `(OperationFamily, ProtocolKind)` pair, and
-tells GPROXY one of four things:
+In GPROXY v2, routing is a persisted per-provider matrix. Each row maps an
+incoming `(operation, kind)` pair to one implementation:
 
-- **`Passthrough`** — forward the request to upstream unchanged (same
-  protocol on both sides; GPROXY only rewrites the model, headers, and
-  auth envelope).
-- **`TransformTo { destination }`** — run the protocol `transform` layer
-  to convert the request into a different `(operation, protocol)` pair
-  before forwarding. The inverse transform runs on the response.
-- **`Local`** — handle the request entirely inside GPROXY; never call
-  upstream. Used for `model_list` / `model_get` under the `*-only`
-  presets.
-- **`Unsupported`** — the route is not supported on this channel; return
-  501.
+- `passthrough` forwards to the selected provider without changing the wire
+  dialect;
+- `transform_to` converts the request to another operation/kind before sending
+  it upstream and converts the response back when supported;
+- `local` handles the request inside GPROXY without an upstream call;
+- `unsupported` rejects the cell.
 
-Each channel owns a `fn routing_table(&self) -> RoutingTable` method.
-The value it returns is the channel's **default** routing map, and the
-engine uses it unless an operator has overridden it per-provider from
-the console.
+At request time, only stored and enabled rows are consulted. If no row matches,
+the request is unsupported. Channel defaults are materialized into real
+`routing_rules` rows when a provider is created or when an operator resets the
+provider's routing rules.
 
-Defined in [`sdk/gproxy-channel/src/routing.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/routing.rs).
+## Stored row shape
 
-## Route key
+`routing_rules` rows are scoped to one provider:
 
-```rust
-pub struct RouteKey {
-    pub operation: OperationFamily,
-    pub protocol:  ProtocolKind,
+| Field | Description |
+| --- | --- |
+| `provider_id` | Provider whose channel and credentials will service the request. |
+| `operation` | Provider-neutral operation string, for example `generate_content`, `stream_generate_content`, `list_models`, `count_tokens`, `create_image`, or `create_embedding`. |
+| `kind` | Inbound wire kind. Content generation uses concrete dialect names such as `open_ai_responses`, `open_ai_chat_completions`, `claude_messages`, or `gemini_generate_content`. Other operations use provider families such as `open_ai`, `claude`, or `gemini`. |
+| `implementation` | `passthrough`, `transform_to`, `local`, or `unsupported`. |
+| `dest_operation` | Destination operation for `transform_to`; may be omitted to keep the same operation. |
+| `dest_kind` | Destination wire kind for `transform_to`. A transform row without `dest_kind` is treated as unsupported. |
+| `sort_order` | Ordering used when compiling enabled rows. The effective key is still unique per `(provider_id, operation, kind)`. |
+| `enabled` | Disabled rows are ignored. |
+
+The database enforces uniqueness for `(provider_id, operation, kind)`.
+
+## Operation vocabulary
+
+Current operation enum values are:
+
+| Operation | Group | Notes |
+| --- | --- | --- |
+| `list_models`, `get_model` | Models | Model list/get endpoints. |
+| `count_tokens` | Count tokens | Provider token counting endpoints. |
+| `generate_content`, `stream_generate_content` | Generate content | OpenAI Chat Completions, OpenAI Responses, Claude Messages, and Gemini generateContent dialects. |
+| `create_image`, `edit_image` | Images | OpenAI-shaped image generation/edit operations; transforms exist only where implemented. |
+| `create_embedding` | Embeddings | OpenAI and Gemini embedding shapes. |
+| `compact_content` | Compact | Compact endpoint used by agent workflows. |
+| `create_conversation` | Conversation | OpenAI conversation-shaped operation. |
+
+Content-generation operations must use a content-generation kind. Non-content
+operations use a provider family kind.
+
+## Example rows
+
+Passthrough OpenAI Responses traffic to an OpenAI provider:
+
+```json
+{
+  "provider_id": 1,
+  "operation": "generate_content",
+  "kind": "open_ai_responses",
+  "implementation": "passthrough",
+  "dest_operation": null,
+  "dest_kind": null,
+  "sort_order": 0,
+  "enabled": true
 }
 ```
 
-### Operation families
+Accept Claude Messages from a client and transform them to OpenAI Responses
+upstream:
 
-`OperationFamily` (in `gproxy-protocol`) is the protocol-agnostic kind
-of call the route represents. The full list:
-
-| Family | What it is |
-| --- | --- |
-| `model_list` | List available models. |
-| `model_get` | Fetch one model by id. |
-| `count_tokens` | Token-count endpoint. |
-| `compact` | "Compact" a conversation (Claude Code compact). |
-| `generate_content` | Non-streaming chat / message / generate call. |
-| `stream_generate_content` | Streaming chat / message / generate call. |
-| `create_image` / `stream_create_image` | Image generation. |
-| `create_image_edit` / `stream_create_image_edit` | Image editing. |
-| `openai_response_websocket` | OpenAI Responses WebSocket. |
-| `gemini_live` | Gemini Live bidi session. |
-| `embeddings` | Embedding endpoint. |
-| `file_upload` / `file_list` / `file_get` / `file_content` / `file_delete` | File endpoints. |
-
-### Protocol kinds
-
-`ProtocolKind` is the wire dialect:
-
-| Kind | Meaning |
-| --- | --- |
-| `openai` | OpenAI — umbrella used before a specific API is picked. |
-| `openai_chat_completions` | OpenAI **Chat Completions** API. |
-| `openai_response` | OpenAI **Responses** API. |
-| `claude` | Anthropic Messages API. |
-| `gemini` | Google Gemini `generateContent`. |
-| `gemini_ndjson` | Gemini streaming over NDJSON (same semantics as `gemini`). |
-
-## Example: the Anthropic channel's default table
-
-Simplified from [`channels/anthropic.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/channels/anthropic.rs):
-
-```rust
-let pass  = |op, proto| (RouteKey::new(op, proto), RouteImplementation::Passthrough);
-let xform = |op, proto, dst_op, dst_proto| (
-    RouteKey::new(op, proto),
-    RouteImplementation::TransformTo {
-        destination: RouteKey::new(dst_op, dst_proto),
-    },
-);
-
-let routes = vec![
-    // Native Claude routes — passthrough.
-    pass(OperationFamily::GenerateContent, ProtocolKind::Claude),
-    pass(OperationFamily::StreamGenerateContent, ProtocolKind::Claude),
-
-    // OpenAI Chat Completions clients are transformed into Claude on the way in.
-    xform(
-        OperationFamily::GenerateContent,   ProtocolKind::OpenAiChatCompletion,
-        OperationFamily::GenerateContent,   ProtocolKind::Claude,
-    ),
-    // …
-];
+```json
+{
+  "provider_id": 1,
+  "operation": "generate_content",
+  "kind": "claude_messages",
+  "implementation": "transform_to",
+  "dest_operation": "generate_content",
+  "dest_kind": "open_ai_responses",
+  "sort_order": 10,
+  "enabled": true
+}
 ```
 
-Read the table left-to-right as *"when the **client** sends a
-`(operation, protocol)`, do X"*. The destination in a `TransformTo`
-entry is what the **upstream** ends up seeing.
+Answer model listing locally:
 
-## Passthrough vs. Transform
+```json
+{
+  "provider_id": 1,
+  "operation": "list_models",
+  "kind": "open_ai",
+  "implementation": "local",
+  "dest_operation": null,
+  "dest_kind": null,
+  "sort_order": 20,
+  "enabled": true
+}
+```
 
-The difference is a hot-path one:
+## Default seeding and reset
 
-- **`Passthrough`** is the minimal-parsing fast path. The request body
-  is forwarded with only the model, headers, and auth touched. This is
-  why same-protocol routing is so cheap — see
-  [Providers & Channels](/guides/providers/).
-- **`TransformTo`** runs the protocol conversion in
-  `gproxy_protocol::transform`, producing a new body that the upstream
-  can accept. The inverse transform runs on the response (including
-  per-chunk rewriting for streams).
+Every channel exposes a default routing table in code. Creating a provider
+through the admin API seeds the channel's declared cells into `routing_rules`.
+The reset endpoint recomputes defaults for the provider's channel:
 
-## `Local` routing for model lists
+```text
+POST /admin/providers/{provider_id}/routing-rules/reset
+```
 
-The `*-only` presets (for example `chat-completions-only`,
-`response-only`, `claude-only`, `gemini-only`) set `model_list` and
-`model_get` to `Local`. Those requests are answered entirely from the
-local `models` table — GPROXY never calls upstream.
+Reset overwrites declared default cells. It does not invent support for cells
+the channel does not declare, and rows outside the channel defaults are left to
+operator configuration.
 
-Concretely, when a channel's routing table maps a route to `Local`,
-the handler calls `Channel::handle_local(...)` on the channel. That
-function builds the protocol-specific response body directly from the
-in-memory models snapshot.
+Raw JSON bundle import does not call provider creation helpers. If a bundle
+needs routing rows, include the `routing_rules` array explicitly or reset the
+provider from the admin API after import.
 
-For `*-like` / pass-through presets, `model_list` stays as
-`Passthrough`, and GPROXY **merges** the upstream response with the
-local `models` table after the call returns (see
-[Models & Aliases](/guides/models/) for why and how).
+## Request flow
 
-## Why operators care
+1. The HTTP path is classified into an `OperationKey`.
+2. Route or scoped-provider selection chooses candidate providers and upstream
+   model ids.
+3. The provider's enabled `routing_rules` are compiled.
+4. The dispatch decision is applied:
+   - `passthrough`: preserve the inbound request target/body shape;
+   - `transform_to`: synthesize the destination provider-relative target and
+     run the transform layer;
+   - `local`: call the channel's local handler;
+   - missing row or `unsupported`: return an unsupported-operation error.
 
-Most users never touch the routing table — the defaults from each
-channel are fine. You'd override it when you want to:
+## Routes versus routing rules
 
-- **Force local model listing** on a channel whose upstream returns a
-  huge list you don't want clients to see.
-- **Disable** (`Unsupported`) a feature your upstream technically
-  supports but you don't want exposed (for example, blocking image
-  generation on an OpenAI provider).
-- **Cross-wire** an odd shape — e.g. redirect OpenAI Responses traffic
-  into a Chat Completions upstream by transforming the operation.
+`routes` and `route_members` decide which provider/model candidate should serve
+a logical model name. `routing_rules` decide whether that chosen provider can
+serve the inbound wire operation and how the request must be shaped.
 
-Provider-level overrides are edited from the console's provider
-workspace and are stored as JSON (`RoutingTableDocument`). The schema
-enforces one entry per `(operation, protocol)` pair.
+For example, an alias may resolve `default-chat` to route `main`, and route
+`main` may choose provider `openai-main` model `gpt-4.1-mini`. The provider's
+`routing_rules` then decide whether a Claude Messages request can be transformed
+to the OpenAI upstream dialect for that candidate.

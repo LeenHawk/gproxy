@@ -1,0 +1,41 @@
+{
+  "title": "Settings",
+  "subtitle": "Instance configuration and behavior",
+  "sections": {
+    "identity": "Identity",
+    "outbound": "Outbound Proxy",
+    "usageLogging": "Usage & Logging",
+    "retention": "Retention",
+    "tokenizer": "Tokenizer"
+  },
+  "fields": {
+    "instanceName": "Instance Name",
+    "proxy": "HTTP Proxy URL",
+    "spoofEmulation": "Spoof Emulation",
+    "enableUsage": "Enable Usage Tracking",
+    "enableUpstreamLog": "Enable Upstream Log",
+    "enableUpstreamLogBody": "Log Upstream Request/Response Bodies",
+    "enableDownstreamLog": "Enable Downstream Log",
+    "enableDownstreamLogBody": "Log Downstream Request/Response Bodies",
+    "disableLogRedaction": "Disable Log Redaction",
+    "enableTokenizerDownload": "Enable Tokenizer Download",
+    "retentionDays": "Retention Period (days)"
+  },
+  "spoof": {
+    "inherit": "Inherit from route",
+    "on": "Always on",
+    "off": "Always off"
+  },
+  "retention": {
+    "forever": "Leave blank to retain logs forever"
+  },
+  "warnings": {
+    "sensitive": "Warning: one or more sensitive options are enabled. Logs may contain unredacted content or request/response bodies, which can include secrets and PII. Enable these options for troubleshooting only."
+  },
+  "save": "Save Settings",
+  "saved": "Settings saved",
+  "form": {
+    "nameRequired": "Instance name is required"
+  },
+  "empty": "No instance settings yet. Click Save to create the initial configuration."
+}

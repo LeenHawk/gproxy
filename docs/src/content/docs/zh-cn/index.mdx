@@ -1,18 +1,18 @@
 ---
-title: GPROXY
-description: 使用 Rust 编写的高性能 LLM 代理服务器 —— 多供应商、多租户，自带内嵌控制台。
+title: GPROXY v2
+description: GPROXY v2 重写版的文档站。
 template: splash
 hero:
-  tagline: 一个入口，接入所有大模型。多供应商路由、鉴权、限流、配额和内嵌浏览器控制台 —— 全部塞进一个 Rust 二进制里。
+  tagline: 单 crate Rust LLM 网关，支持 native server 和 edge worker，围绕 Operation 做协议转换，并内嵌控制台。
   actions:
-    - text: 快速上手
-      link: /zh-cn/getting-started/installation/
+    - text: 先看概览
+      link: /zh-cn/introduction/what-is-gproxy/
       icon: right-arrow
-    - text: 版本发布
-      link: https://github.com/LeenHawk/gproxy/releases
-      icon: external
+    - text: 本地跑起来
+      link: /zh-cn/getting-started/quick-start/
+      icon: rocket
       variant: secondary
-    - text: 在 GitHub 上查看
+    - text: GitHub
       link: https://github.com/LeenHawk/gproxy
       icon: external
       variant: minimal
@@ -20,39 +20,39 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## 为什么选择 GPROXY?
+## 文档地图
 
 <CardGrid stagger>
-	<Card title="多供应商接入" icon="puzzle">
-		OpenAI、Anthropic、Gemini / Vertex、DeepSeek、Groq、OpenRouter、NVIDIA、
-		Claude Code、Codex 等等 —— 统一通过 OpenAI / Claude / Gemini 兼容接口暴露。
+	<Card title="介绍" icon="document">
+		了解 v2 改了什么，为什么重写成单 crate，以及一次请求如何穿过 pipeline。
 	</Card>
-	<Card title="同协议透传" icon="rocket">
-		当客户端与上游使用相同协议时，GPROXY 以最小解析开销直接透传字节 ——
-		低延迟、高吞吐。
+	<Card title="快速上手" icon="rocket">
+		安装二进制、导入开发快照、打开内嵌控制台，并发送第一个 OpenAI-compatible 请求。
 	</Card>
-	<Card title="原生多租户" icon="seti:lock">
-		用户、API 密钥、模型权限、按模型的限流、成本配额 —— 都是一等公民，
-		而不是事后补丁。
+	<Card title="使用指南" icon="puzzle">
+		配置 provider、route、user、quota、rewrite rule、Claude cache hint、agent 兼容性和可观测性。
 	</Card>
-	<Card title="内嵌控制台" icon="laptop">
-		React 控制台直接编译进二进制，挂载在 <code>/console</code>，
-		无需单独部署前端。
-	</Card>
-	<Card title="可插拔存储" icon="seti:db">
-		默认使用 SQLite，也支持 PostgreSQL 和 MySQL（通过 SeaORM / SQLx）。
-		可选的 XChaCha20-Poly1305 磁盘加密。
-	</Card>
-	<Card title="Rust SDK" icon="seti:rust">
-		<code>gproxy-sdk</code> 再导出了协议、路由、供应商三个 crate，
-		方便你把引擎嵌入到自己的服务中。
+	<Card title="参考手册" icon="seti:config">
+		查询环境变量、配置导入导出结构、路由行为、价格、存储后端、优雅停机和 SDK 边界。
 	</Card>
 </CardGrid>
 
-## 获取二进制
+## 主要入口
 
 <LinkCard
-	title="GitHub Releases"
-	description="Linux / macOS / Windows 的预构建二进制 —— 附带签名校验和分平台 zip 归档。"
-	href="https://github.com/LeenHawk/gproxy/releases"
+	title="GPROXY v2 是什么?"
+	description="从产品层面解释 v2 重写，以及从 v1 继承下来的核心概念。"
+	href="/zh-cn/introduction/what-is-gproxy/"
+/>
+
+<LinkCard
+	title="架构"
+	description="当前 AppState、控制面快照、Operation、transform、process rule、channel 和存储的结构图。"
+	href="/zh-cn/introduction/architecture/"
+/>
+
+<LinkCard
+	title="从 v1 迁移"
+	description="如何把 v1 SQLite 部署中的数据迁入 v2 persistence model。"
+	href="/zh-cn/deployment/v1-to-v2/"
 />

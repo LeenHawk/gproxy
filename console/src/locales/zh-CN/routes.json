@@ -1,0 +1,60 @@
+{
+  "title": "负载均衡",
+  "new": "新建负载均衡",
+  "empty": "还没有负载均衡——创建一个以对外暴露一个逻辑模型名。",
+  "tabs": {
+    "settings": "设置",
+    "members": "成员",
+    "aliases": "别名"
+  },
+  "fields": {
+    "name": "名称",
+    "strategy": "策略",
+    "description": "描述",
+    "enabled": "启用",
+    "settings": "设置 JSON"
+  },
+  "strategy": {
+    "failover": "故障转移",
+    "round_robin": "轮询",
+    "weighted": "加权",
+    "least_latency": "最低延迟"
+  },
+  "form": {
+    "create": "创建负载均衡",
+    "edit": "编辑负载均衡",
+    "required": "必填",
+    "settingsHint": "可选。已知键:circuit_breaker { consecutive_failures, cooldown_secs, error_rate? }——为本负载均衡覆盖 provider 的熔断配置。",
+    "saved": "已保存"
+  },
+  "delete": {
+    "route": "删除负载均衡",
+    "routeConfirm": "将删除负载均衡「{{name}}」及其成员与别名;调用该逻辑模型的客户端会失败。",
+    "member": "移除成员",
+    "memberConfirm": "从负载均衡中移除该成员?",
+    "alias": "删除别名",
+    "aliasConfirm": "删除别名「{{name}}」?该对外模型名将无法解析。"
+  },
+  "members": {
+    "title": "成员",
+    "add": "添加成员",
+    "empty": "无成员——该负载均衡解析不到任何后端。",
+    "edit": "编辑成员",
+    "provider": "供应商",
+    "model": "上游模型 ID",
+    "modelHint": "该供应商的模型 id。建议来自其已注册的模型;允许任意字符串。",
+    "weight": "权重",
+    "tier": "层级",
+    "tierHint": "越小优先级越高。tier 0 为主组,更高层级用于故障转移。",
+    "weightHint": "同一层级内,加权策略下权重越大分流越多。",
+    "mixedProtocol": "同一负载均衡的成员应同协议;此处允许混渠道,但不同后端的转换行为不同。"
+  },
+  "aliases": {
+    "title": "别名",
+    "add": "添加别名",
+    "empty": "没有别名指向该负载均衡。",
+    "alias": "别名",
+    "aliasHint": "对外可见、解析到该负载均衡的模型名。须全局唯一。",
+    "duplicate": "该别名已被占用。"
+  }
+}

@@ -1,102 +1,65 @@
 ---
-title: 用户与 API 密钥
-description: GPROXY 中用户、API 密钥和管理员账号的组织方式。
+title: 用户与 API Key
+description: 在 GPROXY v2 中管理组织、团队、用户、管理员会话、用户门户和用户 API key。
 ---
 
-GPROXY 原生就是多租户的。每个请求都必须以**用户**身份鉴权，每个用户可以持有
-多个 **API 密钥**。
+网关流量通过用户 API key 认证为某个 user。Console 和用户门户通过用户名/密码登录，并使用服务端 session。
 
-## 数据模型
+v2 的身份模型是三层结构：
 
 ```text
-User
-├── name            (唯一)
-├── password        (Argon2 PHC；可选；用于控制台登录)
-├── is_admin        (bool)
-├── enabled         (bool)
-└── keys[]
-    ├── api_key     (密文；若设置了 DATABASE_SECRET_KEY 则落盘时加密)
-    ├── label       (自由文本)
-    └── enabled     (bool)
+Org
+`-- Team
+    `-- User
+        |-- password       可选，用于 console / portal 登录
+        |-- is_admin       允许访问 /admin
+        `-- UserKey[]      网关流量使用的 API key
 ```
 
-一个用户可以没有 API key (仍可登录控制台)，一个 key 也可以没有密码
-(纯程序化用户)。`is_admin` 决定访问 `/admin/*` 路由与控制台管理视图的能力。
+用户可以只有 API key、只有交互式登录密码，或者两者都有。
 
-## 在种子 TOML 中创建用户
+## 身份记录
 
-```toml
-[[users]]
-name = "alice"
-password = "plain-or-argon2-phc"
-enabled = true
+| 记录 | 用途 |
+| --- | --- |
+| `orgs` | 租户边界，可以禁用。 |
+| `teams` | org 内的可选分组；一个 user 可属于一个 team。 |
+| `users` | 登录身份和 API key owner。 |
+| `user_keys` | 网关 API key，通过 digest 加载进 control-plane snapshot。 |
 
-[[users.keys]]
-api_key = "sk-user-alice-1"
-label = "default"
-enabled = true
+热路径只索引启用的 users 和启用的 keys。Org 和 team 行也会加载，以便父级 scope 禁用时 authz 能 fail closed。
 
-[[users.keys]]
-api_key = "sk-user-alice-ci"
-label = "ci-runner"
-enabled = true
-```
+## 管理员用户
 
-`password` 可以是明文 (导入时 GPROXY 用 Argon2 进行哈希)，也可以直接是
-Argon2 PHC 字符串 (`$argon2id$…`)，便于从外部系统迁移已经哈希过的凭证。
+`is_admin` 控制 `/admin/*`、`/healthz`、`/version` 和 `/metrics`。管理员可以在 console 中管理 provider、route、user、rule set、settings、usage、logs 和 update。
 
-## 引导 (bootstrap) 管理员
+非管理员用户使用 `/user/*` 门户查看自己的 key、limit、security、audit 和 usage。
 
-启动时，若种子 TOML 中**没有**任何 `is_admin = true` 且至少有一个启用 key 的用户，
-GPROXY 会从以下环境变量创建管理员：
+## API Key
 
-- `GPROXY_ADMIN_USER` (默认 `admin`)
-- `GPROXY_ADMIN_PASSWORD` —— 未设置则自动生成并打印一次
-- `GPROXY_ADMIN_API_KEY` —— 未设置则自动生成并打印一次
+User key 存储内容包括：
 
-这是"开箱即用"的路径。首次启动时把打印的值保存到密码管理器即可。
+- 用于展示/导出的加密或密封 key material；
+- 用于热路径查找的 digest；
+- label；
+- enabled 标记。
 
-## 鉴权入口
+Console 只在创建时展示明文 key。运行时请求可以按入站协议习惯传 key：
 
-| 入口 | 凭证 | 位置 |
-| --- | --- | --- |
-| LLM 路由 (`/v1/...`、`/v1beta/...`) | 用户 API key | 取决于协议 —— `Authorization: Bearer …`、`x-api-key: …`、`x-goog-api-key: …`。 |
-| 控制台 | 用户名 + 密码 | `POST /login` 返回一个 bearer session token，UI 保存并作为 `Authorization: Bearer <session_token>` 发送。 |
-| 管理 API | 管理员用户的 API key | `Authorization: Bearer <admin api key>`。 |
+- OpenAI 风格：`Authorization: Bearer <key>`；
+- Claude 风格：`x-api-key: <key>`；
+- Gemini 风格：`x-goog-api-key: <key>`。
 
-控制台与管理 API 共享同一个路由层，区别只在鉴权用户是否 `is_admin = true`。
+Pipeline 在 route resolution 之前认证 key，并从 `ControlPlaneSnapshot.keys_by_digest` 读取身份，避免每个请求访问持久化层。
 
-## 运行时管理用户
+## Session 与 Cookie
 
-数据库运行起来之后，可通过控制台*用户*标签页创建/编辑，或直接调用管理 API。
-所有 admin 接口都是**命令式**：统一 `POST`、JSON body，没有 REST 风格的
-谓词路径。
+Console 登录会创建 httpOnly session cookie，session 存在 cache backend 中。本地明文 HTTP 开发需要 `GPROXY_INSECURE_COOKIES=1`。跨站部署时应配置明确的 credentialed CORS origins，不要依赖 wildcard CORS。
 
-用户 CRUD：
+CSRF 默认按 same-origin 检查。Vite dev server 会代理 admin、user、health、version、metrics 路径到后端，让本地开发也能使用 same-origin cookie。
 
-- `POST /admin/users/query` —— body `{}` 或 `{"id":{"eq":1}}` / `{"name":{"eq":"alice"}}`
-- `POST /admin/users/upsert` —— body 为 `UserWrite`（`id == 0` 则新建，否则更新）
-- `POST /admin/users/delete` —— body `{"id": <user_id>}`
-- `POST /admin/users/batch-upsert` —— body 为 `[UserWrite, …]`
-- `POST /admin/users/batch-delete` —— body 为 `[<user_id>, …]`
+## Secret 存储
 
-User keys：
+`GPROXY_MASTER_KEY` 启用 secret sealing。配置 master key 时，provider credential 和 user-key material 会以 envelope 形式存储。未配置时，v2 使用 plaintext 兼容模式并在启动/运行时警告。已有 plaintext 行仍可读取；sealed 行不能在 plaintext 模式打开。
 
-- `POST /admin/user-keys/query` —— body `{}` 或 `{"user_id":{"eq":<user_id>}}`
-- `POST /admin/user-keys/generate` —— body `{"user_id": <user_id>, "label": "..."}`；响应中的 `api_key` 是明文，只会出现这一次
-- `POST /admin/user-keys/update-enabled` —— body `{"id": <key_id>, "enabled": true|false}`
-- `POST /admin/user-keys/delete` —— body `{"id": <key_id>}`
-
-按用户配额：
-
-- `POST /admin/user-quotas/query` / `POST /admin/user-quotas/upsert`
-
-所有接口都要求 `Authorization: Bearer <admin api key>`。
-
-吊销立即生效 —— 下一次携带该 key 的请求将鉴权失败。
-
-## 静态加密
-
-启动时设置 `DATABASE_SECRET_KEY` 会启用数据库加密器：用户密码、API key (以及
-供应商凭证) 在落盘前会用 **XChaCha20-Poly1305** 加密。丢失该 key 意味着
-无法解密现有记录 —— 请在密码管理器或 KMS 中另行备份。
+请备份 master key。丢失后密封的 secret 无法恢复。

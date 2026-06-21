@@ -1,0 +1,198 @@
+{
+  "title": "规则",
+  "subtitle": "规则集、转换规则与供应商路由",
+  "tabs": {
+    "routingRules": "路由规则",
+    "ruleSets": "规则集"
+  },
+  "ruleSet": {
+    "name": "规则集名称",
+    "enabled": "启用",
+    "description": "描述",
+    "add": "添加规则集",
+    "empty": "暂无规则集。",
+    "deleteConfirm": "确认删除此规则集？其中所有规则也将一并删除，且挂载它的所有 provider 引用都会失效。"
+  },
+  "rule": {
+    "kind": "规则类型",
+    "sortOrder": "排序",
+    "enabled": "启用",
+    "filterModelPattern": "模型过滤模式",
+    "filterOperationKeys": "操作键过滤",
+    "configJson": "配置",
+    "add": "添加规则",
+    "empty": "此规则集暂无规则。",
+    "deleteConfirm": "确认删除此规则？",
+    "rawJson": "原始 JSON",
+    "list": "规则",
+    "switchToRaw": "以 JSON 编辑",
+    "switchToStructured": "以表单编辑",
+    "rawJsonError": "请修正 JSON 错误后再切换回表单"
+  },
+  "kind": {
+    "system_text": "系统文本",
+    "rewrite": "改写",
+    "sanitize": "清洗",
+    "cache_breakpoint": "缓存断点",
+    "header": "请求头"
+  },
+  "config": {
+    "text": "文本",
+    "position": "位置",
+    "path": "JSON 路径",
+    "action": "操作",
+    "value": "值",
+    "pattern": "模式（正则）",
+    "replacement": "替换内容",
+    "target": "目标",
+    "index": "索引",
+    "indexHint": ">0:正数第 N 条;<0:倒数第 N 条;0 无效",
+    "ttl": "TTL（秒）",
+    "name": "请求头名称",
+    "mode": "模式",
+    "positionOptions": {
+      "prepend": "前置",
+      "append": "追加"
+    },
+    "actionOptions": {
+      "set": "设置",
+      "delete": "删除",
+      "merge": "合并"
+    },
+    "targetOptions": {
+      "system": "系统",
+      "tools": "工具",
+      "last_message": "最后一条消息"
+    },
+    "modeOptions": {
+      "override": "覆盖",
+      "merge": "合并"
+    },
+    "noTtl": "无 TTL"
+  },
+  "operation": {
+    "list_models": "列出模型",
+    "get_model": "获取模型",
+    "count_tokens": "统计 Token",
+    "generate_content": "生成内容",
+    "stream_generate_content": "流式生成内容",
+    "create_image": "创建图像",
+    "edit_image": "编辑图像",
+    "create_embedding": "创建嵌入",
+    "compact_content": "压缩内容",
+    "create_conversation": "创建对话"
+  },
+  "implementation": {
+    "passthrough": "直通",
+    "transform_to": "转换为",
+    "local": "本地",
+    "unsupported": "不支持"
+  },
+  "providerRuleSet": {
+    "ruleSet": "规则集",
+    "sortOrder": "排序",
+    "enabled": "启用",
+    "attach": "附加规则集",
+    "unattach": "解除附加",
+    "unattachConfirm": "确认将此规则集从供应商中解除？",
+    "empty": "该供应商暂未附加任何规则集。"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "reset": "重置"
+  },
+  "validation": {
+    "nameRequired": "名称不能为空",
+    "sortOrderRequired": "排序必须为有效数字",
+    "configTextRequired": "文本不能为空",
+    "configPathRequired": "路径不能为空",
+    "configActionRequired": "操作不能为空",
+    "configPatternRequired": "模式不能为空",
+    "configTargetRequired": "目标不能为空",
+    "configHeaderNameRequired": "请求头名称不能为空",
+    "configInvalid": "配置 JSON 无效",
+    "filterJsonInvalid": "操作键过滤必须为有效 JSON",
+    "cacheIndexZero": "索引不能为 0(无意义)"
+  },
+  "protocolKind": {
+    "open_ai_responses": "OpenAI Responses",
+    "open_ai_chat_completions": "OpenAI Chat Completions",
+    "claude_messages": "Claude Messages",
+    "gemini_generate_content": "Gemini Generate Content",
+    "open_ai": "OpenAI",
+    "claude": "Claude",
+    "gemini": "Gemini"
+  },
+  "kindDesc": {
+    "system_text": "在系统提示前置或追加文本。",
+    "cache_breakpoint": "标记 Claude 缓存断点（系统 / 工具 / 最后一条消息）。",
+    "rewrite": "在请求体里设置/删除/合并一个 JSON 字段。",
+    "sanitize": "对序列化后的请求体做正则查找替换。",
+    "header": "新增或合并一个出站 HTTP 头。"
+  },
+  "pipeline": {
+    "title": "生效管线",
+    "caption": "该 provider 实际执行的规则，按执行顺序排列。规则按 kind 顺序运行：系统文本 → 缓存 → 改写 → 脱敏 → 头。",
+    "empty": "暂无规则适用于此 provider。",
+    "fromSet": "来自 {{name}}",
+    "allRequests": "所有请求"
+  },
+  "usage": {
+    "private": "私有",
+    "shared": "公用 · {{count}} 个 provider",
+    "unused": "未使用",
+    "usedBy": "被使用于",
+    "filterAll": "全部",
+    "filterPrivate": "私有",
+    "filterShared": "公用",
+    "sharedWarning": "该规则集已附加到另外 {{count}} 个 provider，此处改动会影响所有。",
+    "clone": "克隆",
+    "cloneSuffix": " 副本"
+  },
+  "filter": {
+    "modelGlobLabel": "模型过滤（glob）",
+    "modelGlobPlaceholder": "例如 claude-*  ·  *-thinking  （空 = 所有模型）",
+    "modelGlobHelp": "Glob 匹配，非正则。* 匹配任意字符串，? 匹配单个字符。",
+    "operationsLabel": "操作过滤",
+    "operationsHelp": "为空则匹配所有操作。",
+    "noModels": "该 provider 未定义任何模型。"
+  },
+  "rewriteValue": {
+    "typeLabel": "值类型",
+    "type": {
+      "string": "字符串", "number": "数字", "boolean": "布尔值",
+      "null": "Null", "json": "JSON（数组/对象）"
+    },
+    "invalid": "无效的 JSON"
+  },
+  "sanitizeTemplate": {
+    "fillFrom": "从模板填充"
+  },
+  "createAndAttach": "新建规则集",
+  "attachExisting": "附加已有规则集",
+  "advanced": "高级（原始 JSON）",
+  "tabs2": { "rules": "规则" },
+  "orderHint": "规则按 kind 顺序执行（系统文本→缓存→改写→脱敏→头），sort_order 只排同 kind 的规则。",
+  "routing": {
+    "title": "路由",
+    "caption": "该 provider 对每个 操作 × 入站协议 的路由。默认值在创建时按渠道初始化——可编辑某行、新增规则或删除。「重置默认」按渠道重新计算。",
+    "add": "新增路由",
+    "addTitle": "新增路由",
+    "editTitle": "编辑路由",
+    "behavior": "行为",
+    "destKind": "目标协议",
+    "delete": "删除",
+    "deleteConfirm": "删除这条路由规则?",
+    "resetAll": "重置默认",
+    "resetConfirm": "按渠道默认重新计算所有路由规则?你对默认格的修改会被覆盖。",
+    "resetDone": "已恢复路由默认",
+    "empty": "尚无路由规则。",
+    "initialize": "初始化默认",
+    "columns": {
+      "operation": "操作",
+      "kind": "入站协议",
+      "behavior": "行为"
+    }
+  }
+}

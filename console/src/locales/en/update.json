@@ -1,0 +1,42 @@
+{
+  "title": "Updates",
+  "subtitle": "Check for and apply binary updates to this GPROXY instance.",
+  "check": {
+    "button": "Check for updates",
+    "current": "Current version",
+    "latest": "Latest version",
+    "available": "Update available",
+    "availableYes": "Yes",
+    "availableNo": "Up to date",
+    "notes": "Release notes",
+    "notConfigured": "Self-update is not configured. Set update_repo in the server configuration to enable this feature.",
+    "genericError": "Failed to check for updates"
+  },
+  "apply": {
+    "button": "Download & stage update",
+    "confirm": {
+      "title": "Download and stage update?",
+      "description": "This downloads and stages the new binary. It takes effect after the operator restarts the service. The previous version is kept as .prev for rollback.",
+      "confirmLabel": "Download & stage"
+    }
+  },
+  "status": {
+    "label": "Update status",
+    "idle": "Idle",
+    "checking": "Checking for updates…",
+    "downloading": "Downloading update…",
+    "staged": "Staged",
+    "failed": "Failed",
+    "stagedRestartNotice": "A new binary has been staged. Restart the GPROXY service for the update to take effect.",
+    "failedError": "Error"
+  },
+  "channel": {
+    "label": "Update Channel",
+    "hint": "Which release track this instance self-updates from.",
+    "default": "Default",
+    "releases": "Stable releases",
+    "staging": "Staging (pre-release)",
+    "saved": "Update channel saved",
+    "noSettings": "Configure instance settings first."
+  }
+}

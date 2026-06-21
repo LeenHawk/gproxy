@@ -1,0 +1,60 @@
+{
+  "title": "Load Balancing",
+  "new": "New load balancer",
+  "empty": "No load balancers yet — create one to expose a logical model name.",
+  "tabs": {
+    "settings": "Settings",
+    "members": "Members",
+    "aliases": "Aliases"
+  },
+  "fields": {
+    "name": "Name",
+    "strategy": "Strategy",
+    "description": "Description",
+    "enabled": "Enabled",
+    "settings": "Settings JSON"
+  },
+  "strategy": {
+    "failover": "Failover",
+    "round_robin": "Round robin",
+    "weighted": "Weighted",
+    "least_latency": "Least latency"
+  },
+  "form": {
+    "create": "Create load balancer",
+    "edit": "Edit load balancer",
+    "required": "Required",
+    "settingsHint": "Optional. Known key: circuit_breaker { consecutive_failures, cooldown_secs, error_rate? } — overrides the provider's breaker for this load balancer.",
+    "saved": "Saved"
+  },
+  "delete": {
+    "route": "Delete load balancer",
+    "routeConfirm": "This deletes load balancer \"{{name}}\" with its members and aliases. Clients calling this logical model will fail.",
+    "member": "Remove member",
+    "memberConfirm": "Remove this member from the load balancer?",
+    "alias": "Delete alias",
+    "aliasConfirm": "Delete alias \"{{name}}\"? The exposed model name stops resolving."
+  },
+  "members": {
+    "title": "Members",
+    "add": "Add member",
+    "empty": "No members — this load balancer resolves to nothing.",
+    "edit": "Edit member",
+    "provider": "Provider",
+    "model": "Upstream model ID",
+    "modelHint": "The provider's model id. Suggestions come from the provider's registered models; any string is allowed.",
+    "weight": "Weight",
+    "tier": "Tier",
+    "tierHint": "Lower = higher priority. Tier 0 is primary; higher tiers are failover.",
+    "weightHint": "Within a tier, higher weight gets more traffic under the weighted strategy.",
+    "mixedProtocol": "Members of one load balancer should share a protocol; mixing channels here is allowed but transforms differ per backend."
+  },
+  "aliases": {
+    "title": "Aliases",
+    "add": "Add alias",
+    "empty": "No aliases point to this load balancer.",
+    "alias": "Alias",
+    "aliasHint": "An externally-visible model name that resolves to this load balancer. Must be globally unique.",
+    "duplicate": "That alias name is already taken."
+  }
+}

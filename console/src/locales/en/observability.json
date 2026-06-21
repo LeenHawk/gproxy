@@ -1,0 +1,115 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Usage overview and system health",
+    "range": {
+      "label": "Time range",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "24h": "Last 24 hours",
+      "1h": "Last hour"
+    }
+  },
+  "usage": {
+    "title": "Usage",
+    "explorer": "Usage Explorer",
+    "filters": {
+      "title": "Filters",
+      "from": "From",
+      "to": "To",
+      "provider": "Provider",
+      "user": "User",
+      "route": "Route",
+      "model": "Model",
+      "reset": "Reset filters"
+    },
+    "columns": {
+      "at": "Time",
+      "operation": "Operation",
+      "kind": "Kind",
+      "model": "Model",
+      "provider": "Provider",
+      "route": "Route",
+      "inputTokens": "Input tokens",
+      "outputTokens": "Output tokens",
+      "cost": "Cost",
+      "latency": "Latency",
+      "source": "Source",
+      "ended": "Ended"
+    },
+    "loadMore": "Load more",
+    "empty": "No usage records match the current filters.",
+    "presets": {
+      "all": "All",
+      "1h": "1h",
+      "24h": "24h",
+      "7d": "7d"
+    },
+    "tab": {
+      "usage": "Usage",
+      "audit": "Audit",
+      "logs": "Logs"
+    }
+  },
+  "logs": {
+    "title": "Request details",
+    "downstream": "Downstream request",
+    "upstream": "Upstream requests",
+    "empty": "No log records found.",
+    "notCaptured": "Logs not captured — request or response logging may not be enabled.",
+    "headers": "Headers",
+    "body": "Body",
+    "responseBody": "Response body",
+    "attempt": "Attempt {{n}}"
+  },
+  "audit": {
+    "title": "Audit log",
+    "columns": {
+      "at": "Time",
+      "actor": "Actor",
+      "action": "Action",
+      "target": "Target",
+      "status": "Status",
+      "sourceIp": "Source IP"
+    },
+    "limit": {
+      "100": "100",
+      "500": "500",
+      "1000": "1000",
+      "label": "Limit"
+    },
+    "empty": "No audit records."
+  },
+  "health": {
+    "loadError": "Failed to load health status",
+    "title": "Credential health",
+    "allHealthy": "All credentials healthy",
+    "noEvents": "No health events yet",
+    "breaker": "Circuit open",
+    "recovered": "Recovered",
+    "rate_limited": "Rate limited",
+    "auth_dead": "Auth dead",
+    "unknown": "Unknown",
+    "checkedAt": "Checked {{time}}",
+    "lastError": "Last error"
+  },
+  "chart": {
+    "metric": {
+      "requests": "Requests",
+      "input_tokens": "Input tokens",
+      "output_tokens": "Output tokens",
+      "cost": "Cost ($)"
+    },
+    "noData": "No data for the selected range."
+  },
+  "statistics": "Statistics",
+  "logsList": {
+    "empty": "No request logs — enable upstream/downstream logging in Settings.",
+    "columns": {
+      "at": "Time",
+      "method": "Method",
+      "path": "Path",
+      "status": "Status"
+    }
+  }
+}

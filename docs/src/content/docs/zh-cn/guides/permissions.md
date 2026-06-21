@@ -1,102 +1,74 @@
 ---
-title: 权限、限流与配额
-description: 如何控制每个用户能调用什么模型、调用多快、花多少钱。
+title: 权限、限速与配额
+description: 跨 org、team、user scope 配置 route 访问权限、请求限速、token limit 和费用配额。
 ---
 
-三个相互独立的机制决定一个用户能做什么：
+v2 的授权模型基于 scope。权限、限速和配额都可以挂在 org、team 或 user 上。
 
-1. **权限 (Permissions)** —— *这个用户能调这个模型吗?*
-2. **限流 (Rate limits)** —— *能调多快?*
-3. **配额 (Quotas)** —— *一共能花多少钱?*
-
-每个请求在调上游之前都会依次检查这三项。任何一项都可以独立拒绝请求，
-并返回对应的错误码。
-
-## 权限
-
-权限行是一个 `(user, provider, model_pattern)` 三元组：
-
-```toml
-[[permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-model_pattern = "gpt-*"
+```text
+user scope -> team scope -> org scope
 ```
 
-- `model_pattern` 是一个 **glob** (`*`、`?`)，匹配**别名解析之前**的请求模型名。
-  写 `chat-*` 就能匹配别名 `chat-default`；写 `gpt-*` 就能匹配真实 id `gpt-4.1-mini`。
-- `provider_name` 可省略，表示跨所有供应商授权 (匹配仍沿 permission → rewrite → alias → execute 顺序)。
-- 没有任何匹配行的用户会收到 `403 forbidden: model`。
+Snapshot 按 `(scope, scope_id)` 保存匹配行，热路径不读取持久化层。
 
-### 文件权限
+## Route Permissions
 
-`[[file_permissions]]` 是一张独立的表，用于授权用户调用某个供应商的
-文件相关接口 (upload / retrieve / delete)。它的结构更简单：
+Route permission 用 glob pattern 授权 route 或 provider 名称：
 
-```toml
-[[file_permissions]]
-user_name = "alice"
-provider_name = "openai-main"
+```json
+{
+  "scope": "team",
+  "scope_id": 42,
+  "route_pattern": "chat-*"
+}
 ```
 
-## 限流
+有效权限是 user、team、org 三层 pattern 的并集。链路中任意 pattern 匹配暴露名称，请求即可继续；没有任何匹配则拒绝。禁用的 org 或 team 会拒绝请求，即使更低 scope 上有匹配 pattern。
 
-限流作用于 `(user, model_pattern)`，可以同时或单独启用三个计数器：
+Aggregated 模式下，权限匹配暴露的 route 名称；scoped 模式下匹配暴露的 provider 名称。它不会匹配隐藏的 route member、credential 或内部上游 model id。
+
+## Rate Limits
+
+Rate-limit 行也带 scope 和 route pattern：
 
 | 字段 | 含义 |
 | --- | --- |
-| `rpm` | 每**分钟**请求数。 |
-| `rpd` | 每**日**请求数。 |
-| `total_tokens` | 一段滚动时间窗内的**总 token**。 |
+| `rpm` | 每分钟请求数。 |
+| `rpd` | 每天请求数。 |
+| `total_tokens` | 按已结算 token counter 检查的每日 token 预算。 |
 
-```toml
-[[rate_limits]]
-user_name = "alice"
-model_pattern = "gpt-*"
-rpm = 60
-rpd = 10000
-total_tokens = 200000
+检查顺序是从最具体到最宽泛：user、team、org。第一个超限的匹配规则生效。
+
+请求计数器使用 cache backend，并且先自增再判断是否超限。这样并发下行为确定，但被拒绝的请求也会消耗请求数预算。如果 counter backend 不可用，v2 对已配置限速 fail closed。
+
+## Quotas
+
+Quota 是某个 scope 的费用上限：
+
+```json
+{
+  "scope": "org",
+  "scope_id": 1,
+  "quota_total": "100.00",
+  "cost_used": "12.50"
+}
 ```
 
-计数器在内存中维护，由 `RateLimitGC` worker 定期清理过期的窗口，避免进程
-积累死计数器。
+用户链路上的每个 quota 都必须满足。Admission 会同时考虑持久化的 `cost_used` 和进行中的 pending spend。请求结算后，实际 usage 会回填 pending quota 并更新持久化费用。
 
-命中任一计数器的请求会收到 `429 rate_limited`，响应头会指示哪个计数器触发
-以及窗口何时重置。
+价格来自 `provider_models.pricing_json`。没有配置价格的模型仍可运行并记录 usage，但费用为 0。
 
-## 配额
+## 请求生命周期中的顺序
 
-配额是每个用户一条美元上限：
+相关顺序是：
 
-```toml
-[[quotas]]
-user_name = "alice"
-quota = 100.0       # 上限 (USD)
-cost_used = 0.0     # 已使用成本；由用量记账增长
+```text
+auth user API key
+  -> preprocess route/provider name
+  -> permission and rate-limit admission
+  -> estimate quota and pre-deduct pending spend
+  -> balance, transform, process, channel
+  -> settle actual usage and quota
 ```
 
-- `UsageSink` worker 在请求完成时把成本写入 `cost_used`。
-- `QuotaReconciler` worker 周期性地从真实用量行重算 `cost_used`，
-  如果在线计数器发生漂移也会自我修正。
-- 一旦请求预期成本会让 `cost_used` 超过 `quota`，会返回 `402 quota_exceeded`。
-
-配额只是**计费**上限，不是安全上限 —— 它只对配置了价格的模型/别名起作用。
-没定价的模型对 `cost_used` 贡献为 0。
-
-## 执行顺序
-
-对一个请求来说，检查顺序是：
-
-1. **鉴权** —— 把 API key 解析为用户。
-2. **权限** —— 是否有匹配的 `[[permissions]]` 行？没有 → `403 forbidden: model`。
-3. **配额** —— `cost_used < quota`？否则 → `402 quota_exceeded`。
-4. **限流** —— 计数器是否仍在上限以内？否则 → `429 rate_limited`。
-5. **执行** —— 进入 `rewrite → alias → execute`。
-
-因此权限拒绝永远优先于限流拒绝，而限流拒绝永远优先于上游执行错误。
-
-## 运行时管理
-
-上述三类配置都可以在控制台的*用户* → *权限 / 限流 / 配额*工作区中
-实时编辑，也可以通过 `/admin/permissions`、`/admin/rate_limits`、`/admin/quotas`
-等管理 API 修改。变更在下一次请求时生效，不需要 reload。
+因此授权看到的是 transform 前暴露给用户的 route/provider 名称，而不是 provider-native 请求体。

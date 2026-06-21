@@ -1,0 +1,509 @@
+name: release
+
+# Builds the v2 distribution: native binaries, edge (wasm) bundles, and Docker
+# images. Side effects (attach to GitHub Release, push to GHCR) only happen on a
+# published Release — workflow_dispatch just builds-and-validates.
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  # Self-heal flaky crates.io downloads on CI runners (the Windows runner hit a
+  # transient "connection was reset" pulling a crate). Default retry is 3.
+  CARGO_NET_RETRY: "10"
+
+jobs:
+  build-console:
+    name: Build console (embed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+      # `pnpm build` emits console/dist AND syncs it to ../assets/console via the
+      # sync-to-embed.mjs postbuild (the path rust-embed bakes into the binary).
+      - name: Build console
+        working-directory: console
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Upload console embed
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-embed
+          path: assets/console
+          include-hidden-files: true
+          retention-days: 1
+
+  build-native:
+    name: native ${{ matrix.target }}
+    needs: build-console
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            os: linux
+            artifact: gproxy-linux-x86_64
+            ext: ""
+            run_check: true
+            upx: true
+            docker_bin: true
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            os: linux
+            artifact: gproxy-linux-aarch64
+            ext: ""
+            run_check: true
+            upx: true
+            docker_bin: true
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            os: linux
+            cross: true
+            artifact: gproxy-linux-x86_64-musl
+            ext: ""
+            run_check: true
+            upx: true
+            docker_bin: true
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            os: linux
+            cross: true
+            artifact: gproxy-linux-aarch64-musl
+            ext: ""
+            run_check: false
+            upx: true
+            docker_bin: true
+          - target: x86_64-linux-android
+            runner: ubuntu-latest
+            os: android
+            android_abi: x86_64
+            artifact: gproxy-android-x86_64
+            ext: ""
+            run_check: false
+            upx: true
+            docker_bin: false
+          - target: aarch64-linux-android
+            runner: ubuntu-latest
+            os: android
+            android_abi: arm64-v8a
+            artifact: gproxy-android-aarch64
+            ext: ""
+            run_check: false
+            upx: true
+            docker_bin: false
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            os: windows
+            artifact: gproxy-windows-x86_64
+            ext: ".exe"
+            run_check: true
+            upx: true
+            docker_bin: false
+          - target: aarch64-pc-windows-msvc
+            runner: windows-latest
+            os: windows
+            artifact: gproxy-windows-aarch64
+            ext: ".exe"
+            run_check: false
+            upx: false
+            docker_bin: false
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            os: macos
+            artifact: gproxy-macos-x86_64
+            ext: ""
+            run_check: false
+            upx: false
+            docker_bin: false
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            os: macos
+            artifact: gproxy-macos-aarch64
+            ext: ""
+            run_check: true
+            upx: false
+            docker_bin: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download console embed
+        uses: actions/download-artifact@v4
+        with:
+          name: console-embed
+          path: assets/console
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross
+        if: ${{ matrix.cross }}
+        run: cargo install cross --locked
+
+      - name: Set up Android NDK toolchain
+        if: ${{ matrix.os == 'android' }}
+        uses: android-actions/setup-android@v4
+      - name: Install cargo-ndk
+        if: ${{ matrix.os == 'android' }}
+        run: |
+          sdkmanager "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          cargo install cargo-ndk --locked
+
+      - name: Build (unix)
+        if: ${{ matrix.os != 'windows' }}
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --bin gproxy --target ${{ matrix.target }}
+          elif [ "${{ matrix.os }}" = "android" ]; then
+            cargo ndk -t ${{ matrix.android_abi }} build --release --bin gproxy
+          else
+            cargo build --release --bin gproxy --target ${{ matrix.target }}
+          fi
+
+      - name: Build (windows)
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --bin gproxy --target ${{ matrix.target }}
+
+      - name: Smoke check (--help) before UPX — unix
+        if: ${{ matrix.run_check && matrix.os != 'windows' }}
+        run: ./target/${{ matrix.target }}/release/gproxy --help
+
+      - name: Smoke check (--help) before UPX — windows
+        if: ${{ matrix.run_check && matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          & "target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}" --help
+
+      - name: Install UPX + zip (linux)
+        if: ${{ matrix.upx && matrix.os != 'windows' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends upx-ucl zip
+      - name: Install UPX (windows)
+        if: ${{ matrix.upx && matrix.os == 'windows' }}
+        shell: pwsh
+        run: choco install upx -y
+
+      - name: Compress binary
+        if: ${{ matrix.upx }}
+        run: upx --best --lzma target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
+
+      - name: Smoke check (--help) after UPX — unix
+        if: ${{ matrix.run_check && matrix.upx && matrix.os != 'windows' }}
+        run: ./target/${{ matrix.target }}/release/gproxy --help
+      - name: Smoke check (--help) after UPX — windows
+        if: ${{ matrix.run_check && matrix.upx && matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          & "target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}" --help
+
+      - name: Codesign (macos)
+        if: ${{ matrix.os == 'macos' }}
+        run: codesign --force --sign - target/${{ matrix.target }}/release/gproxy
+
+      # Linux binary for the docker-build job (consumed by its Dockerfile COPY).
+      - name: Stage docker binary
+        if: ${{ matrix.docker_bin }}
+        run: |
+          mkdir -p docker-binary
+          cp target/${{ matrix.target }}/release/gproxy docker-binary/gproxy
+      - name: Upload docker binary
+        if: ${{ matrix.docker_bin }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-bin-${{ matrix.target }}
+          path: docker-binary/gproxy
+          retention-days: 1
+
+      - name: Package zip + sha256 (unix)
+        if: ${{ matrix.os != 'windows' }}
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/gproxy dist/gproxy
+          cp README.md dist/
+          (cd dist && zip -9 ../${{ matrix.artifact }}.zip gproxy README.md)
+          shasum -a 256 ${{ matrix.artifact }}.zip > ${{ matrix.artifact }}.zip.sha256
+
+      - name: Package zip + sha256 (windows)
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/gproxy.exe" dist/gproxy.exe
+          Copy-Item README.md dist/
+          Compress-Archive -Path dist/gproxy.exe,dist/README.md -DestinationPath ${{ matrix.artifact }}.zip -Force
+          $h = (Get-FileHash ${{ matrix.artifact }}.zip -Algorithm SHA256).Hash.ToLower()
+          "$h  ${{ matrix.artifact }}.zip" | Out-File -Encoding ascii ${{ matrix.artifact }}.zip.sha256
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-${{ matrix.target }}
+          path: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.zip.sha256
+          retention-days: 1
+
+      - name: Attach to release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ matrix.artifact }}.zip
+            ${{ matrix.artifact }}.zip.sha256
+
+  build-edge:
+    name: Edge wasm bundles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-edge
+
+      # wasm-bindgen-cli MUST match the wasm-bindgen crate version in Cargo.lock.
+      # NOTE: wasm-opt (binaryen) is deliberately NOT installed. eopages/build.sh
+      # runs wasm-opt *before* wasm-bindgen, and a modern wasm-opt -Oz rewrites
+      # the bindgen descriptors enough to crash wasm-bindgen's interpreter. The
+      # script falls back to the un-optimized wasm (the canonical cargo ->
+      # wasm-bindgen flow). For a size-constrained EdgeOne Pages deploy,
+      # regenerate locally with a matching wasm-opt.
+      - name: Install wasm-bindgen-cli
+        run: |
+          set -euo pipefail
+          VER=0.2.123
+          curl -fsSL "https://github.com/rustwasm/wasm-bindgen/releases/download/${VER}/wasm-bindgen-${VER}-x86_64-unknown-linux-musl.tar.gz" -o wb.tar.gz
+          tar -xzf wb.tar.gz
+          sudo mv "wasm-bindgen-${VER}-x86_64-unknown-linux-musl"/wasm-bindgen* /usr/local/bin/
+          wasm-bindgen --version
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends zip
+
+      - name: Build edge wasm
+        run: cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+
+      # Each script regenerates that platform's wasm-bindgen glue in-place (the
+      # _lib / generated dirs are gitignored build output). All build-only — no
+      # platform credentials are used here.
+      - name: Generate platform bundles
+        run: |
+          bash deploy/cloudflare/build.sh
+          bash deploy/eopages/build.sh
+          bash deploy/netlify/build.sh
+          bash deploy/supabase/build.sh
+          bash deploy/appwrite-deno/build.sh
+          # deno: deploy/deno/build.sh also *deploys* (needs a token), so generate
+          # the deno-target glue inline here for a build-only bundle.
+          wasm-bindgen --target deno --out-dir deploy/deno/pkg target/wasm32-unknown-unknown/release/gproxy.wasm
+          perl -0pi -e 's/instantiateStreaming\(fetch\(wasmUrl\)/instantiateStreaming(globalThis.fetch(wasmUrl)/' deploy/deno/pkg/gproxy.js
+
+      - name: Package edge bundles
+        run: |
+          mkdir -p edge-dist
+          cp target/wasm32-unknown-unknown/release/gproxy.wasm edge-dist/gproxy.wasm
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-cloudflare.zip cloudflare -x 'cloudflare/build.sh')
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-eopages.zip eopages/gproxy eopages/NOTES.md)
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-netlify.zip netlify -x 'netlify/build.sh')
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-supabase.zip supabase -x 'supabase/build.sh')
+          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-appwrite-deno.zip appwrite-deno -x 'appwrite-deno/build.sh' 'appwrite-deno/NOTES.md')
+          # deno: compact upload root (main.ts path-fixed to ./pkg + the glue)
+          rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg
+          cp deploy/deno/pkg/gproxy.js deploy/deno/pkg/gproxy.d.ts \
+             deploy/deno/pkg/gproxy_bg.wasm deploy/deno/pkg/gproxy_bg.wasm.d.ts deploy/deno/bundle/pkg/
+          sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts > deploy/deno/bundle/main.ts
+          (cd deploy/deno/bundle && zip -9 -r ../../../edge-dist/gproxy-edge-deno.zip .)
+          (cd edge-dist && for f in *.zip gproxy.wasm; do shasum -a 256 "$f" > "$f.sha256"; done)
+          ls -la edge-dist
+
+      - name: Upload edge artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-edge
+          path: edge-dist/*
+          retention-days: 1
+
+      - name: Attach to release
+        if: ${{ github.event_name == 'release' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: edge-dist/*
+
+      # Refresh the orphan `deploy` branch with the freshly-built, ready-to-deploy
+      # bundles (artifacts only — no source). The README one-click buttons point
+      # at this branch. Force-pushed as a single fresh snapshot each release.
+      - name: Refresh deploy branch
+        if: ${{ github.event_name == 'release' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          stage="$(mktemp -d)"
+          for p in cloudflare netlify supabase appwrite-deno; do
+            cp -r "deploy/$p" "$stage/$p"
+            rm -f "$stage/$p/build.sh" "$stage/$p/NOTES.md"
+          done
+          mkdir -p "$stage/eopages" && cp -r deploy/eopages/gproxy/. "$stage/eopages/"
+          cp -r deploy/deno/bundle "$stage/deno"
+          cp target/wasm32-unknown-unknown/release/gproxy.wasm "$stage/gproxy.wasm"
+          rm -rf "$stage"/*/.temp "$stage"/*/.netlify "$stage"/*/.wrangler "$stage"/*/.edgeone 2>/dev/null || true
+          {
+            echo "# GPROXY — deploy artifacts (auto-generated, do not edit)"
+            echo
+            echo "Prebuilt, ready-to-deploy edge bundles. **No source** — wasm + glue +"
+            echo "each platform's entry + config. The main README's one-click buttons point"
+            echo "here. Regenerated from \`${GITHUB_SHA}\` on every release."
+            echo "See the main branch \`deploy/\` + \`docs/edge-deploy.md\` for how each deploys."
+          } > "$stage/README.md"
+          cd "$stage"
+          git init -q
+          git checkout -q -b deploy
+          git add -A
+          git -c user.email="github-actions[bot]@users.noreply.github.com" \
+              -c user.name="github-actions[bot]" \
+              commit -q -m "deploy: prebuilt edge bundles @ ${GITHUB_SHA}"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" deploy
+
+  docker-build:
+    name: docker ${{ matrix.variant }}-${{ matrix.arch }}
+    needs: build-native
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: gnu
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: gnu
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
+          - variant: musl
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            suffix: "-musl"
+            runtime_base: gcr.io/distroless/static-debian13
+          - variant: musl
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            suffix: "-musl"
+            runtime_base: gcr.io/distroless/static-debian13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-bin-${{ matrix.target }}
+          path: dist
+
+      - name: Prepare runtime files
+        run: |
+          chmod +x dist/gproxy
+          mkdir -p dist/data
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: ${{ github.event_name == 'release' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gproxy
+          tags: |
+            type=ref,event=tag,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+          flavor: |
+            suffix=-${{ matrix.arch }}${{ matrix.suffix }}
+
+      - name: Build image (push only on release)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: ${{ github.event_name == 'release' }}
+          build-args: |
+            RUNTIME_BASE=${{ matrix.runtime_base }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # Combine the per-arch images into multi-arch manifest lists. Release-only
+  # (needs the images actually pushed to GHCR).
+  docker-manifest:
+    name: Docker manifest
+    if: ${{ github.event_name == 'release' }}
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/gproxy
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+      - name: Create manifest lists (gnu + musl)
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            docker buildx imagetools create -t "$tag" \
+              "${tag}-amd64" "${tag}-arm64"
+            docker buildx imagetools create -t "${tag}-musl" \
+              "${tag}-amd64-musl" "${tag}-arm64-musl"
+          done <<< "${{ steps.meta.outputs.tags }}"

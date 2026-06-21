@@ -1,106 +1,101 @@
 ---
-title: Providers & Channels
-description: How providers, channels, and credentials fit together in gproxy.
+title: Providers and Channels
+description: Configure upstream providers, credentials, routing capabilities, proxies, TLS profiles, and scoped provider access in GPROXY v2.
 ---
 
-A **provider** in GPROXY is a named upstream LLM endpoint. Each provider is
-backed by exactly one **channel** (the code that speaks the upstream's
-protocol) and has one or more **credentials** attached to it.
+A **provider** is one named upstream endpoint. It binds a stable name to a
+channel adapter, provider settings, credential pool, model catalogue, routing
+rules, and optional process rule sets.
 
 ```text
-Provider  ──(channel)──►  upstream protocol implementation
-   │
-   ├── settings     (base_url, timeouts, …)
-   └── credentials  (api keys, OAuth, service account, …)
+Provider
+|-- channel                 openai, claudeapi, aistudio, codex, ...
+|-- settings_json           base_url and channel-specific knobs
+|-- credentials             sealed API keys, OAuth tokens, service accounts
+|-- provider_models         local model catalogue and pricing
+|-- routing_rules           Operation + OperationKind dispatch table
+`-- provider_rule_sets      attached request mutation rule sets
 ```
 
-## Built-in channels
+The hot path reads providers from `ControlPlaneSnapshot`. Admin changes are
+written to persistence, then the snapshot is rebuilt and invalidated so the next
+request sees the new control plane without restarting the process.
 
-The `gproxy-channel` crate ships the following channels. Feature flags of the
-same name (see the [Rust SDK](/reference/sdk/) reference) let you compile only
-the subset you need.
+## Built-in Channels
 
-| Channel | Typical upstream | Notes |
+The native and edge runtimes build the same channel registry. Current built-in
+channel ids are:
+
+| Channel id | Typical use |
+| --- | --- |
+| `openai`, `custom` | OpenAI API or OpenAI-compatible gateways. |
+| `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
+| `claudeapi` | Anthropic Claude Messages API. |
+| `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams. |
+| `codex`, `claudecode`, `geminicli`, `antigravity`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
+
+Every channel declares a routing surface as `(Operation, OperationKind) ->
+RoutingDecision`. That is the source for the provider's default
+`routing_rules` rows. Request behavior is therefore described by operation
+capability, not by provider-family buckets.
+
+## Provider Fields
+
+The provider record carries:
+
+| Field | Meaning |
+| --- | --- |
+| `name` | Unique provider name. Scoped routes use this in the URL. |
+| `channel` | Channel registry id, such as `openai` or `claudeapi`. |
+| `settings_json` | Free-form channel settings. Common keys include `base_url` and channel toggles. |
+| `credential_strategy` | Credential-pool strategy, currently `round_robin` or `sticky`. |
+| `proxy_url` | Native outbound proxy fallback for the provider. Edge ignores native proxy settings. |
+| `tls_fingerprint` | Optional provider-level TLS/HTTP2 emulation profile. Credential settings can override it. |
+| `enabled` | Disabled providers disappear from routing. |
+
+Credential rows belong to a provider. They carry `kind`, sealed `secret_json`,
+`weight`, optional `rpm_limit` / `tpm_limit`, optional proxy and TLS overrides,
+and an `enabled` flag. Secrets are redacted in debug output and sealed when a
+master key is configured.
+
+## Aggregated and Scoped Access
+
+GPROXY v2 supports two ways to reach an upstream:
+
+| Mode | URL shape | Resolution |
 | --- | --- | --- |
-| `openai` | api.openai.com, any OpenAI-compatible gateway | Use `custom` to override base URL freely. |
-| `anthropic` | api.anthropic.com | Claude Messages API. |
-| `aistudio` | Google AI Studio | `generativelanguage.googleapis.com`. |
-| `vertex` | Google Vertex AI | Uses a GCP service account. |
-| `vertexexpress` | Vertex AI Express mode | Simpler Gemini access via an API key. |
-| `geminicli` | Local Gemini CLI tooling | For local dev / bridging. |
-| `claudecode` | Anthropic Claude Code | Developer tooling channel. |
-| `codex` | Codex-family endpoints | |
-| `antigravity` | Antigravity agent runtime | |
-| `deepseek` | api.deepseek.com | OpenAI-compatible DeepSeek. |
-| `groq` | api.groq.com | |
-| `openrouter` | openrouter.ai | |
-| `vercel` | Vercel AI Gateway | OpenAI Responses / Chat Completions / Models / Embeddings plus Anthropic Messages. |
-| `kiro` | Amazon Q Runtime for Kiro IDE | Standard chat and streaming entry points converted in-channel to Kiro `generateAssistantResponse`; model list and quota use Kiro REST endpoints; count tokens is local. |
-| `nvidia` | NVIDIA NIM endpoints | |
-| `custom` | Any OpenAI-compatible upstream | Use this for self-hosted or third-party gateways. |
+| Aggregated | `/v1/*`, `/v1beta/*` | The request `model` resolves through alias / route tables, then to a route member and credential. |
+| Scoped | `/{provider}/v1/*`, `/{provider}/v1beta/*` | The provider name comes from the path; the model goes directly to that provider. |
 
-## Defining a provider
+Both modes use the same classifier, auth, transform, process, channel, and
+settle layers after resolution. Aggregated mode is the normal multi-provider
+gateway path. Scoped mode is useful for debugging or exposing one provider
+without creating a route.
 
-In the seed TOML:
+## Routing Rules
 
-```toml
-[[providers]]
-name = "openai-main"
-channel = "openai"
-settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-upstream-1" },
-  { api_key = "sk-upstream-2" }
-]
-```
+Routing rules are provider-local. Each row names:
 
-Or, at runtime, use the *Providers* tab in the embedded console. `settings`
-and each `credentials[i]` are free-form JSON blobs — their exact shape
-depends on the channel (`OpenAiSettings`, `AnthropicCredential`, and so on).
-The console renders a structured editor for each one.
+- `operation`: for example `generate_content`, `stream_generate_content`,
+  `count_tokens`, or `create_embedding`.
+- `kind`: one of the content-generation wire kinds
+  `open_ai_responses`, `open_ai_chat_completions`, `claude_messages`,
+  `gemini_generate_content`, or provider kinds `open_ai`, `claude`, `gemini`.
+- `implementation`: `passthrough`, `transform_to`, `local`, or `unsupported`.
+- optional `dest_operation` and `dest_kind` for `transform_to`.
 
-## Credentials and health
+No matching routing rule means `unsupported`. Defaults are materialized into
+stored rows when a provider is created, and the console can reset them from the
+channel defaults.
 
-When a provider has multiple credentials, GPROXY treats them as a rotation
-pool. The `GproxyEngine` picks a credential, calls upstream, and on failure
-updates a **per-credential health state** (cooldowns for rate-limited keys,
-disables for revoked keys, and so on). The `HealthBroadcaster` worker
-debounces those changes before writing them to storage so a burst of
-failures doesn't spam the database.
+## Provider Rule Sets
 
-You can watch the current health state from the console or from the
-`/admin/health` endpoints.
+Reusable rule sets attach to providers through `provider_rule_sets`. Attached
+sets are flattened in attachment order, compiled once during snapshot rebuild,
+then applied after protocol transform and before channel preparation. This is
+where system-text injection, cache breakpoints, field rewrites, sanitization,
+and header rules currently run.
 
-## Two routing modes
-
-Every provider is reachable two ways on the same GPROXY instance:
-
-| Mode | URL shape | How the provider is chosen |
-| --- | --- | --- |
-| **Aggregated** | `/v1/...`, `/v1beta/...` | From a `provider/model` prefix in the `model` field (or from an alias). |
-| **Scoped** | `/{provider}/v1/...` | From the URL path; the `model` field carries just the upstream id. |
-
-Both modes serve every protocol (OpenAI / Claude / Gemini) and both go
-through the same `permission → rewrite → alias → execute` pipeline. Pick
-whichever fits your client — see
-[First Request](/getting-started/first-request/) for concrete curl
-examples of each.
-
-## Same-protocol passthrough
-
-If the client and the selected upstream speak the same protocol (for
-example, an OpenAI-compatible client hitting an OpenAI provider), GPROXY
-forwards the request with **minimal parsing**. It still applies auth, model
-resolution, usage accounting, and rate limiting — it just avoids
-deserializing the body when nothing needs to be rewritten. This is the hot
-path and where GPROXY gets most of its throughput.
-
-When the protocols differ, the `gproxy-protocol::transform` layer converts
-the request shape on the way in and the response shape on the way out.
-
-## See also
-
-- [Models & Aliases](/guides/models/) — how resolved `(provider, model)`
-  pairs are named and routed.
-- [TOML Config reference](/reference/toml-config/) — every field supported
-  by the seed file.
+The current backend is intentionally permissive: invalid rules warn and skip,
+and provider-specific policy should live in console/config presets unless the
+runtime needs a genuinely new primitive.

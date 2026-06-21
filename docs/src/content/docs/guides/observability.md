@@ -1,85 +1,84 @@
 ---
 title: Observability
-description: Usage accounting, request logging, and health tracking in gproxy.
+description: Understand v2 usage rows, request logs, audit logs, credential health, settings, retention, and Prometheus metrics.
 ---
 
-GPROXY captures three independent streams of operational data: **usage**,
-**request logs**, and **health**. Each is controlled by its own toggle and
-written through its own background worker so the hot path stays fast.
+v2 writes operational data to the persistence backend so native, multi-instance,
+and edge deployments can share the same view. Hot-path settings are loaded into
+the control-plane snapshot.
 
-## Usage accounting
+## Request IDs
 
-When `enable_usage = true` (global setting or TOML `[global]` block),
-every completed request produces a usage record with at least:
+Every gateway request gets a request id. Usage records, downstream logs, and
+upstream logs carry that id so one call can be joined across tables and console
+views.
 
-- User, provider, channel
-- Route kind (chat / responses / messages / generateContent / …)
-- Model id and alias (if one was used)
-- Input / output / total tokens
-- Cost (USD), looked up via alias-first pricing
+## Usage
 
-Records are pushed into a channel and drained by the `UsageSink` worker,
-which writes them to storage in **batches** so high-throughput instances
-don't serialize on the database.
+Usage records include:
 
-On shutdown, the sink drains its buffer and performs a final batch write
-before the worker exits — see [Graceful Shutdown](/reference/graceful-shutdown/).
+- request id and timestamp;
+- route name, provider id, credential id;
+- org, team, user, and user key ids;
+- operation and kind;
+- model;
+- input, output, cache-read, and cache-creation tokens;
+- cost;
+- latency and usage source.
 
-The console's usage dashboards and the `/admin/usages` endpoints read
-from this table.
+Usage is controlled by `instance_settings.enable_usage`, which defaults to true.
+Settlement also updates quotas and token-limit counters.
 
-## Upstream and downstream logging
+## Request Logs
 
-Two independent toggles control request logging:
+Request logging is split into downstream and upstream streams:
 
-| Flag | Captures |
+| Setting | Captures |
 | --- | --- |
-| `enable_upstream_log` | The upstream HTTP envelope (URL, status, headers, timing). |
-| `enable_upstream_log_body` | Also capture the upstream request / response **body**. |
-| `enable_downstream_log` | The downstream (client-facing) HTTP envelope. |
-| `enable_downstream_log_body` | Also capture the downstream request / response **body**. |
+| `enable_downstream_log` | Client-facing method, path, query, status, headers. |
+| `enable_downstream_log_body` | Downstream request and response bodies. |
+| `enable_upstream_log` | Provider URL, method, status, latency, headers. |
+| `enable_upstream_log_body` | Upstream request and response bodies. |
 
-Headers are sanitized according to the global **sanitize rules** before
-being stored, so API keys and other secrets don't leak into the log
-table. Body capture is intentionally expensive — leave it off in
-production unless you're actively debugging.
+Redaction is on by default. `disable_log_redaction` exists for debugging, but it
+can expose secrets and should not be enabled casually.
 
-The console exposes both streams under *Observability → Requests*, with
-filters by user, provider, model, status, and time range.
+## Audit Logs
 
-## Health tracking
+Admin and portal mutation paths emit audit rows with actor id/name, action,
+target, status, and source IP. Use these to answer "who changed the control
+plane" rather than to debug LLM payloads.
 
-For every credential on every provider, GPROXY maintains an in-memory
-health state:
+## Credential Health
 
-- **Healthy** — the default, counts towards load balancing.
-- **Cooldown** — temporarily skipped after a retryable failure (for
-  example, upstream rate limiting or transient 5xx).
-- **Disabled** — skipped until the admin re-enables, typically after
-  an auth error like 401 / 403.
+Credential status rows track each credential/channel pair:
 
-The `HealthBroadcaster` worker **debounces** these updates — a burst of
-failures turns into one write — and persists them so the console can
-show the current state after a restart.
+- `health_kind`;
+- optional structured `health_json`;
+- `checked_at`;
+- `last_error`.
 
-## Where the data lives
+The pipeline and channel response classifier decide when a credential should be
+retried, cooled down, or treated as auth-dead. The console shows current status
+through `/admin/credential-statuses`.
 
-All three streams land in the configured database (SQLite by default).
-There is no external sink dependency — point a SQL client at your DSN
-and you can query everything GPROXY records.
+## Metrics
 
-Typical tables you'll want to know about:
+`/metrics` is admin-gated and renders Prometheus text from persisted aggregate
+data, not process-local counters. Current families include:
 
-- `usages` — one row per completed request, aggregated through the sink.
-- `upstream_requests` / `downstream_requests` — envelopes and optional
-  bodies, when the corresponding flag is set.
-- `provider_health` — latest known state per credential.
+- `gproxy_requests_total`
+- `gproxy_tokens_total`
+- `gproxy_upstream_latency_ms`
+- `gproxy_credential_health`
+- `gproxy_quota_total`
+- `gproxy_quota_used`
 
-## Rotating and pruning
+This design keeps metrics meaningful across native multi-instance and edge
+deployments where process-local counters would be misleading.
 
-GPROXY does not include a log-rotation feature. Because everything is in
-the database, handle retention with a scheduled SQL job — for example,
-`DELETE FROM upstream_requests WHERE created_at < NOW() - INTERVAL '14 days'`
-on PostgreSQL. The `QuotaReconciler` only reads usage rows to recompute
-`cost_used`; pruning old usage is safe as long as you keep whatever window
-you need for billing audits.
+## Retention
+
+`instance_settings.retention_days` controls cleanup of usage and request-log
+rows. `None` or a non-positive value retains rows indefinitely. Retention is for
+logs and usage data; it should not delete business/control-plane records.

@@ -1,72 +1,119 @@
 ---
-title: Docker 部署
-description: 使用 GHCR 官方预构建镜像在容器里运行 GPROXY。
+title: Docker
+description: 使用发布的 GPROXY v2 Docker 镜像，配置持久化数据和可选数据库 DSN。
 ---
 
-GPROXY 官方容器镜像由发布流水线推送到 GitHub Container Registry：
-**`ghcr.io/leenhawk/gproxy`**。**直接拉取就行，不用自己构建**，除非你在给 GPROXY 本身改代码。
+官方镜像是 `ghcr.io/leenhawk/gproxy`。它是基于预构建 Linux 二进制的轻量 runtime
+镜像；Dockerfile 不编译 Rust，也不构建 Console。镜像内的二进制已经包含内嵌
+Console 资产。
 
-## 镜像 tag
+## Tags
 
-| Tag | 什么时候更新 | 说明 |
-|---|---|---|
-| `latest` | 每次发版 | 稳定版，多架构 (amd64 + arm64)，glibc base。**绝大多数用户用这个**。 |
-| `v1.2.3` | 发版打 tag 时 | 固定版本号，方便可复现部署。 |
-| `staging` | 每次推送到 `main` | 来自 `main` 分支的最新预发布，多架构 glibc。只有想尝鲜修复的情况才用。 |
-| `latest-musl` / `v1.2.3-musl` / `staging-musl` | 对应上述 tag 的 musl 版本 | 静态 musl 构建，runtime base 更小，不依赖 glibc。 |
+release workflow 先发布各架构镜像，再创建 multi-architecture manifest list。
 
-按架构细分的 tag (`latest-amd64`、`latest-arm64`、加 `-musl` 后缀的各变体) 也存在，但不加后缀的就是多架构 manifest list，Docker 会自动挑到对的架构 —— 正常情况**直接用短 tag** 就好。
+| Tag | 含义 |
+| --- | --- |
+| `latest` | 最新发布版本，glibc runtime，amd64 + arm64 manifest。 |
+| `<release-tag>` | 指定 release tag。 |
+| `latest-musl` | 最新发布版本，static musl runtime，amd64 + arm64 manifest。 |
+| `<release-tag>-musl` | 指定 release tag 的 static musl runtime。 |
+| `latest-amd64`, `latest-arm64` | glibc 架构镜像，用于 manifest。 |
+| `latest-amd64-musl`, `latest-arm64-musl` | musl 架构镜像。 |
 
-## 拉取
+大多数部署使用 `latest` 或固定 release tag。
+
+## 快速运行
 
 ```bash
-docker pull ghcr.io/leenhawk/gproxy:latest
+docker run --rm \
+  --name gproxy \
+  -p 8787:8787 \
+  -e GPROXY_ADMIN_PASSWORD=change-me-please \
+  ghcr.io/leenhawk/gproxy:latest
 ```
 
-镜像是公开的，不需要登录。
+打开 <http://127.0.0.1:8787/console>，用 `admin` 和设置的密码登录。
 
-## 运行
+镜像默认设置：
 
-GPROXY 需要一个地方持久化数据目录 (使用 SQLite 时就是 SQLite 文件)。挂载一个 volume，并按常规方式传环境变量：
+| Env | 镜像默认 |
+| --- | --- |
+| `GPROXY_HOST` | `0.0.0.0` |
+| `GPROXY_PORT` | `8787` |
+| `GPROXY_PERSISTENCE` | `file` |
+| `GPROXY_DATA_DIR` | `/app/data` |
+
+`file` persistence 是本地磁盘 JSON 存储，适合单容器。需要容器替换后保留数据时，挂载
+`/app/data`。
+
+## 持久化 Volume
 
 ```bash
 docker run -d \
   --name gproxy \
   -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
-  -e GPROXY_HOST=0.0.0.0 \
-  -e GPROXY_PORT=8787 \
-  -e GPROXY_DATA_DIR=/var/lib/gproxy \
-  -e GPROXY_CONFIG=/etc/gproxy/seed.toml \
-  -e GPROXY_ADMIN_USER=admin \
-  -e GPROXY_ADMIN_PASSWORD=change-me \
-  -v "$PWD/seed.toml:/etc/gproxy/seed.toml:ro" \
+  -v gproxy-data:/app/data \
+  -e GPROXY_ADMIN_PASSWORD=change-me-please \
   ghcr.io/leenhawk/gproxy:latest
 ```
 
-几点提醒：
+在 Console 中创建持久 admin 密码后，移除 `GPROXY_ADMIN_PASSWORD`。只要它还设置着，
+server 每次启动都会强制重置指定 admin 用户。
 
-- 容器里必须监听 **`0.0.0.0`**，否则容器外无法访问端口。
-- **`GPROXY_DATA_DIR`** 指向持久化 volume 内的路径。默认的 `./data` 会落在容器工作目录下，容器重建即丢数据。
-- **`GPROXY_CONFIG`** 只在首次启动有用；之后 volume 里的数据库是事实来源，种子 TOML 会被忽略。
+## First-Boot Import
 
-## 配合 PostgreSQL
-
-让 `GPROXY_DSN` 指向数据库，就可以省掉 SQLite 持久化 volume：
+从 v2 JSON bundle seed providers、routes、credentials、users 和 keys：
 
 ```bash
 docker run -d \
   --name gproxy \
   -p 8787:8787 \
-  -e GPROXY_HOST=0.0.0.0 \
-  -e GPROXY_DSN=postgres://gproxy:secret@postgres.internal:5432/gproxy \
-  -e DATABASE_SECRET_KEY=$(cat gproxy-db-key) \
-  -e GPROXY_ADMIN_USER=admin \
-  -e GPROXY_ADMIN_PASSWORD=change-me \
+  -v gproxy-data:/app/data \
+  -v "$PWD/import.json:/etc/gproxy/import.json:ro" \
+  -e GPROXY_IMPORT_FILE=/etc/gproxy/import.json \
+  -e GPROXY_ADMIN_PASSWORD=change-me-please \
   ghcr.io/leenhawk/gproxy:latest
 ```
 
-## docker-compose 示例
+import 文件只在 store 为空时使用。已有 users 或 providers 后，后续启动会跳过。
+
+## SQLite、PostgreSQL 或 MySQL
+
+native 二进制默认 `db` persistence，但 Docker 镜像默认 `file`。需要数据库 backend 时，
+显式设置 `GPROXY_PERSISTENCE=db`。
+
+挂载 data 目录中的 SQLite：
+
+```bash
+docker run -d \
+  --name gproxy \
+  -p 8787:8787 \
+  -v gproxy-data:/app/data \
+  -e GPROXY_PERSISTENCE=db \
+  -e GPROXY_DATA_DIR=/app/data \
+  -e GPROXY_ADMIN_PASSWORD=change-me-please \
+  ghcr.io/leenhawk/gproxy:latest
+```
+
+`db` persistence 且未设置 `GPROXY_DSN` 时，v2 会派生
+`sqlite://<data-dir>/gproxy.db?mode=rwc`。
+
+PostgreSQL 示例：
+
+```bash
+docker run -d \
+  --name gproxy \
+  -p 8787:8787 \
+  -e GPROXY_PERSISTENCE=db \
+  -e GPROXY_DSN='postgres://gproxy:secret@postgres.internal:5432/gproxy' \
+  -e GPROXY_MASTER_KEY="$GPROXY_MASTER_KEY" \
+  -e GPROXY_ADMIN_PASSWORD=change-me-please \
+  ghcr.io/leenhawk/gproxy:latest
+```
+
+需要 sealed secrets 时，`GPROXY_MASTER_KEY` 必须是标准 base64 编码的 32 字节。
+
+## docker compose
 
 ```yaml
 services:
@@ -76,15 +123,10 @@ services:
     ports:
       - "8787:8787"
     environment:
-      GPROXY_HOST: 0.0.0.0
-      GPROXY_PORT: "8787"
-      GPROXY_DATA_DIR: /var/lib/gproxy
-      GPROXY_CONFIG: /etc/gproxy/seed.toml
-      GPROXY_ADMIN_USER: admin
-      GPROXY_ADMIN_PASSWORD: change-me
+      GPROXY_ADMIN_PASSWORD: change-me-please
+      GPROXY_MASTER_KEY: ${GPROXY_MASTER_KEY:-}
     volumes:
-      - gproxy-data:/var/lib/gproxy
-      - ./seed.toml:/etc/gproxy/seed.toml:ro
+      - gproxy-data:/app/data
 
 volumes:
   gproxy-data:
@@ -94,22 +136,10 @@ volumes:
 
 ```bash
 docker pull ghcr.io/leenhawk/gproxy:latest
-docker stop gproxy && docker rm gproxy
-# 重新执行上面的 docker run 命令
+docker stop gproxy
+docker rm gproxy
+# 使用同一个 volume 和环境变量重新创建容器
 ```
 
-数据 volume 在容器替换时保留，所以数据库、凭据、日志都会延续到新容器里。如果你钉了某个版本号 (`v1.2.3`)，把 pull / run 里的 tag 改成新版本号即可。
-
-## 关机行为
-
-`docker stop` 会向主进程发送 `SIGTERM`。GPROXY 会像处理 Ctrl+C 一样处理它 —— Axum drain 在途请求，`UsageSink` 写入最后一批，然后进程退出。给它足够的宽限时间 (Docker 默认 10 秒即可)。完整流程见 [优雅关机](/zh-cn/reference/graceful-shutdown/)。
-
-## 自行构建 (仅贡献者)
-
-如果你在给 GPROXY 改代码，想本地验证 Dockerfile 的改动，仓库里有 [`Dockerfile.action`](https://github.com/LeenHawk/gproxy/blob/main/Dockerfile.action) —— 发布流水线用的就是这份。本地构建命令：
-
-```bash
-docker build -f Dockerfile.action -t gproxy:dev .
-```
-
-普通用户不需要这一步 —— 直接拉 `ghcr.io/leenhawk/gproxy:latest` 即可。
+数据保留在挂载 volume 或外部数据库中。如果要从 v1 迁移，先阅读
+[从 v1 迁移到 v2](/zh-cn/deployment/v1-to-v2/)，再让 v2 容器指向旧 SQLite 文件。

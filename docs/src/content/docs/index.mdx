@@ -1,16 +1,16 @@
 ---
-title: GPROXY
-description: A high-performance LLM proxy server written in Rust — multi-provider, multi-tenant, with an embedded console.
+title: GPROXY v2
+description: The documentation site for the GPROXY v2 rewrite.
 template: splash
 hero:
-  tagline: One endpoint, every LLM. Multi-provider routing, auth, rate limits, quotas, and an embedded browser console — all in a single Rust binary.
+  tagline: A single-crate Rust LLM gateway for native servers and edge workers, with operation-oriented protocol transforms and an embedded console.
   actions:
-    - text: Get Started
-      link: /getting-started/installation/
+    - text: Start with the overview
+      link: /introduction/what-is-gproxy/
       icon: right-arrow
-    - text: Releases
-      link: https://github.com/LeenHawk/gproxy/releases
-      icon: external
+    - text: Run locally
+      link: /getting-started/quick-start/
+      icon: rocket
       variant: secondary
     - text: View on GitHub
       link: https://github.com/LeenHawk/gproxy
@@ -20,39 +20,43 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-## Why GPROXY?
+## Documentation Map
 
 <CardGrid stagger>
-	<Card title="Multi-provider" icon="puzzle">
-		OpenAI, Anthropic, Gemini / Vertex, DeepSeek, Groq, OpenRouter, NVIDIA, Claude Code,
-		Codex, and more — behind a unified OpenAI / Claude / Gemini compatible surface.
+	<Card title="Introduction" icon="document">
+		Read what changed in v2, why the rewrite is a single crate, and how a request moves
+		through the pipeline.
 	</Card>
-	<Card title="Same-protocol passthrough" icon="rocket">
-		When the client and upstream speak the same protocol, GPROXY forwards bytes with
-		minimal parsing — low overhead, high throughput.
+	<Card title="Getting Started" icon="rocket">
+		Install the binary, import a development snapshot, open the embedded console, and
+		send the first OpenAI-compatible request.
 	</Card>
-	<Card title="Multi-tenant by design" icon="seti:lock">
-		Users, API keys, model permissions, per-model rate limits, and cost quotas are
-		first-class primitives, not afterthoughts.
+	<Card title="Guides" icon="puzzle">
+		Configure providers, routes, users, quotas, rewrite rules, Claude cache hints,
+		agent compatibility, and observability.
 	</Card>
-	<Card title="Embedded console" icon="laptop">
-		A React console is compiled into the binary and served at <code>/console</code>.
-		No separate frontend to deploy.
-	</Card>
-	<Card title="Pluggable storage" icon="seti:db">
-		SQLite out of the box, PostgreSQL and MySQL via SeaORM / SQLx. Optional
-		at-rest encryption with XChaCha20-Poly1305.
-	</Card>
-	<Card title="Rust SDK" icon="seti:rust">
-		<code>gproxy-sdk</code> re-exports the protocol, routing, and provider
-		crates so you can embed the engine into your own service.
+	<Card title="Reference" icon="seti:config">
+		Check environment variables, config import/export shape, routing behavior, pricing,
+		storage backends, shutdown semantics, and SDK boundaries.
 	</Card>
 </CardGrid>
 
-## Get the binary
+## Primary Paths
 
 <LinkCard
-	title="GitHub Releases"
-	description="Pre-built binaries for Linux, macOS, and Windows — signed checksums and per-platform zip archives."
-	href="https://github.com/LeenHawk/gproxy/releases"
+	title="What is GPROXY v2?"
+	description="A product-level overview of the v2 rewrite and the concepts carried forward from v1."
+	href="/introduction/what-is-gproxy/"
+/>
+
+<LinkCard
+	title="Architecture"
+	description="A current-state map of AppState, control-plane snapshots, operations, transforms, process rules, channels, and storage."
+	href="/introduction/architecture/"
+/>
+
+<LinkCard
+	title="Migration from v1"
+	description="How to move data from a v1 SQLite deployment into the v2 persistence model."
+	href="/deployment/v1-to-v2/"
 />

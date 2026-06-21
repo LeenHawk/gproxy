@@ -1,120 +1,121 @@
 ---
 title: Architecture
-description: A tour of the GPROXY workspace — apps, crates, and SDK layers — and how a request flows through the system.
+description: The current GPROXY v2 runtime architecture and request lifecycle.
 ---
 
-GPROXY is a Cargo workspace organized into three layers:
+GPROXY v2 is a single Rust crate with two runtime surfaces:
 
-1. **Apps** — runnable binaries (`gproxy`, `gproxy-recorder`).
-2. **Crates** — the server-side pieces that the main app composes (`gproxy-core`,
-   `gproxy-storage`, `gproxy-api`, `gproxy-server`).
-3. **SDK** — framework-agnostic libraries that can be reused outside the server
-   (`gproxy-protocol`, `gproxy-channel`, `gproxy-engine`, `gproxy-sdk`).
+- a native binary in `src/main.rs`, served by Axum and native upstream clients;
+- a wasm library entry in `src/lib.rs` / `src/http/edge/`, used by edge platform
+  bundles.
 
-## Workspace layout
+The crate is still layered. The important distinction from v1 is packaging, not
+discipline: v2 keeps protocol types, transforms, request orchestration,
+channels, storage, administration, and deployment boundaries separate inside
+one repository.
 
-```text
-gproxy/
-├── apps/
-│   ├── gproxy/              # The main binary (HTTP server + console host)
-│   └── gproxy-recorder/     # Upstream traffic recorder (dev/debugging tool)
-├── crates/
-│   ├── gproxy-core/         # Config, identity, policy, quota, routing types
-│   ├── gproxy-storage/      # SeaORM storage + encryption + migrations
-│   ├── gproxy-api/          # Admin + user HTTP API, auth, login, CORS
-│   └── gproxy-server/       # The Axum server wiring it all together
-├── sdk/
-│   ├── gproxy-protocol/     # L0: OpenAI/Claude/Gemini wire types + transforms
-│   ├── gproxy-channel/      # L1: Channel trait, channel implementations,
-│   │                        #     credentials, billing, utils, health
-│   ├── gproxy-engine/       # L2: GproxyEngine, ProviderStore, routing,
-│   │                        #     retry, credential affinity, backends
-│   └── gproxy-sdk/          # Umbrella crate re-exporting the three layers
-├── frontend/console/        # React console, embedded into the binary at build time
-└── docs/                    # This documentation site
-```
-
-## Request lifecycle
-
-At a high level, an incoming LLM request goes through these stages:
+## Repository Layout
 
 ```text
-                ┌─────────────────────────────────────────────┐
-HTTP request ──►│  gproxy-server (Axum)                       │
-                │    ├── auth: API key → user identity        │
-                │    ├── protocol classification (OpenAI/…)   │
-                │    └── handler dispatch                     │
-                └───────────────┬─────────────────────────────┘
-                                │
-                                ▼
-                ┌─────────────────────────────────────────────┐
-                │  gproxy-engine :: routing                   │
-                │    permission → rewrite → alias → execute   │
-                └───────────────┬─────────────────────────────┘
-                                │ resolved (provider, model)
-                                ▼
-                ┌─────────────────────────────────────────────┐
-                │  gproxy-engine :: GproxyEngine              │
-                │    ├── channel.prepare_request(...)         │
-                │    ├── HTTP call to upstream                │
-                │    ├── retries + health updates             │
-                │    └── usage accounting                     │
-                └───────────────┬─────────────────────────────┘
-                                │
-                                ▼
-                          upstream LLM API
+.
+|-- Cargo.toml              # one crate: lib + bin
+|-- src/
+|   |-- main.rs             # native CLI, config, AppState, Axum server
+|   |-- lib.rs              # shared module surface and wasm exports
+|   |-- app/                # bootstrap, snapshots, import/export, v1 migration
+|   |-- protocol/           # Operation taxonomy and provider wire models
+|   |-- transform/          # operation-oriented protocol transforms
+|   |-- process/            # provider rule-set compilation and application
+|   |-- channel/            # upstream adapters and registry
+|   |-- pipeline/           # request lifecycle orchestration
+|   |-- http/               # native server, edge adapter, admin API dispatcher
+|   |-- store/              # cache and persistence backends
+|   `-- admin/ billing/ credentials/ health/ tokenize/ selfupdate/ usage/
+|-- console/                # React console, built separately
+|-- assets/console/         # generated console embed target
+|-- deploy/                 # edge and platform packaging entries
+|-- docs/                   # Starlight documentation website
+`-- dev-docs/               # developer/source notes used as reference material
 ```
 
-1. **Auth.** The request carries an API key (`Authorization: Bearer …`). The
-   API layer resolves it to a `User`, checks that the user and key are
-   enabled, and attaches the identity.
-2. **Classification.** The router figures out the protocol (OpenAI Chat,
-   OpenAI Responses, Claude, Gemini) and the route kind (`model_list`,
-   `model_get`, a chat invocation, etc.).
-3. **Model resolution.** `permission → rewrite → alias → execute` is the
-   single canonical order (see *Guides → Models & Aliases*). Aliases,
-   permission glob patterns, and channel-level rewrite rules are applied
-   here.
-4. **Routing.** For `*-only` presets, `model_list` and `model_get` are
-   served **locally** from the `models` table, never touching upstream. For
-   `*-like` / pass-through presets, upstream is called and its response is
-   merged with the local `models` table so admins still see what they
-   registered.
-5. **Execution.** `GproxyEngine::execute` asks the resolved channel to
-   prepare the upstream request, makes the call, handles retries, and
-   updates per-credential health state.
-6. **Accounting.** Usage is captured through a sink, batched, and written
-   to storage by background workers.
+## Request Lifecycle
 
-## Background workers
+A normal generation request follows this path:
 
-`apps/gproxy/src/workers/mod.rs` wires up a set of long-running tasks:
+```text
+HTTP request
+  -> classify operation and inbound wire kind
+  -> authenticate user API key
+  -> normalize model name and alias
+  -> resolve route or scoped provider
+  -> enforce route permissions, rate limits, and quota admission
+  -> select route member and credential
+  -> transform protocol if inbound and upstream wire kinds differ
+  -> apply provider rule sets
+  -> prepare upstream request in channel
+  -> send request through native or fetch client
+  -> classify provider response
+  -> fail over or settle usage
+  -> shape response and transform back if needed
+  -> log request, usage, quota deltas, and health state
+```
 
-| Worker | Purpose |
+`pipeline::execute` is the central orchestrator. It delegates to focused modules
+for classification, auth, preprocessing, route resolution, authorization,
+balance, transform, failover, and settlement.
+
+## Operation-First Protocol Model
+
+v2 avoids provider-family buckets as the primary documentation and code model.
+The central concepts are:
+
+| Type | Purpose |
 | --- | --- |
-| `UsageSink` | Drains usage messages and writes them to storage in batches. |
-| `HealthBroadcaster` | Debounces per-credential health state changes. |
-| `QuotaReconciler` | Periodically reconciles users' `cost_used` against recorded usage. |
-| `RateLimitGC` | Garbage-collects expired rate-limit counters. |
+| `OperationGroup` | Broad capability: models, count tokens, generate content, images, embeddings, compact, conversation. |
+| `Operation` | Concrete action such as `ListModels`, `GenerateContent`, `CreateEmbedding`, `CompactContent`. |
+| `OperationKind` | Provider wire shape for the operation, such as OpenAI Responses or Claude Messages. |
+| `OperationKey` | `(operation, kind)`, used by routing rules and transforms. |
 
-All of them participate in graceful shutdown — see
-[Graceful Shutdown](/reference/graceful-shutdown/).
+This is why content generation has more than one OpenAI kind: OpenAI Responses
+and Chat Completions are different native wire shapes, not just labels.
 
-## Storage
+## Transform, Process, Channel
 
-`gproxy-storage` is built on **SeaORM + SQLx** and supports **SQLite**,
-**PostgreSQL**, and **MySQL**. When `DATABASE_SECRET_KEY` is set, credential
-material (provider credentials, user passwords, API keys) is encrypted at
-rest with **XChaCha20-Poly1305**.
+Three layers are intentionally separate:
 
-The embedded console, the admin HTTP API, and the TOML seed config all write
-into the same schema — the TOML file is only consulted on first-time
-initialization when the database is empty. See
-[TOML Config](/reference/toml-config/) for how the seed is loaded.
+- **Transform** changes protocol shape by operation. It converts between OpenAI,
+  Claude, and Gemini wire models when route execution requires it.
+- **Process** applies configured request mutation rules after transform and
+  before the upstream channel sees the request. The engine should remain
+  permissive; provider-specific presets belong in configuration and the console
+  unless the runtime truly needs a new primitive.
+- **Channel** owns upstream access: endpoint, auth, request preparation, response
+  disposition, optional stream decode, OAuth refresh, usage endpoints, and
+  native TLS/HTTP2 profiles.
 
-## SDK boundary
+## AppState And Snapshots
 
-The `sdk/` crates intentionally have no dependency on the database, the HTTP
-server, or Axum. That separation is what lets you take `gproxy-sdk` and embed
-the provider engine into an entirely different application. See the
-[Rust SDK](/reference/sdk/) reference for details.
+Each request receives a cheap clone of `AppState`. The hot path reads an
+`ArcSwap<ControlPlaneSnapshot>` containing provider, route, rule, and identity
+records. Control-plane writes update persistence, rebuild the local snapshot,
+and publish invalidation through the cache backend where the backend supports it.
+
+Native instances can use memory or Redis cache plus file/db persistence. Edge
+instances use fetch-compatible clients and platform-friendly persistence/cache
+backends such as libSQL/Turso and REST-style shared stores.
+
+## Runtime Boundaries
+
+| Runtime | Boundary |
+| --- | --- |
+| Native | CLI/env config, Axum server, embedded console assets, native wreq client pool, optional self-update. |
+| Edge | wasm entry, fetch adapter, platform-provided environment, no embedded console binary assets by default. |
+| Console | React SPA in `console/`; build output is synced to `assets/console/` for native embedding. |
+| Documentation | Starlight site in `docs/`; development/reference source notes live in `dev-docs/`. |
+
+## Where To Go Next
+
+- Configure upstreams in [Providers & Channels](/guides/providers/).
+- Understand model-facing routing in [Models & Aliases](/guides/models/).
+- Deploy native and edge builds in [Release Build](/deployment/release-build/) and
+  [Edge Wasm](/deployment/edge/).

@@ -1,0 +1,68 @@
+{
+  "app": {
+    "name": "GPROXY"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "providers": "Providers",
+    "routes": "Load Balancing",
+    "orgs": "Organizations",
+    "users": "Users",
+    "usage": "Statistics",
+    "rules": "Rules",
+    "settings": "Settings",
+    "title": "Navigation",
+    "openMenu": "Open menu",
+    "myAccount": "My Account",
+    "adminConsole": "Admin Console",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "update": "Updates"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "deleted": "Deleted",
+    "edit": "Edit",
+    "close": "Close",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "login": {
+    "title": "Sign in to GPROXY",
+    "subtitle": "Admin console",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in",
+    "required": "Required",
+    "failed": "Invalid username or password",
+    "throttled": "Too many attempts. Retry in {{seconds}}s."
+  },
+  "user": {
+    "signedInAs": "Signed in as",
+    "logout": "Sign out",
+    "menu": "Account",
+    "logoutFailed": "Sign out failed — please retry"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "lang": {
+    "label": "Language"
+  },
+  "errors": {
+    "network": "Network error — is the server reachable?",
+    "internal": "Server error"
+  },
+  "dashboard": {
+    "placeholder": "Dashboard coming in F4."
+  },
+  "json": {
+    "invalid": "Invalid JSON",
+    "format": "Format"
+  }
+}

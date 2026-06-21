@@ -1,95 +1,74 @@
 ---
-title: 供应商与通道
-description: GPROXY 中供应商、通道与凭证的组织方式。
+title: Provider 与 Channel
+description: 在 GPROXY v2 中配置上游 Provider、凭据、Operation 路由能力、代理、TLS 指纹和 scoped 访问。
 ---
 
-GPROXY 里的**供应商 (provider)** 是一个具名的上游 LLM 端点。每个供应商绑定
-恰好一个**通道 (channel)** —— 也就是负责说上游协议的那段代码 —— 并挂载
-一到多个**凭证 (credential)**。
+**Provider** 是一个命名的上游端点。它把稳定名称绑定到 channel 适配器、设置、凭据池、模型目录、路由规则和可选的请求处理规则集。
 
 ```text
-Provider  ──(channel)──►  上游协议实现
-   │
-   ├── settings     (base_url、超时等)
-   └── credentials  (API key、OAuth、service account…)
+Provider
+|-- channel                 openai、claudeapi、aistudio、codex 等
+|-- settings_json           base_url 和 channel 专用开关
+|-- credentials             密封后的 API key、OAuth token、service account
+|-- provider_models         本地模型目录和价格
+|-- routing_rules           Operation + OperationKind 分发表
+`-- provider_rule_sets      绑定到该 provider 的请求改写规则集
 ```
 
-## 内置通道
+热路径从 `ControlPlaneSnapshot` 读取 provider。管理端修改会先写入持久化层，然后重建 snapshot 并广播失效；下一次请求即可看到新的控制面配置，不需要重启。
 
-`gproxy-channel` crate 中内置了以下通道。同名的 feature flag
-(详见 [Rust SDK](/zh-cn/reference/sdk/)) 可用来只编译你需要的那部分。
+## 内置 Channel
 
-| 通道 | 典型上游 | 备注 |
+native 和 edge runtime 构建同一套 channel registry。当前内置 channel id 包括：
+
+| Channel id | 常见用途 |
+| --- | --- |
+| `openai`, `custom` | OpenAI API 或 OpenAI-compatible gateway。 |
+| `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
+| `claudeapi` | Anthropic Claude Messages API。 |
+| `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游。 |
+| `codex`, `claudecode`, `geminicli`, `antigravity`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
+
+每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
+
+## Provider 字段
+
+| 字段 | 含义 |
+| --- | --- |
+| `name` | 唯一 provider 名称；scoped 路由会在 URL 中使用它。 |
+| `channel` | Channel registry id，例如 `openai` 或 `claudeapi`。 |
+| `settings_json` | 自由 JSON 设置，常见字段包括 `base_url` 和 channel 开关。 |
+| `credential_strategy` | 凭据池策略，目前是 `round_robin` 或 `sticky`。 |
+| `proxy_url` | native 出站代理；edge 会忽略 native 代理设置。 |
+| `tls_fingerprint` | provider 级 TLS/HTTP2 模拟配置；credential 可以覆盖。 |
+| `enabled` | 禁用后不会参与路由。 |
+
+Credential 行属于 provider。它包含 `kind`、密封后的 `secret_json`、`weight`、可选 `rpm_limit` / `tpm_limit`、可选代理和 TLS 覆盖，以及 `enabled`。密钥在 debug 输出中会被遮蔽，配置 master key 时会密封存储。
+
+## Aggregated 与 Scoped 访问
+
+GPROXY v2 支持两种访问上游的方式：
+
+| 模式 | URL 形状 | 解析方式 |
 | --- | --- | --- |
-| `openai` | api.openai.com、任意 OpenAI 兼容网关 | 若需要更自由地替换 base URL，可使用 `custom`。 |
-| `anthropic` | api.anthropic.com | Claude Messages API。 |
-| `aistudio` | Google AI Studio | `generativelanguage.googleapis.com`。 |
-| `vertex` | Google Vertex AI | 通过 GCP service account 鉴权。 |
-| `vertexexpress` | Vertex AI Express 模式 | 通过 API key 使用 Gemini 的简化方式。 |
-| `geminicli` | 本地 Gemini CLI 工具 | 开发/桥接使用。 |
-| `claudecode` | Anthropic Claude Code | 开发工具通道。 |
-| `codex` | Codex 系列端点 | |
-| `antigravity` | Antigravity agent runtime | |
-| `deepseek` | api.deepseek.com | OpenAI 兼容的 DeepSeek。 |
-| `groq` | api.groq.com | |
-| `openrouter` | openrouter.ai | |
-| `vercel` | Vercel AI Gateway | 支持 OpenAI Responses / Chat Completions / Models / Embeddings 以及 Anthropic Messages。 |
-| `kiro` | Kiro IDE 的 Amazon Q Runtime | 标准 chat 与 streaming 入口在 channel 内转换到 Kiro `generateAssistantResponse`；模型列表和 quota 走 Kiro REST 端点；token 计数走本地。 |
-| `nvidia` | NVIDIA NIM 端点 | |
-| `custom` | 任意 OpenAI 兼容上游 | 自建或第三方网关常用。 |
+| Aggregated | `/v1/*`, `/v1beta/*` | 请求中的 `model` 通过 alias / route 表解析，再选择 route member 和 credential。 |
+| Scoped | `/{provider}/v1/*`, `/{provider}/v1beta/*` | provider 名称来自路径；model 直接发往该 provider。 |
 
-## 定义供应商
+解析完成后，两种模式都进入同一套 classify、auth、transform、process、channel、settle 流程。Aggregated 是常规多上游网关模式；scoped 适合调试或临时暴露单个 provider。
 
-在种子 TOML 中：
+## Routing Rules
 
-```toml
-[[providers]]
-name = "openai-main"
-channel = "openai"
-settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-upstream-1" },
-  { api_key = "sk-upstream-2" }
-]
-```
+Routing rule 是 provider 级配置。每一行包含：
 
-或者在运行时，通过内嵌控制台的*供应商*标签页管理。`settings` 和每个
-`credentials[i]` 都是自由形态的 JSON blob —— 具体 schema 取决于对应通道
-(`OpenAiSettings`、`AnthropicCredential` 等)，控制台会为它们渲染结构化编辑器。
+- `operation`：例如 `generate_content`、`stream_generate_content`、`count_tokens`、`create_embedding`。
+- `kind`：内容生成 wire kind，包括 `open_ai_responses`、`open_ai_chat_completions`、`claude_messages`、`gemini_generate_content`，或 provider kind `open_ai`、`claude`、`gemini`。
+- `implementation`：`passthrough`、`transform_to`、`local` 或 `unsupported`。
+- `transform_to` 可带 `dest_operation` 和 `dest_kind`。
 
-## 凭证与健康状态
+没有匹配 routing rule 就是 `unsupported`。默认规则在创建 provider 时写入存储，console 可以从 channel 默认能力重置。
 
-当一个供应商挂着多张凭证时，GPROXY 会把它们当作一个轮转池。
-`GproxyEngine` 每次选一个凭证发起上游调用，失败时更新**每个凭证独立的健康状态**
-(限流的 key 进入冷却，失效的 key 被禁用等等)。`HealthBroadcaster` worker 会对这些
-变化做 debounce，避免一次错误风暴冲击数据库。
+## Provider Rule Sets
 
-可通过控制台或 `/admin/health` 端点查看当前状态。
+可复用 rule set 通过 `provider_rule_sets` 绑定到 provider。绑定后的规则在 snapshot 重建时按顺序展开并编译，然后在协议 transform 之后、channel prepare 之前执行。当前的 system text、cache breakpoint、字段 rewrite、sanitize、header 都在这里运行。
 
-## 两种路由模式
-
-同一个 GPROXY 实例里，每个供应商都可以通过两种方式访问：
-
-| 模式 | URL 形式 | 供应商从哪来 |
-| --- | --- | --- |
-| **聚合 (Aggregated)** | `/v1/...`、`/v1beta/...` | 来自 `model` 字段里的 `provider/model` 前缀（或命中别名）。 |
-| **限定作用域 (Scoped)** | `/{provider}/v1/...` | 来自 URL 路径；`model` 字段里只放上游原始 id。 |
-
-两种模式都覆盖全部协议（OpenAI / Claude / Gemini），都经过同一条
-`permission → rewrite → alias → execute` 管道。按你的客户端挑一种即可 ——
-具体的 curl 示例见 [发送第一个请求](/zh-cn/getting-started/first-request/)。
-
-## 同协议透传
-
-如果客户端和选中的上游使用**相同**协议 (比如一个 OpenAI 兼容的客户端打到
-一个 OpenAI 供应商)，GPROXY 会以**最小解析**的方式转发请求 —— 鉴权、模型解析、
-用量记账和限流照常生效，但请求 body 不做反序列化。这是热路径，也是 GPROXY
-吞吐量的主要来源。
-
-当协议不同时，`gproxy-protocol::transform` 层在入向转换请求形状，
-出向再把响应转换回来。
-
-## 延伸阅读
-
-- [模型与别名](/zh-cn/guides/models/) —— 一个 `(provider, model)` 对是如何被命名和路由的。
-- [TOML 配置参考](/zh-cn/reference/toml-config/) —— 种子文件支持的全部字段。
+当前后端保持宽松：无效规则会 warn 并跳过；provider 专用策略优先放在 console/config preset 中，除非 runtime 确实需要新的 primitive。

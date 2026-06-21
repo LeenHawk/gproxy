@@ -1,105 +1,101 @@
 ---
-title: Models & Aliases
-description: How GPROXY resolves a model name end-to-end, including aliases, rewrite rules, and local model-list routing.
+title: Models, Routes, and Aliases
+description: Explain how v2 resolves client model names through aliases, routes, provider models, route members, variants, and pricing.
 ---
 
-Every request to GPROXY carries a model name. The route it takes from that
-string to an actual upstream call is **one canonical pipeline**:
+In v2, a client model name is not necessarily an upstream model id. Aggregated
+traffic resolves the request `model` through aliases and routes before a
+provider credential is selected.
 
 ```text
-permission  →  rewrite  →  alias  →  execute
+request model
+  -> alias_to_route
+  -> route
+  -> route_member
+  -> provider + upstream_model_id
+  -> provider credential
 ```
 
-Each stage either passes the request through unchanged or rewrites the
-target `(provider, model_id)` before handing it to the next stage. All four
-stages run inside the handler layer — the SDK `GproxyEngine::execute` step
-only does the final upstream call.
+Scoped provider traffic skips the route lookup because the provider comes from
+the URL, but it still uses the provider model catalogue for model listing,
+variant stripping, pricing, and visibility.
 
-## The unified `models` table
+## Provider Models
 
-Since v1.0.5, real models and aliases live in the same `models` table. The
-distinction is a single column:
+`provider_models` is the local catalogue for a provider. Each row has:
 
-- `alias_of = NULL` — a real model entry. It has a provider, a model id,
-  and optionally pricing metadata.
-- `alias_of = Some(id)` — an alias pointing at another row's id in the
-  same table.
+| Field | Meaning |
+| --- | --- |
+| `provider_id` | Owning provider. |
+| `model_id` | Upstream model id. |
+| `display_name` | Optional friendly name. |
+| `pricing_json` | Optional price table for usage settlement. |
+| `variants_json` | Optional suffix-variant exposure config. |
+| `enabled` | Disabled models are not exposed. |
 
-This table is what the admin API and the console read from and write to.
-The engine rebuilds its in-memory alias lookup (`HashMap<String,
-ModelAliasTarget>`) from this table at startup and on reload.
+The console can pull a live upstream model list with
+`/admin/providers/{provider_id}/upstream-models`. Pulling models is an admin
+operation; it calls the provider or returns bundled models if the channel ships
+a static catalogue.
 
-## Defining aliases
+## Routes and Members
 
-In the seed TOML:
+A route is the exposed model name for aggregated mode. A route can have one or
+more members:
 
-```toml
-[[model_aliases]]
-alias = "chat-default"
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-enabled = true
-```
+| Record | Key fields |
+| --- | --- |
+| `routes` | `name`, `strategy`, `enabled`, optional `settings_json`. |
+| `route_members` | `provider_id`, `upstream_model_id`, `tier`, `weight`, `enabled`. |
+| `aliases` | `alias` -> `route_id`. |
 
-At runtime, use the *Models* tab in the provider workspace of the embedded
-console. Seed-time `[[model_aliases]]` rows are imported into the unified
-`models` table on startup.
+Members are pre-sorted by `tier` ascending and `weight` descending in the
+snapshot. The balance layer then applies the route strategy and provider
+credential strategy.
 
-## Alias resolution at request time
+Aliases are many-to-one. If `chat-default` points to route `main-chat`, a
+request with `"model": "chat-default"` resolves to `main-chat` before balance.
+Permissions are checked against the exposed route or provider name, not hidden
+credential material.
 
-When a client sends `"model": "chat-default"`, the pipeline:
+## Model Listing
 
-1. **Permission check** — does the user have a permission row whose
-   `model_pattern` matches the alias name?
-2. **Rewrite rules** — channel-level rewrite rules can rewrite the alias to
-   a different string before alias lookup.
-3. **Alias resolution** — the alias is looked up in the unified `models`
-   table and resolved to a concrete `(provider, model_id)` pair.
-4. **Execute** — the engine prepares and issues the upstream request using
-   the resolved pair.
+Model-list endpoints are classified as the `Models` operation group. The inbound
+wire kind is inferred from the endpoint and credential style:
 
-Non-stream responses have their `"model"` field rewritten back to the alias
-the client sent. Streaming chunks are rewritten per chunk in the engine.
-From the client's perspective, the alias is a real model — it just happens
-to price and route to something else.
+- OpenAI and Claude share `/v1/models`; Claude callers are detected by
+  `x-api-key`, OpenAI callers by `Authorization`.
+- Gemini uses `/v1beta/models`.
+- `GET /v1/models/{id}` and `GET /v1beta/models/{id}` classify as `get_model`.
 
-## Pulling upstream models
+Routing rules decide whether a provider handles the operation as `local`,
+`passthrough`, `transform_to`, or `unsupported`. Local model listing is served
+from the snapshot and filtered by the authenticated user's permissions.
 
-The console's *Models* tab has a **Pull Models** button, which calls
-`POST /admin/models/pull`. That endpoint fetches the upstream's real
-`model_list` for a provider and returns the ids. The console imports them
-into the local `models` table as real entries (`alias_of = NULL`) with no
-pricing, which an admin can then edit.
+## Variants
 
-This gives you the "seed from upstream, customize locally" workflow without
-having to hand-edit TOML.
+`variants_json` lets one provider model expose suffix variants. The snapshot
+build compiles enabled provider models into:
 
-## `model_list` / `model_get` routing
+- an exposed model list for model-list responses;
+- a variant-to-base map so request-side suffixes can be stripped before the
+  upstream call.
 
-How the model-list endpoints behave depends on the routing template
-configured for the route:
+Use variants for provider-supported model suffixes that should be visible to
+clients without duplicating a full model row for every exposed id.
 
-- **`*-only` presets** (`chat-completions-only`, `response-only`,
-  `claude-only`, `gemini-only`) default `model_list` and `model_get` to the
-  **Local** implementation. Requests are answered entirely from the local
-  `models` table and never hit upstream.
-- **`*-like` / pass-through presets** still call upstream for `model_list`,
-  but GPROXY **merges** the upstream response with the local `models`
-  table: real local models that aren't in the upstream response are
-  appended, and aliases mirror their target entry. `model_get` checks the
-  local table first and falls through to upstream only on miss.
+## Pricing
 
-`GproxyEngine::is_local_dispatch(...)` lets handlers decide this before
-calling `engine.execute`.
+Pricing is stored on `provider_models.pricing_json`, not in a separate table.
+The settlement path reads:
 
-## Pricing and aliases
+- `input`
+- `output`
+- `cache_read`
+- `cache_creation`
+- `image`
 
-Billing tries to price a request against the **alias name** first and falls
-back to the resolved real model name if no alias-level pricing exists.
-This means admins can set different prices for the same real model under
-different aliases — for example, to mark up a `premium-gpt4` alias while
-keeping `chat-default` at cost.
-
-See [Pricing & Tool Billing](/reference/pricing/) for the full
-`ModelPrice` shape, billing mode selection, and how tool call counts are
-charged per actual invocation.
+Token rates are per million tokens. Image price can be a flat per-image value
+or a tiered object keyed by `"{size}/{quality}"`, `"{size}"`, or `"default"`.
+Missing or malformed price fields default to zero: usage is still recorded, but
+the call bills nothing.

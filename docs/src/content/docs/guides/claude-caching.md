@@ -1,231 +1,88 @@
 ---
 title: Claude Prompt Caching
-description: How the anthropic and claudecode channels interact with Anthropic prompt caching, including cache breakpoint rules and magic-string triggers.
+description: Configure Claude cache breakpoints and beta headers with v2 provider rule sets.
 ---
 
-Anthropic's **prompt caching** lets you reuse the KV cache for the static
-parts of a request (tool list, system prompt, long context) across calls
-— paying a discounted "cache read" token rate instead of re-processing
-the prefix every time. See Anthropic's guide:
-[Prompt caching — platform.claude.com](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+Claude prompt caching is represented in v2 as request processing on
+provider-native Claude Messages bodies. The current runtime supports
+`cache_breakpoint` rules and channel request shaping for Claude-compatible
+traffic.
 
-The high-level rules from Anthropic that GPROXY plays inside of:
+Cache rules run after protocol transform. A Gemini or OpenAI client routed to a
+Claude target can still receive Claude cache markers because the body has
+already been transformed to `claude_messages`.
 
-- A request can mark up to **4 cache breakpoints** using
-  `cache_control: { type: "ephemeral" }` on a content block.
-- Breakpoints are **positional**: everything *before* the breakpoint in
-  the canonical request order is what gets cached, keyed on content
-  equality.
-- Cache entries are **ephemeral** with two TTLs — **5 minutes** (default)
-  or **1 hour** (requires the `extended-cache-ttl-2025-04-11` beta
-  header).
-- The cache is scoped to the model + beta header set + tool definitions
-  + system content, so anything that changes earlier in the request
-  invalidates everything after it.
+## Cache Breakpoint Rule
 
-GPROXY's `anthropic` and `claudecode` channels both add two
-server-side ways to inject those breakpoints so that clients which don't
-know about caching can still benefit:
+A `cache_breakpoint` rule config looks like:
 
-1. **Cache breakpoint rules** (`settings.cache_breakpoints`) — a list of
-   positional rules applied on the server.
-2. **Magic-string triggers** (`settings.enable_magic_cache`) — the
-   client embeds a sentinel token in its text, and the server rewrites
-   it into a `cache_control` block.
-
-Both features touch the request body inside `finalize_request(...)`
-(after protocol transform, before credential selection), so they apply
-uniformly regardless of whether the client originally spoke Claude,
-OpenAI, or Gemini — as long as the resolved upstream is an Anthropic
-channel.
-
-Implementation: [`sdk/gproxy-channel/src/utils/claude_cache_control.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/claude_cache_control.rs).
-
-## Cache breakpoint rules
-
-A rule declares *where* to place a `cache_control` marker and *which*
-TTL to use. Each provider entry can carry up to **4 rules** — matching
-Anthropic's 4-breakpoint limit.
-
-```jsonc
+```json
 {
-  "cache_breakpoints": [
-    { "target": "tools",    "position": "last_nth", "index": 1, "ttl": "auto" },
-    { "target": "system",   "position": "last_nth", "index": 1, "ttl": "auto" },
-    { "target": "messages", "position": "last_nth", "index": 1, "ttl": "5m"   },
-    { "target": "messages", "position": "last_nth", "index": 3, "ttl": "5m"   }
-  ]
+  "target": "system",
+  "index": 1,
+  "ttl": "5m"
 }
 ```
 
-### Fields
+Supported fields:
 
-| Field | Values | Meaning |
-| --- | --- | --- |
-| `target` | `top_level` (alias `global`) \| `tools` \| `system` \| `messages` | Which section of the Claude request body to place the breakpoint in. |
-| `position` | `nth` (default) \| `last_nth` / `last` / `from_end` | Count from the start or the end of that section. |
-| `index` | positive integer, default `1` | 1-based index. `1` + `last_nth` = the last block. |
-| `ttl` | `auto` (default) \| `5m` \| `1h` | Cache TTL. `auto` leaves the ttl off and uses Anthropic's default (5 m). `1h` requires the `extended-cache-ttl-2025-04-11` beta (see below). |
-
-### Targets
-
-- **`tools`** — places the breakpoint inside the `tools` array. Useful
-  when your tool list is large and stable across turns.
-- **`system`** — places the breakpoint inside the `system` content
-  array. Useful for long system prompts.
-- **`messages`** — places the breakpoint on a specific content block of
-  the `messages` array. Useful for long pinned context at the start of
-  the conversation.
-- **`top_level`** / **`global`** — a target for future top-level caching
-  hooks; rules with this target are parsed and kept but currently place
-  the marker inside the request top level.
-
-### Positional semantics
-
-`position: "nth"` counts from the front; `position: "last_nth"` counts
-from the back. Both use 1-based indexing:
-
-- `{ target: "messages", position: "nth", index: 1 }` — first message.
-- `{ target: "messages", position: "last_nth", index: 1 }` — last message.
-- `{ target: "messages", position: "last_nth", index: 3 }` — third from last.
-
-If the index is out of range for the section, that rule is silently
-dropped — GPROXY never inserts a dangling `cache_control`.
-
-### How it composes with client-supplied breakpoints
-
-If a client has already set `cache_control` on some blocks, GPROXY
-counts them and **only fills the remaining slots** (up to 4 total).
-Nothing the client set is overwritten. The canonicalization step
-also normalizes string-valued `system` and `content` fields into the
-equivalent array-of-blocks shape so the rules have something concrete
-to attach to.
-
-## Magic-string triggers
-
-Sometimes you can't configure the server and have to embed caching
-intent inside the prompt text itself. `settings.enable_magic_cache = true`
-opts into that mode: the client writes a well-known sentinel string at
-the end of a text block, and GPROXY rewrites that block to carry
-`cache_control: { type: "ephemeral", ttl: "..." }` and removes the
-sentinel.
-
-Three sentinels are recognized (constants defined in
-`claude_cache_control.rs`):
-
-| Sentinel | TTL written |
+| Field | Meaning |
 | --- | --- |
-| `GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH` | `auto` (default) |
-| `GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF` | `5m` |
-| `GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C95CX984FRJY` | `1h` |
+| `target` | `system`, `tools`, or `last_message`. |
+| `index` | Console-facing signed index: `>0` means Nth from the start, `<0` means Nth from the end, and `0` is invalid. If omitted, the runtime uses the last block. |
+| `ttl` | Optional TTL string such as `5m` or `1h`. |
+| `position` | Reserved for compatibility; currently unused. |
 
-Same 4-breakpoint cap applies — the server counts how many
-`cache_control` markers already exist on the request and only fills
-remaining slots.
+The rule only applies when the target operation kind is `claude_messages`.
+Non-Claude targets warn and skip.
 
-The intended use is for tools that can render a dynamic prompt but
-can't configure the server: a client library that knows the sentinel
-can inject it programmatically, GPROXY strips it out before forwarding,
-and upstream sees a normal request with a `cache_control` block in
-exactly the right place.
+## Targets
 
-## `auto` vs. explicit TTL
+| Target | Where the marker is inserted |
+| --- | --- |
+| `system` | An item in a Claude `system` array. A string-form `system` cannot carry block metadata and is skipped. |
+| `tools` | An item in the top-level `tools` array. |
+| `last_message` | A content block in the last message's `content` array. |
 
-- **`auto`** — GPROXY writes `{ "type": "ephemeral" }` with no TTL
-  field. Anthropic defaults to the **5-minute** cache in this case.
-  This is the safest choice and does not require any beta header.
-- **`5m`** / **`1h`** — GPROXY writes the explicit TTL. For `1h`,
-  Anthropic requires the `extended-cache-ttl-2025-04-11` beta header
-  on the request. If you use any `ttl: "1h"` rule, make sure that beta
-  is on — either by having the client set it, or by listing it in
-  `settings.extra_beta_headers` so GPROXY merges it into every
-  request automatically.
+The runtime writes:
 
-## Practical recipes
+```json
+{ "cache_control": { "type": "ephemeral" } }
+```
 
-### Cache a long system prompt and the tool list
+If `ttl` is set, it is added to that object.
 
-```jsonc
+## Beta Headers
+
+Anthropic's one-hour cache TTL requires a beta header. In v2, add that with a
+`header` rule attached to the same provider:
+
+```json
 {
-  "cache_breakpoints": [
-    { "target": "tools",  "position": "last_nth", "index": 1, "ttl": "auto" },
-    { "target": "system", "position": "last_nth", "index": 1, "ttl": "auto" }
-  ]
+  "name": "anthropic-beta",
+  "value": "extended-cache-ttl-2025-04-11",
+  "mode": "merge"
 }
 ```
 
-Use this when every request carries the same tool definitions and
-the same system prompt — which is typical for agent loops.
+Use `merge` so existing client beta tokens are preserved.
 
-### Cache long pinned context at the top of the conversation
+## Rule Ordering
 
-```jsonc
-{
-  "cache_breakpoints": [
-    { "target": "messages", "position": "nth", "index": 1, "ttl": "5m" }
-  ]
-}
+The process layer applies:
+
+```text
+system_text -> cache_breakpoint -> rewrite -> sanitize -> header
 ```
 
-The first user message (often a big pasted document or a pinned
-context window) becomes the cache prefix. Subsequent turns only pay
-the cache-read rate for it.
+That means server-managed system text is inserted before cache breakpoints are
+placed. Later rewrite or sanitize rules can still change cached content, so be
+careful when combining prompt rewriting with prompt caching.
 
-### Cache both the "warm prefix" and the "last-but-one" message
+## Design Direction
 
-```jsonc
-{
-  "cache_breakpoints": [
-    { "target": "tools",    "position": "last_nth", "index": 1, "ttl": "auto" },
-    { "target": "system",   "position": "last_nth", "index": 1, "ttl": "auto" },
-    { "target": "messages", "position": "nth",      "index": 1, "ttl": "5m"   },
-    { "target": "messages", "position": "last_nth", "index": 2, "ttl": "5m"   }
-  ]
-}
-```
-
-This uses all four breakpoints. Tool list + system prompt are the
-"warm prefix" across every call; the first message is long pinned
-context; the second-to-last message is a recent stable turn you
-expect to replay in tight loops.
-
-### Opt into 1-hour TTL without the client knowing
-
-```jsonc
-{
-  "cache_breakpoints": [
-    { "target": "system", "position": "last_nth", "index": 1, "ttl": "1h" }
-  ],
-  "extra_beta_headers": [
-    "extended-cache-ttl-2025-04-11"
-  ]
-}
-```
-
-`extra_beta_headers` is merged into every upstream request, so the
-client doesn't need to know about the beta — GPROXY adds it before
-sending.
-
-## What to watch out for
-
-- **4 breakpoint limit is hard.** Client-supplied `cache_control`
-  blocks count against the 4, so if your client already marks
-  breakpoints, your rules may have fewer slots than they appear.
-- **Cache key sensitivity.** Anthropic keys the cache on the exact
-  content of the prefix. If you also apply a
-  [rewrite rule](/guides/rewrite-rules/) that mutates text inside the
-  cached portion, you'll evict the cache every call. Put rewrites on
-  fields the cache prefix doesn't touch, or place breakpoints *after*
-  the rewritten content.
-- **Claude-compatible channels.** `anthropic`, `claudecode`, and
-  Vercel's Claude-shaped requests implement the same cache controls.
-  `claudecode` additionally supports a `prelude_text` setting that
-  injects an organization-wide system block. If you use both a prelude
-  and a `system` breakpoint, the breakpoint still lands at the correct
-  position after the prelude is inserted — it's evaluated on the final
-  canonical body.
-- **Minimum cacheable size.** Anthropic enforces a minimum prefix
-  length for caching; very short prompts won't actually be cached
-  even if a breakpoint is present. Check Anthropic's
-  [prompt caching docs](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
-  for the current threshold.
+The current `cache_breakpoint` kind is specialized. The planned generic
+transform model would express it as a structural locator plus a merge action,
+with provider-specific path selection generated by console presets. The backend
+should remain permissive: it should apply the configured mutation and let the
+upstream enforce provider policy such as breakpoint limits.

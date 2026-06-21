@@ -1,0 +1,115 @@
+{
+  "dashboard": {
+    "title": "儀表板",
+    "subtitle": "用量概覽與系統健康",
+    "range": {
+      "label": "時間範圍",
+      "7d": "近 7 天",
+      "30d": "近 30 天",
+      "24h": "近 24 小時",
+      "1h": "近 1 小時"
+    }
+  },
+  "usage": {
+    "title": "用量",
+    "explorer": "用量明細",
+    "filters": {
+      "title": "篩選",
+      "from": "開始時間",
+      "to": "結束時間",
+      "provider": "供應商",
+      "user": "使用者",
+      "route": "路由",
+      "model": "模型",
+      "reset": "重設篩選"
+    },
+    "columns": {
+      "at": "時間",
+      "operation": "操作",
+      "kind": "類型",
+      "model": "模型",
+      "provider": "供應商",
+      "route": "路由",
+      "inputTokens": "輸入 tokens",
+      "outputTokens": "輸出 tokens",
+      "cost": "費用",
+      "latency": "延遲",
+      "source": "來源",
+      "ended": "結束狀態"
+    },
+    "loadMore": "載入更多",
+    "empty": "目前篩選條件下尚無用量記錄。",
+    "presets": {
+      "all": "全部",
+      "1h": "1 小時",
+      "24h": "24 小時",
+      "7d": "7 天"
+    },
+    "tab": {
+      "usage": "用量",
+      "audit": "稽核",
+      "logs": "日誌"
+    }
+  },
+  "logs": {
+    "title": "請求詳情",
+    "downstream": "下行請求",
+    "upstream": "上行請求",
+    "empty": "未找到日誌記錄。",
+    "notCaptured": "日誌未捕獲——請求或回應日誌可能未啟用。",
+    "headers": "請求標頭",
+    "body": "正文",
+    "responseBody": "回應正文",
+    "attempt": "第 {{n}} 次"
+  },
+  "audit": {
+    "title": "稽核日誌",
+    "columns": {
+      "at": "時間",
+      "actor": "操作者",
+      "action": "操作",
+      "target": "目標",
+      "status": "狀態",
+      "sourceIp": "來源 IP"
+    },
+    "limit": {
+      "100": "100",
+      "500": "500",
+      "1000": "1000",
+      "label": "筆數"
+    },
+    "empty": "尚無稽核記錄。"
+  },
+  "health": {
+    "loadError": "載入健康狀態失敗",
+    "title": "憑證健康",
+    "allHealthy": "所有憑證狀態正常",
+    "noEvents": "暫無健康事件",
+    "breaker": "熔斷器開啟",
+    "recovered": "已恢復",
+    "rate_limited": "被限速",
+    "auth_dead": "驗證失效",
+    "unknown": "未知",
+    "checkedAt": "檢查於 {{time}}",
+    "lastError": "最近錯誤"
+  },
+  "chart": {
+    "metric": {
+      "requests": "請求數",
+      "input_tokens": "輸入 tokens",
+      "output_tokens": "輸出 tokens",
+      "cost": "費用（$）"
+    },
+    "noData": "所選時間範圍內尚無資料。"
+  },
+  "statistics": "統計",
+  "logsList": {
+    "empty": "暫無請求日誌——在設定裡開啟上行/下行日誌。",
+    "columns": {
+      "at": "時間",
+      "method": "方法",
+      "path": "路徑",
+      "status": "狀態"
+    }
+  }
+}

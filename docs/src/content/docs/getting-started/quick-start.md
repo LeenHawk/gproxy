@@ -1,157 +1,135 @@
 ---
 title: Quick Start
-description: Boot a working GPROXY instance with one provider, one user, and one API key in five minutes.
+description: Start GPROXY v2 locally, seed a small config bundle, open Console, and make the first request.
 ---
 
-This page gets you from zero to a running GPROXY with a real upstream, an
-admin account, and a user API key that can make requests.
+This guide starts a local native GPROXY v2 instance with an embedded console and
+a minimal import bundle. It uses the current v2 config model: runtime settings
+come from CLI flags or environment variables, while provider, route, user, key,
+and rule records live in persistence and can be imported as JSON.
 
-## 1. Write a seed TOML config
+## 1. Build Or Install
 
-The TOML file pointed to by `GPROXY_CONFIG` is only used the **first time**
-GPROXY starts — it seeds the database. After that, the database is the
-source of truth and you manage everything from the console or the admin API.
-
-Save this as `gproxy.toml` somewhere on disk. The snippet below creates one
-upstream provider, one real model, and an **admin** user with a wildcard
-permission — enough to log in and start issuing requests immediately.
-
-```toml
-[global]
-host = "127.0.0.1"
-port = 8787
-dsn = "sqlite://./data/gproxy.db?mode=rwc"
-data_dir = "./data"
-
-[[providers]]
-name = "openai-main"
-channel = "openai"
-settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-your-upstream-key" }
-]
-
-[[models]]
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-display_name = "GPT-4.1 mini"
-enabled = true
-price_each_call = 0.0
-
-# Admin account — used for the console and the /admin/* API.
-[[users]]
-name = "admin"
-password = "change-me"
-is_admin = true
-enabled = true
-
-[[users.keys]]
-api_key = "sk-admin-1"
-label = "default"
-enabled = true
-
-# Wildcard permission: admin can call every model on every provider.
-[[permissions]]
-user_name = "admin"
-model_pattern = "*"
-```
-
-:::tip
-If the seed already defines an `is_admin = true` user with at least one
-enabled key (like this one), the `GPROXY_ADMIN_*` bootstrap is **skipped**
-entirely. Define non-admin users later from the console.
-:::
-
-See the [TOML Config reference](/reference/toml-config/) for every field this
-file supports.
-
-## 2. Launch GPROXY
-
-You can point GPROXY at the seed TOML in three equivalent ways — pick one:
+Use a release binary, Docker image, or local source build. For a source build
+with the console embedded:
 
 ```bash
-# (a) environment variable
-GPROXY_CONFIG=./gproxy.toml ./gproxy
+cd console
+pnpm install --frozen-lockfile
+pnpm build
+cd ..
 
-# (b) command-line flag
-./gproxy --config ./gproxy.toml
-
-# (c) default discovery — no flag needed if the file is named
-# `gproxy.toml` and sits in the current working directory
-./gproxy
+cargo build --release --bin gproxy
 ```
 
-Every setting has both an env var and a `--flag`; the flag wins. Common
-ones:
+The binary is `target/release/gproxy`.
 
-| Flag | Env | Default |
-|------|-----|---------|
-| `--config` | `GPROXY_CONFIG` | `gproxy.toml` |
-| `--host` | `GPROXY_HOST` | `127.0.0.1` |
-| `--port` | `GPROXY_PORT` | `8787` |
-| `--dsn` | `GPROXY_DSN` | sqlite under `--data-dir` |
-| `--data-dir` | `GPROXY_DATA_DIR` | `./data` |
+## 2. Prepare A Dev Import Bundle
 
-Run `./gproxy --help` for the full list. See the
-[Environment Variables reference](/reference/environment-variables/)
-for the complete table.
+The docs site includes a development bundle at
+`docs/public/examples/import-dev.json`. Copy it outside the docs tree before
+putting real upstream keys in it:
 
-On the first run GPROXY will:
+```bash
+cp docs/public/examples/import-dev.json ./import-dev.local.json
+```
 
-1. Create `./data/gproxy.db` (SQLite) automatically.
-2. Import the seed TOML into the database.
-3. Start the HTTP server on `127.0.0.1:8787`.
+Edit the copied file and replace:
 
-Because the seed already defines an admin account, **you do not need**
-`GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` / `GPROXY_ADMIN_API_KEY`.
-They are only used when the seed has no admin.
+- `sk-REPLACE` with an OpenAI-compatible upstream key.
+- `sk-ant-REPLACE` with an Anthropic-compatible upstream key if you want to test
+  the Claude provider too.
 
-:::tip
-If you're running without a seed TOML, set those three environment
-variables (or pass `--admin-user` / `--admin-password` /
-`--admin-api-key`) so GPROXY can bootstrap an admin on first launch.
-When they are unset, GPROXY generates a password and API key and
-**logs them once** — copy them immediately.
+The example bundle creates:
+
+- org `default`;
+- admin user `dev`;
+- user API key `sk-dev-local`;
+- provider `openai-main`;
+- route `main`, pointing to upstream model `gpt-4.1-mini`;
+- a wildcard route permission for the default org.
+
+:::caution
+`import-dev.local.json` contains plaintext upstream credentials and user API
+keys. Keep it local and do not commit it.
 :::
 
-## 3. Open the console
+## 3. Start GPROXY
 
-Navigate to **<http://127.0.0.1:8787/console>**, log in as `admin` /
-`change-me`, and you should see:
+Start the native binary with a local data directory and ask the first-boot hook
+to import the bundle if the store is empty:
 
-- The `openai-main` provider you seeded.
-- `gpt-4.1-mini` listed under its models.
-- The `admin` user with key `sk-admin-1` and a wildcard permission.
+```bash
+GPROXY_DATA_DIR=./data \
+GPROXY_IMPORT_FILE=./import-dev.local.json \
+GPROXY_ADMIN_USER=dev \
+GPROXY_ADMIN_PASSWORD=change-me-please \
+./target/release/gproxy
+```
 
-From here, use the console's *Users* tab to create additional (non-admin)
-users and scope their model access — see
-[Users & API Keys](/guides/users-and-keys/) and
-[Permissions, Rate Limits & Quotas](/guides/permissions/).
+Useful defaults:
 
-## 4. Make your first request
+| Setting | Default |
+| --- | --- |
+| `GPROXY_HOST` | `127.0.0.1` |
+| `GPROXY_PORT` | `8787` |
+| `GPROXY_PERSISTENCE` | `db` |
+| `GPROXY_DATA_DIR` | `./data` |
+| `GPROXY_DSN` | `sqlite://<data_dir>/gproxy.db?mode=rwc` when unset |
 
-You're now ready to send a real request. The admin key works against the
-LLM routes just like any other user key.
+`GPROXY_IMPORT_FILE` imports only when providers and users are both empty. Once
+the store has data, the same env var is ignored.
 
-See [First Request](/getting-started/first-request/) for the full example,
-including how to use model aliases and how the Claude / Gemini compatible
-endpoints work.
+`GPROXY_ADMIN_USER=dev` makes the recovery override target the admin user from
+the import bundle. `GPROXY_ADMIN_PASSWORD` force-upserts that named admin user on
+every startup while it is set. Remove it after the first login if you do not
+want a host-level password reset path.
 
-## 5. Forced-thinking / effort variants via aliases
+For encrypted at-rest secrets, set `GPROXY_MASTER_KEY` to standard base64 for
+exactly 32 bytes. Without it, v2 runs in plaintext secret mode and logs a
+warning.
 
-GPROXY does not expose "force-thinking" as a server flag — instead, any
-model variant you want clients to call (e.g. a `gpt-5-thinking-high` that
-always forces high reasoning effort, or a `claude-thinking-low` that
-always enables 1024 thinking tokens) is created as an **alias with a
-suffix preset** in the console's *Models* tab.
+## 4. Open Console
 
-Each suffix preset attaches a small set of body-rewrite rules (for
-example, forcing `"thinking": { "type": "enabled", "budget_tokens":
-32768 }` on every Claude request, or pinning `"reasoning_effort":
-"high"` on every Chat Completions request). Clients call the alias name
-and the rewrite fires automatically before the request is dispatched
-upstream.
+Open <http://127.0.0.1:8787/console>.
 
-See [Models & Aliases](/guides/models/) for the full alias pipeline,
-and [Rewrite Rules](/guides/rewrite-rules/) for what the suffix presets
-emit under the hood.
+The development bundle's user is `dev`, and the command above forces its admin
+password to `change-me-please`. From Console you can review providers,
+credentials, routes, route members, route permissions, rate limits, quotas,
+usage, logs, and update settings.
+
+## 5. Make A Gateway Request
+
+Use the imported user key:
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer sk-dev-local" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "main",
+    "messages": [
+      { "role": "user", "content": "Say hello in one short sentence." }
+    ]
+  }'
+```
+
+The aggregated `/v1` endpoint resolves `main` as a v2 route. The selected route
+member rewrites the upstream model to `gpt-4.1-mini` before dispatch.
+
+For provider-scoped requests, use `/{provider}/v1/...`:
+
+```bash
+curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
+  -H "Authorization: Bearer sk-dev-local" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4.1-mini",
+    "messages": [
+      { "role": "user", "content": "Say hello in one short sentence." }
+    ]
+  }'
+```
+
+Continue with [First Request](/getting-started/first-request/) for the routing
+rules behind those two forms.

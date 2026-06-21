@@ -1,176 +1,93 @@
 ---
-title: Message Rewrite Rules
-description: Regex-based text substitution applied to the text fields of a request — system prompts, user messages, Gemini parts, OpenAI instructions.
+title: Message Rewrite
+description: Add or replace message text with v2 system_text, sanitize, and generic rewrite rule-set entries.
 ---
 
-"Message rewrite rules" (internally `sanitize_rules`) let you rewrite the
-**text content** of a request — system prompts, user/assistant messages,
-Gemini `parts[*].text`, OpenAI Responses `instructions` / `input` — using
-**regex pattern → replacement** pairs. They are protocol-aware: gproxy
-walks the right fields for whichever wire dialect the upstream is about
-to see.
+v2 does not have a separate "message rewrite" table. Message-oriented rewriting
+is expressed through the provider rule-set system:
 
-This is a **different feature** from
-[Request Rewrite Rules](/guides/rewrite-rules/), which manipulates
-arbitrary JSON fields (temperature, stream_options, metadata, …) on the
-request body. The two can coexist on the same provider; they touch
-different things.
+- `system_text` inserts text into the provider-native system location.
+- `sanitize` replaces text patterns over the serialized body.
+- `rewrite` edits explicit JSON paths when you know the provider-native shape.
 
-| | Request Rewrite Rules | Message Rewrite Rules |
-| --- | --- | --- |
-| Setting | `rewrite_rules` | `sanitize_rules` |
-| Shape | `{ path, action: set \| remove, filter }` | `{ pattern, replacement }` |
-| Addresses | Arbitrary JSON paths in the body | Only the text of system prompts and message content |
-| Match language | Dot-notation path + glob filter | **Regex** on string contents |
-| Typical use | Force a field, strip a field, inject metadata | Rewrite brand names, scrub tool identifiers, replace phrases |
+These rules run after protocol transform. That matters: a request from an OpenAI
+client routed to Claude is first transformed to Claude Messages, then message
+rules see the Claude body shape.
 
-Implementation: [`sdk/gproxy-channel/src/utils/sanitize.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/sanitize.rs).
+## `system_text`
 
-## Rule shape
+Use `system_text` to prepend or append server-managed instructions:
 
-```jsonc
+```json
 {
-  "sanitize_rules": [
-    { "pattern": "\\bPi documentation\\b", "replacement": "Harness documentation" },
-    { "pattern": "\\bpi\\b",               "replacement": "the agent" },
-    { "pattern": "\\bPi\\b",               "replacement": "The agent" }
-  ]
+  "text": "Follow the internal safety policy for this workspace.",
+  "position": "prepend"
 }
 ```
 
-- **`pattern`** — a [Rust `regex` crate](https://docs.rs/regex/latest/regex/)
-  pattern. Word boundaries (`\b`) are strongly recommended so short
-  patterns don't match substrings like `pipeline`, `api`, `spirit`.
-- **`replacement`** — literal substitution text. It's passed straight to
-  `Regex::replace_all`, so `$1`, `$2` backreferences work if you use
-  capturing groups.
-- Rules are applied **in declaration order**. Put **longer phrases
-  first**, then shorter single-word patterns last — otherwise a short
-  pattern can eat a prefix of a longer one before the longer rule gets
-  a chance to fire.
-- Invalid regex patterns are silently dropped at compile time (the
-  channel logs them but does not fail the request).
+Supported positions are `prepend` and `append`. The runtime maps the insertion
+to the selected content-generation kind:
 
-## Which fields get rewritten
-
-The rule set is compiled once per request and dispatched to a
-protocol-specific walker. The fields touched depend on the upstream
-protocol that was chosen for this request — *not* the client-side
-protocol.
-
-| Upstream protocol | Fields sanitized |
+| Target kind | Native location |
 | --- | --- |
-| `claude` | `system` (string or `[{type:"text", text}]` array), `messages[*].content` (string or array of text blocks) |
-| `openai_chat_completions` / `openai` | `messages[*].content` |
-| `openai_response` | `instructions`, `input` (string or item array — items' `content` / `output`) |
-| `gemini` / `gemini_ndjson` | `systemInstruction.parts[*].text`, `contents[*].parts[*].text`, `generationConfig.contents[*].parts[*].text` |
+| `claude_messages` | `system` string or `system[]` text block. |
+| `open_ai_chat_completions` | A `messages[]` item with `role: "system"`. |
+| `open_ai_responses` | `instructions`. |
+| `gemini_generate_content` | `systemInstruction.parts[]`. |
 
-In every case, only the **text** inside those fields is mutated. Binary
-parts, image URLs, tool calls, and structured metadata are left alone —
-the walker explicitly descends into text blocks, never into everything.
+This is one of the few current rule kinds that knows protocol semantics. The v2
+design preference is to move this kind of provider-specific path choice into
+frontend/config presets once the generic transform engine exists.
 
-## Where it fits in the pipeline
+## `sanitize`
 
-Both rewrite features run inside the channel's
-`finalize_request(...)` — **after** protocol translation, **before**
-credential selection and HTTP transport wrapping. That order is why the
-sanitize step uses the *upstream* protocol's field layout: by the time
-it runs, the body has already been transformed to the shape the
-upstream expects.
+Use `sanitize` for regex replacement when the exact structural path is not the
+right model:
 
-The full per-request order is:
-
-```text
-permission  →  request rewrite  →  alias  →  transform  →  message rewrite  →  cache breakpoints  →  upstream
-```
-
-## Worked examples
-
-### 1. Rebrand an upstream-baked agent name
-
-```jsonc
+```json
 {
-  "sanitize_rules": [
-    { "pattern": "\\bPi documentation\\b", "replacement": "Harness documentation" },
-    { "pattern": "\\bpi\\b",               "replacement": "the agent" },
-    { "pattern": "\\bPi\\b",               "replacement": "The agent" }
-  ]
+  "pattern": "\\bAcme internal\\b",
+  "replacement": "the workspace"
 }
 ```
 
-Longest-first ordering matters: if the two-character `\bpi\b` ran first,
-it would match the `Pi` in `Pi documentation` and leave a broken
-`the agent documentation` string before the longer rule could fire.
+The replacement runs over the serialized provider-native request body. It can
+modify text anywhere in the body string representation. That power is useful for
+prompt text, but it can also affect JSON string values you did not intend to
+touch. Prefer word boundaries and narrow patterns.
 
-### 2. Scrub a tool-identifier prefix
+## `rewrite`
 
-```jsonc
+Use `rewrite` when you know the provider-native path:
+
+```json
 {
-  "sanitize_rules": [
-    { "pattern": "\\bclaude-code://([a-z0-9_-]+)", "replacement": "internal://$1" }
-  ]
+  "path": "messages.0.content",
+  "action": "set",
+  "value_json": "Pinned instruction text"
 }
 ```
 
-A regex capture group keeps the tool id intact while rewriting the URL
-scheme. Handy when an upstream assistant has baked a vendor-specific
-scheme into its system prompt and you don't want clients to see it.
+This is exact and structural, but it is not portable across protocol kinds. A
+Claude system path, an OpenAI Chat system message, an OpenAI Responses
+`instructions` string, and a Gemini `systemInstruction` object are different
+structures.
 
-### 3. Drop a stray signature line
+## Scope Rules by Operation
 
-```jsonc
-{
-  "sanitize_rules": [
-    { "pattern": "\\n+—\\s*Sent from my Claude app", "replacement": "" }
-  ]
-}
+Message rewrite rules should usually filter on content-generation operations:
+
+```json
+["generate_content", "stream_generate_content"]
 ```
 
-Empty replacement deletes the match. Useful for stripping noisy
-signatures that leak into usage accounting or logs.
+Avoid provider-family filters as the organizing concept. v2 classifies behavior
+by `Operation` and `OperationGroup`; the provider or protocol kind is a wire
+shape used inside that operation.
 
-### 4. Normalize whitespace on Gemini inputs
+## Caching Interaction
 
-```jsonc
-{
-  "sanitize_rules": [
-    { "pattern": "[\\t ]{2,}", "replacement": " " }
-  ]
-}
-```
-
-Gemini is picky about leading whitespace in some `parts[*].text` blocks;
-collapsing runs of spaces/tabs here is cheaper than fixing the client.
-
-## Gotchas
-
-- **Interacts with Claude cache keys.** Anthropic keys the prompt cache
-  on the *exact* text of the cached prefix. If a sanitize rule mutates
-  text inside the cached region, every request is a cache miss. Either
-  scope the sanitize rule to a field outside the prefix, or move the
-  [cache breakpoint](/guides/claude-caching/) past the sanitized
-  content.
-- **Word boundaries are your friend.** `\bpi\b` is almost always what
-  you want; bare `pi` will chew through `pipeline`, `api`, `spirit`,
-  `typing`, etc. See the existing unit tests for edge cases
-  ([`utils/sanitize.rs`](https://github.com/LeenHawk/gproxy/blob/main/sdk/gproxy-channel/src/utils/sanitize.rs)).
-- **Only text fields, not tool payloads.** Tool-use blocks, JSON
-  arguments, and image URLs are never touched, even if the regex
-  technically could match on a string representation of them.
-- **Per-provider, not per-user.** There's no filter by user or model —
-  sanitize rules apply to every request routed through the provider.
-  If you need per-user text scrubbing, do it upstream of gproxy.
-
-## Where to configure
-
-- **Seed TOML** — each provider's `settings.sanitize_rules` is a JSON
-  array on the provider entry. Same location and shape as the example
-  above.
-- **Embedded console** — *Providers → {your provider} → Settings*
-  exposes a structured editor for the list. Edits take effect on the
-  next request; no reload is needed.
-
-Channels that currently expose `sanitize_rules` on their settings
-include `anthropic`, `claudecode`, OpenAI-compatible channels, and
-most other channel types (check the `ChannelSettings::sanitize_rules`
-method on the channel's settings struct).
+Claude prompt cache keys depend on exact prefix content. If a message rewrite
+changes text before a `cache_control` breakpoint, it can turn every request into
+a cache miss. Put stable cache breakpoints after rewritten content, or keep
+rewrite rules outside the cached prefix.

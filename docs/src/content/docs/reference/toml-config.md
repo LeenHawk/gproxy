@@ -1,194 +1,177 @@
 ---
 title: TOML Config
-description: The seed TOML file read by GPROXY_CONFIG on first-time initialization.
+description: Compatibility note for the v1 TOML seed file and the supported v2 JSON import/export format.
 ---
 
-The file pointed to by `GPROXY_CONFIG` (default: `gproxy.toml`) is a
-**seed config**. It is only consulted on the **first** startup where the
-target database does not yet contain data. From then on, the database is
-the source of truth — re-running with a modified TOML will not reimport
-it.
+GPROXY v2 does not read a `gproxy.toml` seed file on the native serve path. The
+v1 `GPROXY_CONFIG` / TOML bootstrap model has been replaced by:
 
-The exact structure is defined in
-[`crates/gproxy-api/src/admin/config_toml.rs`](https://github.com/LeenHawk/gproxy/blob/main/crates/gproxy-api/src/admin/config_toml.rs).
-The sections below describe every supported table.
+- startup CLI flags and environment variables for process-level settings;
+- persisted control-plane rows for live configuration;
+- JSON bundle import/export for reproducible bootstrap and migration workflows.
 
-## Example
+This page keeps the `toml-config` slug for continuity with v1 documentation,
+but the supported v2 format is JSON, not TOML.
 
-A minimal but realistic seed: one provider, one model, and an **admin**
-user with wildcard access to every model on every provider. Everything
-else (more providers, non-admin users, aliases, rate limits, quotas) can
-be added later from the console or by extending this file before the
-first run.
+## Supported import/export commands
 
-```toml
-[global]
-host = "0.0.0.0"
-port = 8787
-proxy = "http://127.0.0.1:7890"
-spoof_emulation = "chrome_136"
-enable_usage = true
-enable_upstream_log = false
-enable_upstream_log_body = false
-enable_downstream_log = false
-enable_downstream_log_body = false
-dsn = "sqlite://./data/gproxy.db?mode=rwc"
-data_dir = "./data"
+Import a bundle into the configured persistence backend and exit:
 
-[[providers]]
-name = "openai-main"
-channel = "openai"
-settings = { base_url = "https://api.openai.com/v1" }
-credentials = [
-  { api_key = "sk-provider-1" }
-]
-
-[[models]]
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-display_name = "GPT-4.1 mini"
-enabled = true
-price_each_call = 0.0
-
-# Admin user — logs into the console and calls /admin/*
-[[users]]
-name = "admin"
-password = "change-me"              # plaintext or Argon2 PHC
-is_admin = true
-enabled = true
-
-[[users.keys]]
-api_key = "sk-admin-1"
-label = "default"
-enabled = true
-
-# Wildcard permission for the admin.
-# `provider_name` is omitted so it matches every provider.
-[[permissions]]
-user_name = "admin"
-model_pattern = "*"
+```bash
+./gproxy \
+  --persistence db \
+  --dsn 'sqlite:///var/lib/gproxy/gproxy.db?mode=rwc' \
+  import --in ./import.json
 ```
 
-### Adding a non-admin user
+Export control-plane configuration, including plaintext secrets, and exit:
 
-If you want to seed a regular user alongside the admin, append something
-like this to the same file:
-
-```toml
-[[users]]
-name = "alice"
-password = "plain-text-or-argon2-phc"
-enabled = true
-
-[[users.keys]]
-api_key = "sk-user-alice-1"
-label = "default"
-enabled = true
-
-# Scoped permission: alice can only call gpt-* on openai-main.
-[[permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-model_pattern = "gpt-*"
-
-[[rate_limits]]
-user_name = "alice"
-model_pattern = "gpt-*"
-rpm = 60
-rpd = 10000
-total_tokens = 200000
-
-[[quotas]]
-user_name = "alice"
-quota = 100.0
-cost_used = 0.0
-
-# Optional: aliases, file permissions, etc.
-[[model_aliases]]
-alias = "chat-default"
-provider_name = "openai-main"
-model_id = "gpt-4.1-mini"
-enabled = true
-
-[[file_permissions]]
-user_name = "alice"
-provider_name = "openai-main"
+```bash
+./gproxy \
+  --persistence db \
+  --dsn 'sqlite:///var/lib/gproxy/gproxy.db?mode=rwc' \
+  export --out ./export.json
 ```
 
-## `[global]`
+The export command writes with owner-only permissions on Unix and uses an
+atomic same-directory rename, but the file still contains plaintext provider
+credentials and user API keys. Treat it as a secret.
 
-Top-level runtime settings. Every field is optional; anything you omit
-falls back to the matching environment variable or built-in default.
+## First-boot import hook
 
-| Field | Description |
+On the normal serve path, `GPROXY_IMPORT_FILE` imports a JSON bundle only when
+the store is empty:
+
+```bash
+GPROXY_IMPORT_FILE=/etc/gproxy/import.json ./gproxy
+```
+
+The hook runs before admin bootstrap. A bundle-provided admin user prevents
+random first-boot admin creation. Once the store has any provider or user rows,
+the hook is skipped.
+
+## Bundle shape
+
+A v2 bundle has `schema_version: 1` and arrays of persistence input records.
+References are raw numeric ids, so a bundle that cross-references records must
+pin explicit ids.
+
+```json
+{
+  "schema_version": 1,
+  "orgs": [
+    { "id": 1, "name": "default", "enabled": true, "description": null }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "name": "admin",
+      "org_id": 1,
+      "team_id": null,
+      "password": "$argon2id$...",
+      "enabled": true,
+      "is_admin": true
+    }
+  ],
+  "user_keys": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "api_key": "sk-replace-with-a-long-random-key",
+      "label": "bootstrap",
+      "enabled": true
+    }
+  ],
+  "providers": [
+    {
+      "id": 1,
+      "name": "openai-main",
+      "channel": "openai",
+      "label": null,
+      "settings_json": { "base_url": "https://api.openai.com" },
+      "credential_strategy": "round_robin",
+      "proxy_url": null,
+      "tls_fingerprint": null,
+      "enabled": true
+    }
+  ],
+  "credentials": [
+    {
+      "id": 1,
+      "provider_id": 1,
+      "label": "primary",
+      "kind": "api_key",
+      "secret_json": { "api_key": "sk-provider-key" },
+      "weight": 100,
+      "rpm_limit": null,
+      "tpm_limit": null,
+      "proxy_url": null,
+      "tls_fingerprint": null,
+      "enabled": true
+    }
+  ],
+  "provider_models": [
+    {
+      "id": 1,
+      "provider_id": 1,
+      "model_id": "gpt-4.1-mini",
+      "display_name": "GPT-4.1 mini",
+      "pricing_json": { "input": "0.40", "output": "1.60" },
+      "variants_json": null,
+      "enabled": true
+    }
+  ],
+  "routes": [
+    {
+      "id": 1,
+      "name": "main",
+      "strategy": "failover",
+      "enabled": true,
+      "description": null,
+      "settings_json": null
+    }
+  ],
+  "route_members": [
+    {
+      "id": 1,
+      "route_id": 1,
+      "provider_id": 1,
+      "upstream_model_id": "gpt-4.1-mini",
+      "weight": 100,
+      "tier": 0,
+      "enabled": true
+    }
+  ],
+  "aliases": [
+    { "id": 1, "alias": "default-chat", "route_id": 1 }
+  ]
+}
+```
+
+## Supported top-level arrays
+
+| Array | Purpose |
 | --- | --- |
-| `host`, `port` | Listen address and port. |
-| `proxy` | Upstream HTTP proxy used when calling LLM providers. |
-| `spoof_emulation` | TLS fingerprint emulation name. |
-| `enable_usage` | Turns on usage accounting. |
-| `enable_upstream_log` / `enable_upstream_log_body` | Capture upstream envelope / body. |
-| `enable_downstream_log` / `enable_downstream_log_body` | Capture downstream envelope / body. |
-| `dsn` | Database DSN. |
-| `data_dir` | Data directory. |
+| `orgs`, `teams`, `users`, `user_keys` | Identity, admin login, and API-key material. Imported API keys are digested for lookup and sealed for storage. |
+| `route_permissions`, `rate_limits`, `quotas` | Org/team/user-scoped access control, token limits, and spend quotas. |
+| `providers`, `credentials`, `provider_models` | Upstream providers, sealed credentials, exposed upstream models, optional pricing and variants. |
+| `routes`, `route_members`, `aliases` | Logical model names, backend pools, and aliases. |
+| `routing_rules` | Per-provider transform dispatch rows. Provider creation through the admin API seeds defaults automatically; raw bundle imports only import rows you provide. |
+| `rule_sets`, `rules`, `provider_rule_sets` | Reusable request/response mutation rule sets and provider attachments. |
+| `instance_settings` | Singleton instance behavior such as retention and tokenizer download settings. |
 
-## `[[providers]]`
+## Live configuration source of truth
 
-One entry per upstream provider.
+After import, the persistence backend is the source of truth. Editing a JSON
+file on disk does not change a running server unless you run the import command
+or start with `GPROXY_IMPORT_FILE` against an empty store. For normal operations,
+use the console or admin API.
 
-| Field | Description |
+## What changed from v1
+
+| v1 concept | v2 replacement |
 | --- | --- |
-| `name` | Unique provider name. |
-| `channel` | Channel type (see [Providers & Channels](/guides/providers/)). |
-| `settings` | JSON value passed to the channel's settings type. |
-| `credentials` | Array of JSON values, each a credential understood by the channel. |
-
-`settings` and each `credentials[i]` are deserialized via `serde_json::Value`,
-so the exact schema depends on the channel (`OpenAiSettings`,
-`AnthropicCredential`, and so on).
-
-## `[[models]]` and `[[model_aliases]]`
-
-`[[models]]` defines a forwardable real model on a provider, optionally
-with pricing. `[[model_aliases]]` defines an alias pointing at a
-`(provider, model_id)` pair. On import, both end up in the unified
-`models` table (aliases get a non-null `alias_of` column).
-
-## `[[users]]` and `[[users.keys]]`
-
-`[[users]]` defines an account. `password` may be plain text (GPROXY hashes
-with Argon2 on import) or a direct Argon2 PHC string. Set `is_admin = true`
-to create an admin — that account can log into the console and call
-`/admin/*`.
-
-`[[users.keys]]` is a nested array-of-tables listing the API keys for the
-preceding user. Each key has `api_key`, `label`, and `enabled`.
-
-:::tip
-An admin user still needs at least one `[[permissions]]` row to call LLM
-routes — a common pattern is a single wildcard entry
-(`model_pattern = "*"`, `provider_name` omitted). Being `is_admin` gates
-administrative endpoints, not model access.
-:::
-
-## Access control tables
-
-| Table | Purpose |
-| --- | --- |
-| `[[permissions]]` | `(user, provider, model_pattern)` grants model access. |
-| `[[file_permissions]]` | Grants file-endpoint access per provider. |
-| `[[rate_limits]]` | Per-user, per-pattern `rpm` / `rpd` / `total_tokens` ceilings. |
-| `[[quotas]]` | USD ceilings with `quota` and `cost_used` per user. |
-
-See [Permissions, Rate Limits & Quotas](/guides/permissions/) for the
-semantics and the order in which these are evaluated.
-
-## Bootstrap behavior
-
-On startup, GPROXY checks whether the database already has data:
-
-- **Empty database:** the TOML seed is imported. The admin account is
-  either picked up from the seed (a user with `is_admin = true` and an
-  enabled key) or bootstrapped from `GPROXY_ADMIN_USER`,
-  `GPROXY_ADMIN_PASSWORD`, and `GPROXY_ADMIN_API_KEY`.
-- **Non-empty database:** the TOML is ignored entirely. Edit live state
-  from the console or the admin API instead.
+| `GPROXY_CONFIG=gproxy.toml` | No current v2 equivalent. Use environment variables for process settings and JSON import/export for seeded control-plane data. |
+| TOML provider/model/user arrays | JSON bundle arrays matching v2 persistence input records. |
+| Re-reading TOML after edits | Unsupported. Live rows are edited through the admin API/console and reflected through snapshot invalidation. |
+| `DATABASE_SECRET_KEY` runtime secret encryption | `GPROXY_MASTER_KEY` for v2 sealed secrets; `DATABASE_SECRET_KEY` is only for reading encrypted v1 data during migration. |

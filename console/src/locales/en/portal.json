@@ -1,0 +1,82 @@
+{
+  "nav": {
+    "keys": "API Keys",
+    "usage": "Usage",
+    "limits": "Limits",
+    "account": "Account"
+  },
+  "pages": {
+    "keys": { "title": "My API Keys", "subtitle": "Manage your personal API keys." },
+    "usage": { "title": "My Usage", "subtitle": "View your request history and usage rollups." },
+    "limits": { "title": "My Limits", "subtitle": "Your effective quota, rate limits, and route permissions." },
+    "account": { "title": "Account", "subtitle": "Your profile and password." }
+  },
+  "keys": {
+    "title": "API Keys",
+    "add": "Generate key",
+    "empty": "No API keys.",
+    "label": "Label",
+    "prefix": "Prefix",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "enable": "Enable",
+    "disable": "Disable",
+    "disableConfirm": "Disable this API key? Clients using it will be rejected.",
+    "delete": "Delete key",
+    "deleteConfirm": "Delete this API key? Clients using it stop working.",
+    "created": "API key created — copy it now, it is shown only once.",
+    "copied": "Copied",
+    "copyFailed": "Copy failed"
+  },
+  "usage": {
+    "empty": "No usage records.",
+    "at": "Time",
+    "operation": "Operation",
+    "model": "Model",
+    "tokens": "Tokens",
+    "cost": "Cost",
+    "latency": "Latency",
+    "loadMore": "Load more",
+    "route": "Route",
+    "clearFilters": "Clear filters",
+    "preset": {
+      "1h": "Last hour",
+      "24h": "Last 24 h",
+      "7d": "Last 7 days",
+      "all": "All time"
+    }
+  },
+  "limits": {
+    "quota": "Quota",
+    "costUsed": "Used",
+    "rpm": "RPM",
+    "rpd": "RPD",
+    "totalTokens": "Total tokens",
+    "rateLimits": "Rate Limits",
+    "permissions": "Route permissions",
+    "routePattern": "Route pattern",
+    "noQuota": "No quota set.",
+    "noRateLimits": "No rate limits.",
+    "noPermissions": "No route permissions.",
+    "source": {
+      "user": "User",
+      "team": "Team",
+      "org": "Org"
+    }
+  },
+  "account": {
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "changePassword": "Change password",
+    "mismatch": "New passwords do not match.",
+    "tooShort": "New password must be at least 12 characters.",
+    "changed": "Password changed successfully.",
+    "identity": {
+      "title": "Profile",
+      "name": "Name",
+      "org": "Organization",
+      "team": "Team"
+    }
+  }
+}

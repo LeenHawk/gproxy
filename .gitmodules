@@ -1,3 +1,0 @@
-[submodule "sdk/gproxy-protocol"]
-	path = sdk/gproxy-protocol
-	url = https://github.com/LeenHawk/gproxy-protocol.git

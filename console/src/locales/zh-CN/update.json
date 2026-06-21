@@ -1,0 +1,42 @@
+{
+  "title": "更新",
+  "subtitle": "检查并应用此 GPROXY 实例的二进制更新。",
+  "check": {
+    "button": "检查更新",
+    "current": "当前版本",
+    "latest": "最新版本",
+    "available": "有可用更新",
+    "availableYes": "是",
+    "availableNo": "已是最新",
+    "notes": "发布说明",
+    "notConfigured": "自动更新未配置。请在服务器配置中设置 update_repo 以启用此功能。",
+    "genericError": "检查更新失败"
+  },
+  "apply": {
+    "button": "下载并暂存更新",
+    "confirm": {
+      "title": "下载并暂存更新？",
+      "description": "此操作将下载并暂存新的二进制文件。操作员重启服务后方可生效。旧版本将保留为 .prev 以便回滚。",
+      "confirmLabel": "下载并暂存"
+    }
+  },
+  "status": {
+    "label": "更新状态",
+    "idle": "空闲",
+    "checking": "正在检查更新…",
+    "downloading": "正在下载更新…",
+    "staged": "已暂存",
+    "failed": "失败",
+    "stagedRestartNotice": "新的二进制文件已暂存。请重启 GPROXY 服务以使更新生效。",
+    "failedError": "错误"
+  },
+  "channel": {
+    "label": "更新渠道",
+    "hint": "本实例自更新跟踪哪个发布通道。",
+    "default": "默认",
+    "releases": "稳定版",
+    "staging": "预发布版",
+    "saved": "已保存更新渠道",
+    "noSettings": "请先配置实例设置。"
+  }
+}

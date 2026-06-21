@@ -1,115 +1,89 @@
 ---
-title: Permissions, Rate Limits & Quotas
-description: How to gate access to models, throttle traffic, and enforce cost ceilings per user.
+title: Permissions, Rate Limits, and Quotas
+description: Configure route access, request limits, token limits, and spend quotas across org, team, and user scopes.
 ---
 
-Three independent mechanisms control what a user can do:
+Authorization in v2 is scope-based. Permissions, rate limits, and quotas can be
+attached to an org, a team, or a user.
 
-1. **Permissions** — *can this user call this model at all?*
-2. **Rate limits** — *how fast can they call it?*
-3. **Quotas** — *how much total cost can they accrue?*
-
-All three are matched per request before the upstream call. Each one can
-deny on its own, returning a specific error code.
-
-## Permissions
-
-A permission row is a `(user, provider, model_pattern)` tuple:
-
-```toml
-[[permissions]]
-user_name = "alice"
-provider_name = "openai-main"
-model_pattern = "gpt-*"
+```text
+user scope -> team scope -> org scope
 ```
 
-- `model_pattern` is a **glob** (`*`, `?`) against the incoming model name
-  **before** alias resolution. A permission on `chat-*` matches the alias
-  `chat-default`; a permission on `gpt-*` matches the raw id `gpt-4.1-mini`.
-- `provider_name` can be omitted to grant access across all providers (the
-  match still goes through permission → rewrite → alias → execute).
-- A user with no matching permission row gets `403 forbidden: model`.
+The snapshot stores all matching rows by `(scope, scope_id)`, and the hot path
+checks them without reading persistence.
 
-### File permissions
+## Route Permissions
 
-`[[file_permissions]]` is a separate table that grants a user the ability
-to call file-related upstream endpoints (upload, retrieve, delete) on a
-provider. The structure is simpler:
+A route permission grants access to route or provider names by glob pattern:
 
-```toml
-[[file_permissions]]
-user_name = "alice"
-provider_name = "openai-main"
+```json
+{
+  "scope": "team",
+  "scope_id": 42,
+  "route_pattern": "chat-*"
+}
 ```
 
-## Rate limits
+Effective permission is the union of user, team, and org patterns. If any
+pattern in the chain matches the exposed name, the request can proceed. If no
+pattern matches, the request is denied. A disabled org or disabled team denies
+even if a lower scope has a matching pattern.
 
-Rate limits are scoped to `(user, model_pattern)` and can enforce any or
-all of three counters:
+Permissions match the exposed route name in aggregated mode and the exposed
+provider name in scoped mode. They do not match hidden route members,
+credentials, or internal upstream model ids.
+
+## Rate Limits
+
+Rate-limit rows are also scoped and route-patterned:
 
 | Field | Meaning |
 | --- | --- |
-| `rpm` | Requests per **minute**. |
-| `rpd` | Requests per **day**. |
-| `total_tokens` | Total **tokens** in a rolling window. |
+| `rpm` | Requests per minute. |
+| `rpd` | Requests per day. |
+| `total_tokens` | Daily token budget checked from settled token counters. |
 
-```toml
-[[rate_limits]]
-user_name = "alice"
-model_pattern = "gpt-*"
-rpm = 60
-rpd = 10000
-total_tokens = 200000
-```
+Rows are checked from most specific to least specific: user, then team, then
+org. The first exceeded matching rule wins.
 
-Counters are maintained in memory and reconciled through the
-`RateLimitGC` worker, which garbage-collects expired windows so the
-process doesn't accumulate dead counters.
-
-A request that trips any counter returns `429 rate_limited` with headers
-indicating which counter fired and when the window resets.
+Request counters use the cache backend and are incremented before the over-limit
+check. That makes concurrent enforcement deterministic, at the cost of rejected
+requests consuming request-count budget. If the counter backend is unavailable,
+v2 fails closed for enforced limits.
 
 ## Quotas
 
-A quota is a single USD-denominated ceiling per user:
+A quota is a spend ceiling for one scope:
 
-```toml
-[[quotas]]
-user_name = "alice"
-quota = 100.0       # Ceiling in USD
-cost_used = 0.0     # Consumed cost; increased by usage accounting
+```json
+{
+  "scope": "org",
+  "scope_id": 1,
+  "quota_total": "100.00",
+  "cost_used": "12.50"
+}
 ```
 
-- The `UsageSink` worker writes cost into `cost_used` as requests
-  complete.
-- The `QuotaReconciler` worker periodically recomputes `cost_used` from
-  recorded usage rows, so the live counter self-corrects if anything
-  drifts.
-- A request whose projected cost would push `cost_used` over `quota`
-  returns `402 quota_exceeded`.
+Every quota on the user's chain must fit. Admission considers both persisted
+`cost_used` and in-flight pending spend. After the request settles, actual usage
+reconciles pending quota and updates persisted cost.
 
-Quota is a *billing* ceiling, not a safety ceiling — it only exists for
-models and aliases that have pricing configured. Models without prices
-contribute $0 to `cost_used`.
+Pricing comes from `provider_models.pricing_json`. Unpriced models still run and
+record usage, but add zero cost.
 
-## Order of evaluation
+## Order in the Request Lifecycle
 
-For a given request, the checks run in this order:
+The relevant lifecycle order is:
 
-1. **Auth** — resolve API key to user.
-2. **Permission** — is there a matching `[[permissions]]` row? If not →
-   `403 forbidden: model`.
-3. **Quota** — is `cost_used < quota`? If not → `402 quota_exceeded`.
-4. **Rate limit** — is the matching counter within its ceiling? If not
-   → `429 rate_limited`.
-5. **Execute** — route through `rewrite → alias → execute`.
+```text
+auth user API key
+  -> preprocess route/provider name
+  -> permission and rate-limit admission
+  -> estimate quota and pre-deduct pending spend
+  -> balance, transform, process, channel
+  -> settle actual usage and quota
+```
 
-So a permission denial always beats a rate-limit denial, which always
-beats execution errors from upstream.
-
-## Runtime management
-
-Everything described here can be edited at runtime from the console's
-*Users* → *Permissions / Rate limits / Quota* workspace, or via the admin
-API under `/admin/permissions`, `/admin/rate_limits`, `/admin/quotas`.
-Changes are applied on the next request; there is no need to reload.
+This order means authorization sees the exposed route/provider name before the
+request is transformed to provider-native format.
