@@ -38,8 +38,8 @@ bash deploy/<平台>/build.sh        # 重新生成该平台的 _lib glue(eopage
 | Cloudflare Workers | `cd cloudflare && npx wrangler deploy` | `CLOUDFLARE_API_TOKEN`(+ account id) |
 | Vercel Edge | `cd vercel && npx vercel deploy --prod --token "$VERCEL_TOKEN"` | `VERCEL_TOKEN`(+ org/project) |
 | Netlify Edge | `cd netlify && npx netlify deploy --prod` | `NETLIFY_AUTH_TOKEN`(+ site id) |
-| Supabase | `supabase functions deploy gproxy --project-ref "$SUPABASE_PROJECT_REF"` | `SUPABASE_ACCESS_TOKEN` |
-| EdgeOne Pages | `cd eopages && npx edgeone pages deploy`(详见 `deploy/eopages/NOTES.md`) | EdgeOne Pages API token |
+| Supabase | `supabase functions deploy gproxy --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --network-id host`（**Docker/eszip 路径,见下方注**） | `SUPABASE_ACCESS_TOKEN` |
+| EdgeOne Pages | `npx edgeone pages deploy deploy/eopages/gproxy --name <proj> -t "$EDGEONE_PAGES_API_TOKEN"` | EdgeOne Pages API token |
 | Deno Deploy | `bash deploy/deno/build.sh`(**这条自带 cargo 构建 + 部署,需在有 cargo 的机器跑**) | `DENO_DEPLOY_TOKEN` |
 
 各平台的实测记录见 `deploy/<平台>/NOTES.md`。
@@ -48,10 +48,15 @@ bash deploy/<平台>/build.sh        # 重新生成该平台的 _lib glue(eopage
 
 ## 3. 注意
 
-- **eopages 体积**:CI 产物未过 `wasm-opt`(内联 wasm ~9.6 MB),EdgeOne Pages 有体积
-  上限,自动产物可能超限 → 这个平台建议用**方式 B 本地构建**(`build.sh` 带 `wasm-opt`)
-  出包再发。
-- **打包覆盖**:目前 CI 只打包 cloudflare / vercel / eopages 三个 + 裸 wasm。
-  deno / netlify / supabase **暂未进 Release 产物**,要发这些就用方式 B 本地构建
-  (它们的 glue 也都是 gitignore 产物)。需要的话可以把它们加进 `build-edge` 打包。
+- **打包覆盖**:`build-edge` 现在打包全部 6 个平台(cloudflare / vercel / eopages / deno / netlify / supabase)+ 裸 wasm,均为 build-only、不含任何 key。
+- **Supabase 必须走 Docker/eszip 路径**:`functions deploy --use-api`(无 Docker 那条)只上传 `.ts/.js`,不传 sibling `.wasm` → 运行时崩(500);改内联 base64 后 ~8.4MB 又超 `--use-api` 请求体上限(413)。**不加 `--use-api`** 走本地 Docker 把函数 bundle 成 eszip(压到 ~4.7MB)才能上。本机用 podman 顶 Docker:
+  ```bash
+  systemctl --user start podman.socket
+  export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+  cd deploy && supabase functions deploy gproxy --project-ref "$REF" --no-verify-jwt --network-id host
+  #                                                  ^ --network-id host 绕开 WSL2 netavark/nftables 启动报错
+  ```
+  Supabase 的 Docker 只是**本地打包工具**,函数本身跑在它托管的 Deno 上,不是你的容器。
+- **eopages / EdgeOne**:glue 用懒加载 `__gproxy_load()`,实例化推迟到首个请求,绕开 ~15s import 预算 → **未过 wasm-opt 的包也能部署**(实测 Deploy Success)。`*.edgeone.run` 域名带预览保护(`?eo_token=&eo_time=`,控制台签发)。
+- **netlify**:默认 edge functions 目录是 `netlify/edge-functions`,本仓库是 `edge-functions/` → `netlify.toml` 里已加 `[build] edge_functions = "edge-functions"`,否则函数不被打包(返回静态 404)。
 - **console(管理面 SPA)** 是另一套静态产物,部署形态见 `docs/deployment.md`。
