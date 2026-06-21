@@ -1,0 +1,38 @@
+[package]
+name = "gproxy-appwrite"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "gproxy on Appwrite Functions (Rust 1.83 runtime) — request/response adapter"
+
+# Appwrite's open-runtimes Rust runtime builds a library crate that exports a
+# single `pub fn main(context) -> Response`. This crate is that function: it
+# wraps gproxy's native axum router.
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+# Appwrite / open-runtimes handler types.
+openruntimes = { version = "1", package = "openruntimes-types-for-rust" }
+
+# gproxy itself, native server features. persist-db = control plane over a
+# Postgres/MySQL DSN (serverless has no durable local disk); upstream-wreq =
+# the outbound transport with TLS fingerprinting; cache-memory = per-instance.
+# NOTE: this is a `path` dep — the Appwrite build context must include the
+# repo (see NOTES.md "Packaging").
+gproxy = { path = "../..", default-features = false, features = [
+  "cache-memory",
+  "persist-db",
+  "upstream-wreq",
+] }
+
+# Drive the axum router for a single request and collect the response body.
+axum = { version = "0.8", default-features = false }
+http = "1"
+tower = { version = "0.5", default-features = false, features = ["util"] }
+arc-swap = "1"
+anyhow = "1"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+# Own workspace so it is not adopted by the parent gproxy workspace it nests in.
+[workspace]

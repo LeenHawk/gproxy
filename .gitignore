@@ -20,6 +20,9 @@ __pycache__/
 # ── wasm-bindgen build output (regenerated; never commit) ──
 pkg/
 
+# ── Appwrite adapter crate build output ──
+deploy/appwrite/target/
+
 # ── Upstream API docs snapshots (separate nested git repo; never commit here) ──
 /upstream_docs/
 

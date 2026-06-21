@@ -1,0 +1,16 @@
+# One-click deploy of the gproxy container on Render.
+# Powers the "Deploy to Render" button in README.md.
+# Requires the GHCR package ghcr.io/leenhawk/gproxy to be PUBLIC.
+services:
+  - type: web
+    name: gproxy
+    runtime: image
+    image:
+      url: ghcr.io/leenhawk/gproxy:latest
+    # /console serves the embedded SPA (200); ops endpoints are admin-gated (401).
+    healthCheckPath: /console
+    envVars:
+      - key: GPROXY_HOST
+        value: 0.0.0.0
+      - key: GPROXY_ADMIN_PASSWORD
+        generateValue: true
