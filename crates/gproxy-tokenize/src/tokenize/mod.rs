@@ -8,7 +8,7 @@ mod registry;
 
 pub use extract::harvest;
 #[cfg(feature = "count-local")]
-pub use registry::{TokenizerRegistry, VocabInfo, VocabSource};
+pub use registry::{TokenizerClient, TokenizerRegistry, TokenizerStore, VocabInfo, VocabSource};
 
 /// What `count` receives as the registry: a real handle under `count-local`,
 /// a unit on builds without it (edge) so call sites stay uniform.
@@ -45,7 +45,7 @@ pub fn count(
             .and_then(|m| m.as_object())
             .and_then(|obj| {
                 obj.iter()
-                    .find(|(pat, _)| crate::util::glob::matches(pat, model))
+                    .find(|(pat, _)| glob_matches(pat, model))
                     .and_then(|(_, v)| v.as_str().map(str::to_owned))
             })
             .unwrap_or_else(|| model.to_owned());
@@ -68,6 +68,21 @@ pub fn count(
 
     let chars: usize = texts.iter().map(|t| t.chars().count()).sum();
     (chars as u64).div_ceil(2) + overhead
+}
+
+/// `*`-wildcard glob matching, anchored at both ends. No other metacharacters.
+#[cfg(feature = "count-local")]
+fn glob_matches(pattern: &str, value: &str) -> bool {
+    fn inner(p: &[u8], v: &[u8]) -> bool {
+        match p.split_first() {
+            None => v.is_empty(),
+            Some((b'*', rest)) => (0..=v.len()).any(|i| inner(rest, &v[i..])),
+            Some((c, rest)) => v
+                .split_first()
+                .is_some_and(|(vc, vrest)| vc == c && inner(rest, vrest)),
+        }
+    }
+    inner(pattern.as_bytes(), value.as_bytes())
 }
 
 /// gpt-family prefixes with a tiktoken builtin (o200k / cl100k).
@@ -97,35 +112,44 @@ fn encode_len(tok: &tokenizers::Tokenizer, text: &str) -> Option<u64> {
     Some(tok.encode(text, false).ok()?.get_ids().len() as u64)
 }
 
-#[cfg(all(test, feature = "count-local", feature = "persist-file"))]
+#[cfg(all(test, feature = "count-local"))]
 mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
 
-    use super::{TokenizerRegistry, count};
-    use crate::http::client::{ClientError, UpstreamClient};
-    use crate::store::persistence::FilePersistence;
+    use super::{TokenizerClient, TokenizerRegistry, TokenizerStore, count};
 
     /// No-op upstream: the registry never dials out in these tests.
     struct NoUpstream;
+
     #[async_trait::async_trait]
-    impl UpstreamClient for NoUpstream {
-        async fn send(
-            &self,
-            _req: http::Request<Bytes>,
-        ) -> Result<http::Response<Bytes>, ClientError> {
-            Err(ClientError::Transport("no upstream in tests".into()))
+    impl TokenizerClient for NoUpstream {
+        async fn send(&self, _req: http::Request<Bytes>) -> anyhow::Result<http::Response<Bytes>> {
+            anyhow::bail!("no upstream in tests")
         }
     }
 
-    async fn registry() -> (TokenizerRegistry, tempfile::TempDir) {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let store = FilePersistence::open(dir.path().to_path_buf())
-            .await
-            .expect("open");
-        let reg = TokenizerRegistry::new(Arc::new(store), Arc::new(NoUpstream));
-        (reg, dir)
+    #[derive(Default)]
+    struct EmptyStore;
+
+    #[async_trait::async_trait]
+    impl TokenizerStore for EmptyStore {
+        async fn list_tokenizer_vocabs(&self) -> anyhow::Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+
+        async fn get_tokenizer_vocab(&self, _name: &str) -> anyhow::Result<Option<Vec<u8>>> {
+            Ok(None)
+        }
+
+        async fn put_tokenizer_vocab(&self, _name: &str, _bytes: &[u8]) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    async fn registry() -> TokenizerRegistry {
+        TokenizerRegistry::new(Arc::new(EmptyStore), Arc::new(NoUpstream))
     }
 
     fn chat_body() -> Vec<u8> {
@@ -139,7 +163,7 @@ mod tests {
 
     #[tokio::test]
     async fn tiktoken_gpt_path_is_stable() {
-        let (reg, _dir) = registry().await;
+        let reg = registry().await;
         let a = count("gpt-4o-mini", &chat_body(), None, &reg);
         let b = count("gpt-4o-mini", &chat_body(), None, &reg);
         assert!(a > 0);
@@ -148,7 +172,7 @@ mod tests {
 
     #[tokio::test]
     async fn bundled_deepseek_covers_unknown_models() {
-        let (reg, _dir) = registry().await;
+        let reg = registry().await;
         assert!(reg.resolve("deepseek").is_some());
         assert!(count("qwen-max", &chat_body(), None, &reg) > 0);
     }

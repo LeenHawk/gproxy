@@ -15,7 +15,11 @@ name = "gproxy"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/gproxy-protocol"]
+members = [
+    "crates/gproxy-protocol",
+    "crates/gproxy-tokenize",
+    "crates/gproxy-transform",
+]
 resolver = "3"
 
 # ── deps compiled on BOTH native and wasm32 ──────────────────────────────────
@@ -31,6 +35,8 @@ chacha20poly1305 = "0.11.0-rc.3"
 futures-core = "0.3"
 futures-util = "0.3"
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.0.8" }
+gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "2.0.8" }
+gproxy-transform = { path = "crates/gproxy-transform", version = "2.0.8" }
 # Single RNG source for DEK/nonce/PKCE/ids across native + wasm. Native uses the
 # default OS backend; wasm enables the `js` backend (see the wasm target table).
 getrandom = "0.2"
@@ -67,8 +73,6 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-r
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 wreq = { version = "6.0.0-rc.28", features = ["json", "stream", "gzip", "brotli", "zstd", "deflate", "ws"], optional = true }
 wreq-util = { version = "3.0.0-rc.11", optional = true }
-tiktoken-rs = { version = "0.12", optional = true }
-tokenizers = { version = "0.23", optional = true, default-features = false, features = ["onig"] }
 # self-update (§19, native-only). semver: `releases`-channel version compare.
 # ed25519-dalek: verify the signed release manifest with an embedded public key
 # (already in the tree via jsonwebtoken; pinned here as a direct dep). self-replace:
@@ -126,7 +130,7 @@ migrate-v1 = ["dep:sqlx", "persist-db"]
 # outbound transport (native)
 upstream-wreq = ["dep:wreq", "dep:wreq-util"]
 # local token counting: tiktoken + HF tokenizers registry (native only)
-count-local = ["dep:tiktoken-rs", "dep:tokenizers"]
+count-local = ["gproxy-tokenize/count-local"]
 
 # edge (wasm) backends — code-only gates (deps are wasm-target)
 cache-libsql = []

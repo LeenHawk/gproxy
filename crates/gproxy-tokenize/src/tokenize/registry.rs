@@ -12,8 +12,17 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use tokenizers::Tokenizer;
 
-use crate::http::client::UpstreamClient;
-use crate::store::persistence::PersistenceBackend;
+#[async_trait::async_trait]
+pub trait TokenizerStore: Send + Sync {
+    async fn list_tokenizer_vocabs(&self) -> anyhow::Result<Vec<String>>;
+    async fn get_tokenizer_vocab(&self, name: &str) -> anyhow::Result<Option<Vec<u8>>>;
+    async fn put_tokenizer_vocab(&self, name: &str, bytes: &[u8]) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+pub trait TokenizerClient: Send + Sync {
+    async fn send(&self, req: http::Request<Bytes>) -> anyhow::Result<http::Response<Bytes>>;
+}
 
 /// Bundled DeepSeek vocab, vendored from `deepseek-ai/DeepSeek-V4-Pro`
 /// (`tokenizer.json`).
@@ -42,16 +51,16 @@ type LoadedMap = Arc<DashMap<String, Arc<Tokenizer>>>;
 /// Global tokenizer registry living on `AppState`.
 pub struct TokenizerRegistry {
     /// Persisted vocab tier (file backend = raw files, db backend = BLOBs).
-    store: Arc<dyn PersistenceBackend>,
+    store: Arc<dyn TokenizerStore>,
     /// Mirrors `instance_settings.enable_tokenizer_download`.
     download_enabled: AtomicBool,
-    upstream: Arc<dyn UpstreamClient>,
+    upstream: Arc<dyn TokenizerClient>,
     loaded: LoadedMap,
     inflight: Arc<DashMap<String, ()>>,
 }
 
 impl TokenizerRegistry {
-    pub fn new(store: Arc<dyn PersistenceBackend>, upstream: Arc<dyn UpstreamClient>) -> Self {
+    pub fn new(store: Arc<dyn TokenizerStore>, upstream: Arc<dyn TokenizerClient>) -> Self {
         Self {
             store,
             download_enabled: AtomicBool::new(false),
@@ -132,8 +141,8 @@ impl TokenizerRegistry {
 
 /// Hydrate `name` from the store, falling back to an HF download.
 async fn load(
-    store: Arc<dyn PersistenceBackend>,
-    upstream: Arc<dyn UpstreamClient>,
+    store: Arc<dyn TokenizerStore>,
+    upstream: Arc<dyn TokenizerClient>,
     name: &str,
     loaded: &LoadedMap,
     download_enabled: bool,
@@ -152,10 +161,7 @@ async fn load(
         .method(http::Method::GET)
         .uri(&url)
         .body(Bytes::new())?;
-    let resp = upstream
-        .send(req)
-        .await
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let resp = upstream.send(req).await?;
     anyhow::ensure!(resp.status().is_success(), "HTTP {}", resp.status());
     let body = resp.into_body();
     let tok = Tokenizer::from_bytes(&body).map_err(|e| anyhow::anyhow!("bad vocab: {e}"))?;

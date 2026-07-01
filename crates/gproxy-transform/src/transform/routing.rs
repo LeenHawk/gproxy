@@ -4,7 +4,6 @@
 use serde_json::Value;
 
 use crate::protocol::{Operation, OperationKey, OperationKind};
-use crate::store::persistence::records::RoutingRule;
 
 /// `routing_rules.implementation`, parsed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,10 +24,23 @@ pub struct CompiledRoutingRule {
     pub dest_kind: Option<OperationKind>,
 }
 
+/// Storage-agnostic routing-rule row consumed by the transform crate.
+pub struct RoutingRuleSpec<'a> {
+    pub id: i64,
+    pub provider_id: i64,
+    pub operation: &'a str,
+    pub kind: &'a str,
+    pub implementation: &'a str,
+    pub dest_operation: Option<&'a str>,
+    pub dest_kind: Option<&'a str>,
+    pub sort_order: i64,
+    pub enabled: bool,
+}
+
 /// Parse enabled rows in `sort_order`. Unparsable rows are skipped with a
 /// warning — bad config must not take the snapshot down.
-pub fn compile(rows: &[RoutingRule]) -> Vec<CompiledRoutingRule> {
-    let mut rows: Vec<&RoutingRule> = rows.iter().filter(|r| r.enabled).collect();
+pub fn compile(rows: &[RoutingRuleSpec<'_>]) -> Vec<CompiledRoutingRule> {
+    let mut rows: Vec<&RoutingRuleSpec<'_>> = rows.iter().filter(|r| r.enabled).collect();
     rows.sort_by_key(|r| r.sort_order);
     let mut out = Vec::new();
     for row in rows {
@@ -44,22 +56,22 @@ pub fn compile(rows: &[RoutingRule]) -> Vec<CompiledRoutingRule> {
     out
 }
 
-fn compile_row(row: &RoutingRule) -> Option<CompiledRoutingRule> {
+fn compile_row(row: &RoutingRuleSpec<'_>) -> Option<CompiledRoutingRule> {
     Some(CompiledRoutingRule {
-        operation: parse_str(&row.operation)?,
-        kind: parse_str(&row.kind)?,
-        implementation: match row.implementation.as_str() {
+        operation: parse_str(row.operation)?,
+        kind: parse_str(row.kind)?,
+        implementation: match row.implementation {
             "passthrough" => RuleImpl::Passthrough,
             "transform_to" => RuleImpl::TransformTo,
             "local" => RuleImpl::Local,
             "unsupported" => RuleImpl::Unsupported,
             _ => return None,
         },
-        dest_operation: match &row.dest_operation {
+        dest_operation: match row.dest_operation {
             Some(s) => Some(parse_str(s)?),
             None => None,
         },
-        dest_kind: match &row.dest_kind {
+        dest_kind: match row.dest_kind {
             Some(s) => Some(parse_str(s)?),
             None => None,
         },

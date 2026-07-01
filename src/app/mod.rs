@@ -24,6 +24,39 @@ use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::{Credential, Provider};
 use snapshot::ControlPlaneSnapshot;
 
+#[cfg(feature = "count-local")]
+struct TokenizerStoreAdapter(Arc<dyn PersistenceBackend>);
+
+#[cfg(feature = "count-local")]
+#[async_trait::async_trait]
+impl crate::tokenize::TokenizerStore for TokenizerStoreAdapter {
+    async fn list_tokenizer_vocabs(&self) -> anyhow::Result<Vec<String>> {
+        self.0.list_tokenizer_vocabs().await
+    }
+
+    async fn get_tokenizer_vocab(&self, name: &str) -> anyhow::Result<Option<Vec<u8>>> {
+        self.0.get_tokenizer_vocab(name).await
+    }
+
+    async fn put_tokenizer_vocab(&self, name: &str, bytes: &[u8]) -> anyhow::Result<()> {
+        self.0.put_tokenizer_vocab(name, bytes).await
+    }
+}
+
+#[cfg(feature = "count-local")]
+struct TokenizerClientAdapter(Arc<dyn UpstreamClient>);
+
+#[cfg(feature = "count-local")]
+#[async_trait::async_trait]
+impl crate::tokenize::TokenizerClient for TokenizerClientAdapter {
+    async fn send(
+        &self,
+        req: http::Request<bytes::Bytes>,
+    ) -> anyhow::Result<http::Response<bytes::Bytes>> {
+        Ok(self.0.send(req).await?)
+    }
+}
+
 /// Cheap-to-clone bundle of shared services (everything behind `Arc`).
 /// Cloned per request by axum's state extractor.
 #[derive(Clone)]
@@ -75,8 +108,8 @@ impl AppState {
     ) -> Self {
         #[cfg(feature = "count-local")]
         let tokenizers = Arc::new(crate::tokenize::TokenizerRegistry::new(
-            Arc::clone(&persistence),
-            Arc::clone(&upstream),
+            Arc::new(TokenizerStoreAdapter(Arc::clone(&persistence))),
+            Arc::new(TokenizerClientAdapter(Arc::clone(&upstream))),
         ));
         #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
         let client_pool = Arc::new(crate::http::client::ClientPool::new(Arc::clone(&upstream)));

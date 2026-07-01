@@ -1,0 +1,36 @@
+[package]
+name = "gproxy-tokenize"
+version = "2.0.8"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+description = "GPROXY local token counting"
+
+[dependencies]
+serde_json = "1"
+
+anyhow = { version = "1", optional = true }
+async-trait = { version = "0.1", optional = true }
+bytes = { version = "1", optional = true }
+dashmap = { version = "6", optional = true }
+http = { version = "1", optional = true }
+tiktoken-rs = { version = "0.12", optional = true }
+tokenizers = { version = "0.23", optional = true, default-features = false, features = ["onig"] }
+tokio = { version = "1", optional = true, features = ["rt"] }
+tracing = { version = "0.1", optional = true }
+
+[features]
+default = []
+count-local = [
+    "dep:anyhow",
+    "dep:async-trait",
+    "dep:bytes",
+    "dep:dashmap",
+    "dep:http",
+    "dep:tiktoken-rs",
+    "dep:tokenizers",
+    "dep:tokio",
+    "dep:tracing",
+]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

@@ -18,8 +18,8 @@ pub use gproxy_protocol as protocol;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod selfupdate;
 pub mod store;
-pub mod tokenize;
-pub mod transform;
+pub use gproxy_tokenize as tokenize;
+pub use gproxy_transform as transform;
 pub mod usage;
 pub mod util;
 

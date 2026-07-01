@@ -1794,6 +1794,8 @@ dependencies = [
  "getrandom 0.2.17",
  "getrandom 0.4.3",
  "gproxy-protocol",
+ "gproxy-tokenize",
+ "gproxy-transform",
  "http",
  "http-body-util",
  "httpdate",
@@ -1814,8 +1816,6 @@ dependencies = [
  "sqlx 0.8.6",
  "tempfile",
  "thiserror",
- "tiktoken-rs",
- "tokenizers",
  "tokio",
  "tower",
  "tower-http 0.7.0",
@@ -1837,6 +1837,35 @@ dependencies = [
  "http",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "gproxy-tokenize"
+version = "2.0.8"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "dashmap",
+ "http",
+ "serde_json",
+ "tiktoken-rs",
+ "tokenizers",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "gproxy-transform"
+version = "2.0.8"
+dependencies = [
+ "bytes",
+ "gproxy-protocol",
+ "http",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

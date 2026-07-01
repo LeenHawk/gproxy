@@ -17,7 +17,7 @@ use crate::store::persistence::records::{
     Alias, Credential, Org, Provider, ProviderModel, Quota, RateLimit, Route, RouteMember, Scope,
     Team, User, UserKey,
 };
-use crate::transform::routing::CompiledRoutingRule;
+use crate::transform::routing::{CompiledRoutingRule, RoutingRuleSpec};
 
 /// Immutable control-plane snapshot.
 pub struct ControlPlaneSnapshot {
@@ -174,7 +174,21 @@ impl ControlPlaneSnapshot {
             snap.models_by_provider.insert(pid, models);
 
             let routing = db.list_routing_rules(pid).await?;
-            let compiled = crate::transform::routing::compile(&routing);
+            let routing_specs = routing
+                .iter()
+                .map(|r| RoutingRuleSpec {
+                    id: r.id,
+                    provider_id: r.provider_id,
+                    operation: &r.operation,
+                    kind: &r.kind,
+                    implementation: &r.implementation,
+                    dest_operation: r.dest_operation.as_deref(),
+                    dest_kind: r.dest_kind.as_deref(),
+                    sort_order: r.sort_order,
+                    enabled: r.enabled,
+                })
+                .collect::<Vec<_>>();
+            let compiled = crate::transform::routing::compile(&routing_specs);
             if !compiled.is_empty() {
                 snap.routing_rules_by_provider
                     .insert(pid, Arc::new(compiled));
