@@ -5,7 +5,7 @@
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, Schema, Statement};
 
 use crate::store::persistence::migrations::{
-    CREATE_MIGRATIONS_TABLE, MigrationDialect, SELECT_MAX_VERSION, latest_version, pending,
+    CREATE_MIGRATIONS_TABLE, MigrationDialect, latest_version, pending, select_max_version_sql,
 };
 
 use super::entities::authz::{quota, rate_limit, route_permission};
@@ -164,7 +164,10 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
     conn.execute_unprepared(CREATE_MIGRATIONS_TABLE).await?;
 
     let current = conn
-        .query_one_raw(Statement::from_string(backend, SELECT_MAX_VERSION))
+        .query_one_raw(Statement::from_string(
+            backend,
+            select_max_version_sql(dialect),
+        ))
         .await?
         .map(|row| row.try_get::<i64>("", "v"))
         .transpose()?

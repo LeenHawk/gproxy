@@ -5,7 +5,7 @@
 //!
 //! ## Model
 //!
-//! A `schema_migrations(version INTEGER PRIMARY KEY, applied_at INTEGER)` table
+//! A `schema_migrations(version BIGINT PRIMARY KEY, applied_at BIGINT)` table
 //! tracks which migrations have been applied. On connect each SQL backend:
 //!
 //!   1. runs its existing `CREATE TABLE IF NOT EXISTS` baseline (entity-driven
@@ -100,14 +100,27 @@ impl Migration {
     }
 }
 
-/// Portable DDL for the bookkeeping table. `INTEGER` is accepted by all three
-/// dialects; no autoincrement needed (the version is supplied explicitly).
+/// Portable DDL for the bookkeeping table. `BIGINT` matches the Rust `i64`
+/// migration metadata; no autoincrement needed (the version is supplied
+/// explicitly).
 pub const CREATE_MIGRATIONS_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (\
-     version INTEGER PRIMARY KEY, \
-     applied_at INTEGER NOT NULL)";
+     version BIGINT PRIMARY KEY, \
+     applied_at BIGINT NOT NULL)";
 
 /// Highest applied version, reading the bookkeeping table.
 pub const SELECT_MAX_VERSION: &str = "SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations";
+
+/// Dialect-specific version read. PostgreSQL reports legacy `INTEGER`
+/// migration tables as `INT4`, and sqlx will not decode that into `i64`
+/// unless the result expression is explicitly widened.
+pub fn select_max_version_sql(dialect: MigrationDialect) -> &'static str {
+    match dialect {
+        MigrationDialect::Postgres => {
+            "SELECT CAST(COALESCE(MAX(version), 0) AS BIGINT) AS v FROM schema_migrations"
+        }
+        MigrationDialect::Sqlite | MigrationDialect::MySql => SELECT_MAX_VERSION,
+    }
+}
 
 /// Ordered list of migrations to apply *after* the baseline. Append new
 /// entries here (see the module docs).
@@ -258,5 +271,21 @@ mod tests {
             .unwrap_or(BASELINE_VERSION);
         assert_eq!(latest_version(), top);
         assert!(pending(latest_version()).is_empty());
+    }
+
+    #[test]
+    fn postgres_max_version_query_widens_legacy_integer_tables() {
+        assert_eq!(
+            select_max_version_sql(MigrationDialect::Postgres),
+            "SELECT CAST(COALESCE(MAX(version), 0) AS BIGINT) AS v FROM schema_migrations"
+        );
+        assert_eq!(
+            select_max_version_sql(MigrationDialect::Sqlite),
+            SELECT_MAX_VERSION
+        );
+        assert_eq!(
+            select_max_version_sql(MigrationDialect::MySql),
+            SELECT_MAX_VERSION
+        );
     }
 }

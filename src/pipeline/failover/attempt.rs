@@ -350,6 +350,7 @@ pub(super) struct ResponseRuleCtx<'a> {
 /// `upstream` is `Some`, the post-decode provider response is captured for
 /// §8-D logging (buffered: returned via `upstream_raw`; streaming: backfilled by
 /// the spliced guard).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn materialize(
     channel: &Arc<dyn Channel>,
     source: BodySource,
