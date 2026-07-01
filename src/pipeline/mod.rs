@@ -10,7 +10,7 @@ pub mod context;
 pub mod error;
 pub mod execute;
 pub mod failover;
-mod health_hooks;
+pub(crate) mod health_hooks;
 pub mod ingress;
 pub mod local_ops;
 pub mod outcome;

@@ -176,8 +176,8 @@ fn usage_error(e: crate::credentials::usage::UsageError) -> ApiError {
 }
 
 /// `GET /admin/providers/{id}/upstream-models` — LIVE: pull the provider's model
-/// list from its upstream (picks an enabled credential, refreshes token, sends a
-/// `list_models` request). Native-only (needs the upstream transport). NOT
+/// list from its upstream (walks enabled credentials, refreshes tokens, sends
+/// `list_models` requests). Native-only (needs the upstream transport). NOT
 /// cached. No enabled credential → 400.
 pub async fn upstream_models(
     State(state): State<AppState>,
@@ -193,7 +193,9 @@ fn models_error(e: crate::credentials::upstream_models::ModelsError) -> ApiError
     use crate::credentials::upstream_models::ModelsError as M;
     match e {
         M::ProviderNotFound | M::UnknownChannel(_) => ApiError::NotFound(e.to_string()),
-        M::NoCredential | M::Channel(_) | M::Status(_) => ApiError::BadRequest(e.to_string()),
+        M::NoCredential | M::NoAvailableCredential | M::Channel(_) | M::Status(_) => {
+            ApiError::BadRequest(e.to_string())
+        }
         M::Decrypt(_) | M::Upstream(_) | M::Internal(_) => ApiError::Internal(e.to_string()),
     }
 }
