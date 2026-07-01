@@ -13,7 +13,7 @@ pub mod health;
 pub mod http;
 pub mod pipeline;
 pub mod process;
-pub mod protocol;
+pub use gproxy_protocol as protocol;
 // Self-update is native-only: edge (wasm) deploys via the platform pipeline (§19).
 #[cfg(not(target_arch = "wasm32"))]
 pub mod selfupdate;

@@ -1793,6 +1793,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.17",
  "getrandom 0.4.3",
+ "gproxy-protocol",
  "http",
  "http-body-util",
  "httpdate",
@@ -1827,6 +1828,15 @@ dependencies = [
  "wreq-util",
  "xxhash-rust",
  "zip",
+]
+
+[[package]]
+name = "gproxy-protocol"
+version = "2.0.8"
+dependencies = [
+ "http",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

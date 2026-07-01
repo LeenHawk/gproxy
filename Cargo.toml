@@ -15,6 +15,8 @@ name = "gproxy"
 path = "src/main.rs"
 
 [workspace]
+members = ["crates/gproxy-protocol"]
+resolver = "3"
 
 # ── deps compiled on BOTH native and wasm32 ──────────────────────────────────
 [dependencies]
@@ -28,6 +30,7 @@ bytes = "1"
 chacha20poly1305 = "0.11.0-rc.3"
 futures-core = "0.3"
 futures-util = "0.3"
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.0.8" }
 # Single RNG source for DEK/nonce/PKCE/ids across native + wasm. Native uses the
 # default OS backend; wasm enables the `js` backend (see the wasm target table).
 getrandom = "0.2"
