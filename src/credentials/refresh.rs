@@ -91,34 +91,10 @@ impl RefreshOrchestrator {
         // refresh from the host's bare IP can trip revocation + leaks that IP to
         // the token endpoint). Resolved BEFORE the redis lock so a bad-target
         // failure never leaks the lock; an unusable target fails the refresh
-        // (cool + skip), never a silent downgrade to the default client. wasm /
-        // non-wreq builds always use the default client.
-        #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-        let client = {
-            let global_proxy = state.upstream_proxy_url();
-            let proxy = crate::channel::resolve::effective_proxy(
-                credential,
-                provider,
-                global_proxy.as_deref(),
-            );
-            let fingerprint =
-                crate::channel::resolve::effective_tls_fingerprint(credential, provider);
-            let resolved = if let Some(fp) = fingerprint.as_ref() {
-                state.client_pool.for_target(proxy.as_deref(), Some(fp))
-            } else if let Some(emu) = channel.default_emulation() {
-                state
-                    .client_pool
-                    .for_channel(proxy.as_deref(), channel.id(), emu)
-            } else {
-                state.client_pool.for_target(proxy.as_deref(), None)
-            };
-            resolved.map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?
-        };
-        #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
-        let client = {
-            let _ = provider; // proxy/fingerprint policy is native+wreq only
-            Arc::clone(&state.upstream)
-        };
+        // (cool + skip), never a silent downgrade to the default client.
+        let client = state
+            .upstream_client_for_credential(channel, credential, provider)
+            .map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?;
         // Cross-instance single-flight: the local mutex above serialises this
         // instance, but a single-use refresh_token must not be rotated by two
         // instances at once. Acquire a best-effort redis lock around the actual

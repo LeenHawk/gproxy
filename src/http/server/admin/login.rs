@@ -38,9 +38,12 @@ pub async fn start(
     let (verifier, challenge) = oauth::pkce();
     let state_tok = uuid_v4();
     let params = req.params.clone().unwrap_or_else(|| serde_json::json!({}));
+    let login_client = state
+        .upstream_client_for_provider_id(req.provider_id)
+        .map_err(|_| ApiError::BadRequest("login client init failed".into()))?;
     let started = channel
         .authcode_start(
-            &state.upstream,
+            &login_client,
             &params,
             req.redirect_uri.as_deref().unwrap_or_default(),
             &state_tok,
@@ -53,6 +56,7 @@ pub async fn start(
     let sid = login::start(
         state.cache.as_ref(),
         req.channel,
+        req.provider_id,
         verifier,
         state_tok,
         started.redirect_uri,
@@ -115,9 +119,13 @@ pub async fn complete(
     };
 
     let channel = state.channels.login_for(&session.channel).ok_or_else(bad)?;
+    let provider_id = authcode_provider_id(session.provider_id, req.provider_id).ok_or_else(bad)?;
+    let login_client = state
+        .upstream_client_for_provider_id(Some(provider_id))
+        .map_err(|_| bad())?;
     let secret = channel
         .authcode_exchange(
-            &state.upstream,
+            &login_client,
             &code,
             &session.verifier,
             &session.redirect_uri,
@@ -137,7 +145,7 @@ pub async fn complete(
 
     let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
     let name = req.name.or_else(|| label_from_secret(&secret));
-    let cred = seal_create(&state, req.provider_id, name, sealed)
+    let cred = seal_create(&state, provider_id, name, sealed)
         .await
         .map_err(|_| bad())?;
     Ok(Json(cred))
@@ -207,8 +215,11 @@ pub async fn device_start(
         .login_for(&req.channel)
         .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
     let params = req.params.clone().unwrap_or_else(|| serde_json::json!({}));
+    let login_client = state
+        .upstream_client_for_provider_id(Some(req.provider_id))
+        .map_err(|_| ApiError::BadRequest("device login client init failed".into()))?;
     let init = channel
-        .device_start(&state.upstream, &params)
+        .device_start(&login_client, &params)
         .await
         .map_err(|_| ApiError::BadRequest("channel has no device login".into()))?;
     let sid = login::device_start(
@@ -242,9 +253,12 @@ pub async fn device_poll(
         .await
         .ok_or_else(bad)?;
     let channel = state.channels.login_for(&session.channel).ok_or_else(bad)?;
+    let login_client = state
+        .upstream_client_for_provider_id(Some(session.provider_id))
+        .map_err(|_| bad())?;
 
     match channel
-        .device_poll(&state.upstream, &session.device_code)
+        .device_poll(&login_client, &session.device_code)
         .await
     {
         Ok(DevicePoll::Pending) => Ok(Json(serde_json::json!({ "status": "pending" }))),
@@ -263,6 +277,14 @@ pub async fn device_poll(
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
             Err(bad())
         }
+    }
+}
+
+fn authcode_provider_id(start_provider_id: Option<i64>, complete_provider_id: i64) -> Option<i64> {
+    match start_provider_id {
+        Some(id) if id == complete_provider_id => Some(id),
+        Some(_) => None,
+        None => Some(complete_provider_id),
     }
 }
 

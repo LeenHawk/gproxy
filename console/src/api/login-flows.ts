@@ -3,6 +3,7 @@ import type { CredentialView } from "./credentials";
 
 export interface LoginStartRequest {
   channel: string;
+  provider_id?: number;
   redirect_uri?: string;
   params?: Record<string, unknown>;
 }

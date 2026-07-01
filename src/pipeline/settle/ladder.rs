@@ -1,6 +1,6 @@
 //! §17 counting ladder for abnormal/usage-less ends: gpt family → local
 //! tiktoken; claude/gemini upstream family → upstream count endpoint (global
-//! Semaphore(4) + 5s timeout, plain upstream client, no user quota/authz);
+//! Semaphore(4) + 5s timeout, same effective provider client, no user quota/authz);
 //! anything else / failure → local chain (vocab → chars/2).
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -19,8 +19,9 @@ pub(super) async fn count_and_record(ctx: SettleCtx, text: String, ended: Ended)
 }
 
 /// §17 counting ladder: gpt family → local tiktoken; claude/gemini upstream
-/// family → upstream count endpoint (bounded concurrency + timeout, never the
-/// user pipeline); anything else / failure → local chain (vocab → chars/2).
+/// family → upstream count endpoint (bounded concurrency + timeout, same
+/// effective provider client, never the user pipeline); anything else / failure
+/// → local chain (vocab → chars/2).
 pub(super) async fn ladder(ctx: &SettleCtx, text: &str) -> (NormalizedUsage, UsageSource) {
     #[cfg(not(target_arch = "wasm32"))]
     if !crate::tokenize::is_gpt_family(&ctx.model)
@@ -83,9 +84,9 @@ static COUNT_GATE: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::Once
 const COUNT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Count input (original upstream request body) and output (produced text as
-/// one user message) via the provider's count endpoint, through
-/// `channel.prepare` + the plain upstream client — no pipeline, no user
-/// quota/authz. The sealed secret is opened HERE and dropped on return.
+/// one user message) via the provider's count endpoint, through `channel.prepare`
+/// + the same effective provider client — no pipeline, no user quota/authz. The
+/// sealed secret is opened HERE and dropped on return.
 #[cfg(not(target_arch = "wasm32"))]
 async fn upstream_count(ctx: &SettleCtx, text: &str) -> Option<NormalizedUsage> {
     let gate = COUNT_GATE.get_or_init(|| tokio::sync::Semaphore::new(4));
@@ -137,7 +138,12 @@ async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Option<u64>
             body,
         })
         .ok()?;
-    let resp = tokio::time::timeout(COUNT_TIMEOUT, ctx.state.upstream.send(prepared.into_http()))
+    let client = ctx
+        .state
+        .upstream_client_for_credential(&ctx.channel, &ctx.credential, &ctx.provider)
+        .map_err(|e| tracing::warn!(error = %e, "settle count: resolve upstream client failed"))
+        .ok()?;
+    let resp = tokio::time::timeout(COUNT_TIMEOUT, client.send(prepared.into_http()))
         .await
         .ok()?
         .ok()?;

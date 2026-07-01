@@ -18,9 +18,10 @@ use arc_swap::ArcSwap;
 
 use crate::channel::registry::ChannelRegistry;
 use crate::config::RuntimeConfig;
-use crate::http::client::UpstreamClient;
+use crate::http::client::{ClientError, UpstreamClient};
 use crate::store::cache::CacheBackend;
 use crate::store::persistence::PersistenceBackend;
+use crate::store::persistence::records::{Credential, Provider};
 use snapshot::ControlPlaneSnapshot;
 
 /// Cheap-to-clone bundle of shared services (everything behind `Arc`).
@@ -111,6 +112,109 @@ impl AppState {
             .proxy
             .clone()
             .or_else(|| self.config.upstream.proxy_url.clone())
+    }
+
+    /// Resolve a client for the current instance-level default proxy. This includes
+    /// the hot-reloaded Console setting, not just the startup CLI/env proxy baked
+    /// into `self.upstream`.
+    pub fn upstream_client_for_default_proxy(
+        &self,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let proxy = self.upstream_proxy_url();
+        self.upstream_client_for_proxy(proxy.as_deref())
+    }
+
+    /// Resolve a client for provider-scoped auxiliary calls that have no concrete
+    /// credential yet (login bootstrap, self-contained provider helpers):
+    /// provider proxy first, then the instance/global default.
+    pub fn upstream_client_for_provider(
+        &self,
+        provider: &Provider,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let proxy = provider
+            .proxy_url
+            .clone()
+            .or_else(|| self.upstream_proxy_url());
+        self.upstream_client_for_proxy(proxy.as_deref())
+    }
+
+    /// Resolve a client for a provider id if the caller has one, otherwise for the
+    /// instance/global default proxy. Used by admin login bootstrap flows where
+    /// older clients may not yet send `provider_id` at the first step.
+    pub fn upstream_client_for_provider_id(
+        &self,
+        provider_id: Option<i64>,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        match provider_id {
+            Some(id) => {
+                let provider = self
+                    .cp()
+                    .providers_by_id
+                    .get(&id)
+                    .cloned()
+                    .ok_or_else(|| ClientError::Config("provider not found".into()))?;
+                self.upstream_client_for_provider(&provider)
+            }
+            None => self.upstream_client_for_default_proxy(),
+        }
+    }
+
+    /// Resolve the full traffic client for a concrete credential: effective proxy
+    /// plus DB TLS fingerprint or the channel's built-in emulation profile.
+    pub fn upstream_client_for_credential(
+        &self,
+        channel: &Arc<dyn crate::channel::Channel>,
+        credential: &Credential,
+        provider: &Provider,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        self.upstream_client_for_credential_inner(channel, credential, provider)
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    fn upstream_client_for_proxy(
+        &self,
+        proxy: Option<&str>,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        self.client_pool.for_target(proxy, None)
+    }
+
+    #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
+    fn upstream_client_for_proxy(
+        &self,
+        _proxy: Option<&str>,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        Ok(Arc::clone(&self.upstream))
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    fn upstream_client_for_credential_inner(
+        &self,
+        channel: &Arc<dyn crate::channel::Channel>,
+        credential: &Credential,
+        provider: &Provider,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let global_proxy = self.upstream_proxy_url();
+        let proxy =
+            crate::channel::resolve::effective_proxy(credential, provider, global_proxy.as_deref());
+        let fingerprint = crate::channel::resolve::effective_tls_fingerprint(credential, provider);
+        if let Some(fp) = fingerprint.as_ref() {
+            self.client_pool.for_target(proxy.as_deref(), Some(fp))
+        } else if let Some(emu) = channel.default_emulation() {
+            self.client_pool
+                .for_channel(proxy.as_deref(), channel.id(), emu)
+        } else {
+            self.client_pool.for_target(proxy.as_deref(), None)
+        }
+    }
+
+    #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
+    fn upstream_client_for_credential_inner(
+        &self,
+        _channel: &Arc<dyn crate::channel::Channel>,
+        _credential: &Credential,
+        _provider: &Provider,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        Ok(Arc::clone(&self.upstream))
     }
 
     /// Rebuild the snapshot from persistence and swap it in (next version).

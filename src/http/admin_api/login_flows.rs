@@ -2,8 +2,8 @@
 //!
 //! Replicates the native `src/http/server/admin/login.rs` handler logic,
 //! calling the same cross-target `crate::admin::login` cache state-machine and
-//! the same `ChannelLogin` trait methods through `&state.upstream` (FetchClient
-//! on edge). All four authcode/device flows are edge-safe. The cookie-login
+//! the same `ChannelLogin` trait methods through a provider/default resolved
+//! upstream client (FetchClient on edge). All four authcode/device flows are edge-safe. The cookie-login
 //! endpoint requires the native `upstream-wreq` browser-TLS client and is
 //! degraded to 501 on edge.
 //!
@@ -88,9 +88,12 @@ async fn start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, Ap
     let (verifier, challenge) = oauth::pkce();
     let state_tok = crate::util::rand::uuid_v4();
     let params = req.params.clone().unwrap_or_else(|| serde_json::json!({}));
+    let login_client = state
+        .upstream_client_for_provider_id(req.provider_id)
+        .map_err(|_| ApiError::BadRequest("login client init failed".into()))?;
     let started = channel
         .authcode_start(
-            &state.upstream,
+            &login_client,
             &params,
             req.redirect_uri.as_deref().unwrap_or_default(),
             &state_tok,
@@ -103,6 +106,7 @@ async fn start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, Ap
     let sid = login::start(
         state.cache.as_ref(),
         req.channel,
+        req.provider_id,
         verifier,
         state_tok,
         started.redirect_uri,
@@ -158,9 +162,13 @@ async fn complete(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp,
     };
 
     let channel = state.channels.login_for(&session.channel).ok_or_else(bad)?;
+    let provider_id = authcode_provider_id(session.provider_id, req.provider_id).ok_or_else(bad)?;
+    let login_client = state
+        .upstream_client_for_provider_id(Some(provider_id))
+        .map_err(|_| bad())?;
     let secret = channel
         .authcode_exchange(
-            &state.upstream,
+            &login_client,
             &code,
             &session.verifier,
             &session.redirect_uri,
@@ -170,7 +178,7 @@ async fn complete(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp,
         .map_err(|_| bad())?;
 
     let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-    let cred = seal_create(state, req.provider_id, req.name, sealed)
+    let cred = seal_create(state, provider_id, req.name, sealed)
         .await
         .map_err(|_| bad())?;
     Resp::json(200, &cred)
@@ -188,8 +196,11 @@ async fn device_start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<R
         .login_for(&req.channel)
         .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
     let params = req.params.clone().unwrap_or_else(|| serde_json::json!({}));
+    let login_client = state
+        .upstream_client_for_provider_id(Some(req.provider_id))
+        .map_err(|_| ApiError::BadRequest("device login client init failed".into()))?;
     let init = channel
-        .device_start(&state.upstream, &params)
+        .device_start(&login_client, &params)
         .await
         .map_err(|_| ApiError::BadRequest("channel has no device login".into()))?;
     let sid = login::device_start(
@@ -226,9 +237,12 @@ async fn device_poll(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Re
         .await
         .ok_or_else(bad)?;
     let channel = state.channels.login_for(&session.channel).ok_or_else(bad)?;
+    let login_client = state
+        .upstream_client_for_provider_id(Some(session.provider_id))
+        .map_err(|_| bad())?;
 
     match channel
-        .device_poll(&state.upstream, &session.device_code)
+        .device_poll(&login_client, &session.device_code)
         .await
     {
         Ok(DevicePoll::Pending) => Resp::json(200, &serde_json::json!({ "status": "pending" })),
@@ -247,6 +261,14 @@ async fn device_poll(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Re
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
             Err(bad())
         }
+    }
+}
+
+fn authcode_provider_id(start_provider_id: Option<i64>, complete_provider_id: i64) -> Option<i64> {
+    match start_provider_id {
+        Some(id) if id == complete_provider_id => Some(id),
+        Some(_) => None,
+        None => Some(complete_provider_id),
     }
 }
 

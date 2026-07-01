@@ -3,8 +3,6 @@
 //!   GET  /admin/update/status — in-process status state machine snapshot.
 //!   POST /admin/update/apply  — download + verify + swap (Restart::None; stage only).
 
-use std::sync::Arc;
-
 use axum::Json;
 use axum::extract::State;
 
@@ -20,7 +18,7 @@ use crate::selfupdate::{
 // ---------------------------------------------------------------------------
 
 /// Build an `UpdateContext` using the built-in update source.
-fn context(state: &AppState) -> UpdateContext {
+fn context(state: &AppState) -> Result<UpdateContext, ApiError> {
     let channel_name = state
         .cp()
         .update_channel
@@ -31,12 +29,16 @@ fn context(state: &AppState) -> UpdateContext {
         _ => Channel::Releases,
     };
 
-    UpdateContext {
+    let client = state
+        .upstream_client_for_default_proxy()
+        .map_err(|e| ApiError::BadRequest(format!("update client init failed: {e}")))?;
+
+    Ok(UpdateContext {
         repo: DEFAULT_REPO.to_string(),
         channel,
         data_dir: state.config.update_data_dir.clone(),
-        client: Arc::clone(&state.upstream),
-    }
+        client,
+    })
 }
 
 /// Map `UpdateError` to an `ApiError`. Exhaustive over every variant.
@@ -70,7 +72,7 @@ fn update_error(e: UpdateError) -> ApiError {
 /// `GET /admin/update/check` — fetch manifest and report availability.
 /// Pure read; does NOT mutate the status state machine.
 pub async fn check(State(state): State<AppState>) -> Result<Json<CheckReport>, ApiError> {
-    let ctx = context(&state);
+    let ctx = context(&state)?;
     selfupdate::check(&ctx)
         .await
         .map(Json)
@@ -105,7 +107,7 @@ pub async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
 /// and returns; the operator restarts the process at their own schedule.
 pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, ApiError> {
     // Fail fast on bad config before touching the status machine (no lock held).
-    let ctx = context(&state);
+    let ctx = context(&state)?;
 
     // --- single-flight guard: atomic check-and-set under one lock ---
     // Check and the `Downloading` write happen in the SAME lock scope, so two

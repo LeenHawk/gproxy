@@ -149,30 +149,9 @@ pub(super) async fn attempt(
     // unusable target config (malformed proxy URL, fingerprint yielding no
     // emulation) fails THIS candidate like an upstream connect error — never a
     // silent downgrade to the default client, which would bypass the
-    // proxy/TLS-profile policy. wasm and non-wreq builds always use the
-    // default upstream client.
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    let client = {
-        let global_proxy = state.upstream_proxy_url();
-        let proxy = crate::channel::resolve::effective_proxy(
-            &cand.credential,
-            &cand.provider,
-            global_proxy.as_deref(),
-        );
-        let fingerprint =
-            crate::channel::resolve::effective_tls_fingerprint(&cand.credential, &cand.provider);
-        // DB fingerprint (credential/provider) wins; otherwise fall back to the
-        // channel's built-in impersonation profile; otherwise the default client.
-        let pool_result = if let Some(fp) = fingerprint.as_ref() {
-            state.client_pool.for_target(proxy.as_deref(), Some(fp))
-        } else if let Some(emu) = channel.default_emulation() {
-            state
-                .client_pool
-                .for_channel(proxy.as_deref(), channel.id(), emu)
-        } else {
-            state.client_pool.for_target(proxy.as_deref(), None)
-        };
-        match pool_result {
+    // proxy/TLS-profile policy.
+    let client =
+        match state.upstream_client_for_credential(channel, &cand.credential, &cand.provider) {
             Ok(c) => c,
             Err(e) => {
                 health_hooks::record_failure(state, cand);
@@ -190,10 +169,7 @@ pub(super) async fn attempt(
                 );
                 return Err(PipelineError::Transport(e.to_string()));
             }
-        }
-    };
-    #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
-    let client = Arc::clone(&state.upstream);
+        };
 
     #[cfg(not(target_arch = "wasm32"))]
     let send_started = std::time::Instant::now();

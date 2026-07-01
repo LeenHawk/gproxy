@@ -192,7 +192,7 @@ function CodeOnlyFlow({
   const [pasted, setPasted] = useState("");
 
   const start = useMutation({
-    mutationFn: () => loginFlowStart({ channel: provider.channel, params: startParams }),
+    mutationFn: () => loginFlowStart({ channel: provider.channel, provider_id: provider.id, params: startParams }),
     onSuccess: (resp) => {
       setSession(resp);
       window.open(resp.authorize_url, "_blank", "noopener");
@@ -252,7 +252,7 @@ function AuthcodeFlow({
   const [pasteTouched, setPasteTouched] = useState(false);
 
   const start = useMutation({
-    mutationFn: () => loginFlowStart({ channel: provider.channel, params: startParams }),
+    mutationFn: () => loginFlowStart({ channel: provider.channel, provider_id: provider.id, params: startParams }),
     onSuccess: (resp) => {
       setSession(resp);
       window.open(resp.authorize_url, "_blank", "noopener");

@@ -26,6 +26,10 @@ const DEVICE_TTL: Duration = Duration::from_secs(900);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginSession {
     pub channel: String,
+    /// Provider selected when the authcode flow started. Optional for sessions
+    /// created by older clients before `provider_id` was sent at start.
+    #[serde(default)]
+    pub provider_id: Option<i64>,
     pub verifier: String,
     pub state: String,
     pub redirect_uri: String,
@@ -42,6 +46,7 @@ pub struct LoginSession {
 pub async fn start(
     cache: &dyn CacheBackend,
     channel: String,
+    provider_id: Option<i64>,
     verifier: String,
     state: String,
     redirect_uri: String,
@@ -50,6 +55,7 @@ pub async fn start(
     let sid = crate::util::rand::uuid_v4();
     let session = LoginSession {
         channel,
+        provider_id,
         verifier,
         state,
         redirect_uri,

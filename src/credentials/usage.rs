@@ -98,39 +98,16 @@ async fn fetch_with(
 
 /// Resolve the pooled client for this credential: its effective proxy + TLS
 /// fingerprint (DB override) else the channel's built-in emulation, mirroring
-/// [`super::refresh`] and `failover::attempt`. wasm / non-wreq always use the
-/// default client.
-#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+/// [`super::refresh`] and `failover::attempt`.
 pub(crate) fn resolve_client(
     state: &AppState,
     channel: &Arc<dyn Channel>,
     credential: &Credential,
     provider: &Provider,
 ) -> Result<Arc<dyn UpstreamClient>, UsageError> {
-    let global_proxy = state.upstream_proxy_url();
-    let proxy =
-        crate::channel::resolve::effective_proxy(credential, provider, global_proxy.as_deref());
-    let fingerprint = crate::channel::resolve::effective_tls_fingerprint(credential, provider);
-    let resolved = if let Some(fp) = fingerprint.as_ref() {
-        state.client_pool.for_target(proxy.as_deref(), Some(fp))
-    } else if let Some(emu) = channel.default_emulation() {
-        state
-            .client_pool
-            .for_channel(proxy.as_deref(), channel.id(), emu)
-    } else {
-        state.client_pool.for_target(proxy.as_deref(), None)
-    };
-    resolved.map_err(|e| UsageError::Upstream(format!("resolve usage client: {e}")))
-}
-
-#[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
-pub(crate) fn resolve_client(
-    state: &AppState,
-    _channel: &Arc<dyn Channel>,
-    _credential: &Credential,
-    _provider: &Provider,
-) -> Result<Arc<dyn UpstreamClient>, UsageError> {
-    Ok(Arc::clone(&state.upstream))
+    state
+        .upstream_client_for_credential(channel, credential, provider)
+        .map_err(|e| UsageError::Upstream(format!("resolve usage client: {e}")))
 }
 
 #[cfg(test)]

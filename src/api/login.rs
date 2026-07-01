@@ -6,6 +6,11 @@
 #[derive(serde::Deserialize)]
 pub struct LoginStartRequest {
     pub channel: String,
+    /// Optional provider target for proxy resolution during any pre-authorize
+    /// upstream calls. Older clients may omit it; the backend then falls back to
+    /// the instance/global proxy only.
+    #[serde(default)]
+    pub provider_id: Option<i64>,
     #[serde(default)]
     pub redirect_uri: Option<String>,
     /// Opaque channel-specific login inputs forwarded to `authcode_start` (e.g.
