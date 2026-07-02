@@ -410,6 +410,7 @@ mod tests {
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = GeminiCliChannel.shape_response(
             Bytes::from(
@@ -435,6 +436,7 @@ mod tests {
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = GeminiCliChannel.shape_response(
             Bytes::from_static(br#"{"response":{"candidates":[]}}"#),

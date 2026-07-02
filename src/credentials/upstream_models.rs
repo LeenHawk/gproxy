@@ -317,6 +317,7 @@ async fn fetch_models_with(
                     stream: false,
                     status,
                     enable_magic_cache: false,
+                    enable_claude_fable_fallback: false,
                 },
             );
             return Ok(ModelPullResult::Success(parse_models(family, &body)));

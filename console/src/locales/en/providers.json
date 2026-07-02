@@ -21,6 +21,7 @@
     "location": "Location (vertex)",
     "profileArn": "Profile ARN (kiro)",
     "enableMagicCache": "Magic-string cache",
+    "enableClaudeFableFallback": "Fable fallback",
     "tlsProfile": "TLS fingerprint",
     "weight": "Weight",
     "kind": "Kind",
@@ -50,6 +51,7 @@
     "baseUrlRequired": "Required for custom channel",
     "baseUrlHint": "Leave empty to use the channel's built-in default.",
     "enableMagicCacheHint": "Strip embedded magic trigger strings and stamp Claude cache_control (auto / 5m / 1h).",
+    "enableClaudeFableFallbackHint": "For Claude Messages requests to Claude Fable 5, add fallback to Claude Opus 4.8.",
     "saved": "Saved",
     "channelLocked": "Channel is fixed after creation.",
     "projectNameHint": "Conversations open inside this ChatGPT project (auto-created if missing), so they stay grouped in your history. Mutually exclusive with temporary."

@@ -439,6 +439,7 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = VertexChannel.shape_response(body.clone(), &content_ctx);
         let v: Value = serde_json::from_slice(&out).unwrap();
@@ -453,6 +454,7 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out2 = VertexChannel.shape_response(body.clone(), &list_ctx);
         assert_eq!(out2, body);

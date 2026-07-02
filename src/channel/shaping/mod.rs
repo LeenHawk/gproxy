@@ -10,6 +10,7 @@
 
 pub mod anthropic_beta;
 pub mod claude_cache_control;
+pub mod claude_fallback;
 pub mod claude_magic_cache;
 pub mod claude_sampling;
 pub mod gemini_genconfig;

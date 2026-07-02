@@ -7,7 +7,9 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::shaping::{self, claude_cache_control, claude_magic_cache, claude_sampling};
+use crate::channel::shaping::{
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
+};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 
@@ -93,7 +95,13 @@ impl Channel for VercelChannel {
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
+        let anthropic_beta = (ctx.method == http::Method::POST && ctx.path == "/v1/messages")
+            .then(|| ctx.headers.get("anthropic-beta").cloned())
+            .flatten();
         let (mut req, key) = common::build_request(ctx, &DEFAULTS)?;
+        if let Some(value) = anthropic_beta {
+            req.headers_mut().insert("anthropic-beta", value);
+        }
         auth::apply(&mut req, &key)?;
         Ok(PreparedRequest::new(req))
     }
@@ -111,6 +119,9 @@ impl Channel for VercelChannel {
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
+            if ctx.enable_claude_fable_fallback {
+                claude_fallback::apply_fable_to_opus48(v, headers);
+            }
         });
         shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
         body
@@ -134,6 +145,14 @@ mod tests {
             stream: true,
             status: StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
+        }
+    }
+
+    fn fallback_ctx() -> ShapeCtx {
+        ShapeCtx {
+            enable_claude_fable_fallback: true,
+            ..messages_ctx()
         }
     }
 
@@ -170,8 +189,44 @@ mod tests {
             stream: false,
             status: StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = VercelChannel.shape_request(body.clone(), &mut headers, &ctx);
         assert_eq!(out, body);
+    }
+
+    #[test]
+    fn injects_and_forwards_fable_fallback_beta() {
+        let mut headers = HeaderMap::new();
+        let body =
+            Bytes::from(r#"{"model":"anthropic/claude-fable-5","messages":[],"max_tokens":32}"#);
+        let shaped = VercelChannel.shape_request(body, &mut headers, &fallback_ctx());
+
+        let v: Value = serde_json::from_slice(&shaped).unwrap();
+        assert_eq!(
+            v["fallbacks"],
+            serde_json::json!([{ "model": "anthropic/claude-opus-4-8" }])
+        );
+
+        let secret = serde_json::json!({ "api_key": "vk-test" });
+        let settings = serde_json::json!({});
+        let req = VercelChannel
+            .prepare(PrepareCtx {
+                secret: &secret,
+                provider_settings: &settings,
+                upstream_model_id: "anthropic/claude-fable-5",
+                method: http::Method::POST,
+                path: "/v1/messages",
+                query: None,
+                headers: &headers,
+                body: shaped,
+            })
+            .unwrap()
+            .into_http();
+
+        assert_eq!(
+            req.headers().get("anthropic-beta").unwrap(),
+            "server-side-fallback-2026-06-01"
+        );
     }
 }

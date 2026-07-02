@@ -21,6 +21,7 @@
     "location": "区域（vertex）",
     "profileArn": "Profile ARN（kiro）",
     "enableMagicCache": "魔法字符串缓存",
+    "enableClaudeFableFallback": "Fable 回退",
     "tlsProfile": "TLS 指纹",
     "weight": "权重",
     "kind": "类型",
@@ -50,6 +51,7 @@
     "baseUrlRequired": "custom 渠道必填",
     "baseUrlHint": "留空使用渠道内置默认值。",
     "enableMagicCacheHint": "识别并剥除 prompt 里嵌入的魔法触发串,按其 ttl(auto/5m/1h)打 Claude cache_control。",
+    "enableClaudeFableFallbackHint": "Claude Messages 请求使用 Claude Fable 5 时,自动加入回退到 Claude Opus 4.8。",
     "saved": "已保存",
     "channelLocked": "渠道在创建后不可更改。",
     "projectNameHint": "会话开在该 ChatGPT 项目里(不存在则自动创建),方便在历史里分组查看。与临时聊天互斥。"

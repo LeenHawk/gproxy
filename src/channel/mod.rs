@@ -92,6 +92,9 @@ pub struct ShapeCtx {
     /// Provider `enable_magic_cache` setting — request shaping only; gates the
     /// opt-in magic-string cache triggers on Claude-format bodies.
     pub enable_magic_cache: bool,
+    /// Provider `enable_claude_fable_fallback` setting — request shaping only;
+    /// gates opt-in Claude Fable 5 -> Opus 4.8 fallback injection.
+    pub enable_claude_fable_fallback: bool,
 }
 
 /// Pure upstream access adapter (§6.3). Implementors provide `id`,

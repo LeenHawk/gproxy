@@ -7,7 +7,9 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::shaping::{self, claude_cache_control, claude_magic_cache, claude_sampling};
+use crate::channel::shaping::{
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
+};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 
@@ -108,6 +110,9 @@ impl Channel for ClaudeApiChannel {
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
+            if ctx.enable_claude_fable_fallback {
+                claude_fallback::apply_fable_to_opus48(v, headers);
+            }
         });
         shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
         body
@@ -131,6 +136,14 @@ mod tests {
             stream: false,
             status: StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
+        }
+    }
+
+    fn fallback_ctx() -> ShapeCtx {
+        ShapeCtx {
+            enable_claude_fable_fallback: true,
+            ..messages_ctx()
         }
     }
 
@@ -173,6 +186,7 @@ mod tests {
             stream: false,
             status: StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = ClaudeApiChannel.shape_request(body.clone(), &mut headers, &ctx);
         assert_eq!(out, body);
@@ -180,6 +194,25 @@ mod tests {
         assert_eq!(
             headers.get("anthropic-beta").unwrap(),
             "context-1m-2025-08-07"
+        );
+    }
+
+    #[test]
+    fn injects_fable_server_side_fallback() {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from(
+            r#"{"model":"claude-fable-5","messages":[],"max_tokens":32,"temperature":0.7}"#,
+        );
+        let out = ClaudeApiChannel.shape_request(body, &mut headers, &fallback_ctx());
+
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(
+            v["fallbacks"],
+            serde_json::json!([{ "model": "claude-opus-4-8" }])
+        );
+        assert_eq!(
+            headers.get("anthropic-beta").unwrap(),
+            "server-side-fallback-2026-06-01"
         );
     }
 }

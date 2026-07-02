@@ -172,6 +172,7 @@ mod tests {
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = VertexExpressChannel.shape_response(body.clone(), &content_ctx);
         let v: Value = serde_json::from_slice(&out).unwrap();
@@ -186,6 +187,7 @@ mod tests {
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out2 = VertexExpressChannel.shape_response(body.clone(), &count_ctx);
         assert_eq!(out2, body);

@@ -19,7 +19,9 @@ use bytes::Bytes;
 use serde_json::{Value, json};
 
 use crate::channel::http_util::{allow_headers, build_request, join_url};
-use crate::channel::shaping::{self, claude_cache_control, claude_magic_cache, claude_sampling};
+use crate::channel::shaping::{
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
+};
 use crate::channel::{
     AuthCodeStart, Channel, ChannelError, ChannelLogin, PrepareCtx, PreparedRequest, ShapeCtx,
 };
@@ -126,6 +128,9 @@ impl Channel for ClaudeCodeChannel {
         let body = shaping::with_json_body(body, |v| {
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
+            if ctx.enable_claude_fable_fallback {
+                claude_fallback::apply_fable_to_opus48(v, headers);
+            }
         });
         shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
         body
@@ -476,6 +481,14 @@ mod tests {
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
+        }
+    }
+
+    fn fallback_ctx() -> ShapeCtx {
+        ShapeCtx {
+            enable_claude_fable_fallback: true,
+            ..messages_ctx()
         }
     }
 
@@ -512,12 +525,32 @@ mod tests {
             stream: false,
             status: http::StatusCode::OK,
             enable_magic_cache: false,
+            enable_claude_fable_fallback: false,
         };
         let out = ClaudeCodeChannel.shape_request(body.clone(), &mut headers, &ctx);
         assert_eq!(out, body);
         assert_eq!(
             headers.get("anthropic-beta").unwrap(),
             "context-1m-2025-08-07"
+        );
+    }
+
+    #[test]
+    fn shape_request_injects_fable_fallback_and_keeps_oauth_beta() {
+        let mut headers = HeaderMap::new();
+        headers.insert("anthropic-beta", "oauth-2025-04-20".parse().unwrap());
+        let body =
+            Bytes::from_static(br#"{"model":"claude-fable-5","messages":[],"max_tokens":32}"#);
+        let out = ClaudeCodeChannel.shape_request(body, &mut headers, &fallback_ctx());
+
+        let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(
+            v["fallbacks"],
+            serde_json::json!([{ "model": "claude-opus-4-8" }])
+        );
+        assert_eq!(
+            headers.get("anthropic-beta").unwrap(),
+            "oauth-2025-04-20,server-side-fallback-2026-06-01"
         );
     }
 }

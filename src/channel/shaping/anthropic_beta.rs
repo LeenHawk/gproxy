@@ -2,6 +2,30 @@
 
 use http::{HeaderMap, HeaderValue};
 
+/// Append `token` to the `anthropic-beta` header, comma-joining with existing
+/// tokens and de-duplicating exact token matches.
+pub fn append_beta_token(headers: &mut HeaderMap, token: &str) {
+    let existing = headers
+        .get("anthropic-beta")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let mut tokens: Vec<String> = existing
+        .as_deref()
+        .unwrap_or_default()
+        .split(',')
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect();
+    if tokens.iter().any(|t| t == token) {
+        return;
+    }
+    tokens.push(token.to_string());
+    let combined = tokens.join(",");
+    if let Ok(value) = HeaderValue::from_str(&combined) {
+        headers.insert("anthropic-beta", value);
+    }
+}
+
 /// Remove every token in `tokens` from the `anthropic-beta` header. The
 /// header is rewritten without the stripped tokens; if no tokens remain,
 /// the header is removed entirely.
@@ -79,5 +103,37 @@ mod tests {
         let mut headers = HeaderMap::new();
         strip_beta_tokens(&mut headers, &["context-1m-2025-08-07"]);
         assert!(headers.get("anthropic-beta").is_none());
+    }
+
+    #[test]
+    fn append_inserts_missing_header() {
+        let mut headers = HeaderMap::new();
+        append_beta_token(&mut headers, "server-side-fallback-2026-06-01");
+        assert_eq!(header_value(&headers), "server-side-fallback-2026-06-01");
+    }
+
+    #[test]
+    fn append_dedupes_existing_token() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "anthropic-beta",
+            HeaderValue::from_static("files-api-2025-04-14"),
+        );
+        append_beta_token(&mut headers, "files-api-2025-04-14");
+        assert_eq!(header_value(&headers), "files-api-2025-04-14");
+    }
+
+    #[test]
+    fn append_preserves_existing_tokens() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "anthropic-beta",
+            HeaderValue::from_static("files-api-2025-04-14"),
+        );
+        append_beta_token(&mut headers, "server-side-fallback-2026-06-01");
+        assert_eq!(
+            header_value(&headers),
+            "files-api-2025-04-14,server-side-fallback-2026-06-01"
+        );
     }
 }

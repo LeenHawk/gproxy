@@ -8,6 +8,7 @@
  *   location          — vertex only
  *   profile_arn       — kiro only
  *   enable_magic_cache — claudecode / claudeapi / vercel / openrouter (magic-string prompt cache triggers)
+ *   enable_claude_fable_fallback — claudecode / claudeapi / vercel / openrouter
  *
  * Unknown keys (e.g. tokenizer_map) are preserved via the `base` prop.
  */
@@ -21,6 +22,7 @@ import { DEFAULT_BASE_URL } from "@/lib/channel-meta";
 
 // Channels whose backend honors the magic-string cache triggers on Claude-format bodies.
 const MAGIC_CACHE_CHANNELS = new Set(["claudecode", "claudeapi", "vercel", "openrouter"]);
+const CLAUDE_FALLBACK_CHANNELS = new Set(["claudecode", "claudeapi", "vercel", "openrouter"]);
 
 // ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
 const CHATGPT_MODES = ["normal", "temporary", "project"] as const;
@@ -33,6 +35,7 @@ export interface SettingsState {
   location: string;
   profileArn: string;
   enableMagicCache: boolean;
+  enableClaudeFableFallback: boolean;
   chatgptMode: ChatgptMode;
   projectName: string;
 }
@@ -58,6 +61,7 @@ export function initSettingsState(settingsJson: unknown): SettingsState {
     location: typeof s.location === "string" ? s.location : "",
     profileArn: typeof s.profile_arn === "string" ? s.profile_arn : "",
     enableMagicCache: s.enable_magic_cache === true,
+    enableClaudeFableFallback: s.enable_claude_fable_fallback === true,
     chatgptMode: mode,
     projectName: typeof s.project_name === "string" ? s.project_name : "",
   };
@@ -114,6 +118,14 @@ export function assembleSettings(
       result.enable_magic_cache = true;
     } else {
       delete result.enable_magic_cache;
+    }
+  }
+
+  if (CLAUDE_FALLBACK_CHANNELS.has(channel)) {
+    if (state.enableClaudeFableFallback) {
+      result.enable_claude_fable_fallback = true;
+    } else {
+      delete result.enable_claude_fable_fallback;
     }
   }
 
@@ -237,6 +249,23 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
             />
           </div>
           <p className="text-xs text-muted-foreground">{t("form.enableMagicCacheHint")}</p>
+        </div>
+      )}
+      {CLAUDE_FALLBACK_CHANNELS.has(channel) && (
+        <div className="grid gap-1">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="sf-claude-fable-fallback">
+              {t("fields.enableClaudeFableFallback")}
+            </Label>
+            <Switch
+              id="sf-claude-fable-fallback"
+              checked={state.enableClaudeFableFallback}
+              onCheckedChange={(v) => onChange({ enableClaudeFableFallback: v })}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("form.enableClaudeFableFallbackHint")}
+          </p>
         </div>
       )}
       {/* chatgpt: session mode (普通 / 临时聊天 / 进项目) — a sliding-pill segmented control */}
