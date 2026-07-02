@@ -197,6 +197,22 @@ fn typed_item_to_chat_message(
             tool_calls: Some(vec![custom_call_to_chat_tool_call(call_id, name, input)]),
             extra: Default::default(),
         }),
+        openai::TypedResponseItem::ApplyPatchCall {
+            call_id, operation, ..
+        } => Some(openai::ChatCompletionMessageParam::Assistant {
+            content: None,
+            audio: None,
+            function_call: None,
+            name: None,
+            reasoning_content: None,
+            refusal: None,
+            tool_calls: Some(vec![function_call_to_chat_tool_call(
+                call_id,
+                "apply_patch".to_owned(),
+                serde_json::to_string(&operation).unwrap_or_else(|_| "{}".to_owned()),
+            )]),
+            extra: Default::default(),
+        }),
         openai::TypedResponseItem::FunctionCallOutput {
             call_id, output, ..
         }
@@ -204,6 +220,13 @@ fn typed_item_to_chat_message(
             call_id, output, ..
         } => Some(openai::ChatCompletionMessageParam::Tool {
             content: openai::ChatTextContent::Text(response_output_to_text(output)),
+            tool_call_id: call_id,
+            extra: Default::default(),
+        }),
+        openai::TypedResponseItem::ApplyPatchCallOutput {
+            call_id, output, ..
+        } => Some(openai::ChatCompletionMessageParam::Tool {
+            content: openai::ChatTextContent::Text(output.unwrap_or_default()),
             tool_call_id: call_id,
             extra: Default::default(),
         }),
