@@ -75,15 +75,15 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
     }
 
     if let Some(limits) = &usage.limits {
-        if usage.five_hour.is_none() {
-            if let Some(limit) = limits.iter().find(|limit| limit.kind_is("session")) {
-                windows.push(limit.to_window("five_hour"));
-            }
+        if usage.five_hour.is_none()
+            && let Some(limit) = limits.iter().find(|limit| limit.kind_is("session"))
+        {
+            windows.push(limit.to_window("five_hour"));
         }
-        if usage.seven_day.is_none() {
-            if let Some(limit) = limits.iter().find(|limit| limit.kind_is("weekly_all")) {
-                windows.push(limit.to_window("seven_day"));
-            }
+        if usage.seven_day.is_none()
+            && let Some(limit) = limits.iter().find(|limit| limit.kind_is("weekly_all"))
+        {
+            windows.push(limit.to_window("seven_day"));
         }
         for limit in limits.iter().filter(|limit| limit.kind_is("weekly_scoped")) {
             let Some(label) = limit.scope_label() else {

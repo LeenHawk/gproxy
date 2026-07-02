@@ -86,7 +86,7 @@ const COUNT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 /// Count input (original upstream request body) and output (produced text as
 /// one user message) via the provider's count endpoint, through `channel.prepare`
 /// + the same effective provider client — no pipeline, no user quota/authz. The
-/// sealed secret is opened HERE and dropped on return.
+///   sealed secret is opened HERE and dropped on return.
 #[cfg(not(target_arch = "wasm32"))]
 async fn upstream_count(ctx: &SettleCtx, text: &str) -> Option<NormalizedUsage> {
     let gate = COUNT_GATE.get_or_init(|| tokio::sync::Semaphore::new(4));

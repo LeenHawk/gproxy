@@ -110,10 +110,8 @@ impl Channel for OpenRouterChannel {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
                 claude_cache_control::sanitize_claude_body(v);
             }
-            if ctx.enable_claude_fable_fallback {
-                if v.get("models").is_none() {
-                    claude_fallback::apply_fable_to_opus48_body_only(v);
-                }
+            if ctx.enable_claude_fable_fallback && v.get("models").is_none() {
+                claude_fallback::apply_fable_to_opus48_body_only(v);
             }
         })
     }
