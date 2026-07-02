@@ -40,6 +40,9 @@ pub struct UsageSnapshot {
 pub struct UsageWindow {
     /// Window id (`"five_hour"`, `"seven_day"`, `"primary"`, a model id, …).
     pub name: String,
+    /// Human-readable upstream label when `name` is generated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub used_percent: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,6 +95,12 @@ impl UsageWindow {
     /// Attach the window length in seconds.
     pub fn window_secs(mut self, seconds: i64) -> Self {
         self.window_seconds = Some(seconds);
+        self
+    }
+
+    /// Attach a display label for generated / scoped windows.
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
         self
     }
 }

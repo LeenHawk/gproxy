@@ -163,6 +163,9 @@
     "window": {
       "five_hour": "5-hour window",
       "seven_day": "7-day window",
+      "seven_day_opus": "Opus weekly limit",
+      "seven_day_sonnet": "Sonnet weekly limit",
+      "weekly_scoped": "{{scope}} weekly limit",
       "primary": "Primary",
       "secondary": "Secondary"
     }

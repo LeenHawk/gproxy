@@ -47,6 +47,7 @@ export interface CredentialStatus {
 
 export interface UsageWindow {
   name: string;
+  label?: string;
   used_percent?: number;
   used?: number;
   limit?: number;

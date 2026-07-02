@@ -12,6 +12,7 @@ use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue,
 use http::{HeaderMap, Method, Request, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashSet;
 
 use super::auth;
 use crate::channel::ChannelError;
@@ -56,14 +57,43 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
     let usage: ClaudeUsage = serde_json::from_value(raw.clone()).ok()?;
 
     let mut windows = Vec::new();
-    for (name, window) in [
-        ("five_hour", &usage.five_hour),
-        ("seven_day", &usage.seven_day),
-        ("seven_day_opus", &usage.seven_day_opus),
-        ("seven_day_sonnet", &usage.seven_day_sonnet),
+    let mut scoped_seen = HashSet::new();
+    for (name, label, window) in [
+        ("five_hour", None, &usage.five_hour),
+        ("seven_day", None, &usage.seven_day),
+        ("seven_day_opus", Some("Opus"), &usage.seven_day_opus),
+        ("seven_day_sonnet", Some("Sonnet"), &usage.seven_day_sonnet),
     ] {
         if let Some(w) = window {
-            windows.push(w.to_window(name));
+            let mut w = w.to_window(name);
+            if let Some(label) = label {
+                scoped_seen.insert(scope_key(label));
+                w = w.label(label);
+            }
+            windows.push(w);
+        }
+    }
+
+    if let Some(limits) = &usage.limits {
+        if usage.five_hour.is_none() {
+            if let Some(limit) = limits.iter().find(|limit| limit.kind_is("session")) {
+                windows.push(limit.to_window("five_hour"));
+            }
+        }
+        if usage.seven_day.is_none() {
+            if let Some(limit) = limits.iter().find(|limit| limit.kind_is("weekly_all")) {
+                windows.push(limit.to_window("seven_day"));
+            }
+        }
+        for limit in limits.iter().filter(|limit| limit.kind_is("weekly_scoped")) {
+            let Some(label) = limit.scope_label() else {
+                continue;
+            };
+            let key = scope_key(&label);
+            if !scoped_seen.insert(key.clone()) {
+                continue;
+            }
+            windows.push(limit.to_window(format!("weekly_scoped:{key}")).label(label));
         }
     }
 
@@ -124,12 +154,82 @@ impl ClaudeExtraUsage {
 }
 
 #[derive(Deserialize)]
+struct ClaudeLimit {
+    kind: Option<String>,
+    percent: Option<f64>,
+    resets_at: Option<String>,
+    scope: Option<ClaudeLimitScope>,
+}
+
+impl ClaudeLimit {
+    fn kind_is(&self, kind: &str) -> bool {
+        self.kind.as_deref() == Some(kind)
+    }
+
+    fn to_window(&self, name: impl Into<String>) -> UsageWindow {
+        let mut w = UsageWindow::percent(name, self.percent.unwrap_or(0.0));
+        if let Some(iso) = &self.resets_at {
+            w = w.resets_iso(iso.clone());
+        }
+        w
+    }
+
+    fn scope_label(&self) -> Option<String> {
+        let scope = self.scope.as_ref()?;
+        scope
+            .model
+            .as_ref()
+            .and_then(|model| {
+                non_empty(&model.display_name)
+                    .or_else(|| non_empty(&model.id))
+                    .map(str::to_owned)
+            })
+            .or_else(|| non_empty(&scope.surface).map(str::to_owned))
+    }
+}
+
+#[derive(Deserialize)]
+struct ClaudeLimitScope {
+    model: Option<ClaudeLimitModel>,
+    surface: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ClaudeLimitModel {
+    display_name: Option<String>,
+    id: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct ClaudeUsage {
     five_hour: Option<ClaudeWindow>,
     seven_day: Option<ClaudeWindow>,
     seven_day_opus: Option<ClaudeWindow>,
     seven_day_sonnet: Option<ClaudeWindow>,
     extra_usage: Option<ClaudeExtraUsage>,
+    limits: Option<Vec<ClaudeLimit>>,
+}
+
+fn non_empty(value: &Option<String>) -> Option<&str> {
+    let value = value.as_deref()?.trim();
+    if value.is_empty() { None } else { Some(value) }
+}
+
+fn scope_key(label: &str) -> String {
+    let mut out = String::new();
+    for c in label.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    let out = out.trim_matches('_');
+    if out.is_empty() {
+        "scoped".to_owned()
+    } else {
+        out.to_owned()
+    }
 }
 
 #[cfg(test)]
@@ -162,6 +262,48 @@ mod tests {
         );
         // extra_usage disabled → no credits block.
         assert!(snap.credits.is_none());
+    }
+
+    #[test]
+    fn parses_scoped_weekly_limits() {
+        let body = Bytes::from_static(
+            br#"{
+              "extra_usage": {"is_enabled": false, "monthly_limit": null, "used_credits": null,
+                              "utilization": null, "currency": null, "disabled_reason": null},
+              "five_hour": {"limit_dollars": null, "remaining_dollars": null,
+                             "resets_at": "2026-07-02T18:09:59.956325+00:00",
+                             "used_dollars": null, "utilization": 23},
+              "limits": [
+                {"group": "session", "is_active": true, "kind": "session", "percent": 23,
+                 "resets_at": "2026-07-02T18:09:59.956325+00:00", "scope": null,
+                 "severity": "normal"},
+                {"group": "weekly", "is_active": false, "kind": "weekly_all", "percent": 3,
+                 "resets_at": "2026-07-03T02:59:59.956351+00:00", "scope": null,
+                 "severity": "normal"},
+                {"group": "weekly", "is_active": false, "kind": "weekly_scoped", "percent": 0,
+                 "resets_at": null,
+                 "scope": {"model": {"display_name": "Fable", "id": null}, "surface": null},
+                 "severity": "normal"}
+              ],
+              "seven_day": {"limit_dollars": null, "remaining_dollars": null,
+                            "resets_at": "2026-07-03T02:59:59.956351+00:00",
+                            "used_dollars": null, "utilization": 3},
+              "seven_day_opus": null,
+              "seven_day_sonnet": null
+            }"#,
+        );
+        let snap = parse(StatusCode::OK, &body).expect("snapshot");
+        let names: Vec<&str> = snap.windows.iter().map(|w| w.name.as_str()).collect();
+        assert_eq!(names, ["five_hour", "seven_day", "weekly_scoped:fable"]);
+
+        let fable = snap
+            .windows
+            .iter()
+            .find(|w| w.name == "weekly_scoped:fable")
+            .expect("fable window");
+        assert_eq!(fable.label.as_deref(), Some("Fable"));
+        assert_eq!(fable.used_percent, Some(0.0));
+        assert!(fable.resets_at.is_none());
     }
 
     #[test]

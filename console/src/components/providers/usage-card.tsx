@@ -26,6 +26,12 @@ function windowReset(w: UsageWindow): string | undefined {
   return resetAt.toLocaleString();
 }
 
+function humanizeWindowName(name: string): string {
+  return name
+    .replace(/[_:.-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export function UsageCard({ credentialId }: { credentialId: number }) {
   const { t } = useTranslation("providers");
   const query = useQuery(credentialUsageQuery(credentialId));
@@ -58,10 +64,15 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
           {snapshot.windows.map((w) => {
             const pct = windowPercent(w);
             const reset = windowReset(w);
+            const label = w.label
+              ? w.name.startsWith("weekly_scoped:")
+                ? t("usage.window.weekly_scoped", { scope: w.label })
+                : t(`usage.window.${w.name}`, { scope: w.label, defaultValue: w.label })
+              : t(`usage.window.${w.name}`, { defaultValue: humanizeWindowName(w.name) });
             return (
               <div key={w.name} className="grid gap-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span>{t(`usage.window.${w.name}`, { defaultValue: w.name })}</span>
+                  <span>{label}</span>
                   <span className="text-xs text-muted-foreground">
                     {pct !== undefined ? `${pct.toFixed(0)}%` : w.used !== undefined ? `${w.used}${w.limit !== undefined ? ` / ${w.limit}` : ""}` : ""}
                     {reset ? ` · ${t("usage.resets", { time: reset })}` : ""}

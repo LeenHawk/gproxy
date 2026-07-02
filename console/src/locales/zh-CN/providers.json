@@ -163,6 +163,9 @@
     "window": {
       "five_hour": "5 小时窗口",
       "seven_day": "7 天窗口",
+      "seven_day_opus": "Opus 周限额",
+      "seven_day_sonnet": "Sonnet 周限额",
+      "weekly_scoped": "{{scope}} 周限额",
       "primary": "主配额",
       "secondary": "次配额"
     }
