@@ -25,9 +25,6 @@ env:
   # Self-heal flaky crates.io downloads on CI runners (the Windows runner hit a
   # transient "connection was reset" pulling a crate). Default retry is 3.
   CARGO_NET_RETRY: "10"
-  ANDROID_API_LEVEL: "31"
-  ANDROID_SDK_PLATFORM: "platforms;android-31"
-  ANDROID_NDK_VERSION: "23.1.7779620"
   # Effective publish target. A published Release ships to its own tag on the
   # `releases` (semver) channel; push-to-main and manual dispatch both refresh
   # the fixed `staging` tag on the sha256-keyed `staging` channel.
@@ -83,7 +80,6 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
             os: linux
-            linux_build_image: debian:12
             artifact: gproxy-linux-x86_64
             ext: ""
             run_check: true
@@ -92,7 +88,6 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-24.04-arm
             os: linux
-            linux_build_image: debian:12
             artifact: gproxy-linux-aarch64
             ext: ""
             run_check: true
@@ -198,46 +193,15 @@ jobs:
         uses: android-actions/setup-android@v4
       - name: Install cargo-ndk
         if: ${{ matrix.os == 'android' }}
-        run: |
-          sdkmanager "$ANDROID_SDK_PLATFORM" "ndk;$ANDROID_NDK_VERSION"
-          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
-          cargo install cargo-ndk --locked
-
-      - name: Build Linux GNU (Debian 12)
-        if: ${{ matrix.linux_build_image }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.cargo" "$HOME/.rustup"
-          uid="$(id -u)"
-          gid="$(id -g)"
-          docker run --rm \
-            -e CARGO_HOME=/cargo \
-            -e RUSTUP_HOME=/rustup \
-            -e CARGO_NET_RETRY \
-            -e GPROXY_UPDATE_PUBKEY \
-            -v "$PWD:/workspace" \
-            -v "$HOME/.cargo:/cargo" \
-            -v "$HOME/.rustup:/rustup" \
-            -w /workspace \
-            ${{ matrix.linux_build_image }} \
-            bash -lc "
-              set -euo pipefail
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                ca-certificates build-essential cmake git pkg-config libssl-dev
-              export PATH=/cargo/bin:\$PATH
-              rustup target add '${{ matrix.target }}'
-              cargo build --release --bin gproxy --target '${{ matrix.target }}'
-              chown -R $uid:$gid target /cargo /rustup
-            "
+        run: cargo install cargo-ndk --locked
 
       - name: Build (unix)
-        if: ${{ matrix.os != 'windows' && !matrix.linux_build_image }}
+        if: ${{ matrix.os != 'windows' }}
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
             cross build --release --bin gproxy --target ${{ matrix.target }}
           elif [ "${{ matrix.os }}" = "android" ]; then
-            cargo ndk --platform "$ANDROID_API_LEVEL" -t ${{ matrix.android_abi }} build --release --bin gproxy
+            cargo ndk -t ${{ matrix.android_abi }} build --release --bin gproxy
           else
             cargo build --release --bin gproxy --target ${{ matrix.target }}
           fi
@@ -540,25 +504,25 @@ jobs:
             runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             suffix: ""
-            runtime_base: gcr.io/distroless/cc-debian12
+            runtime_base: gcr.io/distroless/cc-debian13
           - variant: gnu
             arch: arm64
             runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             suffix: ""
-            runtime_base: gcr.io/distroless/cc-debian12
+            runtime_base: gcr.io/distroless/cc-debian13
           - variant: musl
             arch: amd64
             runner: ubuntu-latest
             target: x86_64-unknown-linux-musl
             suffix: "-musl"
-            runtime_base: gcr.io/distroless/static-debian12
+            runtime_base: gcr.io/distroless/static-debian13
           - variant: musl
             arch: arm64
             runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
             suffix: "-musl"
-            runtime_base: gcr.io/distroless/static-debian12
+            runtime_base: gcr.io/distroless/static-debian13
     steps:
       - uses: actions/checkout@v4
 

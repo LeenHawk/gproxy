@@ -5,9 +5,9 @@
 # UPX-compressed in `build-native` and handed to this Dockerfile as
 # `dist/gproxy`, so the image is just a thin runtime wrapper.
 #
-#   RUNTIME_BASE=gcr.io/distroless/cc-debian12      # glibc (gnu) builds
-#   RUNTIME_BASE=gcr.io/distroless/static-debian12  # static (musl) builds
-ARG RUNTIME_BASE=gcr.io/distroless/cc-debian12
+#   RUNTIME_BASE=gcr.io/distroless/cc-debian13      # glibc (gnu) builds
+#   RUNTIME_BASE=gcr.io/distroless/static-debian13  # static (musl) builds
+ARG RUNTIME_BASE=gcr.io/distroless/cc-debian13
 FROM ${RUNTIME_BASE}
 
 WORKDIR /app
