@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -36,6 +37,8 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
   const { t } = useTranslation("providers");
   const query = useQuery(credentialUsageQuery(credentialId));
   const snapshot = query.data;
+  const { isFetched, isFetching, refetch } = query;
+  const hasResolved = isFetched || query.isError;
   const errorText = query.isError
     ? query.error instanceof ApiError
       ? query.error.message === UNSUPPORTED_USAGE_MESSAGE
@@ -44,13 +47,18 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
       : String(query.error)
     : undefined;
 
+  useEffect(() => {
+    if (isFetched || isFetching) return;
+    void refetch();
+  }, [credentialId, isFetched, isFetching, refetch]);
+
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">{t("usage.sparingly")}</p>
-        <Button size="sm" variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>
-          <RefreshCw className={query.isFetching ? "size-4 animate-spin" : "size-4"} />
-          {snapshot ? t("usage.refresh") : t("usage.fetch")}
+        <Button size="sm" variant="outline" disabled={!hasResolved || isFetching} onClick={() => void refetch()}>
+          <RefreshCw className={isFetching ? "size-4 animate-spin" : "size-4"} />
+          {isFetching ? t("usage.fetching") : hasResolved ? t("usage.refresh") : t("usage.fetching")}
         </Button>
       </div>
 
