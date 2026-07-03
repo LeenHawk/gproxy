@@ -224,7 +224,7 @@ jobs:
               set -euo pipefail
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-                ca-certificates build-essential pkg-config libssl-dev
+                ca-certificates build-essential cmake git pkg-config libssl-dev
               export PATH=/cargo/bin:\$PATH
               rustup target add '${{ matrix.target }}'
               cargo build --release --bin gproxy --target '${{ matrix.target }}'
