@@ -12,11 +12,11 @@
     "genericError": "Failed to check for updates"
   },
   "apply": {
-    "button": "Download & stage update",
+    "button": "Update & restart",
     "confirm": {
-      "title": "Download and stage update?",
-      "description": "This downloads and stages the new binary. It takes effect after the operator restarts the service. The previous version is kept as .prev for rollback.",
-      "confirmLabel": "Download & stage"
+      "title": "Update and restart?",
+      "description": "This downloads the new binary, keeps the previous version as .prev for rollback, and restarts GPROXY automatically.",
+      "confirmLabel": "Update & restart"
     }
   },
   "status": {
@@ -25,8 +25,9 @@
     "checking": "Checking for updates…",
     "downloading": "Downloading update…",
     "staged": "Staged",
+    "restarting": "Restarting",
     "failed": "Failed",
-    "stagedRestartNotice": "A new binary has been staged. Restart the GPROXY service for the update to take effect.",
+    "stagedRestartNotice": "A new binary has been staged.",
     "failedError": "Error"
   },
   "channel": {

@@ -1,10 +1,11 @@
 //! §19.10 self-update admin endpoints (native-only):
 //!   GET  /admin/update/check  — manifest fetch, returns CheckReport.
 //!   GET  /admin/update/status — in-process status state machine snapshot.
-//!   POST /admin/update/apply  — download + verify + swap (Restart::None; stage only).
+//!   POST /admin/update/apply  — download + verify + swap, then auto re-exec.
 
 use axum::Json;
 use axum::extract::State;
+use std::time::Duration;
 
 use crate::api::error::ApiError;
 use crate::app::AppState;
@@ -89,8 +90,10 @@ pub async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
     Json(snapshot)
 }
 
-/// `POST /admin/update/apply` — download, verify, and atomically swap the
-/// binary (stage only: `Restart::None` so the response is sent).
+const ADMIN_RESTART_DELAY: Duration = Duration::from_millis(750);
+
+/// `POST /admin/update/apply` — download, verify, atomically swap the binary,
+/// send a final status response, then restart the process in the background.
 ///
 /// # Single-flight guard
 /// If a check/apply is already in flight (`Checking` | `Downloading`), returns
@@ -101,10 +104,6 @@ pub async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
 /// holding a `!Send` lock across a suspension point (`clippy::await_holding_lock`).
 /// Pattern: lock → read/write → drop guard → await → lock → write terminal state → drop.
 ///
-/// # Why `Restart::None`?
-/// `Supervisor` and `ReExec` both terminate the process (`→ !`). With either
-/// of those the HTTP response would never be sent. `None` stages the new binary
-/// and returns; the operator restarts the process at their own schedule.
 pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, ApiError> {
     // Fail fast on bad config before touching the status machine (no lock held).
     let ctx = context(&state)?;
@@ -117,8 +116,10 @@ pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, 
             .update_status
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        match *guard {
-            UpdateStatus::Checking | UpdateStatus::Downloading => {
+        match &*guard {
+            UpdateStatus::Checking
+            | UpdateStatus::Downloading
+            | UpdateStatus::Restarting { .. } => {
                 return Err(ApiError::Conflict(
                     "an update is already in progress".to_string(),
                 ));
@@ -129,17 +130,26 @@ pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, 
     } // guard dropped here — before the await below
 
     // --- async work (no lock held) ---
-    let result = selfupdate::apply(&ctx, Restart::None).await;
+    let result = async {
+        let report = selfupdate::check(&ctx).await?;
+        if !report.available {
+            return Ok(None);
+        }
+        selfupdate::apply(&ctx, Restart::None).await.map(Some)
+    }
+    .await;
 
     // --- set terminal state (lock scope 3) ---
-    // Convert result → (terminal status, api outcome) without partial moves.
+    // Convert result -> (terminal status, api outcome) without partial moves.
     let (terminal, api_result) = match result {
-        Ok(version) => {
-            let s = UpdateStatus::Staged {
+        Ok(Some(version)) => {
+            let s = UpdateStatus::Restarting {
                 version: version.clone(),
             };
+            schedule_restart(version);
             (s.clone(), Ok(Json(s)))
         }
+        Ok(None) => (UpdateStatus::Idle, Ok(Json(UpdateStatus::Idle))),
         Err(e) => {
             let s = UpdateStatus::Failed {
                 error: e.to_string(),
@@ -156,4 +166,12 @@ pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, 
     }
 
     api_result
+}
+
+fn schedule_restart(version: String) {
+    std::thread::spawn(move || {
+        std::thread::sleep(ADMIN_RESTART_DELAY);
+        tracing::info!(version, "update applied; re-executing into new binary");
+        selfupdate::restart(Restart::ReExec);
+    });
 }

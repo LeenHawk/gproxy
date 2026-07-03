@@ -325,3 +325,16 @@ pub async fn apply(ctx: &UpdateContext, restart: Restart) -> Result<String, Upda
         Restart::None => Ok(manifest.version.clone()),
     }
 }
+
+/// Restart the running process after a previously staged update.
+///
+/// This is intentionally separate from [`apply`] so HTTP callers can send a
+/// terminal response before the process is replaced.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn restart(restart: Restart) -> ! {
+    match restart {
+        Restart::Supervisor => swap::exit_for_supervisor(),
+        Restart::ReExec => swap::reexec(),
+        Restart::None => std::process::exit(0),
+    }
+}

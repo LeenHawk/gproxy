@@ -12,11 +12,11 @@
     "genericError": "检查更新失败"
   },
   "apply": {
-    "button": "下载并暂存更新",
+    "button": "更新并重启",
     "confirm": {
-      "title": "下载并暂存更新？",
-      "description": "此操作将下载并暂存新的二进制文件。操作员重启服务后方可生效。旧版本将保留为 .prev 以便回滚。",
-      "confirmLabel": "下载并暂存"
+      "title": "更新并重启？",
+      "description": "此操作将下载新的二进制文件，保留旧版本为 .prev 以便回滚，并自动重启 GPROXY。",
+      "confirmLabel": "更新并重启"
     }
   },
   "status": {
@@ -25,8 +25,9 @@
     "checking": "正在检查更新…",
     "downloading": "正在下载更新…",
     "staged": "已暂存",
+    "restarting": "正在重启",
     "failed": "失败",
-    "stagedRestartNotice": "新的二进制文件已暂存。请重启 GPROXY 服务以使更新生效。",
+    "stagedRestartNotice": "新的二进制文件已暂存。",
     "failedError": "错误"
   },
   "channel": {

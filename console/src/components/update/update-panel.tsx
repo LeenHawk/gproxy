@@ -26,7 +26,7 @@ export function UpdatePanel() {
     onSuccess: () => {
       setConfirmOpen(false);
       void qc.invalidateQueries({ queryKey: ["update", "status"] });
-      toast.success(t("status.staged"));
+      toast.success(t("status.restarting"));
     },
     onError: (e) => {
       setConfirmOpen(false);
@@ -165,6 +165,13 @@ function StatusDisplay({
             {t("status.staged")} — v{statusData.version}
           </p>
           <p className="text-sm text-muted-foreground">{t("status.stagedRestartNotice")}</p>
+        </div>
+      );
+    case "restarting":
+      return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          {t("status.restarting")} — v{statusData.version}
         </div>
       );
     case "failed":

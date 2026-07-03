@@ -13,6 +13,7 @@ export type UpdateStatus =
   | { state: "checking" }
   | { state: "downloading" }
   | { state: "staged"; version: string }
+  | { state: "restarting"; version: string }
   | { state: "failed"; error: string };
 
 // check is a manual, possibly-slow read — disabled by default; refetch on click.

@@ -91,7 +91,7 @@ pub struct AppState {
     #[cfg(feature = "count-local")]
     pub tokenizers: Arc<crate::tokenize::TokenizerRegistry>,
     /// §19.10 in-process self-update status. `idle` at boot; `apply` walks it
-    /// downloading→staged|failed. Soft state — a restart clears it.
+    /// downloading -> restarting|failed. Soft state — a restart clears it.
     pub update_status: Arc<std::sync::Mutex<crate::app::update_status::UpdateStatus>>,
 }
 

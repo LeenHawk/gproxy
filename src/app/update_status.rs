@@ -13,6 +13,9 @@ pub enum UpdateStatus {
     Staged {
         version: String,
     },
+    Restarting {
+        version: String,
+    },
     Failed {
         error: String,
     },
@@ -34,6 +37,13 @@ mod tests {
             })
             .unwrap(),
             serde_json::json!({"state": "staged", "version": "1.2.3"})
+        );
+        assert_eq!(
+            serde_json::to_value(UpdateStatus::Restarting {
+                version: "1.2.3".to_string()
+            })
+            .unwrap(),
+            serde_json::json!({"state": "restarting", "version": "1.2.3"})
         );
         assert_eq!(
             serde_json::to_value(UpdateStatus::Failed {
