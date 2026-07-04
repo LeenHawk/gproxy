@@ -68,6 +68,11 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
             }
         }
     }
+    if let Some(additional) = &payload.additional_rate_limits {
+        for (idx, limit) in additional.iter().enumerate() {
+            limit.append_windows(idx, &mut windows);
+        }
+    }
     let credits = payload
         .credits
         .as_ref()
@@ -146,6 +151,7 @@ fn apply_headers(
 struct RateLimitStatusPayload {
     plan_type: Option<String>,
     rate_limit: Option<RateLimitStatusDetails>,
+    additional_rate_limits: Option<Vec<AdditionalRateLimitDetails>>,
     credits: Option<CreditStatusDetails>,
     rate_limit_reset_credits: Option<RateLimitResetCreditsPayload>,
 }
@@ -174,6 +180,48 @@ impl RateLimitWindowSnapshot {
             w = w.resets_unix(at);
         }
         w
+    }
+}
+
+#[derive(Deserialize)]
+struct AdditionalRateLimitDetails {
+    limit_name: Option<String>,
+    metered_feature: Option<String>,
+    rate_limit: Option<RateLimitStatusDetails>,
+}
+
+impl AdditionalRateLimitDetails {
+    fn append_windows(&self, idx: usize, windows: &mut Vec<UsageWindow>) {
+        let Some(rate_limit) = &self.rate_limit else {
+            return;
+        };
+        let key = self
+            .metered_feature
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("additional_{idx}"));
+        let label = self
+            .limit_name
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .or_else(|| self.metered_feature.as_deref())
+            .unwrap_or("Additional limit");
+
+        if let Some(window) = &rate_limit.primary_window {
+            windows.push(
+                window
+                    .to_window(&format!("additional_primary:{key}"))
+                    .label(label),
+            );
+        }
+        if let Some(window) = &rate_limit.secondary_window {
+            windows.push(
+                window
+                    .to_window(&format!("additional_secondary:{key}"))
+                    .label(label),
+            );
+        }
     }
 }
 
@@ -245,17 +293,35 @@ mod tests {
                 "primary_window": {"used_percent": 42, "limit_window_seconds": 300, "reset_at": 1704069000},
                 "secondary_window": {"used_percent": 84, "limit_window_seconds": 604800, "reset_at": 1704074400}
               },
+              "additional_rate_limits": [{
+                "limit_name": "GPT-5.3-Codex-Spark",
+                "metered_feature": "codex_bengalfox",
+                "rate_limit": {
+                  "allowed": true,
+                  "limit_reached": false,
+                  "primary_window": {"used_percent": 0, "limit_window_seconds": 18000, "reset_at": 1783156510},
+                  "secondary_window": {"used_percent": 9, "limit_window_seconds": 604800, "reset_at": 1783650621}
+                }
+              }],
               "credits": {"has_credits": true, "unlimited": false, "balance": "9.99"},
               "rate_limit_reset_credits": {"available_count": 2}
             }"#,
         );
         let snap = parse(StatusCode::OK, &body).expect("snapshot");
         assert_eq!(snap.plan.as_deref(), Some("pro"));
-        assert_eq!(snap.windows.len(), 2);
+        assert_eq!(snap.windows.len(), 4);
         assert_eq!(snap.windows[0].name, "primary");
         assert_eq!(snap.windows[0].used_percent, Some(42.0));
         assert_eq!(snap.windows[0].window_seconds, Some(300));
         assert_eq!(snap.windows[0].resets_at_unix, Some(1704069000));
+        assert_eq!(snap.windows[2].name, "additional_primary:codex_bengalfox");
+        assert_eq!(
+            snap.windows[2].label.as_deref(),
+            Some("GPT-5.3-Codex-Spark")
+        );
+        assert_eq!(snap.windows[2].used_percent, Some(0.0));
+        assert_eq!(snap.windows[3].name, "additional_secondary:codex_bengalfox");
+        assert_eq!(snap.windows[3].used_percent, Some(9.0));
         let credits = snap.credits.expect("credits");
         assert_eq!(credits.has_credits, Some(true));
         assert_eq!(credits.balance.as_deref(), Some("9.99"));

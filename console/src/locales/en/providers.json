@@ -181,7 +181,9 @@
       "seven_day_sonnet": "Sonnet weekly limit",
       "weekly_scoped": "{{scope}} weekly limit",
       "primary": "Primary",
-      "secondary": "Secondary"
+      "secondary": "Secondary",
+      "additional_primary": "{{scope}} primary",
+      "additional_secondary": "{{scope}} secondary"
     }
   },
   "models": {

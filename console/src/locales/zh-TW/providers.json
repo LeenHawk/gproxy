@@ -181,7 +181,9 @@
       "seven_day_sonnet": "Sonnet 週限額",
       "weekly_scoped": "{{scope}} 週限額",
       "primary": "主配額",
-      "secondary": "次配額"
+      "secondary": "次配額",
+      "additional_primary": "{{scope}} 主配額",
+      "additional_secondary": "{{scope}} 次配額"
     }
   },
   "models": {

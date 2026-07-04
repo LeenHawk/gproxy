@@ -94,6 +94,10 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
             const label = w.label
               ? w.name.startsWith("weekly_scoped:")
                 ? t("usage.window.weekly_scoped", { scope: w.label })
+                : w.name.startsWith("additional_primary:")
+                  ? t("usage.window.additional_primary", { scope: w.label })
+                : w.name.startsWith("additional_secondary:")
+                  ? t("usage.window.additional_secondary", { scope: w.label })
                 : t(`usage.window.${w.name}`, { scope: w.label, defaultValue: w.label })
               : t(`usage.window.${w.name}`, { defaultValue: humanizeWindowName(w.name) });
             return (
