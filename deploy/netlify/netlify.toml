@@ -11,6 +11,10 @@
   # netlify/edge-functions), so point at the directory explicitly.
   edge_functions = "edge-functions"
 
+[template.environment]
+  TURSO_URL = "Required Turso/libSQL database URL used by GPROXY for edge persistence, for example libsql://your-db.turso.io."
+  TURSO_TOKEN = "Required Turso database token with access to the TURSO_URL database."
+
 # Route every request to the `gproxy` edge function. The function name matches the
 # file basename in deploy/netlify/edge-functions/ (gproxy.ts → "gproxy").
 [[edge_functions]]

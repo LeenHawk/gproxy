@@ -18,9 +18,10 @@ bundle，或在 CI 中构建 bundle 后上传生成产物。
 这些按钮使用 `deploy` branch 的预构建产物。把下面的 runtime 服务配置为平台 secrets。
 
 Cloudflare 模板在 `deploy/cloudflare/.dev.vars.example` 中声明了必需的 Turso
-secrets，所以 Cloudflare 部署流程会在第一次部署前要求填写 `TURSO_URL` 和
-`TURSO_TOKEN`。如果部署需要 Upstash cache 或 sealed stored secrets，可以之后再添加
-可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
+secrets，Netlify 模板在 `deploy/netlify/netlify.toml` 中声明。两个一键部署流程都会在
+第一次部署前要求填写 `TURSO_URL` 和 `TURSO_TOKEN`。如果部署需要 Upstash cache 或
+sealed stored secrets，可以之后再添加可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和
+`GPROXY_MASTER_KEY` secrets。
 
 ## Runtime 服务
 
@@ -107,7 +108,8 @@ Cloudflare Workers 使用 `deploy/cloudflare/wrangler.toml` 和 compiled wasm ru
 `TURSO_URL` 和 `TURSO_TOKEN`，再在 `deploy/cloudflare` 中运行 `wrangler deploy`。
 
 Netlify 使用 `deploy/netlify/netlify.toml` 和 `edge-functions/` 入口。用
-`netlify env:set` 设置环境变量，再执行 `netlify deploy --prod`。
+`netlify env:set` 设置环境变量，再执行 `netlify deploy --prod`。一键部署流程通过
+`[template.environment]` 要求填写必需的 Turso 环境变量。
 
 Supabase 使用 `deploy/supabase/functions/gproxy`，部署命令应包含
 `supabase functions deploy gproxy --no-verify-jwt`。当 API upload path 会丢 sibling

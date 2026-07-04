@@ -21,10 +21,11 @@ These buttons use the prebuilt `deploy` branch artifacts. Configure the runtime
 services below as platform secrets.
 
 The Cloudflare template declares required Turso secrets in
-`deploy/cloudflare/.dev.vars.example`, so the Cloudflare deploy flow prompts for
-`TURSO_URL` and `TURSO_TOKEN` before the first deploy. Add optional
-`UPSTASH_URL`, `UPSTASH_TOKEN`, and `GPROXY_MASTER_KEY` secrets later if the
-deployment needs Upstash cache or sealed stored secrets.
+`deploy/cloudflare/.dev.vars.example`, and the Netlify template declares them in
+`deploy/netlify/netlify.toml`. Both one-click flows prompt for `TURSO_URL` and
+`TURSO_TOKEN` before the first deploy. Add optional `UPSTASH_URL`,
+`UPSTASH_TOKEN`, and `GPROXY_MASTER_KEY` secrets later if the deployment needs
+Upstash cache or sealed stored secrets.
 
 ## Runtime Services
 
@@ -117,8 +118,9 @@ deploys, set `TURSO_URL` and `TURSO_TOKEN` with `wrangler secret put`, then run
 `wrangler deploy` from `deploy/cloudflare`.
 
 Netlify uses `deploy/netlify/netlify.toml` and the `edge-functions/` entry. Set
-site environment variables with `netlify env:set`, then run
-`netlify deploy --prod`.
+site environment variables with `netlify env:set`, then run `netlify deploy
+--prod`. The one-click deploy flow asks for the required Turso environment
+variables through `[template.environment]`.
 
 Supabase uses `deploy/supabase/functions/gproxy` and should be deployed with
 `supabase functions deploy gproxy --no-verify-jwt`. Avoid the API upload path
