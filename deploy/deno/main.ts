@@ -28,7 +28,8 @@
 //
 // Deploy with deploy/deno/build.sh. The script builds a temporary upload root
 // whose main.ts imports ./pkg/gproxy.js, matching Deno Deploy's app build
-// configuration.
+// configuration, and copies the Console build to ./console so this entry can
+// serve the same-origin web UI.
 //
 // `wasmFetch` is aliased from the wasm `fetch` export so it does not shadow
 // Deno's global `fetch`, which the glue's loader still needs at import time.
@@ -48,13 +49,118 @@ function optEnv(name: string): string | undefined {
   return v && v.length > 0 ? v : undefined;
 }
 
-// Build the shared AppState once, on module load.
-await init(
-  reqEnv("TURSO_URL"),
-  reqEnv("TURSO_TOKEN"),
-  optEnv("UPSTASH_URL"),
-  optEnv("UPSTASH_TOKEN"),
-  optEnv("GPROXY_MASTER_KEY"),
-);
+// Build the shared AppState lazily so Console static assets can still be served
+// before the first API/gateway request initialises the wasm router.
+let initialised: Promise<void> | undefined;
 
-Deno.serve((req: Request) => wasmFetch(req));
+function ensureInit(): Promise<void> {
+  if (!initialised) {
+    initialised = init(
+      reqEnv("TURSO_URL"),
+      reqEnv("TURSO_TOKEN"),
+      optEnv("UPSTASH_URL"),
+      optEnv("UPSTASH_TOKEN"),
+      optEnv("GPROXY_MASTER_KEY"),
+    );
+  }
+  return initialised;
+}
+
+const CONSOLE_DIR = new URL("./console/", import.meta.url);
+const ROOT_ASSET_PATHS = new Set([
+  "/favicon.ico",
+  "/favicon-96x96.png",
+  "/apple-touch-icon.png",
+]);
+
+function isConsolePath(pathname: string): boolean {
+  return (
+    pathname === "/" ||
+    pathname === "/console" ||
+    pathname === "/console/" ||
+    pathname.startsWith("/console/") ||
+    ROOT_ASSET_PATHS.has(pathname)
+  );
+}
+
+function hasFileExtension(pathname: string): boolean {
+  const last = pathname.split("/").pop() ?? "";
+  return last.includes(".");
+}
+
+function contentType(pathname: string): string {
+  if (pathname.endsWith(".html")) return "text/html; charset=utf-8";
+  if (pathname.endsWith(".css")) return "text/css; charset=utf-8";
+  if (pathname.endsWith(".js")) return "application/javascript; charset=utf-8";
+  if (pathname.endsWith(".json")) return "application/json; charset=utf-8";
+  if (pathname.endsWith(".svg")) return "image/svg+xml";
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".ico")) return "image/x-icon";
+  if (pathname.endsWith(".woff2")) return "font/woff2";
+  return "application/octet-stream";
+}
+
+function redirectToConsole(req: Request): Response {
+  const url = new URL(req.url);
+  url.pathname = "/console/";
+  url.search = "";
+  return Response.redirect(url.toString(), 308);
+}
+
+async function serveConsole(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  if (url.pathname === "/" || url.pathname === "/console") {
+    return redirectToConsole(req);
+  }
+
+  let rel = ROOT_ASSET_PATHS.has(url.pathname)
+    ? url.pathname.slice(1)
+    : url.pathname.replace(/^\/console\/?/, "");
+  let indexFallback = false;
+
+  if (!rel || !hasFileExtension(url.pathname)) {
+    rel = "index.html";
+    indexFallback = true;
+  }
+
+  if (rel.split("/").some((part) => part === "..")) {
+    return new Response("not found", { status: 404 });
+  }
+
+  try {
+    const body = await Deno.readFile(new URL(rel, CONSOLE_DIR));
+    const headers = new Headers({ "content-type": contentType(rel) });
+    if (indexFallback || rel === "index.html") {
+      headers.set("cache-control", "no-cache");
+    } else if (rel.startsWith("assets/")) {
+      headers.set("cache-control", "public, max-age=31536000, immutable");
+    } else {
+      headers.set("cache-control", "public, max-age=3600");
+    }
+    return new Response(body, { headers });
+  } catch {
+    if (!indexFallback && hasFileExtension(url.pathname)) {
+      return new Response("not found", { status: 404 });
+    }
+    try {
+      const body = await Deno.readFile(new URL("index.html", CONSOLE_DIR));
+      return new Response(body, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+      });
+    } catch {
+      return new Response("console assets not bundled", { status: 404 });
+    }
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  const path = new URL(req.url).pathname;
+  if (isConsolePath(path)) {
+    return serveConsole(req);
+  }
+  await ensureInit();
+  return wasmFetch(req);
+});

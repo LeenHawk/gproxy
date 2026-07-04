@@ -7,7 +7,7 @@ crate root focused on Rust source and shared build outputs.
 - `deno/` - Deno Deploy entry.
 - `eopages/` - Tencent EdgeOne Pages spike and entry. The old Tencent EdgeOne
   TEO/CDN probe was removed; Pages is the only EdgeOne target kept here.
-- `netlify/` - Netlify Edge Function entry, config, and minimal publish dir.
+- `netlify/` - Netlify Edge Function entry, config, and Console publish dir.
 - `supabase/` - Supabase Edge Function entry and config.
 - `appwrite-deno/` - Appwrite Functions (deno-2.0) entry, serving the prebuilt wasm.
 

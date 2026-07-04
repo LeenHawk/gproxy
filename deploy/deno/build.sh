@@ -29,17 +29,22 @@ perl -0pi -e \
   pkg/gproxy.js
 
 rm -rf "$UPLOAD_ROOT"
-mkdir -p "$UPLOAD_ROOT/pkg"
+mkdir -p "$UPLOAD_ROOT/pkg" "$UPLOAD_ROOT/console"
 cp pkg/gproxy.js pkg/gproxy.d.ts pkg/gproxy_bg.wasm pkg/gproxy_bg.wasm.d.ts \
   "$UPLOAD_ROOT/pkg/"
 sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts \
   > "$UPLOAD_ROOT/main.ts"
+if [ -f assets/console/index.html ]; then
+  cp -R assets/console/. "$UPLOAD_ROOT/console/"
+else
+  echo "warning: assets/console/index.html not found; Deno console assets not bundled" >&2
+fi
 cat > "$UPLOAD_ROOT/deno.json" <<JSON
 {
   "deploy": {
     "org": "$DENO_DEPLOY_ORG",
     "app": "$DENO_DEPLOY_PROJECT",
-    "include": ["main.ts", "pkg/**"]
+    "include": ["main.ts", "pkg/**", "console/**"]
   }
 }
 JSON

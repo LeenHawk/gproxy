@@ -73,8 +73,83 @@ function ensureReady(env) {
   return ready;
 }
 
+const ROOT_ASSET_PATHS = new Set([
+  "/favicon.ico",
+  "/favicon-96x96.png",
+  "/apple-touch-icon.png",
+]);
+
+function isConsolePath(pathname) {
+  return (
+    pathname === "/" ||
+    pathname === "/console" ||
+    pathname === "/console/" ||
+    pathname.startsWith("/console/") ||
+    ROOT_ASSET_PATHS.has(pathname)
+  );
+}
+
+function hasFileExtension(pathname) {
+  const last = pathname.split("/").pop() ?? "";
+  return last.includes(".");
+}
+
+function redirectToConsole(request) {
+  const url = new URL(request.url);
+  url.pathname = "/console/";
+  url.search = "";
+  return Response.redirect(url.toString(), 308);
+}
+
+async function serveConsole(request, env) {
+  if (!env.ASSETS) {
+    return new Response("console assets not bundled", {
+      status: 404,
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  const url = new URL(request.url);
+  if (url.pathname === "/" || url.pathname === "/console") {
+    return redirectToConsole(request);
+  }
+
+  let assetRequest = request;
+  let indexFallback = false;
+
+  // Match native's SPA fallback: real dotted files 404 when absent; extensionless
+  // /console routes serve index.html so TanStack Router can resolve them.
+  if (url.pathname === "/console/" || !hasFileExtension(url.pathname)) {
+    // Cloudflare Assets canonicalizes *.html requests to extensionless URLs.
+    // Use an extensionless internal copy for SPA fallbacks; it still loads
+    // assets from /console/assets because Vite builds with base: /console/.
+    url.pathname = "/__gproxy_console";
+    assetRequest = new Request(url.toString(), request);
+    indexFallback = true;
+  }
+
+  const response = await env.ASSETS.fetch(assetRequest);
+  if (!indexFallback) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("content-type", "text/html; charset=utf-8");
+  headers.set("cache-control", "no-cache");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request, env, _ctx) {
+    const path = new URL(request.url).pathname;
+    if (isConsolePath(path)) {
+      return serveConsole(request, env);
+    }
+
     await ensureReady(env);
     // The wasm router matches bare paths (`/healthz`, `/version`); the worker
     // receives the original request URL unchanged, so paths pass straight through.
