@@ -1,6 +1,6 @@
 [package]
 name = "gproxy"
-version = "2.0.8"
+version = "2.0.10"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 description = "GPROXY v2 — high-performance LLM proxy (rewrite)"
@@ -34,9 +34,9 @@ bytes = "1"
 chacha20poly1305 = "0.11.0-rc.3"
 futures-core = "0.3"
 futures-util = "0.3"
-gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.0.8" }
-gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "2.0.8" }
-gproxy-transform = { path = "crates/gproxy-transform", version = "2.0.8" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.0.10" }
+gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "2.0.10" }
+gproxy-transform = { path = "crates/gproxy-transform", version = "2.0.10" }
 # Single RNG source for DEK/nonce/PKCE/ids across native + wasm. Native uses the
 # default OS backend; wasm enables the `js` backend (see the wasm target table).
 getrandom = "0.2"
