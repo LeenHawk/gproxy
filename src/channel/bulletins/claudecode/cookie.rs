@@ -24,7 +24,7 @@ use crate::http::client::UpstreamClient;
 const API_BASE: &str = "https://api.anthropic.com";
 const API_VERSION: &str = "2023-06-01";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
-const USER_AGENT: &str = "claude-code/2.1.185";
+const USER_AGENT: &str = "claude-code/2.1.199";
 
 /// claude.ai is Cloudflare-fronted and intermittently answers with a managed
 /// "Just a moment…" challenge instead of the real response. The challenge is

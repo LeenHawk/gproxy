@@ -37,6 +37,22 @@ fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     )
 }
 
+/// Real Claude Code sends model calls to `/v1/messages?beta=true`. Preserve any
+/// caller query, but make the fingerprint marker present on the exact model
+/// endpoint.
+fn model_query(query: Option<&str>) -> String {
+    let Some(q) = query.map(str::trim).filter(|q| !q.is_empty()) else {
+        return "beta=true".to_owned();
+    };
+    if q.split('&')
+        .any(|pair| pair.split('=').next() == Some("beta"))
+    {
+        q.to_owned()
+    } else {
+        format!("beta=true&{q}")
+    }
+}
+
 pub struct ClaudeCodeChannel;
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -154,10 +170,8 @@ impl Channel for ClaudeCodeChannel {
         let session_id = cch::session_id(&device_id, &ctx.body, now_secs);
 
         // The model call (`POST /v1/messages`) carries the CLI billing header +
-        // `metadata.user_id`; the legacy `cch` checksum is computed over the
-        // final body. Claude Code 2.1.185 still emits a cch field, but the native
-        // rewrite no longer matches the 2.1.178 seed over the final wire body;
-        // keep the legacy signer until the new native path is fully recovered.
+        // `metadata.user_id`; `cch` is computed over the same canonicalized byte
+        // stream as the native Claude Code 2.1.199 rewrite path.
         // Match the path EXACTLY (not by prefix): the sibling
         // `POST /v1/messages/count_tokens` endpoint rejects `metadata`
         // ("metadata: Extra inputs are not permitted"), so it must NOT be
@@ -184,7 +198,8 @@ impl Channel for ClaudeCodeChannel {
 
         // Claude-messages passthrough: the inbound path is already provider
         // relative (`/v1/messages`, `/v1/messages/count_tokens`, …); forward it.
-        let uri = join_url(base, ctx.path, ctx.query)?;
+        let model_query = is_messages.then(|| model_query(ctx.query));
+        let uri = join_url(base, ctx.path, model_query.as_deref().or(ctx.query))?;
         // Impersonation channel: it injects its own fingerprint headers and only
         // forwards `anthropic-beta` from the client (base allow-list adds
         // content-type / accept).
@@ -333,7 +348,7 @@ mod tests {
 
         assert_eq!(
             req.uri().to_string(),
-            "https://api.anthropic.com/v1/messages"
+            "https://api.anthropic.com/v1/messages?beta=true"
         );
         assert_eq!(
             req.headers().get("authorization").unwrap(),
@@ -352,13 +367,20 @@ mod tests {
         assert_eq!(req.headers().get("x-stainless-runtime").unwrap(), "node");
         assert_eq!(
             req.headers().get("user-agent").unwrap(),
-            "claude-cli/2.1.185 (external, sdk-cli)"
+            "claude-cli/2.1.199 (external, sdk-cli)"
         );
         assert_eq!(
             req.headers().get("x-stainless-runtime-version").unwrap(),
-            "v24.3.0"
+            "v26.3.0"
         );
         assert!(req.headers().get("x-claude-code-session-id").is_some());
+    }
+
+    #[test]
+    fn model_query_adds_beta_true_without_touching_other_endpoints() {
+        assert_eq!(model_query(None), "beta=true");
+        assert_eq!(model_query(Some("foo=1")), "beta=true&foo=1");
+        assert_eq!(model_query(Some("beta=true&foo=1")), "beta=true&foo=1");
     }
 
     #[test]

@@ -40,13 +40,13 @@ pub(super) const OAUTH_SCOPE: &str =
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
-pub(super) const USER_AGENT: &str = "claude-cli/2.1.185 (external, sdk-cli)";
+pub(super) const USER_AGENT: &str = "claude-cli/2.1.199 (external, sdk-cli)";
 
 /// Refresh slightly before expiry to avoid racing a 401 mid-flight.
 const EXPIRY_SKEW_MS: i64 = 60_000;
 
 /// Anthropic JS SDK (Stainless-generated) default header values, mirroring real
-/// Claude Code 2.1.185 / `@anthropic-ai/sdk` 0.94.0 model-path traffic.
+/// Claude Code 2.1.199 / `@anthropic-ai/sdk` 0.94.0 model-path traffic.
 /// Injected verbatim; per-credential overrides are an M7a fingerprint-pool
 /// concern.
 const STAINLESS: &[(&str, &str)] = &[
@@ -57,7 +57,7 @@ const STAINLESS: &[(&str, &str)] = &[
     ("x-stainless-os", "Linux"),
     ("x-stainless-arch", "x64"),
     ("x-stainless-runtime", "node"),
-    ("x-stainless-runtime-version", "v24.3.0"),
+    ("x-stainless-runtime-version", "v26.3.0"),
 ];
 
 /// Read a trimmed, non-empty string field from the secret.

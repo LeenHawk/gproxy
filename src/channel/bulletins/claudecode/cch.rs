@@ -1,37 +1,40 @@
 //! ClaudeCode CCH — the `x-anthropic-billing-header` checksum Claude Code embeds
-//! in `system[0]` of every `/v1/messages` body. Reproduced so the impersonated
-//! request passes Anthropic's body-integrity check. See `docs/claudecode-cch.md`.
+//! in `system[0]` of every `/v1/messages` body. See `docs/claudecode-cch.md`.
 //!
-//! Header shape confirmed against real Claude Code 2.1.185 bundle/wire behavior;
-//! the checksum implementation is the legacy 2.1.178 native path and must be
-//! rechecked before claiming exact 2.1.185 parity:
+//! Header shape confirmed against real Claude Code 2.1.199 OAuth/direct
+//! bundle/wire behavior:
 //! 1. Inject `metadata.user_id` = the JSON-string `{device_id, account_uuid,
 //!    session_id}` the CLI sends.
 //! 2. Prepend a `system[0]` text block holding the billing header with a dynamic
 //!    `cc_version` suffix derived from the first user text and a
 //!    `cch=00000;` placeholder.
-//! 3. `cch = xxh64(final_body_bytes_with_cch_00000, seed=0x4d659218e32a3268)
-//!    & 0xfffff`, formatted as 5 lowercase hex, byte-replacing the placeholder.
+//! 3. Rewrite `cch` to a 5-hex value before the wire body is sent:
+//!    `XXH64(canonical_body, seed=0x4d659218e32a3268) & 0xfffff`.
 //!
-//! The checksum covers the ENTIRE final body — model/system/messages/tools all
-//! affect it — so it is computed over our own serialized bytes (self-consistent;
-//! the server re-hashes the received body and matches).
+//! The 2.1.199 native path does not hash the raw final body verbatim. It hashes
+//! the compact body bytes with `model` values treated as empty strings, and with
+//! full `max_tokens`, `fallbacks`, and `fallback_credit_token` properties
+//! skipped. This was recovered from the local ELF path around the native
+//! `cch=00000` rewrite and verified against captured OAuth/direct wire bodies.
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 /// Keep in lockstep with the channel User-Agent version.
-const CLI_VERSION: &str = "2.1.185";
+const CLI_VERSION: &str = "2.1.199";
 /// Salt used by Claude Code to derive the three-hex `cc_version` suffix.
 const CC_VERSION_SUFFIX_SALT: &str = "59cf53e54c78";
-/// xxh64 seed mined from the Claude Code bundle.
+/// XXH64 seed used by the native CCH rewrite path.
 const CCH_SEED: u64 = 0x4d65_9218_e32a_3268;
 const PLACEHOLDER: &[u8] = b"cch=00000;";
+const MODEL_KEY: &[u8] = br#""model":""#;
+const MAX_TOKENS_KEY: &[u8] = br#""max_tokens":"#;
+const FALLBACKS_KEY: &[u8] = br#""fallbacks":["#;
+const FALLBACK_CREDIT_TOKEN_KEY: &[u8] = br#""fallback_credit_token":""#;
 
 /// Rewrite the outbound `/v1/messages` body to carry the CLI's billing header +
-/// `metadata.user_id`, with a valid `cch`. `session_id` is the value also sent as
-/// `x-claude-code-session-id`. Non-object bodies are returned unchanged (the
-/// checksum only applies to a JSON message body).
+/// `metadata.user_id`, with a 5-hex `cch`. `session_id` is the value also sent
+/// as `x-claude-code-session-id`. Non-object bodies are returned unchanged.
 pub(super) fn apply(
     body: &[u8],
     device_id: &str,
@@ -85,12 +88,13 @@ pub(super) fn apply(
         }
     }
 
-    // 3. Serialize, compute the checksum over the final bytes, rewrite in place.
+    // 3. Serialize, compute the native checksum over canonicalized bytes,
+    // rewrite in place.
     let mut bytes = serde_json::to_vec(&v).unwrap_or_else(|_| body.to_vec());
     if let Some(pos) = find(&bytes, PLACEHOLDER) {
-        let cch = xxhash_rust::xxh64::xxh64(&bytes, CCH_SEED) & 0xf_ffff;
+        let cch = cch_checksum(&bytes);
         let hex = format!("{cch:05x}");
-        // placeholder is `cch=00000;` → overwrite the 5 zero digits at +4.
+        // placeholder is `cch=00000;` -> overwrite the 5 zero digits at +4.
         bytes[pos + 4..pos + 9].copy_from_slice(hex.as_bytes());
     }
     bytes
@@ -158,9 +162,141 @@ fn is_billing_block(b: &Value) -> bool {
         .is_some_and(|t| t.contains("x-anthropic-billing-header"))
 }
 
+fn cch_checksum(bytes: &[u8]) -> u64 {
+    let mut h = xxhash_rust::xxh64::Xxh64::new(CCH_SEED);
+    let mut pos = 0usize;
+    while pos < bytes.len() {
+        let model = find_from(bytes, MODEL_KEY, pos).map(|start| (start, start));
+        let dynamic = next_dynamic_range(bytes, pos);
+        match (model, dynamic) {
+            (Some((model_pos, _)), Some((dyn_start, dyn_end))) if dyn_start < model_pos => {
+                h.update(&bytes[pos..dyn_start]);
+                pos = dyn_end;
+            }
+            (None, Some((dyn_start, dyn_end))) => {
+                h.update(&bytes[pos..dyn_start]);
+                pos = dyn_end;
+            }
+            (Some((model_pos, _)), _) => {
+                let value_start = model_pos + MODEL_KEY.len();
+                let Some(value_end) = find_byte_from(bytes, b'"', value_start) else {
+                    h.update(&bytes[pos..]);
+                    break;
+                };
+                // Hash `"model":"`, skip the dynamic model id bytes, and leave
+                // the closing quote to be consumed by the next segment.
+                h.update(&bytes[pos..value_start]);
+                pos = value_end;
+            }
+            (None, None) => {
+                h.update(&bytes[pos..]);
+                break;
+            }
+        }
+    }
+    h.digest() & 0xf_ffff
+}
+
+fn next_dynamic_range(bytes: &[u8], pos: usize) -> Option<(usize, usize)> {
+    [
+        (FALLBACKS_KEY, DynamicKind::Array),
+        (FALLBACK_CREDIT_TOKEN_KEY, DynamicKind::String),
+        (MAX_TOKENS_KEY, DynamicKind::Number),
+    ]
+    .into_iter()
+    .filter_map(|(key, kind)| dynamic_range(bytes, pos, key, kind))
+    .min_by_key(|(start, _)| *start)
+}
+
+#[derive(Clone, Copy)]
+enum DynamicKind {
+    Array,
+    Number,
+    String,
+}
+
+fn dynamic_range(
+    bytes: &[u8],
+    pos: usize,
+    key: &[u8],
+    kind: DynamicKind,
+) -> Option<(usize, usize)> {
+    let start = find_from(bytes, key, pos)?;
+    let value_start = start + key.len();
+    let value_end = match kind {
+        DynamicKind::Array => array_end(bytes, value_start)?,
+        DynamicKind::Number => digit_end(bytes, value_start).filter(|end| *end > value_start)?,
+        DynamicKind::String => find_byte_from(bytes, b'"', value_start)? + 1,
+    };
+    let mut remove_start = start;
+    let mut remove_end = value_end;
+    if bytes.get(remove_end) == Some(&b',') {
+        remove_end += 1;
+    } else if remove_start > pos && bytes.get(remove_start - 1) == Some(&b',') {
+        remove_start -= 1;
+    }
+    Some((remove_start, remove_end))
+}
+
+fn array_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut i = start;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if b == b'\\' {
+                escaped = true;
+            } else if b == b'"' {
+                in_string = false;
+            }
+        } else if b == b'"' {
+            in_string = true;
+        } else if b == b'[' {
+            depth += 1;
+        } else if b == b']' {
+            depth = depth.checked_sub(1)?;
+            if depth == 0 {
+                return Some(i + 1);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+fn digit_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut i = start;
+    while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+        i += 1;
+    }
+    Some(i)
+}
+
 /// First index of `needle` in `haystack` (small, single-use; avoids a dep).
 fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|w| w == needle)
+    find_from(haystack, needle, 0)
+}
+
+fn find_from(haystack: &[u8], needle: &[u8], start: usize) -> Option<usize> {
+    if needle.is_empty() || start > haystack.len() {
+        return None;
+    }
+    haystack[start..]
+        .windows(needle.len())
+        .position(|w| w == needle)
+        .map(|pos| start + pos)
+}
+
+fn find_byte_from(haystack: &[u8], needle: u8, start: usize) -> Option<usize> {
+    haystack
+        .get(start..)?
+        .iter()
+        .position(|b| *b == needle)
+        .map(|pos| start + pos)
 }
 
 /// At most this many distinct session ids per credential (a real user keeps a
@@ -216,18 +352,28 @@ fn conversation_key(body: &[u8]) -> (Vec<u8>, Vec<u8>) {
 mod tests {
     use super::*;
 
-    /// Self-consistency vector for the legacy signer (python `xxhash`):
-    /// this exact body → `cch=0c654`.
+    /// Self-consistency vector for the 2.1.199 native signer.
     #[test]
-    fn cch_matches_known_vector() {
-        // No metadata/system mutation noise: feed a body whose serialized form is
-        // already the canonical test body, then assert the rewritten cch.
-        let body = br#"{"model":"claude-sonnet-4","system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.185.ecf; cc_entrypoint=sdk-cli; cch=00000;"}],"messages":[]}"#;
+    fn cch_matches_known_2_1_199_vector() {
+        let body = br#"{"model":"claude-sonnet-4","system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.199.ef3; cc_entrypoint=sdk-cli; cch=00000;"}],"messages":[]}"#;
         let pos = find(body, PLACEHOLDER).unwrap();
-        let cch = xxhash_rust::xxh64::xxh64(body, CCH_SEED) & 0xf_ffff;
-        assert_eq!(format!("{cch:05x}"), "0c654");
+        let cch = cch_checksum(body);
+        assert_eq!(format!("{cch:05x}"), "d1ca6");
         // sanity: placeholder digits are where we think they are.
         assert_eq!(&body[pos..pos + PLACEHOLDER.len()], PLACEHOLDER);
+    }
+
+    #[test]
+    fn cch_ignores_model_value_and_dynamic_fields() {
+        let a = br#"{"model":"claude-sonnet-4","system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.199.ef3; cc_entrypoint=sdk-cli; cch=00000;"}],"messages":[],"max_tokens":1}"#;
+        let b = br#"{"model":"claude-opus-4-5","system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.199.ef3; cc_entrypoint=sdk-cli; cch=00000;"}],"messages":[],"max_tokens":64000}"#;
+        assert_eq!(cch_checksum(a), cch_checksum(b));
+    }
+
+    #[test]
+    fn cc_version_matches_2_1_199_wire_vector() {
+        let body = br#"{"messages":[{"role":"user","content":"reply with exactly: ok"}]}"#;
+        assert_eq!(cc_version(body), "2.1.199.988");
     }
 
     #[test]
@@ -246,18 +392,19 @@ mod tests {
         assert_eq!(ids["device_id"], "devhash");
         assert_eq!(ids["account_uuid"], "acct-1");
         assert_eq!(ids["session_id"], "sess-uuid");
-        // system[0] carries the billing header with a 5-hex (non-zero) cch.
+        // system[0] carries the 2.1.199 billing header with a 5-hex cch.
         let txt = v["system"][0]["text"].as_str().unwrap();
-        assert!(txt.contains("cc_version=2.1.185.ecf"));
+        assert!(txt.contains("cc_version=2.1.199.ef3"));
         assert!(txt.contains("cc_entrypoint=sdk-cli"));
         let cch = txt.split("cch=").nth(1).unwrap().trim_end_matches(';');
         assert_eq!(cch.len(), 5);
         assert_ne!(cch, "00000");
-        // Re-hashing the final bytes with cch zeroed reproduces it (server check).
+        // Re-hashing the final bytes with cch zeroed reproduces the native
+        // signer output.
         let pos = find(&out, b"cch=").unwrap();
         let mut zeroed = out.clone();
         zeroed[pos + 4..pos + 9].copy_from_slice(b"00000");
-        let expect = xxhash_rust::xxh64::xxh64(&zeroed, CCH_SEED) & 0xf_ffff;
+        let expect = cch_checksum(&zeroed);
         assert_eq!(format!("{expect:05x}"), cch);
     }
 
@@ -294,11 +441,11 @@ mod tests {
         assert_eq!(sys.iter().filter(|b| is_billing_block(b)).count(), 1);
         // The original non-billing block survives.
         assert!(sys.iter().any(|b| b["text"] == "real system"));
-        // Our version with a fresh valid cch.
+        // Our version uses the 2.1.199 billing shape with a fresh native cch.
         let txt = sys.iter().find(|b| is_billing_block(b)).unwrap()["text"]
             .as_str()
             .unwrap();
-        assert!(txt.contains("cc_version=2.1.185.ecf"));
+        assert!(txt.contains("cc_version=2.1.199.ef3"));
         assert!(!txt.contains("cch=00000"));
         assert!(!txt.contains("cch=fffff"));
     }
