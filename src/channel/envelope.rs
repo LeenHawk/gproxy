@@ -202,6 +202,7 @@ pub fn parse_user_quota(status: StatusCode, body: &Bytes) -> Option<UsageSnapsho
         plan: None,
         windows,
         credits: None,
+        rate_limit_reset_credits: None,
         raw,
     })
 }

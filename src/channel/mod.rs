@@ -28,7 +28,7 @@ use crate::http::client::UpstreamClient;
 pub use disposition::Disposition;
 pub use login::{AuthCodeStart, ChannelLogin, DeviceInit, DevicePoll};
 pub use prepared::PreparedRequest;
-pub use usage::{UsageCredits, UsageSnapshot, UsageWindow};
+pub use usage::{RateLimitResetCreditConsumeResponse, UsageCredits, UsageSnapshot, UsageWindow};
 
 /// Declared upstream transport, for capability-based degradation (§7.4).
 /// M1 uses `Http` only.
@@ -201,6 +201,27 @@ pub trait Channel: Send + Sync {
         _headers: &HeaderMap,
         _body: &Bytes,
     ) -> Option<UsageSnapshot> {
+        None
+    }
+
+    /// Build a request to consume one earned rate-limit reset credit. Only
+    /// channels whose upstream exposes this account action return a request.
+    fn prepare_rate_limit_reset_credit_request(
+        &self,
+        _secret: &Value,
+        _settings: &Value,
+        _idempotency_key: &str,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        Ok(None)
+    }
+
+    /// Parse the response from [`prepare_rate_limit_reset_credit_request`].
+    fn parse_rate_limit_reset_credit(
+        &self,
+        _status: StatusCode,
+        _headers: &HeaderMap,
+        _body: &Bytes,
+    ) -> Option<RateLimitResetCreditConsumeResponse> {
         None
     }
 

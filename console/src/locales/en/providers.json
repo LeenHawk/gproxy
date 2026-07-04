@@ -163,6 +163,17 @@
     "credits": "Credits",
     "raw": "Raw response",
     "resets": "resets {{time}}",
+    "reset": {
+      "available": "Reset credits",
+      "consume": "Use reset",
+      "consuming": "Using",
+      "outcome": {
+        "reset": "Usage limit reset applied.",
+        "nothing_to_reset": "No active limit can be reset.",
+        "no_credit": "No reset credits available.",
+        "already_redeemed": "This reset request was already redeemed."
+      }
+    },
     "window": {
       "five_hour": "5-hour window",
       "seven_day": "7-day window",

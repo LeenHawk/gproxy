@@ -163,6 +163,17 @@
     "credits": "額度",
     "raw": "原始回應",
     "resets": "{{time}} 重設",
+    "reset": {
+      "available": "重設次數",
+      "consume": "使用重設",
+      "consuming": "使用中",
+      "outcome": {
+        "reset": "已重設用量限制。",
+        "nothing_to_reset": "目前沒有可重設的限額。",
+        "no_credit": "沒有可用重設次數。",
+        "already_redeemed": "這次重設請求已經使用過。"
+      }
+    },
     "window": {
       "five_hour": "5 小時視窗",
       "seven_day": "7 天視窗",

@@ -8,13 +8,16 @@
 use bytes::Bytes;
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT};
 use http::{HeaderMap, Method, Request, StatusCode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::auth;
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, join_url};
-use crate::channel::usage::{UsageCredits, UsageSnapshot, UsageWindow};
+use crate::channel::usage::{
+    RateLimitResetCreditConsumeOutcome, RateLimitResetCreditConsumeResponse, RateLimitResetCredits,
+    UsageCredits, UsageSnapshot, UsageWindow,
+};
 
 /// Build `GET {base-without-/codex}/wham/usage` with the codex fingerprint.
 pub(super) fn request(
@@ -22,34 +25,27 @@ pub(super) fn request(
     settings: &Value,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
     let access_token = auth::access_token(secret)?;
-    let base = settings
-        .get("base_url")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or(auth::DEFAULT_BASE_URL);
-    // The usage endpoint sits one level up from the codex responses base.
-    let base = base.trim_end_matches('/');
-    let base = base.strip_suffix("/codex").unwrap_or(base);
-
-    let uri = join_url(base, "/wham/usage", None)?;
+    let base = usage_base(settings);
+    let uri = join_url(&base, "/wham/usage", None)?;
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
-    let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
-        .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
-    let h = req.headers_mut();
-    h.insert(AUTHORIZATION, bearer);
-    h.insert(ACCEPT, HeaderValue::from_static("application/json"));
-    h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    h.insert(USER_AGENT, HeaderValue::from_static(auth::USER_AGENT_VALUE));
-    h.insert(
-        HeaderName::from_static("originator"),
-        HeaderValue::from_static(auth::ORIGINATOR),
-    );
-    if let Some(acct) = auth::account_id(secret) {
-        let acct = HeaderValue::from_str(acct)
-            .map_err(|e| ChannelError::InvalidCredential(format!("bad account_id: {e}")))?;
-        h.insert(HeaderName::from_static("chatgpt-account-id"), acct);
-    }
+    apply_headers(&mut req, &access_token, secret)?;
+    Ok(Some(req))
+}
+
+pub(super) fn reset_credit_request(
+    secret: &Value,
+    settings: &Value,
+    idempotency_key: &str,
+) -> Result<Option<Request<Bytes>>, ChannelError> {
+    let access_token = auth::access_token(secret)?;
+    let base = usage_base(settings);
+    let uri = join_url(&base, "/wham/rate-limit-reset-credits/consume", None)?;
+    let body = serde_json::to_vec(&ConsumeRateLimitResetCreditRequest {
+        redeem_request_id: idempotency_key,
+    })
+    .map_err(|e| ChannelError::Build(format!("codex reset-credit request serialize: {e}")))?;
+    let mut req = build_request(Method::POST, uri, HeaderMap::new(), Bytes::from(body))?;
+    apply_headers(&mut req, &access_token, secret)?;
     Ok(Some(req))
 }
 
@@ -76,13 +72,74 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         .credits
         .as_ref()
         .map(CreditStatusDetails::to_credits);
+    let rate_limit_reset_credits =
+        payload
+            .rate_limit_reset_credits
+            .as_ref()
+            .map(|c| RateLimitResetCredits {
+                available_count: c.available_count,
+            });
 
     Some(UsageSnapshot {
         plan: payload.plan_type.filter(|s| !s.is_empty()),
         windows,
         credits,
+        rate_limit_reset_credits,
         raw,
     })
+}
+
+pub(super) fn parse_reset_credit(
+    status: StatusCode,
+    body: &Bytes,
+) -> Option<RateLimitResetCreditConsumeResponse> {
+    if !status.is_success() {
+        return None;
+    }
+    let raw: Value = serde_json::from_slice(body).ok()?;
+    let payload: ConsumeRateLimitResetCreditResponse = serde_json::from_value(raw.clone()).ok()?;
+    Some(RateLimitResetCreditConsumeResponse {
+        outcome: payload.code.into(),
+        windows_reset: payload.windows_reset,
+        raw,
+    })
+}
+
+fn usage_base(settings: &Value) -> String {
+    let base = settings
+        .get("base_url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(auth::DEFAULT_BASE_URL);
+    base.trim_end_matches('/')
+        .strip_suffix("/codex")
+        .unwrap_or_else(|| base.trim_end_matches('/'))
+        .to_string()
+}
+
+fn apply_headers(
+    req: &mut Request<Bytes>,
+    access_token: &str,
+    secret: &Value,
+) -> Result<(), ChannelError> {
+    let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
+        .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
+    let h = req.headers_mut();
+    h.insert(AUTHORIZATION, bearer);
+    h.insert(ACCEPT, HeaderValue::from_static("application/json"));
+    h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    h.insert(USER_AGENT, HeaderValue::from_static(auth::USER_AGENT_VALUE));
+    h.insert(
+        HeaderName::from_static("originator"),
+        HeaderValue::from_static(auth::ORIGINATOR),
+    );
+    if let Some(acct) = auth::account_id(secret) {
+        let acct = HeaderValue::from_str(acct)
+            .map_err(|e| ChannelError::InvalidCredential(format!("bad account_id: {e}")))?;
+        h.insert(HeaderName::from_static("chatgpt-account-id"), acct);
+    }
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -90,6 +147,7 @@ struct RateLimitStatusPayload {
     plan_type: Option<String>,
     rate_limit: Option<RateLimitStatusDetails>,
     credits: Option<CreditStatusDetails>,
+    rate_limit_reset_credits: Option<RateLimitResetCreditsPayload>,
 }
 
 #[derive(Deserialize)]
@@ -137,6 +195,42 @@ impl CreditStatusDetails {
     }
 }
 
+#[derive(Deserialize)]
+struct RateLimitResetCreditsPayload {
+    available_count: i64,
+}
+
+#[derive(Serialize)]
+struct ConsumeRateLimitResetCreditRequest<'a> {
+    redeem_request_id: &'a str,
+}
+
+#[derive(Deserialize)]
+struct ConsumeRateLimitResetCreditResponse {
+    code: ConsumeRateLimitResetCreditCode,
+    windows_reset: Option<i64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ConsumeRateLimitResetCreditCode {
+    Reset,
+    NothingToReset,
+    NoCredit,
+    AlreadyRedeemed,
+}
+
+impl From<ConsumeRateLimitResetCreditCode> for RateLimitResetCreditConsumeOutcome {
+    fn from(value: ConsumeRateLimitResetCreditCode) -> Self {
+        match value {
+            ConsumeRateLimitResetCreditCode::Reset => Self::Reset,
+            ConsumeRateLimitResetCreditCode::NothingToReset => Self::NothingToReset,
+            ConsumeRateLimitResetCreditCode::NoCredit => Self::NoCredit,
+            ConsumeRateLimitResetCreditCode::AlreadyRedeemed => Self::AlreadyRedeemed,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,7 +245,8 @@ mod tests {
                 "primary_window": {"used_percent": 42, "limit_window_seconds": 300, "reset_at": 1704069000},
                 "secondary_window": {"used_percent": 84, "limit_window_seconds": 604800, "reset_at": 1704074400}
               },
-              "credits": {"has_credits": true, "unlimited": false, "balance": "9.99"}
+              "credits": {"has_credits": true, "unlimited": false, "balance": "9.99"},
+              "rate_limit_reset_credits": {"available_count": 2}
             }"#,
         );
         let snap = parse(StatusCode::OK, &body).expect("snapshot");
@@ -164,5 +259,19 @@ mod tests {
         let credits = snap.credits.expect("credits");
         assert_eq!(credits.has_credits, Some(true));
         assert_eq!(credits.balance.as_deref(), Some("9.99"));
+        assert_eq!(
+            snap.rate_limit_reset_credits
+                .expect("reset credits")
+                .available_count,
+            2
+        );
+    }
+
+    #[test]
+    fn parses_reset_credit_response() {
+        let body = Bytes::from_static(br#"{"code":"reset","windows_reset":1}"#);
+        let out = parse_reset_credit(StatusCode::OK, &body).expect("reset response");
+        assert_eq!(out.outcome, RateLimitResetCreditConsumeOutcome::Reset);
+        assert_eq!(out.windows_reset, Some(1));
     }
 }

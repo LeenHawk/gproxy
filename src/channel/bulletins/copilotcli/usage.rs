@@ -72,6 +72,7 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         plan: resp.copilot_plan.filter(|s| !s.is_empty()),
         windows,
         credits: None,
+        rate_limit_reset_credits: None,
         raw,
     })
 }

@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use crate::app::AppState;
-use crate::channel::{Channel, ChannelError, UsageSnapshot};
+use crate::channel::{Channel, ChannelError, RateLimitResetCreditConsumeResponse, UsageSnapshot};
 use crate::http::client::UpstreamClient;
 use crate::store::persistence::records::{Credential, Provider};
 
@@ -71,6 +71,55 @@ pub async fn fetch_usage(
     fetch_with(&channel, &secret, &provider.settings_json, &client).await
 }
 
+/// Consume one earned upstream rate-limit reset credit for a credential.
+pub async fn consume_rate_limit_reset_credit(
+    state: &AppState,
+    credential_id: i64,
+    idempotency_key: &str,
+) -> Result<RateLimitResetCreditConsumeResponse, UsageError> {
+    if idempotency_key.trim().is_empty() {
+        return Err(UsageError::Channel(ChannelError::Build(
+            "idempotency_key must not be empty".into(),
+        )));
+    }
+
+    let credential = state
+        .persistence
+        .get_credential(credential_id)
+        .await
+        .map_err(|e| UsageError::Upstream(e.to_string()))?
+        .ok_or(UsageError::CredentialNotFound)?;
+    let provider = state
+        .persistence
+        .get_provider(credential.provider_id)
+        .await
+        .map_err(|e| UsageError::Upstream(e.to_string()))?
+        .ok_or(UsageError::ProviderNotFound)?;
+    let channel = state
+        .channels
+        .get(&provider.channel)
+        .ok_or_else(|| UsageError::UnknownChannel(provider.channel.clone()))?;
+
+    let opened = state
+        .cipher
+        .open(&credential.secret_json)
+        .map_err(|e| UsageError::Decrypt(e.to_string()))?;
+    let secret = state
+        .refresh
+        .ensure_fresh(state, &channel, &credential, &provider, opened, false)
+        .await?;
+
+    let client = resolve_client(state, &channel, &credential, &provider)?;
+    consume_reset_credit_with(
+        &channel,
+        &secret,
+        &provider.settings_json,
+        &client,
+        idempotency_key,
+    )
+    .await
+}
+
 /// Transport-injectable core: build the channel's usage request, send it, and
 /// parse the response. Split out from [`fetch_usage`] so the request/parse path
 /// can be exercised over a stub client without the pool.
@@ -93,6 +142,31 @@ async fn fetch_with(
 
     channel
         .parse_usage(status, &headers, &body)
+        .ok_or(UsageError::Status(status.as_u16()))
+}
+
+async fn consume_reset_credit_with(
+    channel: &Arc<dyn Channel>,
+    secret: &serde_json::Value,
+    settings: &serde_json::Value,
+    client: &Arc<dyn UpstreamClient>,
+    idempotency_key: &str,
+) -> Result<RateLimitResetCreditConsumeResponse, UsageError> {
+    let Some(req) =
+        channel.prepare_rate_limit_reset_credit_request(secret, settings, idempotency_key)?
+    else {
+        return Err(UsageError::Unsupported);
+    };
+    let resp = client
+        .send(req)
+        .await
+        .map_err(|e| UsageError::Upstream(e.to_string()))?;
+    let status = resp.status();
+    let headers = resp.headers().clone();
+    let body = resp.into_body();
+
+    channel
+        .parse_rate_limit_reset_credit(status, &headers, &body)
         .ok_or(UsageError::Status(status.as_u16()))
 }
 

@@ -16,7 +16,7 @@ use super::crud::internal;
 use crate::api::error::ApiError;
 use crate::api::tls_presets::TlsPreset;
 use crate::app::AppState;
-use crate::channel::UsageSnapshot;
+use crate::channel::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
 use crate::store::persistence::UsageQuery as StoreUsageQuery;
 use crate::store::persistence::records::{
     AuditLog, CredentialStatus, DownstreamRequest, UpstreamRequest, Usage, UsageRollup,
@@ -156,6 +156,26 @@ pub async fn credential_usage(
     Path(id): Path<i64>,
 ) -> Result<Json<UsageSnapshot>, ApiError> {
     crate::credentials::usage::fetch_usage(&state, id)
+        .await
+        .map(Json)
+        .map_err(usage_error)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RateLimitResetCreditBody {
+    pub idempotency_key: String,
+}
+
+/// `POST /admin/credentials/{id}/rate-limit-reset-credit` — LIVE upstream action:
+/// consume one earned rate-limit reset credit for channels that expose it
+/// (currently Codex). The idempotency key is forwarded to the upstream so retries
+/// do not double-consume.
+pub async fn consume_rate_limit_reset_credit(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<RateLimitResetCreditBody>,
+) -> Result<Json<RateLimitResetCreditConsumeResponse>, ApiError> {
+    crate::credentials::usage::consume_rate_limit_reset_credit(&state, id, &body.idempotency_key)
         .await
         .map(Json)
         .map_err(usage_error)

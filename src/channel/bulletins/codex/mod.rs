@@ -202,6 +202,24 @@ impl Channel for CodexChannel {
         usage::parse(status, body)
     }
 
+    fn prepare_rate_limit_reset_credit_request(
+        &self,
+        secret: &Value,
+        settings: &Value,
+        idempotency_key: &str,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        usage::reset_credit_request(secret, settings, idempotency_key)
+    }
+
+    fn parse_rate_limit_reset_credit(
+        &self,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &Bytes,
+    ) -> Option<crate::channel::RateLimitResetCreditConsumeResponse> {
+        usage::parse_reset_credit(status, body)
+    }
+
     /// Reshape the codex model catalogue into the OpenAI family canonical shape.
     /// Content ops (Responses passthrough) are returned unchanged — the codex
     /// backend already speaks OpenAI Responses, so there is nothing to reproject.

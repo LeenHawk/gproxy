@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronsUpDown, RefreshCw } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChevronsUpDown, RefreshCw, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { credentialUsageQuery, type UsageWindow } from "@/api/credentials";
+import { toast } from "sonner";
+import { consumeRateLimitResetCredit, credentialUsageQuery, type UsageWindow } from "@/api/credentials";
 import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -33,11 +34,29 @@ function humanizeWindowName(name: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function idempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function UsageCard({ credentialId }: { credentialId: number }) {
   const { t } = useTranslation("providers");
   const query = useQuery(credentialUsageQuery(credentialId));
   const snapshot = query.data;
   const { isFetched, isFetching, refetch } = query;
+  const resetCredits = snapshot?.rate_limit_reset_credits;
+  const resetMutation = useMutation({
+    mutationFn: () => consumeRateLimitResetCredit(credentialId, idempotencyKey()),
+    onSuccess: (result) => {
+      toast.success(t(`usage.reset.outcome.${result.outcome}`));
+      void refetch();
+    },
+    onError: (error) => {
+      toast.error(error instanceof ApiError ? error.message : String(error));
+    },
+  });
   const hasResolved = isFetched || query.isError;
   const errorText = query.isError
     ? query.error instanceof ApiError
@@ -96,8 +115,25 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
               {snapshot.credits.unlimited ? "∞"
                 : snapshot.credits.balance ?? (snapshot.credits.used_credits !== undefined && snapshot.credits.monthly_limit !== undefined
                   ? `${snapshot.credits.used_credits} / ${snapshot.credits.monthly_limit}`
-                  : JSON.stringify(snapshot.credits))}
+                : JSON.stringify(snapshot.credits))}
             </p>
+          )}
+          {resetCredits && (
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+              <p className="text-sm">
+                <span className="text-muted-foreground">{t("usage.reset.available")}:</span>{" "}
+                <span className="font-medium">{resetCredits.available_count}</span>
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={resetMutation.isPending || resetCredits.available_count <= 0}
+                onClick={() => resetMutation.mutate()}
+              >
+                <RotateCcw className={resetMutation.isPending ? "size-4 animate-spin" : "size-4"} />
+                {resetMutation.isPending ? t("usage.reset.consuming") : t("usage.reset.consume")}
+              </Button>
+            </div>
           )}
           <Collapsible>
             <CollapsibleTrigger asChild>

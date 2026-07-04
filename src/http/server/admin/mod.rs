@@ -154,6 +154,10 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
             get(usage::credential_usage),
         )
         .route(
+            "/admin/credentials/{id}/rate-limit-reset-credit",
+            post(usage::consume_rate_limit_reset_credit),
+        )
+        .route(
             "/admin/providers/{provider_id}/upstream-models",
             get(usage::upstream_models),
         )

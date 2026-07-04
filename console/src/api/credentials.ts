@@ -65,10 +65,23 @@ export interface UsageCredits {
   currency?: string;
 }
 
+export interface RateLimitResetCredits {
+  available_count: number;
+}
+
 export interface UsageSnapshot {
   plan?: string;
   windows: UsageWindow[];
   credits?: UsageCredits;
+  rate_limit_reset_credits?: RateLimitResetCredits;
+  raw: unknown;
+}
+
+export type RateLimitResetCreditOutcome = "reset" | "nothing_to_reset" | "no_credit" | "already_redeemed";
+
+export interface RateLimitResetCreditConsumeResponse {
+  outcome: RateLimitResetCreditOutcome;
+  windows_reset?: number;
   raw: unknown;
 }
 
@@ -94,6 +107,16 @@ export const credentialUsageQuery = (credentialId: number) =>
     retry: false,
     staleTime: Infinity,
   });
+
+export function consumeRateLimitResetCredit(
+  credentialId: number,
+  idempotencyKey: string,
+): Promise<RateLimitResetCreditConsumeResponse> {
+  return api<RateLimitResetCreditConsumeResponse>(`/admin/credentials/${credentialId}/rate-limit-reset-credit`, {
+    method: "POST",
+    body: JSON.stringify({ idempotency_key: idempotencyKey }),
+  });
+}
 
 export function upsertCredential(providerId: number, input: CredentialUpsert): Promise<CredentialView> {
   return api<CredentialView>(`/admin/providers/${providerId}/credentials`, {

@@ -163,6 +163,17 @@
     "credits": "额度",
     "raw": "原始响应",
     "resets": "{{time}} 重置",
+    "reset": {
+      "available": "重置次数",
+      "consume": "使用重置",
+      "consuming": "使用中",
+      "outcome": {
+        "reset": "已重置用量限制。",
+        "nothing_to_reset": "当前没有可重置的限额。",
+        "no_credit": "没有可用重置次数。",
+        "already_redeemed": "这次重置请求已经使用过。"
+      }
+    },
     "window": {
       "five_hour": "5 小时窗口",
       "seven_day": "7 天窗口",

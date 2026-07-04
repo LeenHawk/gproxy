@@ -28,6 +28,9 @@ pub struct UsageSnapshot {
     /// Money / credit balance + overage, when the channel exposes it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credits: Option<UsageCredits>,
+    /// Earned rate-limit reset credits, when the upstream exposes them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_reset_credits: Option<RateLimitResetCredits>,
     /// The original upstream response JSON, for display / debugging.
     pub raw: Value,
 }
@@ -124,4 +127,26 @@ pub struct UsageCredits {
     pub monthly_limit: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct RateLimitResetCredits {
+    pub available_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RateLimitResetCreditConsumeResponse {
+    pub outcome: RateLimitResetCreditConsumeOutcome,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub windows_reset: Option<i64>,
+    pub raw: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RateLimitResetCreditConsumeOutcome {
+    Reset,
+    NothingToReset,
+    NoCredit,
+    AlreadyRedeemed,
 }

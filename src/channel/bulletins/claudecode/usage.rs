@@ -107,6 +107,7 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         plan: None,
         windows,
         credits,
+        rate_limit_reset_credits: None,
         raw,
     })
 }
