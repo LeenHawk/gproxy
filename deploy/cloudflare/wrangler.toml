@@ -14,6 +14,12 @@ globs = ["**/*.wasm"]
 # Storage credentials are set as encrypted secrets (NOT vars):
 #   echo -n "$VALUE" | wrangler secret put TURSO_URL   (and TURSO_TOKEN,
 #   UPSTASH_URL, UPSTASH_TOKEN). They arrive via the `env` arg of fetch().
+#
+# Cloudflare Deploy Button reads .dev.vars.example to prompt users for these
+# secrets. Keep this list in sync so CLI deploys also warn when required values
+# are missing.
+[secrets]
+required = ["TURSO_URL", "TURSO_TOKEN"]
 
 [observability]
 enabled = true
