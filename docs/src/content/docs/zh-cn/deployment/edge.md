@@ -10,6 +10,14 @@ edge runtime 是同一个单 Rust crate 用 `--no-default-features --features ed
 不要依赖 edge 平台从源码编译 Rust。使用 release 或 `deploy` branch 中的预构建
 bundle，或在 CI 中构建 bundle 后上传生成产物。
 
+## 一键部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
+
+这些按钮使用 `deploy` branch 的预构建产物。创建部署后，把下面的 runtime 服务配置为平台
+secrets。
+
 ## Runtime 服务
 
 edge runtime 不能直连本地 SQLite、PostgreSQL、MySQL 或 Redis。v2 edge 使用 HTTP 可访问服务：

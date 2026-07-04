@@ -12,6 +12,14 @@ Do not rely on edge platforms compiling Rust from source. Use prebuilt bundles
 from a release or from the `deploy` branch, or build the bundle in CI and upload
 the generated output.
 
+## One-click Deploy
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
+
+These buttons use the prebuilt `deploy` branch artifacts. Configure the runtime
+services below as platform secrets after creating the deployment.
+
 ## Runtime Services
 
 Edge runtimes do not connect to local SQLite, PostgreSQL, MySQL, or Redis. v2
