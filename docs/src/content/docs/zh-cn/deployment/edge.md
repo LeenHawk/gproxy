@@ -15,8 +15,12 @@ bundle，或在 CI 中构建 bundle 后上传生成产物。
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
-这些按钮使用 `deploy` branch 的预构建产物。创建部署后，把下面的 runtime 服务配置为平台
-secrets。
+这些按钮使用 `deploy` branch 的预构建产物。把下面的 runtime 服务配置为平台 secrets。
+
+Cloudflare 模板在 `deploy/cloudflare/.dev.vars.example` 中声明了必需的 Turso
+secrets，所以 Cloudflare 部署流程会在第一次部署前要求填写 `TURSO_URL` 和
+`TURSO_TOKEN`。如果部署需要 Upstash cache 或 sealed stored secrets，可以之后再添加
+可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
 
 ## Runtime 服务
 
@@ -98,8 +102,9 @@ sibling `.wasm` 文件。
 
 ## 平台说明
 
-Cloudflare Workers 使用 `deploy/cloudflare/wrangler.toml` 和 compiled wasm rule。设置
-secrets 后，在 `deploy/cloudflare` 中运行 `wrangler deploy`。
+Cloudflare Workers 使用 `deploy/cloudflare/wrangler.toml` 和 compiled wasm rule。一键部署
+流程会要求填写必需的 Turso secrets。CLI 部署时，先用 `wrangler secret put` 设置
+`TURSO_URL` 和 `TURSO_TOKEN`，再在 `deploy/cloudflare` 中运行 `wrangler deploy`。
 
 Netlify 使用 `deploy/netlify/netlify.toml` 和 `edge-functions/` 入口。用
 `netlify env:set` 设置环境变量，再执行 `netlify deploy --prod`。

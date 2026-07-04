@@ -66,6 +66,10 @@ walkthrough in **[docs/edge-deploy.md](docs/edge-deploy.md)**.
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
+The Cloudflare button prompts for the required `TURSO_URL` and `TURSO_TOKEN`
+secrets before deployment. Optional Upstash cache and `GPROXY_MASTER_KEY`
+secrets can be added after the worker is created.
+
 | Platform | Bundle | Deploy |
 |---|---|---|
 | Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | one-click button ☝️ / `wrangler deploy` |

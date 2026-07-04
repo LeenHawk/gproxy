@@ -1,0 +1,20 @@
+{
+  "name": "gproxy-cloudflare-worker",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.76.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "TURSO_URL": {
+        "description": "Required Turso/libSQL database URL used by GPROXY for edge persistence, for example libsql://your-db.turso.io."
+      },
+      "TURSO_TOKEN": {
+        "description": "Required Turso database token with access to the TURSO_URL database. It is stored as a Worker secret."
+      }
+    }
+  }
+}

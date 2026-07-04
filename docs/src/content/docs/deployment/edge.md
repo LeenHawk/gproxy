@@ -18,7 +18,13 @@ the generated output.
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
 These buttons use the prebuilt `deploy` branch artifacts. Configure the runtime
-services below as platform secrets after creating the deployment.
+services below as platform secrets.
+
+The Cloudflare template declares required Turso secrets in
+`deploy/cloudflare/.dev.vars.example`, so the Cloudflare deploy flow prompts for
+`TURSO_URL` and `TURSO_TOKEN` before the first deploy. Add optional
+`UPSTASH_URL`, `UPSTASH_TOKEN`, and `GPROXY_MASTER_KEY` secrets later if the
+deployment needs Upstash cache or sealed stored secrets.
 
 ## Runtime Services
 
@@ -106,7 +112,9 @@ during platform packaging.
 ## Platform Notes
 
 Cloudflare Workers uses `deploy/cloudflare/wrangler.toml` with a compiled wasm
-rule. Run `wrangler deploy` from `deploy/cloudflare` after setting secrets.
+rule. The one-click deploy flow asks for the required Turso secrets. For CLI
+deploys, set `TURSO_URL` and `TURSO_TOKEN` with `wrangler secret put`, then run
+`wrangler deploy` from `deploy/cloudflare`.
 
 Netlify uses `deploy/netlify/netlify.toml` and the `edge-functions/` entry. Set
 site environment variables with `netlify env:set`, then run
