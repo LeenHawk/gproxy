@@ -19,9 +19,15 @@ bundle，或在 CI 中构建 bundle 后上传生成产物。
 
 Cloudflare 模板在 `deploy/cloudflare/.dev.vars.example` 中声明了必需的 Turso
 secrets，Netlify 模板在 `deploy/netlify/netlify.toml` 中声明。两个一键部署流程都会在
-第一次部署前要求填写 `TURSO_URL` 和 `TURSO_TOKEN`。如果部署需要 Upstash cache 或
-sealed stored secrets，可以之后再添加可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和
-`GPROXY_MASTER_KEY` secrets。
+第一次部署前要求填写 `TURSO_URL` 和 `TURSO_TOKEN`。这里要填 Turso 的 HTTP URL
+（`https://<db>.turso.io`），不要填 `libsql://` URL，因为 edge runtime 通过 `fetch`
+调用 Hrana。如果部署需要 Upstash cache 或 sealed stored secrets，可以之后再添加可选的
+`UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
+
+Cloudflare Workers、Netlify Edge、Deno Deploy 和 EdgeOne Pages 会把 React Console
+放进同一个部署，并让 `/` 跳到 `/console/`。Supabase Edge Functions 和 Appwrite
+Functions 默认是平台函数 URL，不是站点根路径；如果这些平台也需要 Web UI，需要通过自定义
+同源根路径/反代来服务 Console。
 
 ## Runtime 服务
 
@@ -29,7 +35,7 @@ edge runtime 不能直连本地 SQLite、PostgreSQL、MySQL 或 Redis。v2 edge 
 
 | 变量 | 必需 | 用途 |
 | --- | --- | --- |
-| `TURSO_URL` | 是 | libSQL/Turso 控制面数据库。 |
+| `TURSO_URL` | 是 | libSQL/Turso HTTP URL，例如 `https://<db>.turso.io`。 |
 | `TURSO_TOKEN` | 是 | Turso access token。 |
 | `UPSTASH_URL` | 否 | Upstash Redis cache；缺省时回退到 libSQL KV。 |
 | `UPSTASH_TOKEN` | 否 | Upstash token。 |
@@ -99,30 +105,35 @@ sibling `.wasm` 文件。
 4. 上传平台 bundle。
 5. 配置 secrets。
 6. 把 gateway、admin、user 和 ops 路径都路由到 worker/function。
-7. 需要 Web UI 时，同源提供 Console 静态资产。
+7. 需要 Web UI 且平台 bundle 未内置站点根路径 Console 时，同源提供 Console 静态资产。
 
 ## 平台说明
 
-Cloudflare Workers 使用 `deploy/cloudflare/wrangler.toml` 和 compiled wasm rule。一键部署
-流程会要求填写必需的 Turso secrets。CLI 部署时，先用 `wrangler secret put` 设置
-`TURSO_URL` 和 `TURSO_TOKEN`，再在 `deploy/cloudflare` 中运行 `wrangler deploy`。
+Cloudflare Workers 使用 `deploy/cloudflare/wrangler.toml`、compiled wasm rule，以及
+服务 `/console` 的 Worker static assets binding。一键部署流程会要求填写必需的 Turso
+secrets。CLI 部署时，先用 `wrangler secret put` 设置 `TURSO_URL` 和 `TURSO_TOKEN`，
+再在 `deploy/cloudflare` 中运行 `wrangler deploy`。
 
 Netlify 使用 `deploy/netlify/netlify.toml` 和 `edge-functions/` 入口。用
 `netlify env:set` 设置环境变量，再执行 `netlify deploy --prod`。一键部署流程通过
-`[template.environment]` 要求填写必需的 Turso 环境变量。
+`[template.environment]` 要求填写必需的 Turso 环境变量。publish 目录会包含 Console
+SPA；`/console/*` 会从 edge function 中排除，由 Netlify 静态文件和 SPA fallback 服务。
 
 Supabase 使用 `deploy/supabase/functions/gproxy`，部署命令应包含
 `supabase functions deploy gproxy --no-verify-jwt`。当 API upload path 会丢 sibling
 wasm 文件时，不要使用该路径。
 
 EdgeOne Pages 使用 `deploy/eopages/gproxy`，需要较新的 `edgeone` CLI。生成的 catch-all
-edge function 接收动态路径，`/` 仍可由平台静态内容精确匹配。
+edge function 接收 API 路径，`/` 和 `/console/*` 由平台静态内容加一个小的 SPA fallback
+edge function 服务。
 
 Deno Deploy 使用包含 `main.ts`、`pkg/` 和 `deno.json` 的 compact root。当前路径使用新的
-Deno Deploy CLI module，不走旧 Deploy Classic `deployctl`。
+Deno Deploy CLI module，不走旧 Deploy Classic `deployctl`。upload root 也包含 Console
+构建产物，`main.ts` 会先服务 `/console/*`，再把 API 流量交给 wasm。
 
 Appwrite Functions 通过 `deno-2.0` runtime 运行预构建 wasm。不要用 Appwrite 的 Rust
-runtime 部署这个 bundle。
+runtime 部署这个 bundle。Appwrite 默认函数 URL 不是站点根路径，所以 release bundle 不声明
+内置 Console。
 
 ## Edge 限制
 

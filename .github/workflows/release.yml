@@ -379,6 +379,7 @@ jobs:
   build-edge:
     name: Edge wasm bundles
     if: ${{ github.event_name == 'release' }}
+    needs: build-console
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -405,6 +406,12 @@ jobs:
           sudo mv "wasm-bindgen-${VER}-x86_64-unknown-linux-musl"/wasm-bindgen* /usr/local/bin/
           wasm-bindgen --version
           sudo apt-get update && sudo apt-get install -y --no-install-recommends zip
+
+      - name: Download console assets
+        uses: actions/download-artifact@v4
+        with:
+          name: console-embed
+          path: assets/console
 
       - name: Build edge wasm
         run: cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
@@ -434,10 +441,11 @@ jobs:
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-supabase.zip supabase -x 'supabase/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-appwrite-deno.zip appwrite-deno -x 'appwrite-deno/build.sh' 'appwrite-deno/NOTES.md')
           # deno: compact upload root (main.ts path-fixed to ./pkg + the glue)
-          rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg
+          rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg deploy/deno/bundle/console
           cp deploy/deno/pkg/gproxy.js deploy/deno/pkg/gproxy.d.ts \
              deploy/deno/pkg/gproxy_bg.wasm deploy/deno/pkg/gproxy_bg.wasm.d.ts deploy/deno/bundle/pkg/
           sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts > deploy/deno/bundle/main.ts
+          cp -R assets/console/. deploy/deno/bundle/console/
           (cd deploy/deno/bundle && zip -9 -r ../../../edge-dist/gproxy-edge-deno.zip .)
           (cd edge-dist && for f in *.zip gproxy.wasm; do shasum -a 256 "$f" > "$f.sha256"; done)
           ls -la edge-dist

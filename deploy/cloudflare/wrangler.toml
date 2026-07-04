@@ -11,6 +11,14 @@ compatibility_date = "2025-05-01"
 type = "CompiledWasm"
 globs = ["**/*.wasm"]
 
+# Serve the React Console from the same Worker deployment. `run_worker_first`
+# lets src/worker.js keep gateway/admin/user paths on the wasm router while
+# forwarding `/console/*` and root icons to this static asset binding.
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
 # Storage credentials are set as encrypted secrets (NOT vars):
 #   echo -n "$VALUE" | wrangler secret put TURSO_URL   (and TURSO_TOKEN,
 #   UPSTASH_URL, UPSTASH_TOKEN). They arrive via the `env` arg of fetch().

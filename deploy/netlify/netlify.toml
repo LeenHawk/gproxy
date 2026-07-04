@@ -1,9 +1,8 @@
 # GPROXY v2 — Netlify site config.
 #
-# A minimal `public/` dir is published (Netlify requires a publish dir even
-# when the site's only job is to host an edge function). All traffic is routed
-# to the `gproxy` edge function, which serves the wasm router (`/healthz`,
-# `/version`, …).
+# `public/` hosts the Console SPA. Gateway/admin/user/ops traffic routes to the
+# `gproxy` edge function; Console paths are excluded so Netlify can serve the
+# static files and `_redirects` SPA fallback.
 
 [build]
   publish = "public"
@@ -12,11 +11,12 @@
   edge_functions = "edge-functions"
 
 [template.environment]
-  TURSO_URL = "Required Turso/libSQL database URL used by GPROXY for edge persistence, for example libsql://your-db.turso.io."
+  TURSO_URL = "Required Turso/libSQL HTTP URL used by GPROXY edge persistence, for example https://your-db.turso.io. Do not use libsql:// on edge."
   TURSO_TOKEN = "Required Turso database token with access to the TURSO_URL database."
 
 # Route every request to the `gproxy` edge function. The function name matches the
 # file basename in deploy/netlify/edge-functions/ (gproxy.ts → "gproxy").
 [[edge_functions]]
   path = "/*"
+  excludedPath = ["/", "/console", "/console/*", "/favicon.ico", "/favicon-96x96.png", "/apple-touch-icon.png"]
   function = "gproxy"

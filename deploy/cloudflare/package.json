@@ -10,7 +10,7 @@
   "cloudflare": {
     "bindings": {
       "TURSO_URL": {
-        "description": "Required Turso/libSQL database URL used by GPROXY for edge persistence, for example libsql://your-db.turso.io."
+        "description": "Required Turso/libSQL HTTP URL used by GPROXY edge persistence, for example https://your-db.turso.io. Do not use libsql:// on edge."
       },
       "TURSO_TOKEN": {
         "description": "Required Turso database token with access to the TURSO_URL database. It is stored as a Worker secret."

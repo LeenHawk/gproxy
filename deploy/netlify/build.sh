@@ -12,6 +12,9 @@ set -euo pipefail
 CRATE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WASM="$CRATE_ROOT/target/wasm32-unknown-unknown/release/gproxy.wasm"
 OUT="$CRATE_ROOT/deploy/netlify/edge-functions/_lib"
+CONSOLE_ASSETS="$CRATE_ROOT/assets/console"
+PUBLIC="$CRATE_ROOT/deploy/netlify/public"
+PUBLIC_CONSOLE="$PUBLIC/console"
 
 [ -f "$WASM" ] || { echo "missing $WASM — run cargo build first" >&2; exit 1; }
 
@@ -41,4 +44,20 @@ grep -q "wasmBase64" "$OUT/gproxy.js" \
 
 # Drop the now-unused sibling .wasm so it is not uploaded as a static asset.
 rm -f "$OUT/gproxy_bg.wasm" "$OUT/gproxy_bg.wasm.d.ts"
+
+mkdir -p "$PUBLIC_CONSOLE"
+find "$PUBLIC" -mindepth 1 -maxdepth 1 ! -name "_redirects" ! -name ".gitkeep" ! -name "console" -exec rm -rf {} +
+find "$PUBLIC_CONSOLE" -mindepth 1 ! -name ".gitkeep" -exec rm -rf {} +
+
+if [ -f "$CONSOLE_ASSETS/index.html" ]; then
+  cp -R "$CONSOLE_ASSETS"/. "$PUBLIC_CONSOLE"/
+  for f in favicon.ico favicon-96x96.png apple-touch-icon.png; do
+    if [ -f "$CONSOLE_ASSETS/$f" ]; then
+      cp "$CONSOLE_ASSETS/$f" "$PUBLIC/$f"
+    fi
+  done
+  echo "synced $CONSOLE_ASSETS -> $PUBLIC_CONSOLE"
+else
+  echo "warning: $CONSOLE_ASSETS/index.html not found; Netlify console assets not bundled" >&2
+fi
 echo "done: $OUT"

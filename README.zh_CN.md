@@ -59,8 +59,10 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me-min12char ghcr.io/lee
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
 Cloudflare 和 Netlify 按钮会在部署前要求填写必需的 `TURSO_URL` 和
-`TURSO_TOKEN` secrets。可选的 Upstash cache 和 `GPROXY_MASTER_KEY` secrets
-可以在 worker/site 创建后再补。
+`TURSO_TOKEN` secrets。这里要填 Turso 的 HTTP URL(`https://<db>.turso.io`)，
+不要填 `libsql://` URL。可选的 Upstash cache 和 `GPROXY_MASTER_KEY` secrets
+可以在 worker/site 创建后再补。Cloudflare Workers、Netlify Edge、Deno Deploy 和
+EdgeOne Pages 会在同一个部署里带上 Console 静态资产，部署后打开 `/console`。
 
 | 平台 | 产物 | 部署 |
 |---|---|---|
