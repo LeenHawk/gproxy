@@ -22,7 +22,7 @@ cargo build --release --bin gproxy
 
 二进制位于 `target/release/gproxy`。
 
-## 2. 准备开发导入 bundle
+## 2. 准备开发导入 bundle (请不准备开发的优先下载Github Release)
 
 docs site 带有开发 bundle：`docs/public/examples/import-dev.json`。写入真实上游 key
 前，先复制到 docs 目录外：
@@ -54,11 +54,7 @@ cp docs/public/examples/import-dev.json ./import-dev.local.json
 用本地 data 目录启动 native 二进制，并让 first-boot hook 在空 store 时导入 bundle：
 
 ```bash
-GPROXY_DATA_DIR=./data \
-GPROXY_IMPORT_FILE=./import-dev.local.json \
-GPROXY_ADMIN_USER=dev \
-GPROXY_ADMIN_PASSWORD=change-me-please \
-./target/release/gproxy
+./target/release/gproxy --admin-password change-me-please
 ```
 
 常用默认值：

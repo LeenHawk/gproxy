@@ -24,7 +24,7 @@ cargo build --release --bin gproxy
 
 The binary is `target/release/gproxy`.
 
-## 2. Prepare A Dev Import Bundle
+## 2. Prepare A Dev Import Bundle (Please download from Github Release if you don't want to develop)
 
 The docs site includes a development bundle at
 `docs/public/examples/import-dev.json`. Copy it outside the docs tree before
@@ -60,11 +60,7 @@ Start the native binary with a local data directory and ask the first-boot hook
 to import the bundle if the store is empty:
 
 ```bash
-GPROXY_DATA_DIR=./data \
-GPROXY_IMPORT_FILE=./import-dev.local.json \
-GPROXY_ADMIN_USER=dev \
-GPROXY_ADMIN_PASSWORD=change-me-please \
-./target/release/gproxy
+./target/release/gproxy --admin-password change-me-please
 ```
 
 Useful defaults:
