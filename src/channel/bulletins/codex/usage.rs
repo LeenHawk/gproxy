@@ -28,7 +28,7 @@ pub(super) fn request(
     let base = usage_base(settings);
     let uri = join_url(&base, "/wham/usage", None)?;
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
-    apply_headers(&mut req, &access_token, secret)?;
+    apply_headers(&mut req, access_token, secret)?;
     Ok(Some(req))
 }
 
@@ -45,7 +45,7 @@ pub(super) fn reset_credit_request(
     })
     .map_err(|e| ChannelError::Build(format!("codex reset-credit request serialize: {e}")))?;
     let mut req = build_request(Method::POST, uri, HeaderMap::new(), Bytes::from(body))?;
-    apply_headers(&mut req, &access_token, secret)?;
+    apply_headers(&mut req, access_token, secret)?;
     Ok(Some(req))
 }
 
@@ -205,7 +205,7 @@ impl AdditionalRateLimitDetails {
             .limit_name
             .as_deref()
             .filter(|s| !s.is_empty())
-            .or_else(|| self.metered_feature.as_deref())
+            .or(self.metered_feature.as_deref())
             .unwrap_or("Additional limit");
 
         if let Some(window) = &rate_limit.primary_window {
