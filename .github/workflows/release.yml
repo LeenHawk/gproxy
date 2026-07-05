@@ -172,7 +172,7 @@ jobs:
           }
 
       - name: Download console embed
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: console-embed
           path: assets/console
@@ -315,7 +315,7 @@ jobs:
       # Per-target `release-asset-<triple>/<name>.zip` + `.zip.sha256` from
       # build-native. No merge: keep the per-triple dirs the script reads.
       - name: Download release zip assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-asset-*
           path: dl
@@ -407,7 +407,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends zip
 
       - name: Download console assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: console-embed
           path: assets/console
@@ -533,7 +533,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Download linux binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: docker-bin-${{ matrix.target }}
           path: dist
