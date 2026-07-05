@@ -165,6 +165,29 @@ mod tests {
     }
 
     #[test]
+    fn claude_to_openai_responses_websocket_request_roundtrip() {
+        let source = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        );
+        let target = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiResponsesWebSocket,
+        );
+        let pair = crate::transform::resolve(source, target).unwrap();
+        assert!(is_wired(pair));
+
+        let ctx = TransformContext::new(source, target);
+        let body = br#"{"model":"m","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}"#;
+        let out = request_bytes(pair, &ctx, body).unwrap();
+        let v: Value = serde_json::from_slice(&out).unwrap();
+
+        assert_eq!(v["type"], "response.create");
+        assert_eq!(v["model"], "m");
+        assert!(v.get("input").is_some());
+    }
+
+    #[test]
     fn claude_to_openai_count_tokens_request_roundtrip() {
         let source = OperationKey::provider(Operation::CountTokens, Provider::Claude);
         let target = OperationKey::provider(Operation::CountTokens, Provider::OpenAi);

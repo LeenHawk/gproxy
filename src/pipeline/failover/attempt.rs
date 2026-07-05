@@ -101,6 +101,8 @@ pub(super) async fn attempt(
     let mut req_headers = parts.headers.take().unwrap_or_else(|| ctx.headers.clone());
     parts.body = channel.shape_request(parts.body, &mut req_headers, &shape);
     parts.headers = Some(req_headers);
+    #[cfg(not(target_arch = "wasm32"))]
+    let prepared_body = parts.body.clone();
 
     let prepared = match channel.prepare(PrepareCtx {
         secret,
@@ -147,7 +149,7 @@ pub(super) async fn attempt(
         #[cfg(not(target_arch = "wasm32"))]
         crate::channel::PreparedRequest::CustomStream(send) => {
             custom_stream_send = Some(send);
-            (None, None, Bytes::new(), String::new(), None)
+            (None, None, prepared_body, String::new(), None)
         }
     };
 
@@ -333,7 +335,7 @@ pub(super) struct ResponseRuleCtx<'a> {
 /// §8-D logging (buffered: returned via `upstream_raw`; streaming: backfilled by
 /// the spliced guard).
 #[allow(clippy::too_many_arguments)]
-pub(super) fn materialize(
+pub(super) async fn materialize(
     channel: &Arc<dyn Channel>,
     source: BodySource,
     plan: &TransformPlan,
@@ -441,6 +443,15 @@ pub(super) fn materialize(
                 ),
                 None => st,
             };
+            if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
+                let b = collect_byte_stream(st).await?;
+                let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b);
+                return Ok(Materialized {
+                    body: ResponseBody::Full(transform_step::aggregate_response_body(plan, agg)?),
+                    upstream_raw: None,
+                    settle: None,
+                });
+            }
             let body = match transform_step::stream_transformer(plan) {
                 None => ResponseBody::Stream(st),
                 Some(t) => {
@@ -454,6 +465,19 @@ pub(super) fn materialize(
             })
         }
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn collect_byte_stream(
+    st: crate::pipeline::outcome::ByteStream,
+) -> Result<Bytes, PipelineError> {
+    use futures_util::TryStreamExt;
+
+    let chunks: Vec<Bytes> = st
+        .try_collect()
+        .await
+        .map_err(|error| PipelineError::Transport(error.to_string()))?;
+    Ok(Bytes::from(chunks.concat()))
 }
 
 /// The buffered-body conversion ladder, split out so [`materialize`] stays

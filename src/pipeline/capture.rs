@@ -248,6 +248,13 @@ impl crate::http::client::UpstreamClient for CapturingClient {
         Ok(resp)
     }
 
+    async fn send_websocket(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<http::Response<Bytes>, crate::http::client::ClientError> {
+        self.inner.send_websocket(req).await
+    }
+
     /// Forward conduit-WS opening to the inner client (the chatgpt thinking-model
     /// handoff path). The WS itself isn't an HTTP send, so it's not per-frame
     /// logged; the preceding `celsius/ws/user` GET rides `send` and IS captured.
@@ -257,6 +264,17 @@ impl crate::http::client::UpstreamClient for CapturingClient {
         url: &str,
     ) -> Result<Box<dyn crate::http::client::ConduitSocket>, crate::http::client::ClientError> {
         self.inner.open_conduit(url).await
+    }
+
+    /// Forward generic upstream WebSocket opening (Responses WebSocket target).
+    /// The handshake and frames are transport-level work owned by the channel's
+    /// custom stream closure.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn open_websocket(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<Box<dyn crate::http::client::ConduitSocket>, crate::http::client::ClientError> {
+        self.inner.open_websocket(req).await
     }
 }
 

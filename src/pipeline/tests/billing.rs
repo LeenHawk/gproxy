@@ -187,7 +187,34 @@ async fn include_usage_injected() {
         Bytes::new(),
         vec![Bytes::from(format!("{chunk}\n\ndata: [DONE]\n\n"))],
     ));
-    let (state, _dir) = state_with(Arc::clone(&fake)).await;
+    let bundle = bundle_with(
+        "routing_rules",
+        json!([
+            {
+                "id": 1, "provider_id": 1, "operation": "stream_generate_content",
+                "kind": "open_ai_chat_completions", "implementation": "passthrough",
+                "dest_operation": null, "dest_kind": null, "sort_order": 0, "enabled": true
+            },
+            {
+                "id": 2, "provider_id": 1, "operation": "generate_content",
+                "kind": "open_ai_chat_completions", "implementation": "passthrough",
+                "dest_operation": null, "dest_kind": null, "sort_order": 1, "enabled": true
+            },
+            {
+                "id": 3, "provider_id": 1, "operation": "stream_generate_content",
+                "kind": "claude_messages", "implementation": "transform_to",
+                "dest_operation": "stream_generate_content",
+                "dest_kind": "open_ai_chat_completions", "sort_order": 2, "enabled": true
+            },
+            {
+                "id": 4, "provider_id": 1, "operation": "generate_content",
+                "kind": "claude_messages", "implementation": "transform_to",
+                "dest_operation": "stream_generate_content",
+                "dest_kind": "open_ai_chat_completions", "sort_order": 3, "enabled": true
+            }
+        ]),
+    );
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
 
     // transform path: claude inbound → openai-chat upstream stream
     crate::pipeline::execute(&state, claude_ctx("claude-test", true))

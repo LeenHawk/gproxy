@@ -9,6 +9,12 @@ pub enum TransformPair {
     OpenAiChatToOpenAiResponses,
     OpenAiResponsesToOpenAiResponsesWebSocket,
     OpenAiResponsesWebSocketToOpenAiResponses,
+    OpenAiChatToOpenAiResponsesWebSocket,
+    OpenAiResponsesWebSocketToOpenAiChat,
+    ClaudeMessagesToOpenAiResponsesWebSocket,
+    OpenAiResponsesWebSocketToClaudeMessages,
+    GeminiGenerateContentToOpenAiResponsesWebSocket,
+    OpenAiResponsesWebSocketToGeminiGenerateContent,
     OpenAiResponsesToClaudeMessages,
     ClaudeMessagesToOpenAiResponses,
     OpenAiResponsesToGeminiGenerateContent,
@@ -126,6 +132,24 @@ fn resolve_content_generation(
         }
         (Kind::OpenAiResponsesWebSocket, Kind::OpenAiResponses) => {
             Ok(Pair::OpenAiResponsesWebSocketToOpenAiResponses)
+        }
+        (Kind::OpenAiChatCompletions, Kind::OpenAiResponsesWebSocket) => {
+            Ok(Pair::OpenAiChatToOpenAiResponsesWebSocket)
+        }
+        (Kind::OpenAiResponsesWebSocket, Kind::OpenAiChatCompletions) => {
+            Ok(Pair::OpenAiResponsesWebSocketToOpenAiChat)
+        }
+        (Kind::ClaudeMessages, Kind::OpenAiResponsesWebSocket) => {
+            Ok(Pair::ClaudeMessagesToOpenAiResponsesWebSocket)
+        }
+        (Kind::OpenAiResponsesWebSocket, Kind::ClaudeMessages) => {
+            Ok(Pair::OpenAiResponsesWebSocketToClaudeMessages)
+        }
+        (Kind::GeminiGenerateContent, Kind::OpenAiResponsesWebSocket) => {
+            Ok(Pair::GeminiGenerateContentToOpenAiResponsesWebSocket)
+        }
+        (Kind::OpenAiResponsesWebSocket, Kind::GeminiGenerateContent) => {
+            Ok(Pair::OpenAiResponsesWebSocketToGeminiGenerateContent)
         }
         (Kind::OpenAiResponses, Kind::ClaudeMessages) => Ok(Pair::OpenAiResponsesToClaudeMessages),
         (Kind::ClaudeMessages, Kind::OpenAiResponses) => Ok(Pair::ClaudeMessagesToOpenAiResponses),
