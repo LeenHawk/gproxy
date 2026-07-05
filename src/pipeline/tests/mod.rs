@@ -1,5 +1,6 @@
 //! M2 integration tests: full pipeline::execute against a fake upstream.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -10,15 +11,27 @@ use serde_json::{Value, json};
 use crate::app::AppState;
 use crate::app::snapshot::ControlPlaneSnapshot;
 use crate::config::{CacheConfig, PersistenceConfig, RuntimeConfig, UpstreamConfig};
-use crate::http::client::{ClientError, RespStream, UpstreamClient};
+use crate::http::client::{ClientError, ConduitSocket, RespStream, UpstreamClient};
 use crate::pipeline::context::{RequestCtx, RoutingMode};
 use crate::pipeline::outcome::ResponseBody;
+use crate::protocol::{ContentGenerationKind, Operation, OperationKey, openai};
+use crate::transform::TransformContext;
 
 /// Captured upstream request (http::Request isn't Clone).
 struct Seen {
     uri: String,
     body: Bytes,
     headers: HeaderMap,
+}
+
+fn assert_responses_websocket_request(seen: &Seen, model: &str) -> Value {
+    assert!(seen.uri.contains("/v1/responses"), "uri: {}", seen.uri);
+    assert!(seen.uri.starts_with("ws://") || seen.uri.starts_with("wss://"));
+    let up: Value = serde_json::from_slice(&seen.body).unwrap();
+    assert_eq!(up["type"], "response.create", "{up}");
+    assert_eq!(up["model"], model, "{up}");
+    assert_eq!(up["stream"], true, "{up}");
+    up
 }
 
 struct FakeUpstream {
@@ -64,6 +77,28 @@ impl UpstreamClient for FakeUpstream {
             Box::pin(futures_util::stream::iter(chunks)),
         ))
     }
+
+    async fn open_websocket(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<Box<dyn ConduitSocket>, ClientError> {
+        self.capture(&req);
+        let i = self.calls.fetch_add(1, Ordering::SeqCst);
+        let status = self
+            .statuses
+            .get(i)
+            .or_else(|| self.statuses.last())
+            .copied()
+            .unwrap_or(StatusCode::OK);
+        if !status.is_success() {
+            return Err(ClientError::Transport(format!(
+                "websocket handshake failed with status {status}"
+            )));
+        }
+        Ok(Box::new(FakeWebSocket {
+            messages: Mutex::new(self.websocket_messages()),
+        }))
+    }
 }
 
 impl FakeUpstream {
@@ -84,6 +119,133 @@ impl FakeUpstream {
             headers: req.headers().clone(),
         });
     }
+
+    fn websocket_messages(&self) -> VecDeque<String> {
+        if self.chunks.is_empty() {
+            return self
+                .response_to_websocket_message()
+                .into_iter()
+                .collect::<VecDeque<_>>();
+        }
+
+        let mut messages = VecDeque::new();
+        let mut decoder = crate::transform::common::sse::SseDecoder::new();
+        for chunk in &self.chunks {
+            for frame in decoder.push(chunk) {
+                if let Some(message) = sse_data_to_websocket_message(&frame.data) {
+                    messages.push_back(message);
+                }
+            }
+        }
+        if let Some(frame) = decoder.finish()
+            && let Some(message) = sse_data_to_websocket_message(&frame.data)
+        {
+            messages.push_back(message);
+        }
+        messages
+    }
+
+    fn response_to_websocket_message(&self) -> Option<String> {
+        let value: Value = serde_json::from_slice(&self.response).ok()?;
+        let response = chat_response_to_responses(value.clone()).unwrap_or(value);
+        Some(
+            json!({
+                "type": "response.completed",
+                "response": response,
+            })
+            .to_string(),
+        )
+    }
+}
+
+struct FakeWebSocket {
+    messages: Mutex<VecDeque<String>>,
+}
+
+#[async_trait::async_trait]
+impl ConduitSocket for FakeWebSocket {
+    async fn send_text(&mut self, _text: String) -> Result<(), ClientError> {
+        Ok(())
+    }
+
+    async fn recv_text(&mut self) -> Option<Result<String, ClientError>> {
+        self.messages.lock().unwrap().pop_front().map(Ok)
+    }
+}
+
+fn sse_data_to_websocket_message(data: &str) -> Option<String> {
+    let data = data.trim();
+    if data.is_empty() || data == "[DONE]" {
+        return None;
+    }
+    let value: Value = serde_json::from_str(data).ok()?;
+    if value.get("type").is_some() {
+        return Some(value.to_string());
+    }
+    if let Some(response_event) = chat_chunk_to_responses_event(value.clone()) {
+        return Some(response_event.to_string());
+    }
+    Some(value.to_string())
+}
+
+fn chat_response_to_responses(value: Value) -> Option<Value> {
+    let value = with_chat_usage_total(value);
+    if value.get("object").and_then(Value::as_str) != Some("chat.completion") {
+        return None;
+    }
+    let response: openai::ChatCompletionResponse = serde_json::from_value(value).ok()?;
+    let ctx = chat_to_responses_ctx();
+    let response = crate::transform::generate_content::openai_chat_to_openai_responses::response(
+        response, &ctx,
+    )
+    .ok()?;
+    serde_json::to_value(response).ok()
+}
+
+fn chat_chunk_to_responses_event(value: Value) -> Option<Value> {
+    let value = with_chat_usage_total(value);
+    if value.get("object").and_then(Value::as_str) != Some("chat.completion.chunk") {
+        return None;
+    }
+    let chunk: openai::ChatCompletionChunk = serde_json::from_value(value).ok()?;
+    let ctx = chat_to_responses_ctx();
+    let event = crate::transform::generate_content::openai_chat_to_openai_responses::stream_event(
+        chunk, &ctx,
+    )
+    .ok()?;
+    serde_json::to_value(event).ok()
+}
+
+fn with_chat_usage_total(mut value: Value) -> Value {
+    let Some(usage) = value.get_mut("usage").and_then(Value::as_object_mut) else {
+        return value;
+    };
+    if usage.get("total_tokens").is_some() {
+        return value;
+    }
+    let prompt = usage
+        .get("prompt_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    let completion = usage
+        .get("completion_tokens")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
+    usage.insert("total_tokens".to_owned(), Value::from(prompt + completion));
+    value
+}
+
+fn chat_to_responses_ctx() -> TransformContext {
+    TransformContext::new(
+        OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiChatCompletions,
+        ),
+        OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiResponses,
+        ),
+    )
 }
 
 const BUNDLE: &str = r#"{
@@ -281,13 +443,7 @@ async fn aggregated_provider_model_direct_addressing_works() {
     assert_eq!(outcome.status, StatusCode::OK);
 
     let seen = fake.seen.lock().unwrap();
-    assert!(
-        seen[0].uri.contains("/v1/chat/completions"),
-        "uri: {}",
-        seen[0].uri
-    );
-    let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
-    assert_eq!(up["model"], "gpt-test");
+    assert_responses_websocket_request(&seen[0], "gpt-test");
 }
 
 #[tokio::test]
@@ -316,13 +472,7 @@ async fn aggregated_global_alias_then_provider_alias() {
     assert_eq!(outcome.status, StatusCode::OK);
 
     let seen = fake.seen.lock().unwrap();
-    assert!(
-        seen[0].uri.contains("/v1/chat/completions"),
-        "uri: {}",
-        seen[0].uri
-    );
-    let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
-    assert_eq!(up["model"], "gpt-test");
+    assert_responses_websocket_request(&seen[0], "gpt-test");
 }
 
 fn claude_ctx_as(api_key: &str, model: &str, stream: bool) -> RequestCtx {
@@ -373,13 +523,7 @@ async fn claude_inbound_to_openai_buffered() {
 
     // upstream saw the TARGET protocol
     let seen = fake.seen.lock().unwrap();
-    assert!(
-        seen[0].uri.contains("/v1/chat/completions"),
-        "uri: {}",
-        seen[0].uri
-    );
-    let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
-    assert_eq!(up["model"], "gpt-test"); // member model rewrite
+    assert_responses_websocket_request(&seen[0], "gpt-test"); // member model rewrite
     drop(seen);
 
     // client got CLAUDE shape back
@@ -423,7 +567,7 @@ async fn claude_inbound_to_openai_streaming() {
     );
     assert!(!text.contains("[DONE]"), "no DONE in claude stream: {text}");
     let seen = fake.seen.lock().unwrap();
-    assert!(seen[0].uri.contains("/v1/chat/completions"));
+    assert_responses_websocket_request(&seen[0], "gpt-test");
 }
 
 #[tokio::test]
@@ -465,13 +609,7 @@ async fn gemini_inbound_streaming_sets_body_stream_flag() {
 
     // upstream must be asked to STREAM in the body (gemini carried it in the URL)
     let seen = fake.seen.lock().unwrap();
-    assert!(
-        seen[0].uri.contains("/v1/chat/completions"),
-        "uri: {}",
-        seen[0].uri
-    );
-    let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
-    assert_eq!(up["stream"], true, "stream flag injected: {up}");
+    assert_responses_websocket_request(&seen[0], "gemini-pro");
     drop(seen);
     let ResponseBody::Stream(_) = outcome.body else {
         panic!("expected Stream")

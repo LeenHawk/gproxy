@@ -182,7 +182,14 @@ async fn rate_limited_cools_credential() {
             json!([{ "id": 1, "route_id": 1, "provider_id": 1, "upstream_model_id": "gpt-a", "weight": 100, "tier": 0, "enabled": true }]),
         ),
         ("aliases", json!([])),
-        ("routing_rules", json!([])),
+        (
+            "routing_rules",
+            json!([{
+                "id": 1, "provider_id": 1, "operation": "generate_content",
+                "kind": "open_ai_chat_completions", "implementation": "passthrough",
+                "dest_operation": null, "dest_kind": null, "sort_order": 0, "enabled": true
+            }]),
+        ),
         ("provider_rule_sets", json!([])),
     ]);
     let mut fake = FakeUpstream::new(ok_body(), vec![]);

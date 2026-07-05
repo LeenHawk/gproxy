@@ -1081,8 +1081,8 @@ mod tests {
 
     /// Routing defaults are materialized at provider creation, edited as plain
     /// rules, and restored by `reset`. Creating an `openai`-channel provider via
-    /// the HTTP path seeds the 12-cell 3×4 matrix; a custom edit persists; `reset`
-    /// recomputes the channel defaults.
+    /// the HTTP path seeds the executable surface; a custom edit persists;
+    /// `reset` recomputes the channel defaults.
     #[tokio::test]
     async fn routing_seed_and_reset() {
         use crate::store::persistence::records::RoutingRuleInput;
@@ -1144,12 +1144,14 @@ mod tests {
         assert!(seeded >= 12, "seeded {seeded} rows");
         // every seeded row is a real rule (has an id) on the openai channel.
         let same = find(&rows, "generate_content", "open_ai_chat_completions");
-        assert_eq!(same["implementation"], "passthrough", "{same}");
+        assert_eq!(same["implementation"], "transform_to", "{same}");
+        assert_eq!(same["dest_operation"], "stream_generate_content", "{same}");
+        assert_eq!(same["dest_kind"], "open_ai_responses_websocket", "{same}");
         assert!(same["id"].is_i64());
         let cross = find(&rows, "generate_content", "claude_messages");
         assert_eq!(cross["implementation"], "transform_to", "{cross}");
-        // openai's non-openai inbound transforms to chat (v2 chat-native).
-        assert_eq!(cross["dest_kind"], "open_ai_chat_completions");
+        // openai content generation defaults to the Responses WebSocket transport.
+        assert_eq!(cross["dest_kind"], "open_ai_responses_websocket");
         // count_tokens on an openai-family channel is served locally (§6.3).
         let ct = find(&rows, "count_tokens", "open_ai");
         assert_eq!(ct["implementation"], "local", "{ct}");

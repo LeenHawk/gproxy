@@ -310,7 +310,8 @@ pub async fn run_failover(
                 response_rules,
                 up_cap,
                 settle_ctx,
-            );
+            )
+            .await;
             // §8-D upstream capture: the attempt actually returned to the
             // client (success or relayed permanent 4xx). Failed-over attempts
             // were audited above; gating happens inside `capture`. `resp_body`
