@@ -13,6 +13,7 @@ pub mod oauth;
 pub mod prepared;
 pub mod registry;
 pub mod resolve;
+pub mod responses_websocket;
 pub mod routes;
 pub mod shaping;
 pub mod usage;

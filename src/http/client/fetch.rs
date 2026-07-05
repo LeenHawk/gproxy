@@ -6,12 +6,82 @@
 //       compile-checked only.
 
 use bytes::Bytes;
-use js_sys::{Uint8Array, global};
+use js_sys::{Array, Uint8Array, global};
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response, WorkerGlobalScope};
 
 use super::{ClientError, UpstreamClient};
+
+#[wasm_bindgen(inline_js = r#"
+export async function gproxyResponsesWebSocketRoundTrip(url, headerEntries, frame) {
+  const headers = new Headers();
+  for (const pair of headerEntries) {
+    headers.append(pair[0], pair[1]);
+  }
+  headers.set("Upgrade", "websocket");
+
+  const response = await fetch(url, { method: "GET", headers });
+  const socket = response.webSocket;
+  if (!socket) {
+    throw new Error(`websocket upgrade failed with status ${response.status}`);
+  }
+
+  if (typeof socket.accept === "function") {
+    socket.accept();
+  }
+
+  const decoder = new TextDecoder();
+  const messages = [];
+  const terminal = new Set(["response.completed", "response.done", "response.failed", "error"]);
+
+  return await new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      try { socket.close(); } catch (_) {}
+      resolve(messages);
+    };
+    const fail = (message) => {
+      if (settled) return;
+      settled = true;
+      try { socket.close(); } catch (_) {}
+      reject(new Error(message));
+    };
+
+    socket.addEventListener("message", (event) => {
+      const text = typeof event.data === "string" ? event.data : decoder.decode(event.data);
+      messages.push(text);
+      let kind = null;
+      try { kind = JSON.parse(text)?.type ?? null; } catch (_) {}
+      if (terminal.has(kind)) {
+        finish();
+      }
+    });
+    socket.addEventListener("close", () => {
+      if (settled) return;
+      fail("websocket closed before terminal response");
+    });
+    socket.addEventListener("error", () => fail("websocket error"));
+
+    try {
+      socket.send(frame);
+    } catch (error) {
+      fail(error?.message ?? String(error));
+    }
+  });
+}
+"#)]
+extern "C" {
+    #[wasm_bindgen(catch, js_name = gproxyResponsesWebSocketRoundTrip)]
+    async fn responses_websocket_round_trip(
+        url: String,
+        header_entries: Array,
+        frame: String,
+    ) -> Result<JsValue, JsValue>;
+}
 
 fn js_err(e: wasm_bindgen::JsValue) -> ClientError {
     ClientError::Transport(format!("{e:?}"))
@@ -110,4 +180,61 @@ impl UpstreamClient for FetchClient {
             .body(body_out)
             .map_err(|e| ClientError::Transport(e.to_string()))
     }
+
+    async fn send_websocket(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<http::Response<Bytes>, ClientError> {
+        let (parts, body) = req.into_parts();
+        let frame = String::from_utf8(body.to_vec()).map_err(|error| {
+            ClientError::Transport(format!(
+                "responses websocket request is not UTF-8 JSON: {error}"
+            ))
+        })?;
+        let header_entries = Array::new();
+        for (name, value) in &parts.headers {
+            let value = value
+                .to_str()
+                .map_err(|error| ClientError::Transport(error.to_string()))?;
+            let pair = Array::new();
+            pair.push(&JsValue::from_str(name.as_str()));
+            pair.push(&JsValue::from_str(value));
+            header_entries.push(&pair);
+        }
+
+        let messages = responses_websocket_round_trip(parts.uri.to_string(), header_entries, frame)
+            .await
+            .map_err(js_err)?;
+        let messages: Array = messages
+            .dyn_into()
+            .map_err(|_| ClientError::Transport("websocket result was not an array".into()))?;
+        let mut body = Vec::new();
+        for message in messages.iter() {
+            let text = message
+                .as_string()
+                .ok_or_else(|| ClientError::Transport("websocket message was not text".into()))?;
+            body.extend_from_slice(&text_to_sse(&text));
+        }
+
+        http::Response::builder()
+            .status(http::StatusCode::OK)
+            .header(http::header::CONTENT_TYPE, "text/event-stream")
+            .body(Bytes::from(body))
+            .map_err(|error| ClientError::Transport(error.to_string()))
+    }
+}
+
+fn text_to_sse(text: &str) -> Vec<u8> {
+    let name = serde_json::from_str::<serde_json::Value>(text)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("type")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "message".to_owned());
+    crate::transform::common::sse::SseFrame::event(name, text.to_owned())
+        .encode()
+        .into_bytes()
 }

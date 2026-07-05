@@ -142,6 +142,29 @@ mod tests {
     }
 
     #[test]
+    fn openai_responses_to_websocket_request_roundtrip() {
+        let source = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiResponses,
+        );
+        let target = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiResponsesWebSocket,
+        );
+        let pair = crate::transform::resolve(source, target).unwrap();
+        assert!(is_wired(pair));
+
+        let ctx = TransformContext::new(source, target);
+        let body = br#"{"model":"m","input":"hi","stream":true}"#;
+        let out = request_bytes(pair, &ctx, body).unwrap();
+        let v: Value = serde_json::from_slice(&out).unwrap();
+
+        assert_eq!(v["type"], "response.create");
+        assert_eq!(v["model"], "m");
+        assert_eq!(v["stream"], true);
+    }
+
+    #[test]
     fn claude_to_openai_count_tokens_request_roundtrip() {
         let source = OperationKey::provider(Operation::CountTokens, Provider::Claude);
         let target = OperationKey::provider(Operation::CountTokens, Provider::OpenAi);

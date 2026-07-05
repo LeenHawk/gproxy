@@ -7,6 +7,8 @@ use super::TransformError;
 pub enum TransformPair {
     OpenAiResponsesToOpenAiChat,
     OpenAiChatToOpenAiResponses,
+    OpenAiResponsesToOpenAiResponsesWebSocket,
+    OpenAiResponsesWebSocketToOpenAiResponses,
     OpenAiResponsesToClaudeMessages,
     ClaudeMessagesToOpenAiResponses,
     OpenAiResponsesToGeminiGenerateContent,
@@ -118,6 +120,12 @@ fn resolve_content_generation(
         }
         (Kind::OpenAiChatCompletions, Kind::OpenAiResponses) => {
             Ok(Pair::OpenAiChatToOpenAiResponses)
+        }
+        (Kind::OpenAiResponses, Kind::OpenAiResponsesWebSocket) => {
+            Ok(Pair::OpenAiResponsesToOpenAiResponsesWebSocket)
+        }
+        (Kind::OpenAiResponsesWebSocket, Kind::OpenAiResponses) => {
+            Ok(Pair::OpenAiResponsesWebSocketToOpenAiResponses)
         }
         (Kind::OpenAiResponses, Kind::ClaudeMessages) => Ok(Pair::OpenAiResponsesToClaudeMessages),
         (Kind::ClaudeMessages, Kind::OpenAiResponses) => Ok(Pair::ClaudeMessagesToOpenAiResponses),

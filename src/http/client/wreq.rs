@@ -186,6 +186,26 @@ impl UpstreamClient for WreqClient {
             .map_err(|e| ClientError::Transport(format!("conduit upgrade: {e}")))?;
         Ok(Box::new(WreqConduit { ws }))
     }
+
+    async fn open_websocket(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<Box<dyn ConduitSocket>, ClientError> {
+        let uri = req.uri().to_string();
+        let headers = req.headers().clone();
+        let resp = self
+            .inner
+            .websocket(uri)
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| ClientError::Transport(format!("websocket handshake: {e}")))?;
+        let ws = resp
+            .into_websocket()
+            .await
+            .map_err(|e| ClientError::Transport(format!("websocket upgrade: {e}")))?;
+        Ok(Box::new(WreqConduit { ws }))
+    }
 }
 
 /// [`ConduitSocket`] over a wreq [`wreq::ws::WebSocket`]. Receives skip non-text

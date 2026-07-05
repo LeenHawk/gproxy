@@ -11,8 +11,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-/** Destination protocols for transform_to are the four content-generation kinds. */
-const DEST_KINDS = KINDS.slice(0, 4);
+/** Destination protocols for transform_to are the content-generation kinds. */
+const DEST_KINDS = KINDS.slice(0, 5);
 
 export interface CellInitial {
   operation: string;
@@ -41,7 +41,7 @@ export function RoutingCellEditor({
   const [operation, setOperation] = useState(initial.operation);
   const [kind, setKind] = useState(initial.kind);
   const [implementation, setImplementation] = useState(initial.implementation);
-  const [destKind, setDestKind] = useState(initial.destKind ?? DEST_KINDS[2]); // claude_messages
+  const [destKind, setDestKind] = useState(initial.destKind ?? "claude_messages");
   const [formError, setFormError] = useState<string | null>(null);
 
   const mutation = useMutation({

@@ -59,44 +59,49 @@ impl Channel for CodexChannel {
                 GenerateContent,
                 cg(OpenAiResponses),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
             xform(
                 GenerateContent,
                 cg(OpenAiChatCompletions),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
             xform(
                 GenerateContent,
                 cg(ClaudeMessages),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
             xform(
                 GenerateContent,
                 cg(GeminiGenerateContent),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
-            pass(StreamGenerateContent, cg(OpenAiResponses)),
+            xform(
+                StreamGenerateContent,
+                cg(OpenAiResponses),
+                StreamGenerateContent,
+                cg(OpenAiResponsesWebSocket),
+            ),
             xform(
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
             xform(
                 StreamGenerateContent,
                 cg(ClaudeMessages),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
             xform(
                 StreamGenerateContent,
                 cg(GeminiGenerateContent),
                 StreamGenerateContent,
-                cg(OpenAiResponses),
+                cg(OpenAiResponsesWebSocket),
             ),
             xform(
                 CreateImage,
@@ -140,6 +145,7 @@ impl Channel for CodexChannel {
         // The inbound OpenAiResponses path is provider-relative `/v1/responses`
         // (`/v1/responses/compact` for the compact op); the codex backend drops
         // the `/v1` segment — base already ends in `/backend-api/codex`.
+        let websocket = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
         let path = ctx.path.strip_prefix("/v1").unwrap_or(ctx.path);
         // The model-list / model-get endpoint (`/models[/{id}]`) expects a
         // `client_version` query (v1 parity); content ops keep their own query.
@@ -170,6 +176,11 @@ impl Channel for CodexChannel {
         );
         let mut req = build_request(ctx.method, uri, headers, body)?;
         auth::apply(&mut req, &access_token, account_id.as_deref())?;
+        if websocket {
+            crate::channel::responses_websocket::apply_beta(req.headers_mut());
+            *req.uri_mut() = crate::channel::responses_websocket::websocket_uri(req.uri())?;
+            return crate::channel::responses_websocket::prepare(req);
+        }
         Ok(PreparedRequest::new(req))
     }
 
@@ -287,6 +298,9 @@ mod tests {
     use http::{HeaderMap, Method};
     use serde_json::json;
 
+    use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind};
+    use crate::transform::routing::RoutingDecision;
+
     /// Social `authcode_start` ignores the client; this never sends.
     struct NoopUpstream;
     #[async_trait::async_trait]
@@ -315,6 +329,70 @@ mod tests {
         };
         let req = CodexChannel.prepare(ctx).unwrap().into_http();
         serde_json::from_slice(req.body()).unwrap()
+    }
+
+    fn route(operation: Operation, kind: Kind) -> RoutingDecision {
+        CodexChannel
+            .routing_table()
+            .into_iter()
+            .find(|(source, _)| {
+                source.operation == operation && source.kind == crate::channel::routes::cg(kind)
+            })
+            .map(|(_, decision)| decision)
+            .expect("missing route")
+    }
+
+    #[test]
+    fn content_defaults_target_responses_websocket() {
+        for (operation, kind) in [
+            (Operation::GenerateContent, Kind::OpenAiResponses),
+            (Operation::GenerateContent, Kind::OpenAiChatCompletions),
+            (Operation::GenerateContent, Kind::ClaudeMessages),
+            (Operation::GenerateContent, Kind::GeminiGenerateContent),
+            (Operation::StreamGenerateContent, Kind::OpenAiResponses),
+            (
+                Operation::StreamGenerateContent,
+                Kind::OpenAiChatCompletions,
+            ),
+            (Operation::StreamGenerateContent, Kind::ClaudeMessages),
+            (
+                Operation::StreamGenerateContent,
+                Kind::GeminiGenerateContent,
+            ),
+        ] {
+            let RoutingDecision::TransformTo(target) = route(operation, kind) else {
+                panic!("route should transform to websocket");
+            };
+            assert_eq!(target.operation, Operation::StreamGenerateContent);
+            assert_eq!(
+                target.kind,
+                OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
+            );
+        }
+    }
+
+    #[test]
+    fn prepare_responses_websocket_returns_custom_stream() {
+        let secret = json!({ "access_token": "tok-abc" });
+        let settings = json!({});
+        let headers = HeaderMap::new();
+        let ctx = PrepareCtx {
+            secret: &secret,
+            provider_settings: &settings,
+            upstream_model_id: "gpt-5.4",
+            method: Method::GET,
+            path: "/v1/responses",
+            query: None,
+            headers: &headers,
+            body: Bytes::from_static(
+                br#"{"type":"response.create","model":"gpt-5.4","input":"hi","stream":true}"#,
+            ),
+        };
+
+        assert!(matches!(
+            CodexChannel.prepare(ctx).unwrap(),
+            PreparedRequest::CustomStream(_)
+        ));
     }
 
     #[test]

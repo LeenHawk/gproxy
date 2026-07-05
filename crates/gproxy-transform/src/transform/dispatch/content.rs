@@ -3,7 +3,7 @@
 
 use serde_json::Value;
 
-use super::{not_wired, run, run_value};
+use super::{not_wired, run, run_ok, run_value};
 use crate::transform::generate_content as gc;
 use crate::transform::{TransformContext, TransformError, TransformPair};
 
@@ -21,6 +21,8 @@ pub(super) fn is_content(pair: TransformPair) -> bool {
             | P::OpenAiChatToClaudeMessages
             | P::OpenAiChatToGeminiGenerateContent
             | P::OpenAiChatToOpenAiResponses
+            | P::OpenAiResponsesToOpenAiResponsesWebSocket
+            | P::OpenAiResponsesWebSocketToOpenAiResponses
             | P::OpenAiResponsesToClaudeMessages
             | P::OpenAiResponsesToGeminiGenerateContent
             | P::OpenAiResponsesToOpenAiChat
@@ -71,6 +73,16 @@ pub(super) fn request_bytes(
         P::OpenAiChatToOpenAiResponses => {
             run(gc::openai_chat_to_openai_responses::request, ctx, body)
         }
+        P::OpenAiResponsesToOpenAiResponsesWebSocket => run(
+            gc::openai_responses_websocket::http_request_to_ws_request,
+            ctx,
+            body,
+        ),
+        P::OpenAiResponsesWebSocketToOpenAiResponses => run(
+            gc::openai_responses_websocket::ws_request_to_http_request,
+            ctx,
+            body,
+        ),
         P::OpenAiResponsesToClaudeMessages => {
             run(gc::openai_responses_to_claude_messages::request, ctx, body)
         }
@@ -129,6 +141,10 @@ pub(super) fn response_bytes(
         ),
         P::OpenAiChatToOpenAiResponses => {
             run(gc::openai_chat_to_openai_responses::response, ctx, body)
+        }
+        P::OpenAiResponsesToOpenAiResponsesWebSocket
+        | P::OpenAiResponsesWebSocketToOpenAiResponses => {
+            run_ok(gc::openai_responses_websocket::identity, ctx, body)
         }
         P::OpenAiResponsesToClaudeMessages => {
             run(gc::openai_responses_to_claude_messages::response, ctx, body)
@@ -193,6 +209,10 @@ pub(super) fn stream_event_value(
             ctx,
             event,
         ),
+        P::OpenAiResponsesToOpenAiResponsesWebSocket
+        | P::OpenAiResponsesWebSocketToOpenAiResponses => {
+            run_value(gc::openai_responses_websocket::identity_result, ctx, event)
+        }
         P::OpenAiResponsesToClaudeMessages => run_value(
             gc::openai_responses_to_claude_messages::stream_event,
             ctx,
