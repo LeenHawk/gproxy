@@ -5,7 +5,7 @@ name: release
 # manifest to its `vX.Y.Z` tag and pushes Docker/edge. Every other trigger
 # (push to `main`, manual dispatch) refreshes the rolling `staging` tag:
 # native binaries + a signed `staging` (sha256) manifest + Docker images. Edge
-# bundles remain release-only.
+# bundles and the deploy branch are regenerated on every run.
 on:
   workflow_dispatch:
   push:
@@ -378,7 +378,6 @@ jobs:
 
   build-edge:
     name: Edge wasm bundles
-    if: ${{ github.event_name == 'release' }}
     needs: build-console
     runs-on: ubuntu-latest
     steps:
@@ -465,9 +464,8 @@ jobs:
 
       # Refresh the orphan `deploy` branch with the freshly-built, ready-to-deploy
       # bundles (artifacts only — no source). The README one-click buttons point
-      # at this branch. Force-pushed as a single fresh snapshot each release.
+      # at this branch. Force-pushed as a single fresh snapshot each workflow run.
       - name: Refresh deploy branch
-        if: ${{ github.event_name == 'release' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -486,7 +484,7 @@ jobs:
             echo
             echo "Prebuilt, ready-to-deploy edge bundles. **No source** — wasm + glue +"
             echo "each platform's entry + config. The main README's one-click buttons point"
-            echo "here. Regenerated from \`${GITHUB_SHA}\` on every release."
+            echo "here. Regenerated from \`${GITHUB_SHA}\` on every release workflow run."
             echo "See the main branch \`deploy/\` + \`docs/edge-deploy.md\` for how each deploys."
           } > "$stage/README.md"
           cd "$stage"
