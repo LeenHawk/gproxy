@@ -199,7 +199,7 @@ pub(crate) struct WsFrameError {
     status: StatusCode,
     body: String,
     retry_after_secs: Option<u64>,
-    headers: HeaderMap,
+    headers: Box<HeaderMap>,
 }
 
 impl WsFrameError {
@@ -208,7 +208,7 @@ impl WsFrameError {
             status,
             body: json!({ "error": { "message": message, "type": "gproxy_error" } }).to_string(),
             retry_after_secs: None,
-            headers: HeaderMap::new(),
+            headers: Box::new(HeaderMap::new()),
         }
     }
 
@@ -221,7 +221,7 @@ impl WsFrameError {
             status,
             body: body.to_owned(),
             retry_after_secs: None,
-            headers: headers.clone(),
+            headers: Box::new(headers.clone()),
         }
     }
 
@@ -256,7 +256,7 @@ impl From<PipelineError> for WsFrameError {
             status: error.status(),
             body: error.error_json(),
             retry_after_secs: error.retry_after_secs(),
-            headers: HeaderMap::new(),
+            headers: Box::new(HeaderMap::new()),
         }
     }
 }
