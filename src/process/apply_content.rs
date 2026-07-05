@@ -48,16 +48,18 @@ pub fn system_text(
             },
             _ => warn_skip("system_text", "missing messages array"),
         },
-        Some(K::OpenAiResponses) => match obj.get_mut("instructions") {
-            None | Some(Value::Null) => {
-                obj.insert("instructions".to_owned(), json!(text));
+        Some(K::OpenAiResponses) | Some(K::OpenAiResponsesWebSocket) => {
+            match obj.get_mut("instructions") {
+                None | Some(Value::Null) => {
+                    obj.insert("instructions".to_owned(), json!(text));
+                }
+                Some(Value::String(s)) => match position {
+                    TextPosition::Prepend => *s = format!("{text} {s}"),
+                    TextPosition::Append => *s = format!("{s}\n\n{text}"),
+                },
+                Some(_) => warn_skip("system_text", "unexpected instructions shape"),
             }
-            Some(Value::String(s)) => match position {
-                TextPosition::Prepend => *s = format!("{text} {s}"),
-                TextPosition::Append => *s = format!("{s}\n\n{text}"),
-            },
-            Some(_) => warn_skip("system_text", "unexpected instructions shape"),
-        },
+        }
         Some(K::GeminiGenerateContent) => {
             let part = json!({"text": text});
             match obj.get_mut("systemInstruction") {

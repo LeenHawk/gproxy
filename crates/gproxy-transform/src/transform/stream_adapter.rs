@@ -30,8 +30,12 @@ impl SseTransformer {
             pair,
             ctx,
             inbound,
-            responses: (inbound == ContentGenerationKind::OpenAiResponses)
-                .then(ResponsesStreamState::default),
+            responses: matches!(
+                inbound,
+                ContentGenerationKind::OpenAiResponses
+                    | ContentGenerationKind::OpenAiResponsesWebSocket
+            )
+            .then(ResponsesStreamState::default),
             skipped: 0,
         }
     }
@@ -410,7 +414,7 @@ fn encode_frame(kind: ContentGenerationKind, v: &Value) -> String {
     use ContentGenerationKind as K;
     let data = v.to_string();
     match kind {
-        K::ClaudeMessages | K::OpenAiResponses => {
+        K::ClaudeMessages | K::OpenAiResponses | K::OpenAiResponsesWebSocket => {
             let name = v.get("type").and_then(|t| t.as_str()).unwrap_or("message");
             SseFrame::event(name, data).encode()
         }
@@ -460,7 +464,7 @@ pub fn aggregate_buffered(kind: ContentGenerationKind, sse_body: &[u8]) -> Vec<u
     }
 
     let out = match kind {
-        K::OpenAiResponses => collapse!(
+        K::OpenAiResponses | K::OpenAiResponsesWebSocket => collapse!(
             crate::protocol::openai::ResponseStreamEvent,
             s2r::openai_responses::response
         ),

@@ -89,6 +89,7 @@ fn content_target(kind: ContentGenerationKind, model: &str, stream: bool) -> Req
     match kind {
         K::OpenAiChatCompletions => RequestTarget::post("/v1/chat/completions"),
         K::OpenAiResponses => RequestTarget::post("/v1/responses"),
+        K::OpenAiResponsesWebSocket => RequestTarget::get("/v1/responses"),
         K::ClaudeMessages => RequestTarget::post("/v1/messages"),
         K::GeminiGenerateContent => {
             let verb = if stream {
