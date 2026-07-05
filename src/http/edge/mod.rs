@@ -65,6 +65,8 @@ pub async fn init(
     upstash_url: Option<String>,
     upstash_token: Option<String>,
     master_key: Option<String>,
+    admin_user: String,
+    admin_password: String,
 ) -> Result<(), JsValue> {
     if STATE.get().is_some() {
         return Ok(());
@@ -115,6 +117,14 @@ pub async fn init(
     });
 
     let upstream: Arc<dyn UpstreamClient> = Arc::new(FetchClient::new());
+
+    crate::app::bootstrap::ensure_admin(
+        persistence.as_ref(),
+        &admin_user,
+        Some(admin_password.as_str()),
+    )
+    .await
+    .map_err(js_err)?;
 
     // Build the control-plane snapshot from persistence (libSQL read ops). An
     // un-provisioned database yields an empty snapshot; provisioning via the

@@ -13,6 +13,8 @@
 [template.environment]
   TURSO_URL = "Required Turso/libSQL HTTP URL used by GPROXY edge persistence, for example https://your-db.turso.io. Do not use libsql:// on edge."
   TURSO_TOKEN = "Required Turso database token with access to the TURSO_URL database."
+  GPROXY_ADMIN_USER = "Required admin username for the first Console login, for example admin."
+  GPROXY_ADMIN_PASSWORD = "Required admin password for the first Console login. Must be at least 12 characters."
 
 # Route every request to the `gproxy` edge function. The function name matches the
 # file basename in deploy/netlify/edge-functions/ (gproxy.ts → "gproxy").

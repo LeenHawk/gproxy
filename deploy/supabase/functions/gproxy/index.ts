@@ -9,6 +9,8 @@
 // Credentials are read from the function environment at module load — NEVER
 // hard-coded here. Set them with `supabase secrets set ...`:
 //   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso persistence)
+//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
+//                                  (required — first admin login)
 //   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash Redis cache; falls
 //                                    back to the libSQL kv table when absent)
 //   GPROXY_MASTER_KEY               (optional — unseals encrypted stored
@@ -30,7 +32,8 @@
 //
 // Deploy from deploy/supabase/ (storage creds become function secrets; the
 // access token is NOT):
-//   supabase secrets set TURSO_URL=… TURSO_TOKEN=… UPSTASH_URL=… UPSTASH_TOKEN=… \
+//   supabase secrets set TURSO_URL=… TURSO_TOKEN=… GPROXY_ADMIN_USER=admin \
+//     GPROXY_ADMIN_PASSWORD=change-me-min12char UPSTASH_URL=… UPSTASH_TOKEN=… \
 //     GPROXY_MASTER_KEY=… \
 //     --project-ref "$SUPABASE_PROJECT_REF"
 //   supabase functions deploy gproxy --project-ref "$SUPABASE_PROJECT_REF" \
@@ -61,6 +64,8 @@ await init(
   optEnv("UPSTASH_URL"),
   optEnv("UPSTASH_TOKEN"),
   optEnv("GPROXY_MASTER_KEY"),
+  reqEnv("GPROXY_ADMIN_USER"),
+  reqEnv("GPROXY_ADMIN_PASSWORD"),
 );
 
 // Supabase routes invocations to `/<function-name>/<rest>` (it strips the

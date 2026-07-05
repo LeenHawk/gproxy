@@ -37,8 +37,8 @@ pub async fn login(State(state): State<AppState>, request: Request) -> Response 
     };
 
     let cache = state.cache.as_ref();
-    let user_key = format!("loginfail:user:{}", req.username);
-    let ip_key = source_ip.as_ref().map(|ip| format!("loginfail:ip:{ip}"));
+    let user_key = format!("loginfail:v2:user:{}", req.username);
+    let ip_key = source_ip.as_ref().map(|ip| format!("loginfail:v2:ip:{ip}"));
 
     // Throttle BEFORE the (deliberately slow) argon2 verify, so a locked-out
     // attacker can't even drive CPU.

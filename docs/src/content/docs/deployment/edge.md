@@ -25,7 +25,9 @@ The Cloudflare template declares required Turso secrets in
 `deploy/netlify/netlify.toml`. Both one-click flows prompt for `TURSO_URL` and
 `TURSO_TOKEN` before the first deploy. Use Turso's HTTP URL
 (`https://<db>.turso.io`), not the `libsql://` URL, because edge runtimes call
-Hrana over `fetch`. Add optional `UPSTASH_URL`, `UPSTASH_TOKEN`, and
+Hrana over `fetch`. They also prompt for `GPROXY_ADMIN_USER` and
+`GPROXY_ADMIN_PASSWORD`; the password must be at least 12 characters and is used
+for the first Console login. Add optional `UPSTASH_URL`, `UPSTASH_TOKEN`, and
 `GPROXY_MASTER_KEY` secrets later if the deployment needs Upstash cache or
 sealed stored secrets.
 
@@ -44,6 +46,8 @@ edge uses HTTP-accessible services:
 | --- | --- | --- |
 | `TURSO_URL` | Yes | libSQL/Turso HTTP URL, for example `https://<db>.turso.io`. |
 | `TURSO_TOKEN` | Yes | Turso access token. |
+| `GPROXY_ADMIN_USER` | Yes | Admin username for the Console login. |
+| `GPROXY_ADMIN_PASSWORD` | Yes | Admin password for the Console login; at least 12 characters. |
 | `UPSTASH_URL` | No | Upstash Redis cache; falls back to libSQL KV when absent. |
 | `UPSTASH_TOKEN` | No | Upstash token. |
 | `GPROXY_MASTER_KEY` | No | Standard base64 32-byte key for sealed secrets. |
@@ -114,7 +118,7 @@ during platform packaging.
 2. Decide whether to use Upstash or the libSQL KV fallback for cache.
 3. Generate and store `GPROXY_MASTER_KEY` if secrets are sealed.
 4. Upload the platform bundle.
-5. Configure secrets.
+5. Configure secrets, including the admin username and password.
 6. Route all gateway, admin, user, and ops paths to the worker/function.
 7. Serve Console assets same-origin if you need the web UI and the platform
    bundle does not already include a site-root Console.
@@ -123,16 +127,17 @@ during platform packaging.
 
 Cloudflare Workers uses `deploy/cloudflare/wrangler.toml` with a compiled wasm
 rule and a Worker static assets binding for `/console`. The one-click deploy
-flow asks for the required Turso secrets. For CLI deploys, set `TURSO_URL` and
-`TURSO_TOKEN` with `wrangler secret put`, then run `wrangler deploy` from
-`deploy/cloudflare`.
+flow asks for the required Turso and admin secrets. For CLI deploys, set
+`TURSO_URL`, `TURSO_TOKEN`, `GPROXY_ADMIN_USER`, and
+`GPROXY_ADMIN_PASSWORD` with `wrangler secret put`, then run `wrangler deploy`
+from `deploy/cloudflare`.
 
 Netlify uses `deploy/netlify/netlify.toml` and the `edge-functions/` entry. Set
 site environment variables with `netlify env:set`, then run `netlify deploy
 --prod`. The one-click deploy flow asks for the required Turso environment
-variables through `[template.environment]`. The publish directory includes the
-Console SPA; `/console/*` is excluded from the edge function so Netlify can serve
-static files and the SPA fallback.
+variables and admin credentials through `[template.environment]`. The publish
+directory includes the Console SPA; `/console/*` is excluded from the edge
+function so Netlify can serve static files and the SPA fallback.
 
 Supabase uses `deploy/supabase/functions/gproxy` and should be deployed with
 `supabase functions deploy gproxy --no-verify-jwt`. Avoid the API upload path

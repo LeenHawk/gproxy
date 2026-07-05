@@ -13,6 +13,8 @@
 // Credentials are read from the site environment at module load — NEVER
 // hard-coded here. Set them with `netlify env:set …`:
 //   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso persistence)
+//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
+//                                  (required — first admin login)
 //   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash Redis cache; falls
 //                                    back to the libSQL kv table when absent)
 //   GPROXY_MASTER_KEY               (optional — unseals encrypted stored
@@ -36,8 +38,9 @@
 //
 // Deploy from deploy/netlify/ (storage creds become site env vars; the Netlify
 // auth token is NOT):
-//   netlify env:set TURSO_URL …  (and TURSO_TOKEN / UPSTASH_URL / UPSTASH_TOKEN
-//                                 / GPROXY_MASTER_KEY)
+//   netlify env:set TURSO_URL …  (and TURSO_TOKEN / GPROXY_ADMIN_USER /
+//                                 GPROXY_ADMIN_PASSWORD / UPSTASH_URL /
+//                                 UPSTASH_TOKEN / GPROXY_MASTER_KEY)
 //   netlify deploy --prod --dir public
 //
 // `wasmFetch` is aliased from the wasm `fetch` export so it does not shadow the
@@ -84,6 +87,8 @@ function ensureInit(): Promise<void> {
       getEnv("UPSTASH_URL"),
       getEnv("UPSTASH_TOKEN"),
       getEnv("GPROXY_MASTER_KEY"),
+      reqEnv("GPROXY_ADMIN_USER"),
+      reqEnv("GPROXY_ADMIN_PASSWORD"),
     );
   }
   return initialised;

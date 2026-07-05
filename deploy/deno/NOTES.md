@@ -27,6 +27,8 @@ Environment variables set on the app:
 ```text
 TURSO_URL
 TURSO_TOKEN
+GPROXY_ADMIN_USER
+GPROXY_ADMIN_PASSWORD
 UPSTASH_URL
 UPSTASH_TOKEN
 GPROXY_MASTER_KEY   (optional — unseals encrypted stored secrets)
