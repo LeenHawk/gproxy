@@ -36,8 +36,8 @@ jobs:
     name: Build console (embed)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 9
       - uses: actions/setup-node@v6
@@ -162,7 +162,7 @@ jobs:
             upx: false
             docker_bin: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate update signing key present
         run: |
@@ -258,7 +258,7 @@ jobs:
           cp target/${{ matrix.target }}/release/gproxy docker-binary/gproxy
       - name: Upload docker binary
         if: ${{ matrix.docker_bin }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docker-bin-${{ matrix.target }}
           path: docker-binary/gproxy
@@ -285,7 +285,7 @@ jobs:
           "$h  ${{ matrix.artifact }}.zip" | Out-File -Encoding ascii ${{ matrix.artifact }}.zip.sha256
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-asset-${{ matrix.target }}
           path: |
@@ -310,7 +310,7 @@ jobs:
     steps:
       # checkout is needed only to read the migration list for
       # min_compatible_data_version (scripts/build-update-manifest.sh).
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Per-target `release-asset-<triple>/<name>.zip` + `.zip.sha256` from
       # build-native. No merge: keep the per-triple dirs the script reads.
@@ -335,7 +335,7 @@ jobs:
         run: bash scripts/build-update-manifest.sh
 
       - name: Upload manifest artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: update-manifest
           path: manifest.json
@@ -381,7 +381,7 @@ jobs:
     needs: build-console
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -450,7 +450,7 @@ jobs:
           ls -la edge-dist
 
       - name: Upload edge artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-edge
           path: edge-dist/*
@@ -530,7 +530,7 @@ jobs:
             suffix: "-musl"
             runtime_base: gcr.io/distroless/static-debian13
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download linux binary
         uses: actions/download-artifact@v4
