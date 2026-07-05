@@ -1,9 +1,9 @@
 //! Integrity (sha256) + signature (ed25519) verification (§19.2) — NATIVE only.
 //!
-//! The signature is the hard floor: the manifest is ed25519-signed and the
-//! public key is compiled in. A downloaded artifact is installed only if BOTH
-//! its sha256 matches the manifest AND the manifest signature verifies against
-//! the embedded key. This applies to BOTH channels (staging included).
+//! When release metadata includes both an artifact sha256 and a manifest
+//! signature, a downloaded artifact is installed only if BOTH checks pass. If
+//! either field is absent, higher-level update policy must require explicit
+//! operator confirmation before skipping that check.
 
 use std::path::Path;
 
@@ -20,6 +20,12 @@ use super::manifest::Manifest;
 /// otherwise a placeholder all-zero key is embedded, which **rejects every**
 /// signature — the secure default until a real key is provisioned at release.
 const EMBEDDED_PUBKEY_B64: Option<&str> = option_env!("GPROXY_UPDATE_PUBKEY");
+
+pub fn has_embedded_pubkey() -> bool {
+    EMBEDDED_PUBKEY_B64
+        .map(str::trim)
+        .is_some_and(|v| !v.is_empty())
+}
 
 /// Compute the lowercase-hex sha256 of a file and compare to `expected_hex`.
 pub fn verify_sha256(path: &Path, expected_hex: &str) -> Result<(), UpdateError> {
@@ -61,11 +67,14 @@ pub fn verify_manifest_signature(manifest: &Manifest) -> Result<(), UpdateError>
 /// Decode and validate the embedded public key. An absent or malformed key is a
 /// hard error — we never fall back to "skip verification".
 fn embedded_verifying_key() -> Result<VerifyingKey, UpdateError> {
-    let b64 = EMBEDDED_PUBKEY_B64.ok_or_else(|| {
-        UpdateError::Signature(
-            "no update public key compiled in (set GPROXY_UPDATE_PUBKEY at build time)".to_string(),
-        )
-    })?;
+    let b64 = EMBEDDED_PUBKEY_B64
+        .filter(|v| !v.trim().is_empty())
+        .ok_or_else(|| {
+            UpdateError::Signature(
+                "no update public key compiled in (set GPROXY_UPDATE_PUBKEY at build time)"
+                    .to_string(),
+            )
+        })?;
     let raw = B64
         .decode(b64.trim())
         .map_err(|e| UpdateError::Signature(format!("embedded pubkey is not valid base64: {e}")))?;

@@ -9,7 +9,13 @@
     "availableYes": "是",
     "availableNo": "已是最新",
     "notes": "發布說明",
-    "genericError": "檢查更新失敗"
+    "genericError": "檢查更新失敗",
+    "safetyWarning": "此更新缺少安全中繼資料：{{risks}}。套用時需要再次確認。",
+    "safety": {
+      "missing_sha256": "SHA-256 校驗值",
+      "missing_signature": "manifest 簽名",
+      "missing_public_key": "內建驗簽公鑰"
+    }
   },
   "apply": {
     "button": "更新並重新啟動",
@@ -17,6 +23,11 @@
       "title": "更新並重新啟動？",
       "description": "此操作將下載新的二進位檔案，保留舊版本為 .prev 以供回復，並自動重新啟動 GPROXY。",
       "confirmLabel": "更新並重新啟動"
+    },
+    "securityConfirm": {
+      "title": "未完整校驗，仍要更新？",
+      "description": "此更新缺少安全中繼資料，GPROXY 無法完整校驗下載的二進位檔案。只有在你信任該發布時才繼續。",
+      "confirmLabel": "仍然更新"
     }
   },
   "status": {

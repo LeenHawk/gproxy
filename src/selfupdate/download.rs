@@ -43,8 +43,9 @@ pub async fn fetch_manifest(ctx: &UpdateContext) -> Result<Manifest, UpdateError
 }
 
 /// Download the artifact to `<data_dir>/.update/<sha-prefix>.tmp` and return the
-/// staged path. Integrity/signature checks happen in [`super::verify`] before
-/// this file is ever installed.
+/// staged path. If the manifest has no sha256, the caller must already have
+/// required explicit operator confirmation and the temp file uses an
+/// `unverified` prefix.
 pub async fn download_artifact(
     ctx: &UpdateContext,
     artifact: &Artifact,
@@ -53,7 +54,10 @@ pub async fn download_artifact(
     std::fs::create_dir_all(&dir)?;
     restrict_dir(&dir)?;
 
-    let prefix: String = artifact.sha256.chars().take(16).collect();
+    let prefix: String = artifact
+        .sha256_value()
+        .map(|sha| sha.chars().take(16).collect())
+        .unwrap_or_else(|| "unverified".to_string());
     let staged = dir.join(format!("{prefix}.tmp"));
 
     let body = http_get(ctx, &artifact.url)

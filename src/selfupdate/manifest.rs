@@ -26,6 +26,7 @@ pub struct Artifact {
     /// extracted from it after verification.
     pub url: String,
     /// Lowercase hex sha256 of the downloaded `.zip` artifact.
+    #[serde(default)]
     pub sha256: String,
     /// Size in bytes (advisory; integrity is sha256).
     pub size: u64,
@@ -48,6 +49,7 @@ pub struct Manifest {
     pub artifacts: Vec<Artifact>,
     /// base64 ed25519 signature over the canonical signing payload
     /// ([`Manifest::signing_payload`]).
+    #[serde(default)]
     pub signature: String,
 }
 
@@ -60,6 +62,10 @@ impl Manifest {
     /// Locate the artifact for a target triple.
     pub fn artifact_for(&self, triple: &str) -> Option<&Artifact> {
         self.artifacts.iter().find(|a| a.target_triple == triple)
+    }
+
+    pub fn signature_value(&self) -> Option<&str> {
+        non_empty(&self.signature)
     }
 
     /// Canonical bytes the `signature` is computed over. The signature itself is
@@ -89,6 +95,17 @@ impl Manifest {
         }
         out.into_bytes()
     }
+}
+
+impl Artifact {
+    pub fn sha256_value(&self) -> Option<&str> {
+        non_empty(&self.sha256)
+    }
+}
+
+fn non_empty(value: &str) -> Option<&str> {
+    let value = value.trim();
+    (!value.is_empty()).then_some(value)
 }
 
 #[cfg(test)]
@@ -130,6 +147,17 @@ mod tests {
         let m = Manifest::parse(json).expect("parse");
         assert_eq!(m.notes_url, None);
         assert_eq!(m.min_compatible_data_version, 0);
+    }
+
+    #[test]
+    fn security_metadata_can_be_absent() {
+        let json = r#"{"channel":"releases","version":"2.1.0",
+            "artifacts":[{"target_triple":"x86_64-unknown-linux-gnu",
+             "url":"https://example.com/gproxy-linux","size":100}]}"#;
+        let m = Manifest::parse(json).expect("parse");
+        assert_eq!(m.signature_value(), None);
+        let a = m.artifact_for("x86_64-unknown-linux-gnu").unwrap();
+        assert_eq!(a.sha256_value(), None);
     }
 
     #[test]

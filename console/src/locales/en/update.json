@@ -9,7 +9,13 @@
     "availableYes": "Yes",
     "availableNo": "Up to date",
     "notes": "Release notes",
-    "genericError": "Failed to check for updates"
+    "genericError": "Failed to check for updates",
+    "safetyWarning": "This update is missing security metadata: {{risks}}. Applying it will require confirmation.",
+    "safety": {
+      "missing_sha256": "SHA-256 checksum",
+      "missing_signature": "manifest signature",
+      "missing_public_key": "embedded verification key"
+    }
   },
   "apply": {
     "button": "Update & restart",
@@ -17,6 +23,11 @@
       "title": "Update and restart?",
       "description": "This downloads the new binary, keeps the previous version as .prev for rollback, and restarts GPROXY automatically.",
       "confirmLabel": "Update & restart"
+    },
+    "securityConfirm": {
+      "title": "Apply without full verification?",
+      "description": "The update is missing safety metadata, so GPROXY cannot fully verify the downloaded binary. Continue only if you trust this release.",
+      "confirmLabel": "Apply anyway"
     }
   },
   "status": {
