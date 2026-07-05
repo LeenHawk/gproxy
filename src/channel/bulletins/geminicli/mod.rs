@@ -47,9 +47,9 @@ impl Channel for GeminiCliChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, pass, pv, xform};
+        use crate::channel::routes::{cg, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
-        vec![
+        let mut routes = vec![
             pass(ListModels, pv(P::Gemini)),
             xform(ListModels, pv(P::Claude), ListModels, pv(P::Gemini)),
             xform(ListModels, pv(P::OpenAi), ListModels, pv(P::Gemini)),
@@ -122,7 +122,9 @@ impl Channel for GeminiCliChannel {
                 GenerateContent,
                 cg(GeminiGenerateContent),
             ),
-        ]
+        ];
+        routes.extend(responses_ws_to(cg(GeminiGenerateContent)));
+        routes
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]

@@ -3,8 +3,10 @@
 //! [`seed_default_routing`] materializes the provider channel's declared
 //! [`routing_table`](crate::channel::Channel::routing_table) as real
 //! `routing_rules` rows. Cells the channel does not declare have no rule and are
-//! `Unsupported` at request time, so the stored rules are the whole contract.
-//! Runs at provider creation and on the explicit "reset defaults" action.
+//! `Unsupported` at request time; cells explicitly declared as
+//! [`RoutingDecision::Unsupported`] are stored so the admin UI can show that
+//! default. Runs at provider creation and on the explicit "reset defaults"
+//! action.
 
 use crate::api::error::ApiError;
 use crate::channel::registry::ChannelRegistry;
@@ -64,9 +66,6 @@ pub async fn seed_default_routing(
 
     let mut sort_order = 0i64;
     for (source, decision) in table {
-        if matches!(decision, RoutingDecision::Unsupported) {
-            continue; // a channel never needs to materialize "unsupported"
-        }
         let (implementation, dest_operation, dest_kind) = decision_strs(&decision);
         let operation = to_str(&source.operation);
         let kind = to_str(&source.kind);

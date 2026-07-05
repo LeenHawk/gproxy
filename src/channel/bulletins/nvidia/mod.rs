@@ -27,9 +27,9 @@ impl Channel for NvidiaChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, local, pass, pv, xform};
+        use crate::channel::routes::{cg, local, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
-        vec![
+        let mut routes = vec![
             // === Model list/get ===
             pass(ListModels, pv(P::OpenAi)),
             xform(ListModels, pv(P::Claude), ListModels, pv(P::OpenAi)),
@@ -96,7 +96,9 @@ impl Channel for NvidiaChannel {
                 GenerateContent,
                 cg(OpenAiChatCompletions),
             ),
-        ]
+        ];
+        routes.extend(responses_ws_to(cg(OpenAiChatCompletions)));
+        routes
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {

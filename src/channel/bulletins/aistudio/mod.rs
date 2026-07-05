@@ -28,9 +28,9 @@ impl Channel for AiStudioChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, pass, pv, xform};
+        use crate::channel::routes::{cg, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
-        vec![
+        let mut routes = vec![
             pass(ListModels, pv(P::Gemini)),
             xform(ListModels, pv(P::Claude), ListModels, pv(P::Gemini)),
             pass(ListModels, pv(P::OpenAi)),
@@ -93,7 +93,9 @@ impl Channel for AiStudioChannel {
                 GenerateContent,
                 cg(GeminiGenerateContent),
             ),
-        ]
+        ];
+        routes.extend(responses_ws_to(cg(GeminiGenerateContent)));
+        routes
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {

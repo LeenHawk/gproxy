@@ -48,6 +48,12 @@ impl Channel for OpenAiChannel {
             ),
             xform(
                 GenerateContent,
+                cg(OpenAiResponsesWebSocket),
+                StreamGenerateContent,
+                cg(OpenAiResponsesWebSocket),
+            ),
+            xform(
+                GenerateContent,
                 cg(OpenAiChatCompletions),
                 StreamGenerateContent,
                 cg(OpenAiResponsesWebSocket),
@@ -70,6 +76,7 @@ impl Channel for OpenAiChannel {
                 StreamGenerateContent,
                 cg(OpenAiResponsesWebSocket),
             ),
+            pass(StreamGenerateContent, cg(OpenAiResponsesWebSocket)),
             xform(
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),

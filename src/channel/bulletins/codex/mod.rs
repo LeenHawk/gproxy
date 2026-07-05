@@ -43,7 +43,7 @@ impl Channel for CodexChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, local, pass, pv, xform};
+        use crate::channel::routes::{cg, local, pass, pv, unsupported, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
         vec![
             pass(ListModels, pv(P::OpenAi)),
@@ -58,6 +58,12 @@ impl Channel for CodexChannel {
             xform(
                 GenerateContent,
                 cg(OpenAiResponses),
+                StreamGenerateContent,
+                cg(OpenAiResponsesWebSocket),
+            ),
+            xform(
+                GenerateContent,
+                cg(OpenAiResponsesWebSocket),
                 StreamGenerateContent,
                 cg(OpenAiResponsesWebSocket),
             ),
@@ -85,6 +91,7 @@ impl Channel for CodexChannel {
                 StreamGenerateContent,
                 cg(OpenAiResponsesWebSocket),
             ),
+            pass(StreamGenerateContent, cg(OpenAiResponsesWebSocket)),
             xform(
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
@@ -115,13 +122,8 @@ impl Channel for CodexChannel {
                 StreamGenerateContent,
                 cg(OpenAiResponses),
             ),
-            pass(CreateEmbedding, pv(P::OpenAi)),
-            xform(
-                CreateEmbedding,
-                pv(P::Gemini),
-                CreateEmbedding,
-                pv(P::OpenAi),
-            ),
+            unsupported(CreateEmbedding, pv(P::OpenAi)),
+            unsupported(CreateEmbedding, pv(P::Gemini)),
             pass(CompactContent, pv(P::OpenAi)),
         ]
     }
@@ -298,7 +300,7 @@ mod tests {
     use http::{HeaderMap, Method};
     use serde_json::json;
 
-    use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind};
+    use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind, Provider};
     use crate::transform::routing::RoutingDecision;
 
     /// Social `authcode_start` ignores the client; this never sends.
@@ -342,6 +344,17 @@ mod tests {
             .expect("missing route")
     }
 
+    fn provider_route(operation: Operation, provider: Provider) -> RoutingDecision {
+        CodexChannel
+            .routing_table()
+            .into_iter()
+            .find(|(source, _)| {
+                source.operation == operation && source.kind == crate::channel::routes::pv(provider)
+            })
+            .map(|(_, decision)| decision)
+            .expect("missing route")
+    }
+
     #[test]
     fn content_defaults_target_responses_websocket() {
         for (operation, kind) in [
@@ -369,6 +382,18 @@ mod tests {
                 OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
             );
         }
+    }
+
+    #[test]
+    fn embeddings_default_to_unsupported() {
+        assert_eq!(
+            provider_route(Operation::CreateEmbedding, Provider::OpenAi),
+            RoutingDecision::Unsupported
+        );
+        assert_eq!(
+            provider_route(Operation::CreateEmbedding, Provider::Gemini),
+            RoutingDecision::Unsupported
+        );
     }
 
     #[test]

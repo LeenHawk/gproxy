@@ -34,9 +34,35 @@ pub fn xform(
     )
 }
 
+/// explicitly unsupported
+pub fn unsupported(operation: Operation, kind: OperationKind) -> (OperationKey, RoutingDecision) {
+    (key(operation, kind), RoutingDecision::Unsupported)
+}
+
 /// served locally
 pub fn local(operation: Operation, kind: OperationKind) -> (OperationKey, RoutingDecision) {
     (key(operation, kind), RoutingDecision::Local)
+}
+
+/// Declare downstream OpenAI Responses WebSocket content routes to a channel's
+/// native streaming content target.
+pub fn responses_ws_to(d_kind: OperationKind) -> RouteList {
+    use Operation::{GenerateContent, StreamGenerateContent};
+
+    vec![
+        xform(
+            GenerateContent,
+            cg(Cg::OpenAiResponsesWebSocket),
+            StreamGenerateContent,
+            d_kind,
+        ),
+        xform(
+            StreamGenerateContent,
+            cg(Cg::OpenAiResponsesWebSocket),
+            StreamGenerateContent,
+            d_kind,
+        ),
+    ]
 }
 
 // kind shorthands

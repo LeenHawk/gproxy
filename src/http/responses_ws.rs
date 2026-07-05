@@ -18,11 +18,12 @@ use serde_json::{Value, json};
 use crate::app::AppState;
 use crate::http::server::extract::build_ctx;
 use crate::pipeline;
+use crate::pipeline::classify::RESPONSES_WEBSOCKET_CLASSIFY_HEADER;
 use crate::pipeline::error::PipelineError;
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::transform::TransformError;
 use crate::transform::generate_content::openai_responses_websocket::{
-    ResponseWebSocketSseDecoder, response_create_frame_to_response_body,
+    ResponseWebSocketSseDecoder, validate_response_create_frame,
 };
 
 #[derive(Clone)]
@@ -70,16 +71,8 @@ pub(crate) async fn execute_frame(
             "request body too large",
         ));
     }
-    let body = Bytes::from(
-        response_create_frame_to_response_body(frame.as_bytes())
-            .map_err(WsFrameError::from_transform)?,
-    );
-    if body.len() > crate::config::MAX_BODY_BYTES {
-        return Err(WsFrameError::plain(
-            StatusCode::PAYLOAD_TOO_LARGE,
-            "request body too large",
-        ));
-    }
+    validate_response_create_frame(frame.as_bytes()).map_err(WsFrameError::from_transform)?;
+    let body = Bytes::copy_from_slice(frame.as_bytes());
 
     let ctx = build_ctx(internal_post_parts(base), body, scoped).map_err(WsFrameError::from)?;
     pipeline::execute(state, ctx)
@@ -103,6 +96,10 @@ fn internal_post_parts(base: &ResponsesWsRequestBase) -> http::request::Parts {
     parts
         .headers
         .insert(ACCEPT, HeaderValue::from_static("text/event-stream"));
+    parts.headers.insert(
+        RESPONSES_WEBSOCKET_CLASSIFY_HEADER,
+        HeaderValue::from_static("1"),
+    );
     parts
 }
 
@@ -338,12 +335,8 @@ mod tests {
 
     #[test]
     fn websocket_frame_enters_pipeline_as_streaming_http_responses() {
-        let body = Bytes::from(
-            response_create_frame_to_response_body(
-                br#"{"type":"response.create","model":"m","input":"hi"}"#,
-            )
-            .unwrap(),
-        );
+        let body =
+            Bytes::from(br#"{"type":"response.create","model":"m","input":"hi"}"#.as_slice());
         let base =
             ResponsesWsRequestBase::new(Uri::from_static("/codex/v1/responses"), HeaderMap::new());
         let parts = internal_post_parts(&base);
@@ -355,7 +348,7 @@ mod tests {
             classified.op,
             OperationKey::content_generation(
                 Operation::GenerateContent,
-                ContentGenerationKind::OpenAiResponses
+                ContentGenerationKind::OpenAiResponsesWebSocket
             )
         );
         assert!(classified.stream);
