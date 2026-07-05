@@ -60,7 +60,8 @@ fn frame_text(kind: ContentGenerationKind, frame: &SseFrame) -> Option<String> {
             (!out.is_empty()).then_some(out)
         }
         // `delta` of response.output_text.delta events
-        ContentGenerationKind::OpenAiResponses => {
+        ContentGenerationKind::OpenAiResponses
+        | ContentGenerationKind::OpenAiResponsesWebSocket => {
             if v.get("type").and_then(Value::as_str) != Some("response.output_text.delta") {
                 return None;
             }
@@ -103,7 +104,8 @@ pub fn error_frame(kind: ContentGenerationKind) -> Bytes {
             .encode();
             format!("{err}{}", SseFrame::data("[DONE]").encode())
         }
-        ContentGenerationKind::OpenAiResponses => SseFrame::event(
+        ContentGenerationKind::OpenAiResponses
+        | ContentGenerationKind::OpenAiResponsesWebSocket => SseFrame::event(
             "response.failed",
             json!({
                 "type": "response.failed",

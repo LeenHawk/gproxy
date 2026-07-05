@@ -267,6 +267,7 @@ fn resolve_compaction(source: OperationKey, target: OperationKey) -> Option<Tran
     {
         return match kind {
             Kind::OpenAiResponses => Some(TransformPair::OpenAiResponsesToOpenAiCompact),
+            Kind::OpenAiResponsesWebSocket => None,
             Kind::GeminiGenerateContent => Some(TransformPair::GeminiToOpenAiCompact),
             Kind::OpenAiChatCompletions => Some(TransformPair::OpenAiChatToOpenAiCompact),
             Kind::ClaudeMessages => Some(TransformPair::ClaudeToOpenAiCompact),
@@ -283,7 +284,7 @@ fn resolve_compaction(source: OperationKey, target: OperationKey) -> Option<Tran
             Kind::GeminiGenerateContent => Some(TransformPair::OpenAiCompactToGemini),
             Kind::OpenAiChatCompletions => Some(TransformPair::OpenAiCompactToOpenAiChat),
             Kind::ClaudeMessages => Some(TransformPair::OpenAiToClaudeCompact),
-            Kind::OpenAiResponses => None,
+            Kind::OpenAiResponses | Kind::OpenAiResponsesWebSocket => None,
         };
     }
 

@@ -97,6 +97,8 @@ impl OperationKind {
 #[serde(rename_all = "snake_case")]
 pub enum ContentGenerationKind {
     OpenAiResponses,
+    #[serde(rename = "open_ai_responses_websocket")]
+    OpenAiResponsesWebSocket,
     OpenAiChatCompletions,
     ClaudeMessages,
     GeminiGenerateContent,
@@ -105,7 +107,9 @@ pub enum ContentGenerationKind {
 impl ContentGenerationKind {
     pub const fn provider(self) -> Provider {
         match self {
-            Self::OpenAiResponses | Self::OpenAiChatCompletions => Provider::OpenAi,
+            Self::OpenAiResponses
+            | Self::OpenAiResponsesWebSocket
+            | Self::OpenAiChatCompletions => Provider::OpenAi,
             Self::ClaudeMessages => Provider::Claude,
             Self::GeminiGenerateContent => Provider::Gemini,
         }

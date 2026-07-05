@@ -49,19 +49,22 @@ pub fn from_stream_frames(
             let usage = json.get("usage").filter(|u| u.is_object())?;
             openai_usage(usage)
         }),
-        ContentGenerationKind::OpenAiResponses => frames.iter().rev().find_map(|frame| {
-            let json = frame_json(frame)?;
-            let is_completed = frame.event.as_deref() == Some("response.completed")
-                || json.get("type").and_then(Value::as_str) == Some("response.completed");
-            if !is_completed {
-                return None;
-            }
-            let usage = json
-                .get("response")?
-                .get("usage")
-                .filter(|u| u.is_object())?;
-            openai_usage(usage)
-        }),
+        ContentGenerationKind::OpenAiResponses
+        | ContentGenerationKind::OpenAiResponsesWebSocket => {
+            frames.iter().rev().find_map(|frame| {
+                let json = frame_json(frame)?;
+                let is_completed = frame.event.as_deref() == Some("response.completed")
+                    || json.get("type").and_then(Value::as_str) == Some("response.completed");
+                if !is_completed {
+                    return None;
+                }
+                let usage = json
+                    .get("response")?
+                    .get("usage")
+                    .filter(|u| u.is_object())?;
+                openai_usage(usage)
+            })
+        }
         ContentGenerationKind::GeminiGenerateContent => frames.iter().rev().find_map(|frame| {
             let json = frame_json(frame)?;
             let meta = json.get("usageMetadata").filter(|m| m.is_object())?;
