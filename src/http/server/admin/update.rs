@@ -1,18 +1,26 @@
 //! §19.10 self-update admin endpoints (native-only):
 //!   GET  /admin/update/check  — manifest fetch, returns CheckReport.
 //!   GET  /admin/update/status — in-process status state machine snapshot.
-//!   POST /admin/update/apply  — download + verify + swap, then auto re-exec.
+//!   POST /admin/update/apply  — download + verify-or-confirm + swap, then auto re-exec.
 
 use axum::Json;
+use axum::body::Bytes;
 use axum::extract::State;
+use serde::Deserialize;
 use std::time::Duration;
 
 use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::app::update_status::UpdateStatus;
 use crate::selfupdate::{
-    self, Channel, CheckReport, DEFAULT_REPO, Restart, UpdateContext, UpdateError,
+    self, ApplyOptions, Channel, CheckReport, DEFAULT_REPO, Restart, UpdateContext, UpdateError,
 };
+
+#[derive(Debug, Default, Deserialize)]
+struct ApplyRequest {
+    #[serde(default)]
+    allow_insecure: bool,
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -48,6 +56,9 @@ fn update_error(e: UpdateError) -> ApiError {
     match e {
         // Availability / config problems → 400 Bad Request.
         UpdateError::NoArtifact(_) | UpdateError::Version(_) => ApiError::BadRequest(msg),
+        // Missing safety metadata can be overridden only after explicit UI/API
+        // confirmation.
+        UpdateError::ConfirmationRequired(_) => ApiError::ConfirmationRequired(msg),
         // No manifest published for the channel → 404 (only `apply` reaches here;
         // `check` already treats this as a benign "no update available").
         UpdateError::ManifestNotFound => ApiError::NotFound(msg),
@@ -92,8 +103,9 @@ pub async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
 
 const ADMIN_RESTART_DELAY: Duration = Duration::from_millis(750);
 
-/// `POST /admin/update/apply` — download, verify, atomically swap the binary,
-/// send a final status response, then restart the process in the background.
+/// `POST /admin/update/apply` — download, verify or require confirmation,
+/// atomically swap the binary, send a final status response, then restart the
+/// process in the background.
 ///
 /// # Single-flight guard
 /// If a check/apply is already in flight (`Checking` | `Downloading`), returns
@@ -104,9 +116,13 @@ const ADMIN_RESTART_DELAY: Duration = Duration::from_millis(750);
 /// holding a `!Send` lock across a suspension point (`clippy::await_holding_lock`).
 /// Pattern: lock → read/write → drop guard → await → lock → write terminal state → drop.
 ///
-pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, ApiError> {
+pub async fn apply(
+    State(state): State<AppState>,
+    body: Bytes,
+) -> Result<Json<UpdateStatus>, ApiError> {
     // Fail fast on bad config before touching the status machine (no lock held).
     let ctx = context(&state)?;
+    let req = parse_apply_request(&body)?;
 
     // --- single-flight guard: atomic check-and-set under one lock ---
     // Check and the `Downloading` write happen in the SAME lock scope, so two
@@ -135,7 +151,15 @@ pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, 
         if !report.available {
             return Ok(None);
         }
-        selfupdate::apply(&ctx, Restart::None).await.map(Some)
+        selfupdate::apply_with_options(
+            &ctx,
+            ApplyOptions {
+                restart: Restart::None,
+                allow_insecure: req.allow_insecure,
+            },
+        )
+        .await
+        .map(Some)
     }
     .await;
 
@@ -150,6 +174,7 @@ pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, 
             (s.clone(), Ok(Json(s)))
         }
         Ok(None) => (UpdateStatus::Idle, Ok(Json(UpdateStatus::Idle))),
+        Err(e @ UpdateError::ConfirmationRequired(_)) => (UpdateStatus::Idle, Err(update_error(e))),
         Err(e) => {
             let s = UpdateStatus::Failed {
                 error: e.to_string(),
@@ -166,6 +191,14 @@ pub async fn apply(State(state): State<AppState>) -> Result<Json<UpdateStatus>, 
     }
 
     api_result
+}
+
+fn parse_apply_request(body: &[u8]) -> Result<ApplyRequest, ApiError> {
+    if body.is_empty() {
+        return Ok(ApplyRequest::default());
+    }
+    serde_json::from_slice(body)
+        .map_err(|e| ApiError::BadRequest(format!("invalid JSON body: {e}")))
 }
 
 fn schedule_restart(version: String) {

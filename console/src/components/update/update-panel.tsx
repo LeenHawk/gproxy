@@ -1,10 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@/api/http";
-import { applyUpdate, updateCheckQuery, updateStatusQuery, type UpdateStatus } from "@/api/update";
+import {
+  applyUpdate,
+  updateCheckQuery,
+  updateStatusQuery,
+  type UpdateSafetyRisk,
+  type UpdateStatus,
+} from "@/api/update";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,17 +25,30 @@ export function UpdatePanel() {
   const check = useQuery(updateCheckQuery);
   const checkData = check.data;
   const checkError = check.error as ApiError | null;
+  const safety = checkData?.safety ?? [];
+  const safetyText = formatSafetyRisks(safety, t);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [securityConfirmOpen, setSecurityConfirmOpen] = useState(false);
+  const [securityWarning, setSecurityWarning] = useState("");
   const apply = useMutation({
-    mutationFn: applyUpdate,
+    mutationFn: (allowInsecure: boolean) => applyUpdate({ allow_insecure: allowInsecure }),
     onSuccess: () => {
       setConfirmOpen(false);
+      setSecurityConfirmOpen(false);
+      setSecurityWarning("");
       void qc.invalidateQueries({ queryKey: ["update", "status"] });
       toast.success(t("status.restarting"));
     },
     onError: (e) => {
+      if (e instanceof ApiError && e.type === "confirmation_required") {
+        setConfirmOpen(false);
+        setSecurityWarning(e.message);
+        setSecurityConfirmOpen(true);
+        return;
+      }
       setConfirmOpen(false);
+      setSecurityConfirmOpen(false);
       toast.error(e instanceof ApiError ? e.message : String(e));
     },
   });
@@ -98,6 +117,13 @@ export function UpdatePanel() {
                 )}
               </dl>
             )}
+
+            {safety.length > 0 && (
+              <div role="alert" className="flex gap-2 rounded-md border border-amber-500 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>{t("check.safetyWarning", { risks: safetyText })}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -130,11 +156,30 @@ export function UpdatePanel() {
         title={t("apply.confirm.title")}
         description={t("apply.confirm.description")}
         confirmLabel={t("apply.confirm.confirmLabel")}
-        onConfirm={() => apply.mutate()}
+        onConfirm={() => apply.mutate(false)}
+        pending={applying}
+      />
+
+      <ConfirmDangerous
+        open={securityConfirmOpen}
+        onOpenChange={setSecurityConfirmOpen}
+        title={t("apply.securityConfirm.title")}
+        description={(
+          <span className="grid gap-2">
+            <span>{t("apply.securityConfirm.description")}</span>
+            {securityWarning && <span className="break-words font-mono text-xs">{securityWarning}</span>}
+          </span>
+        )}
+        confirmLabel={t("apply.securityConfirm.confirmLabel")}
+        onConfirm={() => apply.mutate(true)}
         pending={applying}
       />
     </div>
   );
+}
+
+function formatSafetyRisks(safety: UpdateSafetyRisk[], t: (key: string) => string) {
+  return safety.map((risk) => t(`check.safety.${risk}`)).join(", ");
 }
 
 function StatusDisplay({

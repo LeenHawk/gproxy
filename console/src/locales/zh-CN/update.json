@@ -9,7 +9,13 @@
     "availableYes": "是",
     "availableNo": "已是最新",
     "notes": "发布说明",
-    "genericError": "检查更新失败"
+    "genericError": "检查更新失败",
+    "safetyWarning": "此更新缺少安全元数据：{{risks}}。应用时需要再次确认。",
+    "safety": {
+      "missing_sha256": "SHA-256 校验值",
+      "missing_signature": "manifest 签名",
+      "missing_public_key": "内置验签公钥"
+    }
   },
   "apply": {
     "button": "更新并重启",
@@ -17,6 +23,11 @@
       "title": "更新并重启？",
       "description": "此操作将下载新的二进制文件，保留旧版本为 .prev 以便回滚，并自动重启 GPROXY。",
       "confirmLabel": "更新并重启"
+    },
+    "securityConfirm": {
+      "title": "未完整校验，仍要更新？",
+      "description": "此更新缺少安全元数据，GPROXY 无法完整校验下载的二进制文件。只有在你信任该发布时才继续。",
+      "confirmLabel": "仍然更新"
     }
   },
   "status": {

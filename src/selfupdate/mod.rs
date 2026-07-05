@@ -13,11 +13,12 @@
 //!   meaningless, so update is decided by comparing the manifest artifact
 //!   **sha256** to the running binary's sha256.
 //!
-//! Trust anchor (§19.2): the manifest is ed25519-signed; the public key is
-//! compiled in. No valid signature → the binary is never replaced. The risky
-//! I/O (download, integrity/signature check, atomic swap, restart) lives behind
-//! the [`download`], [`verify`], and [`swap`] seams; [`version`] and
-//! [`manifest`] are pure and unit-tested.
+//! Trust anchor (§19.2): when the manifest carries sha256/signature metadata,
+//! the binary is verified before replacement. Missing safety metadata is never
+//! silently ignored: HTTP callers must ask for explicit operator confirmation
+//! before applying such an update. The risky I/O (download, integrity/signature
+//! check, atomic swap, restart) lives behind the [`download`], [`verify`], and
+//! [`swap`] seams; [`version`] and [`manifest`] are pure and unit-tested.
 
 #[cfg(not(target_arch = "wasm32"))]
 mod applied;
@@ -103,6 +104,22 @@ pub enum Restart {
     None,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateSafetyRisk {
+    MissingSha256,
+    MissingSignature,
+    MissingPublicKey,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy)]
+pub struct ApplyOptions {
+    pub restart: Restart,
+    pub allow_insecure: bool,
+}
+
 /// Errors surfaced by the self-update flow.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, thiserror::Error)]
@@ -119,6 +136,8 @@ pub enum UpdateError {
     Integrity(String),
     #[error("signature verification failed: {0}")]
     Signature(String),
+    #[error("update requires confirmation: {0}")]
+    ConfirmationRequired(String),
     #[error("filesystem error: {0}")]
     Io(#[from] std::io::Error),
     #[error("binary swap failed: {0}")]
@@ -156,6 +175,9 @@ pub struct CheckReport {
     pub available: bool,
     /// Release notes URL, if the manifest carries one.
     pub notes_url: Option<String>,
+    /// Safety metadata that is absent from the manifest or this binary.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub safety: Vec<UpdateSafetyRisk>,
 }
 
 /// Runtime context for a self-update run.
@@ -192,6 +214,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
                 current,
                 available: false,
                 notes_url: None,
+                safety: Vec::new(),
             });
         }
         Err(e) => return Err(e),
@@ -205,8 +228,24 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
         Channel::Releases => version::releases_decision(&manifest.version)?,
         Channel::Staging => {
             let local = swap::current_exe_sha256()?;
-            version::staging_decision(&local, &artifact.sha256)
+            match artifact.sha256_value() {
+                Some(sha) => version::staging_decision(&local, sha),
+                None => UpdateDecision {
+                    current: short_identity(&local),
+                    latest: if manifest.version.trim().is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        manifest.version.clone()
+                    },
+                    available: true,
+                },
+            }
         }
+    };
+    let safety = if decision.available {
+        safety_risks(&manifest, artifact)
+    } else {
+        Vec::new()
     };
 
     Ok(CheckReport {
@@ -214,6 +253,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
         latest: decision.latest,
         available: decision.available,
         notes_url: manifest.notes_url.clone(),
+        safety,
     })
 }
 
@@ -239,17 +279,33 @@ fn current_identity(ctx: &UpdateContext) -> Result<String, UpdateError> {
 /// `Supervisor` exits the process with the sentinel code after staging.
 #[cfg(not(target_arch = "wasm32"))]
 pub async fn apply(ctx: &UpdateContext, restart: Restart) -> Result<String, UpdateError> {
+    apply_with_options(
+        ctx,
+        ApplyOptions {
+            restart,
+            allow_insecure: false,
+        },
+    )
+    .await
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn apply_with_options(
+    ctx: &UpdateContext,
+    options: ApplyOptions,
+) -> Result<String, UpdateError> {
     let manifest = download::fetch_manifest(ctx).await?;
     let triple = current_target_triple();
     let artifact = manifest
         .artifact_for(&triple)
         .ok_or_else(|| UpdateError::NoArtifact(triple.clone()))?
         .clone();
+    let artifact_sha = artifact.sha256_value().map(str::to_string);
 
     // §19.7 data-compat floor (any channel): refuse a binary that requires a
     // newer on-disk data schema than this deployment has — it would boot against
-    // data it can't read. The field is signed into the manifest, so this gate is
-    // as trustworthy as the signature.
+    // data it can't read. When the manifest is signed, this field is covered by
+    // that signature.
     let required = manifest.min_compatible_data_version;
     let have = current_data_version();
     if required > have {
@@ -267,25 +323,38 @@ pub async fn apply(ctx: &UpdateContext, restart: Restart) -> Result<String, Upda
     };
 
     // Gate: only proceed if there is actually something to install.
-    let available = match &local_sha {
-        Some(local) => version::staging_decision(local, &artifact.sha256).available,
-        None => version::releases_decision(&manifest.version)?.available,
+    let available = match (&local_sha, artifact_sha.as_deref()) {
+        (Some(local), Some(sha)) => version::staging_decision(local, sha).available,
+        (Some(_), None) => true,
+        (None, _) => version::releases_decision(&manifest.version)?.available,
     };
     if !available {
         tracing::info!(channel = ctx.channel.as_str(), "already up to date");
         return Ok(manifest.version.clone());
     }
 
+    let safety = safety_risks(&manifest, &artifact);
+    if !safety.is_empty() {
+        if !options.allow_insecure {
+            return Err(UpdateError::ConfirmationRequired(safety_message(&safety)));
+        }
+        tracing::warn!(
+            risks = ?safety,
+            channel = ctx.channel.as_str(),
+            "applying update with missing safety metadata after operator confirmation"
+        );
+    }
+
     // Staging rollback guard (§19.3): `staging` decides by sha and has no version
     // ordering, so a replayed older-but-validly-signed manifest could roll the
     // binary backward. Refuse a sha we've already superseded. `releases` is
     // ordered by semver vs the compiled-in version and needs no ledger.
-    if let Some(local) = &local_sha
-        && applied::is_rollback(&applied::load(&ctx.data_dir), local, &artifact.sha256)
+    if let (Some(local), Some(target)) = (&local_sha, artifact_sha.as_deref())
+        && applied::is_rollback(&applied::load(&ctx.data_dir), local, target)
     {
         return Err(UpdateError::Downgrade(format!(
             "staging artifact {} was already superseded by a newer build",
-            applied::short(&artifact.sha256)
+            applied::short(target)
         )));
     }
 
@@ -293,37 +362,78 @@ pub async fn apply(ctx: &UpdateContext, restart: Restart) -> Result<String, Upda
     //    filesystem as the binary.
     let staged_zip = download::download_artifact(ctx, &artifact).await?;
 
-    // 2. Integrity: sha256 of the downloaded ZIP must equal the manifest's.
-    verify::verify_sha256(&staged_zip, &artifact.sha256)?;
+    // 2. Integrity: sha256 of the downloaded ZIP must equal the manifest's
+    //    when the manifest provides one. Missing sha256 reached here only after
+    //    explicit operator confirmation.
+    if let Some(sha) = artifact_sha.as_deref() {
+        verify::verify_sha256(&staged_zip, sha)?;
+    }
 
     // 3. Signature: the embedded ed25519 public key must verify the manifest
-    //    signature (§19.2 — the hard floor; staging is verified too).
-    verify::verify_manifest_signature(&manifest)?;
+    //    signature when both are present. Missing signature/pubkey reached here
+    //    only after explicit operator confirmation.
+    if manifest.signature_value().is_some() && verify::has_embedded_pubkey() {
+        verify::verify_manifest_signature(&manifest)?;
+    }
 
-    // 4. Extract the `gproxy` executable from the verified zip. The zip's bytes
-    //    were sha256-checked and that sha is bound by the manifest signature, so
-    //    the extracted binary inherits that trust — no separate inner-hash needed.
+    // 4. Extract the `gproxy` executable from the staged zip. When safety
+    //    metadata is present, the zip's bytes were sha256-checked and that sha
+    //    is bound by the manifest signature, so the extracted binary inherits
+    //    that trust — no separate inner-hash needed.
     let staged_bin = extract::extract_binary(&staged_zip)?;
 
     // 5. Atomic swap, retaining `<exe>.prev` for rollback (§19.5 / §19.8).
     swap::install(&staged_bin)?;
     // Record the applied sha so a later replay of this (now-superseded) build is
     // caught by the rollback guard above. Staging only; best-effort.
-    if let Some(local) = &local_sha {
-        applied::record(&ctx.data_dir, local, &artifact.sha256);
+    if let (Some(local), Some(target)) = (&local_sha, artifact_sha.as_deref()) {
+        applied::record(&ctx.data_dir, local, target);
     }
     tracing::info!(
         channel = ctx.channel.as_str(),
         version = %manifest.version,
-        "new binary staged and verified"
+        "new binary staged"
     );
 
     // 6. Restart / hand off (§19.6).
-    match restart {
+    match options.restart {
         Restart::Supervisor => swap::exit_for_supervisor(),
         Restart::ReExec => swap::reexec(), // diverges on success
         Restart::None => Ok(manifest.version.clone()),
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn safety_risks(manifest: &Manifest, artifact: &Artifact) -> Vec<UpdateSafetyRisk> {
+    let mut risks = Vec::new();
+    if artifact.sha256_value().is_none() {
+        risks.push(UpdateSafetyRisk::MissingSha256);
+    }
+    if manifest.signature_value().is_none() {
+        risks.push(UpdateSafetyRisk::MissingSignature);
+    } else if !verify::has_embedded_pubkey() {
+        risks.push(UpdateSafetyRisk::MissingPublicKey);
+    }
+    risks
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn safety_message(risks: &[UpdateSafetyRisk]) -> String {
+    let labels = risks
+        .iter()
+        .map(|risk| match risk {
+            UpdateSafetyRisk::MissingSha256 => "artifact sha256",
+            UpdateSafetyRisk::MissingSignature => "manifest signature",
+            UpdateSafetyRisk::MissingPublicKey => "embedded update public key",
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("missing safety metadata: {labels}")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn short_identity(value: &str) -> String {
+    value.chars().take(12).collect()
 }
 
 /// Restart the running process after a previously staged update.

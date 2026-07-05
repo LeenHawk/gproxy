@@ -3,6 +3,7 @@ export type ApiErrorType =
   | "bad_request"
   | "not_found"
   | "conflict"
+  | "confirmation_required"
   | "internal"
   | "network";
 

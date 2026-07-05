@@ -6,7 +6,10 @@ export interface CheckReport {
   latest: string;
   available: boolean;
   notes_url: string | null;
+  safety?: UpdateSafetyRisk[];
 }
+
+export type UpdateSafetyRisk = "missing_sha256" | "missing_signature" | "missing_public_key";
 
 export type UpdateStatus =
   | { state: "idle" }
@@ -30,6 +33,9 @@ export const updateStatusQuery = queryOptions({
   queryFn: () => api<UpdateStatus>("/admin/update/status"),
 });
 
-export function applyUpdate(): Promise<UpdateStatus> {
-  return api<UpdateStatus>("/admin/update/apply", { method: "POST", body: "{}" });
+export function applyUpdate(options: { allow_insecure?: boolean } = {}): Promise<UpdateStatus> {
+  return api<UpdateStatus>("/admin/update/apply", {
+    method: "POST",
+    body: JSON.stringify({ allow_insecure: options.allow_insecure === true }),
+  });
 }

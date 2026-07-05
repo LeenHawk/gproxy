@@ -12,6 +12,7 @@ pub enum ApiError {
     BadRequest(String),
     NotFound(String),
     Conflict(String),
+    ConfirmationRequired(String),
     Internal(String),
     /// 429 Too Many Requests. The inner string is the `Retry-After` value in
     /// seconds (e.g. "60"). Used by the login throttle.
@@ -30,6 +31,7 @@ impl ApiError {
             ApiError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::Conflict(_) => StatusCode::CONFLICT,
+            ApiError::ConfirmationRequired(_) => StatusCode::CONFLICT,
             ApiError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             ApiError::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
@@ -42,7 +44,10 @@ impl ApiError {
         match self {
             ApiError::Unauthorized => "unauthorized".to_string(),
             ApiError::Forbidden(m) => m.clone(),
-            ApiError::BadRequest(m) | ApiError::NotFound(m) | ApiError::Conflict(m) => m.clone(),
+            ApiError::BadRequest(m)
+            | ApiError::NotFound(m)
+            | ApiError::Conflict(m)
+            | ApiError::ConfirmationRequired(m) => m.clone(),
             ApiError::Internal(cause) => {
                 tracing::error!(error = %cause, "admin api internal error");
                 "internal error".to_string()
@@ -61,6 +66,7 @@ impl ApiError {
             ApiError::BadRequest(_) => "bad_request",
             ApiError::NotFound(_) => "not_found",
             ApiError::Conflict(_) => "conflict",
+            ApiError::ConfirmationRequired(_) => "confirmation_required",
             ApiError::Internal(_) => "internal",
             ApiError::TooManyRequests(_) => "too_many_requests",
             ApiError::NotImplemented(_) => "not_implemented",
