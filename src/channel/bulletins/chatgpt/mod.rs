@@ -64,14 +64,14 @@ impl Channel for ChatGptChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, local, pass, pv, xform};
+        use crate::channel::routes::{cg, local, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
         // The upstream is ALWAYS a stream (chatgpt SSE-v1); every content op
         // pivots on OpenAiChatCompletions and routes to a streaming upstream.
         // Non-stream clients aggregate via the existing pipeline (same model as
         // codex). The chatgpt SSE-v1 ⇄ openai-chat translation is in-channel —
         // the transform layer only ever sees openai-chat in / openai-chat-SSE out.
-        vec![
+        let mut routes = vec![
             // chatgpt.com has no `/v1/models` endpoint, but it DOES serve a live
             // picker at `/backend-api/models/gpts`; ListModels fetches it online
             // and `shape_response` reshapes it (bundled catalogue is only a
@@ -133,7 +133,9 @@ impl Channel for ChatGptChannel {
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
             ),
-        ]
+        ];
+        routes.extend(responses_ws_to(cg(OpenAiChatCompletions)));
+        routes
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]

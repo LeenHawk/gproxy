@@ -96,6 +96,31 @@ pub fn response_create_frame_to_response_body(frame: &[u8]) -> Result<Vec<u8>, T
     })
 }
 
+/// Validate a downstream Responses WebSocket frame without normalizing it.
+pub fn validate_response_create_frame(frame: &[u8]) -> Result<(), TransformError> {
+    let value: Value =
+        serde_json::from_slice(frame).map_err(|error| TransformError::InvalidInput {
+            reason: format!("decode websocket frame: {error}"),
+        })?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| TransformError::InvalidInput {
+            reason: "websocket frame must be a JSON object".to_owned(),
+        })?;
+    let frame_type = object
+        .get("type")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| TransformError::InvalidInput {
+            reason: "websocket frame missing type".to_owned(),
+        })?;
+    if frame_type != "response.create" {
+        return Err(TransformError::InvalidInput {
+            reason: format!("unsupported websocket frame type: {frame_type}"),
+        });
+    }
+    Ok(())
+}
+
 /// Incrementally converts Responses SSE bytes into WebSocket text messages.
 #[derive(Debug, Default)]
 pub struct ResponseWebSocketSseDecoder {

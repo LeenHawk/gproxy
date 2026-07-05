@@ -43,9 +43,9 @@ impl Channel for CopilotCliChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, local, pass, pv, xform};
+        use crate::channel::routes::{cg, local, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
-        vec![
+        let mut routes = vec![
             pass(ListModels, pv(P::OpenAi)),
             xform(ListModels, pv(P::Claude), ListModels, pv(P::OpenAi)),
             xform(ListModels, pv(P::Gemini), ListModels, pv(P::OpenAi)),
@@ -96,7 +96,9 @@ impl Channel for CopilotCliChannel {
                 cg(OpenAiChatCompletions),
             ),
             pass(CompactContent, pv(P::OpenAi)),
-        ]
+        ];
+        routes.extend(responses_ws_to(cg(OpenAiChatCompletions)));
+        routes
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]

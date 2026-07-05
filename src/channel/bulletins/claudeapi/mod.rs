@@ -42,9 +42,9 @@ impl Channel for ClaudeApiChannel {
     }
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
-        use crate::channel::routes::{cg, pass, pv, xform};
+        use crate::channel::routes::{cg, pass, pv, responses_ws_to, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};
-        vec![
+        let mut routes = vec![
             pass(ListModels, pv(P::Claude)),
             pass(ListModels, pv(P::OpenAi)),
             xform(ListModels, pv(P::Gemini), ListModels, pv(P::Claude)),
@@ -88,7 +88,9 @@ impl Channel for ClaudeApiChannel {
                 GenerateContent,
                 cg(ClaudeMessages),
             ),
-        ]
+        ];
+        routes.extend(responses_ws_to(cg(ClaudeMessages)));
+        routes
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -125,7 +127,8 @@ mod tests {
     use http::{HeaderValue, StatusCode};
     use serde_json::Value;
 
-    use crate::protocol::{Operation, OperationKey};
+    use crate::protocol::{Operation, OperationKey, OperationKind};
+    use crate::transform::routing::RoutingDecision;
 
     fn messages_ctx() -> ShapeCtx {
         ShapeCtx {
@@ -145,6 +148,31 @@ mod tests {
             enable_claude_fable_fallback: true,
             ..messages_ctx()
         }
+    }
+
+    #[test]
+    fn responses_websocket_defaults_to_claude_messages_stream() {
+        let decision = ClaudeApiChannel
+            .routing_table()
+            .into_iter()
+            .find(|(source, _)| {
+                source.operation == Operation::GenerateContent
+                    && source.kind
+                        == crate::channel::routes::cg(
+                            ContentGenerationKind::OpenAiResponsesWebSocket,
+                        )
+            })
+            .map(|(_, decision)| decision)
+            .expect("missing websocket route");
+
+        let RoutingDecision::TransformTo(target) = decision else {
+            panic!("websocket route should transform");
+        };
+        assert_eq!(target.operation, Operation::StreamGenerateContent);
+        assert_eq!(
+            target.kind,
+            OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+        );
     }
 
     #[test]

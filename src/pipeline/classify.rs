@@ -8,6 +8,8 @@ use crate::pipeline::context::Classified;
 use crate::pipeline::error::PipelineError;
 use crate::protocol::{ContentGenerationKind as CGK, Operation, OperationKey, Provider as Prov};
 
+pub(crate) const RESPONSES_WEBSOCKET_CLASSIFY_HEADER: &str = "x-gproxy-responses-websocket";
+
 /// Classify by `(method, path)`. The leading `/v1` is present in both aggregated
 /// and (post-strip) scoped paths. Headers disambiguate the shared `/v1/models`
 /// surface (Claude callers send `x-api-key`).
@@ -25,10 +27,20 @@ pub fn classify(
             ),
             peek_stream(body),
         ),
-        ("POST", "/v1/responses") => (
-            OperationKey::content_generation(Operation::GenerateContent, CGK::OpenAiResponses),
-            peek_stream(body),
-        ),
+        ("POST", "/v1/responses") => {
+            let websocket = headers.contains_key(RESPONSES_WEBSOCKET_CLASSIFY_HEADER);
+            (
+                OperationKey::content_generation(
+                    Operation::GenerateContent,
+                    if websocket {
+                        CGK::OpenAiResponsesWebSocket
+                    } else {
+                        CGK::OpenAiResponses
+                    },
+                ),
+                websocket || peek_stream(body),
+            )
+        }
         ("POST", "/v1/messages") => (
             OperationKey::content_generation(Operation::GenerateContent, CGK::ClaudeMessages),
             peek_stream(body),
