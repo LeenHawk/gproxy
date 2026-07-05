@@ -83,16 +83,57 @@ impl LibsqlClient {
 
     /// Execute a single SQL statement via Hrana v2 pipeline.
     pub async fn execute(&self, sql: &str, args: &[Value]) -> Result<QueryResult, StoreError> {
+        let hrana = self
+            .send_pipeline(Pipeline {
+                requests: vec![
+                    PipelineRequest::Execute {
+                        stmt: Stmt { sql, args },
+                    },
+                    PipelineRequest::Close,
+                ],
+            })
+            .await?;
+
+        // First result is the execute; second is close. Extract execute result.
+        let mut iter = hrana.results.into_iter();
+        match iter.next().ok_or(StoreError::BadResponse)? {
+            HranaResult::Ok {
+                response: HranaOkResponse::Execute { result },
+            } => Ok(QueryResult {
+                cols: result.cols,
+                rows: result.rows,
+                affected_row_count: result.affected_row_count,
+                last_insert_rowid: result.last_insert_rowid,
+            }),
+            HranaResult::Error { error } => Err(StoreError::Hrana(error.message)),
+            HranaResult::Ok {
+                response: HranaOkResponse::Close,
+            } => Err(StoreError::BadResponse),
+        }
+    }
+
+    /// Execute several arg-less SQL statements in one Hrana pipeline request.
+    pub async fn execute_batch(&self, statements: &[&str]) -> Result<(), StoreError> {
+        let requests = statements
+            .iter()
+            .map(|sql| PipelineRequest::Execute {
+                stmt: Stmt { sql, args: &[] },
+            })
+            .chain(std::iter::once(PipelineRequest::Close))
+            .collect();
+        let hrana = self.send_pipeline(Pipeline { requests }).await?;
+        for result in hrana.results {
+            if let HranaResult::Error { error } = result {
+                return Err(StoreError::Hrana(error.message));
+            }
+        }
+        Ok(())
+    }
+
+    async fn send_pipeline(&self, pipeline: Pipeline<'_>) -> Result<HranaResponse, StoreError> {
         let pipeline_url = format!("{}/v2/pipeline", self.url);
 
-        let body = serde_json::to_string(&Pipeline {
-            requests: vec![
-                PipelineRequest::Execute {
-                    stmt: Stmt { sql, args },
-                },
-                PipelineRequest::Close,
-            ],
-        })?;
+        let body = serde_json::to_string(&pipeline)?;
 
         // Build fetch request.
         let js_headers = Headers::new().map_err(js_err)?;
@@ -145,23 +186,6 @@ impl LibsqlClient {
             let msg = val.to_string();
             return Err(StoreError::Hrana(msg));
         }
-        let hrana: HranaResponse = serde_json::from_value(val)?;
-
-        // First result is the execute; second is close. Extract execute result.
-        let mut iter = hrana.results.into_iter();
-        match iter.next().ok_or(StoreError::BadResponse)? {
-            HranaResult::Ok {
-                response: HranaOkResponse::Execute { result },
-            } => Ok(QueryResult {
-                cols: result.cols,
-                rows: result.rows,
-                affected_row_count: result.affected_row_count,
-                last_insert_rowid: result.last_insert_rowid,
-            }),
-            HranaResult::Error { error } => Err(StoreError::Hrana(error.message)),
-            HranaResult::Ok {
-                response: HranaOkResponse::Close,
-            } => Err(StoreError::BadResponse),
-        }
+        serde_json::from_value(val).map_err(StoreError::Json)
     }
 }

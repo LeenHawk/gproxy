@@ -14,6 +14,12 @@
       },
       "TURSO_TOKEN": {
         "description": "Required Turso database token with access to the TURSO_URL database. It is stored as a Worker secret."
+      },
+      "GPROXY_ADMIN_USER": {
+        "description": "Required admin username for the first Console login, for example admin."
+      },
+      "GPROXY_ADMIN_PASSWORD": {
+        "description": "Required admin password for the first Console login. Must be at least 12 characters. It is stored as a Worker secret."
       }
     }
   }

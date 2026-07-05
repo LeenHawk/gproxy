@@ -21,8 +21,9 @@ Cloudflare 模板在 `deploy/cloudflare/.dev.vars.example` 中声明了必需的
 secrets，Netlify 模板在 `deploy/netlify/netlify.toml` 中声明。两个一键部署流程都会在
 第一次部署前要求填写 `TURSO_URL` 和 `TURSO_TOKEN`。这里要填 Turso 的 HTTP URL
 （`https://<db>.turso.io`），不要填 `libsql://` URL，因为 edge runtime 通过 `fetch`
-调用 Hrana。如果部署需要 Upstash cache 或 sealed stored secrets，可以之后再添加可选的
-`UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
+调用 Hrana。它们也会要求填写 `GPROXY_ADMIN_USER` 和 `GPROXY_ADMIN_PASSWORD`；密码至少
+12 个字符，用于第一次登录 Console。如果部署需要 Upstash cache 或 sealed stored secrets，
+可以之后再添加可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
 
 Cloudflare Workers、Netlify Edge、Deno Deploy 和 EdgeOne Pages 会把 React Console
 放进同一个部署，并让 `/` 跳到 `/console/`。Supabase Edge Functions 和 Appwrite
@@ -37,6 +38,8 @@ edge runtime 不能直连本地 SQLite、PostgreSQL、MySQL 或 Redis。v2 edge 
 | --- | --- | --- |
 | `TURSO_URL` | 是 | libSQL/Turso HTTP URL，例如 `https://<db>.turso.io`。 |
 | `TURSO_TOKEN` | 是 | Turso access token。 |
+| `GPROXY_ADMIN_USER` | 是 | Console 登录用的 admin 用户名。 |
+| `GPROXY_ADMIN_PASSWORD` | 是 | Console 登录用的 admin 密码；至少 12 个字符。 |
 | `UPSTASH_URL` | 否 | Upstash Redis cache；缺省时回退到 libSQL KV。 |
 | `UPSTASH_TOKEN` | 否 | Upstash token。 |
 | `GPROXY_MASTER_KEY` | 否 | 标准 base64 32 字节 sealed secret key。 |
@@ -103,7 +106,7 @@ sibling `.wasm` 文件。
 2. 决定使用 Upstash，还是使用 libSQL KV fallback 作为 cache。
 3. 如果使用 sealed secrets，生成并保存 `GPROXY_MASTER_KEY`。
 4. 上传平台 bundle。
-5. 配置 secrets。
+5. 配置 secrets，包括 admin 用户名和密码。
 6. 把 gateway、admin、user 和 ops 路径都路由到 worker/function。
 7. 需要 Web UI 且平台 bundle 未内置站点根路径 Console 时，同源提供 Console 静态资产。
 
@@ -111,13 +114,15 @@ sibling `.wasm` 文件。
 
 Cloudflare Workers 使用 `deploy/cloudflare/wrangler.toml`、compiled wasm rule，以及
 服务 `/console` 的 Worker static assets binding。一键部署流程会要求填写必需的 Turso
-secrets。CLI 部署时，先用 `wrangler secret put` 设置 `TURSO_URL` 和 `TURSO_TOKEN`，
-再在 `deploy/cloudflare` 中运行 `wrangler deploy`。
+和 admin secrets。CLI 部署时，先用 `wrangler secret put` 设置 `TURSO_URL`、
+`TURSO_TOKEN`、`GPROXY_ADMIN_USER` 和 `GPROXY_ADMIN_PASSWORD`，再在
+`deploy/cloudflare` 中运行 `wrangler deploy`。
 
 Netlify 使用 `deploy/netlify/netlify.toml` 和 `edge-functions/` 入口。用
 `netlify env:set` 设置环境变量，再执行 `netlify deploy --prod`。一键部署流程通过
-`[template.environment]` 要求填写必需的 Turso 环境变量。publish 目录会包含 Console
-SPA；`/console/*` 会从 edge function 中排除，由 Netlify 静态文件和 SPA fallback 服务。
+`[template.environment]` 要求填写必需的 Turso 环境变量和 admin 凭据。publish 目录会包含
+Console SPA；`/console/*` 会从 edge function 中排除，由 Netlify 静态文件和 SPA fallback
+服务。
 
 Supabase 使用 `deploy/supabase/functions/gproxy`，部署命令应包含
 `supabase functions deploy gproxy --no-verify-jwt`。当 API upload path 会丢 sibling

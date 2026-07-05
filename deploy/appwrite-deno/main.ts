@@ -9,6 +9,8 @@
 // Storage credentials come from the function's environment variables (set them
 // in the Appwrite Console → Function → Settings, or via the CLI):
 //   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso control plane)
+//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
+//                                  (required — first admin login)
 //   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash cache; falls back to libSQL)
 //   GPROXY_MASTER_KEY               (optional — unseals stored secrets)
 
@@ -32,6 +34,8 @@ await init(
   optEnv("UPSTASH_URL"),
   optEnv("UPSTASH_TOKEN"),
   optEnv("GPROXY_MASTER_KEY"),
+  reqEnv("GPROXY_ADMIN_USER"),
+  reqEnv("GPROXY_ADMIN_PASSWORD"),
 );
 
 // deno-lint-ignore no-explicit-any

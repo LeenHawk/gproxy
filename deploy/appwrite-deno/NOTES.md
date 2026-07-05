@@ -31,7 +31,8 @@ appwrite push functions --function-id gproxy-wasm --activate
 # 4. Set storage env vars (read by main.ts at cold start)
 appwrite functions create-variable --function-id gproxy-wasm \
   --variable-id TURSO_URL --key TURSO_URL --value "<turso-url>"
-#   ... TURSO_TOKEN (required), UPSTASH_URL / UPSTASH_TOKEN / GPROXY_MASTER_KEY (optional)
+#   ... TURSO_TOKEN, GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD (required)
+#   ... UPSTASH_URL / UPSTASH_TOKEN / GPROXY_MASTER_KEY (optional)
 ```
 
 The function dir must contain `main.ts` + the generated `gproxy.js` +

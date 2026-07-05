@@ -305,15 +305,12 @@ const TABLES: &[&str] = &[
         updated_at INTEGER NOT NULL)",
 ];
 
-/// Issue every `CREATE TABLE IF NOT EXISTS`. Each Hrana pipeline call runs one
-/// statement, so we iterate.
+/// Issue every `CREATE TABLE IF NOT EXISTS` in one Hrana pipeline request.
 pub async fn ensure_schema(client: &LibsqlClient) -> anyhow::Result<()> {
-    for sql in TABLES {
-        client
-            .execute(sql, &[])
-            .await
-            .map_err(|e| anyhow::anyhow!("libsql ensure_schema failed: {e}"))?;
-    }
+    client
+        .execute_batch(TABLES)
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql ensure_schema failed: {e}"))?;
     run_migrations(client).await
 }
 

@@ -12,6 +12,8 @@
 //
 // Env vars come from `context.env` (set with `edgeone pages env set …`):
 //   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso persistence)
+//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
+//                                  (required — first admin login)
 //   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash Redis cache)
 //   GPROXY_MASTER_KEY               (optional — unseals encrypted stored
 //                                    secrets; absent → plaintext mode)
@@ -46,6 +48,8 @@ function ensureInit(env) {
         optEnv(env, "UPSTASH_URL"),
         optEnv(env, "UPSTASH_TOKEN"),
         optEnv(env, "GPROXY_MASTER_KEY"),
+        reqEnv(env, "GPROXY_ADMIN_USER"),
+        reqEnv(env, "GPROXY_ADMIN_PASSWORD"),
       );
     })();
   }

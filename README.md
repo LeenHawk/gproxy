@@ -71,7 +71,8 @@ The Cloudflare and Netlify buttons prompt for the required `TURSO_URL` and
 (`https://<db>.turso.io`), not the `libsql://` URL. Optional Upstash cache and
 `GPROXY_MASTER_KEY` secrets can be added after the worker/site is created.
 Cloudflare Workers, Netlify Edge, Deno Deploy, and EdgeOne Pages also ship the
-Console assets in the same deployment; open `/console` after deploy.
+Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a
+12+ character `GPROXY_ADMIN_PASSWORD`, then open `/console` after deploy.
 
 | Platform | Bundle | Deploy |
 |---|---|---|

@@ -9,6 +9,8 @@
 // Credentials are read from Deno Deploy env vars at module load — NEVER hard-
 // coded here:
 //   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso persistence)
+//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
+//                                  (required — first admin login)
 //   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash Redis cache; falls
 //                                    back to the libSQL kv table when absent)
 //   GPROXY_MASTER_KEY               (optional — unseals encrypted stored
@@ -61,6 +63,8 @@ function ensureInit(): Promise<void> {
       optEnv("UPSTASH_URL"),
       optEnv("UPSTASH_TOKEN"),
       optEnv("GPROXY_MASTER_KEY"),
+      reqEnv("GPROXY_ADMIN_USER"),
+      reqEnv("GPROXY_ADMIN_PASSWORD"),
     );
   }
   return initialised;

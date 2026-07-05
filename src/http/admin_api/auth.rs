@@ -4,9 +4,10 @@
 //! axum machinery: pure `(AppState, &Parts, &Bytes) → Result<Resp, ApiError>`,
 //! testable on native and wasm.
 //!
-//! Key security properties (must stay identical to native):
-//! - Throttle BEFORE the (slow) argon2 verify — fail-closed on cache error.
-//! - Failure path: incr counters + audit; NEVER log the attempted password.
+//! Key security properties:
+//! - Throttle BEFORE the (slow) argon2 verify when the counter backend is usable.
+//! - Edge counter outages do not brick admin login; session writes still fail closed.
+//! - Failure path: best-effort incr counters + audit; NEVER log the attempted password.
 //! - Success path: clear counters + `session::create` + audit + Set-Cookie.
 //! - `source_ip`: from XFF/X-Real-IP only (edge has no peer socket).
 
@@ -41,8 +42,8 @@ pub(crate) async fn login(state: &AppState, parts: &Parts, body: &Bytes) -> Resu
     let req: LoginRequest = json_body(body)?;
 
     let cache = state.cache.as_ref();
-    let user_key = format!("loginfail:user:{}", req.username);
-    let ip_key = source_ip.as_ref().map(|ip| format!("loginfail:ip:{ip}"));
+    let user_key = format!("loginfail:v2:user:{}", req.username);
+    let ip_key = source_ip.as_ref().map(|ip| format!("loginfail:v2:ip:{ip}"));
 
     // Throttle BEFORE the (deliberately slow) argon2 verify.
     if over_limit(cache, &user_key).await || over_limit_opt(cache, ip_key.as_deref()).await {
@@ -170,7 +171,10 @@ async fn verify_user(
 async fn over_limit(cache: &dyn CacheBackend, key: &str) -> bool {
     match cache.incr(key, 0, Some(LOGIN_WINDOW)).await {
         Ok(n) => n >= MAX_LOGIN_FAILS,
-        Err(_) => true,
+        Err(_) => {
+            tracing::warn!("edge login throttle counter unavailable; allowing credential check");
+            false
+        }
     }
 }
 
