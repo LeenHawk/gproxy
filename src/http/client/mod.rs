@@ -47,6 +47,19 @@ pub trait UpstreamClient: Send + Sync {
     /// Send a fully-formed request and return the response (status + headers + body bytes).
     async fn send(&self, req: http::Request<Bytes>) -> Result<http::Response<Bytes>, ClientError>;
 
+    /// Send a fully prepared Responses WebSocket request and return the
+    /// collected response as an SSE body. Native normally uses
+    /// [`open_websocket`](Self::open_websocket) for streaming; wasm edge uses
+    /// this buffered hook because `ResponseBody::Stream` is native-only.
+    async fn send_websocket(
+        &self,
+        _req: http::Request<Bytes>,
+    ) -> Result<http::Response<Bytes>, ClientError> {
+        Err(ClientError::Config(
+            "upstream websocket not supported by this client".into(),
+        ))
+    }
+
     /// Streaming variant (NATIVE only): status + headers immediately, body as a
     /// `ClientError`-itemed byte stream. The default buffers via `send` and wraps
     /// the whole body as one chunk — a correct, lower-fidelity fallback;
@@ -71,6 +84,19 @@ pub trait UpstreamClient: Send + Sync {
     async fn open_conduit(&self, _url: &str) -> Result<Box<dyn ConduitSocket>, ClientError> {
         Err(ClientError::Config(
             "conduit websocket not supported by this client".into(),
+        ))
+    }
+
+    /// Open a generic upstream WebSocket from a fully prepared request
+    /// (NATIVE only). Headers are preserved for auth and beta flags; the body is
+    /// owned by the caller and is not sent by the handshake.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn open_websocket(
+        &self,
+        _req: http::Request<Bytes>,
+    ) -> Result<Box<dyn ConduitSocket>, ClientError> {
+        Err(ClientError::Config(
+            "upstream websocket not supported by this client".into(),
         ))
     }
 }

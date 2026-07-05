@@ -118,6 +118,7 @@
   },
   "protocolKind": {
     "open_ai_responses": "OpenAI Responses",
+    "open_ai_responses_websocket": "OpenAI Responses WebSocket",
     "open_ai_chat_completions": "OpenAI Chat Completions",
     "claude_messages": "Claude Messages",
     "gemini_generate_content": "Gemini Generate Content",

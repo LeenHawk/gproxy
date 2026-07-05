@@ -7,8 +7,60 @@
 
 use serde_json::Value;
 
-use crate::transform::TransformError;
 use crate::transform::common::sse::SseDecoder;
+use crate::transform::{TransformContext, TransformError};
+
+/// Convert a normal HTTP Responses request body into a WebSocket
+/// `response.create` text frame.
+pub fn http_request_to_ws_request(
+    mut value: Value,
+    _ctx: &TransformContext,
+) -> Result<Value, TransformError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| TransformError::InvalidInput {
+            reason: "responses websocket request must be a JSON object".to_owned(),
+        })?;
+    object.insert(
+        "type".to_owned(),
+        Value::String("response.create".to_owned()),
+    );
+    Ok(value)
+}
+
+/// Convert a WebSocket `response.create` frame back into a normal HTTP
+/// Responses request body.
+pub fn ws_request_to_http_request(
+    mut value: Value,
+    _ctx: &TransformContext,
+) -> Result<Value, TransformError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| TransformError::InvalidInput {
+            reason: "websocket frame must be a JSON object".to_owned(),
+        })?;
+    let frame_type = object
+        .remove("type")
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .ok_or_else(|| TransformError::InvalidInput {
+            reason: "websocket frame missing type".to_owned(),
+        })?;
+    if frame_type != "response.create" {
+        return Err(TransformError::InvalidInput {
+            reason: format!("unsupported websocket frame type: {frame_type}"),
+        });
+    }
+    object.insert("stream".to_owned(), Value::Bool(true));
+    Ok(value)
+}
+
+pub fn identity(value: Value, _ctx: &TransformContext) -> Value {
+    value
+}
+
+pub fn identity_result(value: Value, _ctx: &TransformContext) -> Result<Value, TransformError> {
+    Ok(value)
+}
 
 /// Convert a downstream `response.create` WebSocket text frame into the JSON
 /// body for an internal `POST /v1/responses` request.
@@ -80,7 +132,22 @@ fn frame_data(frame: crate::transform::common::sse::SseFrame) -> Option<String> 
 mod tests {
     use serde_json::{Value, json};
 
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
     use super::*;
+
+    fn ctx() -> TransformContext {
+        TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponsesWebSocket,
+            ),
+        )
+    }
 
     #[test]
     fn response_create_frame_becomes_streaming_responses_body() {
@@ -97,6 +164,19 @@ mod tests {
         assert_eq!(value["generate"], false);
         assert_eq!(value["client_metadata"]["k"], "v");
         assert_eq!(value["future_field"], json!({ "x": 1 }));
+    }
+
+    #[test]
+    fn http_request_becomes_response_create_frame() {
+        let value = http_request_to_ws_request(
+            json!({"model":"gpt-test","input":"hi","stream":true}),
+            &ctx(),
+        )
+        .unwrap();
+
+        assert_eq!(value["type"], "response.create");
+        assert_eq!(value["model"], "gpt-test");
+        assert_eq!(value["stream"], true);
     }
 
     #[test]
