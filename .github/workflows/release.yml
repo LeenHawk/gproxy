@@ -296,7 +296,7 @@ jobs:
       - name: Publish binary to ${{ env.PUBLISH_TAG }}
         # The signed manifest references only the supported self-update triples,
         # but the rolling staging release page should expose every native build.
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.PUBLISH_TAG }}
           files: |
@@ -371,7 +371,7 @@ jobs:
           done
 
       - name: Attach manifest to ${{ env.PUBLISH_TAG }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.PUBLISH_TAG }}
           files: manifest.json
@@ -458,7 +458,7 @@ jobs:
 
       - name: Attach to release
         if: ${{ github.event_name == 'release' }}
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: edge-dist/*
 
