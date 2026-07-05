@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
-use js_sys::Uint8Array;
+use js_sys::{Array, Uint8Array};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Response, ResponseInit};
@@ -267,6 +267,47 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
     }
 }
 
+/// Edge host hook for downstream Responses WebSocket frames.
+///
+/// Platform JS owns the WebSocket upgrade and calls this once per inbound
+/// message. The frame is converted to an internal streaming `POST /v1/responses`
+/// request and executed through the shared pipeline; returned array items are
+/// JSON text messages to send on the WebSocket.
+#[wasm_bindgen]
+pub async fn responses_websocket_frame(
+    req: web_sys::Request,
+    frame: String,
+) -> Result<Array, JsValue> {
+    let Some(state) = STATE.get() else {
+        return Ok(messages_to_js_array(vec![
+            crate::http::responses_ws::WsFrameError::plain(
+                ::http::StatusCode::SERVICE_UNAVAILABLE,
+                "GPROXY edge not initialised: call init() first",
+            )
+            .to_frame(),
+        ]));
+    };
+
+    refresh_snapshot_if_stale(state).await;
+
+    let parts = ws_request_metadata_to_parts(&req)?;
+    let path = parts.uri.path().to_string();
+    if !crate::http::responses_ws::is_responses_websocket_path(&path) {
+        return Ok(messages_to_js_array(vec![
+            crate::http::responses_ws::WsFrameError::plain(
+                ::http::StatusCode::NOT_FOUND,
+                "unsupported path",
+            )
+            .to_frame(),
+        ]));
+    }
+    let scoped = crate::http::responses_ws::is_scoped_responses_websocket_path(&path);
+    let base = crate::http::responses_ws::ResponsesWsRequestBase::from_parts(&parts);
+    let messages =
+        crate::http::responses_ws::execute_frame_collect(state, &base, scoped, &frame).await;
+    Ok(messages_to_js_array(messages))
+}
+
 /// Build a 503 (init-not-called) plain-text response.
 fn service_unavailable(msg: &str) -> Result<Response, JsValue> {
     text_response(503, "text/plain", msg.as_bytes())
@@ -429,15 +470,31 @@ pub(super) fn js_response(
 async fn ws_request_to_parts(
     req: web_sys::Request,
 ) -> Result<(::http::request::Parts, Bytes), JsValue> {
-    let method = Method::from_bytes(req.method().as_bytes()).map_err(js_err)?;
-    let uri: Uri = req.url().parse().map_err(js_err)?;
-
     // Read body via array_buffer.
     let body_bytes: Bytes = {
         let buf_promise = req.array_buffer().map_err(js_err)?;
         let buf_val = JsFuture::from(buf_promise).await.map_err(js_err)?;
         Uint8Array::new(&buf_val).to_vec().into()
     };
+
+    let (parts, _) = request_builder_for(&req)?
+        .body(())
+        .map_err(js_err)?
+        .into_parts();
+    Ok((parts, body_bytes))
+}
+
+fn ws_request_metadata_to_parts(req: &web_sys::Request) -> Result<::http::request::Parts, JsValue> {
+    let (parts, _) = request_builder_for(req)?
+        .body(())
+        .map_err(js_err)?
+        .into_parts();
+    Ok(parts)
+}
+
+fn request_builder_for(req: &web_sys::Request) -> Result<::http::request::Builder, JsValue> {
+    let method = Method::from_bytes(req.method().as_bytes()).map_err(js_err)?;
+    let uri: Uri = req.url().parse().map_err(js_err)?;
 
     // Copy headers; skip empty/unparseable names so a bad header can't poison
     // the whole builder.
@@ -458,6 +515,13 @@ async fn ws_request_to_parts(
         }
     }
 
-    let (parts, _) = builder.body(()).map_err(js_err)?.into_parts();
-    Ok((parts, body_bytes))
+    Ok(builder)
+}
+
+fn messages_to_js_array(messages: Vec<String>) -> Array {
+    let out = Array::new();
+    for message in messages {
+        out.push(&JsValue::from_str(&message));
+    }
+    out
 }

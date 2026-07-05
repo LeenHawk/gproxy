@@ -58,7 +58,7 @@ dashmap = "6"
 
 # ── native-only ───────────────────────────────────────────────────────────────
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = { version = "0.8", features = ["http2", "json"] }
+axum = { version = "0.8", features = ["http2", "json", "ws"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
 # §16.2 overload protection: bounded in-flight concurrency + load-shed → 503.
 tower = { version = "0.5", default-features = false, features = ["util", "limit", "load-shed"] }

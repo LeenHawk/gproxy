@@ -4,6 +4,7 @@
 //! - [`edge`] — inbound WinterCG `fetch` entry (wasm)
 
 pub mod client;
+pub(crate) mod responses_ws;
 pub mod server;
 
 // Cross-target admin/portal dispatcher: compiled into the wasm edge worker (it
