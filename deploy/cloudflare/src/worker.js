@@ -37,6 +37,7 @@ import wasmModule from "./_lib/gproxy_bg.wasm";
 import initWasm, {
   fetch as wasmFetch,
   init as gproxyInit,
+  responses_websocket_frame as wasmResponsesWebSocketFrame,
 } from "./_lib/gproxy.js";
 
 function reqEnv(env, name) {
@@ -105,6 +106,67 @@ function redirectToConsole(request) {
   return Response.redirect(url.toString(), 308);
 }
 
+function isResponsesWebSocketPath(pathname) {
+  if (pathname === "/v1/responses") {
+    return true;
+  }
+  const parts = pathname.split("/").filter(Boolean);
+  return (
+    parts.length === 3 &&
+    parts[1] === "v1" &&
+    parts[2] === "responses" &&
+    !["v1", "v1beta", "console"].includes(parts[0])
+  );
+}
+
+function isWebSocketRequest(request) {
+  return request.headers.get("upgrade")?.toLowerCase() === "websocket";
+}
+
+function websocketErrorFrame(status, message) {
+  return JSON.stringify({
+    type: "error",
+    status,
+    status_code: status,
+    error: { message, type: "gproxy_error" },
+  });
+}
+
+async function serveResponsesWebSocket(request) {
+  const pair = new WebSocketPair();
+  const [client, server] = Object.values(pair);
+  const decoder = new TextDecoder();
+  let chain = Promise.resolve();
+
+  server.accept();
+  server.addEventListener("message", (event) => {
+    chain = chain
+      .then(async () => {
+        const frame =
+          typeof event.data === "string" ? event.data : decoder.decode(event.data);
+        const messages = await wasmResponsesWebSocketFrame(request, frame);
+        for (const message of messages) {
+          server.send(message);
+        }
+      })
+      .catch((err) => {
+        console.error("responses websocket frame failed", err);
+        try {
+          server.send(websocketErrorFrame(500, "websocket frame failed"));
+        } catch (_) {
+          try {
+            server.close(1011, "websocket frame failed");
+          } catch (_) {}
+        }
+      });
+  });
+  server.addEventListener("error", (event) => {
+    console.error("responses websocket error", event.error ?? event);
+  });
+
+  return new Response(null, { status: 101, webSocket: client });
+}
+
 async function serveConsole(request, env) {
   if (!env.ASSETS) {
     return new Response("console assets not bundled", {
@@ -155,6 +217,9 @@ export default {
     }
 
     await ensureReady(env);
+    if (isWebSocketRequest(request) && isResponsesWebSocketPath(path)) {
+      return serveResponsesWebSocket(request);
+    }
     // The wasm router matches bare paths (`/healthz`, `/version`); the worker
     // receives the original request URL unchanged, so paths pass straight through.
     return wasmFetch(request);
