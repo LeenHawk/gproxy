@@ -30,6 +30,12 @@ import { Route as PortalAccountUsageIndexRouteImport } from './routes/_portal/ac
 import { Route as PortalAccountSecurityIndexRouteImport } from './routes/_portal/account/security/index'
 import { Route as PortalAccountLimitsIndexRouteImport } from './routes/_portal/account/limits/index'
 import { Route as PortalAccountKeysIndexRouteImport } from './routes/_portal/account/keys/index'
+import { Route as AppProvidersProviderIdIndexRouteImport } from './routes/_app/providers/$providerId/index'
+import { Route as AppProvidersProviderIdSettingsRouteImport } from './routes/_app/providers/$providerId/settings'
+import { Route as AppProvidersProviderIdRuleSetsRouteImport } from './routes/_app/providers/$providerId/rule-sets'
+import { Route as AppProvidersProviderIdRoutingRulesRouteImport } from './routes/_app/providers/$providerId/routing-rules'
+import { Route as AppProvidersProviderIdModelsRouteImport } from './routes/_app/providers/$providerId/models'
+import { Route as AppProvidersProviderIdCredentialsRouteImport } from './routes/_app/providers/$providerId/credentials'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -136,12 +142,48 @@ const PortalAccountKeysIndexRoute = PortalAccountKeysIndexRouteImport.update({
   path: '/account/keys/',
   getParentRoute: () => PortalRoute,
 } as any)
+const AppProvidersProviderIdIndexRoute =
+  AppProvidersProviderIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdSettingsRoute =
+  AppProvidersProviderIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdRuleSetsRoute =
+  AppProvidersProviderIdRuleSetsRouteImport.update({
+    id: '/rule-sets',
+    path: '/rule-sets',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdRoutingRulesRoute =
+  AppProvidersProviderIdRoutingRulesRouteImport.update({
+    id: '/routing-rules',
+    path: '/routing-rules',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdModelsRoute =
+  AppProvidersProviderIdModelsRouteImport.update({
+    id: '/models',
+    path: '/models',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
+const AppProvidersProviderIdCredentialsRoute =
+  AppProvidersProviderIdCredentialsRouteImport.update({
+    id: '/credentials',
+    path: '/credentials',
+    getParentRoute: () => AppProvidersProviderIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/orgs/$orgId': typeof AppOrgsOrgIdRoute
-  '/providers/$providerId': typeof AppProvidersProviderIdRoute
+  '/providers/$providerId': typeof AppProvidersProviderIdRouteWithChildren
   '/routes/$routeId': typeof AppRoutesRouteIdRoute
   '/rules/$ruleSetId': typeof AppRulesRuleSetIdRoute
   '/users/$userId': typeof AppUsersUserIdRoute
@@ -153,6 +195,12 @@ export interface FileRoutesByFullPath {
   '/update/': typeof AppUpdateIndexRoute
   '/usage/': typeof AppUsageIndexRoute
   '/users/': typeof AppUsersIndexRoute
+  '/providers/$providerId/credentials': typeof AppProvidersProviderIdCredentialsRoute
+  '/providers/$providerId/models': typeof AppProvidersProviderIdModelsRoute
+  '/providers/$providerId/routing-rules': typeof AppProvidersProviderIdRoutingRulesRoute
+  '/providers/$providerId/rule-sets': typeof AppProvidersProviderIdRuleSetsRoute
+  '/providers/$providerId/settings': typeof AppProvidersProviderIdSettingsRoute
+  '/providers/$providerId/': typeof AppProvidersProviderIdIndexRoute
   '/account/keys/': typeof PortalAccountKeysIndexRoute
   '/account/limits/': typeof PortalAccountLimitsIndexRoute
   '/account/security/': typeof PortalAccountSecurityIndexRoute
@@ -162,7 +210,6 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/orgs/$orgId': typeof AppOrgsOrgIdRoute
-  '/providers/$providerId': typeof AppProvidersProviderIdRoute
   '/routes/$routeId': typeof AppRoutesRouteIdRoute
   '/rules/$ruleSetId': typeof AppRulesRuleSetIdRoute
   '/users/$userId': typeof AppUsersUserIdRoute
@@ -174,6 +221,12 @@ export interface FileRoutesByTo {
   '/update': typeof AppUpdateIndexRoute
   '/usage': typeof AppUsageIndexRoute
   '/users': typeof AppUsersIndexRoute
+  '/providers/$providerId/credentials': typeof AppProvidersProviderIdCredentialsRoute
+  '/providers/$providerId/models': typeof AppProvidersProviderIdModelsRoute
+  '/providers/$providerId/routing-rules': typeof AppProvidersProviderIdRoutingRulesRoute
+  '/providers/$providerId/rule-sets': typeof AppProvidersProviderIdRuleSetsRoute
+  '/providers/$providerId/settings': typeof AppProvidersProviderIdSettingsRoute
+  '/providers/$providerId': typeof AppProvidersProviderIdIndexRoute
   '/account/keys': typeof PortalAccountKeysIndexRoute
   '/account/limits': typeof PortalAccountLimitsIndexRoute
   '/account/security': typeof PortalAccountSecurityIndexRoute
@@ -186,7 +239,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_app/': typeof AppIndexRoute
   '/_app/orgs/$orgId': typeof AppOrgsOrgIdRoute
-  '/_app/providers/$providerId': typeof AppProvidersProviderIdRoute
+  '/_app/providers/$providerId': typeof AppProvidersProviderIdRouteWithChildren
   '/_app/routes/$routeId': typeof AppRoutesRouteIdRoute
   '/_app/rules/$ruleSetId': typeof AppRulesRuleSetIdRoute
   '/_app/users/$userId': typeof AppUsersUserIdRoute
@@ -198,6 +251,12 @@ export interface FileRoutesById {
   '/_app/update/': typeof AppUpdateIndexRoute
   '/_app/usage/': typeof AppUsageIndexRoute
   '/_app/users/': typeof AppUsersIndexRoute
+  '/_app/providers/$providerId/credentials': typeof AppProvidersProviderIdCredentialsRoute
+  '/_app/providers/$providerId/models': typeof AppProvidersProviderIdModelsRoute
+  '/_app/providers/$providerId/routing-rules': typeof AppProvidersProviderIdRoutingRulesRoute
+  '/_app/providers/$providerId/rule-sets': typeof AppProvidersProviderIdRuleSetsRoute
+  '/_app/providers/$providerId/settings': typeof AppProvidersProviderIdSettingsRoute
+  '/_app/providers/$providerId/': typeof AppProvidersProviderIdIndexRoute
   '/_portal/account/keys/': typeof PortalAccountKeysIndexRoute
   '/_portal/account/limits/': typeof PortalAccountLimitsIndexRoute
   '/_portal/account/security/': typeof PortalAccountSecurityIndexRoute
@@ -221,6 +280,12 @@ export interface FileRouteTypes {
     | '/update/'
     | '/usage/'
     | '/users/'
+    | '/providers/$providerId/credentials'
+    | '/providers/$providerId/models'
+    | '/providers/$providerId/routing-rules'
+    | '/providers/$providerId/rule-sets'
+    | '/providers/$providerId/settings'
+    | '/providers/$providerId/'
     | '/account/keys/'
     | '/account/limits/'
     | '/account/security/'
@@ -230,7 +295,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/orgs/$orgId'
-    | '/providers/$providerId'
     | '/routes/$routeId'
     | '/rules/$ruleSetId'
     | '/users/$userId'
@@ -242,6 +306,12 @@ export interface FileRouteTypes {
     | '/update'
     | '/usage'
     | '/users'
+    | '/providers/$providerId/credentials'
+    | '/providers/$providerId/models'
+    | '/providers/$providerId/routing-rules'
+    | '/providers/$providerId/rule-sets'
+    | '/providers/$providerId/settings'
+    | '/providers/$providerId'
     | '/account/keys'
     | '/account/limits'
     | '/account/security'
@@ -265,6 +335,12 @@ export interface FileRouteTypes {
     | '/_app/update/'
     | '/_app/usage/'
     | '/_app/users/'
+    | '/_app/providers/$providerId/credentials'
+    | '/_app/providers/$providerId/models'
+    | '/_app/providers/$providerId/routing-rules'
+    | '/_app/providers/$providerId/rule-sets'
+    | '/_app/providers/$providerId/settings'
+    | '/_app/providers/$providerId/'
     | '/_portal/account/keys/'
     | '/_portal/account/limits/'
     | '/_portal/account/security/'
@@ -426,13 +502,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalAccountKeysIndexRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/_app/providers/$providerId/': {
+      id: '/_app/providers/$providerId/'
+      path: '/'
+      fullPath: '/providers/$providerId/'
+      preLoaderRoute: typeof AppProvidersProviderIdIndexRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/settings': {
+      id: '/_app/providers/$providerId/settings'
+      path: '/settings'
+      fullPath: '/providers/$providerId/settings'
+      preLoaderRoute: typeof AppProvidersProviderIdSettingsRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/rule-sets': {
+      id: '/_app/providers/$providerId/rule-sets'
+      path: '/rule-sets'
+      fullPath: '/providers/$providerId/rule-sets'
+      preLoaderRoute: typeof AppProvidersProviderIdRuleSetsRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/routing-rules': {
+      id: '/_app/providers/$providerId/routing-rules'
+      path: '/routing-rules'
+      fullPath: '/providers/$providerId/routing-rules'
+      preLoaderRoute: typeof AppProvidersProviderIdRoutingRulesRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/models': {
+      id: '/_app/providers/$providerId/models'
+      path: '/models'
+      fullPath: '/providers/$providerId/models'
+      preLoaderRoute: typeof AppProvidersProviderIdModelsRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
+    '/_app/providers/$providerId/credentials': {
+      id: '/_app/providers/$providerId/credentials'
+      path: '/credentials'
+      fullPath: '/providers/$providerId/credentials'
+      preLoaderRoute: typeof AppProvidersProviderIdCredentialsRouteImport
+      parentRoute: typeof AppProvidersProviderIdRoute
+    }
   }
 }
+
+interface AppProvidersProviderIdRouteChildren {
+  AppProvidersProviderIdCredentialsRoute: typeof AppProvidersProviderIdCredentialsRoute
+  AppProvidersProviderIdModelsRoute: typeof AppProvidersProviderIdModelsRoute
+  AppProvidersProviderIdRoutingRulesRoute: typeof AppProvidersProviderIdRoutingRulesRoute
+  AppProvidersProviderIdRuleSetsRoute: typeof AppProvidersProviderIdRuleSetsRoute
+  AppProvidersProviderIdSettingsRoute: typeof AppProvidersProviderIdSettingsRoute
+  AppProvidersProviderIdIndexRoute: typeof AppProvidersProviderIdIndexRoute
+}
+
+const AppProvidersProviderIdRouteChildren: AppProvidersProviderIdRouteChildren =
+  {
+    AppProvidersProviderIdCredentialsRoute:
+      AppProvidersProviderIdCredentialsRoute,
+    AppProvidersProviderIdModelsRoute: AppProvidersProviderIdModelsRoute,
+    AppProvidersProviderIdRoutingRulesRoute:
+      AppProvidersProviderIdRoutingRulesRoute,
+    AppProvidersProviderIdRuleSetsRoute: AppProvidersProviderIdRuleSetsRoute,
+    AppProvidersProviderIdSettingsRoute: AppProvidersProviderIdSettingsRoute,
+    AppProvidersProviderIdIndexRoute: AppProvidersProviderIdIndexRoute,
+  }
+
+const AppProvidersProviderIdRouteWithChildren =
+  AppProvidersProviderIdRoute._addFileChildren(
+    AppProvidersProviderIdRouteChildren,
+  )
 
 interface AppRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
   AppOrgsOrgIdRoute: typeof AppOrgsOrgIdRoute
-  AppProvidersProviderIdRoute: typeof AppProvidersProviderIdRoute
+  AppProvidersProviderIdRoute: typeof AppProvidersProviderIdRouteWithChildren
   AppRoutesRouteIdRoute: typeof AppRoutesRouteIdRoute
   AppRulesRuleSetIdRoute: typeof AppRulesRuleSetIdRoute
   AppUsersUserIdRoute: typeof AppUsersUserIdRoute
@@ -449,7 +593,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppIndexRoute: AppIndexRoute,
   AppOrgsOrgIdRoute: AppOrgsOrgIdRoute,
-  AppProvidersProviderIdRoute: AppProvidersProviderIdRoute,
+  AppProvidersProviderIdRoute: AppProvidersProviderIdRouteWithChildren,
   AppRoutesRouteIdRoute: AppRoutesRouteIdRoute,
   AppRulesRuleSetIdRoute: AppRulesRuleSetIdRoute,
   AppUsersUserIdRoute: AppUsersUserIdRoute,
