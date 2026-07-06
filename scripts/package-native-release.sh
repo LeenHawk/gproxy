@@ -7,6 +7,7 @@ target_os="${TARGET_OS:?missing TARGET_OS}"
 artifact="${ARTIFACT_NAME:?missing ARTIFACT_NAME}"
 binary="target/$target/release/gproxy"
 android_package_base="${ANDROID_APK_PACKAGE_BASE:-io.github.leenhawk.gproxy}"
+android_app_label="${ANDROID_APP_LABEL:-GPROXY}"
 package_dir=""
 output_dir="$PWD"
 
@@ -127,6 +128,33 @@ find_d8() {
   printf '%s\n' "$path"
 }
 
+require_android_release_signing() {
+  case "${ANDROID_REQUIRE_SIGNING:-}" in
+    1|true|TRUE|yes|YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_android_package_name() {
+  local package_name="$1"
+  if [[ ! "$package_name" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]]; then
+    echo "invalid Android package name: $package_name" >&2
+    exit 1
+  fi
+}
+
+android_package_name_for_target() {
+  local package_name="${ANDROID_APK_PACKAGE_NAME:-}"
+  if [ -z "$package_name" ]; then
+    package_name="$android_package_base"
+    if [ "${ANDROID_APK_PER_ABI_PACKAGE:-0}" = "1" ]; then
+      package_name="$package_name.$(android_package_suffix_for_target "$1")"
+    fi
+  fi
+  validate_android_package_name "$package_name"
+  printf '%s\n' "$package_name"
+}
+
 android_abi_for_target() {
   case "$1" in
     aarch64-linux-android) printf '%s\n' "arm64-v8a" ;;
@@ -143,6 +171,62 @@ android_package_suffix_for_target() {
   esac
 }
 
+android_cargo_version() {
+  awk '
+    /^\[package\]/ { in_package = 1; next }
+    /^\[/ && in_package { exit }
+    in_package && $1 == "version" {
+      gsub(/"/, "", $3)
+      print $3
+      exit
+    }
+  ' Cargo.toml
+}
+
+android_version_name() {
+  local version_name="${ANDROID_VERSION_NAME:-}"
+  if [ -z "$version_name" ]; then
+    version_name="$(android_cargo_version)"
+  fi
+  version_name="${version_name#v}"
+  if [ -z "$version_name" ]; then
+    echo "could not determine Android versionName; set ANDROID_VERSION_NAME" >&2
+    exit 1
+  fi
+  printf '%s\n' "$version_name"
+}
+
+android_version_code_from_name() {
+  local version_name="$1"
+  if [[ "$version_name" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+    printf '%s\n' "$((10#${BASH_REMATCH[1]} * 1000000 + 10#${BASH_REMATCH[2]} * 1000 + 10#${BASH_REMATCH[3]}))"
+  else
+    printf '%s\n' "1"
+  fi
+}
+
+android_version_code() {
+  local version_name="$1"
+  local version_code="${ANDROID_VERSION_CODE:-}"
+  if [ -z "$version_code" ]; then
+    version_code="$(android_version_code_from_name "$version_name")"
+  fi
+  if [[ ! "$version_code" =~ ^[0-9]+$ ]] || [ "$version_code" -lt 1 ] || [ "$version_code" -gt 2100000000 ]; then
+    echo "invalid Android versionCode: $version_code" >&2
+    exit 1
+  fi
+  printf '%s\n' "$version_code"
+}
+
+xml_escape() {
+  local value="$1"
+  value="${value//&/&amp;}"
+  value="${value//</&lt;}"
+  value="${value//>/&gt;}"
+  value="${value//\"/&quot;}"
+  printf '%s\n' "$value"
+}
+
 prepare_android_keystore() {
   local work="$1"
   local keystore="$work/signing.keystore"
@@ -154,6 +238,22 @@ prepare_android_keystore() {
     return 0
   fi
 
+  if [ -n "${ANDROID_SIGNING_KEYSTORE:-}" ]; then
+    : "${ANDROID_SIGNING_KEYSTORE_PASSWORD:?missing ANDROID_SIGNING_KEYSTORE_PASSWORD}"
+    if [ ! -f "$ANDROID_SIGNING_KEYSTORE" ]; then
+      echo "missing Android signing keystore: $ANDROID_SIGNING_KEYSTORE" >&2
+      exit 1
+    fi
+    printf '%s\n' "$ANDROID_SIGNING_KEYSTORE"
+    return 0
+  fi
+
+  if require_android_release_signing; then
+    echo "missing Android release signing key; set ANDROID_SIGNING_KEYSTORE_B64 or ANDROID_SIGNING_KEYSTORE" >&2
+    exit 1
+  fi
+
+  echo "warning: signing Android APK with generated debug key" >&2
   keytool -genkeypair \
     -keystore "$keystore" \
     -storepass android \
@@ -164,6 +264,54 @@ prepare_android_keystore() {
     -validity 10000 \
     -dname "CN=Android Debug,O=Android,C=US" >/dev/null
   printf '%s\n' "$keystore"
+}
+
+find_android_icon_source() {
+  local candidate
+  for candidate in \
+    "${ANDROID_ICON_SOURCE:-}" \
+    "console/public/favicon-96x96.png" \
+    "docs/public/favicon-96x96.png" \
+    "assets/console/favicon-96x96.png"; do
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  echo "could not locate Android icon source; set ANDROID_ICON_SOURCE" >&2
+  exit 1
+}
+
+resize_android_icon() {
+  local source="$1"
+  local size="$2"
+  local out="$3"
+  if command -v magick >/dev/null 2>&1; then
+    magick "$source" -resize "${size}x${size}" "$out"
+  elif command -v convert >/dev/null 2>&1; then
+    convert "$source" -resize "${size}x${size}" "$out"
+  else
+    cp "$source" "$out"
+  fi
+}
+
+write_android_icons() {
+  local res_dir="$1"
+  local source
+  source="$(find_android_icon_source)"
+
+  local spec density size
+  for spec in \
+    "mipmap-mdpi:48" \
+    "mipmap-hdpi:72" \
+    "mipmap-xhdpi:96" \
+    "mipmap-xxhdpi:144" \
+    "mipmap-xxxhdpi:192"; do
+    density="${spec%%:*}"
+    size="${spec##*:}"
+    mkdir -p "$res_dir/$density"
+    resize_android_icon "$source" "$size" "$res_dir/$density/ic_launcher.png"
+  done
 }
 
 write_android_activity() {
@@ -433,7 +581,7 @@ sign_android_apk() {
   local keypass="${ANDROID_SIGNING_KEY_PASSWORD:-}"
   local alias="${ANDROID_SIGNING_KEY_ALIAS:-}"
   local signer_args=()
-  if [ -z "$alias" ] && [ -z "${ANDROID_SIGNING_KEYSTORE_B64:-}" ]; then
+  if [ -z "$alias" ] && [ -z "${ANDROID_SIGNING_KEYSTORE_B64:-}" ] && [ -z "${ANDROID_SIGNING_KEYSTORE:-}" ]; then
     alias="androiddebugkey"
     keypass="android"
   fi
@@ -457,12 +605,14 @@ sign_android_apk() {
 package_android_apk() {
   local min_sdk="${ANDROID_MIN_SDK:-21}"
   local target_sdk="${ANDROID_TARGET_SDK:-28}"
-  local version_code="${ANDROID_VERSION_CODE:-1}"
-  local version_name="${ANDROID_VERSION_NAME:-0.0.0}"
-  local suffix abi package_name sdk_root android_jar aapt zipalign apksigner d8 work
-  suffix="$(android_package_suffix_for_target "$target")"
+  local version_name version_code app_label_xml version_name_xml
+  version_name="$(android_version_name)"
+  version_code="$(android_version_code "$version_name")"
+  app_label_xml="$(xml_escape "$android_app_label")"
+  version_name_xml="$(xml_escape "$version_name")"
+  local abi package_name sdk_root android_jar aapt zipalign apksigner d8 work
   abi="$(android_abi_for_target "$target")"
-  package_name="$android_package_base.$suffix"
+  package_name="$(android_package_name_for_target "$target")"
   sdk_root="$(find_android_sdk_root)"
   android_jar="$(find_android_platform_jar "$sdk_root")"
   aapt="$(find_android_build_tool "$sdk_root" aapt)"
@@ -475,11 +625,12 @@ package_android_apk() {
   mkdir -p "$work/assets/gproxy" "$work/native/lib/$abi" "$work/res/values"
   cp "$package_dir/gproxy" "$package_dir/gproxy.bin" "$package_dir/libc++_shared.so" README.md "$work/assets/gproxy/"
   cp "$package_dir/libc++_shared.so" "$work/native/lib/$abi/libc++_shared.so"
+  write_android_icons "$work/res"
   compile_android_activity "$work" "$package_name" "$android_jar" "$d8" "$min_sdk"
 
   cat > "$work/res/values/strings.xml" <<EOF
 <resources>
-    <string name="app_name">GPROXY</string>
+    <string name="app_name">$app_label_xml</string>
 </resources>
 EOF
 
@@ -487,11 +638,13 @@ EOF
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="$package_name"
     android:versionCode="$version_code"
-    android:versionName="$version_name">
+    android:versionName="$version_name_xml">
     <uses-sdk android:minSdkVersion="$min_sdk" android:targetSdkVersion="$target_sdk" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:extractNativeLibs="true"
         android:allowBackup="false"
