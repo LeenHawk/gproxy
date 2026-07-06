@@ -20,7 +20,8 @@ pub struct DbPersistence {
 impl DbPersistence {
     /// Connect to the database identified by `dsn` and ensure the schema exists.
     pub async fn connect(dsn: &str) -> anyhow::Result<Self> {
-        let opts = ConnectOptions::new(dsn.to_string());
+        let mut opts = ConnectOptions::new(dsn.to_string());
+        opts.sqlx_logging_level(tracing::log::LevelFilter::Warn);
         let conn = Database::connect(opts)
             .await
             .map_err(|e| anyhow::anyhow!("db connect failed: {e}"))?;
