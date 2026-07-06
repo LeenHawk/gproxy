@@ -27,7 +27,8 @@ chmod +x ./gproxy
 
 Release archives are built by the v2 release workflow for Linux, macOS, Windows,
 Android, x86_64, and aarch64 targets. Linux release binaries are also used as
-the input to the Docker image.
+the input to the Docker image. Android releases also include per-ABI APKs for
+users who prefer an installable package over the raw executable archive.
 
 ## Docker Image
 
