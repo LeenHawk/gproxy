@@ -18,6 +18,11 @@ pub fn request(
     input: openai::ChatCompletionRequest,
     _: &TransformContext,
 ) -> Result<claude::CreateMessageRequestBody, TransformError> {
+    // Resolved up front: the pipeline patches the upstream model into the body
+    // BEFORE this transform, so model-conditional conversion sees the real
+    // target model, not the inbound alias.
+    let model = common::openai_model_string(input.model);
+    let mid_conv_supported = common::supports_mid_conv_system(&model);
     let mut messages = Vec::new();
     let mut system_blocks = Vec::new();
     let mut seen_non_system = false;
@@ -31,14 +36,23 @@ pub fn request(
                 if text.is_empty() {
                     continue;
                 }
-                if seen_non_system {
+                if !seen_non_system {
+                    system_blocks.push(text_block(text));
+                } else if mid_conv_supported {
                     push_claude_block(
                         &mut messages,
                         claude::MessageRole::Known(claude::MessageRoleKnown::User),
                         mid_conversation_system_block(text),
                     );
                 } else {
-                    system_blocks.push(text_block(text));
+                    // Pre-Opus-4.8 models reject mid_conv_system ("role
+                    // 'system' is not supported on this model") — downgrade to
+                    // a plain assistant turn.
+                    push_claude_block(
+                        &mut messages,
+                        claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
+                        text_block(text),
+                    );
                 }
             }
             openai::ChatCompletionMessageParam::User { content, .. } => {
@@ -144,7 +158,7 @@ pub fn request(
 
     #[allow(deprecated)]
     Ok(claude::CreateMessageRequestBody {
-        model: common::openai_model_string(input.model).into(),
+        model: model.into(),
         messages,
         max_tokens,
         cache_control: None,
@@ -202,5 +216,61 @@ fn openai_service_tier_to_claude_speed(
     match service_tier {
         Some(openai::ServiceTier::Priority) => Some(claude::Speed::Known(claude::SpeedKnown::Fast)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    /// Regression: pre-Opus-4.8 models reject `mid_conv_system` ("role 'system'
+    /// is not supported on this model") — mid-conversation system messages must
+    /// become assistant turns there, and stay `mid_conv_system` on 4.8+.
+    #[test]
+    fn mid_conversation_system_downgrades_for_pre_opus_48() {
+        let convert = |model: &str| {
+            let input: openai::ChatCompletionRequest = serde_json::from_value(serde_json::json!({
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "sys"},
+                    {"role": "user", "content": "hi"},
+                    {"role": "system", "content": "mid"},
+                ],
+            }))
+            .unwrap();
+            let ctx = TransformContext::new(
+                OperationKey::content_generation(
+                    Operation::GenerateContent,
+                    ContentGenerationKind::OpenAiChatCompletions,
+                ),
+                OperationKey::content_generation(
+                    Operation::GenerateContent,
+                    ContentGenerationKind::ClaudeMessages,
+                ),
+            );
+            request(input, &ctx).unwrap()
+        };
+
+        let old = convert("claude-sonnet-4-5");
+        let last = old.messages.last().unwrap();
+        assert_eq!(
+            last.role,
+            claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
+        );
+
+        let new = convert("claude-opus-4-8");
+        let last = new.messages.last().unwrap();
+        assert_eq!(
+            last.role,
+            claude::MessageRole::Known(claude::MessageRoleKnown::User)
+        );
+        let claude::StringOrArray::Array(blocks) = &last.content else {
+            panic!("expected block content");
+        };
+        assert!(matches!(
+            blocks.last().unwrap(),
+            claude::ContentBlockParam::MidConversationSystem(_)
+        ));
     }
 }

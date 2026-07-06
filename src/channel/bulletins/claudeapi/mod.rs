@@ -25,7 +25,8 @@ fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://api.anthropic.com"),
     forward_headers: &["anthropic-beta"],
-    forward_query: &[],
+    // list-models pagination (claude wire)
+    forward_query: &["limit", "after_id", "before_id"],
 };
 
 pub struct ClaudeApiChannel;

@@ -4,6 +4,7 @@ use super::tools::typed_item_to_claude_message;
 
 pub(super) fn openai_input_to_claude_messages(
     input: Option<openai::ResponseInput>,
+    system_role: claude::MessageRole,
 ) -> Vec<claude::MessageParam> {
     match input {
         Some(openai::ResponseInput::Text(text)) => text_to_claude_message(
@@ -14,15 +15,20 @@ pub(super) fn openai_input_to_claude_messages(
         .collect(),
         Some(openai::ResponseInput::Items(items)) => items
             .into_iter()
-            .filter_map(openai_item_to_claude_message)
+            .filter_map(|item| openai_item_to_claude_message(item, &system_role))
             .collect(),
         None => Vec::new(),
     }
 }
 
-fn openai_item_to_claude_message(item: openai::ResponseItem) -> Option<claude::MessageParam> {
+fn openai_item_to_claude_message(
+    item: openai::ResponseItem,
+    system_role: &claude::MessageRole,
+) -> Option<claude::MessageParam> {
     match item {
-        openai::ResponseItem::Message(message) => openai_message_to_claude_message(message),
+        openai::ResponseItem::Message(message) => {
+            openai_message_to_claude_message(message, system_role)
+        }
         openai::ResponseItem::Typed(openai::TypedResponseItem::Compaction {
             encrypted_content,
             ..
@@ -45,15 +51,16 @@ fn openai_item_to_claude_message(item: openai::ResponseItem) -> Option<claude::M
 
 fn openai_message_to_claude_message(
     message: openai::ResponseMessageItem,
+    system_role: &claude::MessageRole,
 ) -> Option<claude::MessageParam> {
     match message {
         openai::ResponseMessageItem::EasyInput(message) => {
-            let role = easy_input_role_to_claude(message.role);
+            let role = easy_input_role_to_claude(message.role, system_role);
             let blocks = easy_input_content_to_blocks(message.content);
             blocks_to_claude_message(role, blocks)
         }
         openai::ResponseMessageItem::Input(message) => {
-            let role = input_role_to_claude(message.role);
+            let role = input_role_to_claude(message.role, system_role);
             let blocks = input_parts_to_blocks(message.content);
             blocks_to_claude_message(role, blocks)
         }
@@ -94,25 +101,29 @@ pub(super) fn blocks_to_claude_message(
     })
 }
 
-fn easy_input_role_to_claude(role: openai::ResponseEasyInputMessageRole) -> claude::MessageRole {
+fn easy_input_role_to_claude(
+    role: openai::ResponseEasyInputMessageRole,
+    system_role: &claude::MessageRole,
+) -> claude::MessageRole {
     match role {
         openai::ResponseEasyInputMessageRole::Assistant => {
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
         }
         openai::ResponseEasyInputMessageRole::System
-        | openai::ResponseEasyInputMessageRole::Developer => {
-            claude::MessageRole::Known(claude::MessageRoleKnown::System)
-        }
+        | openai::ResponseEasyInputMessageRole::Developer => system_role.clone(),
         openai::ResponseEasyInputMessageRole::User => {
             claude::MessageRole::Known(claude::MessageRoleKnown::User)
         }
     }
 }
 
-fn input_role_to_claude(role: openai::ResponseInputMessageRole) -> claude::MessageRole {
+fn input_role_to_claude(
+    role: openai::ResponseInputMessageRole,
+    system_role: &claude::MessageRole,
+) -> claude::MessageRole {
     match role {
         openai::ResponseInputMessageRole::System | openai::ResponseInputMessageRole::Developer => {
-            claude::MessageRole::Known(claude::MessageRoleKnown::System)
+            system_role.clone()
         }
         openai::ResponseInputMessageRole::User => {
             claude::MessageRole::Known(claude::MessageRoleKnown::User)

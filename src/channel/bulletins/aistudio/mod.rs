@@ -11,7 +11,8 @@ use crate::protocol::Provider;
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://generativelanguage.googleapis.com"),
     forward_headers: &[],
-    forward_query: &["alt"],
+    // `alt` (sse) + list-models pagination (gemini wire)
+    forward_query: &["alt", "pageSize", "pageToken"],
 };
 
 pub struct AiStudioChannel;

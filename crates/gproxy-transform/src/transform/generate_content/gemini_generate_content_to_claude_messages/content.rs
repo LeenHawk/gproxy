@@ -9,10 +9,11 @@ pub(super) fn gemini_content_to_claude_system(
 
 pub(super) fn gemini_contents_to_claude_messages(
     contents: Vec<gemini::Content>,
+    system_role: claude::MessageRole,
 ) -> Vec<claude::MessageParam> {
     contents
         .into_iter()
-        .filter_map(gemini_content_to_claude_message)
+        .filter_map(|content| gemini_content_to_claude_message(content, &system_role))
         .collect()
 }
 
@@ -26,14 +27,15 @@ pub(super) fn gemini_content_to_claude_response_blocks(
         .collect()
 }
 
-fn gemini_content_to_claude_message(content: gemini::Content) -> Option<claude::MessageParam> {
+fn gemini_content_to_claude_message(
+    content: gemini::Content,
+    system_role: &claude::MessageRole,
+) -> Option<claude::MessageParam> {
     let role = match content.role {
         Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)) => {
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
         }
-        Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)) => {
-            claude::MessageRole::Known(claude::MessageRoleKnown::System)
-        }
+        Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::System)) => system_role.clone(),
         Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Function)) => {
             claude::MessageRole::Known(claude::MessageRoleKnown::User)
         }
