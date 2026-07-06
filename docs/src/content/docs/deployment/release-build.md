@@ -49,10 +49,11 @@ cargo build --release --bin gproxy --target x86_64-unknown-linux-gnu
 ```
 
 The release workflow builds Linux glibc, Linux musl, macOS, Windows, and Android
-targets. Android targets are built with a static CRT
-(`-C target-feature=+crt-static`); the x86_64 Android build also links the NDK
-compiler-rt builtins required by static bionic. It also smoke-checks selected
-binaries with `--help` before packaging.
+targets. Android archives include the NDK `libc++_shared.so` runtime beside a
+small `gproxy` launcher script; the actual ELF binary is packaged as
+`gproxy.bin`. The launcher prepends the archive directory to `LD_LIBRARY_PATH`
+so `./gproxy` can find the bundled C++ runtime after extraction. The workflow
+also smoke-checks selected binaries with `--help` before packaging.
 
 ## Runtime Configuration
 
@@ -87,8 +88,9 @@ cp README.md dist/
 shasum -a 256 gproxy-local.zip > gproxy-local.zip.sha256
 ```
 
-The release workflow may UPX-compress selected Linux and Windows artifacts
-before packaging. It signs macOS artifacts ad hoc with `codesign --sign -`.
+The release workflow may UPX-compress selected Linux, Android, and Windows
+artifacts before packaging. It signs macOS artifacts ad hoc with
+`codesign --sign -`.
 
 ## First Run
 
