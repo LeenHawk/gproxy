@@ -270,8 +270,11 @@ jobs:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
           ARTIFACT_NAME: ${{ matrix.artifact }}
+          ANDROID_APK_PACKAGE_NAME: io.github.leenhawk.gproxy
+          ANDROID_APP_LABEL: GPROXY
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           ANDROID_VERSION_NAME: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          ANDROID_REQUIRE_SIGNING: ${{ github.event_name == 'release' && 'true' || 'false' }}
           ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
           ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}

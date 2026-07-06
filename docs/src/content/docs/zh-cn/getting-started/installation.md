@@ -38,6 +38,10 @@ native server：
 如果填写了 password，launcher 也会传入 `--admin-password`。如果留空，则沿用
 GPROXY 的首次启动随机 admin 密码，并在 app 日志里打印。
 
+Release APK 使用包名 `io.github.leenhawk.gproxy`、app 名称 `GPROXY`，并使用
+Console favicon 作为 launcher 图标。正式发布的 APK 必须使用 GitHub Actions 里配置的
+Android signing secrets 签名。
+
 然后打开：
 
 ```text

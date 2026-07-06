@@ -42,6 +42,10 @@ If the password field is filled, the launcher also passes `--admin-password`.
 If it is left blank, GPROXY uses its normal first-boot random admin password and
 prints it in the app log.
 
+Release APKs use the package name `io.github.leenhawk.gproxy`, app label
+`GPROXY`, and the Console favicon as the launcher icon. Published release APKs
+must be signed with the Android signing secrets configured in GitHub Actions.
+
 Then open:
 
 ```text
