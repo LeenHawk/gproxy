@@ -51,7 +51,8 @@ release workflow 会构建 Linux glibc、Linux musl、macOS、Windows 和 Androi
 目标。Android 压缩包会把 NDK `libc++_shared.so` runtime 一起放进去，同时保留一个
 小的 `gproxy` 启动脚本；真实 ELF 二进制打包为 `gproxy.bin`。启动脚本会把压缩包目录
 加到 `LD_LIBRARY_PATH` 前面，所以用户解压后执行 `./gproxy` 就能找到随包发布的 C++
-runtime。workflow 也会对部分二进制执行 `--help` smoke check。
+runtime。Android target 还会发布按 ABI 拆分的 APK（`arm64-v8a` 和 `x86_64`），里面带
+同一份 native payload。workflow 也会对部分二进制执行 `--help` smoke check。
 
 ## 运行时配置
 
@@ -86,7 +87,8 @@ shasum -a 256 gproxy-local.zip > gproxy-local.zip.sha256
 ```
 
 release workflow 可能会对部分 Linux、Android 和 Windows artifact 做 UPX 压缩。macOS
-artifact 使用 `codesign --sign -` 做 ad hoc 签名。
+artifact 使用 `codesign --sign -` 做 ad hoc 签名。Android APK 在 CI 配置了
+`ANDROID_SIGNING_KEYSTORE_B64` 时使用 release keystore 签名，否则回退到临时 debug key。
 
 ## 首次启动
 

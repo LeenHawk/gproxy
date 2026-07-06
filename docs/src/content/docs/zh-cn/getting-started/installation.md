@@ -24,7 +24,8 @@ chmod +x ./gproxy
 ```
 
 release workflow 会构建 Linux、macOS、Windows、Android，以及 x86_64、aarch64
-目标。Docker 镜像也使用预构建的 Linux 二进制作为输入。
+目标。Docker 镜像也使用预构建的 Linux 二进制作为输入。Android release 也会包含按
+ABI 拆分的 APK，适合想使用可安装包而不是原始 executable 压缩包的用户。
 
 ## Docker 镜像
 

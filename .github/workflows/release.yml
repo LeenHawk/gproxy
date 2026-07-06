@@ -270,6 +270,12 @@ jobs:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
           ARTIFACT_NAME: ${{ matrix.artifact }}
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: |
           bash scripts/package-native-release.sh
 
@@ -291,6 +297,8 @@ jobs:
           path: |
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.zip.sha256
+            ${{ matrix.artifact }}.apk
+            ${{ matrix.artifact }}.apk.sha256
           retention-days: 1
 
       - name: Publish binary to ${{ env.PUBLISH_TAG }}
@@ -302,6 +310,15 @@ jobs:
           files: |
             ${{ matrix.artifact }}.zip
             ${{ matrix.artifact }}.zip.sha256
+
+      - name: Publish Android APK to ${{ env.PUBLISH_TAG }}
+        if: ${{ matrix.os == 'android' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.PUBLISH_TAG }}
+          files: |
+            ${{ matrix.artifact }}.apk
+            ${{ matrix.artifact }}.apk.sha256
 
   manifest:
     name: Sign + publish update manifest
