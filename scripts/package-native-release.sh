@@ -205,6 +205,7 @@ package_android_apk() {
 
   mkdir -p "$work/assets/gproxy" "$work/native/lib/$abi"
   cp dist/gproxy dist/gproxy.bin dist/libc++_shared.so README.md "$work/assets/gproxy/"
+  cp dist/gproxy.bin "$work/native/lib/$abi/libgproxy_exec.so"
   cp dist/libc++_shared.so "$work/native/lib/$abi/libc++_shared.so"
 
   cat > "$work/AndroidManifest.xml" <<EOF
