@@ -15,7 +15,7 @@ GPROXY v2 是一个单 Rust crate，native 产物是名为 `gproxy` 的二进制
 release 二进制。
 
 1. 从 GitHub release 下载对应 OS 和 CPU 的压缩包。
-2. 解压 `gproxy` 或 `gproxy.exe`。
+2. 解压压缩包。Android 上需要把 `gproxy`、`gproxy.bin` 和 `libc++_shared.so` 放在同一目录。
 3. 放到 `PATH` 中，或直接运行。
 
 ```bash

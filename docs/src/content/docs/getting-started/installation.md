@@ -16,7 +16,8 @@ Use a release binary when you want the native server with the embedded console
 and no local Rust or Node toolchain.
 
 1. Download the archive for your OS and CPU from the GitHub release.
-2. Extract `gproxy` or `gproxy.exe`.
+2. Extract the archive. On Android, keep `gproxy`, `gproxy.bin`, and
+   `libc++_shared.so` in the same directory.
 3. Put it somewhere on your `PATH` or run it directly.
 
 ```bash

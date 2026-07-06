@@ -48,9 +48,10 @@ cargo build --release --bin gproxy --target x86_64-unknown-linux-gnu
 ```
 
 release workflow 会构建 Linux glibc、Linux musl、macOS、Windows 和 Android
-目标。Android 目标会使用 static CRT（`-C target-feature=+crt-static`）构建，
-x86_64 Android 会额外链接 static bionic 需要的 NDK compiler-rt builtins，
-并对部分二进制执行 `--help` smoke check。
+目标。Android 压缩包会把 NDK `libc++_shared.so` runtime 一起放进去，同时保留一个
+小的 `gproxy` 启动脚本；真实 ELF 二进制打包为 `gproxy.bin`。启动脚本会把压缩包目录
+加到 `LD_LIBRARY_PATH` 前面，所以用户解压后执行 `./gproxy` 就能找到随包发布的 C++
+runtime。workflow 也会对部分二进制执行 `--help` smoke check。
 
 ## 运行时配置
 
@@ -84,8 +85,8 @@ cp README.md dist/
 shasum -a 256 gproxy-local.zip > gproxy-local.zip.sha256
 ```
 
-release workflow 可能会对部分 Linux 和 Windows artifact 做 UPX 压缩。macOS artifact
-使用 `codesign --sign -` 做 ad hoc 签名。
+release workflow 可能会对部分 Linux、Android 和 Windows artifact 做 UPX 压缩。macOS
+artifact 使用 `codesign --sign -` 做 ad hoc 签名。
 
 ## 首次启动
 

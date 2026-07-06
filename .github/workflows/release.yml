@@ -266,12 +266,12 @@ jobs:
 
       - name: Package zip + sha256 (unix)
         if: ${{ matrix.os != 'windows' }}
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          TARGET_OS: ${{ matrix.os }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
         run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/gproxy dist/gproxy
-          cp README.md dist/
-          (cd dist && zip -9 ../${{ matrix.artifact }}.zip gproxy README.md)
-          shasum -a 256 ${{ matrix.artifact }}.zip > ${{ matrix.artifact }}.zip.sha256
+          bash scripts/package-native-release.sh
 
       - name: Package zip + sha256 (windows)
         if: ${{ matrix.os == 'windows' }}
