@@ -30,12 +30,17 @@ Android, x86_64, and aarch64 targets. Linux release binaries are also used as
 the input to the Docker image. Android releases also include per-ABI APKs for
 users who prefer an installable package over the raw executable archive.
 
-The Android APK includes a minimal launcher UI. Install the matching ABI APK and
-open **GPROXY**. Tap **Start GPROXY** to run the native server with:
+The Android APK includes a minimal launcher UI. Install the matching ABI APK,
+open **GPROXY**, set the admin username/password fields if desired, then tap
+**Start GPROXY** to run the native server with:
 
 ```bash
---host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data
+--host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data --admin-user <username>
 ```
+
+If the password field is filled, the launcher also passes `--admin-password`.
+If it is left blank, GPROXY uses its normal first-boot random admin password and
+prints it in the app log.
 
 Then open:
 
