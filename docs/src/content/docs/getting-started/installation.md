@@ -30,6 +30,29 @@ Android, x86_64, and aarch64 targets. Linux release binaries are also used as
 the input to the Docker image. Android releases also include per-ABI APKs for
 users who prefer an installable package over the raw executable archive.
 
+The Android APK is a shell-oriented package, not a launcher UI. After installing
+the matching ABI APK, run the packaged executable from Termux or `adb shell`:
+
+```bash
+# arm64-v8a devices
+pkg=io.github.leenhawk.gproxy.arm64
+
+# x86_64 emulators
+# pkg=io.github.leenhawk.gproxy.x64
+
+libdir="$(pm dump "$pkg" | sed -n 's/.*nativeLibraryDir=//p' | head -1)"
+LD_LIBRARY_PATH="$libdir" "$libdir/libgproxy_exec.so" --help
+```
+
+Use the same command shape to start the server, for example:
+
+```bash
+LD_LIBRARY_PATH="$libdir" "$libdir/libgproxy_exec.so" \
+  --host 127.0.0.1 \
+  --port 8787 \
+  --data-dir "$HOME/gproxy-data"
+```
+
 ## Docker Image
 
 The published image is `ghcr.io/leenhawk/gproxy`.

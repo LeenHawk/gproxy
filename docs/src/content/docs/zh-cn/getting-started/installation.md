@@ -27,6 +27,29 @@ release workflow 会构建 Linux、macOS、Windows、Android，以及 x86_64、a
 目标。Docker 镜像也使用预构建的 Linux 二进制作为输入。Android release 也会包含按
 ABI 拆分的 APK，适合想使用可安装包而不是原始 executable 压缩包的用户。
 
+Android APK 是面向 shell 的包，不是带 launcher 的图形应用。安装匹配 ABI 的 APK 后，
+在 Termux 或 `adb shell` 里这样运行随 APK 安装的 executable：
+
+```bash
+# arm64-v8a 设备
+pkg=io.github.leenhawk.gproxy.arm64
+
+# x86_64 模拟器
+# pkg=io.github.leenhawk.gproxy.x64
+
+libdir="$(pm dump "$pkg" | sed -n 's/.*nativeLibraryDir=//p' | head -1)"
+LD_LIBRARY_PATH="$libdir" "$libdir/libgproxy_exec.so" --help
+```
+
+启动服务也是同样的命令形状，例如：
+
+```bash
+LD_LIBRARY_PATH="$libdir" "$libdir/libgproxy_exec.so" \
+  --host 127.0.0.1 \
+  --port 8787 \
+  --data-dir "$HOME/gproxy-data"
+```
+
 ## Docker 镜像
 
 发布镜像是 `ghcr.io/leenhawk/gproxy`。
