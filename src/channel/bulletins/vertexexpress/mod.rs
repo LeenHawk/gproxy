@@ -14,7 +14,8 @@ use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: Some("https://aiplatform.googleapis.com"),
     forward_headers: &[],
-    forward_query: &["alt"],
+    // `alt` (sse) + list-models pagination (gemini wire)
+    forward_query: &["alt", "pageSize", "pageToken"],
 };
 
 /// Whether this op is a Gemini content-generation call (the only response shape

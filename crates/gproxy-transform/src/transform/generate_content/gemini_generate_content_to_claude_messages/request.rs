@@ -15,10 +15,19 @@ pub fn request(
         .as_ref()
         .and_then(|config| config.response_json_schema.clone())
         .and_then(value_to_claude_output_format);
+    let model = input.model.unwrap_or_default();
+    // Pre-Opus-4.8 models reject a system-role turn in `messages` — downgrade
+    // to assistant there. The pipeline injects the upstream model into the
+    // body before this transform; an absent model keeps the system role.
+    let system_role = if common::supports_mid_conv_system(&model) {
+        claude::MessageRole::Known(claude::MessageRoleKnown::System)
+    } else {
+        claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
+    };
 
     Ok(claude::CreateMessageRequestBody {
-        model: input.model.unwrap_or_default().into(),
-        messages: gemini_contents_to_claude_messages(input.contents),
+        model: model.into(),
+        messages: gemini_contents_to_claude_messages(input.contents, system_role),
         max_tokens: generation_config
             .as_ref()
             .and_then(|config| config.max_output_tokens)

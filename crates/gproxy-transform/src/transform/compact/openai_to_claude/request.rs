@@ -20,10 +20,18 @@ pub fn request(
     input: openai::CompactResponseRequestBody,
     _: &TransformContext,
 ) -> Result<claude::CreateMessageRequestBody, TransformError> {
+    let model = model_to_string(&input.model);
+    // Pre-Opus-4.8 models reject a system-role turn in `messages` — downgrade
+    // to assistant there (same gate as the chat→claude mid_conv_system block).
+    let system_role = if crate::transform::common::supports_mid_conv_system(&model) {
+        claude::MessageRole::Known(claude::MessageRoleKnown::System)
+    } else {
+        claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
+    };
     #[allow(deprecated)]
     Ok(claude::CreateMessageRequestBody {
-        model: claude::ClaudeModel::Unknown(model_to_string(&input.model)),
-        messages: openai_input_to_claude_messages(input.input),
+        model: claude::ClaudeModel::Unknown(model),
+        messages: openai_input_to_claude_messages(input.input, system_role),
         max_tokens: DEFAULT_COMPACT_MAX_TOKENS,
         cache_control: None,
         container: None,
