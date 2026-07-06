@@ -176,8 +176,10 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -186,10 +188,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Map;
 
 public final class GproxyActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private EditText adminUserInput;
+    private EditText adminPasswordInput;
     private TextView logView;
     private Process process;
 
@@ -201,6 +206,16 @@ public final class GproxyActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(16);
         root.setPadding(pad, pad, pad, pad);
+
+        adminUserInput = new EditText(this);
+        adminUserInput.setHint("Admin username");
+        adminUserInput.setSingleLine(true);
+        adminUserInput.setText("admin");
+
+        adminPasswordInput = new EditText(this);
+        adminPasswordInput.setHint("Admin password");
+        adminPasswordInput.setSingleLine(true);
+        adminPasswordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
 
         Button start = new Button(this);
         start.setText("Start GPROXY");
@@ -225,6 +240,8 @@ public final class GproxyActivity extends Activity {
             }
         });
 
+        root.addView(adminUserInput);
+        root.addView(adminPasswordInput);
         root.addView(start);
         root.addView(stop);
         ScrollView scroll = new ScrollView(this);
@@ -235,11 +252,17 @@ public final class GproxyActivity extends Activity {
     }
 
     private void startGproxy() {
-        if (process != null && process.isAlive()) {
+        if (isGproxyRunning()) {
             log("GPROXY is already running.");
             return;
         }
         try {
+            String adminUser = adminUserInput.getText().toString().trim();
+            String adminPassword = adminPasswordInput.getText().toString();
+            if (adminUser.length() == 0) {
+                adminUser = "admin";
+            }
+
             File binDir = new File(getFilesDir(), "bin");
             File dataDir = new File(getFilesDir(), "data");
             if (!binDir.isDirectory() && !binDir.mkdirs()) {
@@ -252,16 +275,28 @@ public final class GproxyActivity extends Activity {
             File libcxx = copyAsset("gproxy/libc++_shared.so", new File(binDir, "libc++_shared.so"), false);
             log("Executable: " + executable.getAbsolutePath());
 
-            ProcessBuilder builder = new ProcessBuilder(
-                executable.getAbsolutePath(),
-                "--host", "127.0.0.1",
-                "--port", "8787",
-                "--data-dir", dataDir.getAbsolutePath()
-            );
+            ArrayList<String> command = new ArrayList<String>();
+            command.add(executable.getAbsolutePath());
+            command.add("--host");
+            command.add("127.0.0.1");
+            command.add("--port");
+            command.add("8787");
+            command.add("--data-dir");
+            command.add(dataDir.getAbsolutePath());
+            command.add("--admin-user");
+            command.add(adminUser);
+            if (adminPassword.length() > 0) {
+                command.add("--admin-password");
+                command.add(adminPassword);
+            }
+
+            ProcessBuilder builder = new ProcessBuilder(command);
             Map<String, String> env = builder.environment();
             env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
             builder.redirectErrorStream(true);
             process = builder.start();
+            adminUserInput.setEnabled(false);
+            adminPasswordInput.setEnabled(false);
             log("Started. Console: http://127.0.0.1:8787/console");
             readOutput(process);
         } catch (Exception e) {
@@ -270,12 +305,24 @@ public final class GproxyActivity extends Activity {
     }
 
     private void stopGproxy() {
-        if (process == null || !process.isAlive()) {
+        if (!isGproxyRunning()) {
             log("GPROXY is not running.");
             return;
         }
         process.destroy();
         log("Stopping GPROXY.");
+    }
+
+    private boolean isGproxyRunning() {
+        if (process == null) {
+            return false;
+        }
+        try {
+            process.exitValue();
+            return false;
+        } catch (IllegalThreadStateException e) {
+            return true;
+        }
     }
 
     private File copyAsset(String assetName, File out, boolean executable) throws IOException {
@@ -322,6 +369,11 @@ public final class GproxyActivity extends Activity {
                         @Override
                         public void run() {
                             log("GPROXY exited with code " + code + ".");
+                            if (process == running) {
+                                process = null;
+                            }
+                            adminUserInput.setEnabled(true);
+                            adminPasswordInput.setEnabled(true);
                         }
                     });
                 } catch (Exception e) {
@@ -330,6 +382,11 @@ public final class GproxyActivity extends Activity {
                         @Override
                         public void run() {
                             log("Output reader failed: " + message);
+                            if (process == running) {
+                                process = null;
+                            }
+                            adminUserInput.setEnabled(true);
+                            adminPasswordInput.setEnabled(true);
                         }
                     });
                 }

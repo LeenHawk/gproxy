@@ -28,11 +28,15 @@ release workflow 会构建 Linux、macOS、Windows、Android，以及 x86_64、a
 ABI 拆分的 APK，适合想使用可安装包而不是原始 executable 压缩包的用户。
 
 Android APK 包含一个最小 launcher UI。安装匹配 ABI 的 APK 后，打开 **GPROXY**，
-点击 **Start GPROXY**，它会用下面的参数运行 native server：
+按需填写 admin username/password，再点击 **Start GPROXY**。它会用下面的参数运行
+native server：
 
 ```bash
---host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data
+--host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data --admin-user <username>
 ```
+
+如果填写了 password，launcher 也会传入 `--admin-password`。如果留空，则沿用
+GPROXY 的首次启动随机 admin 密码，并在 app 日志里打印。
 
 然后打开：
 
