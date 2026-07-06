@@ -8,6 +8,7 @@ import { ApiError } from "@/api/http";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { toast } from "sonner";
 import { deleteProviderDefaultRuleSet } from "@/lib/provider-rule-set";
+import { ProviderSectionBar, ProviderSideNav } from "@/components/providers/provider-side-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -50,7 +51,7 @@ function ProviderDetailLayout() {
 
   return (
     <div className="flex min-h-full">
-      {/* Task 2: <ProviderSideNav currentId={id} /> */}
+      <ProviderSideNav currentId={id} />
       <div className="min-w-0 flex-1">
         <div className="grid gap-4 p-4 md:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -64,7 +65,7 @@ function ProviderDetailLayout() {
               <span className="hidden sm:inline">{t("delete.provider")}</span>
             </Button>
           </div>
-          {/* Task 2: <ProviderSectionBar providerId={providerId} /> */}
+          <ProviderSectionBar providerId={providerId} />
           <Outlet />
         </div>
       </div>
