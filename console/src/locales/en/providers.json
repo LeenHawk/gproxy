@@ -7,6 +7,7 @@
     "credentials": "Credentials",
     "models": "Models"
   },
+  "sideNav": { "all": "All providers" },
   "fields": {
     "name": "Name",
     "label": "Label",
