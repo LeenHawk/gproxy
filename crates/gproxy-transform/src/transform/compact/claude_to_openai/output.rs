@@ -44,7 +44,7 @@ fn claude_content_to_compact_output(
             claude::ContentBlock::Thinking(block) => {
                 output.push(openai::CompactResponseItem::Typed(
                     openai::TypedResponseItem::Reasoning {
-                        id: block.signature,
+                        id: Some(block.signature),
                         summary: Vec::new(),
                         content: Some(vec![openai::ResponseReasoningTextPart {
                             text: block.thinking,
@@ -60,7 +60,7 @@ fn claude_content_to_compact_output(
             claude::ContentBlock::RedactedThinking(block) => {
                 output.push(openai::CompactResponseItem::Typed(
                     openai::TypedResponseItem::Reasoning {
-                        id: DEFAULT_REASONING_ID.to_owned(),
+                        id: Some(DEFAULT_REASONING_ID.to_owned()),
                         summary: Vec::new(),
                         content: None,
                         encrypted_content: Some(block.data),

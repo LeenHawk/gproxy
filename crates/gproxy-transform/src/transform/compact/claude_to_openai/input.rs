@@ -122,7 +122,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
         ),
         claude::ContentBlockParam::Thinking(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-                id: block.signature,
+                id: Some(block.signature),
                 summary: Vec::new(),
                 content: Some(vec![openai::ResponseReasoningTextPart {
                     text: block.thinking,
@@ -136,7 +136,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
         ),
         claude::ContentBlockParam::RedactedThinking(block) => ClaudeRequestBlockItem::Item(
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-                id: DEFAULT_REASONING_ID.to_owned(),
+                id: Some(DEFAULT_REASONING_ID.to_owned()),
                 summary: Vec::new(),
                 content: None,
                 encrypted_content: Some(block.data),

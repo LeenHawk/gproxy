@@ -7,6 +7,8 @@
 //! aggregation (block indexes, tool-call identity, final usage) lives HERE
 //! (see transform/README.md).
 
+use std::collections::BTreeMap;
+
 use serde_json::{Value, json};
 
 use super::common::sse::{SseDecoder, SseFrame};
@@ -106,6 +108,7 @@ impl SseTransformer {
 struct ResponsesStreamState {
     message: ResponsesTextItemState,
     reasoning: ResponsesTextItemState,
+    tools: BTreeMap<u32, ResponsesToolItemState>,
     completed: bool,
 }
 
@@ -119,8 +122,26 @@ struct ResponsesTextItemState {
     text: String,
 }
 
+#[derive(Default)]
+struct ResponsesToolItemState {
+    kind: Option<ResponsesToolKind>,
+    item_id: Option<String>,
+    call_id: Option<String>,
+    name: Option<String>,
+    output_index: Option<u32>,
+    input: String,
+    input_done: bool,
+    item_done: bool,
+}
+
+#[derive(Clone, Copy)]
+enum ResponsesToolKind {
+    Function,
+    Custom,
+}
+
 impl ResponsesStreamState {
-    fn push(&mut self, event: Value) -> Vec<Value> {
+    fn push(&mut self, mut event: Value) -> Vec<Value> {
         match event.get("type").and_then(Value::as_str) {
             Some("response.output_text.delta") => {
                 let mut out = self.finish_reasoning();
@@ -135,9 +156,27 @@ impl ResponsesStreamState {
                 out.push(event);
                 out
             }
+            Some("response.function_call_arguments.delta") => {
+                self.note_tool_input_delta(&mut event, ResponsesToolKind::Function);
+                vec![event]
+            }
+            Some("response.custom_tool_call_input.delta") => {
+                self.note_tool_input_delta(&mut event, ResponsesToolKind::Custom);
+                vec![event]
+            }
+            Some("response.function_call_arguments.done") => {
+                self.note_tool_input_done(&mut event, ResponsesToolKind::Function);
+                vec![event]
+            }
+            Some("response.custom_tool_call_input.done") => {
+                self.note_tool_input_done(&mut event, ResponsesToolKind::Custom);
+                vec![event]
+            }
             Some("response.completed") => {
                 let mut out = self.finish_reasoning();
                 out.extend(self.finish_message());
+                out.extend(self.finish_tools());
+                self.patch_completed_output(&mut event);
                 self.completed = true;
                 out.push(event);
                 out
@@ -169,6 +208,7 @@ impl ResponsesStreamState {
         let mut out = self.finish_reasoning();
         out.extend(self.finish_message());
         if !out.is_empty() {
+            out.extend(self.finish_tools());
             out.push(json!({
                 "type": "response.completed",
                 "response": {
@@ -250,6 +290,8 @@ impl ResponsesStreamState {
         match item_type {
             "message" => self.message.note_added(event),
             "reasoning" => self.reasoning.note_added(event),
+            "function_call" => self.note_tool_added(event, ResponsesToolKind::Function),
+            "custom_tool_call" => self.note_tool_added(event, ResponsesToolKind::Custom),
             _ => {}
         }
     }
@@ -265,8 +307,131 @@ impl ResponsesStreamState {
         match item_type {
             "message" => self.message.note_item_done(event),
             "reasoning" => self.reasoning.note_item_done(event),
+            "function_call" | "custom_tool_call" => self.note_tool_item_done(event),
             _ => {}
         }
+    }
+
+    fn note_tool_added(&mut self, event: &Value, kind: ResponsesToolKind) {
+        let Some(output_index) = event_output_index(event) else {
+            return;
+        };
+        let state = self.tools.entry(output_index).or_default();
+        state.kind.get_or_insert(kind);
+        state.output_index.get_or_insert(output_index);
+        if let Some(item) = event.get("item") {
+            state.note_item(item);
+        }
+    }
+
+    fn note_tool_item_done(&mut self, event: &Value) {
+        let Some(output_index) = event_output_index(event) else {
+            return;
+        };
+        let state = self.tools.entry(output_index).or_default();
+        state.output_index.get_or_insert(output_index);
+        state.item_done = true;
+        if let Some(item) = event.get("item") {
+            state.note_item(item);
+        }
+    }
+
+    fn note_tool_input_delta(&mut self, event: &mut Value, kind: ResponsesToolKind) {
+        let Some(output_index) = event_output_index(event) else {
+            return;
+        };
+        let state = self.tools.entry(output_index).or_default();
+        state.kind.get_or_insert(kind);
+        state.output_index.get_or_insert(output_index);
+        state.note_event_item_id(event);
+        if let Some(item_id) = state.item_id.as_deref() {
+            event["item_id"] = Value::String(item_id.to_owned());
+        }
+        if let Some(delta) = event.get("delta").and_then(Value::as_str) {
+            state.input.push_str(delta);
+        }
+    }
+
+    fn note_tool_input_done(&mut self, event: &mut Value, kind: ResponsesToolKind) {
+        let Some(output_index) = event_output_index(event) else {
+            return;
+        };
+        let state = self.tools.entry(output_index).or_default();
+        state.kind.get_or_insert(kind);
+        state.output_index.get_or_insert(output_index);
+        state.note_event_item_id(event);
+        if let Some(item_id) = state.item_id.as_deref() {
+            event["item_id"] = Value::String(item_id.to_owned());
+        }
+        let field = match kind {
+            ResponsesToolKind::Function => "arguments",
+            ResponsesToolKind::Custom => "input",
+        };
+        if let Some(done) = event.get(field).and_then(Value::as_str) {
+            state.input.clear();
+            state.input.push_str(done);
+        }
+        if matches!(kind, ResponsesToolKind::Function)
+            && let Some(name) = event.get("name").and_then(Value::as_str)
+        {
+            state.name.get_or_insert_with(|| name.to_owned());
+        }
+        state.input_done = true;
+    }
+
+    fn finish_tools(&mut self) -> Vec<Value> {
+        let mut out = Vec::new();
+        for state in self.tools.values_mut() {
+            if !state.can_finish() {
+                continue;
+            }
+            if !state.input_done {
+                out.push(state.input_done_event());
+                state.input_done = true;
+            }
+            if !state.item_done {
+                out.push(state.item_done_event());
+                state.item_done = true;
+            }
+        }
+        out
+    }
+
+    fn patch_completed_output(&self, event: &mut Value) {
+        let Some(response) = event.get_mut("response") else {
+            return;
+        };
+        let Some(response_obj) = response.as_object_mut() else {
+            return;
+        };
+        let output_is_empty = response_obj
+            .get("output")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty);
+        if !output_is_empty {
+            return;
+        }
+
+        let output = self.completed_output_items();
+        if !output.is_empty() {
+            response_obj.insert("output".to_owned(), Value::Array(output));
+        }
+    }
+
+    fn completed_output_items(&self) -> Vec<Value> {
+        let mut output = Vec::new();
+        if self.reasoning.started {
+            output.push(reasoning_item(&self.reasoning, "completed"));
+        }
+        if self.message.started {
+            output.push(message_item(&self.message, "completed"));
+        }
+        for state in self.tools.values() {
+            if state.can_finish() {
+                output.push(state.item("completed"));
+            }
+        }
+        output
     }
 }
 
@@ -369,6 +534,118 @@ impl ResponsesTextItemState {
     fn content_index(&self) -> u32 {
         self.content_index.unwrap_or(0)
     }
+}
+
+impl ResponsesToolItemState {
+    fn note_item(&mut self, item: &Value) {
+        if self.item_id.is_none() {
+            self.item_id = item.get("id").and_then(Value::as_str).map(str::to_owned);
+        }
+        if self.call_id.is_none() {
+            self.call_id = item
+                .get("call_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+        }
+        if self.name.is_none() {
+            self.name = item.get("name").and_then(Value::as_str).map(str::to_owned);
+        }
+        if self.input.is_empty() {
+            let field = match self.kind {
+                Some(ResponsesToolKind::Function) => "arguments",
+                Some(ResponsesToolKind::Custom) => "input",
+                None => return,
+            };
+            if let Some(input) = item.get(field).and_then(Value::as_str) {
+                self.input.push_str(input);
+            }
+        }
+    }
+
+    fn note_event_item_id(&mut self, event: &Value) {
+        if self.item_id.is_none() {
+            self.item_id = event
+                .get("item_id")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+        }
+    }
+
+    fn can_finish(&self) -> bool {
+        self.kind.is_some()
+            && self.item_id.is_some()
+            && self.call_id.is_some()
+            && self.name.is_some()
+    }
+
+    fn input_done_event(&self) -> Value {
+        match self.kind.expect("tool kind checked by can_finish") {
+            ResponsesToolKind::Function => json!({
+                "type": "response.function_call_arguments.done",
+                "output_index": self.output_index(),
+                "item_id": self.item_id(),
+                "name": self.name(),
+                "arguments": self.input,
+            }),
+            ResponsesToolKind::Custom => json!({
+                "type": "response.custom_tool_call_input.done",
+                "output_index": self.output_index(),
+                "item_id": self.item_id(),
+                "input": self.input,
+            }),
+        }
+    }
+
+    fn item_done_event(&self) -> Value {
+        json!({
+            "type": "response.output_item.done",
+            "output_index": self.output_index(),
+            "item": self.item("completed"),
+        })
+    }
+
+    fn item(&self, status: &str) -> Value {
+        match self.kind.expect("tool kind checked by can_finish") {
+            ResponsesToolKind::Function => json!({
+                "id": self.item_id(),
+                "type": "function_call",
+                "status": status,
+                "call_id": self.call_id(),
+                "name": self.name(),
+                "arguments": self.input,
+            }),
+            ResponsesToolKind::Custom => json!({
+                "id": self.item_id(),
+                "type": "custom_tool_call",
+                "call_id": self.call_id(),
+                "name": self.name(),
+                "input": self.input,
+            }),
+        }
+    }
+
+    fn item_id(&self) -> &str {
+        self.item_id.as_deref().unwrap_or("item_0")
+    }
+
+    fn call_id(&self) -> &str {
+        self.call_id.as_deref().unwrap_or("call_0")
+    }
+
+    fn name(&self) -> &str {
+        self.name.as_deref().unwrap_or("")
+    }
+
+    fn output_index(&self) -> u32 {
+        self.output_index.unwrap_or(0)
+    }
+}
+
+fn event_output_index(event: &Value) -> Option<u32> {
+    event
+        .get("output_index")
+        .and_then(Value::as_u64)
+        .and_then(|n| u32::try_from(n).ok())
 }
 
 fn message_item_added(state: &ResponsesTextItemState) -> Value {
@@ -545,5 +822,55 @@ mod tests {
             "collapsed to a response: {v}"
         );
         assert_eq!(v["choices"][0]["message"]["content"], "hello");
+    }
+
+    #[test]
+    fn chat_tool_call_stream_finishes_responses_item() {
+        let upstream = OperationKey::content_generation(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::OpenAiChatCompletions,
+        );
+        let inbound = OperationKey::content_generation(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::OpenAiResponses,
+        );
+        let pair = crate::transform::resolve(upstream, inbound).unwrap();
+        let mut t = SseTransformer::new(
+            pair,
+            TransformContext::new(upstream, inbound),
+            ContentGenerationKind::OpenAiResponses,
+        );
+
+        let mut out = t.push(br#"data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"echo_text","arguments":""}}]},"finish_reason":null}]}"#);
+        out.extend(t.push(br#"
+
+data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"text\":\"hello\"}"}}]},"finish_reason":null}]}"#));
+        out.extend(t.push(br#"
+
+data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#));
+        out.extend(t.push(b"\n\ndata: [DONE]\n\n"));
+        out.extend(t.finish());
+
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            text.contains("event: response.function_call_arguments.done"),
+            "function arguments are completed: {text}"
+        );
+        assert!(
+            text.contains("event: response.output_item.done"),
+            "function item is completed: {text}"
+        );
+        assert!(
+            text.contains(r#""arguments":"{\"text\":\"hello\"}""#),
+            "full arguments are preserved: {text}"
+        );
+        assert!(
+            !text.contains(r#""item_id":"fc_0""#),
+            "argument deltas use the announced function item id: {text}"
+        );
+        assert!(
+            text.contains(r#""output":[{"arguments":"{\"text\":\"hello\"}""#),
+            "response.completed carries the function output item: {text}"
+        );
     }
 }

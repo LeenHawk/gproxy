@@ -238,7 +238,7 @@ fn response_mcp_result_block(
 }
 
 fn reasoning_to_claude_content(
-    id: String,
+    id: Option<String>,
     summary: Vec<openai::ResponseReasoningSummaryPart>,
     content: Option<Vec<openai::ResponseReasoningTextPart>>,
     encrypted_content: Option<String>,
@@ -255,11 +255,20 @@ fn reasoning_to_claude_content(
 
     let thinking = join_text(content.into_iter().flatten().map(|part| part.text));
     if !thinking.is_empty() {
-        blocks.push(claude::ContentBlock::Thinking(claude::ThinkingBlock {
-            signature: id,
-            thinking,
-            type_: claude::ThinkingBlockType::Thinking,
-        }));
+        if let Some(signature) = id.filter(|signature| !signature.is_empty()) {
+            blocks.push(claude::ContentBlock::Thinking(claude::ThinkingBlock {
+                signature,
+                thinking,
+                type_: claude::ThinkingBlockType::Thinking,
+            }));
+        } else {
+            blocks.push(claude::ContentBlock::Text(claude::ResponseTextBlock {
+                citations: None,
+                text: thinking,
+                type_: claude::TextBlockType::Text,
+                extra: Default::default(),
+            }));
+        }
     }
 
     blocks.extend(summary.into_iter().map(|part| {

@@ -385,7 +385,8 @@ pub enum TypedResponseItem {
     },
     #[serde(rename = "reasoning")]
     Reasoning {
-        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
         summary: Vec<ResponseReasoningSummaryPart>,
         #[serde(skip_serializing_if = "Option::is_none")]
         content: Option<Vec<ResponseReasoningTextPart>>,
