@@ -1152,14 +1152,19 @@ mod tests {
         assert!(seeded >= 12, "seeded {seeded} rows");
         // every seeded row is a real rule (has an id) on the openai channel.
         let same = find(&rows, "generate_content", "open_ai_chat_completions");
-        assert_eq!(same["implementation"], "transform_to", "{same}");
-        assert_eq!(same["dest_operation"], "stream_generate_content", "{same}");
-        assert_eq!(same["dest_kind"], "open_ai_responses_websocket", "{same}");
+        assert_eq!(same["implementation"], "passthrough", "{same}");
+        assert!(same["dest_operation"].is_null(), "{same}");
+        assert!(same["dest_kind"].is_null(), "{same}");
         assert!(same["id"].is_i64());
+        let ws = find(&rows, "generate_content", "open_ai_responses_websocket");
+        assert_eq!(ws["implementation"], "transform_to", "{ws}");
+        assert_eq!(ws["dest_operation"], "stream_generate_content", "{ws}");
+        assert_eq!(ws["dest_kind"], "open_ai_responses_websocket", "{ws}");
         let cross = find(&rows, "generate_content", "claude_messages");
         assert_eq!(cross["implementation"], "transform_to", "{cross}");
-        // openai content generation defaults to the Responses WebSocket transport.
-        assert_eq!(cross["dest_kind"], "open_ai_responses_websocket");
+        // openai content generation defaults to HTTP chat, not Responses WebSocket.
+        assert_eq!(cross["dest_operation"], "generate_content", "{cross}");
+        assert_eq!(cross["dest_kind"], "open_ai_chat_completions");
         // count_tokens on an openai-family channel is served locally (§6.3).
         let ct = find(&rows, "count_tokens", "open_ai");
         assert_eq!(ct["implementation"], "local", "{ct}");

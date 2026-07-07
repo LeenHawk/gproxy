@@ -59,7 +59,7 @@ impl Channel for CodexChannel {
                 GenerateContent,
                 cg(OpenAiResponses),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiResponses),
             ),
             xform(
                 GenerateContent,
@@ -71,44 +71,39 @@ impl Channel for CodexChannel {
                 GenerateContent,
                 cg(OpenAiChatCompletions),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiResponses),
             ),
             xform(
                 GenerateContent,
                 cg(ClaudeMessages),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiResponses),
             ),
             xform(
                 GenerateContent,
                 cg(GeminiGenerateContent),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
-            ),
-            xform(
-                StreamGenerateContent,
                 cg(OpenAiResponses),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
             ),
+            pass(StreamGenerateContent, cg(OpenAiResponses)),
             pass(StreamGenerateContent, cg(OpenAiResponsesWebSocket)),
             xform(
                 StreamGenerateContent,
                 cg(OpenAiChatCompletions),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiResponses),
             ),
             xform(
                 StreamGenerateContent,
                 cg(ClaudeMessages),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiResponses),
             ),
             xform(
                 StreamGenerateContent,
                 cg(GeminiGenerateContent),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiResponses),
             ),
             xform(
                 CreateImage,
@@ -356,13 +351,12 @@ mod tests {
     }
 
     #[test]
-    fn content_defaults_target_responses_websocket() {
+    fn content_defaults_target_streaming_responses_except_websocket_source() {
         for (operation, kind) in [
             (Operation::GenerateContent, Kind::OpenAiResponses),
             (Operation::GenerateContent, Kind::OpenAiChatCompletions),
             (Operation::GenerateContent, Kind::ClaudeMessages),
             (Operation::GenerateContent, Kind::GeminiGenerateContent),
-            (Operation::StreamGenerateContent, Kind::OpenAiResponses),
             (
                 Operation::StreamGenerateContent,
                 Kind::OpenAiChatCompletions,
@@ -374,14 +368,38 @@ mod tests {
             ),
         ] {
             let RoutingDecision::TransformTo(target) = route(operation, kind) else {
-                panic!("route should transform to websocket");
+                panic!("route should transform to streaming responses");
             };
             assert_eq!(target.operation, Operation::StreamGenerateContent);
             assert_eq!(
                 target.kind,
-                OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
+                OperationKind::ContentGeneration(Kind::OpenAiResponses)
             );
         }
+
+        assert_eq!(
+            route(Operation::StreamGenerateContent, Kind::OpenAiResponses),
+            RoutingDecision::Passthrough
+        );
+
+        assert_eq!(
+            route(
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponsesWebSocket
+            ),
+            RoutingDecision::Passthrough
+        );
+
+        let RoutingDecision::TransformTo(target) =
+            route(Operation::GenerateContent, Kind::OpenAiResponsesWebSocket)
+        else {
+            panic!("websocket source should transform to streaming websocket");
+        };
+        assert_eq!(target.operation, Operation::StreamGenerateContent);
+        assert_eq!(
+            target.kind,
+            OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
+        );
     }
 
     #[test]

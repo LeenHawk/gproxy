@@ -39,61 +39,42 @@ impl Channel for OpenAiChannel {
             local(CountTokens, pv(P::OpenAi)),
             local(CountTokens, pv(P::Claude)),
             local(CountTokens, pv(P::Gemini)),
-            // Content generation defaults to the Responses WebSocket transport.
-            xform(
-                GenerateContent,
-                cg(OpenAiResponses),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
-            ),
+            // Both OpenAI HTTP wire formats are native; websocket is only used
+            // when the downstream request itself is Responses WebSocket.
+            pass(GenerateContent, cg(OpenAiResponses)),
             xform(
                 GenerateContent,
                 cg(OpenAiResponsesWebSocket),
                 StreamGenerateContent,
                 cg(OpenAiResponsesWebSocket),
             ),
-            xform(
-                GenerateContent,
-                cg(OpenAiChatCompletions),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
-            ),
+            pass(GenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 GenerateContent,
                 cg(ClaudeMessages),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                GenerateContent,
+                cg(OpenAiChatCompletions),
             ),
             xform(
                 GenerateContent,
                 cg(GeminiGenerateContent),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                GenerateContent,
+                cg(OpenAiChatCompletions),
             ),
-            xform(
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
-            ),
+            pass(StreamGenerateContent, cg(OpenAiResponses)),
             pass(StreamGenerateContent, cg(OpenAiResponsesWebSocket)),
-            xform(
-                StreamGenerateContent,
-                cg(OpenAiChatCompletions),
-                StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
-            ),
+            pass(StreamGenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 StreamGenerateContent,
                 cg(ClaudeMessages),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiChatCompletions),
             ),
             xform(
                 StreamGenerateContent,
                 cg(GeminiGenerateContent),
                 StreamGenerateContent,
-                cg(OpenAiResponsesWebSocket),
+                cg(OpenAiChatCompletions),
             ),
             pass(CreateImage, pv(P::OpenAi)),
             pass(EditImage, pv(P::OpenAi)),
@@ -142,31 +123,60 @@ mod tests {
     }
 
     #[test]
-    fn content_defaults_target_responses_websocket() {
+    fn content_defaults_use_http_openai_routes_except_websocket_source() {
         for (operation, kind) in [
             (Operation::GenerateContent, Kind::OpenAiResponses),
             (Operation::GenerateContent, Kind::OpenAiChatCompletions),
-            (Operation::GenerateContent, Kind::ClaudeMessages),
-            (Operation::GenerateContent, Kind::GeminiGenerateContent),
             (Operation::StreamGenerateContent, Kind::OpenAiResponses),
             (
                 Operation::StreamGenerateContent,
                 Kind::OpenAiChatCompletions,
             ),
-            (Operation::StreamGenerateContent, Kind::ClaudeMessages),
+            (
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponsesWebSocket,
+            ),
+        ] {
+            assert_eq!(route(operation, kind), RoutingDecision::Passthrough);
+        }
+
+        for (operation, kind, target_operation) in [
+            (
+                Operation::GenerateContent,
+                Kind::OpenAiResponsesWebSocket,
+                Operation::StreamGenerateContent,
+            ),
+            (
+                Operation::GenerateContent,
+                Kind::ClaudeMessages,
+                Operation::GenerateContent,
+            ),
+            (
+                Operation::GenerateContent,
+                Kind::GeminiGenerateContent,
+                Operation::GenerateContent,
+            ),
+            (
+                Operation::StreamGenerateContent,
+                Kind::ClaudeMessages,
+                Operation::StreamGenerateContent,
+            ),
             (
                 Operation::StreamGenerateContent,
                 Kind::GeminiGenerateContent,
+                Operation::StreamGenerateContent,
             ),
         ] {
             let RoutingDecision::TransformTo(target) = route(operation, kind) else {
-                panic!("route should transform to websocket");
+                panic!("route should transform");
             };
-            assert_eq!(target.operation, Operation::StreamGenerateContent);
-            assert_eq!(
-                target.kind,
-                OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
-            );
+            assert_eq!(target.operation, target_operation);
+            let target_kind = if kind == Kind::OpenAiResponsesWebSocket {
+                Kind::OpenAiResponsesWebSocket
+            } else {
+                Kind::OpenAiChatCompletions
+            };
+            assert_eq!(target.kind, OperationKind::ContentGeneration(target_kind));
         }
     }
 
