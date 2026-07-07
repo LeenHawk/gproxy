@@ -2,13 +2,13 @@
 # Cut a gproxy release.
 #
 # Updates the workspace version, commits that release bump, tags it, and
-# publishes a GitHub Release whose `release: published` event drives
-# .github/workflows/release.yml — which builds the native binaries, edge wasm
-# bundles, and multi-arch Docker images, attaches the assets, and force-refreshes
-# the `deploy` branch. CI does all the building.
+# pushes the tag. The tag push drives .github/workflows/release.yml, which
+# builds native binaries, edge wasm bundles, and multi-arch Docker images, then
+# creates a draft GitHub Release, uploads all assets + manifest, and publishes
+# it only after the upload is complete. CI does all the building.
 #
 # Usage:
-#   scripts/release.sh [-v VERSION] [-n NOTES_FILE] [--draft] [--dry-run] [-y]
+#   scripts/release.sh [-v VERSION] [-n NOTES_FILE] [--dry-run] [-y]
 #
 #   -v VERSION     Release version (default: the `version` in Cargo.toml).
 #                  Tag is `v$VERSION`, release title `gproxy v$VERSION`.
@@ -16,8 +16,6 @@
 #                  Same shape as previous releases: a `## vX.Y.Z` heading, a `>`
 #                  summary, then `### English` / `### 简体中文` with
 #                  `#### Added` / `#### Fixed` / `#### Changed` sections.
-#   --draft        Create a draft release. NOTE: a draft does NOT fire the
-#                  release workflow — publish it later to trigger the build.
 #   --dry-run      Print what would happen; create nothing.
 #   -y             Skip the confirmation prompt.
 #
@@ -42,7 +40,7 @@ while [ $# -gt 0 ]; do
     --draft)   DRAFT=1; shift ;;
     --dry-run) DRY=1; shift ;;
     -y)        YES=1; shift ;;
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
     *) echo "release.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -64,13 +62,14 @@ stage_release_files() {
 }
 
 # --- Preconditions ----------------------------------------------------------
-command -v gh  >/dev/null 2>&1 || die "the GitHub CLI (gh) is required"
 command -v git >/dev/null 2>&1 || die "git is required"
 command -v cargo >/dev/null 2>&1 || die "cargo is required"
 [ -f Cargo.toml ] || die "must run from the crate root (no Cargo.toml at $ROOT)"
-gh auth status >/dev/null 2>&1 || die "gh is not authenticated (run: gh auth login)"
 if ! cargo set-version --help >/dev/null 2>&1; then
   die "cargo set-version not found. Install with: cargo install cargo-edit"
+fi
+if [ "$DRAFT" = 1 ]; then
+  die "--draft is no longer supported; release.yml creates an internal draft and publishes after assets upload"
 fi
 
 # Version: explicit, else the crate version from Cargo.toml.
@@ -116,7 +115,7 @@ echo "  title    : gproxy $TAG"
 echo "  target   : $TARGET ($(git rev-parse --short HEAD))"
 echo "  notes    : $NOTES"
 echo "  version  : $VERSION_BUMP"
-echo "  draft    : $([ "$DRAFT" = 1 ] && echo yes || echo 'no (publishing fires release.yml)')"
+echo "  publish  : tag push triggers release.yml; GitHub Release is created after assets are ready"
 echo
 
 if [ "$DRY" = 1 ]; then
@@ -131,8 +130,8 @@ if [ "$DRY" = 1 ]; then
   echo "  git push origin HEAD:$TARGET    # if a release commit was created"
   echo "  git tag -a $TAG -F <release-note>"
   echo "  git push origin $TAG"
-  echo "  gh release create $TAG --title \"gproxy $TAG\" \\"
-  echo "    $([ "$DRAFT" = 1 ] && echo --draft || echo --latest) --notes-file $NOTES"
+  echo "  # release.yml builds artifacts, uploads them to an internal draft,"
+  echo "  # then publishes GitHub Release $TAG"
   exit 0
 fi
 
@@ -165,21 +164,6 @@ git tag -a "$TAG" -F "$tag_note_file"
 rm -f "$tag_note_file"
 git push origin "$TAG"
 
-# --- Publish ----------------------------------------------------------------
-create_args=(release create "$TAG" --title "gproxy $TAG" --notes-file "$NOTES")
-if [ "$DRAFT" = 1 ]; then
-  create_args+=(--draft)
-else
-  create_args+=(--latest)
-fi
-
-gh "${create_args[@]}"
-
 echo
-if [ "$DRAFT" = 1 ]; then
-  echo "Draft $TAG created (no build yet). Publish it to trigger release.yml:"
-  echo "  gh release edit $TAG --draft=false"
-else
-  echo "Published $TAG. The release workflow is now building:"
-  echo "  gh run list --workflow=release.yml --limit 3"
-fi
+echo "Pushed $TAG. The release workflow will build every asset, then create and publish the GitHub Release:"
+echo "  gh run list --workflow=release.yml --limit 3"

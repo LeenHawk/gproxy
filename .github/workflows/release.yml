@@ -1,17 +1,18 @@
 name: release
 
 # Builds the v2 distribution: native binaries, edge (wasm) bundles, and Docker
-# images. A published Release ships binaries + a signed `releases` (semver)
-# manifest to its `vX.Y.Z` tag and pushes Docker/edge. Every other trigger
-# (push to `main`, manual dispatch) refreshes the rolling `staging` tag:
-# native binaries + a signed `staging` (sha256) manifest + Docker images. Edge
-# bundles and the deploy branch are regenerated on every run.
+# images. Version tags (`vX.Y.Z`) build everything first, then create a draft
+# GitHub Release, upload all assets, and publish it only after the manifest is
+# present. Every other trigger (push to `main`, manual dispatch) refreshes the
+# rolling `staging` tag with commit-namespaced native assets plus a signed
+# `staging` (sha256) manifest. Edge bundles and the deploy branch are
+# regenerated on every run.
 on:
   workflow_dispatch:
   push:
     branches: [main]
-  release:
-    types: [published]
+    tags:
+      - "v*"
 
 concurrency:
   group: release-${{ github.ref }}
@@ -25,11 +26,11 @@ env:
   # Self-heal flaky crates.io downloads on CI runners (the Windows runner hit a
   # transient "connection was reset" pulling a crate). Default retry is 3.
   CARGO_NET_RETRY: "10"
-  # Effective publish target. A published Release ships to its own tag on the
-  # `releases` (semver) channel; push-to-main and manual dispatch both refresh
-  # the fixed `staging` tag on the sha256-keyed `staging` channel.
-  PUBLISH_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || 'staging' }}
-  PUBLISH_CHANNEL: ${{ github.event_name == 'release' && 'releases' || 'staging' }}
+  # Effective publish target. Version tag pushes ship to their own tag on the
+  # `releases` (semver) channel; push-to-main and manual dispatch refresh the
+  # fixed `staging` tag on the sha256-keyed `staging` channel.
+  PUBLISH_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'staging' }}
+  PUBLISH_CHANNEL: ${{ github.ref_type == 'tag' && 'releases' || 'staging' }}
 
 jobs:
   build-console:
@@ -273,8 +274,8 @@ jobs:
           ANDROID_APK_PACKAGE_NAME: io.github.leenhawk.gproxy
           ANDROID_APP_LABEL: GPROXY
           ANDROID_VERSION_CODE: ${{ github.run_number }}
-          ANDROID_VERSION_NAME: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
-          ANDROID_REQUIRE_SIGNING: ${{ github.event_name == 'release' && 'true' || 'false' }}
+          ANDROID_VERSION_NAME: ${{ env.PUBLISH_CHANNEL == 'releases' && env.PUBLISH_TAG || github.sha }}
+          ANDROID_REQUIRE_SIGNING: ${{ env.PUBLISH_CHANNEL == 'releases' && 'true' || 'false' }}
           ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
           ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
@@ -304,27 +305,8 @@ jobs:
             ${{ matrix.artifact }}.apk.sha256
           retention-days: 1
 
-      - name: Publish binary to ${{ env.PUBLISH_TAG }}
-        # The signed manifest references only the supported self-update triples,
-        # but the rolling staging release page should expose every native build.
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.PUBLISH_TAG }}
-          files: |
-            ${{ matrix.artifact }}.zip
-            ${{ matrix.artifact }}.zip.sha256
-
-      - name: Publish Android APK to ${{ env.PUBLISH_TAG }}
-        if: ${{ matrix.os == 'android' }}
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ env.PUBLISH_TAG }}
-          files: |
-            ${{ matrix.artifact }}.apk
-            ${{ matrix.artifact }}.apk.sha256
-
-  manifest:
-    name: Sign + publish update manifest
+  prepare-release-assets:
+    name: Prepare signed release assets
     needs: build-native
     runs-on: ubuntu-latest
     steps:
@@ -340,6 +322,42 @@ jobs:
           pattern: release-asset-*
           path: dl
 
+      - name: Namespace staging asset filenames
+        if: ${{ env.PUBLISH_CHANNEL == 'staging' }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA::12}"
+          mapfile -d '' files < <(find dl -type f \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.apk' -o -name '*.apk.sha256' \) -print0)
+          for file in "${files[@]}"; do
+            [ -e "$file" ] || continue
+            dir="$(dirname "$file")"
+            base="$(basename "$file")"
+            case "$base" in
+              *.zip)
+                stem="${base%.zip}"
+                mv "$file" "$dir/${stem}-${short}.zip"
+                ;;
+              *.zip.sha256)
+                stem="${base%.zip.sha256}"
+                new_base="${stem}-${short}.zip"
+                sha="$(awk '{print $1}' "$file")"
+                printf '%s  %s\n' "$sha" "$new_base" > "$dir/${new_base}.sha256"
+                rm "$file"
+                ;;
+              *.apk)
+                stem="${base%.apk}"
+                mv "$file" "$dir/${stem}-${short}.apk"
+                ;;
+              *.apk.sha256)
+                stem="${base%.apk.sha256}"
+                new_base="${stem}-${short}.apk"
+                sha="$(awk '{print $1}' "$file")"
+                printf '%s  %s\n' "$sha" "$new_base" > "$dir/${new_base}.sha256"
+                rm "$file"
+                ;;
+            esac
+          done
+
       - name: Build + sign manifest.json
         env:
           UPDATE_SIGNING_PRIVATE_KEY_B64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_B64 }}
@@ -348,53 +366,27 @@ jobs:
           CHANNEL: ${{ env.PUBLISH_CHANNEL }}
           # Releases derive `version` from the tag; staging is sha256-keyed, so its
           # `version` is advisory — carry the commit sha for a human-readable id.
-          VERSION: ${{ github.event_name != 'release' && github.sha || github.event.release.tag_name }}
+          VERSION: ${{ env.PUBLISH_CHANNEL == 'releases' && env.PUBLISH_TAG || github.sha }}
           REPO: ${{ github.repository }}
-          NOTES_URL: ${{ github.event.release.html_url }}
+          NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.PUBLISH_TAG }}
           ASSETS_DIR: dl
         run: bash scripts/build-update-manifest.sh
 
-      - name: Upload manifest artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: update-manifest
-          path: manifest.json
-          retention-days: 1
-
-      # Roll the fixed `staging` tag forward to this commit so the prerelease
-      # tracks main. (Releases own their own immutable vX.Y.Z tag.) Tag pushes do
-      # not match this workflow's branch trigger, so this can't loop.
-      - name: Roll staging tag to this commit
-        if: ${{ github.event_name != 'release' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git tag -f staging "${GITHUB_SHA}"
-          git push -f origin "refs/tags/staging"
-          gh release edit staging \
-            --target "${GITHUB_SHA}" \
-            --title "gproxy staging" \
-            --prerelease \
-            --notes "Rolling staging build for main @ ${GITHUB_SHA}."
-
-      - name: Remove legacy staging signature assets
-        if: ${{ github.event_name != 'release' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Collect GitHub Release assets
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/staging" \
-            --jq '.assets[] | select(.name | endswith(".zip.sha256.sig")) | .id' |
-          while IFS= read -r id; do
-            [ -n "$id" ] || continue
-            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" >/dev/null
-          done
+          mkdir -p publish-assets
+          find dl -type f \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.apk' -o -name '*.apk.sha256' \) \
+            -exec cp {} publish-assets/ \;
+          cp manifest.json publish-assets/
+          ls -la publish-assets
 
-      - name: Attach manifest to ${{ env.PUBLISH_TAG }}
-        uses: softprops/action-gh-release@v3
+      - name: Upload publish asset bundle
+        uses: actions/upload-artifact@v7
         with:
-          tag_name: ${{ env.PUBLISH_TAG }}
-          files: manifest.json
+          name: publish-assets
+          path: publish-assets/*
+          retention-days: 1
 
   build-edge:
     name: Edge wasm bundles
@@ -476,12 +468,6 @@ jobs:
           path: edge-dist/*
           retention-days: 1
 
-      - name: Attach to release
-        if: ${{ github.event_name == 'release' }}
-        uses: softprops/action-gh-release@v3
-        with:
-          files: edge-dist/*
-
       # Refresh the orphan `deploy` branch with the freshly-built, ready-to-deploy
       # bundles (artifacts only — no source). The README one-click buttons point
       # at this branch. Force-pushed as a single fresh snapshot each workflow run.
@@ -518,7 +504,6 @@ jobs:
 
   docker-build:
     name: docker ${{ matrix.variant }}-${{ matrix.arch }}
-    if: ${{ github.event_name == 'release' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     needs: build-native
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -578,10 +563,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/gproxy
           tags: |
-            type=ref,event=tag,enable=${{ github.event_name == 'release' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
-            type=raw,value=staging,enable=${{ github.event_name != 'release' }}
-            type=sha,prefix=staging-,enable=${{ github.event_name != 'release' }}
+            type=ref,event=tag,enable=${{ env.PUBLISH_CHANNEL == 'releases' }}
+            type=raw,value=latest,enable=${{ env.PUBLISH_CHANNEL == 'releases' }}
+            type=raw,value=staging,enable=${{ env.PUBLISH_CHANNEL != 'releases' }}
+            type=sha,prefix=staging-,enable=${{ env.PUBLISH_CHANNEL != 'releases' }}
           flavor: |
             suffix=-${{ matrix.arch }}${{ matrix.suffix }}
 
@@ -601,7 +586,6 @@ jobs:
   # and staging (needs the images actually pushed to GHCR).
   docker-manifest:
     name: Docker manifest
-    if: ${{ github.event_name == 'release' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     needs: docker-build
     runs-on: ubuntu-latest
     steps:
@@ -618,10 +602,10 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/gproxy
           tags: |
-            type=ref,event=tag,enable=${{ github.event_name == 'release' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
-            type=raw,value=staging,enable=${{ github.event_name != 'release' }}
-            type=sha,prefix=staging-,enable=${{ github.event_name != 'release' }}
+            type=ref,event=tag,enable=${{ env.PUBLISH_CHANNEL == 'releases' }}
+            type=raw,value=latest,enable=${{ env.PUBLISH_CHANNEL == 'releases' }}
+            type=raw,value=staging,enable=${{ env.PUBLISH_CHANNEL != 'releases' }}
+            type=sha,prefix=staging-,enable=${{ env.PUBLISH_CHANNEL != 'releases' }}
       - name: Create manifest lists (gnu + musl)
         shell: bash
         run: |
@@ -633,3 +617,122 @@ jobs:
             docker buildx imagetools create -t "${tag}-musl" \
               "${tag}-amd64-musl" "${tag}-arm64-musl"
           done <<< "${{ steps.meta.outputs.tags }}"
+
+  publish-github-release:
+    name: Publish GitHub Release assets
+    needs:
+      - prepare-release-assets
+      - build-edge
+      - docker-manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download native + manifest assets
+        uses: actions/download-artifact@v8
+        with:
+          name: publish-assets
+          path: publish-assets
+
+      - name: Download edge assets
+        uses: actions/download-artifact@v8
+        with:
+          name: release-edge
+          path: edge-assets
+
+      - name: Create versioned GitHub Release after assets are ready
+        if: ${{ env.PUBLISH_CHANNEL == 'releases' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          notes="docs/release-notes/${PUBLISH_TAG}.md"
+          [ -f "$notes" ] || {
+            echo "missing release notes: $notes" >&2
+            exit 1
+          }
+
+          mapfile -d '' release_files < <(find publish-assets edge-assets -type f -print0 | sort -z)
+          [ "${#release_files[@]}" -gt 0 ] || {
+            echo "no release assets prepared" >&2
+            exit 1
+          }
+
+          if gh release view "$PUBLISH_TAG" --json isDraft --jq .isDraft > is-draft.txt 2>/dev/null; then
+            is_draft="$(cat is-draft.txt)"
+            if [ "$is_draft" != "true" ]; then
+              echo "release $PUBLISH_TAG already exists and is published; refusing to replace assets in place" >&2
+              exit 1
+            fi
+            gh release upload "$PUBLISH_TAG" "${release_files[@]}" --clobber
+            gh release edit "$PUBLISH_TAG" \
+              --title "gproxy $PUBLISH_TAG" \
+              --notes-file "$notes" \
+              --target "$GITHUB_SHA" \
+              --verify-tag \
+              --draft=false \
+              --latest
+          else
+            # `gh release create` uploads through an internal draft and only
+            # publishes after all assets have been attached.
+            gh release create "$PUBLISH_TAG" "${release_files[@]}" \
+              --title "gproxy $PUBLISH_TAG" \
+              --notes-file "$notes" \
+              --target "$GITHUB_SHA" \
+              --verify-tag \
+              --latest
+          fi
+
+      - name: Publish staging assets after all builds are ready
+        if: ${{ env.PUBLISH_CHANNEL == 'staging' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git tag -f staging "$GITHUB_SHA"
+          git push -f origin "refs/tags/staging"
+
+          notes="Rolling staging build for main @ ${GITHUB_SHA}."
+          if gh release view staging >/dev/null 2>&1; then
+            gh release edit staging \
+              --target "$GITHUB_SHA" \
+              --title "gproxy staging" \
+              --prerelease \
+              --notes "$notes"
+          else
+            gh release create staging \
+              --target "$GITHUB_SHA" \
+              --title "gproxy staging" \
+              --notes "$notes" \
+              --prerelease \
+              --latest=false
+          fi
+
+          keep="$(mktemp)"
+          previous="$(mktemp -d)"
+          printf '%s\n' "manifest.json" > "$keep"
+          find publish-assets -maxdepth 1 -type f -printf '%f\n' >> "$keep"
+          if gh release download staging --pattern manifest.json --dir "$previous" >/dev/null 2>&1; then
+            jq -r '.artifacts[].url | split("/")[-1]' "$previous/manifest.json" >> "$keep"
+          fi
+          sort -u -o "$keep" "$keep"
+
+          mapfile -d '' release_files < <(find publish-assets -maxdepth 1 -type f ! -name manifest.json -print0 | sort -z)
+          if [ "${#release_files[@]}" -gt 0 ]; then
+            gh release upload staging "${release_files[@]}" --clobber
+          fi
+          gh release upload staging publish-assets/manifest.json --clobber
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/staging" \
+            --jq '.assets[] | [.id, .name] | @tsv' |
+          while IFS=$'\t' read -r id name; do
+            [ -n "$id" ] || continue
+            if grep -Fxq "$name" "$keep"; then
+              continue
+            fi
+            case "$name" in
+              *.zip|*.zip.sha256|*.apk|*.apk.sha256|*.zip.sha256.sig)
+                gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" >/dev/null
+                ;;
+            esac
+          done
