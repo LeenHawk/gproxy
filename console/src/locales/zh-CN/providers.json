@@ -7,7 +7,6 @@
     "credentials": "凭证",
     "models": "模型"
   },
-  "sideNav": { "all": "全部供应商" },
   "fields": {
     "name": "名称",
     "label": "显示名",

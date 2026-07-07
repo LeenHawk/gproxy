@@ -7,7 +7,6 @@
     "credentials": "憑證",
     "models": "模型"
   },
-  "sideNav": { "all": "全部供應商" },
   "fields": {
     "name": "名稱",
     "label": "顯示名稱",
