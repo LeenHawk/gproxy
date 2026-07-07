@@ -60,12 +60,7 @@ function PricingPage() {
     {
       key: "match",
       header: t("columns.match"),
-      cell: (r) => (
-        <div className="grid gap-0.5">
-          <span className="font-mono text-sm">{r.model_match}</span>
-          <span className="text-xs text-muted-foreground">{t(`match.${r.match_type}`)}</span>
-        </div>
-      ),
+      cell: (r) => <span className="font-mono text-sm">{r.model_match}</span>,
     },
     {
       key: "input_price",
@@ -175,7 +170,7 @@ function PricingPage() {
               <Badge variant={r.enabled ? "secondary" : "outline"}>{r.enabled ? t("status.enabled") : t("status.disabled")}</Badge>
             </div>
             <div className="text-xs text-muted-foreground">
-              {r.provider_id == null ? t("scope.global") : providerName.get(r.provider_id) ?? `#${r.provider_id}`} · {t(`match.${r.match_type}`)}
+              {r.provider_id == null ? t("scope.global") : providerName.get(r.provider_id) ?? `#${r.provider_id}`}
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
               <span>{t("columns.inputPrice")}: {r.input_price}</span>
