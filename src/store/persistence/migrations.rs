@@ -55,6 +55,14 @@
 /// [`MIGRATIONS`] must use versions strictly greater than this.
 pub const BASELINE_VERSION: i64 = 1;
 
+/// Lowest existing schema version this binary can migrate/read from. Keep this
+/// at the baseline while all forward migrations remain in [`MIGRATIONS`].
+///
+/// Release manifests publish this value as `min_compatible_data_version`.
+/// Raising it intentionally blocks self-update from older deployments and
+/// forces an intermediate/manual migration path.
+pub const MIN_COMPATIBLE_DATA_VERSION: i64 = 1;
+
 /// A single ordered schema migration. SQL statements execute in list order
 /// (one statement per backend call).
 pub struct Migration {
@@ -325,6 +333,7 @@ mod tests {
             .unwrap_or(BASELINE_VERSION);
         assert_eq!(latest_version(), top);
         assert!(pending(latest_version()).is_empty());
+        assert!(MIN_COMPATIBLE_DATA_VERSION <= latest_version());
     }
 
     #[test]
