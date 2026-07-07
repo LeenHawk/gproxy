@@ -103,3 +103,72 @@ fn response_format_to_chat_response_format(
 fn default_model() -> openai::OpenAiModelId {
     openai::OpenAiModelId::Unknown("unknown".to_owned())
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    #[test]
+    fn reasoning_item_is_preserved_with_following_tool_call() {
+        let input: openai::ResponseCreateRequest = serde_json::from_value(json!({
+            "model": "deepseek-v4-pro",
+            "input": [
+                {
+                    "role": "user",
+                    "content": "Use the tool."
+                },
+                {
+                    "type": "reasoning",
+                    "summary": [],
+                    "content": [
+                        {
+                            "type": "reasoning_text",
+                            "text": "I should call echo_text."
+                        }
+                    ]
+                },
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "echo_text",
+                    "arguments": "{\"text\":\"hello\"}"
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "hello"
+                }
+            ]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+        );
+
+        let output = request(input, &ctx).unwrap();
+        let openai::ChatCompletionMessageParam::Assistant {
+            reasoning_content,
+            tool_calls,
+            ..
+        } = &output.messages[1]
+        else {
+            panic!("second message should be assistant: {:?}", output.messages);
+        };
+
+        assert_eq!(
+            reasoning_content.as_deref(),
+            Some("I should call echo_text.")
+        );
+        assert!(tool_calls.is_some(), "tool call stays on assistant message");
+    }
+}

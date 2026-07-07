@@ -16,12 +16,47 @@ pub(in crate::transform::generate_content::openai_responses_to_openai_chat) fn r
                 extra: Default::default(),
             }]
         }
-        Some(openai::ResponseInput::Items(items)) => items
-            .into_iter()
-            .filter_map(response_item_to_chat_message)
-            .collect(),
+        Some(openai::ResponseInput::Items(items)) => response_items_to_chat_messages(items),
         None => Vec::new(),
     }
+}
+
+fn response_items_to_chat_messages(
+    items: Vec<openai::ResponseItem>,
+) -> Vec<openai::ChatCompletionMessageParam> {
+    let mut messages = Vec::new();
+    let mut pending_reasoning = Vec::new();
+
+    for item in items {
+        if let openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
+            summary,
+            content,
+            ..
+        }) = item
+        {
+            pending_reasoning.extend(summary.into_iter().map(|part| part.text));
+            pending_reasoning.extend(content.into_iter().flatten().map(|part| part.text));
+            continue;
+        }
+
+        let Some(mut message) = response_item_to_chat_message(item) else {
+            continue;
+        };
+
+        if let Some(reasoning) = non_empty_joined(std::mem::take(&mut pending_reasoning)) {
+            if !attach_reasoning(&mut message, &reasoning) {
+                messages.push(reasoning_to_chat_message(reasoning));
+            }
+        }
+
+        messages.push(message);
+    }
+
+    if let Some(reasoning) = non_empty_joined(pending_reasoning) {
+        messages.push(reasoning_to_chat_message(reasoning));
+    }
+
+    messages
 }
 
 fn response_item_to_chat_message(
@@ -233,6 +268,46 @@ fn typed_item_to_chat_message(
         openai::TypedResponseItem::Reasoning { .. } => None,
         _ => None,
     }
+}
+
+fn attach_reasoning(message: &mut openai::ChatCompletionMessageParam, reasoning: &str) -> bool {
+    let openai::ChatCompletionMessageParam::Assistant {
+        reasoning_content, ..
+    } = message
+    else {
+        return false;
+    };
+
+    match reasoning_content {
+        Some(existing) if !existing.is_empty() => {
+            existing.push('\n');
+            existing.push_str(reasoning);
+        }
+        _ => *reasoning_content = Some(reasoning.to_owned()),
+    }
+    true
+}
+
+fn reasoning_to_chat_message(reasoning: String) -> openai::ChatCompletionMessageParam {
+    openai::ChatCompletionMessageParam::Assistant {
+        content: None,
+        audio: None,
+        function_call: None,
+        name: None,
+        reasoning_content: Some(reasoning),
+        refusal: None,
+        tool_calls: None,
+        extra: Default::default(),
+    }
+}
+
+fn non_empty_joined(parts: Vec<String>) -> Option<String> {
+    let joined = parts
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    (!joined.is_empty()).then_some(joined)
 }
 
 fn response_input_parts_to_chat_content(

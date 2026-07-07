@@ -422,7 +422,7 @@ impl OutputState {
                 status,
                 ..
             }) => {
-                self.reasoning.id = Some(id);
+                self.reasoning.id = id;
                 self.reasoning.seed_summary(summary);
                 self.reasoning.seed_content(content.unwrap_or_default());
                 self.reasoning.encrypted_content = encrypted_content;
@@ -711,9 +711,10 @@ impl ReasoningState {
             .collect::<Vec<_>>();
 
         openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
-            id: self
-                .id
-                .unwrap_or_else(|| format!("reasoning_{}", self.index)),
+            id: Some(
+                self.id
+                    .unwrap_or_else(|| format!("reasoning_{}", self.index)),
+            ),
             summary,
             content: (!content.is_empty()).then_some(content),
             encrypted_content: self.encrypted_content,
