@@ -51,11 +51,14 @@ async fn normal_stream_settles_upstream_usage() {
         ],
     ));
     let bundle = bundle_with(
-        "provider_models",
+        "price_rules",
         json!([{
-            "id": 1, "provider_id": 1, "model_id": "gpt-test", "display_name": null,
-            "pricing_json": { "input": "3", "output": "15" },
-            "variants_json": null, "enabled": true
+            "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+            "operation": null, "kind": null,
+            "input_price": "3", "output_price": "15",
+            "cache_read_price": "0", "cache_creation_5m_price": "0",
+            "cache_creation_1h_price": "0", "image_price": "0",
+            "priority": 0, "enabled": true
         }]),
     );
     let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
@@ -237,15 +240,20 @@ async fn include_usage_injected() {
     }
 }
 
-/// BUNDLE + pricing on gpt-test + a user-scope quota row (M6 Task 4 tests).
+/// BUNDLE + price rule on gpt-test + a user-scope quota row (M6 Task 4 tests).
 fn quota_bundle() -> String {
     let mut v: Value =
         serde_json::from_str(&bundle_with("quotas", json!([{ "id": 1, "scope": "user", "scope_id": 1, "quota_total": "100.00", "cost_used": "0" }]))).unwrap();
-    v["provider_models"] = json!([{
-        "id": 1, "provider_id": 1, "model_id": "gpt-test", "display_name": null,
-        "pricing_json": { "input": "3", "output": "15" },
-        "variants_json": null, "enabled": true
-    }]);
+    v["price_rules"] = json!([
+        {
+            "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+            "operation": null, "kind": null,
+            "input_price": "3", "output_price": "15",
+            "cache_read_price": "0", "cache_creation_5m_price": "0",
+            "cache_creation_1h_price": "0", "image_price": "0",
+            "priority": 0, "enabled": true
+        }
+    ]);
     serde_json::to_string(&v).unwrap()
 }
 

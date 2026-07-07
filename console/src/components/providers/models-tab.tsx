@@ -1,28 +1,40 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DownloadCloud, Pencil, Plus, Trash2 } from "lucide-react";
+import { BadgeDollarSign, DownloadCloud, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { deleteProviderModel, providerModelsQuery, type ProviderModel } from "@/api/provider-models";
+import { priceRulesQuery, type PriceRule } from "@/api/price-rules";
 import type { Provider } from "@/api/providers";
 import { ApiError } from "@/api/http";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
+import { PriceRuleForm } from "@/components/pricing/price-rule-form";
 import { ModelForm } from "@/components/providers/model-form";
 import { ModelPullDialog } from "@/components/providers/model-pull-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
+import { parseVariantNames } from "@/lib/variant-sync";
+
+interface PriceTarget {
+  model: ProviderModel;
+  modelMatch: string;
+}
 
 function variantCount(v: unknown): number {
   if (Array.isArray(v)) return v.length;
   if (v && typeof v === "object" && Array.isArray((v as { suffixes?: unknown }).suffixes)) {
     return ((v as { suffixes: unknown[] }).suffixes).length;
   }
-  return 0;
+  return parseVariantNames(v).length;
+}
+
+function modelPriceTargets(model: ProviderModel): string[] {
+  return [...new Set([model.model_id, ...parseVariantNames(model.variants_json)])];
 }
 
 export function ModelsTab({ provider }: { provider: Provider }) {
@@ -30,6 +42,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
   const { t: tc } = useTranslation("common");
   const queryClient = useQueryClient();
   const { data: models, isPending } = useQuery(providerModelsQuery(provider.id));
+  const { data: priceRules = [] } = useQuery(priceRulesQuery);
   const rows = models ?? [];
   const batch = useBatch("provider-models", ["providers", provider.id, "models"]);
   const ids = rows.map((m) => m.id);
@@ -37,8 +50,18 @@ export function ModelsTab({ provider }: { provider: Provider }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ProviderModel | undefined>(undefined);
   const [deleteTarget, setDeleteTarget] = useState<ProviderModel | undefined>(undefined);
+  const [priceTarget, setPriceTarget] = useState<PriceTarget | undefined>(undefined);
   const [pullOpen, setPullOpen] = useState(false);
   const existingIds = new Set(rows.map((m) => m.model_id));
+
+  const exactPriceRule = (modelMatch: string | undefined): PriceRule | undefined => {
+    if (!modelMatch) return undefined;
+    return priceRules.find((rule) =>
+      rule.provider_id === provider.id &&
+      rule.match_type === "exact" &&
+      rule.model_match === modelMatch
+    );
+  };
 
   const removal = useMutation({
     mutationFn: (id: number) => deleteProviderModel(id),
@@ -54,6 +77,9 @@ export function ModelsTab({ provider }: { provider: Provider }) {
 
   const actionsColumn = (m: ProviderModel) => (
     <div className="flex items-center justify-end gap-1">
+      <Button variant="ghost" size="icon" aria-label={t("models.priceRule")} onClick={(e) => { e.stopPropagation(); setPriceTarget({ model: m, modelMatch: m.model_id }); }}>
+        <BadgeDollarSign className="size-4" aria-hidden />
+      </Button>
       <Button variant="ghost" size="icon" aria-label={t("models.edit")} onClick={(e) => { e.stopPropagation(); setEditTarget(m); setFormOpen(true); }}>
         <Pencil className="size-4" aria-hidden />
       </Button>
@@ -66,12 +92,13 @@ export function ModelsTab({ provider }: { provider: Provider }) {
   const columns: DataColumn<ProviderModel>[] = [
     { key: "model", header: t("models.modelId"), cell: (m) => <span className="font-mono text-xs">{m.model_id}</span> },
     { key: "name", header: t("models.displayName"), cell: (m) => m.display_name ?? "—" },
+    { key: "pricing", header: t("models.pricing"), cell: (m) => exactPriceRule(m.model_id) ? <Badge variant="secondary">{t("models.priced")}</Badge> : <span className="text-muted-foreground">—</span> },
     { key: "variants", header: t("models.variants"), cell: (m) => {
       const n = variantCount(m.variants_json);
       return n > 0 ? <Badge variant="outline">+{n}</Badge> : <span className="text-muted-foreground">—</span>;
     } },
     { key: "enabled", header: t("models.enabled"), cell: (m) => <Badge variant={m.enabled ? "secondary" : "outline"}>{m.enabled ? "on" : "off"}</Badge> },
-    ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-20 text-right" } as DataColumn<ProviderModel>]),
+    ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-28 text-right" } as DataColumn<ProviderModel>]),
   ];
 
   return (
@@ -112,6 +139,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {m.display_name ? <span>{m.display_name}</span> : null}
+                {exactPriceRule(m.model_id) ? <Badge variant="secondary">{t("models.priced")}</Badge> : null}
                 {variantCount(m.variants_json) > 0 ? <Badge variant="outline">+{variantCount(m.variants_json)}</Badge> : null}
               </div>
               {!batch.mode && actionsColumn(m)}
@@ -131,6 +159,20 @@ export function ModelsTab({ provider }: { provider: Provider }) {
       )}
       <EntityDialog open={formOpen} onOpenChange={setFormOpen} title={editTarget ? t("models.edit") : t("models.add")} wide>
         <ModelForm key={editTarget?.id ?? "new"} providerId={provider.id} providerName={provider.name} channel={provider.channel} model={editTarget} onSaved={() => setFormOpen(false)} />
+      </EntityDialog>
+      <EntityDialog open={priceTarget !== undefined} onOpenChange={(open) => !open && setPriceTarget(undefined)} title={t("models.priceRuleTitle", { name: priceTarget?.modelMatch ?? "" })} wide>
+        {priceTarget && (
+          <PriceRuleForm
+            key={`${priceTarget.model.id}:${priceTarget.modelMatch}:${exactPriceRule(priceTarget.modelMatch)?.id ?? "new"}`}
+            rule={exactPriceRule(priceTarget.modelMatch)}
+            initialProviderId={provider.id}
+            initialModelMatch={priceTarget.modelMatch}
+            modelMatchOptions={modelPriceTargets(priceTarget.model)}
+            onModelMatchChange={(modelMatch) => setPriceTarget({ model: priceTarget.model, modelMatch })}
+            lockedTarget
+            onSaved={() => setPriceTarget(undefined)}
+          />
+        )}
       </EntityDialog>
       <ModelPullDialog providerId={provider.id} existing={existingIds} open={pullOpen} onOpenChange={setPullOpen} />
       <ConfirmDangerous

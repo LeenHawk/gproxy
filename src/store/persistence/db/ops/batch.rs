@@ -37,6 +37,9 @@ pub async fn set_enabled(
         AdminEntity::ProviderModels => {
             set_enabled_arm!(conn, id, enabled, now, e::provider::provider_model)
         }
+        AdminEntity::PriceRules => {
+            set_enabled_arm!(conn, id, enabled, now, e::pricing::price_rule)
+        }
         AdminEntity::Routes => {
             set_enabled_arm!(conn, id, enabled, now, e::routing::route)
         }

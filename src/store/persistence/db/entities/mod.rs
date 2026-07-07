@@ -3,6 +3,7 @@
 pub mod authz;
 pub mod identity;
 pub mod logs;
+pub mod pricing;
 pub mod provider;
 pub mod routing;
 pub mod settings;

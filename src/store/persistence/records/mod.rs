@@ -8,6 +8,7 @@ pub mod audit;
 pub mod authz;
 pub mod identity;
 pub mod logs;
+pub mod pricing;
 pub mod provider;
 pub mod routing;
 pub mod settings;
@@ -20,6 +21,7 @@ pub use authz::{
 };
 pub use identity::{Org, OrgInput, Team, TeamInput, User, UserInput, UserKey, UserKeyInput};
 pub use logs::{DownstreamRequest, DownstreamRequestInput, UpstreamRequest, UpstreamRequestInput};
+pub use pricing::{PriceRule, PriceRuleInput};
 pub use provider::{
     Credential, CredentialInput, CredentialStatus, CredentialStatusInput, Provider, ProviderInput,
     ProviderModel, ProviderModelInput,

@@ -36,6 +36,7 @@ pub async fn export_bundle(
         providers: Vec::new(),
         credentials: Vec::new(),
         provider_models: Vec::new(),
+        price_rules: Vec::new(),
         routes: Vec::new(),
         route_members: Vec::new(),
         aliases: Vec::new(),
@@ -99,6 +100,10 @@ pub async fn export_bundle(
                 .push(provider_rule_set_to_input(a));
         }
         bundle.providers.push(provider_to_input(provider));
+    }
+
+    for rule in db.list_price_rules().await? {
+        bundle.price_rules.push(price_rule_to_input(rule));
     }
 
     // rule sets → rules.

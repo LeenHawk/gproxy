@@ -37,7 +37,7 @@ const BUNDLE: &str = r#"{
     { "id": 1, "provider_id": 1, "label": "k1", "secret_json": { "api_key": "sk-up-plaintext" }, "weight": 100, "enabled": true }
   ],
   "provider_models": [
-    { "id": 1, "provider_id": 1, "model_id": "gpt-4.1", "display_name": null, "pricing_json": null, "variants_json": null, "enabled": true }
+    { "id": 1, "provider_id": 1, "model_id": "gpt-4.1", "display_name": null, "variants_json": null, "enabled": true }
   ],
   "routes": [{ "id": 1, "name": "main", "strategy": "failover", "enabled": true, "description": null }],
   "route_members": [

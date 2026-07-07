@@ -62,9 +62,9 @@ pub use libsql::LibsqlPersistence;
 use records::{
     Alias, AliasInput, AuditLog, AuditLogInput, Credential, CredentialInput, CredentialStatus,
     CredentialStatusInput, DownstreamRequest, DownstreamRequestInput, InstanceSettings,
-    InstanceSettingsInput, Org, OrgInput, Provider, ProviderInput, ProviderModel,
-    ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput, RateLimit,
-    RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
+    InstanceSettingsInput, Org, OrgInput, PriceRule, PriceRuleInput, Provider, ProviderInput,
+    ProviderModel, ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput,
+    RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
     UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
@@ -194,6 +194,17 @@ pub trait PersistenceBackend: Send + Sync {
 
     /// Delete a provider model by id.
     async fn delete_provider_model(&self, id: i64) -> anyhow::Result<bool>;
+
+    // ── pricing (§17) ───────────────────────────────────────────────────────
+
+    /// List all pricing rules.
+    async fn list_price_rules(&self) -> anyhow::Result<Vec<PriceRule>>;
+
+    /// Insert or update a pricing rule.
+    async fn upsert_price_rule(&self, input: PriceRuleInput) -> anyhow::Result<PriceRule>;
+
+    /// Delete a pricing rule by id.
+    async fn delete_price_rule(&self, id: i64) -> anyhow::Result<bool>;
 
     // ── routing rules (§8-B) ─────────────────────────────────────────────────
 

@@ -14,8 +14,8 @@ use crate::app::models_index::{self, ExposedModel};
 use crate::process::CompiledRule;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::{
-    Alias, Credential, Org, Provider, ProviderModel, Quota, RateLimit, Route, RouteMember, Scope,
-    Team, User, UserKey,
+    Alias, Credential, Org, PriceRule, Provider, ProviderModel, Quota, RateLimit, Route,
+    RouteMember, Scope, Team, User, UserKey,
 };
 use crate::transform::routing::{CompiledRoutingRule, RoutingRuleSpec};
 
@@ -32,6 +32,8 @@ pub struct ControlPlaneSnapshot {
     pub credentials_by_provider: HashMap<i64, Vec<Arc<Credential>>>,
     /// provider id → models.
     pub models_by_provider: HashMap<i64, Vec<Arc<ProviderModel>>>,
+    /// Enabled pricing rules, sorted by resolver rank at lookup time.
+    pub price_rules: Arc<Vec<PriceRule>>,
     /// provider id → expansion of `provider_models` rows (enabled, variants
     /// applied) for list-side serving (§8-B).
     pub exposed_models_by_provider: HashMap<i64, Arc<Vec<ExposedModel>>>,
@@ -116,6 +118,7 @@ impl ControlPlaneSnapshot {
             keys_by_digest: HashMap::new(),
             credentials_by_provider: HashMap::new(),
             models_by_provider: HashMap::new(),
+            price_rules: Arc::new(Vec::new()),
             exposed_models_by_provider: HashMap::new(),
             variant_base_by_provider: HashMap::new(),
             routing_rules_by_provider: HashMap::new(),
@@ -213,6 +216,14 @@ impl ControlPlaneSnapshot {
                 .insert(provider.name.clone(), Arc::clone(&provider));
             snap.providers_by_id.insert(pid, provider);
         }
+
+        let price_rules = db
+            .list_price_rules()
+            .await?
+            .into_iter()
+            .filter(|r| r.enabled)
+            .collect::<Vec<_>>();
+        snap.price_rules = Arc::new(price_rules);
 
         // routes (enabled only — a disabled route must vanish from routing AND
         // from the model list) + members (sorted).

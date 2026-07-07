@@ -56,7 +56,7 @@ Quota 是某个 scope 的费用上限：
 
 用户链路上的每个 quota 都必须满足。Admission 会同时考虑持久化的 `cost_used` 和进行中的 pending spend。请求结算后，实际 usage 会回填 pending quota 并更新持久化费用。
 
-价格来自 `provider_models.pricing_json`。没有配置价格的模型仍可运行并记录 usage，但费用为 0。
+价格来自 `price_rules`。没有匹配启用价格规则的请求仍可运行并记录 usage，但费用为 0。
 
 ## 请求生命周期中的顺序
 

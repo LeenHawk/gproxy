@@ -2,8 +2,8 @@
 use crate::store::persistence::batch::AdminEntity;
 use crate::store::persistence::file::table;
 use crate::store::persistence::records::{
-    Alias, Credential, Org, Provider, ProviderModel, ProviderRuleSet, Route, RouteMember,
-    RoutingRule, Rule, RuleSet, Team, Usage, User, UserKey,
+    Alias, Credential, Org, PriceRule, Provider, ProviderModel, ProviderRuleSet, Route,
+    RouteMember, RoutingRule, Rule, RuleSet, Team, Usage, User, UserKey,
 };
 use std::path::Path;
 
@@ -53,6 +53,9 @@ pub async fn set_enabled(
                 f::provider::provider_models,
                 ProviderModel
             )
+        }
+        AdminEntity::PriceRules => {
+            set_enabled_arm!(root, id, enabled, now, f::pricing::price_rules, PriceRule)
         }
         AdminEntity::Routes => {
             set_enabled_arm!(root, id, enabled, now, f::routing::routes, Route)

@@ -6,7 +6,6 @@ export interface ProviderModel {
   provider_id: number;
   model_id: string;
   display_name: string | null;
-  pricing_json: unknown;
   variants_json: unknown;
   enabled: boolean;
   created_at: number;
@@ -18,10 +17,6 @@ export interface ProviderModelInput {
   provider_id: number;
   model_id: string;
   display_name?: string | null;
-  /** REQUIRED in the body — the Rust field has no serde(default), so omitting it is a
-   *  422. Send null when empty: Some(Value::Null) is harmless for pricing (billing reads
-   *  no price keys → cost 0). */
-  pricing_json: unknown;
   /** OMIT when none — variants_json HAS serde(default); sending JSON null round-trips as
    *  Some(Value::Null), so omit the key rather than send null. */
   variants_json?: unknown;

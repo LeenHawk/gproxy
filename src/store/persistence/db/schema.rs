@@ -2,6 +2,8 @@
 //! SeaORM entities for whatever dialect the connection uses (single source of
 //! truth = the entity definitions; no separate migration crate yet).
 
+use std::collections::HashSet;
+
 use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, Schema, Statement};
 
 use crate::store::persistence::migrations::{
@@ -11,6 +13,7 @@ use crate::store::persistence::migrations::{
 use super::entities::authz::{quota, rate_limit, route_permission};
 use super::entities::identity::{org, team, user, user_key};
 use super::entities::logs::{audit_log, downstream_request, upstream_request};
+use super::entities::pricing::price_rule;
 use super::entities::provider::{credential, credential_status, provider, provider_model};
 use super::entities::routing::{alias, route, route_member};
 use super::entities::settings::instance_setting;
@@ -26,6 +29,7 @@ pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> 
     create_table(conn, &schema, credential::Entity).await?;
     create_table(conn, &schema, credential_status::Entity).await?;
     create_table(conn, &schema, provider_model::Entity).await?;
+    create_table(conn, &schema, price_rule::Entity).await?;
     create_table(conn, &schema, route::Entity).await?;
     create_table(conn, &schema, route_member::Entity).await?;
     create_table(conn, &schema, alias::Entity).await?;
@@ -188,7 +192,214 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
         }
         record_version(conn, m.version).await?;
     }
+    repair_price_rules_schema(conn, dialect).await?;
     Ok(())
+}
+
+async fn repair_price_rules_schema(
+    conn: &DatabaseConnection,
+    dialect: MigrationDialect,
+) -> anyhow::Result<()> {
+    let cols = table_columns(conn, dialect, "price_rules").await?;
+    if cols.is_empty() {
+        return Ok(());
+    }
+
+    let had_rates_json = cols.contains("rates_json");
+    let had_cache_write_price = cols.contains("cache_write_price");
+    let had_operation = cols.contains("operation");
+    let had_kind = cols.contains("kind");
+    let had_priority = cols.contains("priority");
+    let mut changed = false;
+
+    for col in [
+        "input_price",
+        "output_price",
+        "cache_read_price",
+        "cache_creation_5m_price",
+        "cache_creation_1h_price",
+        "image_price",
+    ] {
+        if !cols.contains(col) {
+            conn.execute_unprepared(&add_price_column_sql(dialect, col))
+                .await?;
+            changed = true;
+        }
+    }
+
+    if changed && had_rates_json {
+        let sql = backfill_price_rules_from_rates_json_sql(dialect);
+        if let Err(err) = conn.execute_unprepared(sql).await {
+            tracing::warn!(error = %err, "price_rules rates_json backfill skipped");
+        }
+    }
+
+    if changed && had_cache_write_price {
+        let sql = "UPDATE price_rules \
+                   SET cache_creation_5m_price = cache_write_price, \
+                       cache_creation_1h_price = cache_write_price \
+                   WHERE cache_write_price IS NOT NULL";
+        if let Err(err) = conn.execute_unprepared(sql).await {
+            tracing::warn!(error = %err, "price_rules cache_write_price backfill skipped");
+        }
+    }
+
+    if had_rates_json || had_cache_write_price || had_operation || had_kind || had_priority {
+        drop_price_rules_legacy_columns(
+            conn,
+            dialect,
+            &[
+                (had_rates_json, "rates_json"),
+                (had_cache_write_price, "cache_write_price"),
+                (had_operation, "operation"),
+                (had_kind, "kind"),
+                (had_priority, "priority"),
+            ],
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn drop_price_rules_legacy_columns(
+    conn: &DatabaseConnection,
+    dialect: MigrationDialect,
+    columns: &[(bool, &str)],
+) -> anyhow::Result<()> {
+    match dialect {
+        MigrationDialect::Sqlite => rebuild_sqlite_price_rules_table(conn).await,
+        MigrationDialect::Postgres | MigrationDialect::MySql => {
+            for col in columns {
+                if col.0 {
+                    conn.execute_unprepared(&format!(
+                        "ALTER TABLE price_rules DROP COLUMN {}",
+                        col.1
+                    ))
+                    .await?;
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+async fn rebuild_sqlite_price_rules_table(conn: &DatabaseConnection) -> anyhow::Result<()> {
+    for sql in [
+        "DROP TABLE IF EXISTS price_rules_repaired",
+        "CREATE TABLE price_rules_repaired (\
+            id INTEGER PRIMARY KEY, \
+            provider_id INTEGER, \
+            match_type TEXT NOT NULL, \
+            model_match TEXT NOT NULL, \
+            input_price TEXT NOT NULL, \
+            output_price TEXT NOT NULL, \
+            cache_read_price TEXT NOT NULL, \
+            cache_creation_5m_price TEXT NOT NULL, \
+            cache_creation_1h_price TEXT NOT NULL, \
+            image_price TEXT NOT NULL, \
+            enabled INTEGER NOT NULL, \
+            created_at INTEGER NOT NULL, \
+            updated_at INTEGER NOT NULL)",
+        "INSERT INTO price_rules_repaired \
+            (id, provider_id, match_type, model_match, \
+             input_price, output_price, cache_read_price, cache_creation_5m_price, \
+             cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
+         SELECT \
+            id, provider_id, match_type, model_match, \
+            input_price, output_price, cache_read_price, cache_creation_5m_price, \
+            cache_creation_1h_price, image_price, enabled, created_at, updated_at \
+         FROM price_rules",
+        "DROP TABLE price_rules",
+        "ALTER TABLE price_rules_repaired RENAME TO price_rules",
+    ] {
+        conn.execute_unprepared(sql).await?;
+    }
+    Ok(())
+}
+
+async fn table_columns(
+    conn: &DatabaseConnection,
+    dialect: MigrationDialect,
+    table: &str,
+) -> anyhow::Result<HashSet<String>> {
+    let backend = conn.get_database_backend();
+    let sql = match dialect {
+        MigrationDialect::Sqlite => format!("PRAGMA table_info({table})"),
+        MigrationDialect::Postgres => format!(
+            "SELECT column_name AS name FROM information_schema.columns \
+             WHERE table_schema = current_schema() AND table_name = '{table}'"
+        ),
+        MigrationDialect::MySql => format!(
+            "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table}'"
+        ),
+    };
+
+    Ok(conn
+        .query_all_raw(Statement::from_string(backend, sql))
+        .await?
+        .into_iter()
+        .map(|row| row.try_get::<String>("", "name"))
+        .collect::<Result<HashSet<_>, _>>()?)
+}
+
+fn add_price_column_sql(dialect: MigrationDialect, col: &str) -> String {
+    match dialect {
+        MigrationDialect::MySql => {
+            format!("ALTER TABLE price_rules ADD COLUMN {col} VARCHAR(64) NOT NULL DEFAULT '0'")
+        }
+        MigrationDialect::Sqlite | MigrationDialect::Postgres => {
+            format!("ALTER TABLE price_rules ADD COLUMN {col} TEXT NOT NULL DEFAULT '0'")
+        }
+    }
+}
+
+fn backfill_price_rules_from_rates_json_sql(dialect: MigrationDialect) -> &'static str {
+    match dialect {
+        MigrationDialect::Sqlite => {
+            "UPDATE price_rules SET \
+                input_price = COALESCE(CAST(json_extract(rates_json, '$.input_tokens') AS TEXT), CAST(json_extract(rates_json, '$.input') AS TEXT), input_price), \
+                output_price = COALESCE(CAST(json_extract(rates_json, '$.output_tokens') AS TEXT), CAST(json_extract(rates_json, '$.output') AS TEXT), output_price), \
+                cache_read_price = COALESCE(CAST(json_extract(rates_json, '$.cache_read_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_read') AS TEXT), cache_read_price), \
+                cache_creation_5m_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_5m_price), \
+                cache_creation_1h_price = COALESCE(CAST(json_extract(rates_json, '$.cache_write_tokens') AS TEXT), CAST(json_extract(rates_json, '$.cache_creation') AS TEXT), cache_creation_1h_price), \
+                image_price = CASE \
+                    WHEN json_type(rates_json, '$.image_count') IN ('integer', 'real', 'text') THEN CAST(json_extract(rates_json, '$.image_count') AS TEXT) \
+                    WHEN json_type(rates_json, '$.image') IN ('integer', 'real', 'text') THEN CAST(json_extract(rates_json, '$.image') AS TEXT) \
+                    ELSE image_price \
+                END \
+             WHERE rates_json IS NOT NULL AND rates_json <> '' AND json_valid(rates_json)"
+        }
+        MigrationDialect::Postgres => {
+            "UPDATE price_rules SET \
+                input_price = COALESCE(rates_json::jsonb->>'input_tokens', rates_json::jsonb->>'input', input_price), \
+                output_price = COALESCE(rates_json::jsonb->>'output_tokens', rates_json::jsonb->>'output', output_price), \
+                cache_read_price = COALESCE(rates_json::jsonb->>'cache_read_tokens', rates_json::jsonb->>'cache_read', cache_read_price), \
+                cache_creation_5m_price = COALESCE(rates_json::jsonb->>'cache_write_tokens', rates_json::jsonb->>'cache_creation', cache_creation_5m_price), \
+                cache_creation_1h_price = COALESCE(rates_json::jsonb->>'cache_write_tokens', rates_json::jsonb->>'cache_creation', cache_creation_1h_price), \
+                image_price = CASE \
+                    WHEN jsonb_typeof(rates_json::jsonb->'image_count') IN ('string', 'number') THEN rates_json::jsonb->>'image_count' \
+                    WHEN jsonb_typeof(rates_json::jsonb->'image') IN ('string', 'number') THEN rates_json::jsonb->>'image' \
+                    ELSE image_price \
+                END \
+             WHERE rates_json IS NOT NULL AND rates_json <> ''"
+        }
+        MigrationDialect::MySql => {
+            "UPDATE price_rules SET \
+                input_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.input_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.input')), input_price), \
+                output_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.output_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.output')), output_price), \
+                cache_read_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_read_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_read')), cache_read_price), \
+                cache_creation_5m_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_write_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_creation')), cache_creation_5m_price), \
+                cache_creation_1h_price = COALESCE(JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_write_tokens')), JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.cache_creation')), cache_creation_1h_price), \
+                image_price = CASE \
+                    WHEN JSON_TYPE(JSON_EXTRACT(rates_json, '$.image_count')) IN ('INTEGER', 'DOUBLE', 'DECIMAL', 'STRING') THEN JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.image_count')) \
+                    WHEN JSON_TYPE(JSON_EXTRACT(rates_json, '$.image')) IN ('INTEGER', 'DOUBLE', 'DECIMAL', 'STRING') THEN JSON_UNQUOTE(JSON_EXTRACT(rates_json, '$.image')) \
+                    ELSE image_price \
+                END \
+             WHERE rates_json IS NOT NULL AND rates_json <> '' AND JSON_VALID(rates_json)"
+        }
+    }
 }
 
 async fn record_version(conn: &DatabaseConnection, version: i64) -> anyhow::Result<()> {

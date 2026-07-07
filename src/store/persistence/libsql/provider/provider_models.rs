@@ -9,7 +9,7 @@ use crate::store::persistence::libsql::util::{
 };
 use crate::store::persistence::records::{ProviderModel, ProviderModelInput};
 
-const COLS: &str = "id, provider_id, model_id, display_name, pricing_json, variants_json, \
+const COLS: &str = "id, provider_id, model_id, display_name, variants_json, \
      enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
@@ -18,11 +18,10 @@ fn decode(row: &Row) -> anyhow::Result<ProviderModel> {
         provider_id: col_i64(row, 1)?,
         model_id: col_str(row, 2)?,
         display_name: col_opt_str(row, 3)?,
-        pricing_json: col_opt_json(row, 4)?,
-        variants_json: col_opt_json(row, 5)?,
-        enabled: col_bool(row, 6)?,
-        created_at: col_i64(row, 7)?,
-        updated_at: col_i64(row, 8)?,
+        variants_json: col_opt_json(row, 4)?,
+        enabled: col_bool(row, 5)?,
+        created_at: col_i64(row, 6)?,
+        updated_at: col_i64(row, 7)?,
     })
 }
 
@@ -55,11 +54,6 @@ pub async fn upsert(
     input: ProviderModelInput,
 ) -> anyhow::Result<ProviderModel> {
     let now = now_secs();
-    let pricing = input
-        .pricing_json
-        .as_ref()
-        .map(serde_json::to_string)
-        .transpose()?;
     let variants = input
         .variants_json
         .as_ref()
@@ -71,12 +65,11 @@ pub async fn upsert(
             exec(
                 client,
                 "UPDATE provider_models SET provider_id=?, model_id=?, display_name=?, \
-                 pricing_json=?, variants_json=?, enabled=?, updated_at=? WHERE id=?",
+                 variants_json=?, enabled=?, updated_at=? WHERE id=?",
                 &[
                     arg_integer(input.provider_id),
                     arg_text(&input.model_id),
                     arg_opt_text(input.display_name.as_deref()),
-                    arg_opt_text(pricing.as_deref()),
                     arg_opt_text(variants.as_deref()),
                     arg_bool(input.enabled),
                     arg_integer(now),
@@ -90,14 +83,13 @@ pub async fn upsert(
             let qr = client
                 .execute(
                     "INSERT INTO provider_models \
-                     (id, provider_id, model_id, display_name, pricing_json, variants_json, \
-                      enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     (id, provider_id, model_id, display_name, variants_json, \
+                      enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_integer(input.provider_id),
                         arg_text(&input.model_id),
                         arg_opt_text(input.display_name.as_deref()),
-                        arg_opt_text(pricing.as_deref()),
                         arg_opt_text(variants.as_deref()),
                         arg_bool(input.enabled),
                         arg_integer(now),

@@ -12,6 +12,7 @@ mod batch;
 mod identity;
 mod logs;
 mod metrics;
+mod pricing;
 mod provider;
 mod routing;
 mod row;
@@ -30,9 +31,9 @@ use super::metrics::MetricsAggregate;
 use super::records::{
     Alias, AliasInput, AuditLog, AuditLogInput, Credential, CredentialInput, CredentialStatus,
     CredentialStatusInput, DownstreamRequest, DownstreamRequestInput, InstanceSettings,
-    InstanceSettingsInput, Org, OrgInput, Provider, ProviderInput, ProviderModel,
-    ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput, RateLimit,
-    RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
+    InstanceSettingsInput, Org, OrgInput, PriceRule, PriceRuleInput, Provider, ProviderInput,
+    ProviderModel, ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput,
+    RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
     UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
@@ -184,6 +185,18 @@ impl PersistenceBackend for LibsqlPersistence {
     }
     async fn delete_provider_model(&self, id: i64) -> anyhow::Result<bool> {
         provider::provider_models::delete(&self.client, id).await
+    }
+
+    async fn list_price_rules(&self) -> anyhow::Result<Vec<PriceRule>> {
+        pricing::price_rules::list(&self.client).await
+    }
+
+    async fn upsert_price_rule(&self, input: PriceRuleInput) -> anyhow::Result<PriceRule> {
+        pricing::price_rules::upsert(&self.client, input).await
+    }
+
+    async fn delete_price_rule(&self, id: i64) -> anyhow::Result<bool> {
+        pricing::price_rules::delete(&self.client, id).await
     }
 
     // ── routing rules ──

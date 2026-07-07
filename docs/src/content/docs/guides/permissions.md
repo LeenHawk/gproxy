@@ -69,8 +69,8 @@ Every quota on the user's chain must fit. Admission considers both persisted
 `cost_used` and in-flight pending spend. After the request settles, actual usage
 reconciles pending quota and updates persisted cost.
 
-Pricing comes from `provider_models.pricing_json`. Unpriced models still run and
-record usage, but add zero cost.
+Pricing comes from `price_rules`. Requests without a matching enabled rule still
+run and record usage, but add zero cost.
 
 ## Order in the Request Lifecycle
 

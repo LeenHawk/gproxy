@@ -1,4 +1,4 @@
-//! `provider_models` table SeaORM entity. `pricing_json` stored as text.
+//! `provider_models` table SeaORM entity.
 
 use sea_orm::entity::prelude::*;
 
@@ -10,8 +10,6 @@ pub struct Model {
     pub provider_id: i64,
     pub model_id: String,
     pub display_name: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub pricing_json: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub variants_json: Option<String>,
     pub enabled: bool,

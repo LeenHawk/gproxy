@@ -81,7 +81,6 @@ export function ModelPullDialog({
           provider_id: providerId,
           model_id: m.id,
           display_name: m.display_name,
-          pricing_json: null,
           enabled: true,
         });
       }

@@ -18,7 +18,7 @@ async fn nested_provider_models_roundtrip() {
     let url = format!("/admin/providers/{pid}/models");
     let model_body = serde_json::json!({
         "id": null, "provider_id": pid, "model_id": "gpt-4o",
-        "display_name": null, "pricing_json": null, "variants_json": null, "enabled": true,
+        "display_name": null, "variants_json": null, "enabled": true,
     })
     .to_string()
     .into_bytes();

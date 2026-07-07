@@ -269,7 +269,7 @@ const BUNDLE: &str = r#"{
     { "id": 2, "provider_id": 2, "label": null, "secret_json": { "api_key": "up-key" }, "proxy_url": null, "tls_fingerprint": null, "enabled": true }
   ],
   "provider_models": [
-    { "id": 1, "provider_id": 1, "model_id": "gpt-test", "display_name": null, "pricing_json": null, "variants_json": ["gpt-test-thinking"], "enabled": true }
+    { "id": 1, "provider_id": 1, "model_id": "gpt-test", "display_name": null, "variants_json": ["gpt-test-thinking"], "enabled": true }
   ],
   "routes": [
     { "id": 1, "name": "to-openai", "strategy": "failover", "enabled": true, "description": null },

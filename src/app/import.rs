@@ -10,7 +10,7 @@ use crate::crypto::SecretCipher;
 use crate::pipeline::auth::key_digest;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::{
-    AliasInput, CredentialInput, InstanceSettingsInput, OrgInput, ProviderInput,
+    AliasInput, CredentialInput, InstanceSettingsInput, OrgInput, PriceRuleInput, ProviderInput,
     ProviderModelInput, ProviderRuleSetInput, QuotaInput, RateLimitInput, RouteInput,
     RouteMemberInput, RoutePermissionInput, RoutingRuleInput, RuleInput, RuleSetInput, TeamInput,
     UserInput, UserKeyInput,
@@ -43,6 +43,8 @@ pub struct Bundle {
     pub credentials: Vec<CredentialImport>,
     #[serde(default)]
     pub provider_models: Vec<ProviderModelInput>,
+    #[serde(default)]
+    pub price_rules: Vec<PriceRuleInput>,
     #[serde(default)]
     pub routes: Vec<RouteInput>,
     #[serde(default)]
@@ -215,6 +217,10 @@ pub async fn import_bundle(
     }
     for x in bundle.provider_models {
         db.upsert_provider_model(x).await?;
+        n += 1;
+    }
+    for x in bundle.price_rules {
+        db.upsert_price_rule(x).await?;
         n += 1;
     }
     for x in bundle.routes {

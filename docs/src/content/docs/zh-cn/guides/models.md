@@ -14,7 +14,7 @@ request model
   -> provider credential
 ```
 
-Scoped provider 流量会跳过 route 查找，因为 provider 已经来自 URL；但它仍会使用 provider model 目录来做模型列表、variant 去后缀、pricing 和可见性。
+Scoped provider 流量会跳过 route 查找，因为 provider 已经来自 URL；但它仍会使用 provider model 目录来做模型列表、variant 去后缀和可见性。
 
 ## Provider Models
 
@@ -25,7 +25,6 @@ Scoped provider 流量会跳过 route 查找，因为 provider 已经来自 URL�
 | `provider_id` | 所属 provider。 |
 | `model_id` | 上游 model id。 |
 | `display_name` | 可选展示名。 |
-| `pricing_json` | 可选计费价格表。 |
 | `variants_json` | 可选 suffix variant 暴露配置。 |
 | `enabled` | 禁用模型不会暴露。 |
 
@@ -66,12 +65,13 @@ Routing rule 决定 provider 对该 operation 使用 `local`、`passthrough`、`
 
 ## Pricing
 
-价格保存在 `provider_models.pricing_json`，不是独立价格表。结算路径读取：
+价格保存在独立的 `price_rules`，不再保存在 provider model 行上。规则可以限定到某个 provider，也可以是全局规则，并通过 `match_type` 和 `model_match` 匹配上游模型 id。
 
-- `input`
-- `output`
-- `cache_read`
-- `cache_creation`
-- `image`
+解析顺序是：
 
-Token 价格是每百万 token。图片价格可以是每张图片的 flat value，也可以是按 `"{size}/{quality}"`、`"{size}"`、`"default"` 查找的 tiered object。缺失或格式错误的字段默认为 0：usage 仍会记录，但该调用不产生费用。
+1. provider exact；
+2. global exact；
+3. provider contains；
+4. global contains。
+
+价格字段包括 `input_price`、`output_price`、`cache_read_price`、`cache_creation_5m_price`、`cache_creation_1h_price` 和 `image_price`。Token 价格是每百万 token。图片价格是每张图片的 flat value。没有匹配规则时默认为 0：usage 仍会记录，但该调用不产生费用。

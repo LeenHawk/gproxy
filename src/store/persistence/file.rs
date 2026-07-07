@@ -12,6 +12,7 @@ pub(crate) mod batch;
 mod identity;
 mod logs;
 mod metrics;
+mod pricing;
 mod provider;
 mod routing;
 mod settings;
