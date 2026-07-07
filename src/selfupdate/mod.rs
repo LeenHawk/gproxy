@@ -150,10 +150,11 @@ pub enum UpdateError {
     Downgrade(String),
 }
 
-/// The data/schema version this binary operates at — the floor the manifest's
-/// `min_compatible_data_version` is checked against (§19.7). Sourced from the
-/// migration list (the running binary migrated the store to this version on
-/// boot). `0` in a no-persistence build, so the check simply never fires there.
+/// The latest data/schema version this binary operates at — the value the
+/// running process has already migrated the store to on boot. Checked against
+/// the target manifest's `min_compatible_data_version` (§19.7), which is the
+/// oldest schema the target binary can migrate/read from. `0` in a
+/// no-persistence build, so the check simply never fires there.
 #[cfg(not(target_arch = "wasm32"))]
 fn current_data_version() -> u32 {
     #[cfg(any(feature = "persist-db", feature = "persist-file"))]
@@ -302,16 +303,17 @@ pub async fn apply_with_options(
         .clone();
     let artifact_sha = artifact.sha256_value().map(str::to_string);
 
-    // §19.7 data-compat floor (any channel): refuse a binary that requires a
-    // newer on-disk data schema than this deployment has — it would boot against
-    // data it can't read. When the manifest is signed, this field is covered by
-    // that signature.
+    // §19.7 data-compat floor (any channel): refuse a binary that no longer
+    // supports the schema version this process has already migrated the store
+    // to. Normal forward migrations are allowed: the new binary runs them on
+    // restart. When the manifest is signed, this field is covered by that
+    // signature.
     let required = manifest.min_compatible_data_version;
     let have = current_data_version();
     if required > have {
         return Err(UpdateError::Incompatible(format!(
-            "manifest needs data version >= {required}, but this store is at {have}; \
-             migrate data before updating"
+            "manifest needs existing data version >= {required}, but this binary migrated \
+             the store to {have}; update through an intermediate release first"
         )));
     }
 

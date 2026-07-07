@@ -54,10 +54,11 @@ else
   exit 1
 fi
 
-# min_compatible_data_version = highest migration version (source of truth:
-# latest_version() over MIGRATIONS in migrations.rs).
-min_dv="$(grep -oP '^\s*version:\s*\K[0-9]+' "$MIGRATIONS_FILE" | sort -n | tail -1)"
-{ [ -n "$min_dv" ] && [ "$min_dv" -ge 2 ]; } || {
+# min_compatible_data_version is the oldest schema version this release can
+# migrate/read from, not the newest schema it will migrate to. Source of truth:
+# MIN_COMPATIBLE_DATA_VERSION in migrations.rs.
+min_dv="$(grep -oP '^\s*pub const MIN_COMPATIBLE_DATA_VERSION:\s*i64\s*=\s*\K[0-9]+' "$MIGRATIONS_FILE")"
+{ [ -n "$min_dv" ] && [ "$min_dv" -ge 1 ]; } || {
   echo "could not derive min_compatible_data_version from $MIGRATIONS_FILE" >&2; exit 1; }
 
 # Self-updatable target triples — MUST match current_target_triple() in
