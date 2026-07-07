@@ -4,11 +4,11 @@
 //! here — they decrypt secrets and live in `export.rs`.
 
 use crate::store::persistence::records::{
-    Alias, AliasInput, InstanceSettings, InstanceSettingsInput, Org, OrgInput, Provider,
-    ProviderInput, ProviderModel, ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota,
-    QuotaInput, RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput,
-    RoutePermission, RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet,
-    RuleSetInput, Team, TeamInput, User, UserInput,
+    Alias, AliasInput, InstanceSettings, InstanceSettingsInput, Org, OrgInput, PriceRule,
+    PriceRuleInput, Provider, ProviderInput, ProviderModel, ProviderModelInput, ProviderRuleSet,
+    ProviderRuleSetInput, Quota, QuotaInput, RateLimit, RateLimitInput, Route, RouteInput,
+    RouteMember, RouteMemberInput, RoutePermission, RoutePermissionInput, RoutingRule,
+    RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput, Team, TeamInput, User, UserInput,
 };
 
 pub(super) fn org_to_input(r: Org) -> OrgInput {
@@ -92,8 +92,23 @@ pub(super) fn provider_model_to_input(r: ProviderModel) -> ProviderModelInput {
         provider_id: r.provider_id,
         model_id: r.model_id,
         display_name: r.display_name,
-        pricing_json: r.pricing_json,
         variants_json: r.variants_json,
+        enabled: r.enabled,
+    }
+}
+
+pub(super) fn price_rule_to_input(r: PriceRule) -> PriceRuleInput {
+    PriceRuleInput {
+        id: Some(r.id),
+        provider_id: r.provider_id,
+        match_type: r.match_type,
+        model_match: r.model_match,
+        input_price: r.input_price,
+        output_price: r.output_price,
+        cache_read_price: r.cache_read_price,
+        cache_creation_5m_price: r.cache_creation_5m_price,
+        cache_creation_1h_price: r.cache_creation_1h_price,
+        image_price: r.image_price,
         enabled: r.enabled,
     }
 }

@@ -13,7 +13,7 @@ use crate::pipeline::error::PipelineError;
 use crate::pipeline::local_ops::{self, ModelEntry};
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::pipeline::{
-    auth, authz, balance, capture, classify, failover, ingress, preprocess, route,
+    auth, authz, balance, capture, classify, failover, ingress, preprocess, route, transform,
 };
 use crate::protocol::Operation;
 use crate::util::time::unix_now;
@@ -109,12 +109,6 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                 let resolved = route::route(&cp, &model)?;
                 let identity = ctx.identity.as_ref().expect("auth ran first");
                 authz::authorize(&cp, state.cache.as_ref(), identity, &model, unix_now()).await?;
-                // best-effort estimate priced at the FIRST enabled member's model
-                let est = resolved
-                    .members
-                    .first()
-                    .map(|m| estimate(&cp, &ctx, m.provider_id, &m.upstream_model_id))
-                    .unwrap_or(0);
                 let cands = balance::candidates(
                     &cp,
                     resolved,
@@ -123,6 +117,11 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                     Some(identity.user_key.id),
                 )
                 .await?;
+                let est = cands
+                    .iter()
+                    .map(|c| estimate(&cp, &ctx, c.provider.id, &c.upstream_model_id))
+                    .max()
+                    .unwrap_or(0);
                 ctx.route_name = Some(model);
                 (cands, est)
             } else if let Some((provider_name, upstream_model_id)) =
@@ -145,8 +144,9 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                 .await?;
                 let cands = provider_candidates(&cp, provider, upstream_model_id)?;
                 let est = cands
-                    .first()
+                    .iter()
                     .map(|c| estimate(&cp, &ctx, provider.id, &c.upstream_model_id))
+                    .max()
                     .unwrap_or(0);
                 (cands, est)
             } else {
@@ -172,8 +172,9 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
             let cands = scoped_candidates(&cp, provider, &ctx)?;
             // scoped: priced at the scoped provider's (variant-stripped) model
             let est = cands
-                .first()
+                .iter()
                 .map(|c| estimate(&cp, &ctx, provider.id, &c.upstream_model_id))
+                .max()
                 .unwrap_or(0);
             (cands, est)
         }
@@ -229,6 +230,12 @@ fn estimate(
     model_id: &str,
 ) -> i64 {
     let Some(op) = ctx.op else { return 0 };
+    if matches!(
+        transform::plan_for(cp, provider_id, op),
+        Ok(transform::TransformPlan::Local)
+    ) {
+        return 0;
+    }
     match op.operation {
         // Token-priced: estimate the body char count as input tokens (×1).
         Operation::GenerateContent
@@ -237,31 +244,16 @@ fn estimate(
             let pricing = pending::model_pricing(cp, provider_id, model_id);
             pending::estimate_micros(&pricing, ctx.body.len())
         }
-        // Image generation: `n` images at the requested size/quality rate.
+        // Image generation: `n` images at the configured per-image price.
         Operation::CreateImage | Operation::EditImage => {
             let req: Option<serde_json::Value> = serde_json::from_slice(&ctx.body).ok();
-            let field = |k: &str| {
-                req.as_ref()
-                    .and_then(|r| r.get(k))
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned)
-            };
             let n = req
                 .as_ref()
                 .and_then(|r| r.get("n"))
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(1);
-            let pricing_json = cp
-                .models_by_provider
-                .get(&provider_id)
-                .and_then(|ms| ms.iter().find(|m| m.model_id == model_id))
-                .and_then(|m| m.pricing_json.clone());
-            let rate = crate::billing::price::image_rate(
-                pricing_json.as_ref(),
-                field("size").as_deref(),
-                field("quality").as_deref(),
-            );
-            pending::to_micros(rust_decimal::Decimal::from(n) * rate)
+            let resolved = pending::resolve_pricing(cp, provider_id, model_id);
+            pending::to_micros(rust_decimal::Decimal::from(n) * resolved.pricing.image)
         }
         // models / count / compact / etc. are never billed → no pre-deduct.
         _ => 0,

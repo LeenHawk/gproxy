@@ -190,13 +190,16 @@
   "models": {
     "title": "Models",
     "add": "Add model",
-    "empty": "No models registered. Aggregated /v1/models lists alias/route names; per-provider model rows feed routing and pricing.",
+    "empty": "No models registered. Aggregated /v1/models lists alias/route names; per-provider model rows feed routing and variants.",
     "edit": "Edit model",
     "modelId": "Model ID",
     "displayName": "Display name",
     "enabled": "Enabled",
     "modelIdHint": "Upstream model id, or an arbitrary id you expose (need not exist upstream).",
-    "pricing": "Pricing (per 1M tokens)",
+    "pricing": "Pricing",
+    "priceRule": "Edit pricing",
+    "priceRuleTitle": "Pricing: {{name}}",
+    "priced": "Priced",
     "price": {
       "input": "Input",
       "output": "Output",

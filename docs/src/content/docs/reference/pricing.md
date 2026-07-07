@@ -3,88 +3,85 @@ title: Pricing
 description: How v2 stores model prices, estimates quota admission cost, and settles final usage cost.
 ---
 
-GPROXY v2 pricing is per provider model. The authoritative configuration is
-`provider_models.pricing_json`; there is no separate price table.
+GPROXY v2 pricing is managed by dedicated `price_rules` records. A rule can be
+provider-scoped (`provider_id`) or global, and can match a model id exactly or
+by substring.
 
 Pricing and quotas are related but separate:
 
 - pricing describes how much one provider model costs;
 - quotas describe how much an org, team, or user is allowed to spend.
 
-An unpriced model still runs. Missing, null, or malformed pricing fields parse
-as zero, so usage is recorded but cost is `0`.
+If no enabled price rule matches, the request still runs and usage is recorded,
+but cost is `0`. Malformed decimal price fields are rejected when rules are
+written or imported.
 
-## `pricing_json` shape
-
-Token prices are per 1,000,000 tokens. String decimals are preferred because
-money is handled with decimal arithmetic, but JSON numbers are accepted.
+## Price rule shape
 
 ```json
 {
-  "input": "3.00",
-  "output": "15.00",
-  "cache_read": "0.30",
-  "cache_creation": "3.75"
+  "id": 1,
+  "provider_id": 1,
+  "match_type": "exact",
+  "model_match": "gpt-4.1-mini",
+  "input_price": "0.40",
+  "output_price": "1.60",
+  "cache_read_price": "0",
+  "cache_creation_5m_price": "0",
+  "cache_creation_1h_price": "0",
+  "image_price": "0",
+  "enabled": true
 }
 ```
 
-Supported keys:
+`provider_id` can be `null`. A null provider makes the rule global.
 
-| Key | Meaning |
+## Price fields
+
+All price fields are decimal strings. Token prices are per 1,000,000 tokens;
+image price is per generated image.
+
+Supported fields:
+
+| Field | Meaning |
 | --- | --- |
-| `input` | Per-million input token price. |
-| `output` | Per-million output token price. |
-| `cache_read` | Per-million cache-read token price. |
-| `cache_creation` | Per-million cache-creation token price. |
-| `image` | Either a flat per-image price or a tier object for image operations. |
+| `input_price` | Per-million input token price. |
+| `output_price` | Per-million output token price. |
+| `cache_read_price` | Per-million cache-read token price. |
+| `cache_creation_5m_price` | Per-million 5-minute cache-creation token price. |
+| `cache_creation_1h_price` | Per-million 1-hour cache-creation token price. |
+| `image_price` | Per generated image price. |
 
 The token cost formula is:
 
 ```text
 cost =
-  input_tokens * input / 1_000_000
-+ output_tokens * output / 1_000_000
-+ cache_read_tokens * cache_read / 1_000_000
-+ cache_creation_tokens * cache_creation / 1_000_000
+  input_tokens * input_price / 1_000_000
++ output_tokens * output_price / 1_000_000
++ cache_read_tokens * cache_read_price / 1_000_000
++ cache_creation_5m_tokens * cache_creation_5m_price / 1_000_000
++ cache_creation_1h_tokens * cache_creation_1h_price / 1_000_000
 ```
 
 ## Image pricing
 
-For image operations, `image` can be a scalar per-image price:
-
-```json
-{ "image": "0.04" }
-```
-
-It can also be a tier object. Lookup order is:
-
-1. `"{size}/{quality}"`;
-2. `"{size}"`;
-3. `"default"`;
-4. zero if no tier matches.
-
-```json
-{
-  "image": {
-    "1024x1024": "0.04",
-    "1792x1024/hd": "0.12",
-    "default": "0.02"
-  }
-}
-```
-
-Image pricing is per generated image, not per million tokens.
+For image operations, `image_price` is a flat per-image price. It is not per
+million tokens and it is not tiered by size or quality.
 
 ## Runtime lookup
 
-The control-plane snapshot caches provider models by provider id. During
-admission and settlement, GPROXY resolves pricing by exact
-`(provider_id, upstream_model_id)` lookup in that snapshot and parses the
-model's `pricing_json`.
+The control-plane snapshot caches enabled price rules. During admission and
+settlement, GPROXY resolves pricing for `(provider_id, upstream_model_id)`.
 
-There is no glob, prefix, or `"default"` model fallback in the current v2
-pricing lookup. Configure pricing on each provider model row that should bill
-non-zero cost.
+Rule matching order is:
+
+1. provider exact;
+2. global exact;
+3. provider contains;
+4. global contains.
+
+Within the same rank, the longer `model_match` wins, then lower `id` wins for
+deterministic ties.
 
 ## Admission estimates
 
@@ -93,7 +90,7 @@ Before an upstream request is sent, quota admission uses a best-effort estimate:
 - estimated input tokens are the request body length used by the current
   pending-cost estimator;
 - output, cache, and image components are not estimated;
-- the estimate is priced with the selected provider model's token pricing;
+- the estimate is priced with the selected price rule's token pricing;
 - if the estimate is zero, pending quota pre-deduct is skipped.
 
 For quota-bearing scopes, GPROXY adds the estimated micro-dollar cost to cache
@@ -124,29 +121,35 @@ currently billed by the content-generation settlement path.
 
 ## Where operators edit prices
 
-Use the console or the provider-model admin endpoint:
+Use the console Pricing page or the price-rule admin endpoint:
 
 ```text
-GET  /admin/providers/{provider_id}/models
-POST /admin/providers/{provider_id}/models
+GET    /admin/price-rules
+POST   /admin/price-rules
+DELETE /admin/price-rules/{id}
 ```
 
-JSON import/export uses the same `provider_models` input shape:
+JSON import/export uses the `price_rules` array:
 
 ```json
 {
-  "id": 1,
-  "provider_id": 1,
-  "model_id": "gpt-4.1-mini",
-  "display_name": "GPT-4.1 mini",
-  "pricing_json": {
-    "input": "0.40",
-    "output": "1.60"
-  },
-  "variants_json": null,
-  "enabled": true
+  "price_rules": [
+    {
+      "id": 1,
+      "provider_id": 1,
+      "match_type": "exact",
+      "model_match": "gpt-4.1-mini",
+      "input_price": "0.40",
+      "output_price": "1.60",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_price": "0",
+      "enabled": true
+    }
+  ]
 }
 ```
 
 After admin mutations, GPROXY invalidates the control-plane snapshot so new
-requests see the updated model and pricing rows.
+requests see the updated pricing rules.

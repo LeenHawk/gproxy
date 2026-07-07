@@ -13,6 +13,7 @@ pub mod batch;
 pub mod identity;
 pub mod logs;
 pub mod metrics;
+pub mod pricing;
 pub mod provider;
 pub mod routing;
 pub mod settings;

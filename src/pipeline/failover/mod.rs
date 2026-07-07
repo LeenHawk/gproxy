@@ -281,7 +281,8 @@ pub async fn run_failover(
                 rules: rules.as_slice(),
                 model: rule_filter_model.as_str(),
             });
-            let usage_kind = match plan.shape_op(ctx).kind {
+            let shaped_op = plan.shape_op(ctx);
+            let usage_kind = match shaped_op.kind {
                 OperationKind::ContentGeneration(k) => Some(k),
                 OperationKind::Provider(_) => None,
             };

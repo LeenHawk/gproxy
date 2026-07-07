@@ -111,8 +111,22 @@ v2 bundle 使用 `schema_version: 1`，其余字段是持久化 input record 数
       "provider_id": 1,
       "model_id": "gpt-4.1-mini",
       "display_name": "GPT-4.1 mini",
-      "pricing_json": { "input": "0.40", "output": "1.60" },
       "variants_json": null,
+      "enabled": true
+    }
+  ],
+  "price_rules": [
+    {
+      "id": 1,
+      "provider_id": 1,
+      "match_type": "exact",
+      "model_match": "gpt-4.1-mini",
+      "input_price": "0.40",
+      "output_price": "1.60",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_price": "0",
       "enabled": true
     }
   ],
@@ -149,7 +163,7 @@ v2 bundle 使用 `schema_version: 1`，其余字段是持久化 input record 数
 | --- | --- |
 | `orgs`, `teams`, `users`, `user_keys` | 身份、admin 登录和 API key。导入的 API key 会生成 digest 供鉴权查找，并按当前 cipher 存储。 |
 | `route_permissions`, `rate_limits`, `quotas` | org/team/user 作用域的访问权限、token limit 和费用 quota。 |
-| `providers`, `credentials`, `provider_models` | 上游 provider、密封 credential、暴露模型、可选 pricing 和 variants。 |
+| `providers`, `credentials`, `provider_models`, `price_rules` | 上游 provider、密封 credential、暴露模型、variants 和价格规则。 |
 | `routes`, `route_members`, `aliases` | 逻辑模型名、后端池和 alias。 |
 | `routing_rules` | 每个 provider 的 transform dispatch 行。通过 admin API 创建 provider 会自动 seed 默认路由；原始 bundle import 只导入你提供的行。 |
 | `rule_sets`, `rules`, `provider_rule_sets` | 可复用的请求/响应变更规则集，以及 provider 绑定。 |

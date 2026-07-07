@@ -134,6 +134,108 @@ async fn migrates_old_alias_table_to_scoped_aliases() {
 }
 
 #[tokio::test]
+async fn repairs_old_price_rules_rates_json_table() {
+    use crate::store::persistence::migrations::{CREATE_MIGRATIONS_TABLE, latest_version};
+    use rust_decimal::Decimal;
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-pricing.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE price_rules (\
+            id INTEGER PRIMARY KEY, \
+            provider_id INTEGER, \
+            match_type TEXT NOT NULL, \
+            model_match TEXT NOT NULL, \
+            operation TEXT, \
+            kind TEXT, \
+            rates_json TEXT NOT NULL, \
+            priority INTEGER NOT NULL, \
+            enabled INTEGER NOT NULL, \
+            created_at INTEGER NOT NULL, \
+            updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old price_rules table");
+    conn.execute_unprepared(
+        "INSERT INTO price_rules \
+         (id, provider_id, match_type, model_match, operation, kind, rates_json, priority, enabled, created_at, updated_at) \
+         VALUES \
+         (1, 7, 'exact', 'gpt-test', NULL, NULL, \
+          '{\"input_tokens\":\"0.40\",\"output_tokens\":\"1.60\",\"cache_read_tokens\":\"0.10\",\"cache_write_tokens\":\"2.50\",\"image_count\":\"0.04\"}', \
+          3, 1, 10, 11)",
+    )
+    .await
+    .expect("old price rule row");
+    conn.execute_unprepared(CREATE_MIGRATIONS_TABLE)
+        .await
+        .expect("schema_migrations");
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (8, 0)")
+        .await
+        .expect("version 8");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("repair");
+    let rules = db.list_price_rules().await.expect("price rules");
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].input_price, Decimal::new(40, 2));
+    assert_eq!(rules[0].output_price, Decimal::new(160, 2));
+    assert_eq!(rules[0].cache_read_price, Decimal::new(10, 2));
+    assert_eq!(rules[0].cache_creation_5m_price, Decimal::new(250, 2));
+    assert_eq!(rules[0].cache_creation_1h_price, Decimal::new(250, 2));
+    assert_eq!(rules[0].image_price, Decimal::new(4, 2));
+
+    let backend = db.conn.get_database_backend();
+    let cols = db
+        .conn
+        .query_all_raw(Statement::from_string(
+            backend,
+            "PRAGMA table_info(price_rules)".to_string(),
+        ))
+        .await
+        .expect("columns")
+        .into_iter()
+        .map(|row| row.try_get::<String>("", "name"))
+        .collect::<Result<Vec<_>, _>>()
+        .expect("column names");
+    assert!(!cols.iter().any(|col| col == "rates_json"));
+    assert!(!cols.iter().any(|col| col == "cache_write_price"));
+    assert!(!cols.iter().any(|col| col == "operation"));
+    assert!(!cols.iter().any(|col| col == "kind"));
+    assert!(!cols.iter().any(|col| col == "priority"));
+
+    db.upsert_price_rule(PriceRuleInput {
+        id: None,
+        provider_id: None,
+        match_type: "contains".into(),
+        model_match: "new-model".into(),
+        input_price: Decimal::new(1, 0),
+        output_price: Decimal::new(2, 0),
+        cache_read_price: Decimal::ZERO,
+        cache_creation_5m_price: Decimal::ZERO,
+        cache_creation_1h_price: Decimal::ZERO,
+        image_price: Decimal::ZERO,
+        enabled: true,
+    })
+    .await
+    .expect("insert repaired price rule");
+    assert_eq!(db.list_price_rules().await.expect("after insert").len(), 2);
+
+    let row = db
+        .conn
+        .query_one_raw(Statement::from_string(
+            backend,
+            "SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations".to_string(),
+        ))
+        .await
+        .expect("query")
+        .expect("row");
+    assert_eq!(row.try_get::<i64>("", "v").expect("v"), latest_version());
+}
+
+#[tokio::test]
 async fn provider_round_trip() {
     let db = mem().await;
     let created = db
@@ -233,7 +335,6 @@ async fn cascade_deletes() {
         provider_id: p.id,
         model_id: "gpt-x".to_owned(),
         display_name: None,
-        pricing_json: None,
         variants_json: None,
         enabled: true,
     })
@@ -399,7 +500,7 @@ const IMPORT_BUNDLE: &str = r#"{
     { "id": 1, "provider_id": 1, "label": "k1", "secret_json": { "api_key": "sk-up-plaintext" }, "weight": 100, "enabled": true }
   ],
   "provider_models": [
-    { "id": 1, "provider_id": 1, "model_id": "gpt-4.1", "display_name": null, "pricing_json": null, "variants_json": null, "enabled": true }
+    { "id": 1, "provider_id": 1, "model_id": "gpt-4.1", "display_name": null, "variants_json": null, "enabled": true }
   ],
   "routes": [{ "id": 1, "name": "main", "strategy": "failover", "enabled": true, "description": null }],
   "route_members": [

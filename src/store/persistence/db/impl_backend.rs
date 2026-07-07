@@ -9,9 +9,9 @@ use crate::store::persistence::UsageQuery;
 use crate::store::persistence::records::{
     Alias, AliasInput, AuditLog, AuditLogInput, Credential, CredentialInput, CredentialStatus,
     CredentialStatusInput, DownstreamRequest, DownstreamRequestInput, InstanceSettings,
-    InstanceSettingsInput, Org, OrgInput, Provider, ProviderInput, ProviderModel,
-    ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput, RateLimit,
-    RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
+    InstanceSettingsInput, Org, OrgInput, PriceRule, PriceRuleInput, Provider, ProviderInput,
+    ProviderModel, ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput,
+    RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
     UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
@@ -166,6 +166,18 @@ impl PersistenceBackend for DbPersistence {
 
     async fn delete_provider_model(&self, id: i64) -> anyhow::Result<bool> {
         ops::provider::provider_models::delete(&self.conn, id).await
+    }
+
+    async fn list_price_rules(&self) -> anyhow::Result<Vec<PriceRule>> {
+        ops::pricing::price_rules::list(&self.conn).await
+    }
+
+    async fn upsert_price_rule(&self, input: PriceRuleInput) -> anyhow::Result<PriceRule> {
+        ops::pricing::price_rules::upsert(&self.conn, input).await
+    }
+
+    async fn delete_price_rule(&self, id: i64) -> anyhow::Result<bool> {
+        ops::pricing::price_rules::delete(&self.conn, id).await
     }
 
     async fn list_routing_rules(&self, provider_id: i64) -> anyhow::Result<Vec<RoutingRule>> {

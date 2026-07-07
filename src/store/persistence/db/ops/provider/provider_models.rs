@@ -13,10 +13,6 @@ fn to_record(m: provider_model::Model) -> anyhow::Result<ProviderModel> {
         provider_id: m.provider_id,
         model_id: m.model_id,
         display_name: m.display_name,
-        pricing_json: m
-            .pricing_json
-            .map(|s| serde_json::from_str(&s))
-            .transpose()?,
         variants_json: m
             .variants_json
             .map(|s| serde_json::from_str(&s))
@@ -45,10 +41,6 @@ pub async fn upsert(
     input: ProviderModelInput,
 ) -> anyhow::Result<ProviderModel> {
     let now = crate::store::persistence::db::ops::now_secs();
-    let pricing = input
-        .pricing_json
-        .map(|v| serde_json::to_string(&v))
-        .transpose()?;
     let variants = input
         .variants_json
         .map(|v| serde_json::to_string(&v))
@@ -61,7 +53,6 @@ pub async fn upsert(
                 am.provider_id = Set(input.provider_id);
                 am.model_id = Set(input.model_id);
                 am.display_name = Set(input.display_name);
-                am.pricing_json = Set(pricing);
                 am.variants_json = Set(variants);
                 am.enabled = Set(input.enabled);
                 am.updated_at = Set(now);
@@ -75,7 +66,6 @@ pub async fn upsert(
                     provider_id: Set(input.provider_id),
                     model_id: Set(input.model_id),
                     display_name: Set(input.display_name),
-                    pricing_json: Set(pricing),
                     variants_json: Set(variants),
                     enabled: Set(input.enabled),
                     created_at: Set(now),
@@ -91,7 +81,6 @@ pub async fn upsert(
                 provider_id: Set(input.provider_id),
                 model_id: Set(input.model_id),
                 display_name: Set(input.display_name),
-                pricing_json: Set(pricing),
                 variants_json: Set(variants),
                 enabled: Set(input.enabled),
                 created_at: Set(now),

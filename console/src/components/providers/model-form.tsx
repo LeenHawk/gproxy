@@ -12,41 +12,6 @@ import { VariantEditor, type VariantRow } from "@/components/providers/variant-e
 import { syncModelVariants, parseVariantNames } from "@/lib/variant-sync";
 import type { SuffixAction } from "@/components/providers/suffix-presets";
 
-const PRICE_KEYS = ["input", "output", "cache_read", "cache_creation", "image"] as const;
-type PriceKey = (typeof PRICE_KEYS)[number];
-
-function readPrice(pricing: unknown, key: PriceKey): string {
-  if (pricing && typeof pricing === "object" && key in (pricing as Record<string, unknown>)) {
-    const v = (pricing as Record<string, unknown>)[key];
-    if (typeof v === "string" || typeof v === "number") return String(v);
-  }
-  return "";
-}
-
-/** Build pricing_json from the 5 simple fields, preserving original keys this flat
- *  editor can't represent (e.g. a tiered `image` object, or any future key), so an
- *  unrelated edit never silently drops them. null when nothing remains. */
-function buildPricing(prices: Record<PriceKey, string>, original: unknown): Record<string, unknown> | null {
-  const out: Record<string, unknown> = {};
-  if (original && typeof original === "object" && !Array.isArray(original)) {
-    for (const [k, v] of Object.entries(original as Record<string, unknown>)) {
-      const preservable = !(PRICE_KEYS as readonly string[]).includes(k) || (v !== null && typeof v === "object");
-      if (preservable) out[k] = v;
-    }
-  }
-  for (const k of PRICE_KEYS) {
-    if (prices[k].trim() !== "") out[k] = prices[k].trim();
-  }
-  return Object.keys(out).length > 0 ? out : null;
-}
-
-/** A non-scalar `image` price (tiered object) can't be edited in the flat field. */
-function imageIsTiered(pricing: unknown): boolean {
-  if (!pricing || typeof pricing !== "object") return false;
-  const v = (pricing as Record<string, unknown>).image;
-  return v !== null && typeof v === "object";
-}
-
 function readVariantRows(variants: unknown): { rows: VariantRow[]; exposeBase: boolean } {
   const names = parseVariantNames(variants);
   let exposeBase = true;
@@ -67,14 +32,10 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
   const editing = model !== undefined;
-  const imageTiered = imageIsTiered(model?.pricing_json);
 
   const [modelId, setModelId] = useState(model?.model_id ?? "");
   const [displayName, setDisplayName] = useState(model?.display_name ?? "");
   const [enabled, setEnabled] = useState(model?.enabled ?? true);
-  const [prices, setPrices] = useState<Record<PriceKey, string>>(() =>
-    Object.fromEntries(PRICE_KEYS.map((k) => [k, readPrice(model?.pricing_json, k)])) as Record<PriceKey, string>,
-  );
   const initVariants = readVariantRows(model?.variants_json);
   const [variantRows, setVariantRows] = useState<VariantRow[]>(initVariants.rows);
   const [exposeBase, setExposeBase] = useState(initVariants.exposeBase);
@@ -85,7 +46,6 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
   const mutation = useMutation({
     mutationFn: async () => {
       if (!modelId.trim()) throw new ApiError(0, "bad_request", t("form.required"));
-      const pricing = buildPricing(prices, model?.pricing_json);
       const variants = buildVariantsJson(variantRows, exposeBase);
       const newNames = variantRows.map((r) => r.name.trim()).filter((n) => n !== "");
       const presetActions = new Map<string, SuffixAction[]>();
@@ -98,7 +58,6 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         provider_id: providerId,
         model_id: modelId.trim(),
         display_name: displayName.trim() === "" ? null : displayName.trim(),
-        pricing_json: pricing,
         ...(variants !== null ? { variants_json: variants } : {}),
         enabled,
       });
@@ -131,29 +90,6 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         <Label htmlFor="md-name">{t("models.displayName")}</Label>
         <Input id="md-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       </div>
-
-      <fieldset className="grid gap-3 rounded-md border p-3">
-        <legend className="px-1 text-sm font-medium">{t("models.pricing")}</legend>
-        <div className="grid grid-cols-2 gap-3">
-          {PRICE_KEYS.map((k) => {
-            const tieredImage = k === "image" && imageTiered;
-            return (
-              <div key={k} className="grid gap-1">
-                <Label htmlFor={`md-price-${k}`} className="text-xs">{t(`models.price.${k}`)}</Label>
-                <Input
-                  id={`md-price-${k}`}
-                  inputMode="decimal"
-                  value={prices[k]}
-                  disabled={tieredImage}
-                  placeholder={tieredImage ? t("models.imageTiered") : "0"}
-                  onChange={(e) => setPrices((p) => ({ ...p, [k]: e.target.value }))}
-                />
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground">{t("models.pricingHint")}</p>
-      </fieldset>
 
       <VariantEditor
         rows={variantRows}

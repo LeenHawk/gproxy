@@ -69,7 +69,6 @@ pub struct V1Model {
     pub model_id: String,
     pub display_name: Option<String>,
     pub enabled: bool,
-    pub pricing_json: Option<String>,
 }
 
 pub struct V1Quota {
@@ -174,11 +173,9 @@ pub async fn read_all(pool: &SqlitePool) -> anyhow::Result<V1Data> {
         });
     }
 
-    for r in sqlx::query(
-        "SELECT id, provider_id, model_id, display_name, enabled, pricing_json FROM models",
-    )
-    .fetch_all(pool)
-    .await?
+    for r in sqlx::query("SELECT id, provider_id, model_id, display_name, enabled FROM models")
+        .fetch_all(pool)
+        .await?
     {
         data.models.push(V1Model {
             id: r.try_get("id")?,
@@ -186,7 +183,6 @@ pub async fn read_all(pool: &SqlitePool) -> anyhow::Result<V1Data> {
             model_id: r.try_get("model_id")?,
             display_name: r.try_get("display_name")?,
             enabled: r.try_get("enabled")?,
-            pricing_json: r.try_get("pricing_json")?,
         });
     }
 

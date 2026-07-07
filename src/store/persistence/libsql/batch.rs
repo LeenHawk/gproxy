@@ -10,6 +10,7 @@ fn enabled_table(entity: AdminEntity) -> Option<&'static str> {
         AdminEntity::Providers => "providers",
         AdminEntity::Credentials => "credentials",
         AdminEntity::ProviderModels => "provider_models",
+        AdminEntity::PriceRules => "price_rules",
         AdminEntity::Routes => "routes",
         AdminEntity::RouteMembers => "route_members",
         AdminEntity::Aliases => "aliases",

@@ -3,85 +3,83 @@ title: Pricing
 description: v2 如何存储模型价格、估算 quota admission 成本并结算最终 usage cost。
 ---
 
-GPROXY v2 的 pricing 属于 provider model。权威配置是
-`provider_models.pricing_json`；当前没有单独的价格表。
+GPROXY v2 的 pricing 由独立的 `price_rules` 记录管理。规则可以限定到某个
+provider (`provider_id`)，也可以是全局规则；模型匹配支持精确匹配和 substring
+匹配。
 
 pricing 和 quota 相关但不是同一层：
 
 - pricing 描述某个 provider model 的单位价格；
 - quota 描述某个 org、team 或 user 可以花多少钱。
 
-未配置价格的模型仍然可以运行。缺失、null 或格式错误的 pricing 字段会被解析为 0，因此 usage 会记录，但 cost 为 `0`。
+没有匹配到启用价格规则时，请求仍然可以运行并记录 usage，但 cost 为 `0`。
+格式错误的 decimal 价格字段会在写入或导入规则时被拒绝。
 
-## `pricing_json` 结构
-
-token 价格按每 1,000,000 tokens 计。推荐使用字符串 decimal，因为金额用
-decimal 运算；JSON number 也会被接受。
+## Price rule 结构
 
 ```json
 {
-  "input": "3.00",
-  "output": "15.00",
-  "cache_read": "0.30",
-  "cache_creation": "3.75"
+  "id": 1,
+  "provider_id": 1,
+  "match_type": "exact",
+  "model_match": "gpt-4.1-mini",
+  "input_price": "0.40",
+  "output_price": "1.60",
+  "cache_read_price": "0",
+  "cache_creation_5m_price": "0",
+  "cache_creation_1h_price": "0",
+  "image_price": "0",
+  "enabled": true
 }
 ```
+
+`provider_id` 可以是 `null`。provider 为 null 表示全局规则。
+
+## 价格字段
+
+所有价格字段都是 decimal 字符串。Token 价格按每 1,000,000 tokens 计；
+图片价格按每张生成图片计。
 
 支持字段：
 
 | 字段 | 含义 |
 | --- | --- |
-| `input` | 每百万 input token 价格。 |
-| `output` | 每百万 output token 价格。 |
-| `cache_read` | 每百万 cache-read token 价格。 |
-| `cache_creation` | 每百万 cache-creation token 价格。 |
-| `image` | 图片 operation 的每张图价格；可以是 flat scalar，也可以是 tier object。 |
+| `input_price` | 每百万 input token 价格。 |
+| `output_price` | 每百万 output token 价格。 |
+| `cache_read_price` | 每百万 cache-read token 价格。 |
+| `cache_creation_5m_price` | 每百万 5 分钟 cache-creation token 价格。 |
+| `cache_creation_1h_price` | 每百万 1 小时 cache-creation token 价格。 |
+| `image_price` | 每张生成图片价格。 |
 
 token cost 公式：
 
 ```text
 cost =
-  input_tokens * input / 1_000_000
-+ output_tokens * output / 1_000_000
-+ cache_read_tokens * cache_read / 1_000_000
-+ cache_creation_tokens * cache_creation / 1_000_000
+  input_tokens * input_price / 1_000_000
++ output_tokens * output_price / 1_000_000
++ cache_read_tokens * cache_read_price / 1_000_000
++ cache_creation_5m_tokens * cache_creation_5m_price / 1_000_000
++ cache_creation_1h_tokens * cache_creation_1h_price / 1_000_000
 ```
 
 ## 图片价格
 
-图片 operation 的 `image` 可以是每张图 flat price：
-
-```json
-{ "image": "0.04" }
-```
-
-也可以是 tier object。查找顺序：
-
-1. `"{size}/{quality}"`；
-2. `"{size}"`；
-3. `"default"`；
-4. 没有匹配则为 0。
-
-```json
-{
-  "image": {
-    "1024x1024": "0.04",
-    "1792x1024/hd": "0.12",
-    "default": "0.02"
-  }
-}
-```
-
-图片价格按生成图片数量计，不是按百万 tokens 计。
+图片 operation 使用 `image_price` 作为每张图片的 flat price。它不是按百万
+tokens 计，也不再按 size 或 quality 分 tier。
 
 ## 运行时查找
 
-control-plane snapshot 会按 provider id 缓存 provider models。admission
-和 settlement 时，GPROXY 用 `(provider_id, upstream_model_id)` 精确查找
-对应 model，并解析该 model 的 `pricing_json`。
+control-plane snapshot 会缓存启用的 price rules。admission 和 settlement
+时，GPROXY 会按 `(provider_id, upstream_model_id)` 解析价格。
 
-当前 v2 pricing lookup 没有 glob、prefix 或 `"default"` model fallback。
-需要产生非零费用的 provider model 行都应单独配置 pricing。
+规则匹配顺序是：
+
+1. provider exact；
+2. global exact；
+3. provider contains；
+4. global contains。
+
+同一 rank 内，更长的 `model_match` 优先，最后用更小 `id` 保证结果确定。
 
 ## Admission 估算
 
@@ -89,7 +87,7 @@ control-plane snapshot 会按 provider id 缓存 provider models。admission
 
 - 估算 input tokens 使用当前 pending-cost estimator 的请求 body length；
 - output、cache 和 image 分量不做估算；
-- 估算值按选中 provider model 的 token pricing 计价；
+- 估算值按选中 price rule 的 token pricing 计价；
 - 估算为 0 时跳过 pending quota 预扣。
 
 对带 quota 的 scope，GPROXY 会把估算的 micro-dollar cost 加到
@@ -119,28 +117,34 @@ content-generation settlement 计费路径。
 
 ## 操作员在哪里改价格
 
-使用 console 或 provider-model admin endpoint：
+使用 Console 的 Pricing 页面，或 price-rule admin endpoint：
 
 ```text
-GET  /admin/providers/{provider_id}/models
-POST /admin/providers/{provider_id}/models
+GET    /admin/price-rules
+POST   /admin/price-rules
+DELETE /admin/price-rules/{id}
 ```
 
-JSON import/export 使用同样的 `provider_models` input shape：
+JSON import/export 使用 `price_rules` 数组：
 
 ```json
 {
-  "id": 1,
-  "provider_id": 1,
-  "model_id": "gpt-4.1-mini",
-  "display_name": "GPT-4.1 mini",
-  "pricing_json": {
-    "input": "0.40",
-    "output": "1.60"
-  },
-  "variants_json": null,
-  "enabled": true
+  "price_rules": [
+    {
+      "id": 1,
+      "provider_id": 1,
+      "match_type": "exact",
+      "model_match": "gpt-4.1-mini",
+      "input_price": "0.40",
+      "output_price": "1.60",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_price": "0",
+      "enabled": true
+    }
+  ]
 }
 ```
 
-admin mutation 后，GPROXY 会 invalidates control-plane snapshot，使新请求读取更新后的 model 和 pricing 行。
+admin mutation 后，GPROXY 会 invalidates control-plane snapshot，使新请求读取更新后的 price rules。

@@ -55,7 +55,7 @@ pub struct SettleCtx {
     upstream_family: Family,
     /// The upstream-shaped request body actually sent (refcounted clone).
     request_body: Bytes,
-    /// Resolved at capture time from `models_by_provider`.
+    /// Resolved at capture time from price rules.
     pricing: billing::price::Pricing,
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     channel: Arc<dyn Channel>,

@@ -1,0 +1,72 @@
+{
+  "title": "Pricing",
+  "subtitle": "Provider-scoped and global exact/contains price rules.",
+  "add": "New price rule",
+  "empty": "No price rules configured.",
+  "editTitle": "Price rule #{{id}}",
+  "deleteTitle": "Delete price rule",
+  "deleteConfirm": "Delete this price rule? Future requests will stop using it immediately.",
+  "defaults": {
+    "button": "Load defaults",
+    "title": "Load default prices",
+    "description": "Import the bundled OpenRouter-derived default price rules as global contains matches.",
+    "search": "Search models…",
+    "selectAll": "Select all shown",
+    "selectNone": "Clear shown",
+    "count": "{{selected}} selected · {{total}} total",
+    "shown": "showing {{shown}} of {{total}}",
+    "noMatch": "No models match your search.",
+    "overwrite": "Overwrite",
+    "import": "Import {{count}} (overwrite {{overwrite}})",
+    "importing": "Importing {{done}}/{{total}}…",
+    "imported": "Imported {{count}} price rule(s)",
+    "importPartial": "Imported {{ok}}, failed {{fail}}",
+    "close": "Close"
+  },
+  "columns": {
+    "scope": "Scope",
+    "match": "Model",
+    "inputPrice": "Input",
+    "outputPrice": "Output",
+    "cacheReadPrice": "Cache read",
+    "cacheCreation5mPrice": "Cache 5m",
+    "cacheCreation1hPrice": "Cache 1h",
+    "imagePrice": "Image",
+    "status": "Status"
+  },
+  "scope": {
+    "global": "Global",
+    "any": "Any"
+  },
+  "match": {
+    "exact": "Exact",
+    "contains": "Contains"
+  },
+  "status": {
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "actions": {
+    "edit": "Edit price rule",
+    "delete": "Delete price rule"
+  },
+  "form": {
+    "scope": "Scope",
+    "matchType": "Match type",
+    "modelMatch": "Model",
+    "prices": "Prices",
+    "inputPrice": "Input / 1M tokens",
+    "outputPrice": "Output / 1M tokens",
+    "cacheReadPrice": "Cache read / 1M tokens",
+    "cacheCreation5mPrice": "Cache creation 5m / 1M tokens",
+    "cacheCreation1hPrice": "Cache creation 1h / 1M tokens",
+    "imagePrice": "Image / item",
+    "pricesHint": "Leave empty for zero. Values are decimal dollars.",
+    "enabled": "Enabled",
+    "create": "Create",
+    "update": "Save",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "modelRequired": "Model is required."
+  }
+}

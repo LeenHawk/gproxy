@@ -6,6 +6,7 @@ use super::FilePersistence;
 use super::authz::{quotas, rate_limits, route_permissions};
 use super::identity::{orgs, teams, user_keys, users};
 use super::logs::{audit_logs, downstream_requests, upstream_requests};
+use super::pricing::price_rules;
 use super::provider::{credential_statuses, credentials, provider_models, providers};
 use super::routing::{aliases, route_members, routes};
 use super::settings::instance_settings;
@@ -17,9 +18,9 @@ use crate::store::persistence::UsageQuery;
 use crate::store::persistence::records::{
     Alias, AliasInput, AuditLog, AuditLogInput, Credential, CredentialInput, CredentialStatus,
     CredentialStatusInput, DownstreamRequest, DownstreamRequestInput, InstanceSettings,
-    InstanceSettingsInput, Org, OrgInput, Provider, ProviderInput, ProviderModel,
-    ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput, RateLimit,
-    RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
+    InstanceSettingsInput, Org, OrgInput, PriceRule, PriceRuleInput, Provider, ProviderInput,
+    ProviderModel, ProviderModelInput, ProviderRuleSet, ProviderRuleSetInput, Quota, QuotaInput,
+    RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
     UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
@@ -193,6 +194,20 @@ impl PersistenceBackend for FilePersistence {
     async fn delete_provider_model(&self, id: i64) -> anyhow::Result<bool> {
         let _guard = self.write.lock().await;
         provider_models::delete(&self.root, id).await
+    }
+
+    async fn list_price_rules(&self) -> anyhow::Result<Vec<PriceRule>> {
+        price_rules::list(&self.root).await
+    }
+
+    async fn upsert_price_rule(&self, input: PriceRuleInput) -> anyhow::Result<PriceRule> {
+        let _guard = self.write.lock().await;
+        price_rules::upsert(&self.root, input).await
+    }
+
+    async fn delete_price_rule(&self, id: i64) -> anyhow::Result<bool> {
+        let _guard = self.write.lock().await;
+        price_rules::delete(&self.root, id).await
     }
 
     async fn list_routing_rules(&self, provider_id: i64) -> anyhow::Result<Vec<RoutingRule>> {

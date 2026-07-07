@@ -68,6 +68,14 @@ pub fn routes() -> Router<AppState> {
             get(entities::aliases::get).delete(entities::aliases::delete),
         )
         .route(
+            "/admin/price-rules",
+            get(entities::price_rules::list).post(entities::price_rules::upsert),
+        )
+        .route(
+            "/admin/price-rules/{id}",
+            get(entities::price_rules::get).delete(entities::price_rules::delete),
+        )
+        .route(
             "/admin/rule-sets",
             get(entities::rule_sets::list).post(entities::rule_sets::upsert),
         )

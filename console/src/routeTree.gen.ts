@@ -20,6 +20,7 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/ind
 import { Route as AppRulesIndexRouteImport } from './routes/_app/rules/index'
 import { Route as AppRoutesIndexRouteImport } from './routes/_app/routes/index'
 import { Route as AppProvidersIndexRouteImport } from './routes/_app/providers/index'
+import { Route as AppPricingIndexRouteImport } from './routes/_app/pricing/index'
 import { Route as AppOrgsIndexRouteImport } from './routes/_app/orgs/index'
 import { Route as AppUsersUserIdRouteImport } from './routes/_app/users/$userId'
 import { Route as AppRulesRuleSetIdRouteImport } from './routes/_app/rules/$ruleSetId'
@@ -88,6 +89,11 @@ const AppRoutesIndexRoute = AppRoutesIndexRouteImport.update({
 const AppProvidersIndexRoute = AppProvidersIndexRouteImport.update({
   id: '/providers/',
   path: '/providers/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPricingIndexRoute = AppPricingIndexRouteImport.update({
+  id: '/pricing/',
+  path: '/pricing/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppOrgsIndexRoute = AppOrgsIndexRouteImport.update({
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/rules/$ruleSetId': typeof AppRulesRuleSetIdRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/orgs/': typeof AppOrgsIndexRoute
+  '/pricing/': typeof AppPricingIndexRoute
   '/providers/': typeof AppProvidersIndexRoute
   '/routes/': typeof AppRoutesIndexRoute
   '/rules/': typeof AppRulesIndexRoute
@@ -214,6 +221,7 @@ export interface FileRoutesByTo {
   '/rules/$ruleSetId': typeof AppRulesRuleSetIdRoute
   '/users/$userId': typeof AppUsersUserIdRoute
   '/orgs': typeof AppOrgsIndexRoute
+  '/pricing': typeof AppPricingIndexRoute
   '/providers': typeof AppProvidersIndexRoute
   '/routes': typeof AppRoutesIndexRoute
   '/rules': typeof AppRulesIndexRoute
@@ -244,6 +252,7 @@ export interface FileRoutesById {
   '/_app/rules/$ruleSetId': typeof AppRulesRuleSetIdRoute
   '/_app/users/$userId': typeof AppUsersUserIdRoute
   '/_app/orgs/': typeof AppOrgsIndexRoute
+  '/_app/pricing/': typeof AppPricingIndexRoute
   '/_app/providers/': typeof AppProvidersIndexRoute
   '/_app/routes/': typeof AppRoutesIndexRoute
   '/_app/rules/': typeof AppRulesIndexRoute
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/rules/$ruleSetId'
     | '/users/$userId'
     | '/orgs/'
+    | '/pricing/'
     | '/providers/'
     | '/routes/'
     | '/rules/'
@@ -299,6 +309,7 @@ export interface FileRouteTypes {
     | '/rules/$ruleSetId'
     | '/users/$userId'
     | '/orgs'
+    | '/pricing'
     | '/providers'
     | '/routes'
     | '/rules'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/_app/rules/$ruleSetId'
     | '/_app/users/$userId'
     | '/_app/orgs/'
+    | '/_app/pricing/'
     | '/_app/providers/'
     | '/_app/routes/'
     | '/_app/rules/'
@@ -430,6 +442,13 @@ declare module '@tanstack/react-router' {
       path: '/providers'
       fullPath: '/providers/'
       preLoaderRoute: typeof AppProvidersIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/pricing/': {
+      id: '/_app/pricing/'
+      path: '/pricing'
+      fullPath: '/pricing/'
+      preLoaderRoute: typeof AppPricingIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/orgs/': {
@@ -581,6 +600,7 @@ interface AppRouteChildren {
   AppRulesRuleSetIdRoute: typeof AppRulesRuleSetIdRoute
   AppUsersUserIdRoute: typeof AppUsersUserIdRoute
   AppOrgsIndexRoute: typeof AppOrgsIndexRoute
+  AppPricingIndexRoute: typeof AppPricingIndexRoute
   AppProvidersIndexRoute: typeof AppProvidersIndexRoute
   AppRoutesIndexRoute: typeof AppRoutesIndexRoute
   AppRulesIndexRoute: typeof AppRulesIndexRoute
@@ -598,6 +618,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRulesRuleSetIdRoute: AppRulesRuleSetIdRoute,
   AppUsersUserIdRoute: AppUsersUserIdRoute,
   AppOrgsIndexRoute: AppOrgsIndexRoute,
+  AppPricingIndexRoute: AppPricingIndexRoute,
   AppProvidersIndexRoute: AppProvidersIndexRoute,
   AppRoutesIndexRoute: AppRoutesIndexRoute,
   AppRulesIndexRoute: AppRulesIndexRoute,

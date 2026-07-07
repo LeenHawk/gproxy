@@ -35,14 +35,72 @@ pub fn micros_to_cost(micros: i64) -> Decimal {
     Decimal::from(micros) / Decimal::from(MICROS)
 }
 
-/// Pricing of `model_id` on `provider_id`; default (all-zero) when the model
-/// or its `pricing_json` is absent.
+/// Resolved pricing and the matching rule id.
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedPricing {
+    pub pricing: Pricing,
+    pub rule_id: Option<i64>,
+}
+
+/// Pricing of `model_id` on `provider_id`; default (all-zero) when no price
+/// rule matches.
 pub fn model_pricing(cp: &ControlPlaneSnapshot, provider_id: i64, model_id: &str) -> Pricing {
-    cp.models_by_provider
-        .get(&provider_id)
-        .and_then(|ms| ms.iter().find(|m| m.model_id == model_id))
-        .map(|m| price::pricing_from(m.pricing_json.as_ref()))
-        .unwrap_or_default()
+    resolve_pricing(cp, provider_id, model_id).pricing
+}
+
+pub fn resolve_pricing(
+    cp: &ControlPlaneSnapshot,
+    provider_id: i64,
+    model_id: &str,
+) -> ResolvedPricing {
+    if let Some(rule) = cp
+        .price_rules
+        .iter()
+        .filter_map(|rule| match_rank(rule, provider_id, model_id))
+        .min_by_key(|(_, key)| *key)
+        .map(|(rule, _)| rule)
+    {
+        return ResolvedPricing {
+            pricing: price::pricing_from_rule(rule),
+            rule_id: Some(rule.id),
+        };
+    }
+
+    ResolvedPricing {
+        pricing: Pricing::default(),
+        rule_id: None,
+    }
+}
+
+/// Sort key implements the four agreed ranks:
+/// provider exact → global exact → provider contains → global contains.
+/// Within a rank, longer model fragments win, then older id for deterministic
+/// ties.
+fn match_rank<'a>(
+    rule: &'a crate::store::persistence::records::PriceRule,
+    provider_id: i64,
+    model_id: &str,
+) -> Option<(
+    &'a crate::store::persistence::records::PriceRule,
+    (i64, i64, i64),
+)> {
+    if !rule.enabled {
+        return None;
+    }
+    if let Some(rule_provider) = rule.provider_id
+        && rule_provider != provider_id
+    {
+        return None;
+    }
+
+    let provider_rank = if rule.provider_id.is_some() { 0 } else { 1 };
+    let match_rank = match rule.match_type.as_str() {
+        "exact" if rule.model_match == model_id => 0,
+        "contains" if model_id.contains(&rule.model_match) => 2,
+        _ => return None,
+    };
+    let rank = match_rank + provider_rank;
+    Some((rule, (rank, -(rule.model_match.len() as i64), rule.id)))
 }
 
 /// Best-effort request estimate in micro-dollars: estimated tokens = full
@@ -88,5 +146,86 @@ async fn adjust(cache: &dyn CacheBackend, scopes: &[(Scope, i64)], delta: i64) {
         let _ = cache
             .incr(&key(scope, scope_id), delta, Some(PENDING_TTL))
             .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    use crate::store::persistence::records::PriceRule;
+
+    fn rule(
+        id: i64,
+        provider_id: Option<i64>,
+        match_type: &str,
+        model_match: &str,
+        input_rate: &str,
+    ) -> PriceRule {
+        PriceRule {
+            id,
+            provider_id,
+            match_type: match_type.into(),
+            model_match: model_match.into(),
+            input_price: input_rate.parse().unwrap(),
+            output_price: Decimal::ZERO,
+            cache_read_price: Decimal::ZERO,
+            cache_creation_5m_price: Decimal::ZERO,
+            cache_creation_1h_price: Decimal::ZERO,
+            image_price: Decimal::ZERO,
+            enabled: true,
+            created_at: id,
+            updated_at: id,
+        }
+    }
+
+    fn decimal(s: &str) -> Decimal {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn price_rule_resolver_uses_scope_match_rank_and_longest_fragment() {
+        let mut cp = ControlPlaneSnapshot::empty(1);
+        cp.price_rules = Arc::new(vec![
+            rule(1, None, "contains", "gpt", "40"),
+            rule(2, Some(7), "contains", "gpt", "30"),
+            rule(3, None, "exact", "gpt-4o", "20"),
+            rule(4, Some(7), "exact", "gpt-4o", "10"),
+            rule(5, Some(7), "contains", "claude", "50"),
+            rule(6, None, "exact", "claude-3", "60"),
+            rule(7, Some(7), "contains", "claude-sonnet-4", "70"),
+            rule(8, Some(7), "contains", "claude-sonnet-4.5", "80"),
+        ]);
+
+        let resolved = resolve_pricing(&cp, 7, "gpt-4o");
+        assert_eq!(resolved.rule_id, Some(4)); // provider exact
+        assert_eq!(resolved.pricing.input, decimal("10"));
+
+        let resolved = resolve_pricing(&cp, 7, "claude-3");
+        assert_eq!(resolved.rule_id, Some(6)); // global exact beats provider contains
+        assert_eq!(resolved.pricing.input, decimal("60"));
+
+        let resolved = resolve_pricing(&cp, 7, "my-gpt-test");
+        assert_eq!(resolved.rule_id, Some(2)); // provider contains beats global contains
+        assert_eq!(resolved.pricing.input, decimal("30"));
+
+        let resolved = resolve_pricing(&cp, 8, "my-gpt-test");
+        assert_eq!(resolved.rule_id, Some(1)); // global contains when provider rule misses
+        assert_eq!(resolved.pricing.input, decimal("40"));
+
+        let resolved = resolve_pricing(&cp, 7, "claude-sonnet-4.5-20250929");
+        assert_eq!(resolved.rule_id, Some(8)); // longest provider contains
+        assert_eq!(resolved.pricing.input, decimal("80"));
+    }
+
+    #[test]
+    fn unmatched_price_rule_resolves_to_zero_pricing() {
+        let mut cp = ControlPlaneSnapshot::empty(1);
+        cp.price_rules = Arc::new(vec![rule(1, Some(7), "exact", "gpt-4o", "10")]);
+
+        let resolved = resolve_pricing(&cp, 8, "other-model");
+        assert_eq!(resolved.rule_id, None);
+        assert_eq!(resolved.pricing, Pricing::default());
     }
 }

@@ -117,7 +117,6 @@ mod tests {
             provider_id: 1,
             model_id: model_id.into(),
             display_name: Some(format!("{model_id} (display)")),
-            pricing_json: None,
             variants_json: variants,
             enabled: true,
             created_at: 0,

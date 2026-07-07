@@ -18,7 +18,7 @@ request model
 
 Scoped provider traffic skips the route lookup because the provider comes from
 the URL, but it still uses the provider model catalogue for model listing,
-variant stripping, pricing, and visibility.
+variant stripping, and visibility.
 
 ## Provider Models
 
@@ -29,7 +29,6 @@ variant stripping, pricing, and visibility.
 | `provider_id` | Owning provider. |
 | `model_id` | Upstream model id. |
 | `display_name` | Optional friendly name. |
-| `pricing_json` | Optional price table for usage settlement. |
 | `variants_json` | Optional suffix-variant exposure config. |
 | `enabled` | Disabled models are not exposed. |
 
@@ -86,16 +85,18 @@ clients without duplicating a full model row for every exposed id.
 
 ## Pricing
 
-Pricing is stored on `provider_models.pricing_json`, not in a separate table.
-The settlement path reads:
+Pricing is stored in dedicated `price_rules`, not on provider model rows. A
+rule can be provider-scoped or global, and uses `match_type` plus `model_match`
+to match the upstream model id.
 
-- `input`
-- `output`
-- `cache_read`
-- `cache_creation`
-- `image`
+The resolver checks:
 
-Token rates are per million tokens. Image price can be a flat per-image value
-or a tiered object keyed by `"{size}/{quality}"`, `"{size}"`, or `"default"`.
-Missing or malformed price fields default to zero: usage is still recorded, but
-the call bills nothing.
+1. provider exact;
+2. global exact;
+3. provider contains;
+4. global contains.
+
+Price fields include `input_price`, `output_price`, `cache_read_price`,
+`cache_creation_5m_price`, `cache_creation_1h_price`, and `image_price`. Token
+prices are per million tokens. Image price is a flat per-image value. Missing
+rules default to zero: usage is still recorded, but the call bills nothing.

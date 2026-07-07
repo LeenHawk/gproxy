@@ -98,7 +98,6 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             provider_id: m.provider_id,
             model_id: m.model_id.clone(),
             display_name: m.display_name.clone(),
-            pricing_json: map_pricing(m.pricing_json.as_deref()),
             variants_json: None,
             enabled: m.enabled,
         });
@@ -202,38 +201,6 @@ fn synth_routes(models: &[V1Model], bundle: &mut Bundle) {
     }
 }
 
-/// Collapse v1's tiered `pricing_json` into v2's flat per-million rates. Takes
-/// the first (base) tier; v2 has no tiered/flex/scale/priority distinction.
-fn map_pricing(v1: Option<&str>) -> Option<Value> {
-    let s = v1?;
-    if s.trim().is_empty() {
-        return None;
-    }
-    let v: Value = serde_json::from_str(s).ok()?;
-    let tier = v.get("price_tiers")?.as_array()?.first()?;
-    let num = |k: &str| tier.get(k).and_then(Value::as_f64);
-    let mut out = Map::new();
-    let mut put = |key: &str, val: Option<f64>| {
-        if let Some(x) = val {
-            out.insert(key.to_string(), Value::String(x.to_string()));
-        }
-    };
-    put("input", num("price_input_tokens"));
-    put("output", num("price_output_tokens"));
-    put("cache_read", num("price_cache_read_input_tokens"));
-    put(
-        "cache_creation",
-        num("price_cache_creation_input_tokens_5min")
-            .or_else(|| num("price_cache_creation_input_tokens_1h"))
-            .or_else(|| num("price_cache_creation_input_tokens")),
-    );
-    if out.is_empty() {
-        None
-    } else {
-        Some(Value::Object(out))
-    }
-}
-
 fn dec(x: f64) -> Decimal {
     // f64→Decimal is exact, so 0.68182965 becomes 0.6818296500000000648…; round
     // to 12 dp and strip trailing zeros for a clean stored value.
@@ -263,6 +230,7 @@ fn empty_bundle() -> Bundle {
         providers: Vec::new(),
         credentials: Vec::new(),
         provider_models: Vec::new(),
+        price_rules: Vec::new(),
         routes: Vec::new(),
         route_members: Vec::new(),
         aliases: Vec::new(),

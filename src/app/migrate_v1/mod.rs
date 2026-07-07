@@ -50,6 +50,7 @@ impl Report {
             + bundle.providers.len()
             + bundle.credentials.len()
             + bundle.provider_models.len()
+            + bundle.price_rules.len()
             + bundle.routes.len()
             + bundle.route_members.len()
             + bundle.quotas.len()

@@ -116,8 +116,22 @@ pin explicit ids.
       "provider_id": 1,
       "model_id": "gpt-4.1-mini",
       "display_name": "GPT-4.1 mini",
-      "pricing_json": { "input": "0.40", "output": "1.60" },
       "variants_json": null,
+      "enabled": true
+    }
+  ],
+  "price_rules": [
+    {
+      "id": 1,
+      "provider_id": 1,
+      "match_type": "exact",
+      "model_match": "gpt-4.1-mini",
+      "input_price": "0.40",
+      "output_price": "1.60",
+      "cache_read_price": "0",
+      "cache_creation_5m_price": "0",
+      "cache_creation_1h_price": "0",
+      "image_price": "0",
       "enabled": true
     }
   ],
@@ -154,7 +168,7 @@ pin explicit ids.
 | --- | --- |
 | `orgs`, `teams`, `users`, `user_keys` | Identity, admin login, and API-key material. Imported API keys are digested for lookup and sealed for storage. |
 | `route_permissions`, `rate_limits`, `quotas` | Org/team/user-scoped access control, token limits, and spend quotas. |
-| `providers`, `credentials`, `provider_models` | Upstream providers, sealed credentials, exposed upstream models, optional pricing and variants. |
+| `providers`, `credentials`, `provider_models`, `price_rules` | Upstream providers, sealed credentials, exposed upstream models, variants, and pricing rules. |
 | `routes`, `route_members`, `aliases` | Logical model names, backend pools, and aliases. |
 | `routing_rules` | Per-provider transform dispatch rows. Provider creation through the admin API seeds defaults automatically; raw bundle imports only import rows you provide. |
 | `rule_sets`, `rules`, `provider_rule_sets` | Reusable request/response mutation rule sets and provider attachments. |

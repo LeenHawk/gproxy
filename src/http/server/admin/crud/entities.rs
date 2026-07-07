@@ -95,8 +95,8 @@ macro_rules! crud_entity {
 }
 
 use crate::store::persistence::records::{
-    Alias, AliasInput, InstanceSettings, InstanceSettingsInput, Org, OrgInput, Provider,
-    ProviderInput, Route, RouteInput, RuleSet, RuleSetInput,
+    Alias, AliasInput, InstanceSettings, InstanceSettingsInput, Org, OrgInput, PriceRule,
+    PriceRuleInput, Provider, ProviderInput, Route, RouteInput, RuleSet, RuleSetInput,
 };
 
 crud_entity!(
@@ -204,6 +204,16 @@ crud_entity!(
     get = find,
     upsert = upsert_alias,
     delete = delete_alias,
+);
+
+crud_entity!(
+    mod price_rules,
+    record = PriceRule,
+    input = PriceRuleInput,
+    list = list_price_rules,
+    get = find,
+    upsert = upsert_price_rule,
+    delete = delete_price_rule,
 );
 
 crud_entity!(

@@ -190,13 +190,16 @@
   "models": {
     "title": "模型",
     "add": "新增模型",
-    "empty": "未註冊模型。聚合 /v1/models 列出別名/路由名;按供應商的模型列餵路由與計價。",
+    "empty": "未註冊模型。聚合 /v1/models 列出別名/路由名;按供應商的模型列餵路由與變體。",
     "edit": "編輯模型",
     "modelId": "模型 ID",
     "displayName": "顯示名稱",
     "enabled": "啟用",
     "modelIdHint": "上游模型 id,或你對外公開的任意 id(不要求上游存在)。",
-    "pricing": "計價(每百萬 token)",
+    "pricing": "價格",
+    "priceRule": "編輯價格",
+    "priceRuleTitle": "價格: {{name}}",
+    "priced": "已配置價格",
     "price": {
       "input": "輸入",
       "output": "輸出",
