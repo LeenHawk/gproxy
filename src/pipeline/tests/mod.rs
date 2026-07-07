@@ -24,13 +24,24 @@ struct Seen {
     headers: HeaderMap,
 }
 
-fn assert_responses_websocket_request(seen: &Seen, model: &str) -> Value {
-    assert!(seen.uri.contains("/v1/responses"), "uri: {}", seen.uri);
-    assert!(seen.uri.starts_with("ws://") || seen.uri.starts_with("wss://"));
+fn assert_openai_chat_request(seen: &Seen, model: &str, stream: bool) -> Value {
+    assert!(
+        seen.uri.contains("/v1/chat/completions"),
+        "uri: {}",
+        seen.uri
+    );
+    assert!(
+        !seen.uri.starts_with("ws://") && !seen.uri.starts_with("wss://"),
+        "uri: {}",
+        seen.uri
+    );
     let up: Value = serde_json::from_slice(&seen.body).unwrap();
-    assert_eq!(up["type"], "response.create", "{up}");
     assert_eq!(up["model"], model, "{up}");
-    assert_eq!(up["stream"], true, "{up}");
+    assert_eq!(
+        up.get("stream").and_then(Value::as_bool).unwrap_or(false),
+        stream,
+        "{up}"
+    );
     up
 }
 
@@ -443,7 +454,7 @@ async fn aggregated_provider_model_direct_addressing_works() {
     assert_eq!(outcome.status, StatusCode::OK);
 
     let seen = fake.seen.lock().unwrap();
-    assert_responses_websocket_request(&seen[0], "gpt-test");
+    assert_openai_chat_request(&seen[0], "gpt-test", false);
 }
 
 #[tokio::test]
@@ -472,7 +483,7 @@ async fn aggregated_global_alias_then_provider_alias() {
     assert_eq!(outcome.status, StatusCode::OK);
 
     let seen = fake.seen.lock().unwrap();
-    assert_responses_websocket_request(&seen[0], "gpt-test");
+    assert_openai_chat_request(&seen[0], "gpt-test", false);
 }
 
 fn claude_ctx_as(api_key: &str, model: &str, stream: bool) -> RequestCtx {
@@ -523,7 +534,7 @@ async fn claude_inbound_to_openai_buffered() {
 
     // upstream saw the TARGET protocol
     let seen = fake.seen.lock().unwrap();
-    assert_responses_websocket_request(&seen[0], "gpt-test"); // member model rewrite
+    assert_openai_chat_request(&seen[0], "gpt-test", false); // member model rewrite
     drop(seen);
 
     // client got CLAUDE shape back
@@ -567,7 +578,7 @@ async fn claude_inbound_to_openai_streaming() {
     );
     assert!(!text.contains("[DONE]"), "no DONE in claude stream: {text}");
     let seen = fake.seen.lock().unwrap();
-    assert_responses_websocket_request(&seen[0], "gpt-test");
+    assert_openai_chat_request(&seen[0], "gpt-test", true);
 }
 
 #[tokio::test]
@@ -609,7 +620,7 @@ async fn gemini_inbound_streaming_sets_body_stream_flag() {
 
     // upstream must be asked to STREAM in the body (gemini carried it in the URL)
     let seen = fake.seen.lock().unwrap();
-    assert_responses_websocket_request(&seen[0], "gemini-pro");
+    assert_openai_chat_request(&seen[0], "gemini-pro", true);
     drop(seen);
     let ResponseBody::Stream(_) = outcome.body else {
         panic!("expected Stream")
