@@ -282,9 +282,9 @@ async fn users_update_without_password_keeps_existing_hash() {
     );
 }
 
-/// Bad password (< 12 chars) → 400.
+/// Blank password → 400.
 #[tokio::test]
-async fn users_create_with_bad_password_is_400() {
+async fn users_create_with_blank_password_is_400() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-badpw", true).await;
     let cookie = cookie_for(&state, admin_id).await;
@@ -304,7 +304,7 @@ async fn users_create_with_bad_password_is_400() {
         "name": "badpwuser",
         "org_id": org.id,
         "team_id": null,
-        "password": "short",
+        "password": "   ",
         "enabled": true,
         "is_admin": false,
     })

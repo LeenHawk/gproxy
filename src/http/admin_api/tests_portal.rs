@@ -265,20 +265,20 @@ async fn portal_change_password_wrong_current_is_400() {
     assert_eq!(err.status(), http::StatusCode::BAD_REQUEST);
 }
 
-/// Weak `new` password (< 12 chars) → 400.
+/// Blank `new` password → 400.
 #[tokio::test]
-async fn portal_change_password_weak_new_is_400() {
+async fn portal_change_password_blank_new_is_400() {
     let (state, _dir) = state_with(vec![]).await;
-    let uid = seed_user(&state, "cpw-weak", false).await;
+    let uid = seed_user(&state, "cpw-blank", false).await;
     let cookie = cookie_for(&state, uid).await;
 
     let p = parts("POST", "/user/change-password", Some(&cookie), None);
-    let body = serde_json::json!({ "current": "secret", "new": "short" })
+    let body = serde_json::json!({ "current": "secret", "new": "   " })
         .to_string()
         .into_bytes();
     let err = run(&state, &p, &body)
         .await
-        .expect_err("weak new → 400");
+        .expect_err("blank new → 400");
     assert_eq!(err.status(), http::StatusCode::BAD_REQUEST);
 }
 

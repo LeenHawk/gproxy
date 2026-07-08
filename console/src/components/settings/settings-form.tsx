@@ -52,7 +52,7 @@ interface FormState {
 }
 
 function initState(s?: InstanceSettings): FormState {
-  const spoof = s?.spoof_emulation === true ? "on" : s?.spoof_emulation === false ? "off" : "inherit";
+  const spoof = s?.spoof_emulation === true ? "on" : "off";
   return {
     instanceName: s?.instance_name ?? "", proxy: s?.proxy ?? "", spoofEmulation: spoof,
     enableUsage: s?.enable_usage ?? true, enableUpstreamLog: s?.enable_upstream_log ?? false,
@@ -89,7 +89,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
         id: settings?.id ?? null,
         instance_name: f.instanceName.trim(),
         proxy: f.proxy.trim() || null,
-        spoof_emulation: f.spoofEmulation === "on" ? true : f.spoofEmulation === "off" ? false : null,
+        spoof_emulation: f.spoofEmulation === "on",
         enable_usage: f.enableUsage,
         enable_upstream_log: f.enableUpstreamLog,
         enable_upstream_log_body: f.enableUpstreamLogBody,
@@ -140,7 +140,6 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
             <Select value={f.spoofEmulation} onValueChange={set("spoofEmulation")}>
               <SelectTrigger id="settings-spoof"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="inherit">{t("spoof.inherit")}</SelectItem>
                 <SelectItem value="on">{t("spoof.on")}</SelectItem>
                 <SelectItem value="off">{t("spoof.off")}</SelectItem>
               </SelectContent>

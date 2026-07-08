@@ -33,7 +33,7 @@
 // Deploy from deploy/supabase/ (storage creds become function secrets; the
 // access token is NOT):
 //   supabase secrets set TURSO_URL=… TURSO_TOKEN=… GPROXY_ADMIN_USER=admin \
-//     GPROXY_ADMIN_PASSWORD=change-me-min12char UPSTASH_URL=… UPSTASH_TOKEN=… \
+//     GPROXY_ADMIN_PASSWORD=change-me UPSTASH_URL=… UPSTASH_TOKEN=… \
 //     GPROXY_MASTER_KEY=… \
 //     --project-ref "$SUPABASE_PROJECT_REF"
 //   supabase functions deploy gproxy --project-ref "$SUPABASE_PROJECT_REF" \

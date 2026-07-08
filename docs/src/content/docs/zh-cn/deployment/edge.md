@@ -21,8 +21,8 @@ Cloudflare 模板在 `deploy/cloudflare/.dev.vars.example` 中声明了必需的
 secrets，Netlify 模板在 `deploy/netlify/netlify.toml` 中声明。两个一键部署流程都会在
 第一次部署前要求填写 `TURSO_URL` 和 `TURSO_TOKEN`。这里要填 Turso 的 HTTP URL
 （`https://<db>.turso.io`），不要填 `libsql://` URL，因为 edge runtime 通过 `fetch`
-调用 Hrana。它们也会要求填写 `GPROXY_ADMIN_USER` 和 `GPROXY_ADMIN_PASSWORD`；密码至少
-12 个字符，用于第一次登录 Console。如果部署需要 Upstash cache 或 sealed stored secrets，
+调用 Hrana。它们也会要求填写 `GPROXY_ADMIN_USER` 和 `GPROXY_ADMIN_PASSWORD`；密码必须
+非空，用于第一次登录 Console。如果部署需要 Upstash cache 或 sealed stored secrets，
 可以之后再添加可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
 
 Cloudflare Workers、Netlify Edge、Deno Deploy 和 EdgeOne Pages 会把 React Console
@@ -39,7 +39,7 @@ edge runtime 不能直连本地 SQLite、PostgreSQL、MySQL 或 Redis。v2 edge 
 | `TURSO_URL` | 是 | libSQL/Turso HTTP URL，例如 `https://<db>.turso.io`。 |
 | `TURSO_TOKEN` | 是 | Turso access token。 |
 | `GPROXY_ADMIN_USER` | 是 | Console 登录用的 admin 用户名。 |
-| `GPROXY_ADMIN_PASSWORD` | 是 | Console 登录用的 admin 密码；至少 12 个字符。 |
+| `GPROXY_ADMIN_PASSWORD` | 是 | Console 登录用的非空 admin 密码。 |
 | `UPSTASH_URL` | 否 | Upstash Redis cache；缺省时回退到 libSQL KV。 |
 | `UPSTASH_TOKEN` | 否 | Upstash token。 |
 | `GPROXY_MASTER_KEY` | 否 | 标准 base64 32 字节 sealed secret key。 |

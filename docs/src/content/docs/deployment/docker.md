@@ -56,8 +56,9 @@ password, briefly renders, then bounces you back to the login page. When you rea
 it over plain HTTP from a non-`localhost` address, add `-e GPROXY_INSECURE_COOKIES=1`,
 or front the container with an HTTPS reverse proxy.
 
-Also note `GPROXY_ADMIN_PASSWORD` must be **at least 12 characters** — a shorter
-value makes the container exit on boot with `GPROXY_ADMIN_PASSWORD rejected`.
+Also note `GPROXY_ADMIN_PASSWORD` must be **non-blank** — an empty or
+whitespace-only value makes the container exit on boot with
+`GPROXY_ADMIN_PASSWORD rejected`.
 :::
 
 ## Persistent Volume

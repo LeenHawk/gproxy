@@ -70,7 +70,6 @@
     "confirmPassword": "确认新密码",
     "changePassword": "修改密码",
     "mismatch": "两次输入的新密码不一致。",
-    "tooShort": "新密码至少需要 12 个字符。",
     "changed": "密码修改成功。",
     "identity": {
       "title": "账户资料",

@@ -26,13 +26,10 @@ export function ChangePasswordForm() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const mismatchMsg = t("account.mismatch");
-  const tooShortMsg = t("account.tooShort");
-  const nextHasError = formError === tooShortMsg;
   const confirmHasError = formError === mismatchMsg;
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (f.next.length < 12) throw new ApiError(0, "bad_request", tooShortMsg);
       if (f.next !== f.confirm) throw new ApiError(0, "bad_request", mismatchMsg);
       return changePassword(f.current, f.next);
     },
@@ -90,8 +87,6 @@ export function ChangePasswordForm() {
               value={f.next}
               onChange={(e) => set("next")(e.target.value)}
               autoComplete="new-password"
-              aria-invalid={nextHasError ? true : undefined}
-              aria-describedby={nextHasError ? "change-pw-err" : undefined}
               required
             />
           </div>

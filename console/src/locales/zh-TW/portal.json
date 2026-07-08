@@ -70,7 +70,6 @@
     "confirmPassword": "確認新密碼",
     "changePassword": "變更密碼",
     "mismatch": "兩次輸入的新密碼不一致。",
-    "tooShort": "新密碼至少需要 12 個字元。",
     "changed": "密碼變更成功。",
     "identity": {
       "title": "帳戶資料",

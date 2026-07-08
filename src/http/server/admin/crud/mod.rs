@@ -431,26 +431,9 @@ mod tests {
         let org_id = state.persistence.list_orgs().await.unwrap()[0].id;
         let app = crate::http::server::router(state);
 
-        // Too-short password → policy 400 (min 12 chars), nothing created.
+        // POST create a user with a short non-blank plaintext password.
         let payload = format!(
             r#"{{"name":"bob","org_id":{org_id},"password":"pw","enabled":true,"is_admin":true}}"#
-        );
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::post("/admin/users")
-                    .header(header::COOKIE, &cookie)
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(payload))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-
-        // POST create a user with a policy-compliant plaintext password.
-        let payload = format!(
-            r#"{{"name":"bob","org_id":{org_id},"password":"pw-1234567890","enabled":true,"is_admin":true}}"#
         );
         let resp = app
             .clone()
@@ -490,9 +473,7 @@ mod tests {
             .oneshot(
                 Request::post("/admin/login")
                     .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(
-                        r#"{"username":"bob","password":"pw-1234567890"}"#,
-                    ))
+                    .body(Body::from(r#"{"username":"bob","password":"pw"}"#))
                     .unwrap(),
             )
             .await

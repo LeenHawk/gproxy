@@ -19,7 +19,7 @@
         "description": "Required admin username for the first Console login, for example admin."
       },
       "GPROXY_ADMIN_PASSWORD": {
-        "description": "Required admin password for the first Console login. Must be at least 12 characters. It is stored as a Worker secret."
+        "description": "Required non-blank admin password for the first Console login. It is stored as a Worker secret."
       }
     }
   }

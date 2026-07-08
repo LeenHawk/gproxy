@@ -11,7 +11,7 @@
   "fields": {
     "instanceName": "Instance Name",
     "proxy": "HTTP Proxy URL",
-    "spoofEmulation": "Spoof Emulation",
+    "spoofEmulation": "Built-in TLS Spoofing",
     "enableUsage": "Enable Usage Tracking",
     "enableUpstreamLog": "Enable Upstream Log",
     "enableUpstreamLogBody": "Log Upstream Request/Response Bodies",
@@ -22,9 +22,8 @@
     "retentionDays": "Retention Period (days)"
   },
   "spoof": {
-    "inherit": "Inherit from route",
-    "on": "Always on",
-    "off": "Always off"
+    "on": "Use channel profiles",
+    "off": "Off by default"
   },
   "retention": {
     "forever": "Leave blank to retain logs forever"

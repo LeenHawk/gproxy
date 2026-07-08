@@ -5,7 +5,7 @@
 //!   it is never read from the request body or path.
 //! - Wrong `current` password → 400 (NOT 401 — no existence oracle; generic
 //!   message regardless of whether the account has a password).
-//! - Weak `new` password (< 12 chars) → 400 via `validate_new`.
+//! - Blank `new` password → 400 via `validate_new`.
 //! - Session is NOT invalidated on success (spec §6: self-change does not log
 //!   out the user).
 //! - The audit middleware records method + path only; no request body is logged,
@@ -69,7 +69,7 @@ pub async fn change_password(
         return Err(ApiError::BadRequest("current password is incorrect".into()));
     }
 
-    // Enforce the minimum-12-character policy on the incoming new password.
+    // Reject blank/whitespace-only passwords.
     crate::crypto::password::validate_new(&body.new).map_err(ApiError::BadRequest)?;
 
     // Hash the new password (argon2id).  We pass the pre-hashed value to

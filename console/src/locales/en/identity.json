@@ -16,7 +16,7 @@
     "title": "Users", "new": "New user", "empty": "No users yet.",
     "name": "Name", "org": "Organization", "team": "Team", "noTeam": "— none —",
     "password": "Password", "passwordKeep": "Leave blank to keep the current password.",
-    "passwordPolicy": "At least 12 characters.", "hasPassword": "password set", "noPassword": "no password (login disabled)",
+    "passwordPolicy": "Optional password.", "hasPassword": "password set", "noPassword": "no password (login disabled)",
     "enabled": "Enabled", "isAdmin": "Administrator",
     "create": "Create user", "edit": "Edit user",
     "delete": "Delete user", "deleteConfirm": "Delete user \"{{name}}\" with its API keys and access rules?",

@@ -9,23 +9,15 @@
 use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 
-/// Minimum length (after trim) for a NEW admin password.
-pub const MIN_PASSWORD_CHARS: usize = 12;
-
 /// Policy gate for NEW plaintext passwords (admin user upsert + the
 /// `--admin-password` bootstrap override): reject blank/whitespace-only and
-/// anything under [`MIN_PASSWORD_CHARS`]. `None` (no password) is handled by
-/// the callers — it simply means password login is disabled for that user.
-/// First-boot generated passwords (32 chars, CSPRNG) pass trivially.
+/// allow any non-blank password. `None` (no password) is handled by the callers
+/// — it simply means password login is disabled for that user. First-boot
+/// generated passwords (32 chars, CSPRNG) pass trivially.
 pub fn validate_new(password: &str) -> Result<(), String> {
     let trimmed = password.trim();
     if trimmed.is_empty() {
         return Err("password must not be blank".into());
-    }
-    if trimmed.chars().count() < MIN_PASSWORD_CHARS {
-        return Err(format!(
-            "password must be at least {MIN_PASSWORD_CHARS} characters"
-        ));
     }
     Ok(())
 }

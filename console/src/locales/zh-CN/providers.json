@@ -61,7 +61,7 @@
     "custom": "自定义",
     "title": "TLS 指纹",
     "preset": "预设",
-    "default": "渠道默认",
+    "default": "默认（关闭）",
     "customExisting": "自定义(现有)",
     "jsonHint": "选预设快速填充,或直接编辑 JSON 自定义指纹",
     "apply": "应用",

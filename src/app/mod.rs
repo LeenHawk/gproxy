@@ -193,7 +193,8 @@ impl AppState {
     }
 
     /// Resolve the full traffic client for a concrete credential: effective proxy
-    /// plus DB TLS fingerprint or the channel's built-in emulation profile.
+    /// plus DB TLS fingerprint, or the channel's built-in emulation profile when
+    /// instance settings explicitly enable spoof emulation.
     pub fn upstream_client_for_credential(
         &self,
         channel: &Arc<dyn crate::channel::Channel>,
@@ -229,12 +230,17 @@ impl AppState {
         let global_proxy = self.upstream_proxy_url();
         let proxy =
             crate::channel::resolve::effective_proxy(credential, provider, global_proxy.as_deref());
+        let spoof_emulation = self.cp().spoof_emulation;
         let fingerprint = crate::channel::resolve::effective_tls_fingerprint(credential, provider);
         if let Some(fp) = fingerprint.as_ref() {
             self.client_pool.for_target(proxy.as_deref(), Some(fp))
-        } else if let Some(emu) = channel.default_emulation() {
-            self.client_pool
-                .for_channel(proxy.as_deref(), channel.id(), emu)
+        } else if spoof_emulation {
+            if let Some(emu) = channel.default_emulation() {
+                self.client_pool
+                    .for_channel(proxy.as_deref(), channel.id(), emu)
+            } else {
+                self.client_pool.for_target(proxy.as_deref(), None)
+            }
         } else {
             self.client_pool.for_target(proxy.as_deref(), None)
         }

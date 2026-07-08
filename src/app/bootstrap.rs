@@ -25,8 +25,8 @@ pub async fn ensure_admin(
 
     if let Some(pw) = admin_password {
         // Host-level credential override: reclaim/create the admin every boot.
-        // Same policy gate as the admin API — a weak recovery password fails
-        // the boot loudly rather than silently weakening the admin account.
+        // Same policy gate as the admin API — blank recovery passwords fail the
+        // boot loudly instead of disabling password login by accident.
         password::validate_new(pw)
             .map_err(|e| anyhow::anyhow!("GPROXY_ADMIN_PASSWORD rejected: {e}"))?;
         let input = match existing {
@@ -190,9 +190,13 @@ mod tests {
             u.password.as_ref().unwrap()
         ));
 
-        // The same policy as the admin API guards the override: a too-short
-        // recovery password fails the boot instead of weakening the account.
-        let err = ensure_admin(&db, "admin", Some("short")).await.unwrap_err();
-        assert!(err.to_string().contains("at least 12"), "got {err}");
+        // Short recovery passwords are allowed; only blank/whitespace is
+        // rejected so an env typo cannot silently disable password login.
+        ensure_admin(&db, "admin", Some("x")).await.unwrap();
+        let users = db.list_users().await.unwrap();
+        assert!(password::verify("x", users[0].password.as_ref().unwrap()));
+
+        let err = ensure_admin(&db, "admin", Some("   ")).await.unwrap_err();
+        assert!(err.to_string().contains("must not be blank"), "got {err}");
     }
 }
