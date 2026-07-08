@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-tokenize"
-version = "2.0.11"
+version = "2.0.12"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 description = "GPROXY local token counting"
