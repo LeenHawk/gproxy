@@ -43,10 +43,10 @@ fn response_items_to_chat_messages(
             continue;
         };
 
-        if let Some(reasoning) = non_empty_joined(std::mem::take(&mut pending_reasoning)) {
-            if !attach_reasoning(&mut message, &reasoning) {
-                messages.push(reasoning_to_chat_message(reasoning));
-            }
+        if let Some(reasoning) = non_empty_joined(std::mem::take(&mut pending_reasoning))
+            && !attach_reasoning(&mut message, &reasoning)
+        {
+            messages.push(reasoning_to_chat_message(reasoning));
         }
 
         messages.push(message);
