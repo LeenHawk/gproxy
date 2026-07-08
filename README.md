@@ -38,16 +38,16 @@ shared service:
 
 Fully self-contained: embedded console, file-based SQLite, no external services.
 
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/leenhawk/gproxy&ports=8787;http;/&name=gproxy&env[GPROXY_ADMIN_PASSWORD]=change-me-min12char)
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/leenhawk/gproxy&ports=8787;http;/&name=gproxy&env[GPROXY_ADMIN_PASSWORD]=change-me)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/LeenHawk/gproxy)
 
 ```bash
-docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me-min12char ghcr.io/leenhawk/gproxy
-# then open http://localhost:8787/console  (admin / change-me-min12char)
+docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gproxy
+# then open http://localhost:8787/console  (admin / change-me)
 ```
 
-> **The admin password must be at least 12 characters** — the container exits on
-> boot with `GPROXY_ADMIN_PASSWORD rejected` if it's shorter.
+> **The admin password must not be blank** — the container exits on boot with
+> `GPROXY_ADMIN_PASSWORD rejected` if it is empty or whitespace-only.
 >
 > **Reaching the console over plain HTTP from a non-`localhost` address** (LAN IP,
 > server IP, tunnel)? The session cookie is `Secure` by default, so the browser
@@ -71,8 +71,8 @@ The Cloudflare and Netlify buttons prompt for the required `TURSO_URL` and
 (`https://<db>.turso.io`), not the `libsql://` URL. Optional Upstash cache and
 `GPROXY_MASTER_KEY` secrets can be added after the worker/site is created.
 Cloudflare Workers, Netlify Edge, Deno Deploy, and EdgeOne Pages also ship the
-Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a
-12+ character `GPROXY_ADMIN_PASSWORD`, then open `/console` after deploy.
+Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a non-blank
+`GPROXY_ADMIN_PASSWORD`, then open `/console` after deploy.
 
 | Platform | Bundle | Deploy |
 |---|---|---|

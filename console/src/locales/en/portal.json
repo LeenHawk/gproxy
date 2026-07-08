@@ -70,7 +70,6 @@
     "confirmPassword": "Confirm new password",
     "changePassword": "Change password",
     "mismatch": "New passwords do not match.",
-    "tooShort": "New password must be at least 12 characters.",
     "changed": "Password changed successfully.",
     "identity": {
       "title": "Profile",

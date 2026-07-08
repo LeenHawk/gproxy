@@ -61,7 +61,7 @@
     "custom": "Custom",
     "title": "TLS fingerprint",
     "preset": "Preset",
-    "default": "Channel default",
+    "default": "Default (off)",
     "customExisting": "Custom (existing)",
     "jsonHint": "Pick a preset to fill, or edit the JSON for a custom fingerprint",
     "apply": "Apply",

@@ -61,7 +61,7 @@
     "custom": "自訂",
     "title": "TLS 指紋",
     "preset": "預設",
-    "default": "通道預設",
+    "default": "預設（關閉）",
     "customExisting": "自訂(現有)",
     "jsonHint": "選預設快速填入,或直接編輯 JSON 自訂指紋",
     "apply": "套用",

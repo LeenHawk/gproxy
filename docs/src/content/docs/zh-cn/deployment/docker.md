@@ -52,7 +52,7 @@ docker run --rm \
 **丢弃**它 —— 于是 Console 接受了密码、短暂渲染后又把你弹回登录页。当你用非 `localhost`
 的地址经明文 HTTP 访问时，加上 `-e GPROXY_INSECURE_COOKIES=1`,或在容器前挂 HTTPS 反代。
 
-另外 `GPROXY_ADMIN_PASSWORD` 必须**至少 12 个字符** —— 过短会让容器启动即以
+另外 `GPROXY_ADMIN_PASSWORD` 必须**非空** —— 为空或只有空白字符时，容器启动即以
 `GPROXY_ADMIN_PASSWORD rejected` 报错退出。
 :::
 

@@ -26,8 +26,8 @@ The Cloudflare template declares required Turso secrets in
 `TURSO_TOKEN` before the first deploy. Use Turso's HTTP URL
 (`https://<db>.turso.io`), not the `libsql://` URL, because edge runtimes call
 Hrana over `fetch`. They also prompt for `GPROXY_ADMIN_USER` and
-`GPROXY_ADMIN_PASSWORD`; the password must be at least 12 characters and is used
-for the first Console login. Add optional `UPSTASH_URL`, `UPSTASH_TOKEN`, and
+`GPROXY_ADMIN_PASSWORD`; the password must be non-blank and is used for the
+first Console login. Add optional `UPSTASH_URL`, `UPSTASH_TOKEN`, and
 `GPROXY_MASTER_KEY` secrets later if the deployment needs Upstash cache or
 sealed stored secrets.
 
@@ -47,7 +47,7 @@ edge uses HTTP-accessible services:
 | `TURSO_URL` | Yes | libSQL/Turso HTTP URL, for example `https://<db>.turso.io`. |
 | `TURSO_TOKEN` | Yes | Turso access token. |
 | `GPROXY_ADMIN_USER` | Yes | Admin username for the Console login. |
-| `GPROXY_ADMIN_PASSWORD` | Yes | Admin password for the Console login; at least 12 characters. |
+| `GPROXY_ADMIN_PASSWORD` | Yes | Non-blank admin password for the Console login. |
 | `UPSTASH_URL` | No | Upstash Redis cache; falls back to libSQL KV when absent. |
 | `UPSTASH_TOKEN` | No | Upstash token. |
 | `GPROXY_MASTER_KEY` | No | Standard base64 32-byte key for sealed secrets. |

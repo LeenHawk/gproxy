@@ -148,10 +148,10 @@ mod emulation_tests {
     use super::builtin_channels;
     use crate::http::client::WreqClient;
 
-    /// Every impersonation channel's built-in `default_emulation` must build a
-    /// real wreq client. BoringSSL validates the cipher/curve/sigalg token
-    /// strings only at client-build time (not `TlsOptions::build`), so this is
-    /// the test that actually catches a bad token in a channel's `fingerprint.rs`.
+    /// Every impersonation channel's opt-in built-in `default_emulation` must
+    /// build a real wreq client. BoringSSL validates the cipher/curve/sigalg
+    /// token strings only at client-build time (not `TlsOptions::build`), so
+    /// this is the test that catches a bad token in a channel's `fingerprint.rs`.
     #[test]
     fn channel_default_emulations_build() {
         let expected = [

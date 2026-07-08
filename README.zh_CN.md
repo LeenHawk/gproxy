@@ -34,15 +34,16 @@ HTTP 接口,并补齐把它当共享服务运行所需的一切:
 
 完全自包含:内嵌控制台、文件式 SQLite、无需外部服务。
 
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/leenhawk/gproxy&ports=8787;http;/&name=gproxy&env[GPROXY_ADMIN_PASSWORD]=change-me-min12char)
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/leenhawk/gproxy&ports=8787;http;/&name=gproxy&env[GPROXY_ADMIN_PASSWORD]=change-me)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/LeenHawk/gproxy)
 
 ```bash
-docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me-min12char ghcr.io/leenhawk/gproxy
-# 然后打开 http://localhost:8787/console (admin / change-me-min12char)
+docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gproxy
+# 然后打开 http://localhost:8787/console (admin / change-me)
 ```
 
-> **管理员密码至少 12 个字符** —— 过短容器启动即以 `GPROXY_ADMIN_PASSWORD rejected` 报错退出。
+> **管理员密码不能为空** —— 为空或只有空白字符时，容器启动即以
+> `GPROXY_ADMIN_PASSWORD rejected` 报错退出。
 >
 > **用非 `localhost` 地址(局域网 IP、服务器 IP、隧道)经明文 HTTP 访问控制台?** 会话 cookie
 > 默认带 `Secure`,浏览器会把它丢弃,于是即使密码正确,控制台登录后也会立刻弹回登录页。加上
@@ -63,7 +64,7 @@ Cloudflare 和 Netlify 按钮会在部署前要求填写必需的 `TURSO_URL` �
 不要填 `libsql://` URL。可选的 Upstash cache 和 `GPROXY_MASTER_KEY` secrets
 可以在 worker/site 创建后再补。Cloudflare Workers、Netlify Edge、Deno Deploy 和
 EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPROXY_ADMIN_USER` 和
-至少 12 个字符的 `GPROXY_ADMIN_PASSWORD`，部署后打开 `/console`。
+非空的 `GPROXY_ADMIN_PASSWORD`，部署后打开 `/console`。
 
 | 平台 | 产物 | 部署 |
 |---|---|---|

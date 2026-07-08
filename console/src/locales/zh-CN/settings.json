@@ -11,7 +11,7 @@
   "fields": {
     "instanceName": "实例名称",
     "proxy": "HTTP 代理地址",
-    "spoofEmulation": "伪装仿真",
+    "spoofEmulation": "内置 TLS 伪装",
     "enableUsage": "启用用量追踪",
     "enableUpstreamLog": "启用上游日志",
     "enableUpstreamLogBody": "记录上游请求/响应体",
@@ -22,9 +22,8 @@
     "retentionDays": "日志保留天数"
   },
   "spoof": {
-    "inherit": "继承自路由",
-    "on": "始终开启",
-    "off": "始终关闭"
+    "on": "使用通道配置",
+    "off": "默认关闭"
   },
   "retention": {
     "forever": "留空表示永久保留日志"
