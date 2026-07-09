@@ -88,7 +88,7 @@ export const CHANNELS: ChannelMeta[] = [
     id: "grokbuild",
     family: "oauth_tokens",
     loginModes: ["device"],
-    usage: false,
+    usage: true,
     secretTemplate: { ...OAUTH_TOKENS },
   },
   {
