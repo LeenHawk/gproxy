@@ -43,6 +43,8 @@ pub mod codex;
 pub mod copilotcli;
 #[cfg(feature = "channel-geminicli")]
 pub mod geminicli;
+#[cfg(feature = "channel-grokbuild")]
+pub mod grokbuild;
 #[cfg(feature = "channel-kiro")]
 pub mod kiro;
 #[cfg(feature = "channel-vertex")]

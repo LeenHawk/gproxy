@@ -12,7 +12,9 @@ pub enum ResponseTool {
     Function {
         name: String,
         parameters: JsonSchema,
-        strict: bool,
+        // Some OpenAI-compatible Responses providers echo `strict: null`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        strict: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         defer_loading: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -67,6 +69,17 @@ pub enum ResponseTool {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
+    #[serde(rename = "x_search")]
+    XSearch {
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "collections_search")]
+    CollectionsSearch {
+        vector_store_ids: Vec<String>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
     #[serde(rename = "mcp")]
     Mcp {
         server_label: String,
@@ -88,6 +101,11 @@ pub enum ResponseTool {
         server_url: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         tunnel_id: Option<String>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "code_execution")]
+    CodeExecution {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },

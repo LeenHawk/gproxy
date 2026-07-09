@@ -138,7 +138,7 @@ fn response_tool_to_chat_tool(tool: openai::ResponseTool) -> Option<openai::Chat
                 name,
                 description,
                 parameters: Some(parameters),
-                strict: Some(strict),
+                strict,
                 extra: Default::default(),
             },
             extra: Default::default(),

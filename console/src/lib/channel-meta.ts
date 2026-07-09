@@ -11,6 +11,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   nvidia: "https://integrate.api.nvidia.com",
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
+  grokbuild: "https://api.x.ai/v1",
   chatgpt: "https://chatgpt.com",
 };
 export type LoginMode = "authcode" | "device" | "cookie";
@@ -82,6 +83,13 @@ export const CHANNELS: ChannelMeta[] = [
     loginModes: ["authcode", "device"],
     usage: true,
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
+  },
+  {
+    id: "grokbuild",
+    family: "oauth_tokens",
+    loginModes: ["device"],
+    usage: false,
+    secretTemplate: { ...OAUTH_TOKENS },
   },
   {
     id: "kiro",

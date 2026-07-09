@@ -16,8 +16,8 @@ use crate::channel::{Channel, ChannelLogin};
 ///
 /// `login` is a parallel map holding the channels that support a §14.5
 /// interactive login (authcode: codex, claudecode, geminicli, antigravity,
-/// kiro; device-code: copilotcli; cookie: claudecode); a channel absent from
-/// it has no login flow.
+/// kiro; device-code: grokbuild, copilotcli; cookie: claudecode); a channel
+/// absent from it has no login flow.
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
@@ -43,8 +43,7 @@ impl ChannelRegistry {
         self.map.get(id).cloned()
     }
 
-    /// Look up a channel's interactive OAuth login, or `None` if it has no
-    /// authcode flow.
+    /// Look up a channel's interactive login, or `None` if it has no login flow.
     pub fn login_for(&self, id: &str) -> Option<Arc<dyn ChannelLogin>> {
         self.login.get(id).cloned()
     }
@@ -91,6 +90,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(bulletins::geminicli::GeminiCliChannel),
         #[cfg(feature = "channel-antigravity")]
         Arc::new(bulletins::antigravity::AntigravityChannel),
+        #[cfg(feature = "channel-grokbuild")]
+        Arc::new(bulletins::grokbuild::GrokBuildChannel),
         #[cfg(feature = "channel-claudecode")]
         Arc::new(bulletins::claudecode::ClaudeCodeChannel),
         #[cfg(feature = "channel-codex")]
@@ -104,8 +105,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
     ]
 }
 
-/// Channels that support the §14.5 interactive OAuth authcode login, paired
-/// with their `Channel::id`. Only authcode-capable channels appear here.
+/// Channels that support a §14.5 interactive login, paired with `Channel::id`.
+/// Authcode, device-code, and cookie-capable channels all live here.
 fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
     vec![
         #[cfg(feature = "channel-codex")]
@@ -124,6 +125,11 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
         (
             "antigravity",
             Arc::new(bulletins::antigravity::AntigravityChannel),
+        ),
+        #[cfg(feature = "channel-grokbuild")]
+        (
+            "grokbuild",
+            Arc::new(bulletins::grokbuild::GrokBuildChannel),
         ),
         #[cfg(feature = "channel-kiro")]
         ("kiro", Arc::new(bulletins::kiro::KiroChannel)),

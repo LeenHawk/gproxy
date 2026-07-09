@@ -19,7 +19,7 @@ on top of many upstream LLM providers, and adds everything you need to run it as
 shared service:
 
 - **Multi-provider routing** — OpenAI, Anthropic, Gemini/Vertex, DeepSeek, Groq,
-  OpenRouter, NVIDIA, Vercel AI Gateway, Claude Code, Codex, and any
+  OpenRouter, NVIDIA, Vercel AI Gateway, Claude Code, Codex, Grok Build, and any
   OpenAI-compatible custom endpoint.
 - **Two routing modes** — aggregated `/v1/...` (provider in the model name) and
   scoped `/{provider}/v1/...` (provider in the URL).

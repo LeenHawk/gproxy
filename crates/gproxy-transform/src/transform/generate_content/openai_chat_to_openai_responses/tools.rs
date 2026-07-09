@@ -130,7 +130,7 @@ fn chat_tool_to_response_tool(tool: openai::ChatTool) -> openai::ResponseTool {
         openai::ChatTool::Function { function, .. } => openai::ResponseTool::Function {
             name: function.name,
             parameters: function.parameters.unwrap_or_default(),
-            strict: function.strict.unwrap_or(false),
+            strict: function.strict,
             defer_loading: None,
             description: function.description,
             extra: Default::default(),
