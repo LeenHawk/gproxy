@@ -34,7 +34,8 @@ fn is_xai_responses_websocket(op: OperationKey) -> bool {
 }
 
 fn is_xai_image(op: OperationKey) -> bool {
-    op.operation == Operation::CreateImage && op.kind == OperationKind::Provider(Provider::OpenAi)
+    matches!(op.operation, Operation::CreateImage | Operation::EditImage)
+        && op.kind == OperationKind::Provider(Provider::OpenAi)
 }
 
 pub struct GrokBuildChannel;

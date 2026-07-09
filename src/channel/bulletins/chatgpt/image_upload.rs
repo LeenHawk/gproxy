@@ -145,12 +145,12 @@ fn parse_json(body: &[u8]) -> Result<ParsedEdit, String> {
         .to_string();
     let image_ref = v
         .get("image")
-        .and_then(Value::as_str)
+        .and_then(image_ref_str)
         .or_else(|| {
             v.get("images")
                 .and_then(|imgs| imgs.as_array())
                 .and_then(|a| a.first())
-                .and_then(|x| x.get("image_url").and_then(Value::as_str))
+                .and_then(image_ref_str)
         })
         .or_else(|| v.get("image_url").and_then(Value::as_str))
         .ok_or("edit body: missing image (data URL)")?;
@@ -176,6 +176,15 @@ fn parse_json(body: &[u8]) -> Result<ParsedEdit, String> {
         Err("edit body: remote image_url not supported".into())
     } else {
         Err("edit body: image must be a data URL".into())
+    }
+}
+
+fn image_ref_str(value: &Value) -> Option<&str> {
+    match value {
+        Value::String(value) => Some(value),
+        Value::Array(values) => values.first().and_then(image_ref_str),
+        Value::Object(object) => object.get("image_url").and_then(Value::as_str),
+        _ => None,
     }
 }
 
@@ -457,7 +466,7 @@ mod tests {
     fn parses_json_data_url() {
         let png = minimal_png();
         let data_url = format!("data:image/png;base64,{}", STANDARD.encode(&png));
-        let body = serde_json::json!({"image": data_url, "prompt": "make it blue", "n": 1});
+        let body = serde_json::json!({"image": [data_url], "prompt": "make it blue", "n": 1});
         let parsed = parse_edit_body(&serde_json::to_vec(&body).unwrap()).unwrap();
         assert_eq!(parsed.mime_type, "image/png");
         assert_eq!(parsed.prompt, "make it blue");
