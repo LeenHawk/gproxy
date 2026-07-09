@@ -14,12 +14,8 @@ pub mod user;
 use std::net::IpAddr;
 
 use axum::Router;
-use axum::http::Method;
-use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::middleware::from_fn_with_state;
 use axum::routing::{get, patch, post};
-use http::HeaderValue;
-use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::app::AppState;
 
@@ -81,45 +77,6 @@ pub(crate) fn peer_ip(extensions: &axum::http::Extensions) -> Option<IpAddr> {
     extensions
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
         .map(|ci| ci.0.ip())
-}
-
-/// Build a credentialed CORS layer for the allowed origins.
-/// Only called when `cors_origins` is non-empty.
-/// Uses explicit origin list (never wildcard — credentialed CORS forbids `*`).
-fn build_cors_layer(cors_origins: &[String]) -> CorsLayer {
-    let x_api_key: axum::http::HeaderName = "x-api-key".parse().unwrap();
-    let parsed: Vec<HeaderValue> = cors_origins
-        .iter()
-        .filter_map(|o| {
-            let o = o.trim();
-            // Reject `*` (AllowOrigin::list panics on it, and credentialed CORS
-            // forbids wildcard) and scheme-less entries (a real browser Origin
-            // header is always `scheme://authority`, so a bare host never matches).
-            if o == "*" || !o.contains("://") {
-                tracing::warn!(
-                    origin = %o,
-                    "CORS origin must be an explicit scheme://host[:port] (not '*') — skipped"
-                );
-                return None;
-            }
-            o.parse::<HeaderValue>()
-                .map_err(
-                    |e| tracing::warn!(origin = %o, error = %e, "invalid CORS origin — skipped"),
-                )
-                .ok()
-        })
-        .collect();
-    CorsLayer::new()
-        .allow_origin(AllowOrigin::list(parsed))
-        .allow_credentials(true)
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        .allow_headers([CONTENT_TYPE, AUTHORIZATION, x_api_key])
 }
 
 /// Build the `/admin/*` subrouter. Returns a `Router<AppState>` (state is
@@ -212,7 +169,7 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         .merge(protected)
         .merge(user_protected);
     if !cors_origins.is_empty() {
-        router = router.layer(build_cors_layer(&cors_origins));
+        router = router.layer(crate::http::cors::credentialed_admin_layer(&cors_origins));
     }
     router
 }

@@ -168,10 +168,11 @@ pub struct RuntimeConfig {
     /// Sourced from `--data-dir` (always set; default `./data`) so the `db`
     /// persistence backend also has a writable staging dir.
     pub update_data_dir: std::path::PathBuf,
-    /// B2 cross-origin admin: exact allowed Origins (e.g. `https://console.example.com`)
-    /// for the admin API CORS layer + CSRF allow-list. Empty (default) = same-origin
-    /// only (no CORS headers, SameSite=Lax cookie). Non-empty enables credentialed
-    /// CORS for these origins and switches the session cookie to SameSite=None; Secure.
+    /// Exact allowed Origins (e.g. `https://app.example.com`) for credentialed
+    /// CORS on the native admin API and gateway, and for the admin CSRF
+    /// allow-list. Empty (default) = same-origin only (no CORS headers,
+    /// SameSite=Lax cookie). Non-empty enables credentialed CORS for these
+    /// origins and switches the session cookie to SameSite=None; Secure.
     pub cors_origins: Vec<String>,
 }
 
