@@ -1,14 +1,15 @@
 ---
 title: Message Rewrite
-description: Add or replace message text with v2 system_text, transform, and rewrite rule-set entries.
+description: Add system instructions or replace prompt text without changing client applications.
 ---
 
-v2 does not have a separate "message rewrite" table. Message-oriented rewriting
-is expressed through the provider rule-set system:
+Message rewrite rules let the gateway adjust prompt text without requiring every
+client application to make the same change. Choose the rule type that matches
+what you need:
 
-- `system_text` inserts text into the provider-native system location.
+- `system_text` adds text to the upstream format's system-instruction location.
 - `transform` replaces text patterns over the serialized body or matched paths.
-- `rewrite` edits explicit JSON paths when you know the provider-native shape.
+- `rewrite` edits a specific JSON path when you know the upstream API shape.
 
 These rules run after protocol transform. That matters: a request from an OpenAI
 client routed to Claude is first transformed to Claude Messages, then message
@@ -34,10 +35,6 @@ to the selected content-generation kind:
 | `open_ai_chat_completions` | A `messages[]` item with `role: "system"`. |
 | `open_ai_responses` | `instructions`. |
 | `gemini_generate_content` | `systemInstruction.parts[]`. |
-
-This is one of the few current rule kinds that knows protocol semantics. The v2
-design preference is to move this kind of provider-specific path choice into
-frontend/config presets once the generic transform engine exists.
 
 ## `transform`
 
@@ -76,19 +73,19 @@ structures.
 
 ## Scope Rules by Operation
 
-Message rewrite rules should usually filter on content-generation operations:
+Limit message rules to content-generation operations so they do not run on
+model-list, embedding, or image requests:
 
 ```json
 ["generate_content", "stream_generate_content"]
 ```
 
-Avoid provider-family filters as the organizing concept. v2 classifies behavior
-by `Operation` and `OperationGroup`; the provider or protocol kind is a wire
-shape used inside that operation.
+Add a model filter as well when the rewrite is intended for only one model or
+model family.
 
 ## Caching Interaction
 
-Claude prompt cache keys depend on exact prefix content. If a message rewrite
-changes text before a `cache_control` breakpoint, it can turn every request into
-a cache miss. Put stable cache breakpoints after rewritten content, or keep
-rewrite rules outside the cached prefix.
+Claude and OpenAI prompt caches match an exact prefix. If a rewrite changes text
+before `cache_control` or `prompt_cache_breakpoint`, an expected cache hit can
+become a miss. Apply rewrites to stable content first, then place the cache
+breakpoint after the rewritten prefix.

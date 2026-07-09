@@ -1,9 +1,9 @@
 ---
 title: GPROXY v2
-description: GPROXY v2 重写版的文档站。
+description: 配置和运行一个面向 OpenAI、Claude 与 Gemini 兼容客户端的多 Provider LLM 网关。
 template: splash
 hero:
-  tagline: 单 crate Rust LLM 网关，支持 native server 和 edge worker，围绕 Operation 做协议转换，并内嵌控制台。
+  tagline: 用一个网关接入多个 LLM Provider，并统一处理协议转换、访问控制、用量结算和日常管理。
   actions:
     - text: 先看概览
       link: /zh-cn/introduction/what-is-gproxy/
@@ -24,16 +24,16 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
 	<Card title="介绍" icon="document">
-		了解 v2 改了什么，为什么重写成单 crate，以及一次请求如何穿过 pipeline。
+		了解 GPROXY 能做什么、接受哪些 API 格式，以及如何选择上游。
 	</Card>
 	<Card title="快速上手" icon="rocket">
-		安装二进制、导入开发快照、打开内嵌控制台，并发送第一个 OpenAI-compatible 请求。
+		安装 GPROXY、打开内嵌控制台，并发送第一个 OpenAI 兼容请求。
 	</Card>
 	<Card title="使用指南" icon="puzzle">
-		配置 provider、route、user、quota、rewrite rule、Claude cache hint、agent 兼容性和可观测性。
+		配置 Provider、模型、用户、配额、改写规则、提示缓存和可观测性。
 	</Card>
 	<Card title="参考手册" icon="seti:config">
-		查询环境变量、配置导入导出结构、路由行为、价格、存储后端、优雅停机和 SDK 边界。
+		查询环境变量、路由行为、价格、存储后端、优雅停机和 Rust SDK。
 	</Card>
 </CardGrid>
 
@@ -41,13 +41,13 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <LinkCard
 	title="GPROXY v2 是什么?"
-	description="从产品层面解释 v2 重写，以及从 v1 继承下来的核心概念。"
+	description="从这里了解支持的客户端、路由方式、部署选项和核心概念。"
 	href="/zh-cn/introduction/what-is-gproxy/"
 />
 
 <LinkCard
 	title="架构"
-	description="当前 AppState、控制面快照、Operation、transform、process rule、channel 和存储的结构图。"
+	description="跟随一次请求，了解鉴权、模型解析、协议转换、上游调用和用量结算。"
 	href="/zh-cn/introduction/architecture/"
 />
 

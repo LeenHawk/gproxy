@@ -8,7 +8,7 @@ export default defineConfig({
     starlight({
       title: 'GPROXY v2',
       description:
-        'The GPROXY v2 documentation site: architecture, deployment, migration, edge runtime, and agent compatibility.',
+        'Install, configure, and operate GPROXY across native, Docker, and edge deployments.',
       favicon: '/favicon.ico',
       head: [
         {
@@ -129,9 +129,9 @@ export default defineConfig({
               translations: { 'zh-CN': '消息改写规则' },
             },
             {
-              label: 'Claude Prompt Caching',
+              label: 'Prompt Caching',
               slug: 'guides/claude-caching',
-              translations: { 'zh-CN': 'Claude 提示缓存' },
+              translations: { 'zh-CN': '提示缓存' },
             },
             {
               label: 'Adding a Channel',

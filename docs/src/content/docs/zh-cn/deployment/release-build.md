@@ -3,9 +3,8 @@ title: Release 构建
 description: 构建带内嵌 Console 的生产级 GPROXY v2 native 二进制。
 ---
 
-native release 构建由一个单 crate Rust build 和一个可选 Console 资产构建组成。
-release workflow 会执行两者：先构建 `console/`，上传同步后的 `assets/console/`，再为各
-native target 构建 `--bin gproxy`。
+Native Release 由 Rust Workspace 构建和 Console 资产组成。Release Workflow 会先构建
+`console/`，上传同步后的 `assets/console/`，再为各 Native Target 构建 `--bin gproxy`。
 
 ## 构建 Console
 

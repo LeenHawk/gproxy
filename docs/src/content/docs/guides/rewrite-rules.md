@@ -1,44 +1,33 @@
 ---
 title: Rewrite Rules
-description: Use v2 rule sets to mutate provider-native JSON bodies and headers after protocol transform and before upstream send.
+description: Reuse request rules across providers to add instructions, cache breakpoints, field changes, text replacements, and headers.
 ---
 
-Rewrite rules in v2 live in reusable **rule sets**. A rule set can attach to one
-or more providers through `provider_rule_sets`, and the provider's attached
-rules run after protocol transform and before channel request preparation.
+Use **rule sets** when requests need a consistent adjustment before they reach
+an upstream. A set can be attached to one or more providers, so common behavior
+does not need to be configured repeatedly.
+
+Rules see the request in the upstream's API format. For example, an OpenAI
+request routed to Claude is converted to Claude Messages before its rules run.
 
 ```text
 client request
-  -> classify / auth / route / balance
-  -> protocol transform to provider-native body
-  -> process rule sets
-  -> channel shape_request
-  -> channel prepare / upstream send
+  -> authenticate and choose an upstream
+  -> convert to the upstream API format
+  -> apply provider rule sets
+  -> send the upstream request
 ```
 
-This page covers the implemented rule kinds. `transform` is the generic
-`locate + actions (+ limit)` engine; provider-specific behavior should live in
-config or console presets where possible.
-
-## Rule Set Model
-
-| Record | Purpose |
-| --- | --- |
-| `rule_sets` | Named reusable collection. |
-| `rules` | Rule rows inside a set. |
-| `provider_rule_sets` | Attachment of a set to a provider with `sort_order`. |
-
-During snapshot rebuild, enabled rule sets are compiled. Unparsable rules warn
-and skip. Provider attachments are flattened in attachment order, then sorted by
-fixed kind order.
+The console lets you create a named set, add ordered rules, and attach the set to
+providers. Disabled or invalid rules are skipped instead of failing requests.
 
 ## Common Rule Fields
 
-Every rule row has:
+Every rule has:
 
 - `kind`: one of `system_text`, `cache_breakpoint`, `rewrite`, `transform`,
   `header`.
-- `config_json`: kind-specific config.
+- `config_json`: the settings for that rule kind.
 - `filter_model_pattern`: optional glob against the prefix-stripped upstream
   model name.
 - `filter_operation_keys`: optional list of `Operation` values such as
@@ -46,6 +35,25 @@ Every rule row has:
 - `sort_order` and `enabled`.
 
 Filters are ANDed. Omitted filters match everything.
+
+## `cache_breakpoint`
+
+`cache_breakpoint` inserts the native cache marker for the selected upstream
+format. Claude uses `cache_control`; OpenAI Chat and Responses use
+`prompt_cache_breakpoint`.
+
+```json
+{
+  "target": "system",
+  "ttl": "30m"
+}
+```
+
+OpenAI supports `system` and `last_message` content, plus request-wide behavior
+through `top_level`; it does not support breakpoints on `tools`. Claude supports
+`top_level`, `system`, `tools`, and `last_message`. See
+[Prompt Caching](/guides/claude-caching/) for the complete target, TTL, and
+magic-string behavior.
 
 ## `rewrite`
 
@@ -68,7 +76,8 @@ Supported actions are:
 | `merge` | Shallow-merges an object `value_json` into an existing object at the path. |
 
 Paths are dot-separated. Object keys and numeric array indexes are supported,
-for example `messages.0.content`. This is intentionally simple and fail-soft.
+for example `messages.0.content`. A missing path is skipped without breaking the
+request.
 
 ## `transform`
 
@@ -109,8 +118,8 @@ matching is broad after JSON serialization, so keep patterns precise.
 }
 ```
 
-`override` replaces the header. `merge` comma-appends with de-duplication, which
-is useful for list-valued headers such as `anthropic-beta`.
+`override` replaces the header. `merge` appends a comma-separated value and
+removes duplicates, which is useful for headers such as `anthropic-beta`.
 
 ## Fixed Apply Order
 
@@ -120,5 +129,5 @@ Rules apply in this fixed order, regardless of attachment order:
 system_text -> cache_breakpoint -> rewrite -> transform -> header
 ```
 
-Within each kind, set and rule sort order is preserved. A bad or non-applicable
-rule should not break traffic; it warns and skips.
+Within each kind, set and rule order is preserved. A rule that cannot apply is
+skipped and logged, rather than failing the upstream request.

@@ -1,38 +1,39 @@
 # GPROXY
 
-**单个 Rust 二进制的高性能、多供应商 LLM 代理** —— 内嵌 React 控制台、多租户鉴权,
-同一套引擎可**原生 / Docker / 边缘(WebAssembly)** 三种形态运行。
+让 OpenAI、Anthropic 和 Gemini 兼容客户端通过同一个网关访问不同上游。GPROXY 负责
+Provider 路由、协议转换、凭据、配额和可观测性，并提供内嵌控制台处理日常管理。可以部署为
+原生二进制、Docker 容器或 Serverless Edge 函数。
 
 [English](README.md) · 简体中文
 
-- 🪪 **许可证:** AGPL-3.0-or-later · 🐳 **镜像:** `ghcr.io/leenhawk/gproxy`
-- 🦀 **构建目标:** 原生二进制 · Docker · 边缘 wasm(Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite)
-- 🖥️ **控制台:** 内置,路径 `/console`
+- 🪪 **许可证：** AGPL-3.0-or-later · 🐳 **镜像：** `ghcr.io/leenhawk/gproxy`
+- 🦀 **构建目标：** 原生二进制 · Docker · Edge Wasm（Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite）
+- 🖥️ **控制台：** 内置，路径 `/console`
 
 ---
 
 ## 它做什么
 
-GPROXY 在众多上游 LLM 供应商之上,暴露统一的 **OpenAI / Anthropic / Gemini 兼容**
-HTTP 接口,并补齐把它当共享服务运行所需的一切:
+GPROXY 为应用提供稳定的统一 API，上游 Provider 可以按需选择和组合：
 
 - **多供应商路由** —— OpenAI、Anthropic、Gemini/Vertex、DeepSeek、Groq、OpenRouter、
   NVIDIA、Vercel AI Gateway、Claude Code、Codex、Grok Build，以及任意 OpenAI 兼容自定义端点。
-- **两种路由模式** —— 聚合 `/v1/...`(供应商写在模型名里)与限定 `/{provider}/v1/...`
-  (供应商写在 URL 里)。
-- **跨协议转换** —— OpenAI 客户端可打 Claude 上游(反之亦然);同方言走极简解析快路径。
-- **多租户鉴权** —— 用户、API key、glob 模型权限、RPM/RPD/token 限速、USD 配额;
-  Claude 提示缓存、改写规则、熔断。
-- **可插拔存储** —— SQLite / PostgreSQL / MySQL,可选静态加密。
+- **两种路由模式** —— 聚合 `/v1/...`（Provider 写在模型名里）与 Scoped
+  `/{provider}/v1/...`（Provider 写在 URL 里）。
+- **跨协议转换** —— OpenAI 客户端可以使用 Claude 或 Gemini 上游，响应会再转换回客户端
+  需要的格式。
+- **多租户鉴权** —— 用户、API key、glob 模型权限、RPM/RPD/token 限速和 USD 配额。
+- **提示词与请求控制** —— Claude 和 OpenAI 缓存断点、可复用改写规则、凭据故障转移和熔断。
+- **可插拔存储** —— SQLite / PostgreSQL / MySQL，可选静态加密。
 - **内置控制台** —— 无需单独部署前端。
 
 ---
 
 ## 部署
 
-### 🐳 一键(Docker,推荐)
+### 🐳 Docker（推荐）
 
-完全自包含:内嵌控制台、文件式 SQLite、无需外部服务。
+完全自包含：内嵌控制台、本地文件存储、无需外部服务。
 
 [![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=docker&image=ghcr.io/leenhawk/gproxy&ports=8787;http;/&name=gproxy&env[GPROXY_ADMIN_PASSWORD]=change-me)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/LeenHawk/gproxy)
@@ -42,24 +43,24 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 # 然后打开 http://localhost:8787/console (admin / change-me)
 ```
 
-> **管理员密码不能为空** —— 为空或只有空白字符时，容器启动即以
-> `GPROXY_ADMIN_PASSWORD rejected` 报错退出。
+> 对外提供服务前请设置自己的管理员密码。`GPROXY_ADMIN_PASSWORD` 为空或只有空白字符时，
+> 容器会拒绝启动。
 >
 > **明文 HTTP 访问控制台** 在同站部署下可用，包括局域网 IP、服务器 IP 和隧道。
 > 将 GPROXY 暴露到本地开发之外时建议使用 HTTPS；跨站 console 部署仍需要 HTTPS cookie。
 
-### ☁️ Serverless 边缘(WebAssembly)
+### ☁️ Serverless Edge（WebAssembly）
 
-同一套路由可作为 wasm 边缘函数跑在六个平台上。**预构建、即点即部署**的产物在
-[**`deploy` 分支**](https://github.com/LeenHawk/gproxy/tree/deploy)(平台侧没有 cargo,
-无需工具链)。边缘函数需要外部 **Turso** 控制面库(+ 可选 **Upstash** 缓存);完整步骤见
-**[docs/edge-deploy.md](docs/edge-deploy.md)**。
+六个边缘平台的预构建产物都在
+[**`deploy` 分支**](https://github.com/LeenHawk/gproxy/tree/deploy)，部署时不需要准备 Rust
+工具链。Edge 部署使用 **Turso** 保存持久配置，也可以选用 **Upstash** 做共享缓存。各平台的
+具体步骤见[边缘部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LeenHawk/gproxy&branch=deploy&create_from_path=netlify)
 
 Cloudflare 和 Netlify 按钮会在部署前要求填写必需的 `TURSO_URL` 和
-`TURSO_TOKEN` secrets。这里要填 Turso 的 HTTP URL(`https://<db>.turso.io`)，
+`TURSO_TOKEN` secrets。这里要填 Turso 的 HTTP URL（`https://<db>.turso.io`），
 不要填 `libsql://` URL。可选的 Upstash cache 和 `GPROXY_MASTER_KEY` secrets
 可以在 worker/site 创建后再补。Cloudflare Workers、Netlify Edge、Deno Deploy 和
 EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPROXY_ADMIN_USER` 和
@@ -67,34 +68,35 @@ EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPRO
 
 | 平台 | 产物 | 部署 |
 |---|---|---|
-| Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | 一键按钮 ☝️ / `wrangler deploy` |
-| Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | 一键按钮 ☝️ / `netlify deploy --prod` |
-| Deno Deploy | — | `deploy/deno/build.sh`(CLI) |
-| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy`(Docker/eszip,CLI) |
-| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy`(CLI) |
-| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions`(deno-2.0,CLI) |
+| Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | 部署按钮或 `wrangler deploy` |
+| Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | 部署按钮或 `netlify deploy --prod` |
+| Deno Deploy | — | `deploy/deno/build.sh`（CLI） |
+| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy`（Docker/eszip，CLI） |
+| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy`（CLI） |
+| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions`（deno-2.0，CLI） |
 
 ### 📦 原生二进制
 
 每个 [release](https://github.com/LeenHawk/gproxy/releases) 都提供预编译二进制
-(linux/macOS/windows,x86_64 + aarch64)。或自行 `cargo build --release`。
+（Linux/macOS/Windows，x86_64 + aarch64）。也可以自行运行 `cargo build --release`。
 
 ---
 
 ## 配置
 
-GPROXY 用**环境变量**配置;运行期配置进数据库,通过 `/console` 管理。
+环境变量用于配置进程本身。Provider、凭据、路由、用户等运行期设置保存在数据库中，并通过
+`/console` 管理。
 
 | 变量 | 默认 | 用途 |
 |---|---|---|
 | `GPROXY_HOST` / `GPROXY_PORT` | `127.0.0.1` / `8787` | 监听地址 |
-| `GPROXY_PERSISTENCE` | `file` | `file`(`GPROXY_DATA_DIR` 下的 SQLite)或 `db` |
-| `GPROXY_DSN` | — | `persistence=db` 时的 DSN(Postgres/MySQL/SQLite) |
-| `GPROXY_MASTER_KEY` | — | 解封存储的密文(缺省=明文) |
+| `GPROXY_PERSISTENCE` | 二进制：`db`；Docker：`file` | `db` 使用 SQLite/PostgreSQL/MySQL；`file` 按表保存 JSON，仅适合单实例 |
+| `GPROXY_DSN` | 自动生成 SQLite DSN | `persistence=db` 时可选的 PostgreSQL/MySQL/SQLite DSN |
+| `GPROXY_MASTER_KEY` | — | 解封存储的密文（缺省时明文存储） |
 | `GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` | `admin` / 随机 | 首启动管理员 |
 
-**从 v1 升级?** 把 v2 二进制指向你现有的 v1 SQLite 库,首启动会就地迁移(旧库备份为
-`*.v1.bak`)。
+**从 v1 升级？** 让 v2 使用现有 SQLite 数据库即可。首次启动时，GPROXY 会导入受支持的
+配置，并把旧数据库保留为 `*.v1.bak` 备份。
 
 ---
 
@@ -107,12 +109,16 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"openai-main/gpt-4.1-mini","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-运维端点(`/healthz`、`/version`、`/metrics`)走 admin 鉴权。
+运维端点（`/healthz`、`/version`、`/metrics`）需要 Admin 鉴权。
 
 ## 文档
 
-- **[边缘部署](docs/edge-deploy.md)** · **[架构设计](docs/architecture-design.md)** · **[开发者指南](docs/developers/README.md)**
+- **[文档首页](https://gproxy.leenhawk.com/zh-cn/)**
+- **[快速开始](https://gproxy.leenhawk.com/zh-cn/getting-started/quick-start/)**
+- **[提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)**
+- **[边缘部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)**
+- **[新增 Channel](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
 
 ## 许可证
 
-[AGPL-3.0-or-later](LICENSE) · 作者:[LeenHawk](https://github.com/LeenHawk)
+[AGPL-3.0-or-later](LICENSE) · 作者：[LeenHawk](https://github.com/LeenHawk)

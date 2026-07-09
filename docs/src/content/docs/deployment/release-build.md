@@ -3,10 +3,9 @@ title: Release Build
 description: Build a production GPROXY v2 native binary with the embedded console.
 ---
 
-The native release build is a single-crate Rust build plus an optional console
-asset build. The release workflow runs both: it builds `console/`, uploads the
-synced `assets/console/` directory, and then builds `--bin gproxy` for each
-native target.
+The native release combines the Rust workspace build with the console assets.
+The release workflow builds `console/`, uploads the synced `assets/console/`
+directory, and then builds `--bin gproxy` for each native target.
 
 ## Build The Console
 

@@ -1,9 +1,9 @@
 ---
 title: GPROXY v2
-description: The documentation site for the GPROXY v2 rewrite.
+description: Configure and operate a multi-provider LLM gateway for OpenAI, Claude, and Gemini-compatible clients.
 template: splash
 hero:
-  tagline: A single-crate Rust LLM gateway for native servers and edge workers, with operation-oriented protocol transforms and an embedded console.
+  tagline: One gateway for multiple LLM providers, with protocol conversion, access control, usage accounting, and an embedded console.
   actions:
     - text: Start with the overview
       link: /introduction/what-is-gproxy/
@@ -24,20 +24,19 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
 	<Card title="Introduction" icon="document">
-		Read what changed in v2, why the rewrite is a single crate, and how a request moves
-		through the pipeline.
+		See what GPROXY does, which API formats it accepts, and how it chooses an upstream.
 	</Card>
 	<Card title="Getting Started" icon="rocket">
 		Install the binary, import a development snapshot, open the embedded console, and
 		send the first OpenAI-compatible request.
 	</Card>
 	<Card title="Guides" icon="puzzle">
-		Configure providers, routes, users, quotas, rewrite rules, Claude cache hints,
-		agent compatibility, and observability.
+		Configure providers, models, users, quotas, rewrite rules, prompt caching, and
+		observability.
 	</Card>
 	<Card title="Reference" icon="seti:config">
-		Check environment variables, config import/export shape, routing behavior, pricing,
-		storage backends, shutdown semantics, and SDK boundaries.
+		Look up environment variables, routing behavior, pricing, storage backends,
+		shutdown behavior, and the Rust SDK.
 	</Card>
 </CardGrid>
 
@@ -45,13 +44,13 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <LinkCard
 	title="What is GPROXY v2?"
-	description="A product-level overview of the v2 rewrite and the concepts carried forward from v1."
+	description="Start here for supported clients, routing modes, deployment options, and core concepts."
 	href="/introduction/what-is-gproxy/"
 />
 
 <LinkCard
 	title="Architecture"
-	description="A current-state map of AppState, control-plane snapshots, operations, transforms, process rules, channels, and storage."
+	description="Follow a request from authentication and model resolution through conversion, upstream delivery, and usage settlement."
 	href="/introduction/architecture/"
 />
 
