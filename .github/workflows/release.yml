@@ -15,7 +15,9 @@ on:
       - "v*"
 
 concurrency:
-  group: release-${{ github.ref }}
+  # release.sh pushes main and then a tag at the same commit. Let the tag run
+  # replace the redundant staging run before both can refresh `deploy`.
+  group: release-${{ github.sha }}
   cancel-in-progress: true
 
 permissions:
