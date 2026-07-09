@@ -17,7 +17,7 @@ GPROXY 在众多上游 LLM 供应商之上,暴露统一的 **OpenAI / Anthropic 
 HTTP 接口,并补齐把它当共享服务运行所需的一切:
 
 - **多供应商路由** —— OpenAI、Anthropic、Gemini/Vertex、DeepSeek、Groq、OpenRouter、
-  NVIDIA、Vercel AI Gateway、Claude Code、Codex,以及任意 OpenAI 兼容自定义端点。
+  NVIDIA、Vercel AI Gateway、Claude Code、Codex、Grok Build，以及任意 OpenAI 兼容自定义端点。
 - **两种路由模式** —— 聚合 `/v1/...`(供应商写在模型名里)与限定 `/{provider}/v1/...`
   (供应商写在 URL 里)。
 - **跨协议转换** —— OpenAI 客户端可打 Claude 上游(反之亦然);同方言走极简解析快路径。

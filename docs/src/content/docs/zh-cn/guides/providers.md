@@ -27,7 +27,7 @@ native 和 edge runtime 构建同一套 channel registry。当前内置 channel 
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
 | `claudeapi` | Anthropic Claude Messages API。 |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游。 |
-| `codex`, `claudecode`, `geminicli`, `antigravity`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
+| `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
 | `chatgpt` | 通过 chatgpt.com 会话 cookie 接入 ChatGPT 消费版 web 后端。 |
 
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。

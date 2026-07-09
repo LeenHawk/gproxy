@@ -32,7 +32,7 @@ channel ids are:
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams. |
-| `codex`, `claudecode`, `geminicli`, `antigravity`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
+| `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
 | `chatgpt` | ChatGPT consumer web backend via a chatgpt.com session cookie. |
 
 Every channel declares a routing surface as `(Operation, OperationKind) ->

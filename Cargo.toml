@@ -153,6 +153,7 @@ channels-edge = [
     "channel-custom",
     "channel-deepseek",
     "channel-geminicli",
+    "channel-grokbuild",
     "channel-groq",
     "channel-kiro",
     "channel-nvidia",
@@ -172,6 +173,7 @@ channel-copilotcli = []
 channel-custom = []
 channel-deepseek = []
 channel-geminicli = []
+channel-grokbuild = []
 channel-groq = []
 channel-kiro = []
 channel-nvidia = []

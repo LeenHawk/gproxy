@@ -224,7 +224,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
             claude::Tool::Custom(tool) => output.push(openai::ResponseTool::Function {
                 name: tool.name,
                 parameters: json_object(json_value(tool.input_schema)),
-                strict: tool.common.strict.unwrap_or_default(),
+                strict: tool.common.strict,
                 defer_loading: tool.common.defer_loading,
                 description: tool.description,
                 extra: Default::default(),
@@ -315,7 +315,7 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
                     .or_else(|| function.parameters.map(json_value))
                     .map(json_object)
                     .unwrap_or_default(),
-                strict: false,
+                strict: Some(false),
                 defer_loading: None,
                 description: empty_string_to_none(function.description),
                 extra: Default::default(),
@@ -512,7 +512,7 @@ pub(in crate::transform::count_tokens) fn openai_tools_to_claude(
                 eager_input_streaming: None,
                 common: claude::ToolCommon {
                     defer_loading,
-                    strict: Some(strict),
+                    strict,
                     ..Default::default()
                 },
             })),
