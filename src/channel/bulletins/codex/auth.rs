@@ -53,10 +53,10 @@ pub(super) const DEFAULT_BASE_URL: &str = "https://chatgpt.com/backend-api/codex
 /// sync if switching forms.
 pub(super) const ORIGINATOR: &str = "codex_exec";
 pub(super) const USER_AGENT_VALUE: &str =
-    "codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.137.0)";
+    "codex_exec/0.144.0 (Debian 13.0.0; x86_64) xterm-256color (codex_exec; 0.144.0)";
 /// Codex client version — sent as the `client_version` query on the model-list
 /// / model-get endpoint (v1 parity). Keep in sync with `USER_AGENT_VALUE`.
-pub(super) const CODEX_VERSION: &str = "0.137.0";
+pub(super) const CODEX_VERSION: &str = "0.144.0";
 
 /// Refresh slightly before expiry to avoid racing a 401 mid-flight.
 const EXPIRY_SKEW_MS: i64 = 60_000;
