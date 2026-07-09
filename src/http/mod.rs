@@ -4,6 +4,8 @@
 //! - [`edge`] — inbound WinterCG `fetch` entry (wasm)
 
 pub mod client;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod cors;
 pub(crate) mod responses_ws;
 pub mod server;
 

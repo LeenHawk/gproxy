@@ -22,7 +22,7 @@ console, admin API, or JSON import/export.
 | `GPROXY_MAX_ATTEMPTS` | `6` | Per-request failover attempt cap. A forced credential refresh for an auth-dead candidate does not count as a new logical candidate. |
 | `GPROXY_INSTANCE_ID` | `0` | Numeric instance identifier used where rows need per-instance partitioning. Use distinct values in a multi-node fleet. |
 | `GPROXY_TRUSTED_PROXIES` | Empty | Comma-separated IP addresses whose `x-forwarded-for` / `x-real-ip` headers are trusted, in addition to loopback. |
-| `GPROXY_CORS_ORIGINS` | Empty | Comma-separated exact origins allowed for cross-origin admin console/API use. Empty means same-origin only. |
+| `GPROXY_CORS_ORIGINS` | Empty | Comma-separated exact origins allowed for cross-origin browser access to the admin API and gateway. Empty means same-origin only. |
 
 ## Persistence and cache
 

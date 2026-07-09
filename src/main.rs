@@ -73,8 +73,9 @@ struct Cli {
     )]
     trusted_proxies: Vec<std::net::IpAddr>,
 
-    /// B2: allowed cross-origin admin console Origins (repeatable / comma-separated),
-    /// e.g. https://console.example.com. Empty = same-origin only.
+    /// Allowed cross-origin browser Origins for admin/API gateway requests
+    /// (repeatable / comma-separated), e.g. https://app.example.com. Empty =
+    /// same-origin only.
     #[arg(
         long = "cors-origin",
         env = "GPROXY_CORS_ORIGINS",
