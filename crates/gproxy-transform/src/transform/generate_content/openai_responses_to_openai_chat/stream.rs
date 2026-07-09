@@ -60,10 +60,7 @@ impl StreamTransform {
                 vec![finish_from_response(*response)]
             }
             openai::KnownResponseStreamEvent::ResponseOutputTextDelta {
-                delta,
-                item_id,
-                output_index: _,
-                ..
+                delta, item_id, ..
             } => vec![common::chat_text_delta(
                 item_id,
                 common::default_openai_model(),
@@ -80,29 +77,22 @@ impl StreamTransform {
                     delta,
                 )]
             }
-            openai::KnownResponseStreamEvent::ResponseRefusalDelta {
-                delta,
-                item_id,
-                output_index: _,
-                ..
-            } => vec![common::chat_refusal_delta(
-                item_id,
-                common::default_openai_model(),
-                0,
-                0,
-                delta,
-            )],
+            openai::KnownResponseStreamEvent::ResponseRefusalDelta { delta, item_id, .. } => {
+                vec![common::chat_refusal_delta(
+                    item_id,
+                    common::default_openai_model(),
+                    0,
+                    0,
+                    delta,
+                )]
+            }
             openai::KnownResponseStreamEvent::ResponseReasoningSummaryTextDelta {
                 delta,
                 item_id,
-                output_index: _,
                 ..
             }
             | openai::KnownResponseStreamEvent::ResponseReasoningTextDelta {
-                delta,
-                item_id,
-                output_index: _,
-                ..
+                delta, item_id, ..
             } => vec![common::chat_reasoning_delta(
                 item_id,
                 common::default_openai_model(),
