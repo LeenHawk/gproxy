@@ -1,13 +1,13 @@
 ---
-title: Message Rewrite
-description: 用 v2 的 system_text、transform 和 rewrite 规则改写消息文本。
+title: 消息改写
+description: 无需修改客户端应用，就可以添加系统指令或替换提示词文本。
 ---
 
-v2 没有独立的 "message rewrite" 表。面向消息文本的改写通过 provider rule-set 系统表达：
+消息改写规则让网关统一调整提示词，不需要每个客户端应用重复修改。根据需求选择合适的规则：
 
-- `system_text` 把文本插入 provider-native 的 system 位置；
+- `system_text` 把文本添加到上游格式的系统指令位置；
 - `transform` 在序列化后的 body 或匹配路径上做文本替换；
-- `rewrite` 在你知道 provider-native 结构时修改具体 JSON path。
+- `rewrite` 在你知道上游 API 结构时修改具体 JSON 路径。
 
 这些规则在协议 transform 之后运行。这一点很重要：OpenAI 客户端请求如果路由到 Claude，上游 body 会先转成 Claude Messages，然后 message rule 看到的是 Claude body shape。
 
@@ -30,8 +30,6 @@ v2 没有独立的 "message rewrite" 表。面向消息文本的改写通过 pro
 | `open_ai_chat_completions` | `messages[]` 中 `role: "system"` 的 item。 |
 | `open_ai_responses` | `instructions`。 |
 | `gemini_generate_content` | `systemInstruction.parts[]`。 |
-
-这是当前少数知道协议语义的 rule kind。v2 的设计偏好是：通用 transform engine 存在后，把这种 provider-specific path 选择移到 frontend/config preset 中。
 
 ## `transform`
 
@@ -63,14 +61,16 @@ Replacement 在序列化后的 provider-native request body 上运行。它可�
 
 ## 按 Operation 限定范围
 
-Message rewrite 通常应过滤到内容生成 Operation：
+把消息规则限制在内容生成 Operation，避免它们作用于模型列表、Embedding 或图片请求：
 
 ```json
 ["generate_content", "stream_generate_content"]
 ```
 
-不要按 provider-family 组织行为。v2 的分类以 `Operation` 和 `OperationGroup` 为中心；provider 或 protocol kind 是该 Operation 内的 wire shape。
+如果规则只适用于某个模型或模型系列，再加上模型过滤条件。
 
 ## 与缓存的关系
 
-Claude prompt cache key 依赖 prefix 的精确内容。如果 message rewrite 修改了 `cache_control` breakpoint 之前的文本，每次请求都可能变成 cache miss。把稳定的 cache breakpoint 放在改写内容之后，或者让 rewrite 规则避开 cached prefix。
+Claude 和 OpenAI 提示缓存都会精确匹配前缀。如果改写规则修改了 `cache_control` 或
+`prompt_cache_breakpoint` 之前的文本，原本预期的缓存命中就可能变成 miss。应先完成稳定内容的
+改写，再把缓存断点放在改写后的前缀末尾。

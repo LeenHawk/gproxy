@@ -3,23 +3,14 @@ title: Providers and Channels
 description: Configure upstream providers, credentials, routing capabilities, proxies, TLS profiles, and scoped provider access in GPROXY v2.
 ---
 
-A **provider** is one named upstream endpoint. It binds a stable name to a
-channel adapter, provider settings, credential pool, model catalogue, routing
-rules, and optional process rule sets.
+A **provider** is a saved upstream connection. It has a name, a channel type,
+one or more credentials, a model catalogue, and optional routing and request
+rules. For example, you might create `openai-primary`, `openrouter-fallback`, and
+`claude-team` as separate providers even when more than one uses the same
+channel type.
 
-```text
-Provider
-|-- channel                 openai, claudeapi, aistudio, codex, ...
-|-- settings_json           base_url and channel-specific knobs
-|-- credentials             sealed API keys, OAuth tokens, service accounts
-|-- provider_models         local model catalogue and pricing
-|-- routing_rules           Operation + OperationKind dispatch table
-`-- provider_rule_sets      attached request mutation rule sets
-```
-
-The hot path reads providers from `ControlPlaneSnapshot`. Admin changes are
-written to persistence, then the snapshot is rebuilt and invalidated so the next
-request sees the new control plane without restarting the process.
+Changes made in the console take effect for new requests without restarting
+GPROXY.
 
 ## Built-in Channels
 
@@ -84,6 +75,17 @@ The provider record carries:
 | `tls_fingerprint` | Optional provider-level TLS/HTTP2 emulation profile. Credential settings can override it. |
 | `enabled` | Disabled providers disappear from routing. |
 
+Common `settings_json` values are available as fields in the console:
+
+| Setting | Use |
+| --- | --- |
+| `base_url` | Override the channel's default upstream URL. |
+| `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
+| `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels. |
+
+See [Prompt Caching](/guides/claude-caching/) before enabling magic-string
+caching, especially for OpenAI's model and TTL requirements.
+
 Credential rows belong to a provider. They carry `kind`, sealed `secret_json`,
 `weight`, optional `rpm_limit` / `tpm_limit`, optional proxy and TLS overrides,
 and an `enabled` flag. Secrets are redacted in debug output and sealed when a
@@ -121,12 +123,7 @@ channel defaults.
 
 ## Provider Rule Sets
 
-Reusable rule sets attach to providers through `provider_rule_sets`. Attached
-sets are flattened in attachment order, compiled once during snapshot rebuild,
-then applied after protocol transform and before channel preparation. This is
-where system-text injection, cache breakpoints, field rewrites, sanitization,
-and header rules currently run.
-
-The current backend is intentionally permissive: invalid rules warn and skip,
-and provider-specific policy should live in console/config presets unless the
-runtime needs a genuinely new primitive.
+Attach reusable rule sets to a provider to add system text, cache breakpoints,
+field rewrites, text transforms, or headers. Rules run after protocol conversion
+and before the request is sent upstream. Invalid or non-applicable rules are
+logged and skipped instead of failing the request.

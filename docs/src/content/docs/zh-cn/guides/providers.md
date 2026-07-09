@@ -3,19 +3,11 @@ title: Provider 与 Channel
 description: 在 GPROXY v2 中配置上游 Provider、凭据、Operation 路由能力、代理、TLS 指纹和 scoped 访问。
 ---
 
-**Provider** 是一个命名的上游端点。它把稳定名称绑定到 channel 适配器、设置、凭据池、模型目录、路由规则和可选的请求处理规则集。
+**Provider** 是一个已保存的上游连接，包含名称、Channel 类型、一个或多个凭据、模型目录，
+以及可选的路由和请求规则。例如，即使使用相同 Channel，也可以分别创建
+`openai-primary`、`openrouter-fallback` 和 `claude-team`。
 
-```text
-Provider
-|-- channel                 openai、claudeapi、aistudio、codex 等
-|-- settings_json           base_url 和 channel 专用开关
-|-- credentials             密封后的 API key、OAuth token、service account
-|-- provider_models         本地模型目录和价格
-|-- routing_rules           Operation + OperationKind 分发表
-`-- provider_rule_sets      绑定到该 provider 的请求改写规则集
-```
-
-热路径从 `ControlPlaneSnapshot` 读取 provider。管理端修改会先写入持久化层，然后重建 snapshot 并广播失效；下一次请求即可看到新的控制面配置，不需要重启。
+在控制台保存修改后，新请求会直接使用最新配置，不需要重启 GPROXY。
 
 ## 内置 Channel
 
@@ -70,6 +62,17 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 | `tls_fingerprint` | provider 级 TLS/HTTP2 模拟配置；credential 可以覆盖。 |
 | `enabled` | 禁用后不会参与路由。 |
 
+常用的 `settings_json` 配置在控制台中有对应表单字段：
+
+| 设置 | 用途 |
+| --- | --- |
+| `base_url` | 覆盖 Channel 的默认上游地址。 |
+| `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
+| `enable_claude_fable_fallback` | 在支持 Claude 的 Channel 上启用 Fable 到 Opus 的回退行为。 |
+
+启用魔法字符串缓存前，建议先阅读[提示缓存](/zh-cn/guides/claude-caching/)，特别是 OpenAI
+对模型版本和 TTL 的要求。
+
 Credential 行属于 provider。它包含 `kind`、密封后的 `secret_json`、`weight`、可选 `rpm_limit` / `tpm_limit`、可选代理和 TLS 覆盖，以及 `enabled`。密钥在 debug 输出中会被遮蔽，配置 master key 时会密封存储。
 
 ## Aggregated 与 Scoped 访问
@@ -96,6 +99,6 @@ Routing rule 是 provider 级配置。每一行包含：
 
 ## Provider Rule Sets
 
-可复用 rule set 通过 `provider_rule_sets` 绑定到 provider。绑定后的规则在 snapshot 重建时按顺序展开并编译，然后在协议 transform 之后、channel prepare 之前执行。当前的 system text、cache breakpoint、字段 rewrite、transform、header 都在这里运行。
-
-当前后端保持宽松：无效规则会 warn 并跳过；provider 专用策略优先放在 console/config preset 中，除非 runtime 确实需要新的 primitive。
+把可复用 Rule Set 绑定到 Provider，可以添加系统指令、缓存断点、字段改写、文本替换或请求头。
+规则在协议转换之后、请求发往上游之前执行。无效或不适用的规则会记录日志并跳过，不会让请求
+失败。
