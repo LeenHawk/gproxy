@@ -71,7 +71,6 @@ configuration variable.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `GPROXY_INSECURE_COOKIES` | Empty | Development escape hatch for local plaintext HTTP. When set to `1`, admin session cookies can be issued without the `Secure` flag. Do not use it for production HTTPS deployments. |
 | `DATABASE_SECRET_KEY` | Empty | v1 migration-only key name. If a legacy v1 database stored encrypted secrets, the v1 migration reader uses this key to decrypt them before re-sealing under `GPROXY_MASTER_KEY`. |
 | `RUST_LOG` | `info` | Standard `tracing_subscriber` filter used by native logging. |
 

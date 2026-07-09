@@ -38,7 +38,6 @@ async fn run_login(
 /// `{user:{is_admin:true}}`. The returned cookie is then usable for /admin/me.
 #[tokio::test]
 async fn login_correct_password_returns_200_and_usable_cookie() {
-    unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
     let (state, _dir) = state_with(vec![]).await;
     // seed_user hashes "secret" via password::hash in tests.rs
     let _admin_id = seed_user(&state, "loginadmin", true).await;
@@ -139,7 +138,6 @@ async fn login_throttle_after_max_fails_returns_429() {
 /// the old cookie → 401 (session revoked).
 #[tokio::test]
 async fn logout_returns_204_and_revokes_session() {
-    unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "logoutadmin", true).await;
     let cookie = cookie_for(&state, admin_id).await;

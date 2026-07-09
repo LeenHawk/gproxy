@@ -138,42 +138,30 @@ pub fn parse_cookie(cookie_header: &str) -> Option<&str> {
     })
 }
 
-/// `Set-Cookie` value for a fresh session. `secure` gates the `Secure` attr.
+/// `Set-Cookie` value for a fresh session.
 /// `cross_origin`: when `true`, uses `SameSite=None; Secure` so the cookie
-/// flows on cross-site XHR from the admin console. SameSite=None REQUIRES
-/// Secure; therefore `cross_origin=true` forces `secure=true` regardless of
-/// the env flag. Cross-origin admin always requires HTTPS.
-pub fn set_cookie(token: &str, secure: bool, cross_origin: bool) -> String {
+/// flows on cross-site XHR from the admin console. Same-origin console sessions
+/// use `SameSite=Lax` without `Secure` so plain HTTP deployments can still log in.
+pub fn set_cookie(token: &str, cross_origin: bool) -> String {
     let same_site = if cross_origin { "None" } else { "Lax" };
-    // SameSite=None requires Secure; force it in cross-origin mode.
-    let secure = secure || cross_origin;
     let mut c = format!(
         "{COOKIE_NAME}={token}; HttpOnly; SameSite={same_site}; Path=/; Max-Age={}",
         SESSION_TTL.as_secs()
     );
-    if secure {
+    if cross_origin {
         c.push_str("; Secure");
     }
     c
 }
 
 /// `Set-Cookie` value clearing the session. `cross_origin` mirrors `set_cookie`.
-pub fn clear_cookie(secure: bool, cross_origin: bool) -> String {
+pub fn clear_cookie(cross_origin: bool) -> String {
     let same_site = if cross_origin { "None" } else { "Lax" };
-    let secure = secure || cross_origin;
     let mut c = format!("{COOKIE_NAME}=; HttpOnly; SameSite={same_site}; Path=/; Max-Age=0");
-    if secure {
+    if cross_origin {
         c.push_str("; Secure");
     }
     c
-}
-
-/// Whether to set the `Secure` cookie attr. Secure by default; disabled only
-/// when `GPROXY_INSECURE_COOKIES=1` (local plaintext-HTTP development).
-pub fn cookies_secure() -> bool {
-    std::env::var("GPROXY_INSECURE_COOKIES")
-        .map(|v| v != "1")
-        .unwrap_or(true)
 }
 
 #[cfg(test)]
@@ -247,29 +235,30 @@ mod tests {
     }
 
     #[test]
-    fn set_cookie_same_origin_has_lax_no_secure_when_insecure() {
-        let c = set_cookie("tok", false, false);
+    fn set_cookie_same_origin_has_lax_no_secure() {
+        let c = set_cookie("tok", false);
         assert!(c.contains("SameSite=Lax"), "{c}");
         assert!(!c.contains("Secure"), "{c}");
     }
 
     #[test]
     fn set_cookie_cross_origin_has_none_and_secure() {
-        let c = set_cookie("tok", false, true);
+        let c = set_cookie("tok", true);
         assert!(c.contains("SameSite=None"), "{c}");
         assert!(c.contains("Secure"), "{c}");
     }
 
     #[test]
     fn clear_cookie_cross_origin_has_none_and_secure() {
-        let c = clear_cookie(false, true);
+        let c = clear_cookie(true);
         assert!(c.contains("SameSite=None"), "{c}");
         assert!(c.contains("Secure"), "{c}");
     }
 
     #[test]
-    fn clear_cookie_same_origin_has_lax() {
-        let c = clear_cookie(false, false);
+    fn clear_cookie_same_origin_has_lax_no_secure() {
+        let c = clear_cookie(false);
         assert!(c.contains("SameSite=Lax"), "{c}");
+        assert!(!c.contains("Secure"), "{c}");
     }
 }

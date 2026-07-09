@@ -300,11 +300,6 @@ mod tests {
         (state, dir, admin.id)
     }
 
-    fn insecure_cookies() {
-        // SAFETY: single-threaded test setup before any server call.
-        unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
-    }
-
     /// Mint a session for `admin_id` and return the `gproxy_session=…` cookie.
     async fn admin_cookie(state: &AppState, admin_id: i64) -> String {
         let token = crate::admin::session::create(state.cache.as_ref(), admin_id)
@@ -315,7 +310,6 @@ mod tests {
 
     #[tokio::test]
     async fn orgs_crud_roundtrip() {
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let app = crate::http::server::router(state);
@@ -401,7 +395,6 @@ mod tests {
 
     #[tokio::test]
     async fn mutation_invalidates_snapshot() {
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let before = state.cp().version;
@@ -425,7 +418,6 @@ mod tests {
 
     #[tokio::test]
     async fn user_password_hashed_and_redacted() {
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let org_id = state.persistence.list_orgs().await.unwrap()[0].id;
@@ -507,7 +499,6 @@ mod tests {
     #[tokio::test]
     async fn credential_sealed_and_redacted() {
         use base64::Engine as _;
-        insecure_cookies();
         let cipher = crate::crypto::cipher_from_master_key(Some(
             &base64::engine::general_purpose::STANDARD.encode([9u8; 32]),
         ))
@@ -585,7 +576,6 @@ mod tests {
     #[tokio::test]
     async fn credential_api_key_create_dedupes_existing_secret() {
         use base64::Engine as _;
-        insecure_cookies();
         let cipher = crate::crypto::cipher_from_master_key(Some(
             &base64::engine::general_purpose::STANDARD.encode([8u8; 32]),
         ))
@@ -652,7 +642,6 @@ mod tests {
     /// caller-supplied api_key is rejected outright.
     #[tokio::test]
     async fn user_key_generated_server_side() {
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let user_id = state.persistence.list_users().await.unwrap()[0].id;
@@ -726,7 +715,6 @@ mod tests {
     #[tokio::test]
     async fn nested_route_members_crud() {
         use crate::store::persistence::records::RouteInput;
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let provider_id = seed_provider(&state).await;
@@ -815,7 +803,6 @@ mod tests {
     /// scope shows it → delete → list empty.
     #[tokio::test]
     async fn authz_route_permissions_crud() {
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let user_id = state.persistence.list_users().await.unwrap()[0].id;
@@ -890,7 +877,6 @@ mod tests {
     async fn usage_read_endpoints() {
         use crate::store::persistence::records::UsageInput;
         use rust_decimal::Decimal;
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let persistence = state.persistence.clone();
@@ -983,7 +969,6 @@ mod tests {
         use crate::store::persistence::records::{
             CredentialInput, CredentialStatusInput, UpstreamRequestInput,
         };
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let provider_id = seed_provider(&state).await;
@@ -1075,7 +1060,6 @@ mod tests {
     #[tokio::test]
     async fn routing_seed_and_reset() {
         use crate::store::persistence::records::RoutingRuleInput;
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let app = crate::http::server::router(state.clone());
@@ -1207,7 +1191,6 @@ mod tests {
 
     #[tokio::test]
     async fn batch_disable_and_delete_orgs() {
-        insecure_cookies();
         let (state, _dir, admin_id) = seeded_state().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let persistence = state.persistence.clone();

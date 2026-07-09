@@ -326,16 +326,8 @@ mod tests {
         (state, dir)
     }
 
-    /// `GPROXY_INSECURE_COOKIES=1` keeps the test cookie free of `Secure` so it
-    /// round-trips over the in-process `oneshot` (no TLS).
-    fn insecure_cookies() {
-        // SAFETY: single-threaded test setup before any server call.
-        unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
-    }
-
     #[tokio::test]
     async fn login_then_me_flow() {
-        insecure_cookies();
         let (state, _dir) = seeded_state().await;
         let app = crate::http::server::router(state);
 
@@ -379,7 +371,6 @@ mod tests {
 
     #[tokio::test]
     async fn login_bad_password_and_me_without_cookie_401() {
-        insecure_cookies();
         let (state, _dir) = seeded_state().await;
         let app = crate::http::server::router(state);
 
@@ -406,7 +397,6 @@ mod tests {
 
     #[tokio::test]
     async fn login_brute_force_locks_out_after_threshold() {
-        insecure_cookies();
         let (state, _dir) = seeded_state().await;
         let app = crate::http::server::router(state);
         let bad = || {
@@ -437,7 +427,6 @@ mod tests {
 
     #[tokio::test]
     async fn mutating_request_and_failed_login_are_audited() {
-        insecure_cookies();
         let (state, _dir) = seeded_state().await;
         let persistence = state.persistence.clone();
         let app = crate::http::server::router(state);

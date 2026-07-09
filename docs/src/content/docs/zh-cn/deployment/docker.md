@@ -46,11 +46,10 @@ docker run --rm \
 `file` persistence 是本地磁盘 JSON 存储，适合单容器。需要容器替换后保留数据时，挂载
 `/app/data`。
 
-:::caution[明文 HTTP 下登录]
-镜像提供的是明文 HTTP。会话 cookie 默认带 `Secure`：浏览器在 `http://localhost` /
-`http://127.0.0.1` 下接受它，但在任何其它明文 HTTP 来源(局域网 IP、服务器 IP、隧道)会
-**丢弃**它 —— 于是 Console 接受了密码、短暂渲染后又把你弹回登录页。当你用非 `localhost`
-的地址经明文 HTTP 访问时，加上 `-e GPROXY_INSECURE_COOKIES=1`,或在容器前挂 HTTPS 反代。
+:::caution[生产环境 HTTPS]
+镜像提供的是明文 HTTP。同站 Console session 可以在明文 HTTP 下工作，包括局域网 IP、
+服务器 IP 和隧道。生产环境或任何本地开发之外的暴露场景，建议在容器前挂 HTTPS 反代。
+跨站 Console 部署仍需要 HTTPS cookie。
 
 另外 `GPROXY_ADMIN_PASSWORD` 必须**非空** —— 为空或只有空白字符时，容器启动即以
 `GPROXY_ADMIN_PASSWORD rejected` 报错退出。

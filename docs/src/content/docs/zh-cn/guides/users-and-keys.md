@@ -54,7 +54,7 @@ Pipeline 在 route resolution 之前认证 key，并从 `ControlPlaneSnapshot.ke
 
 ## Session 与 Cookie
 
-Console 登录会创建 httpOnly session cookie，session 存在 cache backend 中。本地明文 HTTP 开发需要 `GPROXY_INSECURE_COOKIES=1`。跨站部署时应配置明确的 credentialed CORS origins，不要依赖 wildcard CORS。
+Console 登录会创建 httpOnly session cookie，session 存在 cache backend 中。同站 console session 使用 `SameSite=Lax` 且不带 `Secure`，明文 HTTP 部署无需额外环境变量即可登录。跨站 console session 使用 `SameSite=None; Secure`，因此需要配置明确的 credentialed CORS origins，并通过 HTTPS 访问 console。
 
 CSRF 默认按 same-origin 检查。Vite dev server 会代理 admin、user、health、version、metrics 路径到后端，让本地开发也能使用 same-origin cookie。
 

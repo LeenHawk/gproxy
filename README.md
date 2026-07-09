@@ -49,11 +49,9 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 > **The admin password must not be blank** — the container exits on boot with
 > `GPROXY_ADMIN_PASSWORD rejected` if it is empty or whitespace-only.
 >
-> **Reaching the console over plain HTTP from a non-`localhost` address** (LAN IP,
-> server IP, tunnel)? The session cookie is `Secure` by default, so the browser
-> drops it and the console bounces you straight back to the login page even with
-> the right password. Add `-e GPROXY_INSECURE_COOKIES=1`, or put it behind HTTPS.
-> Plain `http://localhost:8787` works as-is.
+> **Plain HTTP console access** works for same-origin deployments, including LAN
+> IPs, server IPs, and tunnels. Use HTTPS when exposing GPROXY beyond local
+> development; cross-site console deployments still require HTTPS cookies.
 
 ### ☁️ Serverless edge (WebAssembly)
 
