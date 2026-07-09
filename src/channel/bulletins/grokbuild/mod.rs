@@ -3,6 +3,7 @@
 
 mod auth;
 mod shape;
+mod usage;
 
 use std::sync::Arc;
 
@@ -172,6 +173,23 @@ impl Channel for GrokBuildChannel {
         secret: &Value,
     ) -> Result<Value, ChannelError> {
         auth::refresh(client, secret).await
+    }
+
+    fn prepare_usage_request(
+        &self,
+        secret: &Value,
+        settings: &Value,
+    ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
+        usage::request(secret, settings)
+    }
+
+    fn parse_usage(
+        &self,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &Bytes,
+    ) -> Option<crate::channel::UsageSnapshot> {
+        usage::parse(status, body)
     }
 }
 
