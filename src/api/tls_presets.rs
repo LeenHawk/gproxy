@@ -60,7 +60,7 @@ pub fn tls_presets() -> Vec<TlsPreset> {
             id: "codex".into(),
             label: "Codex CLI".into(),
             fingerprint: serde_json::json!({
-                "headers": { "user-agent": "codex_exec/0.137.0 (Debian 13.0.0; x86_64) xterm-256color" },
+                "headers": { "user-agent": "codex_exec/0.144.0 (Debian 13.0.0; x86_64) xterm-256color" },
                 "tls": {
                     "alpn_protocols": ["h2"],
                     "grease_enabled": false,
