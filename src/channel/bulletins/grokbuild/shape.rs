@@ -138,11 +138,21 @@ fn normalize_tool(tool: &Value) -> (Option<Value>, bool) {
             }
             (Some(tool), true)
         }
-        "web_search" => {
+        "web_search"
+        | "web_search_2025_08_26"
+        | "web_search_preview"
+        | "web_search_preview_2025_03_11" => {
             let mut tool = tool.clone();
-            let changed = tool
-                .as_object_mut()
-                .is_some_and(|object| object.remove("external_web_access").is_some());
+            let mut changed = false;
+            if let Some(object) = tool.as_object_mut() {
+                changed |= object
+                    .insert("type".into(), Value::String("web_search".into()))
+                    .and_then(|previous| previous.as_str().map(|s| s != "web_search"))
+                    .unwrap_or(true);
+                for key in ["external_web_access", "search_context_size"] {
+                    changed |= object.remove(key).is_some();
+                }
+            }
             (Some(tool), changed)
         }
         "function" => {
@@ -161,6 +171,7 @@ fn normalize_tool(tool: &Value) -> (Option<Value>, bool) {
 }
 
 fn normalize_tool_choice_for_tools(map: &mut Map<String, Value>) {
+    normalize_search_tool_choice(map);
     let has_tools = matches!(map.get("tools"), Some(Value::Array(tools)) if !tools.is_empty());
     if has_tools {
         return;
@@ -168,6 +179,50 @@ fn normalize_tool_choice_for_tools(map: &mut Map<String, Value>) {
     map.remove("tools");
     map.remove("tool_choice");
     map.remove("parallel_tool_calls");
+}
+
+fn normalize_search_tool_choice(map: &mut Map<String, Value>) {
+    let Some(tool_choice) = map.get_mut("tool_choice") else {
+        return;
+    };
+    if search_tool_choice(tool_choice) {
+        map.remove("tool_choice");
+    }
+}
+
+fn search_tool_choice(value: &Value) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    match object.get("type").and_then(Value::as_str) {
+        Some("web_search")
+        | Some("web_search_2025_08_26")
+        | Some("web_search_preview")
+        | Some("web_search_preview_2025_03_11")
+        | Some("x_search") => true,
+        Some("allowed_tools") => {
+            object
+                .get("tools")
+                .and_then(Value::as_array)
+                .is_some_and(|tools| {
+                    tools
+                        .iter()
+                        .any(|tool| search_tool_type(tool_type(tool).as_str()))
+                })
+        }
+        _ => false,
+    }
+}
+
+fn search_tool_type(tool_type: &str) -> bool {
+    matches!(
+        tool_type,
+        "web_search"
+            | "web_search_2025_08_26"
+            | "web_search_preview"
+            | "web_search_preview_2025_03_11"
+            | "x_search"
+    )
 }
 
 fn sanitize_input_reasoning_items(map: &mut Map<String, Value>) {
@@ -324,4 +379,46 @@ fn item_type(item: &Value) -> String {
 
 fn default_parameters() -> Value {
     json!({ "type": "object", "properties": {} })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_search_preview_tools_for_xai() {
+        let body = Bytes::from(
+            json!({
+                "model": "grok-4.3",
+                "input": "search",
+                "tools": [{
+                    "type": "web_search_preview_2025_03_11",
+                    "search_context_size": "low",
+                    "external_web_access": true,
+                    "filters": {"allowed_domains": ["example.com"]}
+                }, {
+                    "type": "x_search",
+                    "included_x_handles": ["xai"]
+                }],
+                "tool_choice": {
+                    "type": "allowed_tools",
+                    "mode": "required",
+                    "tools": [{"type": "x_search"}]
+                }
+            })
+            .to_string(),
+        );
+
+        let shaped: Value = serde_json::from_slice(&shape_responses_request(body)).unwrap();
+        assert_eq!(shaped["tools"][0]["type"], "web_search");
+        assert!(shaped["tools"][0].get("search_context_size").is_none());
+        assert!(shaped["tools"][0].get("external_web_access").is_none());
+        assert_eq!(
+            shaped["tools"][0]["filters"]["allowed_domains"][0],
+            "example.com"
+        );
+        assert_eq!(shaped["tools"][1]["type"], "x_search");
+        assert_eq!(shaped["tools"][1]["included_x_handles"][0], "xai");
+        assert!(shaped.get("tool_choice").is_none());
+    }
 }
