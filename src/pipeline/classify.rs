@@ -53,6 +53,10 @@ pub fn classify(
             OperationKey::provider(Operation::CountTokens, Prov::OpenAi),
             false,
         ),
+        ("POST", "/v1/responses/compact") => (
+            OperationKey::provider(Operation::CompactContent, Prov::OpenAi),
+            false,
+        ),
         ("POST", "/v1/embeddings") => (
             OperationKey::provider(Operation::CreateEmbedding, Prov::OpenAi),
             false,
@@ -269,6 +273,26 @@ mod tests {
             );
             assert!(!c.stream);
         }
+    }
+
+    #[test]
+    fn compact_path_classifies_as_openai_compact() {
+        let body = Bytes::new();
+        let c = classify(
+            &Method::POST,
+            "/v1/responses/compact",
+            &HeaderMap::new(),
+            &body,
+        )
+        .unwrap();
+        assert_eq!(
+            op(&c),
+            (
+                Operation::CompactContent,
+                OperationKind::Provider(Prov::OpenAi)
+            )
+        );
+        assert!(!c.stream);
     }
 
     #[test]
