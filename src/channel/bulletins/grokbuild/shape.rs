@@ -59,6 +59,7 @@ fn shape_responses_body(
 
     normalize_tools(map);
     normalize_tool_choice_for_tools(map);
+    strip_non_positive_top_p(map);
     sanitize_input_reasoning_items(map);
     remove_encrypted_reasoning_include(map);
     strip_unsupported_reasoning_effort(map);
@@ -223,6 +224,16 @@ fn search_tool_type(tool_type: &str) -> bool {
             | "web_search_preview_2025_03_11"
             | "x_search"
     )
+}
+
+fn strip_non_positive_top_p(map: &mut Map<String, Value>) {
+    if map
+        .get("top_p")
+        .and_then(Value::as_f64)
+        .is_some_and(|top_p| top_p <= 0.0)
+    {
+        map.remove("top_p");
+    }
 }
 
 fn sanitize_input_reasoning_items(map: &mut Map<String, Value>) {
@@ -420,5 +431,37 @@ mod tests {
         assert_eq!(shaped["tools"][1]["type"], "x_search");
         assert_eq!(shaped["tools"][1]["included_x_handles"][0], "xai");
         assert!(shaped.get("tool_choice").is_none());
+    }
+
+    #[test]
+    fn strips_non_positive_top_p_for_xai() {
+        for top_p in [0.0, -0.1] {
+            let body = Bytes::from(
+                json!({
+                    "model": "grok-4.5",
+                    "input": "hello",
+                    "top_p": top_p
+                })
+                .to_string(),
+            );
+
+            let shaped: Value = serde_json::from_slice(&shape_responses_request(body)).unwrap();
+            assert!(shaped.get("top_p").is_none());
+        }
+    }
+
+    #[test]
+    fn keeps_positive_top_p_for_xai() {
+        let body = Bytes::from(
+            json!({
+                "model": "grok-4.5",
+                "input": "hello",
+                "top_p": 0.1
+            })
+            .to_string(),
+        );
+
+        let shaped: Value = serde_json::from_slice(&shape_responses_request(body)).unwrap();
+        assert_eq!(shaped["top_p"], 0.1);
     }
 }
