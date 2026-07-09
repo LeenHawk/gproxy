@@ -73,6 +73,7 @@ pub(super) fn claude_blocks_to_user_messages(
             claude::ContentBlockParam::Text(block) => {
                 user_parts.push(openai::ChatContentPart::Text {
                     text: block.text,
+                    prompt_cache_breakpoint: None,
                     extra: Default::default(),
                 });
             }
@@ -281,6 +282,7 @@ fn claude_image_to_chat_part(source: claude::ImageSource) -> Option<openai::Chat
                     filename: None,
                     extra: Default::default(),
                 },
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             });
         }
@@ -292,6 +294,7 @@ fn claude_image_to_chat_part(source: claude::ImageSource) -> Option<openai::Chat
             detail: None,
             extra: Default::default(),
         },
+        prompt_cache_breakpoint: None,
         extra: Default::default(),
     })
 }
@@ -324,6 +327,7 @@ fn claude_document_to_chat_part(block: claude::DocumentBlock) -> Option<openai::
     };
     Some(openai::ChatContentPart::File {
         file,
+        prompt_cache_breakpoint: None,
         extra: Default::default(),
     })
 }

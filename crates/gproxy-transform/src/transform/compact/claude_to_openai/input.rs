@@ -40,6 +40,7 @@ fn claude_message_to_openai_items(message: claude::MessageParam) -> Vec<openai::
             if !text.is_empty() {
                 message_parts.push(openai::ResponseInputContentPart::InputText {
                     text,
+                    prompt_cache_breakpoint: None,
                     extra: Default::default(),
                 });
             }
@@ -94,6 +95,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
         claude::ContentBlockParam::Text(block) => {
             ClaudeRequestBlockItem::MessagePart(openai::ResponseInputContentPart::InputText {
                 text: block.text,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -111,6 +113,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
                 call_id: block.id.clone(),
                 name: block.name,
                 id: Some(block.id),
+                caller: None,
                 namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 extra: Default::default(),
@@ -152,6 +155,7 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
                         ClaudeRequestBlockItem::MessagePart(
                             openai::ResponseInputContentPart::InputText {
                                 text,
+                                prompt_cache_breakpoint: None,
                                 extra: Default::default(),
                             },
                         )

@@ -5,12 +5,30 @@ use serde_json::Value;
 
 use crate::protocol::operation::OperationKey;
 
+use super::enums::{PromptCacheBreakpointMode, PromptCacheMode, PromptCacheTtl};
 use super::model_ids::OpenAiModelId;
 
 pub type Extra = BTreeMap<String, Value>;
 pub type JsonSchema = BTreeMap<String, Value>;
 pub type LogitBias = BTreeMap<String, f64>;
 pub type Metadata = BTreeMap<String, String>;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PromptCacheOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<PromptCacheMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<PromptCacheTtl>,
+    #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: Extra,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PromptCacheBreakpoint {
+    pub mode: PromptCacheBreakpointMode,
+    #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: Extra,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModerationConfig {

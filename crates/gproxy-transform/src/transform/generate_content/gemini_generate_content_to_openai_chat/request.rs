@@ -61,6 +61,7 @@ pub fn request(
             .as_ref()
             .and_then(|config| config.presence_penalty),
         prompt_cache_key: input.cached_content,
+        prompt_cache_options: None,
         prompt_cache_retention: None,
         reasoning_effort: common::gemini_thinking_to_openai(
             generation_config

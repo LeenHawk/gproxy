@@ -2,8 +2,11 @@
 
 mod auth;
 
+use bytes::Bytes;
+
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
+use crate::channel::shaping::{self, openai_cache};
+use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::Provider;
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
@@ -100,13 +103,26 @@ impl Channel for OpenAiChannel {
         }
         Ok(PreparedRequest::new(req))
     }
+
+    fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        let Some(kind) = ctx
+            .enable_magic_cache
+            .then(|| openai_cache::kind_for_operation(ctx.op))
+            .flatten()
+        else {
+            return body;
+        };
+        shaping::with_json_body(body, |value| {
+            openai_cache::apply_magic_string_cache_breakpoints(value, kind)
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use http::{HeaderMap, Method};
-    use serde_json::json;
+    use http::{HeaderMap, Method, StatusCode};
+    use serde_json::{Value, json};
 
     use super::*;
     use crate::channel::routes::cg;
@@ -120,6 +136,30 @@ mod tests {
             .find(|(source, _)| source.operation == operation && source.kind == cg(kind))
             .map(|(_, decision)| decision)
             .expect("missing route")
+    }
+
+    #[test]
+    fn shapes_openai_magic_cache_breakpoint_when_enabled() {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from_static(
+            br#"{"model":"gpt-5.6","messages":[{"role":"system","content":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}"#,
+        );
+        let ctx = ShapeCtx {
+            op: crate::protocol::OperationKey::content_generation(
+                Operation::GenerateContent,
+                Kind::OpenAiChatCompletions,
+            ),
+            stream: false,
+            status: StatusCode::OK,
+            enable_magic_cache: true,
+            enable_claude_fable_fallback: false,
+        };
+        let shaped = OpenAiChannel.shape_request(body, &mut headers, &ctx);
+        let value: Value = serde_json::from_slice(&shaped).unwrap();
+        assert_eq!(
+            value["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
     }
 
     #[test]

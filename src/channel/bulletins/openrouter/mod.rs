@@ -6,7 +6,9 @@ mod shape;
 use bytes::Bytes;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::shaping::{self, claude_cache_control, claude_fallback, claude_magic_cache};
+use crate::channel::shaping::{
+    self, claude_cache_control, claude_fallback, claude_magic_cache, openai_cache,
+};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
@@ -99,9 +101,16 @@ impl Channel for OpenRouterChannel {
         Ok(PreparedRequest::new(req))
     }
 
-    /// Opt-in magic-string cache triggers on a Claude-format passthrough body
-    /// (provider `enable_magic_cache`). No-op when disabled or non-Claude.
+    /// Opt-in magic-string cache triggers for native Claude and OpenAI bodies.
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
+            if !ctx.enable_magic_cache {
+                return body;
+            }
+            return shaping::with_json_body(body, |value| {
+                openai_cache::apply_magic_string_cache_breakpoints(value, kind)
+            });
+        }
         if !is_claude_messages(ctx.op)
             || (!ctx.enable_magic_cache && !ctx.enable_claude_fable_fallback)
         {
@@ -152,6 +161,33 @@ mod tests {
             enable_magic_cache: false,
             enable_claude_fable_fallback: true,
         }
+    }
+
+    fn openai_magic_ctx() -> ShapeCtx {
+        ShapeCtx {
+            op: OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+            stream: false,
+            status: StatusCode::OK,
+            enable_magic_cache: true,
+            enable_claude_fable_fallback: false,
+        }
+    }
+
+    #[test]
+    fn shapes_openai_magic_cache_breakpoint() {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from_static(
+            br#"{"model":"openai/gpt-5.6","input":[{"role":"user","content":[{"type":"input_text","text":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}]}"#,
+        );
+        let shaped = OpenRouterChannel.shape_request(body, &mut headers, &openai_magic_ctx());
+        let value: Value = serde_json::from_slice(&shaped).unwrap();
+        assert_eq!(
+            value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
     }
 
     #[test]

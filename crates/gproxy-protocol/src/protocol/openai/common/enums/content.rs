@@ -12,12 +12,18 @@ strict_string_enum!(ReasoningEffort {
     Medium => "medium",
     High => "high",
     XHigh => "xhigh",
+    Max => "max",
 });
 
 strict_string_enum!(ReasoningSummary {
     Auto => "auto",
     Concise => "concise",
     Detailed => "detailed",
+});
+
+extensible_string_enum!(ReasoningMode, ReasoningModeKnown {
+    Standard => "standard",
+    Pro => "pro",
 });
 
 strict_string_enum!(ServiceTier {
@@ -43,6 +49,19 @@ strict_string_enum!(Verbosity {
 strict_string_enum!(PromptCacheRetention {
     InMemory => "in_memory",
     TwentyFourHours => "24h",
+});
+
+strict_string_enum!(PromptCacheMode {
+    Implicit => "implicit",
+    Explicit => "explicit",
+});
+
+strict_string_enum!(PromptCacheBreakpointMode {
+    Explicit => "explicit",
+});
+
+strict_string_enum!(PromptCacheTtl {
+    ThirtyMinutes => "30m",
 });
 
 extensible_string_enum!(ResponsePersonality, ResponsePersonalityKnown {

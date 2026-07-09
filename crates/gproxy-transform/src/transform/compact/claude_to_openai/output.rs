@@ -76,6 +76,7 @@ fn claude_content_to_compact_output(
                         call_id: block.id.clone(),
                         name: block.name,
                         id: Some(block.id),
+                        caller: None,
                         namespace: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
                         extra: Default::default(),

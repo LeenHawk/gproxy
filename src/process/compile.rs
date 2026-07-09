@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::protocol::{Operation, OperationKey};
 use crate::store::persistence::records::Rule;
 
-/// `cache_breakpoint` config (claude-only semantics).
+/// Provider-native `cache_breakpoint` config.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CacheBreakpointCfg {
     /// "top_level" | "system" | "tools" | "last_message"

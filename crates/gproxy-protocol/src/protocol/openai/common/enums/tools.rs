@@ -19,6 +19,11 @@ strict_string_enum!(AllowedToolsMode {
     Required => "required",
 });
 
+strict_string_enum!(ToolCaller {
+    Direct => "direct",
+    Programmatic => "programmatic",
+});
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChatToolCallType {
     #[serde(rename = "function")]
@@ -71,4 +76,5 @@ strict_string_enum!(ToolType {
     LocalShell => "local_shell",
     ToolSearch => "tool_search",
     Namespace => "namespace",
+    ProgrammaticToolCalling => "programmatic_tool_calling",
 });

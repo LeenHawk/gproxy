@@ -16,12 +16,14 @@ pub(super) fn image_source_to_input_part(
             detail: None,
             file_id: Some(source.file_id),
             image_url: None,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         claude::ImageSource::Url(source) => Some(openai::ResponseInputContentPart::InputImage {
             detail: None,
             file_id: None,
             image_url: Some(source.url),
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         claude::ImageSource::Base64(source) => Some(openai::ResponseInputContentPart::InputImage {
@@ -32,6 +34,7 @@ pub(super) fn image_source_to_input_part(
                 image_media_type(source.media_type),
                 source.data
             )),
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         claude::ImageSource::Raw(_) => None,
@@ -49,6 +52,7 @@ pub(super) fn document_source_to_input_part(
             file_id: Some(source.file_id),
             file_url: None,
             filename,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         claude::DocumentSource::Url(source) => Some(openai::ResponseInputContentPart::InputFile {
@@ -57,6 +61,7 @@ pub(super) fn document_source_to_input_part(
             file_id: None,
             file_url: Some(source.url),
             filename,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         claude::DocumentSource::Text(source) => Some(openai::ResponseInputContentPart::InputFile {
@@ -65,6 +70,7 @@ pub(super) fn document_source_to_input_part(
             file_id: None,
             file_url: None,
             filename,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         claude::DocumentSource::Base64(source) => {
@@ -78,6 +84,7 @@ pub(super) fn document_source_to_input_part(
                 file_id: None,
                 file_url: None,
                 filename,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -89,6 +96,7 @@ pub(super) fn document_source_to_input_part(
                     file_id: None,
                     file_url: None,
                     filename,
+                    prompt_cache_breakpoint: None,
                     extra: Default::default(),
                 }
             })
@@ -154,6 +162,7 @@ pub(super) fn claude_usage_to_openai(usage: claude::Usage) -> openai::ResponseUs
         total_tokens: input_tokens.saturating_add(output_tokens),
         input_tokens_details: cached_tokens.map(|cached_tokens| {
             openai::ResponseInputTokensDetails {
+                cache_write_tokens: 0,
                 cached_tokens,
                 extra: Default::default(),
             }

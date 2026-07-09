@@ -47,7 +47,7 @@
     "target": "Target",
     "index": "Index",
     "indexHint": ">0: Nth from start; <0: Nth from end; 0 is invalid",
-    "ttl": "TTL (seconds)",
+    "ttl": "Cache TTL",
     "name": "Header Name",
     "mode": "Mode",
     "positionOptions": {
@@ -128,7 +128,7 @@
   },
   "kindDesc": {
     "system_text": "Prepend or append text to the system prompt.",
-    "cache_breakpoint": "Mark a Claude cache breakpoint (system / tools / last message).",
+    "cache_breakpoint": "Mark a native Claude or OpenAI Chat/Responses cache breakpoint.",
     "rewrite": "Set, delete, or merge a JSON field in the request body.",
     "transform": "Apply generic path or regex replacements to request/response bodies.",
     "header": "Add or merge an outgoing HTTP header."

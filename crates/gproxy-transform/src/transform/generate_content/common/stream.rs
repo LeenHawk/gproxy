@@ -294,6 +294,7 @@ pub(in crate::transform::generate_content) fn response_usage_to_completion(
         ),
         prompt_tokens_details: cached_tokens.map(|cached_tokens| openai::PromptTokensDetails {
             audio_tokens: None,
+            cache_write_tokens: None,
             cached_tokens: Some(cached_tokens),
             extra: Default::default(),
         }),
@@ -319,6 +320,7 @@ pub(in crate::transform::generate_content) fn completion_usage_to_response(
         total_tokens: usage.total_tokens,
         input_tokens_details: cached_tokens.map(|cached_tokens| {
             openai::ResponseInputTokensDetails {
+                cache_write_tokens: 0,
                 cached_tokens,
                 extra: Default::default(),
             }
@@ -360,6 +362,7 @@ pub(in crate::transform::generate_content) fn gemini_usage_to_completion(
         prompt_tokens_details: usage.cached_content_token_count.map(|tokens| {
             openai::PromptTokensDetails {
                 audio_tokens: None,
+                cache_write_tokens: None,
                 cached_tokens: Some(i32_to_u32(tokens)),
                 extra: Default::default(),
             }

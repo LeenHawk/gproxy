@@ -17,6 +17,7 @@ pub(super) fn server_tool_use_item(
             call_id: id.clone(),
             name: server_tool_name_to_string(&name),
             id: Some(id),
+            caller: None,
             namespace: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             extra: Default::default(),
@@ -33,6 +34,7 @@ pub(super) fn function_call_output_item(
             call_id,
             output,
             id: None,
+            caller: None,
             status: Some(openai::ResponseItemLifecycleStatus::Completed),
             created_by: None,
             extra: Default::default(),
@@ -50,6 +52,7 @@ pub(super) fn compact_server_tool_use_item(
         call_id: id.clone(),
         name: server_tool_name_to_string(&name),
         id: Some(id),
+        caller: None,
         namespace: None,
         status: Some(openai::ResponseItemLifecycleStatus::Completed),
         extra: Default::default(),
@@ -64,6 +67,7 @@ pub(super) fn compact_function_call_output_item(
         call_id,
         output,
         id: None,
+        caller: None,
         status: Some(openai::ResponseItemLifecycleStatus::Completed),
         created_by: None,
         extra: Default::default(),
@@ -125,6 +129,7 @@ fn tool_result_block_to_openai(
         claude::ToolResultContentBlock::Text(block) => {
             Some(openai::ResponseToolOutputContentPart::InputText {
                 text: block.text,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -144,6 +149,7 @@ fn tool_result_block_to_openai(
             );
             (!text.is_empty()).then_some(openai::ResponseToolOutputContentPart::InputText {
                 text,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -159,6 +165,7 @@ fn input_part_to_tool_output_part(
         openai::ResponseInputContentPart::InputText { text, .. } => {
             Some(openai::ResponseToolOutputContentPart::InputText {
                 text,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -171,6 +178,7 @@ fn input_part_to_tool_output_part(
             detail,
             file_id,
             image_url,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         openai::ResponseInputContentPart::InputFile {
@@ -186,6 +194,7 @@ fn input_part_to_tool_output_part(
             file_id,
             file_url,
             filename,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         openai::ResponseInputContentPart::InputAudio { .. } => None,

@@ -258,18 +258,26 @@ fn chat_content_to_easy_content(content: openai::ChatContent) -> openai::Respons
 
 fn chat_part_to_response_part(part: openai::ChatContentPart) -> openai::ResponseInputContentPart {
     match part {
-        openai::ChatContentPart::Text { text, .. } => openai::ResponseInputContentPart::InputText {
+        openai::ChatContentPart::Text {
             text,
+            prompt_cache_breakpoint,
+            ..
+        } => openai::ResponseInputContentPart::InputText {
+            text,
+            prompt_cache_breakpoint,
             extra: Default::default(),
         },
-        openai::ChatContentPart::ImageUrl { image_url, .. } => {
-            openai::ResponseInputContentPart::InputImage {
-                detail: image_url.detail.map(chat_detail_to_response_detail),
-                file_id: None,
-                image_url: Some(image_url.url),
-                extra: Default::default(),
-            }
-        }
+        openai::ChatContentPart::ImageUrl {
+            image_url,
+            prompt_cache_breakpoint,
+            ..
+        } => openai::ResponseInputContentPart::InputImage {
+            detail: image_url.detail.map(chat_detail_to_response_detail),
+            file_id: None,
+            image_url: Some(image_url.url),
+            prompt_cache_breakpoint,
+            extra: Default::default(),
+        },
         openai::ChatContentPart::InputAudio { input_audio, .. } => {
             openai::ResponseInputContentPart::InputAudio {
                 input_audio: openai::InputAudioContent {
@@ -280,12 +288,17 @@ fn chat_part_to_response_part(part: openai::ChatContentPart) -> openai::Response
                 extra: Default::default(),
             }
         }
-        openai::ChatContentPart::File { file, .. } => openai::ResponseInputContentPart::InputFile {
+        openai::ChatContentPart::File {
+            file,
+            prompt_cache_breakpoint,
+            ..
+        } => openai::ResponseInputContentPart::InputFile {
             detail: None,
             file_data: file.file_data,
             file_id: file.file_id,
             file_url: None,
             filename: file.filename,
+            prompt_cache_breakpoint,
             extra: Default::default(),
         },
     }

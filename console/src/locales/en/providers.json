@@ -51,7 +51,7 @@
     "required": "Required",
     "baseUrlRequired": "Required for custom channel",
     "baseUrlHint": "Leave empty to use the channel's built-in default.",
-    "enableMagicCacheHint": "Strip embedded magic trigger strings and stamp Claude cache_control (auto / 5m / 1h).",
+    "enableMagicCacheHint": "Strip shared magic trigger strings and stamp native Claude or OpenAI prompt-cache breakpoints.",
     "enableClaudeFableFallbackHint": "For Claude Messages requests to Claude Fable 5, add fallback to Claude Opus 4.8.",
     "saved": "Saved",
     "channelLocked": "Channel is fixed after creation.",

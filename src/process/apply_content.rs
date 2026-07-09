@@ -1,5 +1,5 @@
-//! Content-generation-aware rule applications: system text injection and claude
-//! cache breakpoints. These must know the provider-native body shape.
+//! Content-generation-aware rule applications: system text injection and
+//! provider-native cache breakpoints.
 
 use serde_json::{Value, json};
 
@@ -82,14 +82,40 @@ pub fn system_text(
     }
 }
 
-/// Insert a `cache_control` marker (claude wire only; other kinds skip).
+/// Insert the target protocol's native cache marker.
 pub fn cache_breakpoint(
     body: &mut Value,
     kind: Option<ContentGenerationKind>,
     cfg: &CacheBreakpointCfg,
 ) {
+    if matches!(
+        kind,
+        Some(
+            ContentGenerationKind::OpenAiChatCompletions
+                | ContentGenerationKind::OpenAiResponses
+                | ContentGenerationKind::OpenAiResponsesWebSocket
+        )
+    ) {
+        if cfg.ttl.as_deref().is_some_and(|ttl| ttl != "30m") {
+            tracing::warn!(
+                rule = "cache_breakpoint",
+                ttl = cfg.ttl.as_deref(),
+                "OpenAI only supports request-wide cache ttl 30m; ttl ignored"
+            );
+        }
+        if let Err(reason) = crate::channel::shaping::openai_cache::apply_manual_cache_breakpoint(
+            body,
+            kind.expect("matched OpenAI kind"),
+            &cfg.target,
+            cfg.index,
+            cfg.ttl.as_deref(),
+        ) {
+            warn_skip("cache_breakpoint", reason);
+        }
+        return;
+    }
     if kind != Some(ContentGenerationKind::ClaudeMessages) {
-        return warn_skip("cache_breakpoint", "non-claude target");
+        return warn_skip("cache_breakpoint", "unsupported target protocol");
     }
     let Some(obj) = body.as_object_mut() else {
         return warn_skip("cache_breakpoint", "body not an object");
@@ -250,6 +276,44 @@ mod tests {
         // Marker lands on the request root, not in a block array.
         assert_eq!(v["cache_control"]["type"], "ephemeral");
         assert_eq!(v["cache_control"]["ttl"], "1h");
+    }
+
+    #[test]
+    fn cache_breakpoint_openai_chat_system_string() {
+        let mut v = json!({"messages": [
+            {"role": "system", "content": "stable"},
+            {"role": "user", "content": "hello"}
+        ]});
+        let cfg = CacheBreakpointCfg {
+            target: "system".into(),
+            index: None,
+            ttl: Some("30m".into()),
+            position: None,
+        };
+        cache_breakpoint(&mut v, Some(K::OpenAiChatCompletions), &cfg);
+        assert_eq!(
+            v["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+        assert_eq!(v["prompt_cache_options"]["ttl"], "30m");
+    }
+
+    #[test]
+    fn cache_breakpoint_openai_responses_instructions() {
+        let mut v = json!({"instructions": "stable", "input": "hello"});
+        let cfg = CacheBreakpointCfg {
+            target: "system".into(),
+            index: None,
+            ttl: None,
+            position: None,
+        };
+        cache_breakpoint(&mut v, Some(K::OpenAiResponses), &cfg);
+        assert_eq!(v["input"][0]["role"], "developer");
+        assert_eq!(
+            v["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+        assert_eq!(v["input"][1]["content"][0]["text"], "hello");
     }
 
     #[test]

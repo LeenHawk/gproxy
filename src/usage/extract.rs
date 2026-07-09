@@ -117,12 +117,12 @@ fn openai_usage(usage: &Value) -> Option<NormalizedUsage> {
 }
 
 /// OpenAI chat completions: `prompt_tokens` INCLUDES cached → subtract.
-/// OpenAI does not bill cache creation separately → cache_creation = 0.
+/// GPT-5.6+ reports explicit/implicit cache writes as `cache_write_tokens`.
 fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
     let prompt = field(usage, "prompt_tokens");
-    let cached = usage
-        .get("prompt_tokens_details")
-        .map_or(0, |d| field(d, "cached_tokens"));
+    let (cached, cache_write) = usage.get("prompt_tokens_details").map_or((0, 0), |d| {
+        (field(d, "cached_tokens"), field(d, "cache_write_tokens"))
+    });
     let reasoning = usage
         .get("completion_tokens_details")
         .map_or(0, |d| field(d, "reasoning_tokens"));
@@ -130,17 +130,19 @@ fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
         input: prompt.saturating_sub(cached),
         output: field(usage, "completion_tokens"),
         cache_read: cached,
+        cache_creation_5m: cache_write,
         reasoning,
         ..Default::default()
     }
 }
 
 /// OpenAI responses: `input_tokens` INCLUDES cached → subtract.
+/// GPT-5.6+ reports explicit/implicit cache writes as `cache_write_tokens`.
 fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
     let input = field(usage, "input_tokens");
-    let cached = usage
-        .get("input_tokens_details")
-        .map_or(0, |d| field(d, "cached_tokens"));
+    let (cached, cache_write) = usage.get("input_tokens_details").map_or((0, 0), |d| {
+        (field(d, "cached_tokens"), field(d, "cache_write_tokens"))
+    });
     let reasoning = usage
         .get("output_tokens_details")
         .map_or(0, |d| field(d, "reasoning_tokens"));
@@ -148,6 +150,7 @@ fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
         input: input.saturating_sub(cached),
         output: field(usage, "output_tokens"),
         cache_read: cached,
+        cache_creation_5m: cache_write,
         reasoning,
         ..Default::default()
     }

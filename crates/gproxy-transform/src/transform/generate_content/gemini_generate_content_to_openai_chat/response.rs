@@ -116,6 +116,7 @@ fn gemini_usage_to_completion(usage: gemini::UsageMetadata) -> openai::Completio
         prompt_tokens_details: usage.cached_content_token_count.map(|tokens| {
             openai::PromptTokensDetails {
                 audio_tokens: None,
+                cache_write_tokens: None,
                 cached_tokens: Some(i32_to_u32(tokens)),
                 extra: Default::default(),
             }

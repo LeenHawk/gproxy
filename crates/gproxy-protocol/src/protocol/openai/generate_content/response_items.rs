@@ -267,6 +267,29 @@ pub enum ResponseEasyInputMessageRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ResponseAgent {
+    pub agent_name: String,
+    #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: Extra,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ResponseCaller {
+    #[serde(rename = "direct")]
+    Direct {
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "program")]
+    Program {
+        caller_id: String,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum TypedResponseItem {
     #[serde(rename = "file_search_call")]
@@ -323,6 +346,8 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
@@ -335,6 +360,8 @@ pub enum TypedResponseItem {
         output: ResponseOutput,
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -450,6 +477,8 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         environment: Option<ShellEnvironment>,
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
@@ -464,6 +493,8 @@ pub enum TypedResponseItem {
         output: Vec<ShellCallOutputContent>,
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         max_output_length: Option<u32>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -481,6 +512,8 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         created_by: Option<String>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
@@ -491,6 +524,8 @@ pub enum TypedResponseItem {
         status: ResponseApplyPatchCallOutputStatus,
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
         output: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -553,6 +588,8 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         namespace: Option<String>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
@@ -564,9 +601,74 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        caller: Option<ResponseCaller>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
         #[serde(skip_serializing_if = "Option::is_none")]
         created_by: Option<String>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "program")]
+    Program {
+        id: String,
+        call_id: String,
+        code: String,
+        fingerprint: String,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "program_output")]
+    ProgramOutput {
+        id: String,
+        call_id: String,
+        result: String,
+        status: ResponseItemLifecycleStatus,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "multi_agent_call")]
+    MultiAgentCall {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        action: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        arguments: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        agent: Option<ResponseAgent>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "multi_agent_call_output")]
+    MultiAgentCallOutput {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        action: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        output: Option<Vec<ResponseOutputContentPart>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        agent: Option<ResponseAgent>,
+        #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
+        extra: Extra,
+    },
+    #[serde(rename = "agent_message")]
+    AgentMessage {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        author: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        recipient: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<Vec<Value>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        agent: Option<ResponseAgent>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -611,6 +713,8 @@ pub enum ResponseInputContentPart {
     #[serde(rename = "input_text")]
     InputText {
         text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -622,6 +726,8 @@ pub enum ResponseInputContentPart {
         file_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         image_url: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -637,6 +743,8 @@ pub enum ResponseInputContentPart {
         file_url: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         filename: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -654,6 +762,8 @@ pub enum ResponseToolOutputContentPart {
     #[serde(rename = "input_text")]
     InputText {
         text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -665,6 +775,8 @@ pub enum ResponseToolOutputContentPart {
         file_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         image_url: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -680,6 +792,8 @@ pub enum ResponseToolOutputContentPart {
         file_url: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         filename: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },

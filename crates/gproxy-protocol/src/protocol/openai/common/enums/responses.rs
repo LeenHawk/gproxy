@@ -132,6 +132,11 @@ extensible_string_enum!(ResponseItemType, ResponseItemTypeKnown {
     McpCall => "mcp_call",
     CustomToolCall => "custom_tool_call",
     CustomToolCallOutput => "custom_tool_call_output",
+    Program => "program",
+    ProgramOutput => "program_output",
+    MultiAgentCall => "multi_agent_call",
+    MultiAgentCallOutput => "multi_agent_call_output",
+    AgentMessage => "agent_message",
     CompactionTrigger => "compaction_trigger",
     ItemReference => "item_reference",
 });

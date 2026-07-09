@@ -19,6 +19,7 @@ pub fn request(
         parallel_tool_calls: None,
         personality: None,
         previous_response_id: None,
+        prompt_cache_options: None,
         reasoning: common::gemini_generation_to_openai_reasoning(
             request.generation_config.as_ref(),
         ),

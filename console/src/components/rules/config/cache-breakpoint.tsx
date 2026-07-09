@@ -61,6 +61,7 @@ export function CacheBreakpointFields({ value, onChange }: Props) {
             <SelectItem value={TTL_NONE}>{t("config.noTtl")}</SelectItem>
             <SelectItem value="5m">5m</SelectItem>
             <SelectItem value="1h">1h</SelectItem>
+            <SelectItem value="30m">30m (OpenAI)</SelectItem>
           </SelectContent>
         </Select>
       </div>
