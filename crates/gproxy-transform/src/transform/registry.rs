@@ -42,6 +42,7 @@ pub enum TransformPair {
     OpenAiCreateImageToGemini,
     GeminiToOpenAiCreateImage,
     OpenAiCreateImageToOpenAiResponses,
+    OpenAiEditImageToOpenAiResponses,
     OpenAiEditImageToGemini,
     GeminiToOpenAiEditImage,
     OpenAiToClaudeCompact,
@@ -238,23 +239,29 @@ fn resolve_image_generation(source: OperationKey, target: OperationKey) -> Optio
     use ContentGenerationKind as Kind;
     use OperationKind as OK;
 
-    // OpenAI create-image -> OpenAI Responses: codex/ChatGPT has no images
-    // endpoint and generates via the Responses `image_generation` tool. The same
-    // pair serves both directions (request: images->responses; response:
-    // responses->images), so resolve it for the reverse ordering too.
+    // OpenAI create/edit-image -> OpenAI Responses: codex-like channels have no
+    // images endpoint and generate/edit via the Responses `image_generation`
+    // tool. Each pair serves both directions (request: images->responses;
+    // response: responses->images), so resolve it for the reverse ordering too.
     if let (OK::Provider(Provider::OpenAi), OK::ContentGeneration(Kind::OpenAiResponses)) =
         (source.kind, target.kind)
         && target.operation.is_content_generation()
-        && source.operation == Operation::CreateImage
     {
-        return Some(TransformPair::OpenAiCreateImageToOpenAiResponses);
+        return match source.operation {
+            Operation::CreateImage => Some(TransformPair::OpenAiCreateImageToOpenAiResponses),
+            Operation::EditImage => Some(TransformPair::OpenAiEditImageToOpenAiResponses),
+            _ => None,
+        };
     }
     if let (OK::ContentGeneration(Kind::OpenAiResponses), OK::Provider(Provider::OpenAi)) =
         (source.kind, target.kind)
         && source.operation.is_content_generation()
-        && target.operation == Operation::CreateImage
     {
-        return Some(TransformPair::OpenAiCreateImageToOpenAiResponses);
+        return match target.operation {
+            Operation::CreateImage => Some(TransformPair::OpenAiCreateImageToOpenAiResponses),
+            Operation::EditImage => Some(TransformPair::OpenAiEditImageToOpenAiResponses),
+            _ => None,
+        };
     }
 
     // OpenAI create/edit image -> Gemini generate-content.
@@ -346,5 +353,28 @@ fn provider_matrix(
         (Provider::Claude, Provider::Gemini) => Some(matrix.claude_to_gemini),
         (Provider::Gemini, Provider::Claude) => Some(matrix.gemini_to_claude),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn edit_image_resolves_to_responses_image_tool_pair() {
+        let source = OperationKey::provider(Operation::EditImage, Provider::OpenAi);
+        let target = OperationKey::content_generation(
+            Operation::StreamGenerateContent,
+            ContentGenerationKind::OpenAiResponses,
+        );
+
+        assert_eq!(
+            resolve(source, target).unwrap(),
+            TransformPair::OpenAiEditImageToOpenAiResponses
+        );
+        assert_eq!(
+            resolve(target, source).unwrap(),
+            TransformPair::OpenAiEditImageToOpenAiResponses
+        );
     }
 }

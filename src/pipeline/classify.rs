@@ -61,6 +61,10 @@ pub fn classify(
             OperationKey::provider(Operation::CreateImage, Prov::OpenAi),
             false,
         ),
+        ("POST", "/v1/images/edits") => (
+            OperationKey::provider(Operation::EditImage, Prov::OpenAi),
+            false,
+        ),
         ("GET", "/v1/models") => (
             OperationKey::provider(Operation::ListModels, credential_provider(headers)),
             false,
@@ -212,6 +216,17 @@ mod tests {
             classify(&Method::POST, "/v1/nope", &HeaderMap::new(), &body),
             Err(PipelineError::UnsupportedPath)
         ));
+    }
+
+    #[test]
+    fn image_edit_path_classifies_as_openai_edit_image() {
+        let body = Bytes::new();
+        let c = classify(&Method::POST, "/v1/images/edits", &HeaderMap::new(), &body).unwrap();
+        assert_eq!(
+            op(&c),
+            (Operation::EditImage, OperationKind::Provider(Prov::OpenAi))
+        );
+        assert!(!c.stream);
     }
 
     #[test]

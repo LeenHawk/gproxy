@@ -72,6 +72,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     // centrally, after auth and before any channel sees the request (the
     // per-channel allow-list runs later in Channel::prepare).
     ingress::apply_global_blacklist(&mut ctx);
+    ingress::normalize_multipart_form_body(&mut ctx)?;
 
     // classify
     let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
