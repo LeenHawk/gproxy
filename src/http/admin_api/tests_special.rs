@@ -143,7 +143,6 @@ async fn user_keys_update_wrong_user_ownership_is_404() {
 /// (proves the password was hashed correctly and is verifiable).
 #[tokio::test]
 async fn users_create_with_password_hash_on_set_redact_on_read_login_works() {
-    unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-u", true).await;
     let cookie = cookie_for(&state, admin_id).await;
@@ -221,7 +220,6 @@ async fn users_create_with_password_hash_on_set_redact_on_read_login_works() {
 /// Update user with no password → existing hash kept (login still works after update).
 #[tokio::test]
 async fn users_update_without_password_keeps_existing_hash() {
-    unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-upd", true).await;
     let cookie = cookie_for(&state, admin_id).await;

@@ -65,7 +65,6 @@ route、alias、权限、quota、pricing、转换规则和实例设置都存放�
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `GPROXY_INSECURE_COOKIES` | 空 | 本地明文 HTTP 开发逃生口。设为 `1` 后 admin session cookie 可以不带 `Secure`。生产 HTTPS 不应使用。 |
 | `DATABASE_SECRET_KEY` | 空 | 仅用于 v1 迁移。如果旧 v1 数据库使用该 key 加密 secret，v1 reader 会先用它解密，再按 `GPROXY_MASTER_KEY` 重新密封到 v2。 |
 | `RUST_LOG` | `info` | native 日志使用的标准 `tracing_subscriber` filter。 |
 

@@ -18,10 +18,10 @@ The console talks to the same admin and user APIs that the edge runtime uses:
 
 ## Local Development
 
-Run the backend with insecure cookies only for local HTTP:
+Run the backend:
 
 ```bash
-GPROXY_INSECURE_COOKIES=1 cargo run --features full
+cargo run --features full
 ```
 
 Then run the console:

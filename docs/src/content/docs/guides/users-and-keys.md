@@ -63,9 +63,10 @@ on every request.
 ## Sessions and Cookies
 
 Console login creates an httpOnly session cookie backed by the cache backend.
-Local plain-HTTP development requires `GPROXY_INSECURE_COOKIES=1`. For
-cross-site deployments, configure explicit credentialed CORS origins rather
-than relying on wildcard CORS.
+Same-origin console sessions use `SameSite=Lax` without `Secure`, so plain HTTP
+deployments can log in without a special environment flag. Cross-site console
+sessions use `SameSite=None; Secure`, so configure explicit credentialed CORS
+origins and serve the console over HTTPS.
 
 CSRF checks are same-origin by default. The Vite dev server proxies admin,
 user, health, version, and metrics routes to the backend so same-origin cookies

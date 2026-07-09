@@ -16,10 +16,10 @@ Console 调用的 admin/user API 与 edge runtime 使用的是同一套 dispatch
 
 ## 本地开发
 
-本地 HTTP 开发时，后端需要允许 insecure cookies：
+启动后端：
 
 ```bash
-GPROXY_INSECURE_COOKIES=1 cargo run --features full
+cargo run --features full
 ```
 
 然后启动 console：

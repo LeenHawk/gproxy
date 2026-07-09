@@ -73,11 +73,7 @@ pub(crate) async fn login(state: &AppState, parts: &Parts, body: &Bytes) -> Resu
                 },
             )
             .await;
-            let cookie = session::set_cookie(
-                &token,
-                session::cookies_secure(),
-                !state.config.cors_origins.is_empty(),
-            );
+            let cookie = session::set_cookie(&token, !state.config.cors_origins.is_empty());
             let cookie_val = HeaderValue::from_str(&cookie).map_err(internal)?;
             let body = serde_json::to_vec(&LoginResponse {
                 user: MeResponse {
@@ -134,10 +130,7 @@ pub(crate) async fn logout(state: &AppState, parts: &Parts) -> Result<Resp, ApiE
     {
         session::revoke(cache, tok).await;
     }
-    let cookie = session::clear_cookie(
-        session::cookies_secure(),
-        !state.config.cors_origins.is_empty(),
-    );
+    let cookie = session::clear_cookie(!state.config.cors_origins.is_empty());
     let cookie_val = HeaderValue::from_str(&cookie).map_err(internal)?;
     Ok(Resp {
         status: http::StatusCode::NO_CONTENT,

@@ -523,8 +523,6 @@ mod tests {
     /// credential; a mismatched state → 400.
     #[tokio::test]
     async fn login_start_complete_flow() {
-        // SAFETY: single-threaded test setup before any server call.
-        unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
         let (state, _dir, admin_id, provider_id) = state_and_provider().await;
         let cookie = admin_cookie(&state, admin_id).await;
         let persistence = state.persistence.clone();

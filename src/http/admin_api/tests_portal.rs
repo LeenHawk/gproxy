@@ -286,7 +286,6 @@ async fn portal_change_password_blank_new_is_400() {
 /// works (/user/me returns 200); new password verifies via POST /admin/login.
 #[tokio::test]
 async fn portal_change_password_valid_204_session_kept_new_pw_verifies() {
-    unsafe { std::env::set_var("GPROXY_INSECURE_COOKIES", "1") };
     let (state, _dir) = state_with(vec![]).await;
     let uid = seed_user(&state, "cpw-ok", false).await;
     let cookie = cookie_for(&state, uid).await;

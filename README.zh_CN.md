@@ -45,9 +45,8 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 > **管理员密码不能为空** —— 为空或只有空白字符时，容器启动即以
 > `GPROXY_ADMIN_PASSWORD rejected` 报错退出。
 >
-> **用非 `localhost` 地址(局域网 IP、服务器 IP、隧道)经明文 HTTP 访问控制台?** 会话 cookie
-> 默认带 `Secure`,浏览器会把它丢弃,于是即使密码正确,控制台登录后也会立刻弹回登录页。加上
-> `-e GPROXY_INSECURE_COOKIES=1`,或在前面挂 HTTPS 反代。`http://localhost:8787` 则直接可用。
+> **明文 HTTP 访问控制台** 在同站部署下可用，包括局域网 IP、服务器 IP 和隧道。
+> 将 GPROXY 暴露到本地开发之外时建议使用 HTTPS；跨站 console 部署仍需要 HTTPS cookie。
 
 ### ☁️ Serverless 边缘(WebAssembly)
 
