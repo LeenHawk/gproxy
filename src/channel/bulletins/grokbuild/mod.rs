@@ -77,12 +77,7 @@ impl Channel for GrokBuildChannel {
                 StreamGenerateContent,
                 cg(OpenAiResponsesWebSocket),
             ),
-            xform(
-                GenerateContent,
-                cg(OpenAiChatCompletions),
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-            ),
+            pass(GenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 GenerateContent,
                 cg(ClaudeMessages),
@@ -97,12 +92,7 @@ impl Channel for GrokBuildChannel {
             ),
             pass(StreamGenerateContent, cg(OpenAiResponses)),
             pass(StreamGenerateContent, cg(OpenAiResponsesWebSocket)),
-            xform(
-                StreamGenerateContent,
-                cg(OpenAiChatCompletions),
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-            ),
+            pass(StreamGenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 StreamGenerateContent,
                 cg(ClaudeMessages),
