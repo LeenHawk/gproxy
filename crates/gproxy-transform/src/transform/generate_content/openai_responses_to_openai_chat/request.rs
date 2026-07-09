@@ -56,6 +56,7 @@ pub fn request(
         prediction: None,
         presence_penalty: None,
         prompt_cache_key: input.prompt_cache_key,
+        prompt_cache_options: input.prompt_cache_options,
         prompt_cache_retention: input.prompt_cache_retention,
         reasoning_effort,
         response_format,

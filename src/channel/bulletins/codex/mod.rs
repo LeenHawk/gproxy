@@ -22,6 +22,7 @@ use bytes::Bytes;
 use serde_json::Value;
 
 use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::shaping::{self, openai_cache};
 use crate::channel::{
     AuthCodeStart, Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx,
     PreparedRequest, ShapeCtx,
@@ -181,6 +182,19 @@ impl Channel for CodexChannel {
         Ok(PreparedRequest::new(req))
     }
 
+    fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        let Some(kind) = ctx
+            .enable_magic_cache
+            .then(|| openai_cache::kind_for_operation(ctx.op))
+            .flatten()
+        else {
+            return body;
+        };
+        shaping::with_json_body(body, |value| {
+            openai_cache::apply_magic_string_cache_breakpoints(value, kind)
+        })
+    }
+
     fn needs_refresh(&self, secret: &Value) -> bool {
         auth::needs_refresh(secret)
     }
@@ -292,7 +306,7 @@ impl ChannelLogin for CodexChannel {
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use http::{HeaderMap, Method};
+    use http::{HeaderMap, Method, StatusCode};
     use serde_json::json;
 
     use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind, Provider};
@@ -348,6 +362,49 @@ mod tests {
             })
             .map(|(_, decision)| decision)
             .expect("missing route")
+    }
+
+    #[test]
+    fn magic_cache_breakpoint_survives_codex_normalization() {
+        let mut headers = HeaderMap::new();
+        let shape = ShapeCtx {
+            op: crate::protocol::OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponses,
+            ),
+            stream: true,
+            status: StatusCode::OK,
+            enable_magic_cache: true,
+            enable_claude_fable_fallback: false,
+        };
+        let shaped = CodexChannel.shape_request(
+            Bytes::from_static(
+                br#"{"model":"gpt-5.6","instructions":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH","input":"hello"}"#,
+            ),
+            &mut headers,
+            &shape,
+        );
+        let secret = json!({ "access_token": "tok-abc" });
+        let settings = json!({});
+        let prepared = CodexChannel
+            .prepare(PrepareCtx {
+                secret: &secret,
+                provider_settings: &settings,
+                upstream_model_id: "gpt-5.6",
+                method: Method::POST,
+                path: "/v1/responses",
+                query: None,
+                headers: &headers,
+                body: shaped,
+            })
+            .unwrap()
+            .into_http();
+        let value: Value = serde_json::from_slice(prepared.body()).unwrap();
+        assert_eq!(
+            value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+        assert_eq!(value["input"][0]["role"], "developer");
     }
 
     #[test]

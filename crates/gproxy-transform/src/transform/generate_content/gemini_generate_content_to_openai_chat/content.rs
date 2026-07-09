@@ -208,6 +208,7 @@ fn gemini_part_to_chat_content_part(part: gemini::Part) -> Option<openai::ChatCo
     match part.data? {
         gemini::PartData::Text { text } => Some(openai::ChatContentPart::Text {
             text,
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         gemini::PartData::InlineData { inline_data } => {
@@ -217,6 +218,7 @@ fn gemini_part_to_chat_content_part(part: gemini::Part) -> Option<openai::ChatCo
         gemini::PartData::ExecutableCode { executable_code } => {
             Some(openai::ChatContentPart::Text {
                 text: executable_code.code,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -226,6 +228,7 @@ fn gemini_part_to_chat_content_part(part: gemini::Part) -> Option<openai::ChatCo
             .output
             .map(|text| openai::ChatContentPart::Text {
                 text,
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             }),
         _ => None,
@@ -240,6 +243,7 @@ fn inline_data_to_chat_part(mime_type: String, data: String) -> Option<openai::C
                 detail: None,
                 extra: Default::default(),
             },
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         });
     }
@@ -250,6 +254,7 @@ fn inline_data_to_chat_part(mime_type: String, data: String) -> Option<openai::C
                 format: openai::InputAudioFormat::Wav,
                 extra: Default::default(),
             },
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         "audio/mpeg" | "audio/mp3" => Some(openai::ChatContentPart::InputAudio {
@@ -258,6 +263,7 @@ fn inline_data_to_chat_part(mime_type: String, data: String) -> Option<openai::C
                 format: openai::InputAudioFormat::Mp3,
                 extra: Default::default(),
             },
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
         _ => Some(openai::ChatContentPart::File {
@@ -267,6 +273,7 @@ fn inline_data_to_chat_part(mime_type: String, data: String) -> Option<openai::C
                 filename: None,
                 extra: Default::default(),
             },
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         }),
     }
@@ -284,6 +291,7 @@ fn file_data_to_chat_part(file_data: gemini::FileData) -> Option<openai::ChatCon
                 detail: None,
                 extra: Default::default(),
             },
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
         });
     }
@@ -294,6 +302,7 @@ fn file_data_to_chat_part(file_data: gemini::FileData) -> Option<openai::ChatCon
             filename: None,
             extra: Default::default(),
         },
+        prompt_cache_breakpoint: None,
         extra: Default::default(),
     })
 }

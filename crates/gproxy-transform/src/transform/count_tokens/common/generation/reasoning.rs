@@ -9,9 +9,9 @@ pub(super) fn openai_reasoning_effort_to_gemini(
         }
         openai::ReasoningEffort::Low => gemini::ThinkingLevelKnown::Low,
         openai::ReasoningEffort::Medium => gemini::ThinkingLevelKnown::Medium,
-        openai::ReasoningEffort::High | openai::ReasoningEffort::XHigh => {
-            gemini::ThinkingLevelKnown::High
-        }
+        openai::ReasoningEffort::High
+        | openai::ReasoningEffort::XHigh
+        | openai::ReasoningEffort::Max => gemini::ThinkingLevelKnown::High,
     };
     gemini::ThinkingLevel::Known(level)
 }
@@ -28,6 +28,7 @@ pub(in crate::transform::count_tokens) fn claude_generation_to_openai_reasoning(
     effort.map(|effort| openai::ReasoningConfig {
         context: None,
         effort: Some(effort),
+        mode: None,
         summary: None,
         generate_summary: None,
         extra: Default::default(),
@@ -50,6 +51,7 @@ pub(in crate::transform::count_tokens) fn gemini_generation_to_openai_reasoning(
     Some(openai::ReasoningConfig {
         context: None,
         effort: Some(effort),
+        mode: None,
         summary: None,
         generate_summary: None,
         extra: Default::default(),
@@ -84,6 +86,7 @@ pub(super) fn openai_reasoning_effort_to_claude_output(
         openai::ReasoningEffort::Medium => claude::OutputEffortKnown::Medium,
         openai::ReasoningEffort::High => claude::OutputEffortKnown::High,
         openai::ReasoningEffort::XHigh => claude::OutputEffortKnown::XHigh,
+        openai::ReasoningEffort::Max => claude::OutputEffortKnown::Max,
     };
     claude::OutputEffort::Known(effort)
 }

@@ -123,6 +123,13 @@ fn remove_magic_tokens(text: &mut String) -> Option<MagicTtl> {
     matched
 }
 
+/// Remove the frozen cache trigger strings shared by Claude and OpenAI-family
+/// request shapers. OpenAI has a request-wide TTL, so callers there only need
+/// to know whether a trigger was present.
+pub(super) fn strip_magic_tokens(text: &mut String) -> bool {
+    remove_magic_tokens(text).is_some()
+}
+
 /// Anthropic rejects `cache_control` on thinking blocks. Empty `text` blocks are
 /// allowed here — the post-pass `sanitize_claude_body` shifts the marker onto the
 /// previous anchor and drops the empty block.

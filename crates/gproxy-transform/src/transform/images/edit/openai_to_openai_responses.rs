@@ -19,6 +19,7 @@ pub fn request(
 
     let mut parts = vec![openai::ResponseInputContentPart::InputText {
         text: format!("Edit the provided image(s) according to: {}", input.prompt),
+        prompt_cache_breakpoint: None,
         extra: Default::default(),
     }];
     parts.extend(input.images.into_iter().map(image_reference_to_input_image));
@@ -72,6 +73,7 @@ fn image_reference_to_input_image(
         detail: None,
         file_id: reference.file_id,
         image_url: reference.image_url,
+        prompt_cache_breakpoint: None,
         extra: reference.extra,
     }
 }

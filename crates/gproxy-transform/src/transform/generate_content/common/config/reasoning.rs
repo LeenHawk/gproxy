@@ -48,7 +48,9 @@ pub(in crate::transform::generate_content) fn openai_reasoning_to_gemini(
             openai::ReasoningEffort::Medium => {
                 gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Medium)
             }
-            openai::ReasoningEffort::High | openai::ReasoningEffort::XHigh => {
+            openai::ReasoningEffort::High
+            | openai::ReasoningEffort::XHigh
+            | openai::ReasoningEffort::Max => {
                 gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High)
             }
         }),

@@ -87,6 +87,7 @@ pub fn request(
         prediction: None,
         presence_penalty: None,
         prompt_cache_key: None,
+        prompt_cache_options: None,
         prompt_cache_retention: None,
         reasoning_effort: common::claude_thinking_to_openai(input.thinking),
         response_format: common::claude_output_format_to_chat(output_format),

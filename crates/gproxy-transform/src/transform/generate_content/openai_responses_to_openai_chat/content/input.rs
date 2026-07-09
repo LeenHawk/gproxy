@@ -171,6 +171,7 @@ fn output_message_to_chat_param(
             openai::ResponseMessageOutputContentPart::OutputText { text, .. } => {
                 parts.push(openai::ChatAssistantContentPart::Text {
                     text,
+                    prompt_cache_breakpoint: None,
                     extra: Default::default(),
                 });
             }
@@ -178,6 +179,7 @@ fn output_message_to_chat_param(
                 refusal = Some(value.clone());
                 parts.push(openai::ChatAssistantContentPart::Refusal {
                     refusal: value,
+                    prompt_cache_breakpoint: None,
                     extra: Default::default(),
                 });
             }
@@ -320,7 +322,11 @@ fn response_input_parts_to_chat_content(
 
     if parts.len() == 1 {
         match parts.into_iter().next() {
-            Some(openai::ChatContentPart::Text { text, .. }) => openai::ChatContent::Text(text),
+            Some(openai::ChatContentPart::Text {
+                text,
+                prompt_cache_breakpoint: None,
+                ..
+            }) => openai::ChatContent::Text(text),
             Some(part) => openai::ChatContent::Parts(vec![part]),
             None => openai::ChatContent::Parts(Vec::new()),
         }
@@ -333,16 +339,20 @@ fn response_input_part_to_chat_part(
     part: openai::ResponseInputContentPart,
 ) -> Option<openai::ChatContentPart> {
     match part {
-        openai::ResponseInputContentPart::InputText { text, .. } => {
-            Some(openai::ChatContentPart::Text {
-                text,
-                extra: Default::default(),
-            })
-        }
+        openai::ResponseInputContentPart::InputText {
+            text,
+            prompt_cache_breakpoint,
+            ..
+        } => Some(openai::ChatContentPart::Text {
+            text,
+            prompt_cache_breakpoint,
+            extra: Default::default(),
+        }),
         openai::ResponseInputContentPart::InputImage {
             detail,
             file_id,
             image_url,
+            prompt_cache_breakpoint,
             ..
         } => image_url
             .map(|url| openai::ChatContentPart::ImageUrl {
@@ -351,6 +361,7 @@ fn response_input_part_to_chat_part(
                     detail: detail.and_then(response_detail_to_chat_detail),
                     extra: Default::default(),
                 },
+                prompt_cache_breakpoint: prompt_cache_breakpoint.clone(),
                 extra: Default::default(),
             })
             .or_else(|| {
@@ -361,6 +372,7 @@ fn response_input_part_to_chat_part(
                         filename: None,
                         extra: Default::default(),
                     },
+                    prompt_cache_breakpoint,
                     extra: Default::default(),
                 })
             }),
@@ -371,6 +383,7 @@ fn response_input_part_to_chat_part(
                     format: input_audio.format,
                     extra: Default::default(),
                 },
+                prompt_cache_breakpoint: None,
                 extra: Default::default(),
             })
         }
@@ -378,6 +391,7 @@ fn response_input_part_to_chat_part(
             file_data,
             file_id,
             filename,
+            prompt_cache_breakpoint,
             ..
         } => Some(openai::ChatContentPart::File {
             file: openai::ChatFileRef {
@@ -386,6 +400,7 @@ fn response_input_part_to_chat_part(
                 filename,
                 extra: Default::default(),
             },
+            prompt_cache_breakpoint,
             extra: Default::default(),
         }),
     }

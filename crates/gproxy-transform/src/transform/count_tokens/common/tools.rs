@@ -227,6 +227,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
                 strict: tool.common.strict,
                 defer_loading: tool.common.defer_loading,
                 description: tool.description,
+                allowed_callers: None,
                 extra: Default::default(),
             }),
             claude::Tool::WebSearch(_) => output.push(openai::ResponseTool::WebSearchPreview {
@@ -259,6 +260,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
                         extra: Default::default(),
                     },
                 ),
+                allowed_callers: None,
                 extra: Default::default(),
             }),
             claude::Tool::Command(_) => {}
@@ -273,6 +275,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
                 server_description: None,
                 server_url: None,
                 tunnel_id: None,
+                allowed_callers: None,
                 extra: Default::default(),
             }),
             _ => {}
@@ -294,6 +297,7 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
             server_description: None,
             server_url: Some(server.url),
             tunnel_id: None,
+            allowed_callers: None,
             extra: Default::default(),
         }
     }));
@@ -318,6 +322,7 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
                 strict: Some(false),
                 defer_loading: None,
                 description: empty_string_to_none(function.description),
+                allowed_callers: None,
                 extra: Default::default(),
             }
         }));
@@ -350,6 +355,7 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
                         extra: Default::default(),
                     },
                 ),
+                allowed_callers: None,
                 extra: Default::default(),
             });
         }
@@ -373,6 +379,7 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
                 server_description: None,
                 server_url: transport.and_then(|transport| transport.url),
                 tunnel_id: None,
+                allowed_callers: None,
                 extra: Default::default(),
             }
         }));

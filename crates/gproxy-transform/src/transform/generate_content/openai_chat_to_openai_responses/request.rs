@@ -38,9 +38,11 @@ pub fn request(
         metadata: input.metadata,
         model: Some(input.model),
         moderation: input.moderation,
+        multi_agent: None,
         parallel_tool_calls: input.parallel_tool_calls,
         previous_response_id: None,
         prompt_cache_key: input.prompt_cache_key,
+        prompt_cache_options: input.prompt_cache_options,
         prompt_cache_retention: input.prompt_cache_retention,
         prompt: None,
         reasoning: input
@@ -48,6 +50,7 @@ pub fn request(
             .map(|effort| openai::ReasoningConfig {
                 context: None,
                 effort: Some(effort),
+                mode: None,
                 summary: None,
                 generate_summary: None,
                 extra: Default::default(),

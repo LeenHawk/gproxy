@@ -76,6 +76,7 @@ pub(in crate::transform::generate_content) fn claude_usage_to_completion(
         }),
         prompt_tokens_details: cached_tokens.map(|cached_tokens| openai::PromptTokensDetails {
             audio_tokens: None,
+            cache_write_tokens: None,
             cached_tokens: Some(cached_tokens),
             extra: Default::default(),
         }),

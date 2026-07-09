@@ -13,6 +13,7 @@ pub fn request(
             .unwrap_or_else(|| openai::OpenAiModelId::Unknown("unknown".to_owned())),
         previous_response_id: input.previous_response_id,
         prompt_cache_key: input.prompt_cache_key,
+        prompt_cache_options: input.prompt_cache_options,
         prompt_cache_retention: input.prompt_cache_retention,
         service_tier: input.service_tier.map(service_tier_to_compact),
         extra: Default::default(),

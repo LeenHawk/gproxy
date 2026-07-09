@@ -23,6 +23,7 @@ pub fn request(
         parallel_tool_calls: common::claude_parallel_tool_calls(tool_choice.as_ref()),
         personality: None,
         previous_response_id,
+        prompt_cache_options: None,
         reasoning: common::claude_generation_to_openai_reasoning(
             input.thinking,
             output_config.as_ref(),

@@ -51,7 +51,7 @@
     "required": "必填",
     "baseUrlRequired": "custom 通道必填",
     "baseUrlHint": "留空使用通道內建預設值。",
-    "enableMagicCacheHint": "辨識並剝除 prompt 裡嵌入的魔法觸發字串,依其 ttl(auto/5m/1h)標記 Claude cache_control。",
+    "enableMagicCacheHint": "辨識並剝除共用魔法觸發字串,依目標協定寫入 Claude 或 OpenAI 原生快取斷點。",
     "enableClaudeFableFallbackHint": "Claude Messages 請求使用 Claude Fable 5 時,自動加入回退到 Claude Opus 4.8。",
     "saved": "已儲存",
     "channelLocked": "通道在建立後不可變更。",

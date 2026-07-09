@@ -7,7 +7,7 @@
  *   circuit_breaker   — all channels (both sub-fields must be filled or both omitted)
  *   location          — vertex only
  *   profile_arn       — kiro only
- *   enable_magic_cache — claudecode / claudeapi / vercel / openrouter (magic-string prompt cache triggers)
+ *   enable_magic_cache — Claude/OpenAI-capable channels (magic-string prompt cache triggers)
  *   enable_claude_fable_fallback — claudecode / claudeapi / vercel / openrouter
  *
  * Unknown keys (e.g. tokenizer_map) are preserved via the `base` prop.
@@ -20,8 +20,10 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { DEFAULT_BASE_URL } from "@/lib/channel-meta";
 
-// Channels whose backend honors the magic-string cache triggers on Claude-format bodies.
-const MAGIC_CACHE_CHANNELS = new Set(["claudecode", "claudeapi", "vercel", "openrouter"]);
+// Channels whose backend honors magic-string cache triggers on native Claude/OpenAI bodies.
+const MAGIC_CACHE_CHANNELS = new Set([
+  "claudecode", "claudeapi", "openai", "codex", "vercel", "openrouter",
+]);
 const CLAUDE_FALLBACK_CHANNELS = new Set(["claudecode", "claudeapi", "vercel", "openrouter"]);
 
 // ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
@@ -112,7 +114,7 @@ export function assembleSettings(
     }
   }
 
-  // enable_magic_cache (Claude-capable channels)
+  // enable_magic_cache (Claude/OpenAI-capable channels)
   if (MAGIC_CACHE_CHANNELS.has(channel)) {
     if (state.enableMagicCache) {
       result.enable_magic_cache = true;
@@ -237,7 +239,7 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
         </div>
       )}
 
-      {/* Claude-capable channels: magic-string prompt cache triggers */}
+      {/* Claude/OpenAI-capable channels: magic-string prompt cache triggers */}
       {MAGIC_CACHE_CHANNELS.has(channel) && (
         <div className="grid gap-1">
           <div className="flex items-center justify-between gap-4">

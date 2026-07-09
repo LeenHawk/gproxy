@@ -47,7 +47,7 @@
     "target": "目标",
     "index": "索引",
     "indexHint": ">0:正数第 N 条;<0:倒数第 N 条;0 无效",
-    "ttl": "TTL（秒）",
+    "ttl": "缓存 TTL",
     "name": "请求头名称",
     "mode": "模式",
     "positionOptions": {
@@ -128,7 +128,7 @@
   },
   "kindDesc": {
     "system_text": "在系统提示前置或追加文本。",
-    "cache_breakpoint": "标记 Claude 缓存断点（系统 / 工具 / 最后一条消息）。",
+    "cache_breakpoint": "标记 Claude 或 OpenAI Chat/Responses 原生缓存断点。",
     "rewrite": "在请求体里设置/删除/合并一个 JSON 字段。",
     "transform": "按路径或正则对请求/响应 body 做通用替换。",
     "header": "新增或合并一个出站 HTTP 头。"

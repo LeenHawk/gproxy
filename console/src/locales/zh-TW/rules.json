@@ -47,7 +47,7 @@
     "target": "目標",
     "index": "索引",
     "indexHint": ">0:正數第 N 條;<0:倒數第 N 條;0 無效",
-    "ttl": "TTL（秒）",
+    "ttl": "快取 TTL",
     "name": "標頭名稱",
     "mode": "模式",
     "positionOptions": {
@@ -128,7 +128,7 @@
   },
   "kindDesc": {
     "system_text": "在系統提示前置或附加文字。",
-    "cache_breakpoint": "標記 Claude 快取斷點（系統 / 工具 / 最後一則訊息）。",
+    "cache_breakpoint": "標記 Claude 或 OpenAI Chat/Responses 原生快取斷點。",
     "rewrite": "在請求體中設定/刪除/合併一個 JSON 欄位。",
     "transform": "按路徑或正規表示式對請求/回應 body 做通用替換。",
     "header": "新增或合併一個出站 HTTP 標頭。"

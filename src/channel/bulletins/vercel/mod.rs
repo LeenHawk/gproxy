@@ -8,7 +8,7 @@ use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::shaping::{
-    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling, openai_cache,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
@@ -108,10 +108,16 @@ impl Channel for VercelChannel {
         Ok(PreparedRequest::new(req))
     }
 
-    /// Claude request 整形: on the claude-messages content path (Vercel exposes
-    /// the Anthropic-compatible endpoint), sanitize the body + strip sampling
-    /// params, and drop the `context-1m` beta token that upstream rejects.
+    /// Provider-native cache shaping plus Claude endpoint hygiene.
     fn shape_request(&self, body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
+            if !ctx.enable_magic_cache {
+                return body;
+            }
+            return shaping::with_json_body(body, |value| {
+                openai_cache::apply_magic_string_cache_breakpoints(value, kind)
+            });
+        }
         if !is_claude_messages(ctx.op) {
             return body;
         }
@@ -156,6 +162,33 @@ mod tests {
             enable_claude_fable_fallback: true,
             ..messages_ctx()
         }
+    }
+
+    fn openai_magic_ctx() -> ShapeCtx {
+        ShapeCtx {
+            op: OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+            stream: false,
+            status: StatusCode::OK,
+            enable_magic_cache: true,
+            enable_claude_fable_fallback: false,
+        }
+    }
+
+    #[test]
+    fn shapes_openai_magic_cache_breakpoint() {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from_static(
+            br#"{"model":"openai/gpt-5.6","input":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}"#,
+        );
+        let shaped = VercelChannel.shape_request(body, &mut headers, &openai_magic_ctx());
+        let value: Value = serde_json::from_slice(&shaped).unwrap();
+        assert_eq!(
+            value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
     }
 
     #[test]

@@ -43,6 +43,8 @@ pub enum PromptVariableInputContentPart {
     #[serde(rename = "input_text")]
     InputText {
         text: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -54,6 +56,8 @@ pub enum PromptVariableInputContentPart {
         file_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         image_url: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -69,6 +73,8 @@ pub enum PromptVariableInputContentPart {
         file_url: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         filename: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: Extra,
     },
@@ -80,6 +86,8 @@ pub struct ReasoningConfig {
     pub context: Option<ReasoningContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effort: Option<ReasoningEffort>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ReasoningMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<ReasoningSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,6 +140,8 @@ pub struct ResponseObject {
     pub model: Option<OpenAiModelId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub moderation: Option<ResponseModeration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multi_agent: Option<serde_json::Value>,
     pub object: ResponseObjectType,
     pub output: Vec<ResponseOutputItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -142,6 +152,8 @@ pub struct ResponseObject {
     pub prompt: Option<PromptRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_options: Option<PromptCacheOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_cache_retention: Option<PromptCacheRetention>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -223,6 +235,9 @@ pub struct ResponseUsage {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ResponseInputTokensDetails {
+    #[serde(default)]
+    pub cache_write_tokens: u32,
+    #[serde(default)]
     pub cached_tokens: u32,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: Extra,
