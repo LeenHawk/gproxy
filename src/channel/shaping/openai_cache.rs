@@ -109,16 +109,12 @@ fn apply_chat_magic(root: &mut Map<String, Value>, remaining: &mut usize) {
         let Some(content) = message.get_mut("content") else {
             continue;
         };
-        match content {
-            Value::String(text) if supported_string => {
-                if claude_magic_cache::strip_magic_tokens(text) && *remaining > 0 {
-                    let text = std::mem::take(text);
-                    *content = Value::Array(vec![chat_text_part(text, true)]);
-                    *remaining -= 1;
-                }
-            }
-            Value::Array(parts) => apply_magic_to_parts(parts, PartFamily::Chat, remaining),
-            _ => {}
+        if supported_string && let Some(text) = take_magic_string(content, remaining) {
+            *content = Value::Array(vec![chat_text_part(text, true)]);
+            continue;
+        }
+        if let Value::Array(parts) = content {
+            apply_magic_to_parts(parts, PartFamily::Chat, remaining);
         }
     }
 }
@@ -142,16 +138,12 @@ fn apply_responses_magic(root: &mut Map<String, Value>, remaining: &mut usize) {
         .and_then(Value::as_object_mut)
     {
         for value in variables.values_mut() {
-            match value {
-                Value::String(text) => {
-                    if claude_magic_cache::strip_magic_tokens(text) && *remaining > 0 {
-                        let text = std::mem::take(text);
-                        *value = response_input_text_part(text, true);
-                        *remaining -= 1;
-                    }
-                }
-                Value::Object(part) => apply_magic_to_part(part, PartFamily::Responses, remaining),
-                _ => {}
+            if let Some(text) = take_magic_string(value, remaining) {
+                *value = response_input_text_part(text, true);
+                continue;
+            }
+            if let Value::Object(part) = value {
+                apply_magic_to_part(part, PartFamily::Responses, remaining);
             }
         }
     }
@@ -159,41 +151,40 @@ fn apply_responses_magic(root: &mut Map<String, Value>, remaining: &mut usize) {
     let Some(input) = root.get_mut("input") else {
         return;
     };
-    match input {
-        Value::String(text) => {
-            if claude_magic_cache::strip_magic_tokens(text) && *remaining > 0 {
-                let text = std::mem::take(text);
-                *input = Value::Array(vec![response_message(text, true)]);
-                *remaining -= 1;
-            }
-        }
-        Value::Array(items) => {
-            for item in items {
-                let Some(item) = item.as_object_mut() else {
+    if let Some(text) = take_magic_string(input, remaining) {
+        *input = Value::Array(vec![response_message(text, true)]);
+        return;
+    }
+    if let Value::Array(items) = input {
+        for item in items {
+            let Some(item) = item.as_object_mut() else {
+                continue;
+            };
+            for field in ["content", "output"] {
+                let Some(content) = item.get_mut(field) else {
                     continue;
                 };
-                for field in ["content", "output"] {
-                    let Some(content) = item.get_mut(field) else {
-                        continue;
-                    };
-                    match content {
-                        Value::String(text) => {
-                            if claude_magic_cache::strip_magic_tokens(text) && *remaining > 0 {
-                                let text = std::mem::take(text);
-                                *content = Value::Array(vec![response_input_text_part(text, true)]);
-                                *remaining -= 1;
-                            }
-                        }
-                        Value::Array(parts) => {
-                            apply_magic_to_parts(parts, PartFamily::Responses, remaining)
-                        }
-                        _ => {}
-                    }
+                if let Some(text) = take_magic_string(content, remaining) {
+                    *content = Value::Array(vec![response_input_text_part(text, true)]);
+                    continue;
+                }
+                if let Value::Array(parts) = content {
+                    apply_magic_to_parts(parts, PartFamily::Responses, remaining);
                 }
             }
         }
-        _ => {}
     }
+}
+
+fn take_magic_string(value: &mut Value, remaining: &mut usize) -> Option<String> {
+    let Value::String(text) = value else {
+        return None;
+    };
+    if !claude_magic_cache::strip_magic_tokens(text) || *remaining == 0 {
+        return None;
+    }
+    *remaining -= 1;
+    Some(std::mem::take(text))
 }
 
 #[derive(Clone, Copy)]
