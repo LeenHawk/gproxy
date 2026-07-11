@@ -11,8 +11,7 @@
     "name": "Name",
     "strategy": "Strategy",
     "description": "Description",
-    "enabled": "Enabled",
-    "settings": "Settings JSON"
+    "enabled": "Enabled"
   },
   "strategy": {
     "failover": "Failover",
@@ -24,8 +23,21 @@
     "create": "Create load balancer",
     "edit": "Edit load balancer",
     "required": "Required",
-    "settingsHint": "Optional. Known key: circuit_breaker { consecutive_failures, cooldown_secs, error_rate? } — overrides the provider's breaker for this load balancer.",
+    "positiveInteger": "Circuit breaker values must be positive integers.",
+    "errorRateInvalid": "Enter a positive window and minimum request count, and a threshold from 0 to 100%.",
     "saved": "Saved"
+  },
+  "breaker": {
+    "title": "Circuit breaker overrides",
+    "inheritHint": "Leave a field empty to inherit that provider's setting.",
+    "inherit": "Inherit",
+    "consecutiveFailures": "Consecutive failures",
+    "cooldownSecs": "Cooldown (seconds)",
+    "errorRate": "Error-rate trigger",
+    "errorRateHint": "Open the member circuit when failures reach the threshold within the window.",
+    "windowSecs": "Window (seconds)",
+    "threshold": "Threshold (%)",
+    "minRequests": "Minimum requests"
   },
   "delete": {
     "route": "Delete load balancer",

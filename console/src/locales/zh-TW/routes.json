@@ -11,8 +11,7 @@
     "name": "名稱",
     "strategy": "策略",
     "description": "描述",
-    "enabled": "啟用",
-    "settings": "設定 JSON"
+    "enabled": "啟用"
   },
   "strategy": {
     "failover": "故障轉移",
@@ -24,8 +23,21 @@
     "create": "建立負載均衡",
     "edit": "編輯負載均衡",
     "required": "必填",
-    "settingsHint": "可選。已知鍵:circuit_breaker { consecutive_failures, cooldown_secs, error_rate? }——為本負載均衡覆寫 provider 的熔斷設定。",
+    "positiveInteger": "熔斷器數值必須是正整數。",
+    "errorRateInvalid": "視窗和最小請求數必須為正整數，錯誤率閾值須在 0 到 100% 之間。",
     "saved": "已儲存"
+  },
+  "breaker": {
+    "title": "熔斷器覆寫設定",
+    "inheritHint": "留空表示繼承對應供應商的設定。",
+    "inherit": "繼承",
+    "consecutiveFailures": "連續失敗次數",
+    "cooldownSecs": "冷卻時間（秒）",
+    "errorRate": "錯誤率觸發器",
+    "errorRateHint": "視窗內失敗比例達到閾值時開啟成員熔斷器。",
+    "windowSecs": "統計視窗（秒）",
+    "threshold": "錯誤率閾值（%）",
+    "minRequests": "最小請求數"
   },
   "delete": {
     "route": "刪除負載均衡",
