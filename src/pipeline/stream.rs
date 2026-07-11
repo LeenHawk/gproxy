@@ -8,6 +8,158 @@ use crate::pipeline::outcome::ByteStream;
 use crate::pipeline::settle::StreamGuard;
 use crate::transform::stream_adapter::SseTransformer;
 
+const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum SyntheticTransport {
+    Sse,
+    GeminiJson,
+}
+
+pub fn synthetic_transport(ctx: &crate::pipeline::context::RequestCtx) -> SyntheticTransport {
+    if matches!(
+        ctx.op.map(|op| op.kind),
+        Some(crate::protocol::OperationKind::ContentGeneration(
+            crate::protocol::ContentGenerationKind::GeminiGenerateContent
+        ))
+    ) && !ctx
+        .query
+        .as_deref()
+        .is_some_and(|query| query.split('&').any(|part| part == "alt=sse"))
+    {
+        SyntheticTransport::GeminiJson
+    } else {
+        SyntheticTransport::Sse
+    }
+}
+
+/// Return the downstream stream immediately while the normal failover loop runs
+/// in a background task against a non-streaming target. The task owns all
+/// accounting work, so client disconnect does not leak pending quota charges.
+pub fn synthetic_outcome(
+    state: crate::app::AppState,
+    ctx: crate::pipeline::context::RequestCtx,
+    candidates: Vec<crate::pipeline::context::Candidate>,
+    quota_scopes: Vec<(crate::store::persistence::records::Scope, i64)>,
+    pending_micros: i64,
+) -> crate::pipeline::outcome::ExecOutcome {
+    use http::{HeaderMap, HeaderValue, StatusCode, header};
+    use tokio::sync::mpsc;
+
+    let kind = match ctx.op.expect("classified").kind {
+        crate::protocol::OperationKind::ContentGeneration(kind) => kind,
+        crate::protocol::OperationKind::Provider(_) => unreachable!("synthetic content stream"),
+    };
+    let transport = synthetic_transport(&ctx);
+    let (tx, rx) = mpsc::channel(8);
+    tokio::spawn(async move {
+        let work = crate::pipeline::failover::run_failover(&state, &ctx, &candidates);
+        tokio::pin!(work);
+        let mut interval = tokio::time::interval(KEEPALIVE_INTERVAL);
+        interval.tick().await;
+        let result = loop {
+            tokio::select! {
+                result = &mut work => break result,
+                _ = interval.tick() => {
+                    let _ = tx.try_send(Ok(synthetic_keepalive(kind, transport)));
+                }
+            }
+        };
+
+        if !matches!(&result, Ok(outcome) if outcome.status.is_success()) {
+            crate::billing::pending::refund(state.cache.as_ref(), &quota_scopes, pending_micros)
+                .await;
+        }
+
+        match result {
+            Ok(outcome) if outcome.status.is_success() => match outcome.body {
+                crate::pipeline::outcome::ResponseBody::Full(body) => {
+                    let bytes = synthetic_final(kind, transport, &body).unwrap_or_else(|error| {
+                        tracing::warn!(error = %error, "failed to synthesize response stream");
+                        synthetic_error(kind, transport)
+                    });
+                    let _ = tx.send(Ok(bytes)).await;
+                }
+                crate::pipeline::outcome::ResponseBody::Stream(mut stream) => {
+                    use futures_util::StreamExt;
+                    while let Some(item) = stream.next().await {
+                        if tx.send(item).await.is_err() {
+                            break;
+                        }
+                    }
+                }
+            },
+            Ok(_) | Err(_) => {
+                let _ = tx.send(Ok(synthetic_error(kind, transport))).await;
+            }
+        }
+    });
+
+    let stream = futures_util::stream::unfold(rx, |mut receiver| async move {
+        receiver.recv().await.map(|item| (item, receiver))
+    });
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CONTENT_TYPE,
+        match transport {
+            SyntheticTransport::Sse => HeaderValue::from_static("text/event-stream"),
+            SyntheticTransport::GeminiJson => HeaderValue::from_static("application/json"),
+        },
+    );
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    crate::pipeline::outcome::ExecOutcome {
+        status: StatusCode::OK,
+        headers,
+        body: crate::pipeline::outcome::ResponseBody::Stream(Box::pin(stream)),
+        disposition: crate::channel::Disposition::Success,
+    }
+}
+
+fn synthetic_keepalive(
+    kind: crate::protocol::ContentGenerationKind,
+    transport: SyntheticTransport,
+) -> bytes::Bytes {
+    if transport == SyntheticTransport::GeminiJson {
+        return bytes::Bytes::from_static(b"\n");
+    }
+    if kind == crate::protocol::ContentGenerationKind::ClaudeMessages {
+        return bytes::Bytes::from_static(b"event: ping\ndata: {\"type\":\"ping\"}\n\n");
+    }
+    bytes::Bytes::from_static(b": keep-alive\n\n")
+}
+
+fn synthetic_final(
+    kind: crate::protocol::ContentGenerationKind,
+    transport: SyntheticTransport,
+    body: &[u8],
+) -> Result<bytes::Bytes, crate::transform::TransformError> {
+    if transport == SyntheticTransport::GeminiJson {
+        let value: serde_json::Value = serde_json::from_slice(body).map_err(|error| {
+            crate::transform::TransformError::InvalidInput {
+                reason: format!("synthetic gemini response is not JSON: {error}"),
+            }
+        })?;
+        return serde_json::to_vec(&vec![value])
+            .map(bytes::Bytes::from)
+            .map_err(|error| crate::transform::TransformError::Serialization {
+                reason: error.to_string(),
+            });
+    }
+    crate::transform::stream_adapter::synthesize_sse(kind, body).map(bytes::Bytes::from)
+}
+
+fn synthetic_error(
+    kind: crate::protocol::ContentGenerationKind,
+    transport: SyntheticTransport,
+) -> bytes::Bytes {
+    if transport == SyntheticTransport::GeminiJson {
+        return bytes::Bytes::from_static(
+            b"[{\"error\":{\"code\":502,\"status\":\"UNAVAILABLE\",\"message\":\"upstream request failed\"}}]",
+        );
+    }
+    crate::pipeline::settle::frames::error_frame(kind)
+}
+
 /// Convert a per-attempt streaming body source into the executor's `ByteStream`
 /// unchanged (passthrough attempts). `RespStream` and `ByteStream` are the SAME
 /// typedef (`Item = Result<Bytes, ClientError>`, D1), so this is the identity;
@@ -309,5 +461,23 @@ mod tests {
             .await;
         let joined: Vec<u8> = out.concat();
         assert_eq!(joined, b"ABCD!");
+    }
+
+    #[test]
+    fn synthetic_keepalive_is_protocol_appropriate() {
+        use crate::protocol::ContentGenerationKind as K;
+
+        assert_eq!(
+            synthetic_keepalive(K::ClaudeMessages, SyntheticTransport::Sse),
+            bytes::Bytes::from_static(b"event: ping\ndata: {\"type\":\"ping\"}\n\n")
+        );
+        assert_eq!(
+            synthetic_keepalive(K::OpenAiResponses, SyntheticTransport::Sse),
+            bytes::Bytes::from_static(b": keep-alive\n\n")
+        );
+        assert_eq!(
+            synthetic_keepalive(K::GeminiGenerateContent, SyntheticTransport::GeminiJson),
+            bytes::Bytes::from_static(b"\n")
+        );
     }
 }

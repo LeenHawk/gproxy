@@ -88,7 +88,7 @@ pub fn request_parts(
                     // passthrough bodies already carry the correct stream flag;
                     // never inject it here (`include_usage` is false for the
                     // non-openai-chat provider ops, so this is a pure rewrite)
-                    body = patch_body(&body, Some(&cand.upstream_model_id), false, include_usage)?;
+                    body = patch_body(&body, Some(&cand.upstream_model_id), None, include_usage)?;
                 } else {
                     let t = protocol::request_target(op, &cand.upstream_model_id, ctx.stream);
                     path = t.path;
@@ -97,7 +97,7 @@ pub fn request_parts(
                     }
                 }
             } else if include_usage {
-                body = patch_body(&body, None, false, true)?;
+                body = patch_body(&body, None, None, true)?;
             }
             (
                 RequestParts {
@@ -157,7 +157,7 @@ pub fn request_parts(
                             && memo.inbound_model(&ctx.body).as_deref()
                                 != Some(cand.upstream_model_id.as_str())
                         {
-                            patch_body(&ctx.body, Some(&cand.upstream_model_id), false, false)?
+                            patch_body(&ctx.body, Some(&cand.upstream_model_id), None, false)?
                         } else {
                             ctx.body.clone()
                         };
@@ -174,7 +174,12 @@ pub fn request_parts(
                             // §17: openai-chat targets need the usage chunk
                             let include_usage = ctx.stream && is_openai_chat(target.kind);
                             if model.is_some() || stream || include_usage {
-                                converted = patch_body(&converted, model, stream, include_usage)?;
+                                converted = patch_body(
+                                    &converted,
+                                    model,
+                                    stream.then_some(true),
+                                    include_usage,
+                                )?;
                             }
                         }
                         memo.bodies.insert(key, converted.clone());
@@ -194,6 +199,55 @@ pub fn request_parts(
                 )
             }
         }
+        TransformPlan::SynthesizeStream {
+            request_pair,
+            source,
+            target,
+            ..
+        } => {
+            let source_in_body = body_carries_model(source.kind);
+            let inbound = if (source_in_body || body_carries_model(target.kind))
+                && !cand.upstream_model_id.is_empty()
+                && memo.inbound_model(&ctx.body).as_deref() != Some(cand.upstream_model_id.as_str())
+            {
+                patch_body(&ctx.body, Some(&cand.upstream_model_id), None, false)?
+            } else {
+                ctx.body.clone()
+            };
+            let base = match request_pair {
+                Some(rp) => {
+                    let normalized_source = OperationKey {
+                        operation: crate::protocol::Operation::GenerateContent,
+                        kind: source.kind,
+                    };
+                    let fwd = TransformContext::new(normalized_source, *target)
+                        .with_request(&ctx.path, ctx.query.as_deref());
+                    Bytes::from(
+                        dispatch::request_bytes(*rp, &fwd, &inbound)
+                            .map_err(PipelineError::TransformRequest)?,
+                    )
+                }
+                None => inbound,
+            };
+            let body = if body_carries_model(target.kind) {
+                let model = (!source_in_body && !cand.upstream_model_id.is_empty())
+                    .then_some(cand.upstream_model_id.as_str());
+                patch_body(&base, model, Some(false), false)?
+            } else {
+                base
+            };
+            let t = protocol::request_target(*target, &cand.upstream_model_id, false);
+            (
+                RequestParts {
+                    method: t.method.into(),
+                    path: t.path,
+                    query: t.query,
+                    body,
+                    headers: None,
+                },
+                *target,
+            )
+        }
         TransformPlan::AggregateStream {
             request_pair,
             source,
@@ -209,7 +263,7 @@ pub fn request_parts(
                 && !cand.upstream_model_id.is_empty()
                 && memo.inbound_model(&ctx.body).as_deref() != Some(cand.upstream_model_id.as_str())
             {
-                patch_body(&ctx.body, Some(&cand.upstream_model_id), false, false)?
+                patch_body(&ctx.body, Some(&cand.upstream_model_id), None, false)?
             } else {
                 ctx.body.clone()
             };
@@ -231,7 +285,7 @@ pub fn request_parts(
                 let model = (!source_in_body && !cand.upstream_model_id.is_empty())
                     .then_some(cand.upstream_model_id.as_str());
                 let include_usage = is_openai_chat(target.kind);
-                patch_body(&base, model, true, include_usage)?
+                patch_body(&base, model, Some(true), include_usage)?
             } else {
                 base
             };
@@ -295,6 +349,25 @@ pub fn response_body(plan: &TransformPlan, body: Bytes) -> Result<Bytes, Pipelin
                 .map(Bytes::from)
                 .map_err(PipelineError::TransformResponse)
         }
+        TransformPlan::SynthesizeStream {
+            response_pair: Some(response_pair),
+            source,
+            target,
+            ..
+        } => {
+            let normalized_source = OperationKey {
+                operation: crate::protocol::Operation::GenerateContent,
+                kind: source.kind,
+            };
+            let rev = TransformContext::new(*target, normalized_source);
+            dispatch::response_bytes(*response_pair, &rev, &body)
+                .map(Bytes::from)
+                .map_err(PipelineError::TransformResponse)
+        }
+        TransformPlan::SynthesizeStream {
+            response_pair: None,
+            ..
+        } => Ok(body),
     }
 }
 
@@ -355,6 +428,9 @@ pub fn stream_transformer(plan: &TransformPlan) -> Option<SseTransformer> {
                 inbound,
             ))
         }
+        // The upstream response is a full JSON object, not SSE. It is encoded
+        // by the response-to-stream synthesizer after materialization.
+        TransformPlan::SynthesizeStream { .. } => None,
     }
 }
 
@@ -378,7 +454,7 @@ fn body_carries_model(kind: OperationKind) -> bool {
 fn patch_body(
     body: &Bytes,
     model: Option<&str>,
-    stream: bool,
+    stream: Option<bool>,
     include_usage: bool,
 ) -> Result<Bytes, PipelineError> {
     let mut v: serde_json::Value = serde_json::from_slice(body).map_err(|e| {
@@ -393,8 +469,8 @@ fn patch_body(
                 serde_json::Value::String(model.to_owned()),
             );
         }
-        if stream {
-            obj.insert("stream".to_owned(), serde_json::Value::Bool(true));
+        if let Some(stream) = stream {
+            obj.insert("stream".to_owned(), serde_json::Value::Bool(stream));
         }
         if include_usage {
             let opts = obj

@@ -186,6 +186,7 @@
     "addTitle": "Add route",
     "editTitle": "Edit route",
     "behavior": "Behavior",
+    "destOperation": "Destination operation",
     "destKind": "Destination protocol",
     "delete": "Delete",
     "deleteConfirm": "Delete this routing rule?",

@@ -186,6 +186,7 @@
     "addTitle": "新增路由",
     "editTitle": "编辑路由",
     "behavior": "行为",
+    "destOperation": "目标操作",
     "destKind": "目标协议",
     "delete": "删除",
     "deleteConfirm": "删除这条路由规则?",

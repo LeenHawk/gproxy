@@ -347,7 +347,7 @@ mod tests {
         assert_eq!(
             classified.op,
             OperationKey::content_generation(
-                Operation::GenerateContent,
+                Operation::StreamGenerateContent,
                 ContentGenerationKind::OpenAiResponsesWebSocket
             )
         );
