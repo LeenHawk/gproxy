@@ -119,6 +119,53 @@ async fn transformed_buffered_settles_provider_usage_before_response_conversion(
     assert_eq!(row.output_tokens, 500);
 }
 
+/// GPT-5.6+ cache writes (`prompt_tokens_details.cache_write_tokens`) must
+/// survive both the settle path and the openai→claude response conversion.
+#[tokio::test]
+async fn openai_cache_write_settles_and_converts() {
+    let chat_response = json!({
+        "id": "chatcmpl-1", "object": "chat.completion", "created": 0, "model": "gpt-test",
+        "choices": [{ "index": 0, "message": { "role": "assistant", "content": "ok" }, "finish_reason": "stop" }],
+        "usage": {
+            "prompt_tokens": 1000,
+            "completion_tokens": 500,
+            "total_tokens": 1500,
+            "prompt_tokens_details": { "cached_tokens": 600, "cache_write_tokens": 200 }
+        }
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&chat_response).unwrap()),
+        vec![],
+    ));
+    let bundle = bundle_with(
+        "price_rules",
+        json!([{
+            "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+            "input_price": "3", "output_price": "15", "cache_read_price": "0",
+            "cache_creation_5m_price": "0", "cache_creation_30m_price": "3.75",
+            "cache_creation_1h_price": "0", "image_price": "0", "enabled": true
+        }]),
+    );
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+
+    let outcome = crate::pipeline::execute(&state, claude_ctx("claude-test", false))
+        .await
+        .expect("pipeline ok");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("expected Full")
+    };
+    let returned: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(returned["usage"]["cache_read_input_tokens"], 600);
+    assert_eq!(returned["usage"]["cache_creation_input_tokens"], 200);
+
+    let row = wait_usage(&state).await;
+    assert_eq!(row.input_tokens, 200);
+    assert_eq!(row.cache_read_tokens, 600);
+    assert_eq!(row.cache_creation_30m_tokens, 200);
+    // 200 input × $3/M + 500 output × $15/M + 200 cache write × $3.75/M.
+    assert_eq!(row.cost, "0.00885".parse().unwrap());
+}
+
 #[tokio::test]
 async fn transformed_stream_settles_provider_usage_before_response_conversion() {
     let chunk = r#"data: {"id":"c","object":"chat.completion.chunk","created":0,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":null}]}"#;

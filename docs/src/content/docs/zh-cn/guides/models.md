@@ -74,4 +74,4 @@ Routing rule 决定 provider 对该 operation 使用 `local`、`passthrough`、`
 3. provider contains；
 4. global contains。
 
-价格字段包括 `input_price`、`output_price`、`cache_read_price`、`cache_creation_5m_price`、`cache_creation_1h_price` 和 `image_price`。Token 价格是每百万 token。图片价格是每张图片的 flat value。没有匹配规则时默认为 0：usage 仍会记录，但该调用不产生费用。
+价格字段包括 `input_price`、`output_price`、`cache_read_price`、`cache_creation_5m_price`、`cache_creation_30m_price`、`cache_creation_1h_price` 和 `image_price`。Token 价格是每百万 token。图片价格是每张图片的 flat value。没有匹配规则时默认为 0：usage 仍会记录，但该调用不产生费用。

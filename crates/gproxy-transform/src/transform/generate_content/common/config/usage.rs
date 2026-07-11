@@ -8,14 +8,15 @@ pub(in crate::transform::generate_content) fn completion_usage_to_claude(
     let Some(usage) = usage else {
         return empty_claude_usage();
     };
+    let (cached_tokens, cache_write_tokens) = usage
+        .prompt_tokens_details
+        .map(|details| (details.cached_tokens, details.cache_write_tokens))
+        .unwrap_or((None, None));
     claude::Usage {
         input_tokens: Some(u32_to_u64(usage.prompt_tokens)),
         output_tokens: Some(u32_to_u64(usage.completion_tokens)),
-        cache_creation_input_tokens: None,
-        cache_read_input_tokens: usage
-            .prompt_tokens_details
-            .and_then(|details| details.cached_tokens)
-            .map(u32_to_u64),
+        cache_creation_input_tokens: cache_write_tokens.map(u32_to_u64),
+        cache_read_input_tokens: cached_tokens.map(u32_to_u64),
         cache_creation: None,
         output_tokens_details: usage.completion_tokens_details.and_then(|details| {
             details
@@ -57,6 +58,7 @@ pub(in crate::transform::generate_content) fn claude_usage_to_completion(
     let prompt_tokens = usage.input_tokens.map(u64_to_u32).unwrap_or_default();
     let completion_tokens = usage.output_tokens.map(u64_to_u32).unwrap_or_default();
     let cached_tokens = usage.cache_read_input_tokens.map(u64_to_u32);
+    let cache_write_tokens = usage.cache_creation_total().map(u64_to_u32);
     let reasoning_tokens = usage
         .output_tokens_details
         .map(|details| u64_to_u32(details.thinking_tokens));
@@ -74,12 +76,14 @@ pub(in crate::transform::generate_content) fn claude_usage_to_completion(
                 extra: Default::default(),
             }
         }),
-        prompt_tokens_details: cached_tokens.map(|cached_tokens| openai::PromptTokensDetails {
-            audio_tokens: None,
-            cache_write_tokens: None,
-            cached_tokens: Some(cached_tokens),
-            extra: Default::default(),
-        }),
+        prompt_tokens_details: (cached_tokens.is_some() || cache_write_tokens.is_some()).then(
+            || openai::PromptTokensDetails {
+                audio_tokens: None,
+                cache_write_tokens,
+                cached_tokens,
+                extra: Default::default(),
+            },
+        ),
         extra: Default::default(),
     }
 }

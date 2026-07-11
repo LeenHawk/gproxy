@@ -28,6 +28,7 @@ pub(crate) async fn upsert(root: &Path, input: PriceRuleInput) -> anyhow::Result
                 row.output_price = input.output_price;
                 row.cache_read_price = input.cache_read_price;
                 row.cache_creation_5m_price = input.cache_creation_5m_price;
+                row.cache_creation_30m_price = input.cache_creation_30m_price;
                 row.cache_creation_1h_price = input.cache_creation_1h_price;
                 row.image_price = input.image_price;
                 row.enabled = input.enabled;
@@ -46,6 +47,7 @@ pub(crate) async fn upsert(root: &Path, input: PriceRuleInput) -> anyhow::Result
                     output_price: input.output_price,
                     cache_read_price: input.cache_read_price,
                     cache_creation_5m_price: input.cache_creation_5m_price,
+                    cache_creation_30m_price: input.cache_creation_30m_price,
                     cache_creation_1h_price: input.cache_creation_1h_price,
                     image_price: input.image_price,
                     enabled: input.enabled,
@@ -68,6 +70,7 @@ pub(crate) async fn upsert(root: &Path, input: PriceRuleInput) -> anyhow::Result
                 output_price: input.output_price,
                 cache_read_price: input.cache_read_price,
                 cache_creation_5m_price: input.cache_creation_5m_price,
+                cache_creation_30m_price: input.cache_creation_30m_price,
                 cache_creation_1h_price: input.cache_creation_1h_price,
                 image_price: input.image_price,
                 enabled: input.enabled,

@@ -193,6 +193,21 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
         record_version(conn, m.version).await?;
     }
     repair_price_rules_schema(conn, dialect).await?;
+    repair_usage_schema(conn, dialect).await?;
+    Ok(())
+}
+
+async fn repair_usage_schema(
+    conn: &DatabaseConnection,
+    dialect: MigrationDialect,
+) -> anyhow::Result<()> {
+    let cols = table_columns(conn, dialect, "usages").await?;
+    if !cols.is_empty() && !cols.contains("cache_creation_30m_tokens") {
+        conn.execute_unprepared(
+            "ALTER TABLE usages ADD COLUMN cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0",
+        )
+        .await?;
+    }
     Ok(())
 }
 
@@ -217,6 +232,7 @@ async fn repair_price_rules_schema(
         "output_price",
         "cache_read_price",
         "cache_creation_5m_price",
+        "cache_creation_30m_price",
         "cache_creation_1h_price",
         "image_price",
     ] {
@@ -296,6 +312,7 @@ async fn rebuild_sqlite_price_rules_table(conn: &DatabaseConnection) -> anyhow::
             output_price TEXT NOT NULL, \
             cache_read_price TEXT NOT NULL, \
             cache_creation_5m_price TEXT NOT NULL, \
+            cache_creation_30m_price TEXT NOT NULL, \
             cache_creation_1h_price TEXT NOT NULL, \
             image_price TEXT NOT NULL, \
             enabled INTEGER NOT NULL, \
@@ -304,11 +321,11 @@ async fn rebuild_sqlite_price_rules_table(conn: &DatabaseConnection) -> anyhow::
         "INSERT INTO price_rules_repaired \
             (id, provider_id, match_type, model_match, \
              input_price, output_price, cache_read_price, cache_creation_5m_price, \
-             cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
+             cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
          SELECT \
             id, provider_id, match_type, model_match, \
             input_price, output_price, cache_read_price, cache_creation_5m_price, \
-            cache_creation_1h_price, image_price, enabled, created_at, updated_at \
+            cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at \
          FROM price_rules",
         "DROP TABLE price_rules",
         "ALTER TABLE price_rules_repaired RENAME TO price_rules",

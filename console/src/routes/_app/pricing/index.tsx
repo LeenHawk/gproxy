@@ -83,6 +83,11 @@ function PricingPage() {
       cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_creation_5m_price}</span>,
     },
     {
+      key: "cache_creation_30m_price",
+      header: t("columns.cacheCreation30mPrice"),
+      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_creation_30m_price}</span>,
+    },
+    {
       key: "cache_creation_1h_price",
       header: t("columns.cacheCreation1hPrice"),
       cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_creation_1h_price}</span>,
@@ -177,6 +182,7 @@ function PricingPage() {
               <span>{t("columns.outputPrice")}: {r.output_price}</span>
               <span>{t("columns.cacheReadPrice")}: {r.cache_read_price}</span>
               <span>{t("columns.cacheCreation5mPrice")}: {r.cache_creation_5m_price}</span>
+              <span>{t("columns.cacheCreation30mPrice")}: {r.cache_creation_30m_price}</span>
               <span>{t("columns.cacheCreation1hPrice")}: {r.cache_creation_1h_price}</span>
               <span>{t("columns.imagePrice")}: {r.image_price}</span>
             </div>

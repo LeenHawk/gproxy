@@ -9,7 +9,7 @@ use crate::store::persistence::records::{PriceRule, PriceRuleInput};
 
 const COLS: &str = "id, provider_id, match_type, model_match, \
      input_price, output_price, cache_read_price, cache_creation_5m_price, \
-     cache_creation_1h_price, image_price, \
+     cache_creation_30m_price, cache_creation_1h_price, image_price, \
      enabled, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<PriceRule> {
@@ -22,11 +22,12 @@ fn decode(row: &Row) -> anyhow::Result<PriceRule> {
         output_price: col_str(row, 5)?.parse()?,
         cache_read_price: col_str(row, 6)?.parse()?,
         cache_creation_5m_price: col_str(row, 7)?.parse()?,
-        cache_creation_1h_price: col_str(row, 8)?.parse()?,
-        image_price: col_str(row, 9)?.parse()?,
-        enabled: col_bool(row, 10)?,
-        created_at: col_i64(row, 11)?,
-        updated_at: col_i64(row, 12)?,
+        cache_creation_30m_price: col_str(row, 8)?.parse()?,
+        cache_creation_1h_price: col_str(row, 9)?.parse()?,
+        image_price: col_str(row, 10)?.parse()?,
+        enabled: col_bool(row, 11)?,
+        created_at: col_i64(row, 12)?,
+        updated_at: col_i64(row, 13)?,
     })
 }
 
@@ -59,7 +60,8 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                 client,
                 "UPDATE price_rules SET provider_id=?, match_type=?, model_match=?, \
                  input_price=?, output_price=?, cache_read_price=?, \
-                 cache_creation_5m_price=?, cache_creation_1h_price=?, image_price=?, \
+                 cache_creation_5m_price=?, cache_creation_30m_price=?, \
+                 cache_creation_1h_price=?, image_price=?, \
                  enabled=?, updated_at=? WHERE id=?",
                 &[
                     arg_opt_i64(input.provider_id),
@@ -69,6 +71,7 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                     arg_text(&input.output_price.to_string()),
                     arg_text(&input.cache_read_price.to_string()),
                     arg_text(&input.cache_creation_5m_price.to_string()),
+                    arg_text(&input.cache_creation_30m_price.to_string()),
                     arg_text(&input.cache_creation_1h_price.to_string()),
                     arg_text(&input.image_price.to_string()),
                     arg_bool(input.enabled),
@@ -85,9 +88,9 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                     "INSERT INTO price_rules \
                      (id, provider_id, match_type, model_match, \
                       input_price, output_price, cache_read_price, cache_creation_5m_price, \
-                      cache_creation_1h_price, image_price, \
+                      cache_creation_30m_price, cache_creation_1h_price, image_price, \
                       enabled, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_opt_i64(input.provider_id),
@@ -97,6 +100,7 @@ pub async fn upsert(client: &LibsqlClient, input: PriceRuleInput) -> anyhow::Res
                         arg_text(&input.output_price.to_string()),
                         arg_text(&input.cache_read_price.to_string()),
                         arg_text(&input.cache_creation_5m_price.to_string()),
+                        arg_text(&input.cache_creation_30m_price.to_string()),
                         arg_text(&input.cache_creation_1h_price.to_string()),
                         arg_text(&input.image_price.to_string()),
                         arg_bool(input.enabled),

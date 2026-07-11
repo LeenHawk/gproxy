@@ -40,6 +40,18 @@ pub struct CacheCreation {
     pub extra: JsonObject,
 }
 
+impl Usage {
+    /// Total cache-creation tokens: the aggregate field when present, else the
+    /// 5m/1h breakdown sum (either side may be absent on the wire).
+    pub fn cache_creation_total(&self) -> Option<u64> {
+        self.cache_creation_input_tokens.or_else(|| {
+            self.cache_creation
+                .as_ref()
+                .map(|c| c.ephemeral_5m_input_tokens + c.ephemeral_1h_input_tokens)
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutputTokensDetails {
     pub thinking_tokens: u64,

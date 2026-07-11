@@ -283,13 +283,15 @@ fn reasoning_to_claude_content(
 }
 
 fn openai_usage_to_claude(usage: openai::ResponseUsage) -> claude::Usage {
+    let details = usage.input_tokens_details;
     claude::Usage {
         input_tokens: Some(u64::from(usage.input_tokens)),
         output_tokens: Some(u64::from(usage.output_tokens)),
-        cache_creation_input_tokens: None,
-        cache_read_input_tokens: usage
-            .input_tokens_details
-            .map(|details| u64::from(details.cached_tokens)),
+        cache_creation_input_tokens: details
+            .as_ref()
+            .filter(|details| details.cache_write_tokens > 0)
+            .map(|details| u64::from(details.cache_write_tokens)),
+        cache_read_input_tokens: details.map(|details| u64::from(details.cached_tokens)),
         cache_creation: None,
         output_tokens_details: Some(claude::OutputTokensDetails {
             thinking_tokens: u64::from(usage.output_tokens_details.reasoning_tokens),

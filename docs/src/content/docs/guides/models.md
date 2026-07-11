@@ -97,6 +97,7 @@ The resolver checks:
 4. global contains.
 
 Price fields include `input_price`, `output_price`, `cache_read_price`,
-`cache_creation_5m_price`, `cache_creation_1h_price`, and `image_price`. Token
+`cache_creation_5m_price`, `cache_creation_30m_price`,
+`cache_creation_1h_price`, and `image_price`. Token
 prices are per million tokens. Image price is a flat per-image value. Missing
 rules default to zero: usage is still recorded, but the call bills nothing.

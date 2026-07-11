@@ -27,6 +27,7 @@ pricing 和 quota 相关但不是同一层：
   "output_price": "1.60",
   "cache_read_price": "0",
   "cache_creation_5m_price": "0",
+  "cache_creation_30m_price": "0",
   "cache_creation_1h_price": "0",
   "image_price": "0",
   "enabled": true
@@ -48,6 +49,7 @@ pricing 和 quota 相关但不是同一层：
 | `output_price` | 每百万 output token 价格。 |
 | `cache_read_price` | 每百万 cache-read token 价格。 |
 | `cache_creation_5m_price` | 每百万 5 分钟 cache-creation token 价格。 |
+| `cache_creation_30m_price` | 每百万 30 分钟 cache-creation token 价格。 |
 | `cache_creation_1h_price` | 每百万 1 小时 cache-creation token 价格。 |
 | `image_price` | 每张生成图片价格。 |
 
@@ -59,6 +61,7 @@ cost =
 + output_tokens * output_price / 1_000_000
 + cache_read_tokens * cache_read_price / 1_000_000
 + cache_creation_5m_tokens * cache_creation_5m_price / 1_000_000
++ cache_creation_30m_tokens * cache_creation_30m_price / 1_000_000
 + cache_creation_1h_tokens * cache_creation_1h_price / 1_000_000
 ```
 
@@ -139,6 +142,7 @@ JSON import/export 使用 `price_rules` 数组：
       "output_price": "1.60",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_price": "0",
       "enabled": true

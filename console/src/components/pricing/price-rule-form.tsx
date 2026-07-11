@@ -59,6 +59,7 @@ export function PriceRuleForm({
   const [outputPrice, setOutputPrice] = useState(() => decimalField(rule?.output_price));
   const [cacheReadPrice, setCacheReadPrice] = useState(() => decimalField(rule?.cache_read_price));
   const [cacheCreation5mPrice, setCacheCreation5mPrice] = useState(() => decimalField(rule?.cache_creation_5m_price));
+  const [cacheCreation30mPrice, setCacheCreation30mPrice] = useState(() => decimalField(rule?.cache_creation_30m_price));
   const [cacheCreation1hPrice, setCacheCreation1hPrice] = useState(() => decimalField(rule?.cache_creation_1h_price));
   const [imagePrice, setImagePrice] = useState(() => decimalField(rule?.image_price));
   const [formError, setFormError] = useState<string | null>(null);
@@ -76,6 +77,7 @@ export function PriceRuleForm({
         output_price: normalizeDecimal(outputPrice),
         cache_read_price: normalizeDecimal(cacheReadPrice),
         cache_creation_5m_price: normalizeDecimal(cacheCreation5mPrice),
+        cache_creation_30m_price: normalizeDecimal(cacheCreation30mPrice),
         cache_creation_1h_price: normalizeDecimal(cacheCreation1hPrice),
         image_price: normalizeDecimal(imagePrice),
         enabled,
@@ -158,6 +160,10 @@ export function PriceRuleForm({
           <div className="grid gap-2">
             <Label htmlFor="price-cache-creation-5m">{t("form.cacheCreation5mPrice")}</Label>
             <Input id="price-cache-creation-5m" inputMode="decimal" value={cacheCreation5mPrice} onChange={(e) => setCacheCreation5mPrice(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="price-cache-creation-30m">{t("form.cacheCreation30mPrice")}</Label>
+            <Input id="price-cache-creation-30m" inputMode="decimal" value={cacheCreation30mPrice} onChange={(e) => setCacheCreation30mPrice(e.target.value)} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="price-cache-creation-1h">{t("form.cacheCreation1hPrice")}</Label>

@@ -9,7 +9,7 @@
   "defaults": {
     "button": "加载默认价格",
     "title": "加载默认价格表",
-    "description": "导入随前端打包的 OpenRouter 默认价格规则，全部作为全局 contains 命中。",
+    "description": "导入随前端打包的 Provider 默认价格规则，全部作为全局 contains 命中。",
     "search": "搜索模型…",
     "selectAll": "全选当前结果",
     "selectNone": "清空当前结果",
@@ -30,6 +30,7 @@
     "outputPrice": "输出",
     "cacheReadPrice": "缓存读取",
     "cacheCreation5mPrice": "缓存创建 5m",
+    "cacheCreation30mPrice": "缓存创建 30m",
     "cacheCreation1hPrice": "缓存创建 1h",
     "imagePrice": "图片",
     "status": "状态"
@@ -59,6 +60,7 @@
     "outputPrice": "输出 / 每百万 tokens",
     "cacheReadPrice": "缓存读取 / 每百万 tokens",
     "cacheCreation5mPrice": "缓存创建 5m / 每百万 tokens",
+    "cacheCreation30mPrice": "缓存创建 30m / 每百万 tokens",
     "cacheCreation1hPrice": "缓存创建 1h / 每百万 tokens",
     "imagePrice": "图片 / 每张",
     "pricesHint": "留空按 0 处理。值是美元 decimal。",

@@ -274,9 +274,7 @@ pub(in crate::transform::generate_content) fn response_usage_to_completion(
     usage: Option<openai::ResponseUsage>,
 ) -> Option<openai::CompletionUsage> {
     let usage = usage?;
-    let cached_tokens = usage
-        .input_tokens_details
-        .map(|details| details.cached_tokens);
+    let details = usage.input_tokens_details;
     let reasoning_tokens = usage.output_tokens_details.reasoning_tokens;
 
     Some(openai::CompletionUsage {
@@ -292,10 +290,11 @@ pub(in crate::transform::generate_content) fn response_usage_to_completion(
                 extra: Default::default(),
             },
         ),
-        prompt_tokens_details: cached_tokens.map(|cached_tokens| openai::PromptTokensDetails {
+        prompt_tokens_details: details.map(|details| openai::PromptTokensDetails {
             audio_tokens: None,
-            cache_write_tokens: None,
-            cached_tokens: Some(cached_tokens),
+            cache_write_tokens: (details.cache_write_tokens > 0)
+                .then_some(details.cache_write_tokens),
+            cached_tokens: Some(details.cached_tokens),
             extra: Default::default(),
         }),
         extra: Default::default(),
@@ -306,9 +305,10 @@ pub(in crate::transform::generate_content) fn completion_usage_to_response(
     usage: Option<openai::CompletionUsage>,
 ) -> Option<openai::ResponseUsage> {
     let usage = usage?;
-    let cached_tokens = usage
+    let (cached_tokens, cache_write_tokens) = usage
         .prompt_tokens_details
-        .and_then(|details| details.cached_tokens);
+        .map(|details| (details.cached_tokens, details.cache_write_tokens))
+        .unwrap_or((None, None));
     let reasoning_tokens = usage
         .completion_tokens_details
         .and_then(|details| details.reasoning_tokens)
@@ -318,13 +318,13 @@ pub(in crate::transform::generate_content) fn completion_usage_to_response(
         input_tokens: usage.prompt_tokens,
         output_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
-        input_tokens_details: cached_tokens.map(|cached_tokens| {
-            openai::ResponseInputTokensDetails {
-                cache_write_tokens: 0,
-                cached_tokens,
+        input_tokens_details: (cached_tokens.is_some() || cache_write_tokens.is_some()).then(
+            || openai::ResponseInputTokensDetails {
+                cache_write_tokens: cache_write_tokens.unwrap_or_default(),
+                cached_tokens: cached_tokens.unwrap_or_default(),
                 extra: Default::default(),
-            }
-        }),
+            },
+        ),
         output_tokens_details: openai::ResponseOutputTokensDetails {
             reasoning_tokens,
             extra: Default::default(),

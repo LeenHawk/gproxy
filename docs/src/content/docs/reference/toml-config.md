@@ -130,6 +130,7 @@ pin explicit ids.
       "output_price": "1.60",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_price": "0",
       "enabled": true
