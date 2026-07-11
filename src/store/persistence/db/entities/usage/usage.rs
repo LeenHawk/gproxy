@@ -28,6 +28,8 @@ pub struct Model {
     pub output_tokens: i64,
     pub cache_read_tokens: i64,
     pub cache_creation_5m_tokens: i64,
+    #[sea_orm(default_value = 0)]
+    pub cache_creation_30m_tokens: i64,
     pub cache_creation_1h_tokens: i64,
     #[sea_orm(column_type = "Text")]
     pub cost: String,

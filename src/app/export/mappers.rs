@@ -107,6 +107,7 @@ pub(super) fn price_rule_to_input(r: PriceRule) -> PriceRuleInput {
         output_price: r.output_price,
         cache_read_price: r.cache_read_price,
         cache_creation_5m_price: r.cache_creation_5m_price,
+        cache_creation_30m_price: r.cache_creation_30m_price,
         cache_creation_1h_price: r.cache_creation_1h_price,
         image_price: r.image_price,
         enabled: r.enabled,

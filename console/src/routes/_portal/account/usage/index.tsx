@@ -102,12 +102,22 @@ function MyUsagePage() {
     },
     {
       key: "cache",
-      header: `${tObs("usage.columns.cacheWrite")} (5m/1h) / ${tObs("usage.columns.cacheRead")}`,
+      header: `${tObs("usage.columns.cacheWrite")} (5m/1h)`,
       cell: (r) => (
         <span className="tabular-nums text-xs">
-          {r.cache_creation_5m_tokens} / {r.cache_creation_1h_tokens} / {r.cache_read_tokens}
+          {r.cache_creation_5m_tokens} / {r.cache_creation_1h_tokens}
         </span>
       ),
+    },
+    {
+      key: "cache30m",
+      header: `${tObs("usage.columns.cacheWrite")} (30m)`,
+      cell: (r) => <span className="tabular-nums text-xs">{r.cache_creation_30m_tokens}</span>,
+    },
+    {
+      key: "cacheRead",
+      header: tObs("usage.columns.cacheRead"),
+      cell: (r) => <span className="tabular-nums text-xs">{r.cache_read_tokens}</span>,
     },
     {
       key: "cost",

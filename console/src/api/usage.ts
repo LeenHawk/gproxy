@@ -19,6 +19,7 @@ export interface Usage {
   output_tokens: number;
   cache_read_tokens: number;
   cache_creation_5m_tokens: number;
+  cache_creation_30m_tokens: number;
   cache_creation_1h_tokens: number;
   cost: string;
   latency_ms: number;

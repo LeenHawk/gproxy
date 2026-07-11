@@ -899,6 +899,7 @@ mod tests {
                     output_tokens: 20,
                     cache_read_tokens: 0,
                     cache_creation_5m_tokens: 0,
+                    cache_creation_30m_tokens: 0,
                     cache_creation_1h_tokens: 0,
                     cost: Decimal::ZERO,
                     latency_ms: 0,

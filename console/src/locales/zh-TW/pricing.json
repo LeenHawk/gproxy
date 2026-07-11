@@ -9,7 +9,7 @@
   "defaults": {
     "button": "載入預設價格",
     "title": "載入預設價格表",
-    "description": "匯入隨前端打包的 OpenRouter 預設價格規則，全部作為全域 contains 命中。",
+    "description": "匯入隨前端打包的 Provider 預設價格規則，全部作為全域 contains 命中。",
     "search": "搜尋模型…",
     "selectAll": "全選目前結果",
     "selectNone": "清空目前結果",
@@ -30,6 +30,7 @@
     "outputPrice": "輸出",
     "cacheReadPrice": "快取讀取",
     "cacheCreation5mPrice": "快取建立 5m",
+    "cacheCreation30mPrice": "快取建立 30m",
     "cacheCreation1hPrice": "快取建立 1h",
     "imagePrice": "圖片",
     "status": "狀態"
@@ -59,6 +60,7 @@
     "outputPrice": "輸出 / 每百萬 tokens",
     "cacheReadPrice": "快取讀取 / 每百萬 tokens",
     "cacheCreation5mPrice": "快取建立 5m / 每百萬 tokens",
+    "cacheCreation30mPrice": "快取建立 30m / 每百萬 tokens",
     "cacheCreation1hPrice": "快取建立 1h / 每百萬 tokens",
     "imagePrice": "圖片 / 每張",
     "pricesHint": "留空按 0 處理。值是美元 decimal。",

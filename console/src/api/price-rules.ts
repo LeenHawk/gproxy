@@ -10,6 +10,7 @@ export interface PriceRule {
   output_price: string;
   cache_read_price: string;
   cache_creation_5m_price: string;
+  cache_creation_30m_price: string;
   cache_creation_1h_price: string;
   image_price: string;
   enabled: boolean;
@@ -26,6 +27,7 @@ export interface PriceRuleInput {
   output_price: string;
   cache_read_price: string;
   cache_creation_5m_price: string;
+  cache_creation_30m_price: string;
   cache_creation_1h_price: string;
   image_price: string;
   enabled: boolean;

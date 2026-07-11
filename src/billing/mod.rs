@@ -75,6 +75,7 @@ pub async fn record_success(
         output_tokens: tok(rec.usage.output),
         cache_read_tokens: tok(rec.usage.cache_read),
         cache_creation_5m_tokens: tok(rec.usage.cache_creation_5m),
+        cache_creation_30m_tokens: tok(rec.usage.cache_creation_30m),
         cache_creation_1h_tokens: tok(rec.usage.cache_creation_1h),
         cost: rec.cost,
         latency_ms: rec.latency_ms,
@@ -144,6 +145,7 @@ mod tests {
             input: 1500,
             output: 100,
             cache_creation_5m: 200,
+            cache_creation_30m: 400,
             cache_creation_1h: 300,
             ..Default::default()
         };
@@ -175,6 +177,7 @@ mod tests {
         assert_eq!(rows[0].usage_source, "upstream");
         assert_eq!(rows[0].ended, "complete");
         assert_eq!(rows[0].cache_creation_5m_tokens, 200);
+        assert_eq!(rows[0].cache_creation_30m_tokens, 400);
         assert_eq!(rows[0].cache_creation_1h_tokens, 300);
 
         // Rollups counted exactly once per granularity.
@@ -186,7 +189,7 @@ mod tests {
             assert_eq!(rollups.len(), 1, "{gran}");
             assert_eq!(rollups[0].requests, 1, "{gran}");
             assert_eq!(rollups[0].input_tokens, 1500, "{gran}");
-            assert_eq!(rollups[0].cache_write_tokens, 500, "{gran}");
+            assert_eq!(rollups[0].cache_write_tokens, 900, "{gran}");
         }
     }
 }

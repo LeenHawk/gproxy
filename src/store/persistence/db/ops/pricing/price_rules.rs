@@ -16,6 +16,7 @@ fn to_record(m: price_rule::Model) -> anyhow::Result<PriceRule> {
         output_price: m.output_price.parse()?,
         cache_read_price: m.cache_read_price.parse()?,
         cache_creation_5m_price: m.cache_creation_5m_price.parse()?,
+        cache_creation_30m_price: m.cache_creation_30m_price.parse()?,
         cache_creation_1h_price: m.cache_creation_1h_price.parse()?,
         image_price: m.image_price.parse()?,
         enabled: m.enabled,
@@ -39,6 +40,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
     let output_price = input.output_price.to_string();
     let cache_read_price = input.cache_read_price.to_string();
     let cache_creation_5m_price = input.cache_creation_5m_price.to_string();
+    let cache_creation_30m_price = input.cache_creation_30m_price.to_string();
     let cache_creation_1h_price = input.cache_creation_1h_price.to_string();
     let image_price = input.image_price.to_string();
 
@@ -53,6 +55,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
                 am.output_price = Set(output_price);
                 am.cache_read_price = Set(cache_read_price);
                 am.cache_creation_5m_price = Set(cache_creation_5m_price);
+                am.cache_creation_30m_price = Set(cache_creation_30m_price);
                 am.cache_creation_1h_price = Set(cache_creation_1h_price);
                 am.image_price = Set(image_price);
                 am.enabled = Set(input.enabled);
@@ -69,6 +72,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
                     output_price: Set(output_price),
                     cache_read_price: Set(cache_read_price),
                     cache_creation_5m_price: Set(cache_creation_5m_price),
+                    cache_creation_30m_price: Set(cache_creation_30m_price),
                     cache_creation_1h_price: Set(cache_creation_1h_price),
                     image_price: Set(image_price),
                     enabled: Set(input.enabled),
@@ -89,6 +93,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: PriceRuleInput) -> anyhow:
                 output_price: Set(output_price),
                 cache_read_price: Set(cache_read_price),
                 cache_creation_5m_price: Set(cache_creation_5m_price),
+                cache_creation_30m_price: Set(cache_creation_30m_price),
                 cache_creation_1h_price: Set(cache_creation_1h_price),
                 image_price: Set(image_price),
                 enabled: Set(input.enabled),

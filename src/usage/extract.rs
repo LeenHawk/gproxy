@@ -100,6 +100,7 @@ fn claude_usage(usage: &Value) -> NormalizedUsage {
         output: field(usage, "output_tokens"),
         cache_read: field(usage, "cache_read_input_tokens"),
         cache_creation_5m,
+        cache_creation_30m: 0,
         cache_creation_1h,
         reasoning: 0,
     }
@@ -116,7 +117,7 @@ fn openai_usage(usage: &Value) -> Option<NormalizedUsage> {
     }
 }
 
-/// OpenAI chat completions: `prompt_tokens` INCLUDES cached → subtract.
+/// OpenAI chat completions: `prompt_tokens` INCLUDES cache reads/writes → subtract.
 /// GPT-5.6+ reports explicit/implicit cache writes as `cache_write_tokens`.
 fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
     let prompt = field(usage, "prompt_tokens");
@@ -127,16 +128,16 @@ fn openai_chat_usage(usage: &Value) -> NormalizedUsage {
         .get("completion_tokens_details")
         .map_or(0, |d| field(d, "reasoning_tokens"));
     NormalizedUsage {
-        input: prompt.saturating_sub(cached),
+        input: prompt.saturating_sub(cached).saturating_sub(cache_write),
         output: field(usage, "completion_tokens"),
         cache_read: cached,
-        cache_creation_5m: cache_write,
+        cache_creation_30m: cache_write,
         reasoning,
         ..Default::default()
     }
 }
 
-/// OpenAI responses: `input_tokens` INCLUDES cached → subtract.
+/// OpenAI responses: `input_tokens` INCLUDES cache reads/writes → subtract.
 /// GPT-5.6+ reports explicit/implicit cache writes as `cache_write_tokens`.
 fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
     let input = field(usage, "input_tokens");
@@ -147,10 +148,10 @@ fn openai_responses_usage(usage: &Value) -> NormalizedUsage {
         .get("output_tokens_details")
         .map_or(0, |d| field(d, "reasoning_tokens"));
     NormalizedUsage {
-        input: input.saturating_sub(cached),
+        input: input.saturating_sub(cached).saturating_sub(cache_write),
         output: field(usage, "output_tokens"),
         cache_read: cached,
-        cache_creation_5m: cache_write,
+        cache_creation_30m: cache_write,
         reasoning,
         ..Default::default()
     }
@@ -259,21 +260,25 @@ mod tests {
     }
 
     #[test]
-    fn openai_chat_response_cached_and_reasoning() {
-        let body = json!({
+    fn openai_usage_cache_write() {
+        let chat = json!({
             "usage": {
                 "prompt_tokens": 1000,
                 "completion_tokens": 200,
-                "prompt_tokens_details": {"cached_tokens": 600},
+                "prompt_tokens_details": {
+                    "cached_tokens": 600,
+                    "cache_write_tokens": 150
+                },
                 "completion_tokens_details": {"reasoning_tokens": 80}
             }
         });
-        let u = from_response(Provider::OpenAi, &body).unwrap();
-        assert_eq!(u.input, 400); // prompt - cached
+        let u = from_response(Provider::OpenAi, &chat).unwrap();
+        assert_eq!(u.input, 250); // prompt - cache read - cache write
         assert_eq!(u.cache_read, 600);
+        assert_eq!(u.cache_creation_30m, 150);
         assert_eq!(u.output, 200);
         assert_eq!(u.reasoning, 80);
-        assert_eq!(u.cache_creation(), 0);
+        assert_eq!(u.cache_creation(), 150);
 
         // Missing details → cache 0, full input.
         let plain = json!({"usage": {"prompt_tokens": 1000, "completion_tokens": 200}});
@@ -281,6 +286,24 @@ mod tests {
         assert_eq!(u.input, 1000);
         assert_eq!(u.cache_read, 0);
         assert_eq!(u.reasoning, 0);
+
+        let responses = json!({
+            "usage": {
+                "input_tokens": 1000,
+                "output_tokens": 200,
+                "input_tokens_details": {
+                    "cached_tokens": 600,
+                    "cache_write_tokens": 150
+                },
+                "output_tokens_details": {"reasoning_tokens": 80}
+            }
+        });
+        let u = from_response(Provider::OpenAi, &responses).unwrap();
+        assert_eq!(u.input, 250);
+        assert_eq!(u.cache_read, 600);
+        assert_eq!(u.cache_creation_30m, 150);
+        assert_eq!(u.output, 200);
+        assert_eq!(u.reasoning, 80);
     }
 
     #[test]

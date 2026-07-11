@@ -13,7 +13,8 @@ use serde_json::Value;
 
 const COLS: &str = "id, request_id, at, route_name, provider_id, credential_id, org_id, team_id, \
      user_id, user_key_id, operation, kind, model, input_tokens, output_tokens, \
-     cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, cost, latency_ms, \
+     cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
+     cache_creation_1h_tokens, cost, latency_ms, \
      usage_source, ended, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<Usage> {
@@ -35,13 +36,14 @@ fn decode(row: &Row) -> anyhow::Result<Usage> {
         output_tokens: col_i64(row, 14)?,
         cache_read_tokens: col_i64(row, 15)?,
         cache_creation_5m_tokens: col_i64(row, 16)?,
-        cache_creation_1h_tokens: col_i64(row, 17)?,
-        cost: col_decimal(row, 18)?,
-        latency_ms: col_i64(row, 19)?,
-        usage_source: col_str(row, 20)?,
-        ended: col_str(row, 21)?,
-        created_at: col_i64(row, 22)?,
-        updated_at: col_i64(row, 23)?,
+        cache_creation_30m_tokens: col_i64(row, 17)?,
+        cache_creation_1h_tokens: col_i64(row, 18)?,
+        cost: col_decimal(row, 19)?,
+        latency_ms: col_i64(row, 20)?,
+        usage_source: col_str(row, 21)?,
+        ended: col_str(row, 22)?,
+        created_at: col_i64(row, 23)?,
+        updated_at: col_i64(row, 24)?,
     })
 }
 
@@ -65,9 +67,10 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
             "INSERT INTO usages \
              (request_id, at, route_name, provider_id, credential_id, org_id, team_id, user_id, \
               user_key_id, operation, kind, model, input_tokens, output_tokens, \
-              cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, cost, \
+              cache_read_tokens, cache_creation_5m_tokens, cache_creation_30m_tokens, \
+              cache_creation_1h_tokens, cost, \
               latency_ms, usage_source, ended, created_at, updated_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             &[
                 arg_text(&input.request_id),
                 arg_integer(input.at),
@@ -85,6 +88,7 @@ pub async fn append(client: &LibsqlClient, input: UsageInput) -> anyhow::Result<
                 arg_integer(input.output_tokens),
                 arg_integer(input.cache_read_tokens),
                 arg_integer(input.cache_creation_5m_tokens),
+                arg_integer(input.cache_creation_30m_tokens),
                 arg_integer(input.cache_creation_1h_tokens),
                 arg_text(&input.cost.to_string()),
                 arg_integer(input.latency_ms),

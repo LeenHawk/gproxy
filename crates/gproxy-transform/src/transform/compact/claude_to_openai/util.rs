@@ -151,6 +151,7 @@ pub(super) fn claude_usage_to_openai(usage: claude::Usage) -> openai::ResponseUs
     let input_tokens = u64_to_u32(usage.input_tokens.unwrap_or_default());
     let output_tokens = u64_to_u32(usage.output_tokens.unwrap_or_default());
     let cached_tokens = usage.cache_read_input_tokens.map(u64_to_u32);
+    let cache_write_tokens = usage.cache_creation_total().map(u64_to_u32);
     let reasoning_tokens = usage
         .output_tokens_details
         .map(|details| u64_to_u32(details.thinking_tokens))
@@ -160,13 +161,13 @@ pub(super) fn claude_usage_to_openai(usage: claude::Usage) -> openai::ResponseUs
         input_tokens,
         output_tokens,
         total_tokens: input_tokens.saturating_add(output_tokens),
-        input_tokens_details: cached_tokens.map(|cached_tokens| {
-            openai::ResponseInputTokensDetails {
-                cache_write_tokens: 0,
-                cached_tokens,
+        input_tokens_details: (cached_tokens.is_some() || cache_write_tokens.is_some()).then(
+            || openai::ResponseInputTokensDetails {
+                cache_write_tokens: cache_write_tokens.unwrap_or_default(),
+                cached_tokens: cached_tokens.unwrap_or_default(),
                 extra: Default::default(),
-            }
-        }),
+            },
+        ),
         output_tokens_details: openai::ResponseOutputTokensDetails {
             reasoning_tokens,
             extra: Default::default(),

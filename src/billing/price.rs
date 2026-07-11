@@ -12,6 +12,7 @@ pub struct Pricing {
     pub output: Decimal,
     pub cache_read: Decimal,
     pub cache_creation_5m: Decimal,
+    pub cache_creation_30m: Decimal,
     pub cache_creation_1h: Decimal,
     /// Flat price PER IMAGE (not per-million) — image generation is billed by
     /// count, not tokens. Zero when unconfigured.
@@ -26,6 +27,7 @@ pub fn pricing_from_rule(rule: &PriceRule) -> Pricing {
         output: rule.output_price,
         cache_read: rule.cache_read_price,
         cache_creation_5m: rule.cache_creation_5m_price,
+        cache_creation_30m: rule.cache_creation_30m_price,
         cache_creation_1h: rule.cache_creation_1h_price,
         image: rule.image_price,
     }
@@ -38,6 +40,7 @@ pub fn cost(u: &NormalizedUsage, p: &Pricing) -> Decimal {
         + Decimal::from(u.output) * p.output
         + Decimal::from(u.cache_read) * p.cache_read
         + Decimal::from(u.cache_creation_5m) * p.cache_creation_5m
+        + Decimal::from(u.cache_creation_30m) * p.cache_creation_30m
         + Decimal::from(u.cache_creation_1h) * p.cache_creation_1h)
         / million
 }
@@ -57,6 +60,7 @@ mod tests {
             output_price: Decimal::from(15),
             cache_read_price: "0.30".parse::<Decimal>().unwrap(),
             cache_creation_5m_price: "3.75".parse::<Decimal>().unwrap(),
+            cache_creation_30m_price: "3.75".parse::<Decimal>().unwrap(),
             cache_creation_1h_price: Decimal::from(6),
             image_price: "0.04".parse::<Decimal>().unwrap(),
             enabled: true,
@@ -68,6 +72,7 @@ mod tests {
         assert_eq!(p.output, Decimal::from(15));
         assert_eq!(p.cache_read, "0.30".parse::<Decimal>().unwrap());
         assert_eq!(p.cache_creation_5m, "3.75".parse::<Decimal>().unwrap());
+        assert_eq!(p.cache_creation_30m, "3.75".parse::<Decimal>().unwrap());
         assert_eq!(p.cache_creation_1h, Decimal::from(6));
 
         // Per-image flat rate (image generation is billed by count, not tokens).
@@ -83,10 +88,11 @@ mod tests {
             output: 2000,
             cache_read: 10_000,
             cache_creation_5m: 200,
+            cache_creation_30m: 400,
             cache_creation_1h: 300,
             reasoning: 0,
         };
-        let expected: Decimal = "0.04005".parse().unwrap();
+        let expected: Decimal = "0.04155".parse().unwrap();
         assert_eq!(cost(&u, &p), expected);
         assert_eq!(
             cost(

@@ -281,6 +281,14 @@ pub const MIGRATIONS: &[Migration] = &[
         description: "price_rules: explicit prices and split cache-creation prices",
         sql: MigrationSql::Shared(&[]),
     },
+    Migration {
+        version: 10,
+        description: "OpenAI 30-minute cache-write usage and pricing",
+        // Column repair is existence-aware in both SQL runners. Keeping the
+        // version marker here avoids duplicate-column failures when baseline
+        // creation already materialized a previously absent table.
+        sql: MigrationSql::Shared(&[]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

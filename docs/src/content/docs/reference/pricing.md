@@ -28,6 +28,7 @@ written or imported.
   "output_price": "1.60",
   "cache_read_price": "0",
   "cache_creation_5m_price": "0",
+  "cache_creation_30m_price": "0",
   "cache_creation_1h_price": "0",
   "image_price": "0",
   "enabled": true
@@ -49,6 +50,7 @@ Supported fields:
 | `output_price` | Per-million output token price. |
 | `cache_read_price` | Per-million cache-read token price. |
 | `cache_creation_5m_price` | Per-million 5-minute cache-creation token price. |
+| `cache_creation_30m_price` | Per-million 30-minute cache-creation token price. |
 | `cache_creation_1h_price` | Per-million 1-hour cache-creation token price. |
 | `image_price` | Per generated image price. |
 
@@ -60,6 +62,7 @@ cost =
 + output_tokens * output_price / 1_000_000
 + cache_read_tokens * cache_read_price / 1_000_000
 + cache_creation_5m_tokens * cache_creation_5m_price / 1_000_000
++ cache_creation_30m_tokens * cache_creation_30m_price / 1_000_000
 + cache_creation_1h_tokens * cache_creation_1h_price / 1_000_000
 ```
 
@@ -143,6 +146,7 @@ JSON import/export uses the `price_rules` array:
       "output_price": "1.60",
       "cache_read_price": "0",
       "cache_creation_5m_price": "0",
+      "cache_creation_30m_price": "0",
       "cache_creation_1h_price": "0",
       "image_price": "0",
       "enabled": true

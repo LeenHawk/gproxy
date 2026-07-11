@@ -19,6 +19,8 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub cache_creation_5m_price: String,
     #[sea_orm(column_type = "Text")]
+    pub cache_creation_30m_price: String,
+    #[sea_orm(column_type = "Text")]
     pub cache_creation_1h_price: String,
     #[sea_orm(column_type = "Text")]
     pub image_price: String,

@@ -69,6 +69,7 @@ const TABLES: &[&str] = &[
         output_price TEXT NOT NULL, \
         cache_read_price TEXT NOT NULL, \
         cache_creation_5m_price TEXT NOT NULL, \
+        cache_creation_30m_price TEXT NOT NULL, \
         cache_creation_1h_price TEXT NOT NULL, \
         image_price TEXT NOT NULL, \
         enabled INTEGER NOT NULL, \
@@ -225,6 +226,7 @@ const TABLES: &[&str] = &[
         output_tokens INTEGER NOT NULL, \
         cache_read_tokens INTEGER NOT NULL, \
         cache_creation_5m_tokens INTEGER NOT NULL, \
+        cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0, \
         cache_creation_1h_tokens INTEGER NOT NULL, \
         cost TEXT NOT NULL, \
         latency_ms INTEGER NOT NULL DEFAULT 0, \
@@ -368,6 +370,29 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
         record_version(client, m.version).await?;
     }
     repair_price_rules_schema(client).await?;
+    repair_usage_schema(client).await?;
+    Ok(())
+}
+
+async fn repair_usage_schema(client: &LibsqlClient) -> anyhow::Result<()> {
+    let qr = client
+        .execute("PRAGMA table_info(usages)", &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql inspect usages columns failed: {e}"))?;
+    let cols = qr
+        .rows
+        .iter()
+        .map(|row| col_str(row, 1))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    if !cols.is_empty() && !cols.contains("cache_creation_30m_tokens") {
+        client
+            .execute(
+                "ALTER TABLE usages ADD COLUMN cache_creation_30m_tokens INTEGER NOT NULL DEFAULT 0",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair usages add 30m cache column: {e}"))?;
+    }
     Ok(())
 }
 
@@ -389,6 +414,7 @@ async fn repair_price_rules_schema(client: &LibsqlClient) -> anyhow::Result<()> 
         "output_price",
         "cache_read_price",
         "cache_creation_5m_price",
+        "cache_creation_30m_price",
         "cache_creation_1h_price",
         "image_price",
     ] {
@@ -453,6 +479,7 @@ async fn rebuild_price_rules_table_without_legacy_columns(
             output_price TEXT NOT NULL, \
             cache_read_price TEXT NOT NULL, \
             cache_creation_5m_price TEXT NOT NULL, \
+            cache_creation_30m_price TEXT NOT NULL, \
             cache_creation_1h_price TEXT NOT NULL, \
             image_price TEXT NOT NULL, \
             enabled INTEGER NOT NULL, \
@@ -461,11 +488,11 @@ async fn rebuild_price_rules_table_without_legacy_columns(
         "INSERT INTO price_rules_repaired \
             (id, provider_id, match_type, model_match, \
              input_price, output_price, cache_read_price, cache_creation_5m_price, \
-             cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
+             cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at) \
          SELECT \
             id, provider_id, match_type, model_match, \
             input_price, output_price, cache_read_price, cache_creation_5m_price, \
-            cache_creation_1h_price, image_price, enabled, created_at, updated_at \
+            cache_creation_30m_price, cache_creation_1h_price, image_price, enabled, created_at, updated_at \
          FROM price_rules",
         "DROP TABLE price_rules",
         "ALTER TABLE price_rules_repaired RENAME TO price_rules",

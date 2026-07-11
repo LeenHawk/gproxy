@@ -9,7 +9,7 @@
   "defaults": {
     "button": "Load defaults",
     "title": "Load default prices",
-    "description": "Import the bundled OpenRouter-derived default price rules as global contains matches.",
+    "description": "Import the bundled provider-derived default price rules as global contains matches.",
     "search": "Search models…",
     "selectAll": "Select all shown",
     "selectNone": "Clear shown",
@@ -30,6 +30,7 @@
     "outputPrice": "Output",
     "cacheReadPrice": "Cache read",
     "cacheCreation5mPrice": "Cache 5m",
+    "cacheCreation30mPrice": "Cache 30m",
     "cacheCreation1hPrice": "Cache 1h",
     "imagePrice": "Image",
     "status": "Status"
@@ -59,6 +60,7 @@
     "outputPrice": "Output / 1M tokens",
     "cacheReadPrice": "Cache read / 1M tokens",
     "cacheCreation5mPrice": "Cache creation 5m / 1M tokens",
+    "cacheCreation30mPrice": "Cache creation 30m / 1M tokens",
     "cacheCreation1hPrice": "Cache creation 1h / 1M tokens",
     "imagePrice": "Image / item",
     "pricesHint": "Leave empty for zero. Values are decimal dollars.",
