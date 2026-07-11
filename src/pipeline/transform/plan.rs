@@ -32,13 +32,22 @@ pub enum TransformPlan {
         source: OperationKey,
         target: OperationKey,
     },
+    /// Force a NON-STREAMING upstream for a streaming client. The buffered
+    /// response is converted back to the inbound wire and synthesized into the
+    /// client's streaming transport by the outer pipeline.
+    SynthesizeStream {
+        request_pair: Option<TransformPair>,
+        response_pair: Option<TransformPair>,
+        source: OperationKey,
+        target: OperationKey,
+    },
     /// Serve locally — no upstream call (§6.3).
     Local,
 }
 
 impl TransformPlan {
     pub fn is_transform(&self) -> bool {
-        matches!(self, Self::Transform { .. })
+        matches!(self, Self::Transform { .. } | Self::SynthesizeStream { .. })
     }
 
     /// `AggregateStream` forces a streaming upstream + collapse on a non-stream
@@ -47,11 +56,36 @@ impl TransformPlan {
         matches!(self, Self::AggregateStream { .. })
     }
 
+    pub fn is_synthesize_stream(&self) -> bool {
+        matches!(self, Self::SynthesizeStream { .. })
+    }
+
+    /// Whether the upstream HTTP response must be opened as a stream.
+    pub fn upstream_stream(&self, ctx: &RequestCtx) -> bool {
+        match self {
+            Self::SynthesizeStream { .. } => false,
+            _ => ctx.stream,
+        }
+    }
+
+    /// Whether settlement must interpret the provider response as SSE. An
+    /// aggregate plan may buffer the HTTP body, but its bytes are still an
+    /// event stream.
+    pub fn settle_stream(&self, ctx: &RequestCtx) -> bool {
+        match self {
+            Self::AggregateStream { .. } => true,
+            Self::SynthesizeStream { .. } => false,
+            _ => ctx.stream,
+        }
+    }
+
     /// The op to surface in [`ShapeCtx`](crate::channel::ShapeCtx): the routed
     /// target when one exists, else the inbound op.
     pub fn shape_op(&self, ctx: &RequestCtx) -> OperationKey {
         match self {
-            Self::Transform { target, .. } | Self::AggregateStream { target, .. } => *target,
+            Self::Transform { target, .. }
+            | Self::AggregateStream { target, .. }
+            | Self::SynthesizeStream { target, .. } => *target,
             _ => ctx.op.expect("classified before failover"),
         }
     }
@@ -59,12 +93,12 @@ impl TransformPlan {
     /// Target wire kind for the stream→object collapse (content-gen only).
     pub fn target_kind(&self) -> Option<ContentGenerationKind> {
         match self {
-            Self::AggregateStream { target, .. } | Self::Transform { target, .. } => {
-                match target.kind {
-                    OperationKind::ContentGeneration(k) => Some(k),
-                    OperationKind::Provider(_) => None,
-                }
-            }
+            Self::AggregateStream { target, .. }
+            | Self::Transform { target, .. }
+            | Self::SynthesizeStream { target, .. } => match target.kind {
+                OperationKind::ContentGeneration(k) => Some(k),
+                OperationKind::Provider(_) => None,
+            },
             _ => None,
         }
     }
@@ -86,6 +120,41 @@ pub fn plan_for(
         RoutingDecision::Local => Ok(TransformPlan::Local),
         RoutingDecision::Unsupported => Err(PipelineError::RuleUnsupported),
         RoutingDecision::TransformTo(target) if target == source => Ok(TransformPlan::Passthrough),
+        // Fake streaming: the client asked for a streaming operation but this
+        // route deliberately targets the non-stream operation. Fetch one full
+        // object, then synthesize the inbound protocol's stream events.
+        RoutingDecision::TransformTo(target)
+            if source.operation == Operation::StreamGenerateContent
+                && target.operation == Operation::GenerateContent =>
+        {
+            let (request_pair, response_pair) = if source.kind == target.kind {
+                (None, None)
+            } else {
+                let src = OperationKey {
+                    operation: Operation::GenerateContent,
+                    kind: source.kind,
+                };
+                let rp =
+                    transform::resolve(src, target).map_err(PipelineError::TransformRequest)?;
+                let sp =
+                    transform::resolve(target, src).map_err(PipelineError::TransformRequest)?;
+                if !dispatch::is_wired(rp) || !dispatch::is_wired(sp) {
+                    return Err(PipelineError::TransformRequest(
+                        TransformError::InvalidInput {
+                            reason: "synthesize-stream pair not wired for bytes dispatch"
+                                .to_owned(),
+                        },
+                    ));
+                }
+                (Some(rp), Some(sp))
+            };
+            Ok(TransformPlan::SynthesizeStream {
+                request_pair,
+                response_pair,
+                source,
+                target,
+            })
+        }
         // Force-stream routes (codex/kiro): inbound `GenerateContent` → upstream
         // `StreamGenerateContent`. The upstream only speaks event-streams; stream
         // it and collapse back to one object for non-stream clients. Any body
@@ -177,5 +246,58 @@ pub fn plan_for(
                 target,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::protocol::ContentGenerationKind as Kind;
+    use crate::transform::routing::{CompiledRoutingRule, RuleImpl};
+
+    fn plan(source_kind: Kind, target_kind: Kind) -> TransformPlan {
+        let mut cp = ControlPlaneSnapshot::empty(1);
+        cp.routing_rules_by_provider.insert(
+            7,
+            Arc::new(vec![CompiledRoutingRule {
+                operation: Operation::StreamGenerateContent,
+                kind: OperationKind::ContentGeneration(source_kind),
+                implementation: RuleImpl::TransformTo,
+                dest_operation: Some(Operation::GenerateContent),
+                dest_kind: Some(OperationKind::ContentGeneration(target_kind)),
+            }]),
+        );
+        plan_for(
+            &cp,
+            7,
+            OperationKey::content_generation(Operation::StreamGenerateContent, source_kind),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn stream_to_non_stream_same_kind_needs_no_wire_pair() {
+        assert!(matches!(
+            plan(Kind::OpenAiChatCompletions, Kind::OpenAiChatCompletions),
+            TransformPlan::SynthesizeStream {
+                request_pair: None,
+                response_pair: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn stream_to_non_stream_cross_kind_resolves_wire_pairs() {
+        assert!(matches!(
+            plan(Kind::OpenAiChatCompletions, Kind::ClaudeMessages),
+            TransformPlan::SynthesizeStream {
+                request_pair: Some(_),
+                response_pair: Some(_),
+                ..
+            }
+        ));
     }
 }

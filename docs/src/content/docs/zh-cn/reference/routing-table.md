@@ -81,6 +81,26 @@ operation 使用 provider family kind。
 }
 ```
 
+用非流式上游调用服务流式 Chat Completions 客户端：
+
+```json
+{
+  "provider_id": 1,
+  "operation": "stream_generate_content",
+  "kind": "open_ai_chat_completions",
+  "implementation": "transform_to",
+  "dest_operation": "generate_content",
+  "dest_kind": "open_ai_chat_completions",
+  "sort_order": 20,
+  "enabled": true
+}
+```
+
+该路由会强制上游返回完整缓冲响应，再合成入站流。等待期间，原生服务每
+15 秒发送一次保活：Claude 使用协议定义的 `ping`，SSE 协议使用注释，
+Gemini JSON 数组流使用合法 JSON 空白。Edge 构建会保持最终 wire shape，
+但当前 pipeline response body 是缓冲的，因此不能实时发送保活。
+
 在本地回答模型列表：
 
 ```json

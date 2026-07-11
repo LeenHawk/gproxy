@@ -198,7 +198,7 @@ fn egress(outcome: ExecOutcome, request_id: &str) -> Response {
     let mut builder = Response::builder().status(outcome.status);
     if let Some(h) = builder.headers_mut() {
         *h = sanitize_response_headers(&outcome.headers);
-        if outcome.status.is_success() && is_stream {
+        if outcome.status.is_success() && is_stream && !h.contains_key(CONTENT_TYPE) {
             h.insert(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
         }
         if let Ok(v) = HeaderValue::from_str(request_id) {

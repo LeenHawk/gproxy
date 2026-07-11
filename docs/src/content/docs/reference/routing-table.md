@@ -85,6 +85,27 @@ upstream:
 }
 ```
 
+Serve a streaming Chat Completions client from a non-streaming upstream call:
+
+```json
+{
+  "provider_id": 1,
+  "operation": "stream_generate_content",
+  "kind": "open_ai_chat_completions",
+  "implementation": "transform_to",
+  "dest_operation": "generate_content",
+  "dest_kind": "open_ai_chat_completions",
+  "sort_order": 20,
+  "enabled": true
+}
+```
+
+This route forces a buffered upstream response and synthesizes the inbound
+stream. While waiting, native servers emit a 15-second keepalive (Claude uses
+its protocol `ping`; SSE protocols use comments; Gemini JSON-array streams use
+JSON whitespace). Edge builds preserve the final wire shape but cannot emit
+live keepalives because their pipeline response body is buffered.
+
 Answer model listing locally:
 
 ```json

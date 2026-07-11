@@ -83,7 +83,7 @@ pub(super) async fn attempt(
     // the AuthDead retry is harmless.
     let shape = ShapeCtx {
         op: plan.shape_op(ctx),
-        stream: ctx.stream,
+        stream: plan.upstream_stream(ctx),
         status: StatusCode::OK,
         enable_magic_cache: cand
             .provider
@@ -218,7 +218,7 @@ pub(super) async fn attempt(
         send_once(
             client.as_ref(),
             direct_req.expect("a Direct prepared request"),
-            ctx.stream,
+            plan.upstream_stream(ctx),
         )
         .await
         .map_err(|e| e.to_string())
@@ -349,7 +349,7 @@ pub(super) async fn materialize(
         BodySource::Buffered(b) => {
             let shape = ShapeCtx {
                 op: plan.shape_op(ctx),
-                stream: ctx.stream,
+                stream: plan.upstream_stream(ctx),
                 status,
                 enable_magic_cache: false,
                 enable_claude_fable_fallback: false,
@@ -381,7 +381,7 @@ pub(super) async fn materialize(
                     b.clone()
                 }
             });
-            let settle_stream = ctx.stream || plan.is_aggregate_stream();
+            let settle_stream = plan.settle_stream(ctx);
             let settle = settle_ctx.map(|settle_ctx| BufferedSettle {
                 ctx: settle_ctx,
                 body: b.clone(),
@@ -489,6 +489,9 @@ fn materialize_buffered(
     status: StatusCode,
     b: Bytes,
 ) -> Result<ResponseBody, PipelineError> {
+    if status.is_success() && plan.is_synthesize_stream() {
+        return Ok(ResponseBody::Full(transform_step::response_body(plan, b)?));
+    }
     // Non-stream client over a force-streamed upstream (codex/kiro): collapse
     // the buffered event-stream into one object, then convert the target wire
     // back to the inbound wire.

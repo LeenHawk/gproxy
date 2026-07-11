@@ -11,13 +11,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-/** Destination protocols for transform_to are the content-generation kinds. */
-const DEST_KINDS = KINDS.slice(0, 5);
+const CONTENT_OPERATIONS = new Set<string>(["generate_content", "stream_generate_content"]);
+const CONTENT_KINDS = KINDS.slice(0, 5);
+const PROVIDER_KINDS = KINDS.slice(5);
 
 export interface CellInitial {
   operation: string;
   kind: string;
   implementation: string;
+  destOperation: string | null;
   destKind: string | null;
   ruleId?: number;
   sortOrder?: number;
@@ -41,6 +43,7 @@ export function RoutingCellEditor({
   const [operation, setOperation] = useState(initial.operation);
   const [kind, setKind] = useState(initial.kind);
   const [implementation, setImplementation] = useState(initial.implementation);
+  const [destOperation, setDestOperation] = useState(initial.destOperation ?? initial.operation);
   const [destKind, setDestKind] = useState(initial.destKind ?? "claude_messages");
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -52,7 +55,7 @@ export function RoutingCellEditor({
         operation,
         kind,
         implementation,
-        dest_operation: null, // backend defaults to the source operation
+        dest_operation: implementation === "transform_to" ? destOperation : null,
         dest_kind: implementation === "transform_to" ? destKind : null,
         sort_order: initial.sortOrder ?? 0,
         enabled: true,
@@ -114,17 +117,37 @@ export function RoutingCellEditor({
       </div>
 
       {implementation === "transform_to" && (
-        <div className="grid gap-2">
-          <Label>{t("routing.destKind")}</Label>
-          <Select value={destKind} onValueChange={setDestKind}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DEST_KINDS.map((k) => (
-                <SelectItem key={k} value={k}>{t(`protocolKind.${k}`)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <>
+          <div className="grid gap-2">
+            <Label>{t("routing.destOperation")}</Label>
+            <Select
+              value={destOperation}
+              onValueChange={(next) => {
+                setDestOperation(next);
+                const choices = CONTENT_OPERATIONS.has(next) ? CONTENT_KINDS : PROVIDER_KINDS;
+                if (!choices.some((choice) => choice === destKind)) setDestKind(choices[0]);
+              }}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {OPERATIONS.map((op) => (
+                  <SelectItem key={op} value={op}>{t(`operation.${op}`)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>{t("routing.destKind")}</Label>
+            <Select value={destKind} onValueChange={setDestKind}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(CONTENT_OPERATIONS.has(destOperation) ? CONTENT_KINDS : PROVIDER_KINDS).map((k) => (
+                  <SelectItem key={k} value={k}>{t(`protocolKind.${k}`)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
       )}
 
       {formError && <p className="text-sm text-destructive">{formError}</p>}

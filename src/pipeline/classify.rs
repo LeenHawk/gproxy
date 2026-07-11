@@ -20,18 +20,21 @@ pub fn classify(
     body: &Bytes,
 ) -> Result<Classified, PipelineError> {
     let (op, stream) = match (method.as_str(), path) {
-        ("POST", "/v1/chat/completions") => (
-            OperationKey::content_generation(
-                Operation::GenerateContent,
-                CGK::OpenAiChatCompletions,
-            ),
-            peek_stream(body),
-        ),
+        ("POST", "/v1/chat/completions") => {
+            let stream = peek_stream(body);
+            (
+                OperationKey::content_generation(
+                    content_operation(stream),
+                    CGK::OpenAiChatCompletions,
+                ),
+                stream,
+            )
+        }
         ("POST", "/v1/responses") => {
             let websocket = headers.contains_key(RESPONSES_WEBSOCKET_CLASSIFY_HEADER);
             (
                 OperationKey::content_generation(
-                    Operation::GenerateContent,
+                    content_operation(websocket || peek_stream(body)),
                     if websocket {
                         CGK::OpenAiResponsesWebSocket
                     } else {
@@ -41,10 +44,13 @@ pub fn classify(
                 websocket || peek_stream(body),
             )
         }
-        ("POST", "/v1/messages") => (
-            OperationKey::content_generation(Operation::GenerateContent, CGK::ClaudeMessages),
-            peek_stream(body),
-        ),
+        ("POST", "/v1/messages") => {
+            let stream = peek_stream(body);
+            (
+                OperationKey::content_generation(content_operation(stream), CGK::ClaudeMessages),
+                stream,
+            )
+        }
         ("POST", "/v1/messages/count_tokens") => (
             OperationKey::provider(Operation::CountTokens, Prov::Claude),
             false,
@@ -88,6 +94,14 @@ pub fn classify(
         _ => return Err(PipelineError::UnsupportedPath),
     };
     Ok(Classified { op, stream })
+}
+
+const fn content_operation(stream: bool) -> Operation {
+    if stream {
+        Operation::StreamGenerateContent
+    } else {
+        Operation::GenerateContent
+    }
 }
 
 /// Credential form on the shared OpenAI/Claude path surface: Claude clients
@@ -198,6 +212,32 @@ mod tests {
         )
         .unwrap();
         assert!(c.stream);
+        assert_eq!(c.op.operation, Operation::StreamGenerateContent);
+    }
+
+    #[test]
+    fn body_stream_flag_selects_content_operation() {
+        for path in ["/v1/chat/completions", "/v1/responses", "/v1/messages"] {
+            let streaming = classify(
+                &Method::POST,
+                path,
+                &HeaderMap::new(),
+                &Bytes::from_static(b"{\"stream\":true}"),
+            )
+            .unwrap();
+            assert_eq!(streaming.op.operation, Operation::StreamGenerateContent);
+            assert!(streaming.stream);
+
+            let buffered = classify(
+                &Method::POST,
+                path,
+                &HeaderMap::new(),
+                &Bytes::from_static(b"{\"stream\":false}"),
+            )
+            .unwrap();
+            assert_eq!(buffered.op.operation, Operation::GenerateContent);
+            assert!(!buffered.stream);
+        }
     }
 
     #[test]

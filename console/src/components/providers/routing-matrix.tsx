@@ -13,12 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RoutingCellEditor, type CellInitial } from "./routing-cell-editor";
 
-function behaviorBadge(impl: string, destKind: string | null, t: (k: string) => string) {
+function behaviorBadge(impl: string, destOperation: string | null, destKind: string | null, sourceOperation: string, t: (k: string) => string) {
   const label = t(`implementation.${impl}`);
   if (impl === "transform_to") {
     return (
       <Badge variant="outline" className="font-mono text-xs text-blue-700 border-blue-300 dark:text-blue-400 dark:border-blue-700">
-        {label}{destKind ? ` → ${t(`protocolKind.${destKind}`)}` : ""}
+        {label}{destKind ? ` → ${t(`operation.${destOperation ?? sourceOperation}`)} · ${t(`protocolKind.${destKind}`)}` : ""}
       </Badge>
     );
   }
@@ -55,11 +55,11 @@ export function RoutingMatrix({ providerId }: { providerId: number }) {
   });
 
   const openEdit = (row: RoutingRule) => {
-    setTarget({ mode: "edit", initial: { operation: row.operation, kind: row.kind, implementation: row.implementation, destKind: row.dest_kind, ruleId: row.id, sortOrder: row.sort_order } });
+    setTarget({ mode: "edit", initial: { operation: row.operation, kind: row.kind, implementation: row.implementation, destOperation: row.dest_operation, destKind: row.dest_kind, ruleId: row.id, sortOrder: row.sort_order } });
     setEditorOpen(true);
   };
   const openAdd = () => {
-    setTarget({ mode: "add", initial: { operation: "generate_content", kind: "open_ai_chat_completions", implementation: "passthrough", destKind: "claude_messages" } });
+    setTarget({ mode: "add", initial: { operation: "generate_content", kind: "open_ai_chat_completions", implementation: "passthrough", destOperation: "generate_content", destKind: "claude_messages" } });
     setEditorOpen(true);
   };
 
@@ -116,7 +116,7 @@ export function RoutingMatrix({ providerId }: { providerId: number }) {
                 >
                   <td className="px-3 py-2">{t(`operation.${row.operation}`)}</td>
                   <td className="px-3 py-2">{t(`protocolKind.${row.kind}`)}</td>
-                  <td className="px-3 py-2">{behaviorBadge(row.implementation, row.dest_kind, t)}</td>
+                  <td className="px-3 py-2">{behaviorBadge(row.implementation, row.dest_operation, row.dest_kind, row.operation, t)}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" aria-label={t("routing.editTitle")} onClick={() => openEdit(row)}>

@@ -12,6 +12,7 @@ use crate::protocol::OperationKey;
 use crate::store::persistence::records::{Credential, Provider};
 
 /// How the inbound request was addressed.
+#[derive(Clone)]
 pub enum RoutingMode {
     /// `/v1/...` — model name resolves to a route via alias/route tables.
     Aggregated,
@@ -20,6 +21,7 @@ pub enum RoutingMode {
 }
 
 /// Per-request context. Filled progressively as steps run.
+#[derive(Clone)]
 pub struct RequestCtx {
     pub request_id: String,
     pub method: Method,
@@ -41,6 +43,7 @@ pub struct RequestCtx {
 }
 
 /// One (member + credential) attempt for failover.
+#[derive(Clone)]
 pub struct Candidate {
     pub provider: Arc<Provider>,
     pub credential: Arc<Credential>,

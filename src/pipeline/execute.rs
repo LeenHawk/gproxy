@@ -4,6 +4,8 @@
 
 use std::sync::Arc;
 
+#[cfg(target_arch = "wasm32")]
+use bytes::Bytes;
 use tracing::Instrument;
 
 use crate::app::AppState;
@@ -204,18 +206,87 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     pending::charge(state.cache.as_ref(), &quota_scopes, pending_micros).await;
     ctx.pending_micros = pending_micros;
 
+    let synthesize_stream = ctx.stream
+        && candidates.iter().any(|candidate| {
+            matches!(
+                transform::plan_for(&cp, candidate.provider.id, ctx.op.expect("classified")),
+                Ok(transform::TransformPlan::SynthesizeStream { .. })
+            )
+        });
+
     // Candidates own their Arcs; drop the snapshot guard before the (possibly
     // long-lived, streaming) upstream call so it doesn't pin the old snapshot
     // across an invalidation/swap.
     drop(cp);
 
+    #[cfg(not(target_arch = "wasm32"))]
+    if synthesize_stream {
+        return Ok(crate::pipeline::stream::synthetic_outcome(
+            state.clone(),
+            ctx,
+            candidates,
+            quota_scopes,
+            pending_micros,
+        ));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     let result = failover::run_failover(state, &ctx, &candidates).await;
+    #[cfg(target_arch = "wasm32")]
+    let mut result = failover::run_failover(state, &ctx, &candidates).await;
     // Only a 2xx content response attaches a SettleCtx (whose settle refunds
     // the pending). Everything else — pipeline error, all-candidates-failed,
     // or a relayed permanent 4xx — must refund here. A crash in between
     // self-heals via the 15-minute pending TTL.
     if !matches!(&result, Ok(o) if o.status.is_success()) {
         pending::refund(state.cache.as_ref(), &quota_scopes, pending_micros).await;
+    }
+
+    // Edge currently buffers all response bodies. Preserve the synthetic
+    // route's wire contract even though live keepalives require the native
+    // streaming runtime.
+    #[cfg(target_arch = "wasm32")]
+    if synthesize_stream
+        && let Ok(outcome) = &mut result
+        && outcome.status.is_success()
+        && let ResponseBody::Full(body) = &outcome.body
+    {
+        let kind = match ctx.op.expect("classified").kind {
+            crate::protocol::OperationKind::ContentGeneration(kind) => kind,
+            crate::protocol::OperationKind::Provider(_) => unreachable!("synthetic content"),
+        };
+        let gemini_json = kind == crate::protocol::ContentGenerationKind::GeminiGenerateContent
+            && !ctx
+                .query
+                .as_deref()
+                .is_some_and(|query| query.split('&').any(|part| part == "alt=sse"));
+        let encoded = if gemini_json {
+            let value: serde_json::Value = serde_json::from_slice(body).map_err(|error| {
+                PipelineError::TransformResponse(crate::transform::TransformError::InvalidInput {
+                    reason: format!("synthetic gemini response is not JSON: {error}"),
+                })
+            })?;
+            Bytes::from(serde_json::to_vec(&vec![value]).map_err(|error| {
+                PipelineError::TransformResponse(crate::transform::TransformError::Serialization {
+                    reason: error.to_string(),
+                })
+            })?)
+        } else {
+            Bytes::from(
+                crate::transform::stream_adapter::synthesize_sse(kind, body)
+                    .map_err(PipelineError::TransformResponse)?,
+            )
+        };
+        outcome.body = ResponseBody::Full(encoded);
+        outcome.headers.remove(http::header::CONTENT_LENGTH);
+        outcome.headers.insert(
+            http::header::CONTENT_TYPE,
+            if gemini_json {
+                http::HeaderValue::from_static("application/json")
+            } else {
+                http::HeaderValue::from_static("text/event-stream")
+            },
+        );
     }
     result
 }
