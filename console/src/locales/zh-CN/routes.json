@@ -11,8 +11,7 @@
     "name": "名称",
     "strategy": "策略",
     "description": "描述",
-    "enabled": "启用",
-    "settings": "设置 JSON"
+    "enabled": "启用"
   },
   "strategy": {
     "failover": "故障转移",
@@ -24,8 +23,21 @@
     "create": "创建负载均衡",
     "edit": "编辑负载均衡",
     "required": "必填",
-    "settingsHint": "可选。已知键:circuit_breaker { consecutive_failures, cooldown_secs, error_rate? }——为本负载均衡覆盖 provider 的熔断配置。",
+    "positiveInteger": "熔断器数值必须是正整数。",
+    "errorRateInvalid": "窗口和最小请求数必须为正整数，错误率阈值须在 0 到 100% 之间。",
     "saved": "已保存"
+  },
+  "breaker": {
+    "title": "熔断器覆盖设置",
+    "inheritHint": "留空表示继承对应供应商的设置。",
+    "inherit": "继承",
+    "consecutiveFailures": "连续失败次数",
+    "cooldownSecs": "冷却时间（秒）",
+    "errorRate": "错误率触发器",
+    "errorRateHint": "窗口内失败比例达到阈值时打开成员熔断器。",
+    "windowSecs": "统计窗口（秒）",
+    "threshold": "错误率阈值（%）",
+    "minRequests": "最小请求数"
   },
   "delete": {
     "route": "删除负载均衡",
