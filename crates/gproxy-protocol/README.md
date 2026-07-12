@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/gproxy-protocol.svg)](https://crates.io/crates/gproxy-protocol)
 [![docs.rs](https://docs.rs/gproxy-protocol/badge.svg)](https://docs.rs/gproxy-protocol)
-[![license](https://img.shields.io/crates/l/gproxy-protocol.svg)](https://github.com/LeenHawk/gproxy)
+[![license](https://img.shields.io/crates/l/gproxy-protocol.svg)](LICENSE)
 
 Wire-format types and endpoint metadata for the OpenAI, Anthropic Claude, and
 Google Gemini APIs.
@@ -28,4 +28,4 @@ Protocol-specific types are available under `gproxy_protocol::openai`,
 
 ## License
 
-Licensed under the GNU Affero General Public License, version 3 or later.
+Licensed under the [MIT License](LICENSE).
