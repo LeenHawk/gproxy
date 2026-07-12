@@ -1,9 +1,11 @@
 //! Codex channel — OpenAI ChatGPT-backend Responses API over OAuth2
 //! (`refresh_token` grant) plus the `codex_exec` impersonation header set.
 //!
-//! the upstream natively speaks the OpenAI Responses format
-//! SSE, so there is NO envelope, NO stream decoder, NO normalize. This channel
-//! does, however, SHAPE the request body in [`prepare`](CodexChannel::prepare)
+//! the upstream natively speaks the OpenAI Responses SSE event ladder, but its
+//! terminal `response.completed.response.output` may be empty. The channel's
+//! stream decoder normalizes that provider-native variation by accumulating
+//! output items and backfilling the terminal response. This channel also SHAPES
+//! the request body in [`prepare`](CodexChannel::prepare)
 //! (documented body mutation) — forcing `stream`/`store`, stripping sampling
 //! fields, and lifting system messages into `instructions` — via
 //! [`auth::normalize_responses_body`]. [`auth`] owns the OAuth refresh + the
@@ -24,8 +26,8 @@ use serde_json::Value;
 use crate::channel::http_util::{allow_headers, build_request, join_url};
 use crate::channel::shaping::{self, openai_cache};
 use crate::channel::{
-    AuthCodeStart, Channel, ChannelError, ChannelLogin, DeviceInit, DevicePoll, PrepareCtx,
-    PreparedRequest, ShapeCtx,
+    AuthCodeStart, Channel, ChannelError, ChannelLogin, ChannelStreamDecoder, DeviceInit,
+    DevicePoll, PrepareCtx, PreparedRequest, ShapeCtx,
 };
 use crate::http::client::UpstreamClient;
 use crate::protocol::{Operation, Provider};
@@ -195,6 +197,10 @@ impl Channel for CodexChannel {
         })
     }
 
+    fn stream_decoder(&self) -> Option<Box<dyn ChannelStreamDecoder>> {
+        Some(Box::new(CodexResponsesStreamDecoder::default()))
+    }
+
     fn needs_refresh(&self, secret: &Value) -> bool {
         auth::needs_refresh(secret)
     }
@@ -251,6 +257,21 @@ impl Channel for CodexChannel {
             Operation::GetModel => shape::shape_model_get(body),
             _ => body,
         }
+    }
+}
+
+#[derive(Default)]
+struct CodexResponsesStreamDecoder {
+    inner: crate::transform::stream_adapter::ResponsesStreamNormalizer,
+}
+
+impl ChannelStreamDecoder for CodexResponsesStreamDecoder {
+    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+        self.inner.push(chunk)
+    }
+
+    fn finish(&mut self) -> Vec<u8> {
+        self.inner.finish()
     }
 }
 
@@ -362,6 +383,51 @@ mod tests {
             })
             .map(|(_, decision)| decision)
             .expect("missing route")
+    }
+
+    #[test]
+    fn stream_decoder_backfills_function_call_in_completed_output() {
+        let item = json!({
+            "type": "response.output_item.done",
+            "output_index": 0,
+            "item": {
+                "id": "fc_1",
+                "type": "function_call",
+                "status": "completed",
+                "call_id": "call_1",
+                "name": "get_me_mcp_github",
+                "arguments": "{}"
+            }
+        });
+        let completed = json!({
+            "type": "response.completed",
+            "response": {
+                "id": "resp_1",
+                "object": "response",
+                "status": "completed",
+                "output": []
+            }
+        });
+        let upstream = format!(
+            "event: response.output_item.done\ndata: {item}\n\n\
+             event: response.completed\ndata: {completed}\n\n"
+        );
+
+        let mut decoder = CodexChannel.stream_decoder().expect("codex normalizer");
+        let mut normalized = decoder.push(upstream.as_bytes());
+        normalized.extend(decoder.finish());
+
+        let mut sse = crate::transform::common::sse::SseDecoder::new();
+        let frames = sse.push(&normalized);
+        let completed: Value = frames
+            .into_iter()
+            .find(|frame| frame.event.as_deref() == Some("response.completed"))
+            .map(|frame| serde_json::from_str(&frame.data).unwrap())
+            .expect("completed event");
+        assert_eq!(
+            completed["response"]["output"][0], item["item"],
+            "Codex output_item.done must be reflected in the terminal response"
+        );
     }
 
     #[test]
