@@ -25,6 +25,56 @@ pub struct SseTransformer {
     skipped: u64,
 }
 
+/// Stateful normalizer for an upstream that already speaks Responses SSE.
+///
+/// Unlike [`SseTransformer`], this does not perform a cross-protocol dispatch.
+/// It preserves the upstream events while completing the Responses event
+/// ladder and backfilling an empty `response.completed.response.output` from
+/// the output items observed earlier in the stream.
+#[derive(Default)]
+pub struct ResponsesStreamNormalizer {
+    decoder: SseDecoder,
+    responses: ResponsesStreamState,
+}
+
+impl ResponsesStreamNormalizer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        for frame in self.decoder.push(chunk) {
+            self.normalize_into(frame, &mut out);
+        }
+        out
+    }
+
+    pub fn finish(&mut self) -> Vec<u8> {
+        let mut out = Vec::new();
+        if let Some(frame) = self.decoder.finish() {
+            self.normalize_into(frame, &mut out);
+        }
+        out
+    }
+
+    fn normalize_into(&mut self, frame: SseFrame, out: &mut Vec<u8>) {
+        if frame.data.trim() == "[DONE]" {
+            out.extend_from_slice(frame.encode().as_bytes());
+            return;
+        }
+        let Ok(event) = serde_json::from_str::<Value>(&frame.data) else {
+            out.extend_from_slice(frame.encode().as_bytes());
+            return;
+        };
+        for event in self.responses.push(event) {
+            out.extend_from_slice(
+                encode_frame(ContentGenerationKind::OpenAiResponses, &event).as_bytes(),
+            );
+        }
+    }
+}
+
 impl SseTransformer {
     pub fn new(pair: TransformPair, ctx: TransformContext, inbound: ContentGenerationKind) -> Self {
         Self {
@@ -307,7 +357,12 @@ impl ResponsesStreamState {
         match item_type {
             "message" => self.message.note_item_done(event),
             "reasoning" => self.reasoning.note_item_done(event),
-            "function_call" | "custom_tool_call" => self.note_tool_item_done(event),
+            "function_call" => {
+                self.note_tool_item_done(event, ResponsesToolKind::Function);
+            }
+            "custom_tool_call" => {
+                self.note_tool_item_done(event, ResponsesToolKind::Custom);
+            }
             _ => {}
         }
     }
@@ -324,11 +379,12 @@ impl ResponsesStreamState {
         }
     }
 
-    fn note_tool_item_done(&mut self, event: &Value) {
+    fn note_tool_item_done(&mut self, event: &Value, kind: ResponsesToolKind) {
         let Some(output_index) = event_output_index(event) else {
             return;
         };
         let state = self.tools.entry(output_index).or_default();
+        state.kind.get_or_insert(kind);
         state.output_index.get_or_insert(output_index);
         state.item_done = true;
         if let Some(item) = event.get("item") {
