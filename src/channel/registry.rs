@@ -2,7 +2,7 @@
 //!
 //! Each channel is a folder under [`crate::channel::bulletins`] that manages its
 //! own auth (`auth.rs`). The id (== `Provider.channel`) is the registry key.
-//! All 17 channels are functional — API-key, OAuth (`refresh_token` grant /
+//! Built-in channels are functional — API-key, OAuth (`refresh_token` grant /
 //! SA-JWT / device-token), and the Code-Assist / Smithy envelope channels all
 //! build real upstream requests (M7a/M7b landed the OAuth infra + transforms).
 
@@ -16,8 +16,8 @@ use crate::channel::{Channel, ChannelLogin};
 ///
 /// `login` is a parallel map holding the channels that support a §14.5
 /// interactive login (authcode: codex, claudecode, geminicli, antigravity,
-/// kiro; device-code: grokbuild, copilotcli; cookie: claudecode); a channel
-/// absent from it has no login flow.
+/// kiro; device-code: grokbuild, copilotcli; cookie: claudecode,
+/// claudeweb, chatgpt); a channel absent from it has no login flow.
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
@@ -102,6 +102,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(bulletins::copilotcli::CopilotCliChannel),
         #[cfg(feature = "channel-chatgpt")]
         Arc::new(bulletins::chatgpt::ChatGptChannel),
+        #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
+        Arc::new(bulletins::claudeweb::ClaudeWebChannel),
     ]
 }
 
@@ -140,6 +142,11 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
         ),
         #[cfg(feature = "channel-chatgpt")]
         ("chatgpt", Arc::new(bulletins::chatgpt::ChatGptChannel)),
+        #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
+        (
+            "claudeweb",
+            Arc::new(bulletins::claudeweb::ClaudeWebChannel),
+        ),
     ]
 }
 
@@ -168,6 +175,7 @@ mod emulation_tests {
             "kiro",
             "copilotcli",
             "chatgpt",
+            "claudeweb",
         ];
         let mut found = Vec::new();
         for ch in builtin_channels() {

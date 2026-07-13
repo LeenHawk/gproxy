@@ -156,6 +156,10 @@ async fn fetch_models_for_credential(
             return CredentialPull::Next(ModelsError::Channel(e));
         }
     };
+    if let Some(body) = channel.credential_models(&secret) {
+        health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+        return CredentialPull::Success(parse_models(family, &body));
+    }
     let client =
         match super::usage::resolve_client(state, channel, &cand.credential, &cand.provider) {
             Ok(c) => c,

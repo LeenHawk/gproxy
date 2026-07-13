@@ -7,8 +7,9 @@ pub mod common;
 #[cfg(test)]
 mod tests;
 
-// One feature per bulletin (all default-on; `channel-chatgpt` is native-only,
-// excluded from the edge/wasm subset). The registry gates each entry to match.
+// One feature per bulletin (all default-on; the browser-session web channels
+// are native-only and excluded from the edge/wasm subset). The registry gates
+// each entry to match.
 #[cfg(feature = "channel-aistudio")]
 pub mod aistudio;
 #[cfg(feature = "channel-claudeapi")]
@@ -37,6 +38,8 @@ pub mod antigravity;
 pub mod chatgpt;
 #[cfg(feature = "channel-claudecode")]
 pub mod claudecode;
+#[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
+pub mod claudeweb;
 #[cfg(feature = "channel-codex")]
 pub mod codex;
 #[cfg(feature = "channel-copilotcli")]

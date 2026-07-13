@@ -149,6 +149,15 @@ pub trait Channel: Send + Sync {
         None
     }
 
+    /// A credential-scoped model catalogue discovered while authenticating or
+    /// refreshing the secret. Unlike [`bundled_models`](Self::bundled_models),
+    /// this hook is evaluated only after the credential has been decrypted and
+    /// refreshed, so account-specific catalogues can be returned without an
+    /// extra upstream model-list request. Default: none.
+    fn credential_models(&self, _secret: &Value) -> Option<Bytes> {
+        None
+    }
+
     /// Optional channel-specific stream decoder (envelope unwrap / binary →
     /// SSE), applied to the raw upstream byte stream before any protocol
     /// transform. Default: none (passthrough).
