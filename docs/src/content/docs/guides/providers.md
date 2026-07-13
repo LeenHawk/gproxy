@@ -22,7 +22,7 @@ channel ids are:
 | `openai`, `custom` | OpenAI API or OpenAI-compatible gateways. |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
 | `claudeapi` | Anthropic Claude Messages API. |
-| `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams. |
+| `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
 | `chatgpt` | ChatGPT consumer web backend via a chatgpt.com session cookie. |
 
@@ -30,6 +30,23 @@ Every channel declares a routing surface as `(Operation, OperationKind) ->
 RoutingDecision`. That is the source for the provider's default
 `routing_rules` rows. Request behavior is therefore described by operation
 capability, not by provider-family buckets.
+
+### Vertex Claude partner models
+
+The `vertex` channel accepts Claude's native `/v1/messages` and
+`/v1/messages/count_tokens` interfaces in addition to Gemini. Configure the
+service-account credential as usual, set `location` to a region where the
+selected Claude model is available, and use the Vertex model id (for example,
+an id ending in `@YYYYMMDD`) as the route member's upstream model. GPROXY keeps
+the Anthropic request and SSE response formats native while mapping the call to
+Vertex's `publishers/anthropic` raw-prediction endpoint. See Google's
+[partner-model overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models)
+and [Claude model documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude)
+for enablement, model ids, and regional availability.
+
+Providers created before this capability was added keep their stored routing
+rules. Reset that provider's routing defaults, or change the Claude Messages and
+Claude count-tokens rules to `passthrough`, to opt in to the native endpoints.
 
 ### ChatGPT channel (cookie session)
 

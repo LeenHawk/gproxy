@@ -2,16 +2,20 @@
 //!
 //! Auth is a two-step OAuth2 JWT-bearer grant: sign an RS256 assertion from the
 //! SA key ([`auth`]), exchange it at the token endpoint for a short-lived bearer
-//! (no `refresh_token` — every refresh re-signs from the key). The request is
-//! plain Gemini `generateContent` against the regional Vertex host; NO envelope,
-//! NO TLS impersonation, NO body mutation.
+//! (no `refresh_token` — every refresh re-signs from the key). Gemini requests
+//! use the Google publisher endpoints; native Claude Messages requests use the
+//! Anthropic partner-model `rawPredict` endpoints.
 
 mod auth;
+mod claude;
 mod model_list;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod native_claude_tests;
 
 use std::sync::Arc;
 
 use bytes::Bytes;
+use http::HeaderMap;
 use http::header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue};
 use serde_json::Value;
 
@@ -84,15 +88,10 @@ impl Channel for VertexChannel {
             xform(GetModel, pv(P::Claude), GetModel, pv(P::Gemini)),
             xform(GetModel, pv(P::OpenAi), GetModel, pv(P::Gemini)),
             pass(CountTokens, pv(P::Gemini)),
-            xform(CountTokens, pv(P::Claude), CountTokens, pv(P::Gemini)),
+            pass(CountTokens, pv(P::Claude)),
             xform(CountTokens, pv(P::OpenAi), CountTokens, pv(P::Gemini)),
             pass(GenerateContent, cg(GeminiGenerateContent)),
-            xform(
-                GenerateContent,
-                cg(ClaudeMessages),
-                GenerateContent,
-                cg(GeminiGenerateContent),
-            ),
+            pass(GenerateContent, cg(ClaudeMessages)),
             pass(GenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 GenerateContent,
@@ -101,12 +100,7 @@ impl Channel for VertexChannel {
                 cg(GeminiGenerateContent),
             ),
             pass(StreamGenerateContent, cg(GeminiGenerateContent)),
-            xform(
-                StreamGenerateContent,
-                cg(ClaudeMessages),
-                StreamGenerateContent,
-                cg(GeminiGenerateContent),
-            ),
+            pass(StreamGenerateContent, cg(ClaudeMessages)),
             pass(StreamGenerateContent, cg(OpenAiChatCompletions)),
             xform(
                 StreamGenerateContent,
@@ -162,6 +156,15 @@ impl Channel for VertexChannel {
 
         let location = Self::location(ctx.provider_settings, ctx.secret);
         let host = Self::host(&location);
+        // Native Claude paths use Vertex's Anthropic partner-model surface.
+        // Everything else continues through the Google publisher surface.
+        let claude_path = claude::target_path(
+            ctx.path,
+            &ctx.body,
+            project_id,
+            &location,
+            ctx.upstream_model_id,
+        )?;
         // The model-pull (and any ListModels client) hits `/v1beta/models` —
         // GET, no model id, no `:verb`. Vertex's `ListPublisherModels` (Model
         // Garden) is NOT project-scoped: it is `GET /v1beta1/publishers/google/models`
@@ -172,7 +175,9 @@ impl Channel for VertexChannel {
             .rsplit('/')
             .next()
             .is_some_and(|seg| seg == "models" && !ctx.path.contains(':'));
-        let (path, query) = if is_list_models {
+        let (path, query) = if let Some(path) = claude_path {
+            (path, None)
+        } else if is_list_models {
             ("/v1beta1/publishers/google/models".to_string(), None)
         } else {
             // The M2 layer encodes the verb in the path for gemini targets;
@@ -196,8 +201,14 @@ impl Channel for VertexChannel {
         };
 
         let uri = join_url(&host, &path, query)?;
-        // Vertex needs no inbound forwarded headers; it injects its own auth.
-        let headers = allow_headers(ctx.headers, &[]);
+        // Claude beta features are selected by this header; Gemini needs no
+        // inbound forwarded headers. Authentication is always replaced below.
+        let forwarded = if claude::is_native_path(ctx.path) {
+            &["anthropic-beta"][..]
+        } else {
+            &[][..]
+        };
+        let headers = allow_headers(ctx.headers, forwarded);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
             .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
@@ -205,6 +216,10 @@ impl Channel for VertexChannel {
         req.headers_mut()
             .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         Ok(PreparedRequest::new(req))
+    }
+
+    fn shape_request(&self, body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        claude::shape_request(body, ctx)
     }
 
     /// Normalize Gemini content responses to AI-Studio shape (citation rename,

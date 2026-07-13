@@ -18,11 +18,25 @@ native 和 edge runtime 构建同一套 channel registry。当前内置 channel 
 | `openai`, `custom` | OpenAI API 或 OpenAI-compatible gateway。 |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
 | `claudeapi` | Anthropic Claude Messages API。 |
-| `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游。 |
+| `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
 | `chatgpt` | 通过 chatgpt.com 会话 cookie 接入 ChatGPT 消费版 web 后端。 |
 
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
+
+### Vertex Claude 合作伙伴模型
+
+除 Gemini 外，`vertex` channel 也原生接受 Claude 的 `/v1/messages` 和
+`/v1/messages/count_tokens` 接口。照常配置服务账号凭据，把 `location` 设为所选 Claude
+模型可用的区域，并将 Vertex 模型 ID（例如以 `@YYYYMMDD` 结尾的 ID）填作 route member
+的上游模型。GPROXY 会保持 Anthropic 请求与 SSE 响应格式不变，只把调用映射到 Vertex 的
+`publishers/anthropic` raw-prediction 端点。模型启用方式、模型 ID 和区域可用性请参考 Google
+的[合作伙伴模型概览](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models)
+与 [Claude 模型文档](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude)。
+
+在此能力加入前创建的 provider 会保留数据库中已有的路由规则。若要启用原生端点，请重置该
+provider 的默认路由，或手动把 Claude Messages 与 Claude count-tokens 规则改为
+`passthrough`。
 
 ### ChatGPT 渠道（cookie 会话）
 
