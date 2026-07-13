@@ -59,6 +59,34 @@
     "network": "網路錯誤——服務是否可達?",
     "internal": "伺服器錯誤"
   },
+  "proxyTest": {
+    "action": "測試連線",
+    "testing": "正在測試…",
+    "success": "連線成功",
+    "successHint": "已透過目前路線連線至公網",
+    "failure": "連線失敗",
+    "egressIp": "公網出口 IP",
+    "edge": "Cloudflare 節點",
+    "latency": "連線延遲",
+    "route": "代理來源",
+    "poweredBy": "由 Cloudflare Trace 驗證",
+    "sources": {
+      "credential": "憑證代理",
+      "provider": "通道代理",
+      "global": "全域代理",
+      "startup": "啟動參數",
+      "direct": "直接連線"
+    },
+    "errors": {
+      "invalid_proxy": "代理位址無效或不受支援。",
+      "proxy_auth": "代理伺服器拒絕了身分驗證。",
+      "timeout": "連線逾時。",
+      "transport": "無法透過目前路線存取公網。",
+      "http_status": "連通性服務傳回了異常狀態。",
+      "invalid_response": "連通性服務傳回了無效結果。",
+      "unknown": "無法完成連線測試。"
+    }
+  },
   "dashboard": {
     "placeholder": "儀表板將在 F4 階段提供。"
   },

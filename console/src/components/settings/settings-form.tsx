@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 // ---- helpers ----------------------------------------------------------------
 
@@ -134,6 +135,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
           <div className="grid gap-1">
             <Label htmlFor="settings-proxy">{t("fields.proxy")}</Label>
             <Input id="settings-proxy" value={f.proxy} onChange={(e) => set("proxy")(e.target.value)} placeholder="http://proxy:8080" />
+            <ProxyConnectivityTest scope="global" proxyUrl={f.proxy} />
           </div>
           <div className="grid gap-1">
             <Label htmlFor="settings-spoof">{t("fields.spoofEmulation")}</Label>
