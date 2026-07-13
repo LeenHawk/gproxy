@@ -205,7 +205,7 @@ impl AppState {
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn upstream_client_for_proxy(
+    pub(crate) fn upstream_client_for_proxy(
         &self,
         proxy: Option<&str>,
     ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
@@ -213,7 +213,7 @@ impl AppState {
     }
 
     #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
-    fn upstream_client_for_proxy(
+    pub(crate) fn upstream_client_for_proxy(
         &self,
         _proxy: Option<&str>,
     ) -> Result<Arc<dyn UpstreamClient>, ClientError> {

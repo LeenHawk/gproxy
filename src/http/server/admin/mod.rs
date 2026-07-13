@@ -4,6 +4,7 @@
 
 pub mod audit;
 pub mod auth;
+pub mod connectivity;
 pub mod crud;
 pub mod login;
 pub mod middleware;
@@ -131,6 +132,9 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         .route("/admin/audit", get(usage::list_audit))
         // Named TLS fingerprint presets for the Console picker.
         .route("/admin/tls-presets", get(usage::tls_presets))
+        // Read-only egress check. The destination is fixed server-side so this
+        // cannot be turned into an arbitrary admin-side request primitive.
+        .route("/admin/connectivity/test", post(connectivity::test))
         // §19.10 self-update: check availability, query in-process status, trigger apply.
         .route("/admin/update/check", get(update::check))
         .route("/admin/update/status", get(update::status))

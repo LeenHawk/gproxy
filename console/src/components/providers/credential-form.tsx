@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TlsFingerprintField } from "./tls-fingerprint-field";
+import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 interface CredentialFormProps {
   providerId: number;
@@ -122,6 +123,7 @@ export function CredentialForm({ providerId, channel, credential, onSaved }: Cre
       <div className="grid gap-2">
         <Label htmlFor="c-proxy">{t("fields.proxyUrl")}</Label>
         <Input id="c-proxy" value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} />
+        <ProxyConnectivityTest scope="credential" proxyUrl={proxyUrl} providerId={providerId} />
       </div>
       {/* TLS fingerprint — popover preset picker */}
       <TlsFingerprintField value={tls} onChange={setTls} label={t("fields.tlsProfile")} />

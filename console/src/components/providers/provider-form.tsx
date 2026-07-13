@@ -17,6 +17,7 @@ import {
   SettingsFields, type SettingsState, initSettingsState, assembleSettings,
 } from "./settings-fields";
 import { TlsFingerprintField } from "./tls-fingerprint-field";
+import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 interface ProviderFormProps {
   /** undefined = create */
@@ -137,6 +138,7 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
       <div className="grid gap-2">
         <Label htmlFor="p-proxy">{t("fields.proxyUrl")}</Label>
         <Input id="p-proxy" value={proxyUrl} onChange={(e) => setProxyUrl(e.target.value)} placeholder="socks5://… / http://…" />
+        <ProxyConnectivityTest scope="provider" proxyUrl={proxyUrl} />
       </div>
 
       {/* Structured settings — no raw JSON */}

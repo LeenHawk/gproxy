@@ -59,6 +59,34 @@
     "network": "Network error — is the server reachable?",
     "internal": "Server error"
   },
+  "proxyTest": {
+    "action": "Test connection",
+    "testing": "Testing…",
+    "success": "Connection ready",
+    "successHint": "Public egress is reachable through this route",
+    "failure": "Connection failed",
+    "egressIp": "Public egress IP",
+    "edge": "Cloudflare edge",
+    "latency": "Latency",
+    "route": "Proxy route",
+    "poweredBy": "Verified with Cloudflare Trace",
+    "sources": {
+      "credential": "Credential",
+      "provider": "Provider",
+      "global": "Global",
+      "startup": "Startup",
+      "direct": "Direct"
+    },
+    "errors": {
+      "invalid_proxy": "The proxy address is invalid or unsupported.",
+      "proxy_auth": "The proxy rejected authentication.",
+      "timeout": "The connection timed out.",
+      "transport": "The proxy could not reach the public Internet.",
+      "http_status": "The connectivity service returned an unexpected status.",
+      "invalid_response": "The connectivity service returned an invalid response.",
+      "unknown": "The connection could not be completed."
+    }
+  },
   "dashboard": {
     "placeholder": "Dashboard coming in F4."
   },

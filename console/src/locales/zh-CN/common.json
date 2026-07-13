@@ -59,6 +59,34 @@
     "network": "网络错误——服务是否可达?",
     "internal": "服务器错误"
   },
+  "proxyTest": {
+    "action": "测试连接",
+    "testing": "正在测试…",
+    "success": "连接成功",
+    "successHint": "已通过当前线路连接到公网",
+    "failure": "连接失败",
+    "egressIp": "公网出口 IP",
+    "edge": "Cloudflare 节点",
+    "latency": "连接延迟",
+    "route": "代理来源",
+    "poweredBy": "由 Cloudflare Trace 验证",
+    "sources": {
+      "credential": "凭证代理",
+      "provider": "渠道代理",
+      "global": "全局代理",
+      "startup": "启动参数",
+      "direct": "直接连接"
+    },
+    "errors": {
+      "invalid_proxy": "代理地址无效或不受支持。",
+      "proxy_auth": "代理服务器拒绝了身份验证。",
+      "timeout": "连接超时。",
+      "transport": "无法通过当前线路访问公网。",
+      "http_status": "连通性服务返回了异常状态。",
+      "invalid_response": "连通性服务返回了无效结果。",
+      "unknown": "无法完成连接测试。"
+    }
+  },
   "dashboard": {
     "placeholder": "仪表盘将在 F4 阶段提供。"
   },
