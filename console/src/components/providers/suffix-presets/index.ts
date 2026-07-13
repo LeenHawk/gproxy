@@ -55,7 +55,9 @@ export function suffixGroupsForChannel(
 export function suffixProtocolForChannel(channel: string | undefined): SuffixProtocol {
   switch (channel) {
     case "anthropic":
+    case "claudeapi":
     case "claudecode":
+    case "claudeweb":
       return "claude";
     case "aistudio":
     case "vertex":

@@ -294,33 +294,22 @@ pub async fn cookie(
     State(state): State<AppState>,
     Json(req): Json<CookieLoginRequest>,
 ) -> Result<Json<CredentialView>, ApiError> {
+    let request_channel = state
+        .channels
+        .get(&req.channel)
+        .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
     let channel = state
         .channels
         .login_for(&req.channel)
         .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
-    // claude.ai / chatgpt.com are Cloudflare-fronted and reject non-browser TLS,
-    // so the cookie exchange rides a Chrome-emulating client — AND it must use
-    // the same egress proxy the provider's traffic uses (provider proxy → global
-    // fallback), or it leaks the host IP to the origin / risk-scoring.
-    #[cfg(feature = "upstream-wreq")]
-    let cookie_client: std::sync::Arc<dyn crate::http::client::UpstreamClient> = {
-        let proxy = state
-            .cp()
-            .providers_by_id
-            .get(&req.provider_id)
-            .and_then(|p| p.proxy_url.clone())
-            .or_else(|| state.upstream_proxy_url());
-        std::sync::Arc::new(
-            crate::http::client::WreqClient::browser_with_proxy(proxy.as_deref())
-                .map_err(|_| ApiError::BadRequest("cookie login client init failed".into()))?,
-        )
-    };
-    #[cfg(feature = "upstream-wreq")]
-    let cookie_client = &cookie_client;
-    #[cfg(not(feature = "upstream-wreq"))]
-    let cookie_client = &state.upstream;
+    // Cloudflare-fronted cookie exchanges use the channel's own emulation and
+    // the provider's effective egress. Reusing the channel pool is essential:
+    // bootstrap Set-Cookie state must survive into the first real request.
+    let cookie_client = state
+        .upstream_client_for_cookie_login(&request_channel, req.provider_id)
+        .map_err(|_| ApiError::BadRequest("cookie login client init failed".into()))?;
     let secret = channel
-        .cookie_exchange(cookie_client, &req.cookie)
+        .cookie_exchange(&cookie_client, &req.cookie)
         .await
         .map_err(|e| {
             // The client gets a generic error; the real upstream step (bootstrap /

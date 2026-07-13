@@ -13,6 +13,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   openrouter: "https://openrouter.ai/api",
   grokbuild: "https://api.x.ai/v1",
   chatgpt: "https://chatgpt.com",
+  claudeweb: "https://claude.ai",
 };
 export type LoginMode = "authcode" | "device" | "cookie";
 
@@ -76,6 +77,15 @@ export const CHANNELS: ChannelMeta[] = [
     loginModes: ["authcode", "cookie"],
     usage: true,
     secretTemplate: { ...OAUTH_TOKENS },
+  },
+  {
+    // Claude consumer web backend (native-only `channel-claudeweb` feature).
+    // Cookie login validates sessionKey and stores the selected chat org UUID.
+    id: "claudeweb",
+    family: "oauth_tokens",
+    loginModes: ["cookie"],
+    usage: true,
+    secretTemplate: { cookie: "", account_uuid: "" },
   },
   {
     id: "codex",

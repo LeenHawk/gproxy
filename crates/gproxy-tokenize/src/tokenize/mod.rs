@@ -20,6 +20,22 @@ pub type RegistryHandle<'a> = ();
 /// Per-message fixed overhead (role/markup framing), in tokens.
 const MSG_OVERHEAD: u64 = 4;
 
+/// Count a single text buffer with the same local fallback Clove uses for
+/// Claude Web usage synthesis: cl100k when local tokenizers are enabled,
+/// otherwise the cross-target character estimate.
+pub fn count_text(text: &str) -> u64 {
+    #[cfg(feature = "count-local")]
+    {
+        tiktoken_rs::cl100k_base_singleton()
+            .encode_ordinary(text)
+            .len() as u64
+    }
+    #[cfg(not(feature = "count-local"))]
+    {
+        (text.chars().count() as u64).div_ceil(2)
+    }
+}
+
 /// Count tokens of a provider-native request body. `map` = provider settings
 /// `tokenizer_map` (glob → vocab name). Never fails: worst case is the
 /// chars/2 estimate.

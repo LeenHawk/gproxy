@@ -204,6 +204,39 @@ impl AppState {
         self.upstream_client_for_credential_inner(channel, credential, provider)
     }
 
+    /// Resolve the browser-emulating client used by a channel's first cookie
+    /// exchange. It shares the same pool key as subsequent credential traffic,
+    /// preserving Cloudflare connection state and response cookies instead of
+    /// discarding them with a one-off login client.
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    pub(crate) fn upstream_client_for_cookie_login(
+        &self,
+        channel: &Arc<dyn crate::channel::Channel>,
+        provider_id: i64,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let provider = self
+            .cp()
+            .providers_by_id
+            .get(&provider_id)
+            .cloned()
+            .ok_or_else(|| ClientError::Config("provider not found".into()))?;
+        let global_proxy = self.upstream_proxy_url();
+        let proxy = provider.proxy_url.as_deref().or(global_proxy.as_deref());
+        match channel.default_emulation() {
+            Some(emulation) => self.client_pool.for_channel(proxy, channel.id(), emulation),
+            None => self.client_pool.for_target(proxy, None),
+        }
+    }
+
+    #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
+    pub(crate) fn upstream_client_for_cookie_login(
+        &self,
+        _channel: &Arc<dyn crate::channel::Channel>,
+        _provider_id: i64,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        Ok(Arc::clone(&self.upstream))
+    }
+
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
     pub(crate) fn upstream_client_for_proxy(
         &self,

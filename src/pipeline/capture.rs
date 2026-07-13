@@ -248,6 +248,46 @@ impl crate::http::client::UpstreamClient for CapturingClient {
         Ok(resp)
     }
 
+    async fn send_streaming(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<
+        (StatusCode, HeaderMap, crate::http::client::RespStream),
+        crate::http::client::ClientError,
+    > {
+        // CustomStream exchanges must preserve streaming even when request
+        // capture is disabled. Falling back to the trait's buffered default is
+        // especially fatal for Claude Web client tools: `/completion` remains
+        // open until a later `/tool_result`, so buffering waits forever.
+        if !self.state.cp().log_settings.enable_upstream_log {
+            return self.inner.send_streaming(req).await;
+        }
+        let url = req.uri().to_string();
+        let method = req.method().clone();
+        let sent_headers = req.headers().clone();
+        let sent_body = req.body().clone();
+        let start_ms = unix_now_ms();
+        let (status, headers, stream) = self.inner.send_streaming(req).await?;
+        let latency_ms = unix_now_ms().saturating_sub(start_ms) as i64;
+        log_upstream_raw(
+            &self.state,
+            &self.request_id,
+            self.provider_id,
+            self.credential_id,
+            UpstreamWire {
+                status,
+                latency_ms,
+                url: &url,
+                method: &method,
+                sent_headers: Some(&sent_headers),
+                sent_body: &sent_body,
+                resp_body: None,
+            },
+        )
+        .await;
+        Ok((status, headers, stream))
+    }
+
     async fn send_websocket(
         &self,
         req: http::Request<Bytes>,

@@ -82,7 +82,7 @@ impl WreqClient {
     /// origins, as Cloudflare's checks evolve.
     pub fn browser_with_proxy(proxy_url: Option<&str>) -> wreq::Result<Self> {
         let mut builder =
-            with_timeouts(wreq::Client::builder()).emulation(wreq_util::Emulation::Chrome142);
+            with_timeouts(wreq::Client::builder()).emulation(wreq_util::Emulation::Chrome148);
         if let Some(proxy_url) = proxy_url {
             builder = builder.proxy(wreq::Proxy::all(proxy_url)?);
         }

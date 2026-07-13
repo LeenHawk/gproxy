@@ -71,7 +71,7 @@ sea-orm = { version = "2.0.0-rc.40", features = ["runtime-tokio-rustls", "sqlx-s
 # write path goes through the normal `persist-db` backend.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-wreq = { version = "6.0.0-rc.28", features = ["json", "stream", "gzip", "brotli", "zstd", "deflate", "ws"], optional = true }
+wreq = { version = "6.0.0-rc.28", features = ["json", "stream", "gzip", "brotli", "zstd", "deflate", "ws", "socks"], optional = true }
 wreq-util = { version = "3.0.0-rc.11", optional = true }
 # self-update (§19, native-only). semver: `releases`-channel version compare.
 # ed25519-dalek: verify the signed release manifest with an embedded public key
@@ -140,9 +140,10 @@ upstream-fetch = []
 edge = ["cache-libsql", "cache-upstash", "persist-libsql", "upstream-fetch", "channels-edge"]
 
 # ── channels: one feature per bulletin, all default-on. `channels` = every
-# channel (incl. native-only chatgpt); `channels-edge` is the wasm/edge subset
-# (chatgpt needs browser-TLS impersonation → upstream-wreq → native-only).
-channels = ["channels-edge", "channel-chatgpt"]
+# channel (incl. native-only web-session channels); `channels-edge` is the
+# wasm/edge subset (chatgpt/claudeweb need multi-step native
+# streaming and/or browser TLS → upstream-wreq → native-only).
+channels = ["channels-edge", "channel-chatgpt", "channel-claudeweb"]
 channels-edge = [
     "channel-aistudio",
     "channel-antigravity",
@@ -166,6 +167,7 @@ channels-edge = [
 channel-aistudio = []
 channel-antigravity = []
 channel-chatgpt = ["upstream-wreq"]
+channel-claudeweb = ["upstream-wreq"]
 channel-claudeapi = []
 channel-claudecode = []
 channel-codex = []
