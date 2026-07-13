@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=GPROXY
+Comment=Start the GPROXY background service at login
+Exec=/usr/bin/gproxy-desktop
+Terminal=false
+X-GNOME-Autostart-enabled=true

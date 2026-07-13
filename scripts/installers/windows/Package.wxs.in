@@ -1,0 +1,42 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="GPROXY" Manufacturer="GPROXY" Version="__VERSION__"
+           UpgradeCode="8DAB511D-4241-4CD8-8A61-F0D6F79185DC"
+           Scope="perUser" InstallerVersion="500" Compressed="yes">
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of GPROXY is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="LocalProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="GPROXY" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppProgramMenuDir" Name="GPROXY" />
+    </StandardDirectory>
+    <StandardDirectory Id="StartupFolder" />
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="MainFiles" Guid="*">
+        <File Id="GproxyExe" Source="__SOURCE__\gproxy.exe" KeyPath="yes" />
+        <File Id="Readme" Source="__SOURCE__\README.md" />
+        <File Id="LaunchScript" Source="__SOURCE__\GPROXY.vbs" />
+        <Shortcut Id="StartMenuShortcut" Directory="AppProgramMenuDir"
+                  Name="GPROXY" Target="[SystemFolder]wscript.exe"
+                  Arguments="&quot;[#LaunchScript]&quot; open" />
+        <RemoveFolder Id="RemoveProgramMenuDir" Directory="AppProgramMenuDir" On="uninstall" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="StartupFolder">
+      <Component Id="AutoStartFile" Guid="*">
+        <File Id="AutoStartScript" Name="GPROXY.vbs"
+              Source="__SOURCE__\GPROXY.vbs" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="GPROXY" Level="1">
+      <ComponentRef Id="MainFiles" />
+      <ComponentRef Id="AutoStartFile" />
+    </Feature>
+  </Package>
+</Wix>

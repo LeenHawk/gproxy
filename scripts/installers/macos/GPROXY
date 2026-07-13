@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+contents="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+data_dir="$HOME/Library/Application Support/GPROXY/data"
+log_dir="$HOME/Library/Logs/GPROXY"
+mkdir -p "$data_dir" "$log_dir"
+
+"$contents/MacOS/gproxy" --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
+server_pid=$!
+
+(
+  i=0
+  while [ "$i" -lt 30 ]; do
+    if curl -fsS http://127.0.0.1:8787/console >/dev/null 2>&1; then
+      open http://127.0.0.1:8787/console
+      exit 0
+    fi
+    i=$((i + 1))
+    sleep 0.2
+  done
+) &
+
+wait "$server_pid"

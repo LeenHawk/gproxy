@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GPROXY
+Comment=Run the GPROXY LLM proxy in the background
+Exec=/usr/bin/gproxy-desktop --open-console
+Icon=gproxy
+Terminal=false
+Categories=Network;Utility;

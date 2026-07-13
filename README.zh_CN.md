@@ -75,10 +75,12 @@ EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPRO
 | EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy`（CLI） |
 | **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions`（deno-2.0，CLI） |
 
-### 📦 原生二进制
+### 📦 原生安装包与二进制
 
-每个 [release](https://github.com/LeenHawk/gproxy/releases) 都提供预编译二进制
-（Linux/macOS/Windows，x86_64 + aarch64）。也可以自行运行 `cargo build --release`。
+每个 [release](https://github.com/LeenHawk/gproxy/releases) 都提供 Android APK、
+Windows MSI、macOS DMG、Linux DEB 和便携 ZIP，覆盖支持的 x86_64/aarch64 目标。
+桌面安装版会在后台运行，并可在 Console 设置中开关自动启动。也可以自行运行
+`cargo build --release` 构建便携版本。
 
 ---
 

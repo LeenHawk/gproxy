@@ -4,6 +4,7 @@
 
 pub mod audit;
 pub mod auth;
+pub mod autostart;
 pub mod connectivity;
 pub mod crud;
 pub mod login;
@@ -87,6 +88,10 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
     let cors_origins = state.config.cors_origins.clone();
     let protected = Router::new()
         .route("/admin/me", get(auth::me))
+        .route(
+            "/admin/autostart",
+            get(autostart::status).put(autostart::set),
+        )
         // M10c — OAuth authcode login flow (start/complete), behind require_admin.
         .route("/admin/login-flows/start", post(login::start))
         .route("/admin/login-flows/complete", post(login::complete))

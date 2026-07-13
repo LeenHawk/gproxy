@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+data_dir="$data_home/gproxy"
+log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/gproxy"
+mkdir -p "$data_dir" "$log_dir"
+
+if [ "${1:-}" = "--open-console" ]; then
+  nohup /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
+  i=0
+  while [ "$i" -lt 50 ]; do
+    if command -v curl >/dev/null 2>&1 \
+      && curl -fsS http://127.0.0.1:8787/console >/dev/null 2>&1; then
+      xdg-open http://127.0.0.1:8787/console >/dev/null 2>&1 || true
+      break
+    fi
+    i=$((i + 1))
+    sleep 0.2
+  done
+  if [ "$i" -eq 50 ] && command -v xdg-open >/dev/null 2>&1; then
+    xdg-open http://127.0.0.1:8787/console >/dev/null 2>&1 || true
+  fi
+  exit 0
+fi
+
+exec /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1

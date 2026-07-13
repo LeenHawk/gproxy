@@ -67,6 +67,7 @@ route、alias、权限、quota、pricing、转换规则和实例设置都存放�
 | --- | --- | --- |
 | `DATABASE_SECRET_KEY` | 空 | 仅用于 v1 迁移。如果旧 v1 数据库使用该 key 加密 secret，v1 reader 会先用它解密，再按 `GPROXY_MASTER_KEY` 重新密封到 v2。 |
 | `RUST_LOG` | `info` | native 日志使用的标准 `tracing_subscriber` filter。 |
+| `GPROXY_AUTOSTART` | 桌面首次运行默认为 `on` | 设为 `off` 可阻止首次运行注册用户级登录启动项。Docker 镜像已设为 `off`；之后可在 Console 设置中修改。 |
 
 ## Edge wrapper
 

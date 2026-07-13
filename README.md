@@ -84,10 +84,13 @@ Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a non-blank
 | EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy` (CLI) |
 | **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions` (deno-2.0, CLI) |
 
-### 📦 Native binary
+### 📦 Native installers and binaries
 
-Pre-built binaries (linux/macOS/windows, x86_64 + aarch64) ship on every
-[release](https://github.com/LeenHawk/gproxy/releases). Or `cargo build --release`.
+Every [release](https://github.com/LeenHawk/gproxy/releases) includes Android
+APK, Windows MSI, macOS DMG, Linux DEB, and portable ZIP builds for the supported
+x86_64/aarch64 targets. Installed desktop builds run in the background and
+expose an automatic-start switch in Console Settings. Or run
+`cargo build --release` for a portable local build.
 
 ---
 
