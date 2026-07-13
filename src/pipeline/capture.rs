@@ -248,6 +248,7 @@ impl crate::http::client::UpstreamClient for CapturingClient {
         Ok(resp)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     async fn send_streaming(
         &self,
         req: http::Request<Bytes>,
