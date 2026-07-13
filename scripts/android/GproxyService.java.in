@@ -116,8 +116,12 @@ public final class GproxyService extends Service {
             ? null : intent.getStringExtra(EXTRA_ADMIN_PASSWORD);
         stopRequested = false;
         starting = true;
-        new Thread(() -> launch(adminUser == null ? "admin" : adminUser, adminPassword),
-            "gproxy-start").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                launch(adminUser == null ? "admin" : adminUser, adminPassword);
+            }
+        }, "gproxy-start").start();
         return START_STICKY;
     }
 
@@ -174,23 +178,26 @@ public final class GproxyService extends Service {
     }
 
     private void readOutput(final Process child) {
-        new Thread(() -> {
-            try {
-                InputStream input = child.getInputStream();
-                byte[] buffer = new byte[4096];
-                int read;
-                while ((read = input.read(buffer)) != -1) {
-                    appendLog(new String(buffer, 0, read));
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    InputStream input = child.getInputStream();
+                    byte[] buffer = new byte[4096];
+                    int read;
+                    while ((read = input.read(buffer)) != -1) {
+                        appendLog(new String(buffer, 0, read));
+                    }
+                    int code = child.waitFor();
+                    appendLog("GPROXY exited with code " + code + ".");
+                } catch (Exception error) {
+                    appendLog("Output reader failed: " + error);
+                } finally {
+                    if (process == child) {
+                        process = null;
+                    }
+                    finishService();
                 }
-                int code = child.waitFor();
-                appendLog("GPROXY exited with code " + code + ".");
-            } catch (Exception error) {
-                appendLog("Output reader failed: " + error);
-            } finally {
-                if (process == child) {
-                    process = null;
-                }
-                finishService();
             }
         }, "gproxy-output").start();
     }

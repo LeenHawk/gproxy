@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -37,7 +38,7 @@ public final class GproxyActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        SharedPreferences prefs = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE);
+        final SharedPreferences prefs = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -58,18 +59,31 @@ public final class GproxyActivity extends Activity {
         autoStartSwitch = new Switch(this);
         autoStartSwitch.setText("Start automatically (app launch and device boot)");
         autoStartSwitch.setChecked(prefs.getBoolean(GproxyService.PREF_AUTO_START, true));
-        autoStartSwitch.setOnCheckedChangeListener((button, checked) -> {
-            prefs.edit().putBoolean(GproxyService.PREF_AUTO_START, checked).apply();
-            log(checked ? "Automatic startup enabled." : "Automatic startup disabled.");
+        autoStartSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton button, boolean checked) {
+                prefs.edit().putBoolean(GproxyService.PREF_AUTO_START, checked).apply();
+                log(checked ? "Automatic startup enabled." : "Automatic startup disabled.");
+            }
         });
 
         Button start = new Button(this);
         start.setText("Start GPROXY");
-        start.setOnClickListener(v -> startGproxy());
+        start.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startGproxy();
+            }
+        });
 
         Button stop = new Button(this);
         stop.setText("Stop");
-        stop.setOnClickListener(v -> GproxyService.stop(this));
+        stop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                GproxyService.stop(GproxyActivity.this);
+            }
+        });
 
         logView = new TextView(this);
         logView.setTextIsSelectable(true);
@@ -92,7 +106,12 @@ public final class GproxyActivity extends Activity {
 
         refreshState();
         if (autoStartSwitch.isChecked()) {
-            root.post(this::startGproxy);
+            root.post(new Runnable() {
+                @Override
+                public void run() {
+                    startGproxy();
+                }
+            });
         } else {
             log("Automatic startup is off. Tap Start GPROXY when needed.");
         }
