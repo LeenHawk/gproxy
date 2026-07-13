@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { instanceSettingsQuery, type InstanceSettings } from "@/api/settings";
 import { SettingsForm } from "@/components/settings/settings-form";
+import { AutoStartCard } from "@/components/settings/autostart-card";
 import {
   Select,
   SelectContent,
@@ -77,6 +78,7 @@ function SettingsPage() {
         <p className="text-sm text-muted-foreground">{t("empty")}</p>
       )}
 
+      <AutoStartCard />
       <SettingsForm key={selected?.id ?? "new"} settings={selected} />
     </div>
   );

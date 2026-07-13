@@ -1,0 +1,145 @@
+package __PACKAGE__;
+
+import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.os.Bundle;
+import android.text.InputType;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Switch;
+import android.widget.TextView;
+
+public final class GproxyActivity extends Activity {
+    private EditText adminUserInput;
+    private EditText adminPasswordInput;
+    private Switch autoStartSwitch;
+    private TextView logView;
+    private boolean receiverRegistered;
+
+    private final BroadcastReceiver events = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String line = intent.getStringExtra(GproxyService.EXTRA_LOG);
+            if (line != null && line.length() > 0) {
+                log(line);
+            }
+            refreshState();
+        }
+    };
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        SharedPreferences prefs = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(16);
+        root.setPadding(pad, pad, pad, pad);
+
+        adminUserInput = new EditText(this);
+        adminUserInput.setHint("Admin username");
+        adminUserInput.setSingleLine(true);
+        adminUserInput.setText(prefs.getString(GproxyService.PREF_ADMIN_USER, "admin"));
+
+        adminPasswordInput = new EditText(this);
+        adminPasswordInput.setHint("Admin password (not stored)");
+        adminPasswordInput.setSingleLine(true);
+        adminPasswordInput.setInputType(
+            InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
+        autoStartSwitch = new Switch(this);
+        autoStartSwitch.setText("Start automatically (app launch and device boot)");
+        autoStartSwitch.setChecked(prefs.getBoolean(GproxyService.PREF_AUTO_START, true));
+        autoStartSwitch.setOnCheckedChangeListener((button, checked) -> {
+            prefs.edit().putBoolean(GproxyService.PREF_AUTO_START, checked).apply();
+            log(checked ? "Automatic startup enabled." : "Automatic startup disabled.");
+        });
+
+        Button start = new Button(this);
+        start.setText("Start GPROXY");
+        start.setOnClickListener(v -> startGproxy());
+
+        Button stop = new Button(this);
+        stop.setText("Stop");
+        stop.setOnClickListener(v -> GproxyService.stop(this));
+
+        logView = new TextView(this);
+        logView.setTextIsSelectable(true);
+        log("GPROXY APK installed.");
+        String recent = GproxyService.recentLog();
+        if (recent.length() > 0) {
+            logView.append(recent);
+        }
+
+        root.addView(adminUserInput);
+        root.addView(adminPasswordInput);
+        root.addView(autoStartSwitch);
+        root.addView(start);
+        root.addView(stop);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(logView);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
+        setContentView(root);
+
+        refreshState();
+        if (autoStartSwitch.isChecked()) {
+            root.post(this::startGproxy);
+        } else {
+            log("Automatic startup is off. Tap Start GPROXY when needed.");
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (!receiverRegistered) {
+            registerReceiver(events, new IntentFilter(GproxyService.ACTION_EVENT));
+            receiverRegistered = true;
+        }
+        refreshState();
+    }
+
+    @Override
+    protected void onStop() {
+        if (receiverRegistered) {
+            unregisterReceiver(events);
+            receiverRegistered = false;
+        }
+        super.onStop();
+    }
+
+    private void startGproxy() {
+        String adminUser = adminUserInput.getText().toString().trim();
+        if (adminUser.length() == 0) {
+            adminUser = "admin";
+            adminUserInput.setText(adminUser);
+        }
+        getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE)
+            .edit().putString(GproxyService.PREF_ADMIN_USER, adminUser).apply();
+        GproxyService.start(this, adminUser, adminPasswordInput.getText().toString());
+    }
+
+    private void refreshState() {
+        boolean running = GproxyService.isRunning();
+        adminUserInput.setEnabled(!running);
+        adminPasswordInput.setEnabled(!running);
+    }
+
+    private void log(String line) {
+        logView.append(line + "\n");
+    }
+
+    private int dp(int value) {
+        float density = getResources().getDisplayMetrics().density;
+        return (int) (value * density + 0.5f);
+    }
+}

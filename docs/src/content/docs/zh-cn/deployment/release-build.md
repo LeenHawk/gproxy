@@ -53,6 +53,11 @@ release workflow 会构建 Linux glibc、Linux musl、macOS、Windows 和 Androi
 runtime。Android target 还会发布按 ABI 拆分的 APK（`arm64-v8a` 和 `x86_64`），里面带
 同一份 native payload。workflow 也会对部分二进制执行 `--help` smoke check。
 
+每个 native matrix job 都保留便携 ZIP，并按平台额外生成安装包：Linux `.deb`、macOS
+`.dmg`、Windows `.msi`、Android `.apk`。安装模板放在 `scripts/installers/`，打包入口
+分别是 `package-linux-deb.sh`、`package-macos-dmg.sh`、
+`package-windows-release.ps1`，以及负责 APK/ZIP 的 `package-native-release.sh`。
+
 ## 运行时配置
 
 二进制通过 CLI flag 和环境变量配置。v2 没有 TOML runtime config 文件。
@@ -99,6 +104,10 @@ native server 启动时会：
 4. 打开配置的 persistence backend；
 5. 仅在 providers 和 users 为空时导入 `GPROXY_IMPORT_FILE`；
 6. 确保或恢复 admin 用户；
-7. 启动 cache、upstream transport、snapshot、router、Console 和 gateway。
+7. 在符合条件的桌面首次运行中注册用户级登录启动项；
+8. 启动 cache、upstream transport、snapshot、router、Console 和 gateway。
+
+Android 使用 Foreground Service 与 boot receiver，不走 Rust 桌面启动管理器。容器、
+headless session，以及依赖 secret 或外部连接 URL 的配置不会被自动注册。
 
 用 `./gproxy --help` 查看当前构建的完整 flag。

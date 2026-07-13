@@ -21,7 +21,8 @@ COPY dist/data /app/data
 ENV GPROXY_HOST=0.0.0.0 \
     GPROXY_PORT=8787 \
     GPROXY_PERSISTENCE=file \
-    GPROXY_DATA_DIR=/app/data
+    GPROXY_DATA_DIR=/app/data \
+    GPROXY_AUTOSTART=off
 
 EXPOSE 8787
 

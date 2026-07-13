@@ -1,0 +1,16 @@
+package __PACKAGE__;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+
+public final class GproxyBootReceiver extends BroadcastReceiver {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        boolean enabled = context.getSharedPreferences(GproxyService.PREFS, Context.MODE_PRIVATE)
+            .getBoolean(GproxyService.PREF_AUTO_START, true);
+        if (enabled) {
+            GproxyService.startFromBoot(context);
+        }
+    }
+}

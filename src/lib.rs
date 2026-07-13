@@ -4,6 +4,8 @@
 pub mod admin;
 pub mod api;
 pub mod app;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod autostart;
 pub mod billing;
 pub mod channel;
 pub mod config;

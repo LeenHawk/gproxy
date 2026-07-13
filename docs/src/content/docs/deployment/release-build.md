@@ -56,6 +56,12 @@ targets also publish per-ABI APKs (`arm64-v8a` and `x86_64`) that carry the same
 native payload. The workflow also smoke-checks selected binaries with `--help`
 before packaging.
 
+Each native matrix job keeps the portable ZIP and also emits the platform
+installer where applicable: Linux `.deb`, macOS `.dmg`, Windows `.msi`, and
+Android `.apk`. The installer templates live under `scripts/installers/`; the
+packaging entry points are `package-linux-deb.sh`, `package-macos-dmg.sh`,
+`package-windows-release.ps1`, and `package-native-release.sh` for APK/ZIP.
+
 ## Runtime Configuration
 
 The binary is configured by CLI flags and environment variables. There is no v2
@@ -105,6 +111,11 @@ On startup the native server:
 4. opens the configured persistence backend;
 5. imports `GPROXY_IMPORT_FILE` only if providers and users are empty;
 6. ensures or recovers the admin user;
-7. starts the cache, upstream transport, snapshot, router, console, and gateway.
+7. registers per-user desktop login startup on the first eligible run;
+8. starts the cache, upstream transport, snapshot, router, console, and gateway.
+
+Android uses its foreground service and boot receiver instead of the Rust
+desktop startup manager. Containers, headless sessions, and configurations
+that depend on secrets or external connection URLs are not auto-registered.
 
 Use `./gproxy --help` to inspect every current flag on the built binary.

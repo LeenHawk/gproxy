@@ -6,7 +6,8 @@
     "outbound": "出站代理",
     "usageLogging": "用量与日志",
     "retention": "保留策略",
-    "tokenizer": "分词器"
+    "tokenizer": "分词器",
+    "autostart": "后台运行"
   },
   "fields": {
     "instanceName": "实例名称",
@@ -19,7 +20,8 @@
     "enableDownstreamLogBody": "记录下游请求/响应体",
     "disableLogRedaction": "禁用日志脱敏",
     "enableTokenizerDownload": "启用分词器下载",
-    "retentionDays": "日志保留天数"
+    "retentionDays": "日志保留天数",
+    "autostart": "登录系统时自动启动 GPROXY"
   },
   "spoof": {
     "on": "使用通道配置",
@@ -33,6 +35,12 @@
   },
   "save": "保存设置",
   "saved": "设置已保存",
+  "autostart": {
+    "description": "当前平台：{{platform}}。关闭后不会停止当前服务，只影响下次登录。",
+    "unsupported": "当前运行环境不支持自动启动。",
+    "saved": "自动启动设置已保存",
+    "failed": "自动启动设置保存失败"
+  },
   "form": {
     "nameRequired": "实例名称不能为空"
   },

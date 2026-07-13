@@ -6,7 +6,8 @@
     "outbound": "Outbound Proxy",
     "usageLogging": "Usage & Logging",
     "retention": "Retention",
-    "tokenizer": "Tokenizer"
+    "tokenizer": "Tokenizer",
+    "autostart": "Background Service"
   },
   "fields": {
     "instanceName": "Instance Name",
@@ -19,7 +20,8 @@
     "enableDownstreamLogBody": "Log Downstream Request/Response Bodies",
     "disableLogRedaction": "Disable Log Redaction",
     "enableTokenizerDownload": "Enable Tokenizer Download",
-    "retentionDays": "Retention Period (days)"
+    "retentionDays": "Retention Period (days)",
+    "autostart": "Start GPROXY automatically at login"
   },
   "spoof": {
     "on": "Use channel profiles",
@@ -33,6 +35,12 @@
   },
   "save": "Save Settings",
   "saved": "Settings saved",
+  "autostart": {
+    "description": "Platform: {{platform}}. Turning this off affects the next login and does not stop the current service.",
+    "unsupported": "Automatic startup is unavailable in this environment.",
+    "saved": "Automatic startup setting saved",
+    "failed": "Could not save automatic startup setting"
+  },
   "form": {
     "nameRequired": "Instance name is required"
   },

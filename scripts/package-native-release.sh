@@ -314,245 +314,6 @@ write_android_icons() {
   done
 }
 
-write_android_activity() {
-  local source="$1"
-  local package_name="$2"
-  cat > "$source" <<EOF
-package $package_name;
-
-import android.app.Activity;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.text.InputType;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Map;
-
-public final class GproxyActivity extends Activity {
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private EditText adminUserInput;
-    private EditText adminPasswordInput;
-    private TextView logView;
-    private Process process;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(16);
-        root.setPadding(pad, pad, pad, pad);
-
-        adminUserInput = new EditText(this);
-        adminUserInput.setHint("Admin username");
-        adminUserInput.setSingleLine(true);
-        adminUserInput.setText("admin");
-
-        adminPasswordInput = new EditText(this);
-        adminPasswordInput.setHint("Admin password");
-        adminPasswordInput.setSingleLine(true);
-        adminPasswordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-
-        Button start = new Button(this);
-        start.setText("Start GPROXY");
-        Button stop = new Button(this);
-        stop.setText("Stop");
-
-        logView = new TextView(this);
-        logView.setTextIsSelectable(true);
-        log("GPROXY APK installed.");
-        log("Tap Start GPROXY, then open http://127.0.0.1:8787/console");
-
-        start.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                startGproxy();
-            }
-        });
-        stop.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                stopGproxy();
-            }
-        });
-
-        root.addView(adminUserInput);
-        root.addView(adminPasswordInput);
-        root.addView(start);
-        root.addView(stop);
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(logView);
-        root.addView(scroll, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f));
-        setContentView(root);
-    }
-
-    private void startGproxy() {
-        if (isGproxyRunning()) {
-            log("GPROXY is already running.");
-            return;
-        }
-        try {
-            String adminUser = adminUserInput.getText().toString().trim();
-            String adminPassword = adminPasswordInput.getText().toString();
-            if (adminUser.length() == 0) {
-                adminUser = "admin";
-            }
-
-            File binDir = new File(getFilesDir(), "bin");
-            File dataDir = new File(getFilesDir(), "data");
-            if (!binDir.isDirectory() && !binDir.mkdirs()) {
-                throw new IOException("create " + binDir);
-            }
-            if (!dataDir.isDirectory() && !dataDir.mkdirs()) {
-                throw new IOException("create " + dataDir);
-            }
-            File executable = copyAsset("gproxy/gproxy.bin", new File(binDir, "gproxy"), true);
-            File libcxx = copyAsset("gproxy/libc++_shared.so", new File(binDir, "libc++_shared.so"), false);
-            log("Executable: " + executable.getAbsolutePath());
-
-            ArrayList<String> command = new ArrayList<String>();
-            command.add(executable.getAbsolutePath());
-            command.add("--host");
-            command.add("127.0.0.1");
-            command.add("--port");
-            command.add("8787");
-            command.add("--data-dir");
-            command.add(dataDir.getAbsolutePath());
-            command.add("--admin-user");
-            command.add(adminUser);
-            if (adminPassword.length() > 0) {
-                command.add("--admin-password");
-                command.add(adminPassword);
-            }
-
-            ProcessBuilder builder = new ProcessBuilder(command);
-            Map<String, String> env = builder.environment();
-            env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
-            builder.redirectErrorStream(true);
-            process = builder.start();
-            adminUserInput.setEnabled(false);
-            adminPasswordInput.setEnabled(false);
-            log("Started. Console: http://127.0.0.1:8787/console");
-            readOutput(process);
-        } catch (Exception e) {
-            log("Start failed: " + e);
-        }
-    }
-
-    private void stopGproxy() {
-        if (!isGproxyRunning()) {
-            log("GPROXY is not running.");
-            return;
-        }
-        process.destroy();
-        log("Stopping GPROXY.");
-    }
-
-    private boolean isGproxyRunning() {
-        if (process == null) {
-            return false;
-        }
-        try {
-            process.exitValue();
-            return false;
-        } catch (IllegalThreadStateException e) {
-            return true;
-        }
-    }
-
-    private File copyAsset(String assetName, File out, boolean executable) throws IOException {
-        InputStream input = getAssets().open(assetName);
-        try {
-            FileOutputStream output = new FileOutputStream(out);
-            try {
-                byte[] buffer = new byte[64 * 1024];
-                int read;
-                while ((read = input.read(buffer)) != -1) {
-                    output.write(buffer, 0, read);
-                }
-            } finally {
-                output.close();
-            }
-        } finally {
-            input.close();
-        }
-        out.setReadable(true, true);
-        out.setWritable(true, true);
-        out.setExecutable(executable, true);
-        return out;
-    }
-
-    private void readOutput(final Process running) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    InputStream input = running.getInputStream();
-                    byte[] buffer = new byte[4096];
-                    int read;
-                    while ((read = input.read(buffer)) != -1) {
-                        final String text = new String(buffer, 0, read);
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                logView.append(text);
-                            }
-                        });
-                    }
-                    final int code = running.waitFor();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            log("GPROXY exited with code " + code + ".");
-                            if (process == running) {
-                                process = null;
-                            }
-                            adminUserInput.setEnabled(true);
-                            adminPasswordInput.setEnabled(true);
-                        }
-                    });
-                } catch (Exception e) {
-                    final String message = e.toString();
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            log("Output reader failed: " + message);
-                            if (process == running) {
-                                process = null;
-                            }
-                            adminUserInput.setEnabled(true);
-                            adminPasswordInput.setEnabled(true);
-                        }
-                    });
-                }
-            }
-        }, "gproxy-output").start();
-    }
-
-    private void log(String line) {
-        logView.append(line + "\\n");
-    }
-
-    private int dp(int value) {
-        float density = getResources().getDisplayMetrics().density;
-        return (int) (value * density + 0.5f);
-    }
-}
-EOF
-}
 
 compile_android_activity() {
   local work="$1"
@@ -562,11 +323,21 @@ compile_android_activity() {
   local min_sdk="$5"
   local source_dir="$work/src/${package_name//.//}"
   mkdir -p "$source_dir" "$work/classes" "$work/dex"
-  write_android_activity "$source_dir/GproxyActivity.java" "$package_name"
+  local template output
+  local sources=()
+  for template in scripts/android/*.java.in; do
+    output="$source_dir/$(basename "${template%.in}")"
+    sed "s/__PACKAGE__/$package_name/g" "$template" > "$output"
+    sources+=("$output")
+  done
   javac -source 1.8 -target 1.8 -bootclasspath "$android_jar" \
-    -d "$work/classes" "$source_dir/GproxyActivity.java"
+    -d "$work/classes" "${sources[@]}"
+  local classes=()
+  while IFS= read -r class_file; do
+    classes+=("$class_file")
+  done < <(find "$work/classes" -name '*.class' -type f | sort)
   "$d8" --min-api "$min_sdk" --lib "$android_jar" --output "$work/dex" \
-    $(find "$work/classes" -name '*.class' -type f | sort)
+    "${classes[@]}"
 }
 
 sign_android_apk() {
@@ -641,6 +412,8 @@ EOF
     android:versionName="$version_name_xml">
     <uses-sdk android:minSdkVersion="$min_sdk" android:targetSdkVersion="$target_sdk" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
@@ -657,6 +430,19 @@ EOF
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".GproxyService"
+            android:exported="false"
+            android:stopWithTask="false" />
+        <receiver
+            android:name=".GproxyBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
 EOF
@@ -698,6 +484,11 @@ else
   cp "$binary" "$package_dir/gproxy"
   chmod 755 "$package_dir/gproxy"
   (cd "$package_dir" && zip -9 "$output_dir/$artifact.zip" gproxy README.md)
+  if [ "$target_os" = "linux" ]; then
+    bash scripts/package-linux-deb.sh
+  elif [ "$target_os" = "macos" ]; then
+    bash scripts/package-macos-dmg.sh
+  fi
 fi
 
 shasum -a 256 "$artifact.zip" > "$artifact.zip.sha256"

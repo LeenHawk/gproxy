@@ -73,6 +73,7 @@ configuration variable.
 | --- | --- | --- |
 | `DATABASE_SECRET_KEY` | Empty | v1 migration-only key name. If a legacy v1 database stored encrypted secrets, the v1 migration reader uses this key to decrypt them before re-sealing under `GPROXY_MASTER_KEY`. |
 | `RUST_LOG` | `info` | Standard `tracing_subscriber` filter used by native logging. |
+| `GPROXY_AUTOSTART` | `on` on the first desktop run | Set to `off` to prevent first-run registration of a per-user login startup entry. Docker images set this to `off`. Later changes are made in Console Settings. |
 
 ## Edge wrappers
 

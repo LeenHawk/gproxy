@@ -9,7 +9,27 @@ GPROXY v2 是一个单 Rust crate，native 产物是名为 `gproxy` 的二进制
 
 按部署形态选择安装方式。
 
-## Release 二进制
+## 原生安装包
+
+Release 除了便携 ZIP，还会发布各平台的原生安装包：
+
+| 平台 | 安装包 | 后台行为 |
+| --- | --- | --- |
+| Android | `.apk` | Foreground Service 通过常驻通知保持运行。首次打开和设备开机默认自动启动，可在 APK 启动器中修改。 |
+| Windows | `.msi` | 按用户安装到 Local AppData，创建开始菜单入口，并在登录系统时隐藏启动。 |
+| macOS | `.dmg` | 把 `GPROXY.app` 拖入 Applications；App 不显示 Dock 图标，首次运行会注册用户级 LaunchAgent。 |
+| Linux | `.deb` | 安装桌面入口和 XDG 登录启动项，提供 amd64 与 arm64 包。 |
+
+Windows、macOS、Linux 可以在内嵌 Console 的 **设置 → 后台运行** 中开关登录
+自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会复制管理员密码、主密钥、
+DSN 或带认证信息的代理 URL；依赖这些值的部署应继续使用已有 service manager。
+
+后台 launcher 的输出（包括首次随机生成且只显示一次的管理员密码）分别写入 Windows
+的 `%LOCALAPPDATA%\GPROXY\logs\gproxy.log`、macOS 的
+`~/Library/Logs/GPROXY/gproxy.log`，以及 Linux 的
+`${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log`。
+
+## 便携 Release 二进制
 
 如果只想运行 native server 和内嵌 Console，不想在机器上安装 Rust 或 Node，使用
 release 二进制。
@@ -27,16 +47,18 @@ release workflow 会构建 Linux、macOS、Windows、Android，以及 x86_64、a
 目标。Docker 镜像也使用预构建的 Linux 二进制作为输入。Android release 也会包含按
 ABI 拆分的 APK，适合想使用可安装包而不是原始 executable 压缩包的用户。
 
-Android APK 包含一个最小 launcher UI。安装匹配 ABI 的 APK 后，打开 **GPROXY**，
-按需填写 admin username/password，再点击 **Start GPROXY**。它会用下面的参数运行
-native server：
+Android APK 包含 launcher UI 和 Foreground Service。安装匹配 ABI 的 APK 后打开
+**GPROXY**，首次会自动启动；launcher 中的开关控制以后打开 App 和设备开机时是否
+自动启动。Service 会用下面的参数运行 native server：
 
 ```bash
 --host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data --admin-user <username>
 ```
 
-如果填写了 password，launcher 也会传入 `--admin-password`。如果留空，则沿用
-GPROXY 的首次启动随机 admin 密码，并在 app 日志里打印。
+如果需要在第一次运行前指定密码，可先关闭自动启动、停止 Service，填写 password
+后再启动。密码只传给这一次启动，launcher 不会持久化它。如果留空，则沿用 GPROXY
+的首次启动随机 admin 密码，并在 app 日志里打印。Service 运行期间 Android 会显示
+常驻通知。
 
 Release APK 使用包名 `io.github.leenhawk.gproxy`、app 名称 `GPROXY`，并使用
 Console favicon 作为 launcher 图标。正式发布的 APK 必须使用 GitHub Actions 里配置的

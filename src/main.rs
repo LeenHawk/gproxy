@@ -433,9 +433,21 @@ async fn main() -> anyhow::Result<()> {
     // (no-op until an operator sets `instance_settings.retention_days`).
     gproxy::app::retention::spawn_retention_task(state.clone());
 
+    let autostart = Arc::clone(&state.autostart);
     let app = http::server::router(state);
 
     let listener = tokio::net::TcpListener::bind(bind).await?;
+    // Register only after a successful bind, so a broken/duplicate first boot
+    // cannot persist an entry that will fail on every subsequent login.
+    match autostart.initialize_default() {
+        Ok(status) if status.supported => tracing::info!(
+            enabled = status.enabled,
+            platform = status.platform,
+            "automatic startup ready"
+        ),
+        Ok(_) => {}
+        Err(error) => tracing::warn!(%error, "could not initialize automatic startup"),
+    }
     tracing::info!("GPROXY v2 listening on http://{bind}");
     // ConnectInfo carries the socket peer into handlers — the anchor the
     // trusted-proxy client-IP resolution verifies forwarding headers against.

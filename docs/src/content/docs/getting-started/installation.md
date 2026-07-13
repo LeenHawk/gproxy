@@ -10,7 +10,29 @@ static files are synced into `assets/console/` and embedded in the binary.
 
 Choose the installation path that matches how you want to run it.
 
-## Release Binary
+## Installable Packages
+
+Release builds include native installers as well as portable ZIP archives:
+
+| Platform | Package | Background behavior |
+| --- | --- | --- |
+| Android | `.apk` | A foreground service keeps GPROXY alive with a persistent notification. Automatic start is on by default for the first app launch and device boot, and can be changed in the launcher. |
+| Windows | `.msi` | Installs per-user under Local AppData, adds a Start menu entry, and starts hidden at login. |
+| macOS | `.dmg` | Drag `GPROXY.app` to Applications. The app runs without a Dock icon and registers a per-user LaunchAgent on first start. |
+| Linux | `.deb` | Installs a desktop launcher and an XDG background login entry. Packages are published for amd64 and arm64. |
+
+On Windows, macOS, and Linux, open **Settings → Background Service** in the
+embedded Console to turn login startup on or off. Turning it off does not stop
+the currently running server. Startup entries never copy admin passwords,
+master keys, DSNs, or authenticated proxy URLs. Deployments that depend on
+those values should use their existing service manager instead.
+
+Background launcher output, including the one-time random first-boot password,
+is written to `%LOCALAPPDATA%\GPROXY\logs\gproxy.log` on Windows,
+`~/Library/Logs/GPROXY/gproxy.log` on macOS, and
+`${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log` on Linux.
+
+## Portable Release Binary
 
 Use a release binary when you want the native server with the embedded console
 and no local Rust or Node toolchain.
@@ -30,17 +52,20 @@ Android, x86_64, and aarch64 targets. Linux release binaries are also used as
 the input to the Docker image. Android releases also include per-ABI APKs for
 users who prefer an installable package over the raw executable archive.
 
-The Android APK includes a minimal launcher UI. Install the matching ABI APK,
-open **GPROXY**, set the admin username/password fields if desired, then tap
-**Start GPROXY** to run the native server with:
+The Android APK includes a launcher UI and foreground service. Install the
+matching ABI APK and open **GPROXY**. It starts automatically on first launch;
+the launcher switch controls future app-launch and device-boot startup. The
+service runs the native server with:
 
 ```bash
 --host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data --admin-user <username>
 ```
 
-If the password field is filled, the launcher also passes `--admin-password`.
-If it is left blank, GPROXY uses its normal first-boot random admin password and
-prints it in the app log.
+To choose a password before the first run, turn automatic startup off, stop the
+service, fill the password field, and start it again. Passwords are passed only
+to that start and are never stored by the launcher. If the field is blank,
+GPROXY uses its normal first-boot random admin password and prints it in the app
+log. Android displays a persistent notification while the service is running.
 
 Release APKs use the package name `io.github.leenhawk.gproxy`, app label
 `GPROXY`, and the Console favicon as the launcher icon. Published release APKs

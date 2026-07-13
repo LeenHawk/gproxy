@@ -236,6 +236,14 @@ jobs:
         shell: pwsh
         run: choco install upx -y
 
+      - name: Install WiX Toolset (windows)
+        if: ${{ matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 4.0.6
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
+
       - name: Compress binary
         if: ${{ matrix.upx }}
         run: upx --best --lzma target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
@@ -285,16 +293,14 @@ jobs:
         run: |
           bash scripts/package-native-release.sh
 
-      - name: Package zip + sha256 (windows)
+      - name: Package zip + MSI (windows)
         if: ${{ matrix.os == 'windows' }}
         shell: pwsh
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/gproxy.exe" dist/gproxy.exe
-          Copy-Item README.md dist/
-          Compress-Archive -Path dist/gproxy.exe,dist/README.md -DestinationPath ${{ matrix.artifact }}.zip -Force
-          $h = (Get-FileHash ${{ matrix.artifact }}.zip -Algorithm SHA256).Hash.ToLower()
-          "$h  ${{ matrix.artifact }}.zip" | Out-File -Encoding ascii ${{ matrix.artifact }}.zip.sha256
+          ./scripts/package-windows-release.ps1
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v7
@@ -305,6 +311,12 @@ jobs:
             ${{ matrix.artifact }}.zip.sha256
             ${{ matrix.artifact }}.apk
             ${{ matrix.artifact }}.apk.sha256
+            ${{ matrix.artifact }}.msi
+            ${{ matrix.artifact }}.msi.sha256
+            ${{ matrix.artifact }}.dmg
+            ${{ matrix.artifact }}.dmg.sha256
+            ${{ matrix.artifact }}.deb
+            ${{ matrix.artifact }}.deb.sha256
           retention-days: 1
 
   prepare-release-assets:
@@ -316,9 +328,9 @@ jobs:
       # min_compatible_data_version (scripts/build-update-manifest.sh).
       - uses: actions/checkout@v7
 
-      # Per-target `release-asset-<triple>/<name>.zip` + `.zip.sha256` from
-      # build-native. No merge: keep the per-triple dirs the script reads.
-      - name: Download release zip assets
+      # Per-target portable archives + native installers from build-native. No
+      # merge: keep the per-triple dirs the signed-manifest script reads.
+      - name: Download native package assets
         uses: actions/download-artifact@v8
         with:
           pattern: release-asset-*
@@ -329,36 +341,7 @@ jobs:
         run: |
           set -euo pipefail
           short="${GITHUB_SHA::12}"
-          mapfile -d '' files < <(find dl -type f \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.apk' -o -name '*.apk.sha256' \) -print0)
-          for file in "${files[@]}"; do
-            [ -e "$file" ] || continue
-            dir="$(dirname "$file")"
-            base="$(basename "$file")"
-            case "$base" in
-              *.zip)
-                stem="${base%.zip}"
-                mv "$file" "$dir/${stem}-${short}.zip"
-                ;;
-              *.zip.sha256)
-                stem="${base%.zip.sha256}"
-                new_base="${stem}-${short}.zip"
-                sha="$(awk '{print $1}' "$file")"
-                printf '%s  %s\n' "$sha" "$new_base" > "$dir/${new_base}.sha256"
-                rm "$file"
-                ;;
-              *.apk)
-                stem="${base%.apk}"
-                mv "$file" "$dir/${stem}-${short}.apk"
-                ;;
-              *.apk.sha256)
-                stem="${base%.apk.sha256}"
-                new_base="${stem}-${short}.apk"
-                sha="$(awk '{print $1}' "$file")"
-                printf '%s  %s\n' "$sha" "$new_base" > "$dir/${new_base}.sha256"
-                rm "$file"
-                ;;
-            esac
-          done
+          bash scripts/namespace-release-assets.sh dl "$short"
 
       - name: Build + sign manifest.json
         env:
@@ -378,7 +361,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p publish-assets
-          find dl -type f \( -name '*.zip' -o -name '*.zip.sha256' -o -name '*.apk' -o -name '*.apk.sha256' \) \
+          find dl -type f \( \
+            -name '*.zip' -o -name '*.zip.sha256' \
+            -o -name '*.apk' -o -name '*.apk.sha256' \
+            -o -name '*.msi' -o -name '*.msi.sha256' \
+            -o -name '*.dmg' -o -name '*.dmg.sha256' \
+            -o -name '*.deb' -o -name '*.deb.sha256' \) \
             -exec cp {} publish-assets/ \;
           cp manifest.json publish-assets/
           ls -la publish-assets
@@ -733,7 +721,7 @@ jobs:
               continue
             fi
             case "$name" in
-              *.zip|*.zip.sha256|*.apk|*.apk.sha256|*.zip.sha256.sig)
+              *.zip|*.zip.sha256|*.apk|*.apk.sha256|*.msi|*.msi.sha256|*.dmg|*.dmg.sha256|*.deb|*.deb.sha256|*.zip.sha256.sig)
                 gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" >/dev/null
                 ;;
             esac

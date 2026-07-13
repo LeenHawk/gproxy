@@ -43,6 +43,26 @@ export function upsertInstanceSettings(input: InstanceSettingsInput): Promise<In
   return api<InstanceSettings>("/admin/instance-settings", { method: "POST", body: JSON.stringify(input) });
 }
 
+export interface AutoStartStatus {
+  supported: boolean;
+  enabled: boolean;
+  platform: string;
+  detail: string | null;
+}
+
+export const autoStartQuery = queryOptions({
+  queryKey: ["autostart"],
+  queryFn: () => api<AutoStartStatus>("/admin/autostart"),
+  retry: false,
+});
+
+export function setAutoStart(enabled: boolean): Promise<AutoStartStatus> {
+  return api<AutoStartStatus>("/admin/autostart", {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 /** Map a stored row to its upsert input (all fields), so a single field can be
  *  changed without dropping the others (the API replaces the whole row). */
 export function settingsToInput(s: InstanceSettings): InstanceSettingsInput {
