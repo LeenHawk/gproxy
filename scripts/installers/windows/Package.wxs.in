@@ -14,12 +14,21 @@
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="AppProgramMenuDir" Name="GPROXY" />
     </StandardDirectory>
-    <StandardDirectory Id="StartupFolder" />
+    <StandardDirectory Id="StartupFolder">
+      <Component Id="AutoStartFile" Guid="*">
+        <File Id="AutoStartScript" Name="GPROXY.vbs"
+              Source="__SOURCE__\GPROXY.vbs" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
 
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="MainFiles" Guid="*">
+      <Component Id="GproxyExecutable" Guid="*">
         <File Id="GproxyExe" Source="__SOURCE__\gproxy.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="ReadmeFile" Guid="*">
         <File Id="Readme" Source="__SOURCE__\README.md" />
+      </Component>
+      <Component Id="LaunchScriptFile" Guid="*">
         <File Id="LaunchScript" Source="__SOURCE__\GPROXY.vbs" />
         <Shortcut Id="StartMenuShortcut" Directory="AppProgramMenuDir"
                   Name="GPROXY" Target="[SystemFolder]wscript.exe"
@@ -27,15 +36,11 @@
         <RemoveFolder Id="RemoveProgramMenuDir" Directory="AppProgramMenuDir" On="uninstall" />
       </Component>
     </DirectoryRef>
-    <DirectoryRef Id="StartupFolder">
-      <Component Id="AutoStartFile" Guid="*">
-        <File Id="AutoStartScript" Name="GPROXY.vbs"
-              Source="__SOURCE__\GPROXY.vbs" KeyPath="yes" />
-      </Component>
-    </DirectoryRef>
 
     <Feature Id="MainFeature" Title="GPROXY" Level="1">
-      <ComponentRef Id="MainFiles" />
+      <ComponentRef Id="GproxyExecutable" />
+      <ComponentRef Id="ReadmeFile" />
+      <ComponentRef Id="LaunchScriptFile" />
       <ComponentRef Id="AutoStartFile" />
     </Feature>
   </Package>
