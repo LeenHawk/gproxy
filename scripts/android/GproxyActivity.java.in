@@ -58,7 +58,7 @@ public final class GproxyActivity extends Activity {
         adminUserInput.setText(prefs.getString(GproxyService.PREF_ADMIN_USER, "admin"));
 
         adminPasswordInput = new EditText(this);
-        adminPasswordInput.setHint("Admin password (not stored)");
+        adminPasswordInput.setHint("Admin password (plaintext not saved)");
         adminPasswordInput.setSingleLine(true);
         adminPasswordInput.setInputType(
             InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);

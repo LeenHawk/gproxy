@@ -48,7 +48,7 @@ function Show-SetupDialog {
     $intro = New-Object System.Windows.Forms.Label
     $intro.Location = New-Object System.Drawing.Point(20, 18)
     $intro.Size = New-Object System.Drawing.Size(400, 42)
-    $intro.Text = "Choose the administrator credentials used to sign in to Console. The password is used for this start only and is not saved."
+    $intro.Text = "Choose the administrator credentials used to sign in to Console. GPROXY stores the password hash; this launcher does not save the plaintext."
 
     $userLabel = New-Object System.Windows.Forms.Label
     $userLabel.Location = New-Object System.Drawing.Point(20, 72)

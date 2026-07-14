@@ -29,7 +29,8 @@ Release builds include native installers as well as portable ZIP archives:
 
 The MSI, DMG, and DEB launchers ask for an administrator username, a non-blank
 password, and the login-startup preference on first run. They save the username
-but never the password. Afterward, open **Settings → Background Service** in the
+but not the plaintext password; GPROXY persists its Argon2id hash for future
+Console logins. Afterward, open **Settings → Background Service** in the
 embedded Console to change login startup. Turning it off does not stop the
 currently running server. Startup entries never copy admin passwords, master
 keys, DSNs, or authenticated proxy URLs. Deployments that depend on those
@@ -76,10 +77,11 @@ GPROXY_ADMIN_USER=<username>
 --host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data
 ```
 
-Passwords are passed only to that start and are never stored by the launcher.
-After initial setup, leaving the password field blank starts the existing
-administrator unchanged; entering a password intentionally resets it. Android
-displays a persistent notification while the service is running.
+The launcher does not store plaintext passwords. GPROXY persists the Argon2id
+hash for login verification. After initial setup, leaving the password field
+blank starts the existing administrator unchanged; entering a password
+intentionally resets it. Android displays a persistent notification while the
+service is running.
 
 Release APKs use the package name `io.github.leenhawk.gproxy`, app label
 `GPROXY`, and the Console favicon as the launcher icon. Published release APKs

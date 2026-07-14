@@ -27,8 +27,9 @@ Release 除了便携 ZIP，还会发布各平台的原生安装包：
 | Linux | `.deb` | 安装桌面入口和 XDG 登录启动项；首次设置会询问是否启用，提供 amd64、arm64 与 RISC-V 64 包。 |
 
 MSI、DMG 和 DEB launcher 首次运行时都会要求设置管理员用户名、非空密码，并询问是否
-随系统登录自动启动。Launcher 会保存用户名，但绝不保存密码。之后可以在内嵌 Console 的
-**设置 → 后台运行** 中修改自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会
+随系统登录自动启动。Launcher 会保存用户名，但不保存明文密码；GPROXY 会持久化
+Argon2id 密码哈希供后续登录验证。之后可以在内嵌 Console 的 **设置 → 后台运行** 中
+修改自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会
 复制管理员密码、主密钥、DSN 或带认证信息的代理 URL；依赖这些值的部署应继续使用已有
 service manager。
 
@@ -68,8 +69,9 @@ GPROXY_ADMIN_USER=<username>
 --host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data
 ```
 
-密码只传给这一次启动，launcher 不会持久化它。完成首次设置后，密码留空会保持已有
-管理员不变；再次填写密码则会主动重置它。Service 运行期间 Android 会显示常驻通知。
+Launcher 不会持久化明文密码；GPROXY 会保存 Argon2id 密码哈希用于登录验证。完成首次
+设置后，密码留空会保持已有管理员不变；再次填写密码则会主动重置它。Service 运行期间
+Android 会显示常驻通知。
 
 Release APK 使用包名 `io.github.leenhawk.gproxy`、app 名称 `GPROXY`，并使用
 Console favicon 作为 launcher 图标。正式发布的 APK 必须使用 GitHub Actions 里配置的
