@@ -63,7 +63,7 @@
       "top_level": "Top Level (global)",
       "system": "System",
       "tools": "Tools",
-      "last_message": "Last Message"
+      "message": "Message"
     },
     "modeOptions": {
       "override": "Override",

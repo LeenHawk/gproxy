@@ -11,7 +11,7 @@ use crate::store::persistence::records::Rule;
 /// Provider-native `cache_breakpoint` config.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CacheBreakpointCfg {
-    /// "top_level" | "system" | "tools" | "last_message"
+    /// "top_level" | "system" | "tools" | "message"
     pub target: String,
     /// Block index within the target; default = last block.
     #[serde(default)]

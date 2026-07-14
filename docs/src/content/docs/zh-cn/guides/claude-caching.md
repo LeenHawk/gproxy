@@ -28,7 +28,7 @@ description: 通过 Provider 规则或 GPROXY 魔法字符串添加 Claude 和 O
 
 | 字段 | 含义 |
 | --- | --- |
-| `target` | `top_level`、`system`、`tools` 或 `last_message`。不同协议支持的目标不完全相同，见下表。 |
+| `target` | `top_level`、`system`、`tools` 或 `message`。不同协议支持的目标不完全相同，见下表。 |
 | `index` | 从 1 开始的有符号块索引。正数从前往后数，负数从后往前数；省略时选择最后一块。`0` 无效。 |
 | `ttl` | Claude 使用 `5m` 或 `1h`；OpenAI 使用 `30m`。 |
 | `position` | 为兼容旧配置保留，目前不生效。 |
@@ -44,7 +44,7 @@ Messages 请求，并写入 Claude 断点；目标是 OpenAI Chat 或 Responses 
 | `top_level` | 在请求顶层添加 `cache_control`，启用 Anthropic 自动提示缓存。 | 在请求未指定模式时，确保 `prompt_cache_options.mode` 为 `implicit`。 |
 | `system` | 标记 `system` 数组中的内容块。字符串形式的 `system` 无法携带块元数据，会跳过。 | 标记 system/developer 内容。Responses 的 `instructions` 本身不能携带断点，GPROXY 会紧接着插入一个很小的 developer 内容块作为缓存边界。 |
 | `tools` | 标记工具定义。 | OpenAI 不支持，规则会跳过并记录警告。 |
-| `last_message` | 标记最后一条消息中的内容块。 | 标记 Chat 最后一条消息或 Responses 最后一条输入消息中的受支持内容块。 |
+| `message` | 标记转换后 `messages` 数组最后一个元素中的内容块，不区分消息角色。 | 标记 Chat 最后一个消息元素或 Responses 最后一个含角色和内容的输入项中的受支持内容块。 |
 
 ## OpenAI 断点
 

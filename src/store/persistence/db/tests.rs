@@ -41,6 +41,67 @@ async fn connect_stamps_latest_and_leaves_nothing_pending() {
 }
 
 #[tokio::test]
+async fn migrates_cache_breakpoint_message_target() {
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-cache-target.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE rules (\
+            id INTEGER PRIMARY KEY, \
+            rule_set_id INTEGER NOT NULL, \
+            kind TEXT NOT NULL, \
+            config_json TEXT NOT NULL, \
+            filter_model_pattern TEXT, \
+            filter_operation_keys TEXT, \
+            sort_order INTEGER NOT NULL, \
+            enabled INTEGER NOT NULL, \
+            created_at INTEGER NOT NULL, \
+            updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old rules table");
+    conn.execute_unprepared(
+        "INSERT INTO rules \
+            (id, rule_set_id, kind, config_json, sort_order, enabled, created_at, updated_at) \
+         VALUES \
+            (1, 1, 'cache_breakpoint', \
+             '{\"index\":-1, \"target\": \"last_message\", \"ttl\":\"5m\"}', 0, 1, 0, 0)",
+    )
+    .await
+    .expect("old cache breakpoint rule");
+    conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
+        .await
+        .expect("schema_migrations");
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (10, 0)")
+        .await
+        .expect("version 10");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("migrate");
+    let backend = db.conn.get_database_backend();
+    let row = db
+        .conn
+        .query_one_raw(Statement::from_string(
+            backend,
+            "SELECT config_json FROM rules WHERE id = 1".to_owned(),
+        ))
+        .await
+        .expect("query")
+        .expect("rule row");
+    let config = serde_json::from_str::<serde_json::Value>(
+        &row.try_get::<String>("", "config_json")
+            .expect("config_json"),
+    )
+    .expect("valid config JSON");
+    assert_eq!(config["target"], "message");
+    assert_eq!(config["index"], -1);
+    assert_eq!(config["ttl"], "5m");
+}
+
+#[tokio::test]
 async fn migrates_old_alias_table_to_scoped_aliases() {
     use sea_orm::{ConnectionTrait, Database, Statement};
 

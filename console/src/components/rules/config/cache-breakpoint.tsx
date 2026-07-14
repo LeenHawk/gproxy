@@ -30,7 +30,7 @@ export function CacheBreakpointFields({ value, onChange }: Props) {
             <SelectItem value="top_level">{t("config.targetOptions.top_level")}</SelectItem>
             <SelectItem value="system">{t("config.targetOptions.system")}</SelectItem>
             <SelectItem value="tools">{t("config.targetOptions.tools")}</SelectItem>
-            <SelectItem value="last_message">{t("config.targetOptions.last_message")}</SelectItem>
+            <SelectItem value="message">{t("config.targetOptions.message")}</SelectItem>
           </SelectContent>
         </Select>
       </div>

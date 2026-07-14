@@ -44,8 +44,8 @@ Chat 和 Responses 使用 `prompt_cache_breakpoint`。
 }
 ```
 
-OpenAI 支持 `system`、`last_message`，以及通过 `top_level` 设置请求级缓存行为；不支持在
-`tools` 上添加断点。Claude 支持 `top_level`、`system`、`tools` 和 `last_message`。完整的
+OpenAI 支持 `system`、`message`，以及通过 `top_level` 设置请求级缓存行为；不支持在
+`tools` 上添加断点。Claude 支持 `top_level`、`system`、`tools` 和 `message`。完整的
 Target、TTL 和魔法字符串行为见[提示缓存](/zh-cn/guides/claude-caching/)。
 
 ## `rewrite`

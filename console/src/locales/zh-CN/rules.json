@@ -63,7 +63,7 @@
       "top_level": "顶层(全局)",
       "system": "系统",
       "tools": "工具",
-      "last_message": "消息"
+      "message": "消息"
     },
     "modeOptions": {
       "override": "覆盖",
