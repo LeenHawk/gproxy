@@ -59,13 +59,16 @@ configuration option.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `GPROXY_UPDATE_CHANNEL_SERVE` | `releases` | Serve-path self-update channel: `releases` or `staging`. |
+| `GPROXY_UPDATE_CHANNEL_SERVE` | Build channel | Serve-path self-update channel override: `releases` or `staging`. Tagged release builds default to `releases`; rolling builds from `main` default to `staging`. |
 | `GPROXY_UPDATE_CHANNEL` | `releases` | Channel for the `gproxy update` subcommand. It intentionally differs from the serve-path env var to avoid a `clap` collision. |
 | `GPROXY_UPDATE_RESTART` | `supervisor` | Restart mode for `gproxy update apply`: `supervisor`, `re-exec`, or `none`. |
 
 `GPROXY_UPDATE_PUBKEY` is a build-time variable used when compiling a binary
 with an embedded update verification public key. It is not read as a runtime
 configuration variable.
+
+The release workflow also sets the internal build-time
+`GPROXY_BUILD_CHANNEL`. Custom builds that do not set it default to `releases`.
 
 ## Development and migration
 

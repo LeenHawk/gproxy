@@ -44,7 +44,7 @@
   "channel": {
     "label": "Update Channel",
     "hint": "Which release track this instance self-updates from.",
-    "default": "Default",
+    "default": "Build default",
     "releases": "Stable releases",
     "staging": "Staging (pre-release)",
     "saved": "Update channel saved",

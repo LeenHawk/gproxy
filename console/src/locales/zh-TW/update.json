@@ -44,7 +44,7 @@
   "channel": {
     "label": "更新頻道",
     "hint": "本實例自更新追蹤哪個發布頻道。",
-    "default": "預設",
+    "default": "建置預設",
     "releases": "穩定版",
     "staging": "預發布版",
     "saved": "已儲存更新頻道",

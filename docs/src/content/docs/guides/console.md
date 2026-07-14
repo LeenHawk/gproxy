@@ -48,6 +48,11 @@ from the same origin.
 | Settings | Instance settings, proxy, logging, usage, tokenizer download, retention, update channel. |
 | Update | Native self-update state where supported. |
 
+When an administrator opens Console, it checks the configured update channel
+once. If a newer stable release or rolling staging binary is available, a
+banner appears above every admin page and links to **Update**. Check failures
+stay silent outside the Update page.
+
 ## Build and Embed
 
 For production native builds:
