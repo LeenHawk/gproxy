@@ -67,7 +67,7 @@ if [ ! -f "$admin_marker" ]; then
 
   while [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; do
     admin_password="$(zenity --password --title="Set up GPROXY" \
-      --text="Choose an administrator password. It is used for this start only and is not saved." \
+      --text="Choose an administrator password. GPROXY stores its hash for future Console logins; this launcher does not save the plaintext." \
       2>/dev/null || true)"
     if [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; then
       zenity --question --title="Set up GPROXY" \

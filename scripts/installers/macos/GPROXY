@@ -91,7 +91,7 @@ if [ ! -f "$admin_marker" ]; then
   fi
 
   while [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; do
-    admin_password="$(osascript -e 'text returned of (display dialog "Choose an administrator password. It is used for this start only and is not saved." default answer "" with hidden answer with title "Set up GPROXY" buttons {"Cancel", "Continue"} default button "Continue" cancel button "Cancel")' 2>/dev/null || true)"
+    admin_password="$(osascript -e 'text returned of (display dialog "Choose an administrator password. GPROXY stores its hash for future Console logins; this launcher does not save the plaintext." default answer "" with hidden answer with title "Set up GPROXY" buttons {"Cancel", "Continue"} default button "Continue" cancel button "Cancel")' 2>/dev/null || true)"
     if [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; then
       choice="$(osascript -e 'button returned of (display dialog "The administrator password cannot be blank." with title "Set up GPROXY" buttons {"Cancel", "Try Again"} default button "Try Again" cancel button "Cancel")' 2>/dev/null || true)"
       [ "$choice" = "Try Again" ] || exit 0

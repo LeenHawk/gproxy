@@ -25,7 +25,8 @@ binary and the embedded Console. Developers can use the clearly marked
 Open the installed GPROXY launcher from an MSI, DMG, or DEB package. On its
 first run, enter an administrator username and a non-blank password. The setup
 also asks whether GPROXY should start automatically when you sign in. The
-password is passed only to this first start and is not saved by the launcher.
+launcher does not save the plaintext password. GPROXY hashes it with Argon2id
+and persists the hash in its data store for future Console logins.
 
 The Android APK provides the same username and password fields in its launcher.
 Its automatic-start switch controls app-launch and device-boot startup. When

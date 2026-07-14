@@ -21,7 +21,8 @@ Release 下载已经包含优化后的二进制与内嵌 Console。开发者可�
 ## 2. 设置管理员账号
 
 安装 MSI、DMG 或 DEB 后打开 GPROXY。首次运行会要求输入管理员用户名和非空密码，
-并询问是否在登录系统时自动启动 GPROXY。密码只传给这一次启动，launcher 不会保存密码。
+并询问是否在登录系统时自动启动 GPROXY。Launcher 不保存明文密码；GPROXY 会使用
+Argon2id 生成密码哈希并持久化到 data store，供后续登录验证。
 
 Android APK 的 launcher 也提供用户名、密码和自动启动开关。该开关同时控制打开 App
 和设备开机后的自动启动；开启时请在 Android 系统提示中允许后台运行，避免电池优化停止
