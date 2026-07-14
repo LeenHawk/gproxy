@@ -42,6 +42,7 @@ Section: net
 Priority: optional
 Architecture: $deb_arch
 Maintainer: GPROXY maintainers
+Depends: curl, zenity
 Description: High-performance LLM proxy with an embedded management console
  Installs a desktop launcher and starts GPROXY in the background at user login.
 EOF

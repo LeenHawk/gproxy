@@ -93,8 +93,10 @@ or the [latest GitHub Release](https://github.com/LeenHawk/gproxy/releases/lates
 Releases include Android APK, Windows MSI, macOS DMG, Linux DEB, and portable
 ZIP builds. Linux GNU and musl builds support x86_64, AArch64, and RISC-V 64;
 both Docker image families publish the same three architectures. Installed
-desktop builds run in the background and expose an automatic-start switch in
-Console Settings.
+desktop builds ask for an administrator username, password, and login-startup
+preference on first run. The password is not saved. Automatic startup can be
+changed later in Console Settings. The APK provides the same startup switch and
+guides users through Android's background-operation permission.
 
 > If you only want to use GPROXY, download a prebuilt package. Do not clone and
 > compile the repository unless you are developing GPROXY or need a custom build.

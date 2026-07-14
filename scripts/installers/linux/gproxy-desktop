@@ -4,24 +4,127 @@ set -eu
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 data_dir="$data_home/gproxy"
 log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/gproxy"
-mkdir -p "$data_dir" "$log_dir"
+admin_marker="$data_dir/.desktop-admin-user"
+autostart_marker="$data_dir/.autostart-initialized"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+user_autostart="$config_home/autostart/gproxy.desktop"
+console_url="http://127.0.0.1:8787/console"
+open_console=false
 
 if [ "${1:-}" = "--open-console" ]; then
-  nohup /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
-  i=0
-  while [ "$i" -lt 50 ]; do
-    if command -v curl >/dev/null 2>&1 \
-      && curl -fsS http://127.0.0.1:8787/console >/dev/null 2>&1; then
-      xdg-open http://127.0.0.1:8787/console >/dev/null 2>&1 || true
-      break
-    fi
-    i=$((i + 1))
-    sleep 0.2
-  done
-  if [ "$i" -eq 50 ] && command -v xdg-open >/dev/null 2>&1; then
-    xdg-open http://127.0.0.1:8787/console >/dev/null 2>&1 || true
+  open_console=true
+fi
+
+mkdir -p "$data_dir" "$log_dir"
+
+is_healthy() {
+  curl -fsS "$console_url" >/dev/null 2>&1
+}
+
+show_error() {
+  zenity --error --title="GPROXY" --text="$1" 2>/dev/null || true
+}
+
+configure_autostart() {
+  enabled="$1"
+  if [ "$enabled" = "true" ]; then
+    rm -f "$user_autostart"
+    return
+  fi
+
+  mkdir -p "$(dirname "$user_autostart")"
+  cat >"$user_autostart" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=GPROXY
+Hidden=true
+EOF
+  chmod 600 "$user_autostart"
+}
+
+if is_healthy; then
+  if [ ! -f "$admin_marker" ]; then
+    show_error "GPROXY is already running. Stop the existing process, then open the launcher again to finish administrator setup."
+    exit 1
+  fi
+  if [ "$open_console" = "true" ]; then
+    xdg-open "$console_url" >/dev/null 2>&1 || true
   fi
   exit 0
 fi
 
-exec /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1
+admin_user=""
+admin_password=""
+enable_autostart=""
+if [ ! -f "$admin_marker" ]; then
+  admin_user="$(zenity --entry --title="Set up GPROXY" \
+    --text="Choose the administrator username used to sign in to Console." \
+    --entry-text="admin" 2>/dev/null || true)"
+  if [ -z "$(printf '%s' "$admin_user" | tr -d '[:space:]')" ]; then
+    [ -z "$admin_user" ] || show_error "The administrator username cannot be blank."
+    exit 0
+  fi
+
+  while [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; do
+    admin_password="$(zenity --password --title="Set up GPROXY" \
+      --text="Choose an administrator password. It is used for this start only and is not saved." \
+      2>/dev/null || true)"
+    if [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; then
+      zenity --question --title="Set up GPROXY" \
+        --text="The administrator password cannot be blank. Try again?" \
+        --ok-label="Try Again" --cancel-label="Cancel" 2>/dev/null || exit 0
+    fi
+  done
+
+  if zenity --question --title="Set up GPROXY" \
+    --text="Start GPROXY automatically when you sign in?" \
+    --ok-label="Yes" --cancel-label="No" 2>/dev/null; then
+    enable_autostart=true
+  else
+    enable_autostart=false
+  fi
+fi
+
+if [ -n "$admin_password" ]; then
+  GPROXY_ADMIN_USER="$admin_user" \
+  GPROXY_ADMIN_PASSWORD="$admin_password" \
+    nohup /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
+else
+  nohup /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
+fi
+server_pid=$!
+unset admin_password
+
+healthy=false
+i=0
+while [ "$i" -lt 75 ]; do
+  if is_healthy; then
+    healthy=true
+    break
+  fi
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    break
+  fi
+  i=$((i + 1))
+  sleep 0.2
+done
+
+if [ "$healthy" != "true" ]; then
+  kill "$server_pid" 2>/dev/null || true
+  show_error "GPROXY did not start. Check $log_dir/gproxy.log for details."
+  exit 1
+fi
+
+if [ -n "$admin_user" ]; then
+  printf '%s' "$admin_user" >"$admin_marker"
+  chmod 600 "$admin_marker"
+  printf '1\n' >"$autostart_marker"
+  chmod 600 "$autostart_marker"
+  configure_autostart "$enable_autostart"
+fi
+
+if [ "$open_console" = "true" ]; then
+  xdg-open "$console_url" >/dev/null 2>&1 || true
+fi
+
+exit 0

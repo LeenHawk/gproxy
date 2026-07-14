@@ -13,6 +13,7 @@ Copy-Item $binary "$source/gproxy.exe"
 Copy-Item README.md "$source/README.md"
 Copy-Item LICENSE "$source/LICENSE"
 Copy-Item scripts/installers/windows/GPROXY.vbs "$source/GPROXY.vbs"
+Copy-Item scripts/installers/windows/GPROXY.ps1 "$source/GPROXY.ps1"
 
 Compress-Archive -Path "$source/gproxy.exe","$source/README.md","$source/LICENSE" `
   -DestinationPath "$artifact.zip" -Force

@@ -83,7 +83,9 @@ EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPRO
 或[最新 GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest)。Release 提供
 Android APK、Windows MSI、macOS DMG、Linux DEB 和便携 ZIP。Linux GNU 与 musl
 版本支持 x86_64、AArch64 和 RISC-V 64，两套 Docker 镜像也发布相同的三种架构。
-桌面安装版会在后台运行，并可在 Console 设置中开关自动启动。
+桌面安装版首次运行时会要求设置管理员用户名、密码以及是否随登录自动启动；密码不会保存，
+之后可在 Console 设置中修改自动启动。APK 也提供自动启动开关，并会引导开启 Android
+后台运行权限。
 
 > 如果只是想使用 GPROXY，请下载预构建产物。如果不是要开发 GPROXY 或制作定制版本，
 > 请不要克隆仓库并自行编译。

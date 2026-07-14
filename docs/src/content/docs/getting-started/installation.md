@@ -22,19 +22,21 @@ Release builds include native installers as well as portable ZIP archives:
 
 | Platform | Package | Background behavior |
 | --- | --- | --- |
-| Android | `.apk` | A foreground service keeps GPROXY alive with a persistent notification. Automatic start is on by default for the first app launch and device boot, and can be changed in the launcher. |
-| Windows | `.msi` | Installs per-user under Local AppData, adds a Start menu entry, and starts hidden at login. |
-| macOS | `.dmg` | Drag `GPROXY.app` to Applications. The app runs without a Dock icon and registers a per-user LaunchAgent on first start. |
-| Linux | `.deb` | Installs a desktop launcher and an XDG background login entry. Packages are published for amd64, arm64, and RISC-V 64. |
+| Android | `.apk` | A foreground service keeps GPROXY alive with a persistent notification. The launcher controls app-launch and device-boot startup and requests background permission when it is enabled. |
+| Windows | `.msi` | Installs per-user under Local AppData and adds a Start menu entry. First-run setup asks whether to start hidden at login. |
+| macOS | `.dmg` | Drag `GPROXY.app` to Applications. First-run setup can register a per-user LaunchAgent; the app runs without a Dock icon. |
+| Linux | `.deb` | Installs a desktop launcher and an XDG login entry. First-run setup asks whether to enable it. Packages are published for amd64, arm64, and RISC-V 64. |
 
-On Windows, macOS, and Linux, open **Settings → Background Service** in the
-embedded Console to turn login startup on or off. Turning it off does not stop
-the currently running server. Startup entries never copy admin passwords,
-master keys, DSNs, or authenticated proxy URLs. Deployments that depend on
-those values should use their existing service manager instead.
+The MSI, DMG, and DEB launchers ask for an administrator username, a non-blank
+password, and the login-startup preference on first run. They save the username
+but never the password. Afterward, open **Settings → Background Service** in the
+embedded Console to change login startup. Turning it off does not stop the
+currently running server. Startup entries never copy admin passwords, master
+keys, DSNs, or authenticated proxy URLs. Deployments that depend on those
+values should use their existing service manager instead.
 
-Background launcher output, including the one-time random first-boot password,
-is written to `%LOCALAPPDATA%\GPROXY\logs\gproxy.log` on Windows,
+Background launcher output is written to `%LOCALAPPDATA%\GPROXY\logs\gproxy.log`
+and `gproxy-error.log` on Windows,
 `~/Library/Logs/GPROXY/gproxy.log` on macOS, and
 `${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log` on Linux.
 
@@ -62,19 +64,22 @@ default GNU Docker image and the `-musl` image. Android releases also include
 per-ABI APKs for users who prefer an installable package over the raw archive.
 
 The Android APK includes a launcher UI and foreground service. Install the
-matching ABI APK and open **GPROXY**. It starts automatically on first launch;
-the launcher switch controls future app-launch and device-boot startup. The
-service runs the native server with:
+matching ABI APK and open **GPROXY**. Enter an administrator username and
+password, then tap **Start GPROXY**. The
+launcher switch controls later app-launch and device-boot startup. When
+the switch is enabled, the app explains why background operation is needed and
+opens Android's battery-optimization permission prompt. The service runs the
+native server with:
 
-```bash
---host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data --admin-user <username>
+```text
+GPROXY_ADMIN_USER=<username>
+--host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data
 ```
 
-To choose a password before the first run, turn automatic startup off, stop the
-service, fill the password field, and start it again. Passwords are passed only
-to that start and are never stored by the launcher. If the field is blank,
-GPROXY uses its normal first-boot random admin password and prints it in the app
-log. Android displays a persistent notification while the service is running.
+Passwords are passed only to that start and are never stored by the launcher.
+After initial setup, leaving the password field blank starts the existing
+administrator unchanged; entering a password intentionally resets it. Android
+displays a persistent notification while the service is running.
 
 Release APKs use the package name `io.github.leenhawk.gproxy`, app label
 `GPROXY`, and the Console favicon as the launcher icon. Published release APKs

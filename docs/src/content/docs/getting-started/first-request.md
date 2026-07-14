@@ -18,11 +18,12 @@ model name resolves through v2 route data:
 client model -> alias or route name -> route member -> provider credential
 ```
 
-For the quick-start bundle, the route name is `main`:
+The example below assumes you created a route named `main` and a user API key
+in Console:
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer sk-dev-local" \
+  -H "Authorization: Bearer <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "main",
@@ -36,7 +37,7 @@ Aggregated model listing refreshes every permitted provider in parallel:
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \
-  -H "Authorization: Bearer sk-dev-local"
+  -H "Authorization: Bearer <your-user-api-key>"
 ```
 
 Each successful provider response appends newly discovered ids to the persisted
@@ -51,8 +52,8 @@ Scoped routes live at `/{provider}/v1/*` and `/{provider}/v1beta/*`. In this
 mode the provider comes from the URL and the model is the upstream model id:
 
 ```bash
-curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
-  -H "Authorization: Bearer sk-dev-local" \
+curl http://127.0.0.1:8787/provider-name/v1/chat/completions \
+  -H "Authorization: Bearer <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4.1-mini",
@@ -74,7 +75,7 @@ aggregated, use a route or alias name:
 
 ```bash
 curl http://127.0.0.1:8787/v1/messages \
-  -H "x-api-key: sk-dev-local" \
+  -H "x-api-key: <your-user-api-key>" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
@@ -89,8 +90,8 @@ curl http://127.0.0.1:8787/v1/messages \
 For scoped mode, place the provider in the path and use the upstream model id:
 
 ```bash
-curl http://127.0.0.1:8787/claude-main/v1/messages \
-  -H "x-api-key: sk-dev-local" \
+curl http://127.0.0.1:8787/provider-name/v1/messages \
+  -H "x-api-key: <your-user-api-key>" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
@@ -112,7 +113,7 @@ inside the `models/...` segment:
 
 ```bash
 curl "http://127.0.0.1:8787/v1beta/models/main:generateContent" \
-  -H "x-goog-api-key: sk-dev-local" \
+  -H "x-goog-api-key: <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "contents": [
@@ -125,8 +126,8 @@ Scoped requests use the provider path prefix. The example below assumes you
 have created a Gemini-capable provider named `aistudio-main`:
 
 ```bash
-curl "http://127.0.0.1:8787/aistudio-main/v1beta/models/gemini-1.5-flash:generateContent" \
-  -H "x-goog-api-key: sk-dev-local" \
+curl "http://127.0.0.1:8787/provider-name/v1beta/models/gemini-1.5-flash:generateContent" \
+  -H "x-goog-api-key: <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "contents": [
