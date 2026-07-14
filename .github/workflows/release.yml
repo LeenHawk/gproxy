@@ -672,7 +672,7 @@ jobs:
           name: release-edge
           path: edge-assets
 
-      - name: Create versioned GitHub Release after assets are ready
+      - name: Publish versioned GitHub Release after assets are ready
         if: ${{ env.PUBLISH_CHANNEL == 'releases' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -690,30 +690,23 @@ jobs:
             exit 1
           }
 
-          if gh release view "$PUBLISH_TAG" --json isDraft --jq .isDraft > is-draft.txt 2>/dev/null; then
-            is_draft="$(cat is-draft.txt)"
-            if [ "$is_draft" != "true" ]; then
-              echo "release $PUBLISH_TAG already exists and is published; refusing to replace assets in place" >&2
-              exit 1
-            fi
-            gh release upload "$PUBLISH_TAG" "${release_files[@]}" --clobber
-            gh release edit "$PUBLISH_TAG" \
-              --title "gproxy $PUBLISH_TAG" \
-              --notes-file "$notes" \
-              --target "$GITHUB_SHA" \
-              --verify-tag \
-              --draft=false \
-              --latest
-          else
-            # `gh release create` uploads through an internal draft and only
-            # publishes after all assets have been attached.
-            gh release create "$PUBLISH_TAG" "${release_files[@]}" \
-              --title "gproxy $PUBLISH_TAG" \
-              --notes-file "$notes" \
-              --target "$GITHUB_SHA" \
-              --verify-tag \
-              --latest
+          if ! is_draft="$(gh release view "$PUBLISH_TAG" --json isDraft --jq .isDraft)"; then
+            echo "missing release draft for $PUBLISH_TAG; create it with scripts/release.sh before pushing the tag" >&2
+            exit 1
           fi
+          if [ "$is_draft" != "true" ]; then
+            echo "release $PUBLISH_TAG already exists and is published; refusing to replace assets in place" >&2
+            exit 1
+          fi
+
+          gh release upload "$PUBLISH_TAG" "${release_files[@]}" --clobber
+          gh release edit "$PUBLISH_TAG" \
+            --title "gproxy $PUBLISH_TAG" \
+            --notes-file "$notes" \
+            --target "$GITHUB_SHA" \
+            --verify-tag \
+            --draft=false \
+            --latest
 
       - name: Publish staging assets after all builds are ready
         if: ${{ env.PUBLISH_CHANNEL == 'staging' }}

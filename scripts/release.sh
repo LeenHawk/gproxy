@@ -2,10 +2,11 @@
 # Cut a gproxy release.
 #
 # Updates the workspace version, commits that release bump, tags it, and
-# pushes the tag. The tag push drives .github/workflows/release.yml, which
-# builds native binaries, edge wasm bundles, and multi-arch Docker images, then
-# creates a draft GitHub Release, uploads all assets + manifest, and publishes
-# it only after the upload is complete. CI does all the building.
+# pushes the tag and creates an empty draft GitHub Release with the publisher's
+# authenticated `gh` identity. The tag push drives .github/workflows/release.yml,
+# which builds native binaries, edge wasm bundles, and multi-arch Docker images,
+# uploads all assets + manifest to that draft, and publishes it only after the
+# upload is complete. CI does all the building.
 #
 # Usage:
 #   scripts/release.sh [-v VERSION] [-n NOTES_FILE] [--dry-run] [-y]
@@ -40,7 +41,7 @@ while [ $# -gt 0 ]; do
     --draft)   DRAFT=1; shift ;;
     --dry-run) DRY=1; shift ;;
     -y)        YES=1; shift ;;
-    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "release.sh: unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -64,12 +65,14 @@ stage_release_files() {
 # --- Preconditions ----------------------------------------------------------
 command -v git >/dev/null 2>&1 || die "git is required"
 command -v cargo >/dev/null 2>&1 || die "cargo is required"
+command -v gh >/dev/null 2>&1 || die "gh is required to create the release draft"
+gh auth status >/dev/null 2>&1 || die "gh is not authenticated"
 [ -f Cargo.toml ] || die "must run from the crate root (no Cargo.toml at $ROOT)"
 if ! cargo set-version --help >/dev/null 2>&1; then
   die "cargo set-version not found. Install with: cargo install cargo-edit"
 fi
 if [ "$DRAFT" = 1 ]; then
-  die "--draft is no longer supported; release.yml creates an internal draft and publishes after assets upload"
+  die "--draft is no longer supported; release.sh creates the required draft automatically"
 fi
 
 # Version: explicit, else the crate version from Cargo.toml.
@@ -115,7 +118,7 @@ echo "  title    : gproxy $TAG"
 echo "  target   : $TARGET ($(git rev-parse --short HEAD))"
 echo "  notes    : $NOTES"
 echo "  version  : $VERSION_BUMP"
-echo "  publish  : tag push triggers release.yml; GitHub Release is created after assets are ready"
+echo "  publish  : tag push + local draft creation; release.yml uploads assets and publishes the draft"
 echo
 
 if [ "$DRY" = 1 ]; then
@@ -130,8 +133,8 @@ if [ "$DRY" = 1 ]; then
   echo "  git push origin HEAD:$TARGET    # if a release commit was created"
   echo "  git tag -a $TAG -F <release-note>"
   echo "  git push origin $TAG"
-  echo "  # release.yml builds artifacts, uploads them to an internal draft,"
-  echo "  # then publishes GitHub Release $TAG"
+  echo "  gh release create $TAG --draft --verify-tag --notes-file $NOTES"
+  echo "  # release.yml builds artifacts, uploads them to this draft, then publishes it"
   exit 0
 fi
 
@@ -164,6 +167,16 @@ git tag -a "$TAG" -F "$tag_note_file"
 rm -f "$tag_note_file"
 git push origin "$TAG"
 
+# Repository policy currently allows the Actions integration to upload/edit a
+# release but not create one. Create the empty draft with the publisher's local
+# identity before the build can reach its publish job.
+gh release create "$TAG" \
+  --draft \
+  --title "gproxy $TAG" \
+  --notes-file "$NOTES" \
+  --target "$(git rev-parse HEAD)" \
+  --verify-tag
+
 echo
-echo "Pushed $TAG. The release workflow will build every asset, then create and publish the GitHub Release:"
+echo "Pushed $TAG and created its draft. The release workflow will build every asset, then publish the GitHub Release:"
 echo "  gh run list --workflow=release.yml --limit 3"
