@@ -96,6 +96,15 @@ jobs:
             run_check: true
             upx: true
             docker_bin: true
+          - target: riscv64gc-unknown-linux-gnu
+            runner: ubuntu-latest
+            os: linux
+            cross: true
+            artifact: gproxy-linux-riscv64
+            ext: ""
+            run_check: false
+            upx: false
+            docker_bin: true
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
             os: linux
@@ -113,6 +122,15 @@ jobs:
             ext: ""
             run_check: false
             upx: true
+            docker_bin: true
+          - target: riscv64gc-unknown-linux-musl
+            runner: ubuntu-latest
+            os: linux
+            cross: true
+            artifact: gproxy-linux-riscv64-musl
+            ext: ""
+            run_check: false
+            upx: false
             docker_bin: true
           - target: x86_64-linux-android
             runner: ubuntu-latest
@@ -189,7 +207,16 @@ jobs:
 
       - name: Install cross
         if: ${{ matrix.cross }}
-        run: cargo install cross --locked
+        run: |
+          if [ "${{ matrix.target }}" = "riscv64gc-unknown-linux-musl" ]; then
+            # RISC-V musl support is newer than the crates.io 0.2.5 release.
+            # Pin a reviewed upstream commit so CI also selects the matching
+            # ghcr.io/cross-rs/riscv64gc-unknown-linux-musl:main image.
+            cargo install cross --git https://github.com/cross-rs/cross \
+              --rev 64b5bb4d3d34de062552b9a2093affe77b4ad16a --locked
+          else
+            cargo install cross --locked
+          fi
 
       - name: Set up Android NDK toolchain
         if: ${{ matrix.os == 'android' }}
@@ -512,6 +539,12 @@ jobs:
             target: aarch64-unknown-linux-gnu
             suffix: ""
             runtime_base: gcr.io/distroless/cc-debian13
+          - variant: gnu
+            arch: riscv64
+            runner: ubuntu-latest
+            target: riscv64gc-unknown-linux-gnu
+            suffix: ""
+            runtime_base: gcr.io/distroless/cc-debian13
           - variant: musl
             arch: amd64
             runner: ubuntu-latest
@@ -522,6 +555,12 @@ jobs:
             arch: arm64
             runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
+            suffix: "-musl"
+            runtime_base: gcr.io/distroless/static-debian13
+          - variant: musl
+            arch: riscv64
+            runner: ubuntu-latest
+            target: riscv64gc-unknown-linux-musl
             suffix: "-musl"
             runtime_base: gcr.io/distroless/static-debian13
     steps:
@@ -603,9 +642,9 @@ jobs:
           while IFS= read -r tag; do
             [ -z "$tag" ] && continue
             docker buildx imagetools create -t "$tag" \
-              "${tag}-amd64" "${tag}-arm64"
+              "${tag}-amd64" "${tag}-arm64" "${tag}-riscv64"
             docker buildx imagetools create -t "${tag}-musl" \
-              "${tag}-amd64-musl" "${tag}-arm64-musl"
+              "${tag}-amd64-musl" "${tag}-arm64-musl" "${tag}-riscv64-musl"
           done <<< "${{ steps.meta.outputs.tags }}"
 
   publish-github-release:

@@ -7,28 +7,32 @@ description: 本地启动 GPROXY v2，导入最小配置 bundle，打开 Console
 bundle。这里使用当前 v2 配置模型：运行时设置来自 CLI flag 或环境变量；provider、
 route、user、key、rule 等控制面记录存在 persistence 中，可通过 JSON 导入。
 
-## 1. 构建或安装
+## 1. 下载 GPROXY
 
-可以使用 release 二进制、Docker 镜像或本地源码构建。源码构建并嵌入 Console：
+从[下载页](/zh-cn/getting-started/downloads/)或
+[最新 GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest)下载适合当前平台的
+便携压缩包，解压后在该目录打开终端。
+
+:::caution[普通使用不要从源码构建]
+如果不是要开发 GPROXY，请不要克隆仓库，也不要运行 Cargo 和 pnpm。Release 下载已经包含
+优化后的二进制与内嵌 Console。开发者可参考
+[安装页中明确标注的源码构建章节](/zh-cn/getting-started/installation/#从源码构建仅开发者)。
+:::
+
+确认下载的二进制可以启动：
 
 ```bash
-cd console
-pnpm install --frozen-lockfile
-pnpm build
-cd ..
-
-cargo build --release --bin gproxy
+chmod +x ./gproxy
+./gproxy --help
 ```
 
-二进制位于 `target/release/gproxy`。
+## 2. 准备初始导入 Bundle
 
-## 2. 准备开发导入 bundle (请不准备开发的优先下载Github Release)
-
-docs site 带有开发 bundle：`docs/public/examples/import-dev.json`。写入真实上游 key
-前，先复制到 docs 目录外：
+先下载文档站提供的初始 Bundle，再填入真实上游 key：
 
 ```bash
-cp docs/public/examples/import-dev.json ./import-dev.local.json
+curl -fsSL https://gproxy.leenhawk.com/examples/import-dev.json \
+  -o ./import-dev.local.json
 ```
 
 编辑复制后的文件并替换：
@@ -54,7 +58,9 @@ cp docs/public/examples/import-dev.json ./import-dev.local.json
 用本地 data 目录启动 native 二进制，并让 first-boot hook 在空 store 时导入 bundle：
 
 ```bash
-./target/release/gproxy --admin-password change-me-please
+GPROXY_IMPORT_FILE=./import-dev.local.json \
+GPROXY_ADMIN_USER=dev \
+./gproxy --admin-password change-me-please
 ```
 
 常用默认值：

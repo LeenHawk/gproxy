@@ -1,0 +1,19 @@
+[target.riscv64gc-unknown-linux-gnu]
+pre-build = [
+    "apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils",
+    "curl -fsSL https://github.com/Kitware/CMake/releases/download/v3.27.9/cmake-3.27.9-linux-x86_64.tar.gz -o /tmp/cmake.tar.gz",
+    "mkdir -p /opt/cmake && tar -xzf /tmp/cmake.tar.gz --strip-components=1 -C /opt/cmake",
+    "ln -sf /opt/cmake/bin/cmake /usr/local/bin/cmake && cmake --version",
+    "curl -fsSL https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz -o /tmp/llvm.tar.xz",
+    "mkdir -p /opt/llvm && tar -xJf /tmp/llvm.tar.xz --strip-components=1 -C /opt/llvm",
+    "/opt/llvm/bin/clang --version",
+]
+
+[target.riscv64gc-unknown-linux-gnu.env]
+passthrough = [
+    "LIBCLANG_PATH=/opt/llvm/lib",
+    "BINDGEN_EXTRA_CLANG_ARGS_riscv64gc_unknown_linux_gnu=--target=riscv64-unknown-linux-gnu -isystem /opt/llvm/lib/clang/18/include -isystem /usr/riscv64-linux-gnu/include",
+]
+
+[target.riscv64gc-unknown-linux-musl]
+image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-musl@sha256:edf10454e4926195cc5654611d5a7092004706f6809ab3e0dea088fb7372d231"

@@ -77,10 +77,14 @@ EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPRO
 
 ### 📦 原生安装包与二进制
 
-每个 [release](https://github.com/LeenHawk/gproxy/releases) 都提供 Android APK、
-Windows MSI、macOS DMG、Linux DEB 和便携 ZIP，覆盖支持的 x86_64/aarch64 目标。
-桌面安装版会在后台运行，并可在 Console 设置中开关自动启动。也可以自行运行
-`cargo build --release` 构建便携版本。
+请优先前往 **[下载页](https://gproxy.leenhawk.com/zh-cn/getting-started/downloads/)**
+或[最新 GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest)。Release 提供
+Android APK、Windows MSI、macOS DMG、Linux DEB 和便携 ZIP。Linux GNU 与 musl
+版本支持 x86_64、AArch64 和 RISC-V 64，两套 Docker 镜像也发布相同的三种架构。
+桌面安装版会在后台运行，并可在 Console 设置中开关自动启动。
+
+> 如果只是想使用 GPROXY，请下载预构建产物。如果不是要开发 GPROXY 或制作定制版本，
+> 请不要克隆仓库并自行编译。
 
 ---
 
@@ -115,6 +119,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 
 ## 文档
 
+- **[下载](https://gproxy.leenhawk.com/zh-cn/getting-started/downloads/)**
 - **[文档首页](https://gproxy.leenhawk.com/zh-cn/)**
 - **[快速开始](https://gproxy.leenhawk.com/zh-cn/getting-started/quick-start/)**
 - **[提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)**

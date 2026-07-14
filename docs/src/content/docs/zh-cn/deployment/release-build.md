@@ -47,7 +47,8 @@ cargo build --release --bin gproxy --target x86_64-unknown-linux-gnu
 ```
 
 release workflow 会构建 Linux glibc、Linux musl、macOS、Windows 和 Android
-目标。Android 压缩包会把 NDK `libc++_shared.so` runtime 一起放进去，同时保留一个
+目标。Linux GNU 与 musl 都覆盖 x86_64、AArch64 和 RISC-V 64；RISC-V target 通过
+`cross` 交叉编译。Android 压缩包会把 NDK `libc++_shared.so` runtime 一起放进去，同时保留一个
 小的 `gproxy` 启动脚本；真实 ELF 二进制打包为 `gproxy.bin`。启动脚本会把压缩包目录
 加到 `LD_LIBRARY_PATH` 前面，所以用户解压后执行 `./gproxy` 就能找到随包发布的 C++
 runtime。Android target 还会发布按 ABI 拆分的 APK（`arm64-v8a` 和 `x86_64`），里面带
@@ -57,6 +58,9 @@ runtime。Android target 还会发布按 ABI 拆分的 APK（`arm64-v8a` 和 `x8
 `.dmg`、Windows `.msi`、Android `.apk`。安装模板放在 `scripts/installers/`，打包入口
 分别是 `package-linux-deb.sh`、`package-macos-dmg.sh`、
 `package-windows-release.ps1`，以及负责 APK/ZIP 的 `package-native-release.sh`。
+
+Docker 发布会把 amd64、arm64 与 riscv64 镜像合并到默认 GNU manifest 和 `-musl`
+manifest 中。
 
 ## 运行时配置
 

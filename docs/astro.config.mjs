@@ -43,6 +43,14 @@ export default defineConfig({
             href: '/site.webmanifest',
           },
         },
+        {
+          // Pagefind's generated locale key is lowercase (`zh-cn`). Normalize
+          // the canonical BCP 47 HTML tag before the search bundle initializes
+          // so it always selects the matching language index.
+          tag: 'script',
+          content:
+            "document.documentElement.lang = document.documentElement.lang.toLowerCase();",
+        },
       ],
       social: [
         {
@@ -77,6 +85,11 @@ export default defineConfig({
           label: 'Getting Started',
           translations: { 'zh-CN': '快速上手' },
           items: [
+            {
+              label: 'Downloads',
+              slug: 'getting-started/downloads',
+              translations: { 'zh-CN': '下载' },
+            },
             {
               label: 'Installation',
               slug: 'getting-started/installation',

@@ -86,11 +86,16 @@ Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a non-blank
 
 ### 📦 Native installers and binaries
 
-Every [release](https://github.com/LeenHawk/gproxy/releases) includes Android
-APK, Windows MSI, macOS DMG, Linux DEB, and portable ZIP builds for the supported
-x86_64/aarch64 targets. Installed desktop builds run in the background and
-expose an automatic-start switch in Console Settings. Or run
-`cargo build --release` for a portable local build.
+Start with the **[download page](https://gproxy.leenhawk.com/getting-started/downloads/)**
+or the [latest GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest).
+Releases include Android APK, Windows MSI, macOS DMG, Linux DEB, and portable
+ZIP builds. Linux GNU and musl builds support x86_64, AArch64, and RISC-V 64;
+both Docker image families publish the same three architectures. Installed
+desktop builds run in the background and expose an automatic-start switch in
+Console Settings.
+
+> If you only want to use GPROXY, download a prebuilt package. Do not clone and
+> compile the repository unless you are developing GPROXY or need a custom build.
 
 ---
 
@@ -127,6 +132,7 @@ Ops endpoints (`/healthz`, `/version`, `/metrics`) are admin-gated.
 
 ## Documentation
 
+- **[Downloads](https://gproxy.leenhawk.com/getting-started/downloads/)**
 - **[Documentation home](https://gproxy.leenhawk.com/)**
 - **[Quick start](https://gproxy.leenhawk.com/getting-started/quick-start/)**
 - **[Prompt caching](https://gproxy.leenhawk.com/guides/claude-caching/)**

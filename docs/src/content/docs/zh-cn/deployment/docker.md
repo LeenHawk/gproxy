@@ -7,18 +7,21 @@ description: 使用发布的 GPROXY v2 Docker 镜像，配置持久化数据和�
 镜像；Dockerfile 不编译 Rust，也不构建 Console。镜像内的二进制已经包含内嵌
 Console 资产。
 
+推荐镜像 tag 和其他预构建安装包格式见
+[下载页](/zh-cn/getting-started/downloads/#docker-镜像)。
+
 ## Tags
 
 release workflow 先发布各架构镜像，再创建 multi-architecture manifest list。
 
 | Tag | 含义 |
 | --- | --- |
-| `latest` | 最新发布版本，glibc runtime，amd64 + arm64 manifest。 |
+| `latest` | 最新发布版本，glibc runtime，amd64 + arm64 + riscv64 manifest。 |
 | `<release-tag>` | 指定 release tag。 |
-| `latest-musl` | 最新发布版本，static musl runtime，amd64 + arm64 manifest。 |
+| `latest-musl` | 最新发布版本，static musl runtime，amd64 + arm64 + riscv64 manifest。 |
 | `<release-tag>-musl` | 指定 release tag 的 static musl runtime。 |
-| `latest-amd64`, `latest-arm64` | glibc 架构镜像，用于 manifest。 |
-| `latest-amd64-musl`, `latest-arm64-musl` | musl 架构镜像。 |
+| `latest-amd64`, `latest-arm64`, `latest-riscv64` | glibc 架构镜像，用于 manifest。 |
+| `latest-amd64-musl`, `latest-arm64-musl`, `latest-riscv64-musl` | musl 架构镜像。 |
 
 大多数部署使用 `latest` 或固定 release tag。
 

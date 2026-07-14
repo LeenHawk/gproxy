@@ -70,11 +70,14 @@ pub fn current_target_triple() -> String {
     // covers the platforms GPROXY ships; an unmatched combo falls back to a
     // best-effort `arch-os` string that simply won't match any artifact (→
     // NoArtifact, which is the correct, safe outcome).
-    let arch = std::env::consts::ARCH;
-    let os = std::env::consts::OS;
+    target_triple_for(std::env::consts::ARCH, std::env::consts::OS)
+}
+
+fn target_triple_for(arch: &str, os: &str) -> String {
     match (arch, os) {
         ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
         ("aarch64", "linux") => "aarch64-unknown-linux-gnu",
+        ("riscv64", "linux") => "riscv64gc-unknown-linux-gnu",
         ("x86_64", "macos") => "x86_64-apple-darwin",
         ("aarch64", "macos") => "aarch64-apple-darwin",
         ("x86_64", "windows") => "x86_64-pc-windows-msvc",
@@ -136,5 +139,13 @@ mod tests {
         let d = staging_decision("deadbeefcafef00d", "DEADBEEFCAFEF00D");
         assert!(!d.available, "case-insensitive equal shas → no update");
         assert_eq!(d.current, "deadbeefcafe");
+    }
+
+    #[test]
+    fn maps_riscv64_linux_release_target() {
+        assert_eq!(
+            target_triple_for("riscv64", "linux"),
+            "riscv64gc-unknown-linux-gnu"
+        );
     }
 }

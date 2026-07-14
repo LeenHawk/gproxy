@@ -9,6 +9,12 @@ GPROXY v2 是一个单 Rust crate，native 产物是名为 `gproxy` 的二进制
 
 按部署形态选择安装方式。
 
+:::tip[优先下载预构建版本]
+绝大多数用户应直接前往[下载页](/zh-cn/getting-started/downloads/)或
+[最新 GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest)选择安装包。
+如果不是要开发 GPROXY 或制作定制版本，请不要从源码构建。
+:::
+
 ## 原生安装包
 
 Release 除了便携 ZIP，还会发布各平台的原生安装包：
@@ -18,7 +24,7 @@ Release 除了便携 ZIP，还会发布各平台的原生安装包：
 | Android | `.apk` | Foreground Service 通过常驻通知保持运行。首次打开和设备开机默认自动启动，可在 APK 启动器中修改。 |
 | Windows | `.msi` | 按用户安装到 Local AppData，创建开始菜单入口，并在登录系统时隐藏启动。 |
 | macOS | `.dmg` | 把 `GPROXY.app` 拖入 Applications；App 不显示 Dock 图标，首次运行会注册用户级 LaunchAgent。 |
-| Linux | `.deb` | 安装桌面入口和 XDG 登录启动项，提供 amd64 与 arm64 包。 |
+| Linux | `.deb` | 安装桌面入口和 XDG 登录启动项，提供 amd64、arm64 与 RISC-V 64 包。 |
 
 Windows、macOS、Linux 可以在内嵌 Console 的 **设置 → 后台运行** 中开关登录
 自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会复制管理员密码、主密钥、
@@ -34,7 +40,9 @@ DSN 或带认证信息的代理 URL；依赖这些值的部署应继续使用已
 如果只想运行 native server 和内嵌 Console，不想在机器上安装 Rust 或 Node，使用
 release 二进制。
 
-1. 从 GitHub release 下载对应 OS 和 CPU 的压缩包。
+1. 从[下载页](/zh-cn/getting-started/downloads/)或
+   [最新 GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest)
+   下载对应 OS 和 CPU 的压缩包。
 2. 解压压缩包。Android 上需要把 `gproxy`、`gproxy.bin` 和 `libc++_shared.so` 放在同一目录。
 3. 放到 `PATH` 中，或直接运行。
 
@@ -43,9 +51,10 @@ chmod +x ./gproxy
 ./gproxy --help
 ```
 
-release workflow 会构建 Linux、macOS、Windows、Android，以及 x86_64、aarch64
-目标。Docker 镜像也使用预构建的 Linux 二进制作为输入。Android release 也会包含按
-ABI 拆分的 APK，适合想使用可安装包而不是原始 executable 压缩包的用户。
+release workflow 会构建 Linux、macOS、Windows 和 Android。Linux 覆盖 x86_64、
+AArch64 与 RISC-V 64，并同时提供 GNU 和 musl 版本。默认 GNU Docker 镜像与 `-musl`
+镜像也都包含这三种 Linux 架构。Android release 还会包含按 ABI 拆分的 APK，适合想
+使用可安装包而不是原始 executable 压缩包的用户。
 
 Android APK 包含 launcher UI 和 Foreground Service。安装匹配 ABI 的 APK 后打开
 **GPROXY**，首次会自动启动；launcher 中的开关控制以后打开 App 和设备开机时是否
@@ -87,9 +96,15 @@ docker run --rm -p 8787:8787 \
 
 持久化 volume、PostgreSQL/MySQL DSN 和 tag 选择见 [Docker](/zh-cn/deployment/docker/)。
 
-## 从源码构建
+## 从源码构建（仅开发者）
 
-开发 GPROXY，或 release 尚未包含目标平台时，使用源码构建。
+:::caution
+这一节只面向 GPROXY 开发和定制构建。如果只是想使用 GPROXY，请直接前往
+[下载页](/zh-cn/getting-started/downloads/)，不要为了安装应用而克隆仓库、安装 Rust
+和 Node。
+:::
+
+仅在开发 GPROXY，或 release 尚未包含目标平台时使用源码构建。
 
 前置条件：
 
@@ -137,6 +152,7 @@ release artifacts 包含 `gproxy-edge-cloudflare.zip`、`gproxy-edge-netlify.zip
 
 ## 下一步
 
+- 在[下载页](/zh-cn/getting-started/downloads/)选择其他平台或安装包格式。
 - 继续 [快速开始](/zh-cn/getting-started/quick-start/)，启动本地实例。
 - 反代 native server 前先读 [内嵌 Console](/zh-cn/guides/console/)。
 - 把 v2 指向已有 v1 数据目录前，先读 [从 v1 迁移到 v2](/zh-cn/deployment/v1-to-v2/)。

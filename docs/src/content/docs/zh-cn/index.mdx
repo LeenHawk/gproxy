@@ -5,10 +5,10 @@ template: splash
 hero:
   tagline: 用一个网关接入多个 LLM Provider，并统一处理协议转换、访问控制、用量结算和日常管理。
   actions:
-    - text: 先看概览
-      link: /zh-cn/introduction/what-is-gproxy/
-      icon: right-arrow
-    - text: 本地跑起来
+    - text: 下载 GPROXY
+      link: /zh-cn/getting-started/downloads/
+      icon: download
+    - text: 快速开始
       link: /zh-cn/getting-started/quick-start/
       icon: rocket
       variant: secondary
@@ -27,7 +27,7 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 		了解 GPROXY 能做什么、接受哪些 API 格式，以及如何选择上游。
 	</Card>
 	<Card title="快速上手" icon="rocket">
-		安装 GPROXY、打开内嵌控制台，并发送第一个 OpenAI 兼容请求。
+		选择预构建下载、安装 GPROXY、打开内嵌控制台，并发送第一个 OpenAI 兼容请求。
 	</Card>
 	<Card title="使用指南" icon="puzzle">
 		配置 Provider、模型、用户、配额、改写规则、提示缓存和可观测性。
@@ -38,6 +38,12 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 </CardGrid>
 
 ## 主要入口
+
+<LinkCard
+	title="下载"
+	description="获取原生安装包、便携二进制、Docker 镜像和预构建 Edge Bundle。"
+	href="/zh-cn/getting-started/downloads/"
+/>
 
 <LinkCard
 	title="GPROXY v2 是什么?"
