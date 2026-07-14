@@ -32,7 +32,7 @@ The rule accepts these fields:
 | Field | Meaning |
 | --- | --- |
 | `target` | `top_level`, `system`, `tools`, or `message`. Protocol support differs; see the table below. |
-| `index` | Signed, one-based block index. Positive values count from the start, negative values count from the end, and an omitted value selects the last block. `0` is invalid. |
+| `index` | Signed, one-based index into the target's flat sequence of cacheable blocks. Positive values count from the start, negative values from the end, and an omitted value selects the final cacheable block. `0` is invalid. |
 | `ttl` | Claude: `5m` or `1h`. OpenAI: `30m`. |
 | `position` | Kept for compatibility and currently ignored. |
 
@@ -40,14 +40,23 @@ Rules run after protocol conversion. If an OpenAI client is routed to Claude,
 the rule sees a Claude Messages body and writes a Claude marker. If the target
 is OpenAI Chat or Responses, it writes an OpenAI marker.
 
+Cache markers carried by the source protocol survive conversion where the
+target can represent them. Claude request-level `cache_control` becomes OpenAI
+`implicit` mode, and representable block markers become explicit OpenAI
+breakpoints. OpenAI `explicit` mode keeps the final four explicit breakpoints
+when converted to Claude. `implicit` mode (including an omitted mode) uses one
+Claude request-level automatic marker and keeps the final three explicit
+markers. OpenAI's 30-minute TTL has no exact Claude equivalent, so conversion
+uses Claude's default 5-minute TTL.
+
 ### Target behavior
 
 | Target | Claude Messages | OpenAI Chat / Responses |
 | --- | --- | --- |
 | `top_level` | Adds request-level `cache_control`, enabling Anthropic's automatic prompt caching. | Ensures `prompt_cache_options.mode` is `implicit` unless the request already chose a mode. |
-| `system` | Marks a block in the `system` array. A string-form `system` cannot carry block metadata and is skipped. | Marks system/developer content. For Responses `instructions`, GPROXY inserts a small developer content block immediately after the instructions because `instructions` itself cannot carry breakpoint metadata. |
+| `system` | Normalizes string content to a `text` block, then marks the selected cacheable block in `system`. | Marks system/developer content. For Responses `instructions`, GPROXY inserts a small developer content block immediately after the instructions because `instructions` itself cannot carry breakpoint metadata. |
 | `tools` | Marks a tool definition. | Unsupported by OpenAI and skipped with a warning. |
-| `message` | Marks a content block in the final element of the transformed `messages` array, regardless of role. | Marks a supported content block in the final Chat message element or the final Responses input item containing a role and content. |
+| `message` | Flattens cacheable blocks from every `messages[].content` in prompt order, then applies `index`. String content is normalized to a `text` block first. | Flattens supported content blocks from every Chat message or Responses message input in prompt order, then applies `index`. String content becomes the corresponding text block. |
 
 ## OpenAI Breakpoints
 
@@ -85,6 +94,12 @@ reject `prompt_cache_options` and `prompt_cache_breakpoint`. For more reliable
 matching, send a stable `prompt_cache_key` for requests that share the same
 prefix. OpenAI only caches prefixes that meet its minimum token threshold, so a
 breakpoint on a short prompt will not produce a cache hit.
+
+When GPROXY converts Claude or Gemini requests to OpenAI, it supplies this key
+automatically. Claude Code's embedded session ID and Gemini's `cachedContent`
+name are preserved when available; otherwise GPROXY derives a stable key from
+the system instruction and first message, so appending conversation turns does
+not change cache routing. Native OpenAI requests keep their client-supplied key.
 
 ## Claude Breakpoints
 

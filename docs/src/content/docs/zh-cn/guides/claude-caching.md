@@ -29,7 +29,7 @@ description: 通过 Provider 规则或 GPROXY 魔法字符串添加 Claude 和 O
 | 字段 | 含义 |
 | --- | --- |
 | `target` | `top_level`、`system`、`tools` 或 `message`。不同协议支持的目标不完全相同，见下表。 |
-| `index` | 从 1 开始的有符号块索引。正数从前往后数，负数从后往前数；省略时选择最后一块。`0` 无效。 |
+| `index` | 在目标的可缓存块扁平序列中使用从 1 开始的有符号索引。正数从前往后数，负数从后往前数；省略时选择最后一个可缓存块。`0` 无效。 |
 | `ttl` | Claude 使用 `5m` 或 `1h`；OpenAI 使用 `30m`。 |
 | `position` | 为兼容旧配置保留，目前不生效。 |
 
@@ -37,14 +37,20 @@ description: 通过 Provider 规则或 GPROXY 魔法字符串添加 Claude 和 O
 Messages 请求，并写入 Claude 断点；目标是 OpenAI Chat 或 Responses 时，则写入 OpenAI
 断点。
 
+协议本身携带的断点也会随转换保留：Claude 顶层 `cache_control` 转为 OpenAI `implicit` 模式，
+可表示的块级 `cache_control` 转为显式 OpenAI 断点。OpenAI 转 Claude 时，`explicit` 模式只
+保留提示词顺序中最后 4 个显式断点；`implicit`（含省略 mode）使用一个 Claude 顶层自动断点，
+并保留最后 3 个显式断点。OpenAI 的 30 分钟 TTL 在 Claude 没有等价值，因此使用 Claude 默认
+的 5 分钟 TTL。
+
 ### 各目标的行为
 
 | Target | Claude Messages | OpenAI Chat / Responses |
 | --- | --- | --- |
 | `top_level` | 在请求顶层添加 `cache_control`，启用 Anthropic 自动提示缓存。 | 在请求未指定模式时，确保 `prompt_cache_options.mode` 为 `implicit`。 |
-| `system` | 标记 `system` 数组中的内容块。字符串形式的 `system` 无法携带块元数据，会跳过。 | 标记 system/developer 内容。Responses 的 `instructions` 本身不能携带断点，GPROXY 会紧接着插入一个很小的 developer 内容块作为缓存边界。 |
+| `system` | 先把字符串规范化为 `text` 块，再标记 `system` 中选中的可缓存块。 | 标记 system/developer 内容。Responses 的 `instructions` 本身不能携带断点，GPROXY 会紧接着插入一个很小的 developer 内容块作为缓存边界。 |
 | `tools` | 标记工具定义。 | OpenAI 不支持，规则会跳过并记录警告。 |
-| `message` | 标记转换后 `messages` 数组最后一个元素中的内容块，不区分消息角色。 | 标记 Chat 最后一个消息元素或 Responses 最后一个含角色和内容的输入项中的受支持内容块。 |
+| `message` | 按提示词顺序展平所有 `messages[].content` 中可缓存的块，再应用 `index`。字符串内容会先转换成 `text` 块。 | 按提示词顺序展平所有 Chat 消息或 Responses 消息输入中的受支持内容块，再应用 `index`。字符串内容会转换成对应的文本块。 |
 
 ## OpenAI 断点
 
@@ -77,6 +83,11 @@ Chat Completions 对应的文本块类型是 `text`。OpenAI 的 TTL 属于整�
 显式断点需要 GPT-5.6 或更新的模型系列。旧模型可能拒绝 `prompt_cache_options` 和
 `prompt_cache_breakpoint`。具有相同前缀的请求应使用稳定的 `prompt_cache_key`，以获得更可靠
 的匹配。OpenAI 只缓存达到最低 token 数的前缀，因此很短的提示词即使有断点也不会命中缓存。
+
+GPROXY 将 Claude 或 Gemini 请求转换为 OpenAI 时，会自动提供这个 key：优先保留 Claude
+Code 内嵌的 session ID 或 Gemini 的 `cachedContent` 名称；若没有，则根据 system instruction
+和第一条消息生成稳定 key，因此追加后续对话不会改变缓存路由。原生 OpenAI 请求继续保留客户端
+传入的 key。
 
 ## Claude 断点
 

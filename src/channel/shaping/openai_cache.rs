@@ -41,9 +41,13 @@ pub fn kind_for_operation(op: OperationKey) -> Option<ContentGenerationKind> {
 }
 
 /// Strip GPROXY magic strings and stamp explicit OpenAI cache breakpoints.
-/// Existing markers count toward the four-breakpoint cap.
+/// Existing markers remain available for OpenAI's read window; only markers
+/// added by this pass count toward its four-new-writes limit.
 pub fn apply_magic_string_cache_breakpoints(body: &mut Value, kind: ContentGenerationKind) {
-    let mut remaining = MAX_BREAKPOINTS.saturating_sub(count_breakpoints(body));
+    // OpenAI can read older markers from prior turns and independently limits
+    // each request to four new writes. Cap only markers added by this pass;
+    // existing markers must not suppress a new boundary on the latest turn.
+    let mut remaining = MAX_BREAKPOINTS;
     let Some(root) = body.as_object_mut() else {
         return;
     };
@@ -180,7 +184,7 @@ fn take_magic_string(value: &mut Value, remaining: &mut usize) -> Option<String>
     let Value::String(text) = value else {
         return None;
     };
-    if !claude_magic_cache::strip_magic_tokens(text) || *remaining == 0 {
+    if !claude_magic_cache::strip_magic_tokens(text) || text.trim().is_empty() || *remaining == 0 {
         return None;
     }
     *remaining -= 1;
@@ -215,7 +219,11 @@ fn apply_magic_to_part(part: &mut Map<String, Value>, family: PartFamily, remain
     }) else {
         return;
     };
-    if !claude_magic_cache::strip_magic_tokens(text) || *remaining == 0 || has_breakpoint {
+    if !claude_magic_cache::strip_magic_tokens(text)
+        || text.trim().is_empty()
+        || *remaining == 0
+        || has_breakpoint
+    {
         return;
     }
     part.insert("prompt_cache_breakpoint".into(), explicit_breakpoint());
@@ -233,11 +241,7 @@ fn apply_chat_manual(
         .ok_or("missing messages array")?;
     let locations = match target {
         "system" => chat_system_locations(messages),
-        "message" => messages
-            .len()
-            .checked_sub(1)
-            .map(|i| chat_content_locations(messages, i))
-            .unwrap_or_default(),
+        "message" => chat_message_locations(messages),
         _ => return Err("unsupported cache breakpoint target"),
     };
     let selected = resolve_location(&locations, index)?;
@@ -261,13 +265,32 @@ fn chat_system_locations(messages: &[Value]) -> Vec<ChatLocation> {
     locations
 }
 
+fn chat_message_locations(messages: &[Value]) -> Vec<ChatLocation> {
+    let mut locations = Vec::new();
+    for (index, message) in messages.iter().enumerate() {
+        if message.get("role").and_then(Value::as_str) == Some("function") {
+            continue;
+        }
+        locations.extend(chat_content_locations(messages, index));
+    }
+    locations
+}
+
 fn chat_content_locations(messages: &[Value], message_index: usize) -> Vec<ChatLocation> {
     match messages
         .get(message_index)
         .and_then(|message| message.get("content"))
     {
-        Some(Value::String(_)) => vec![ChatLocation::ContentString(message_index)],
+        Some(Value::String(text)) if !text.trim().is_empty() => {
+            vec![ChatLocation::ContentString(message_index)]
+        }
         Some(Value::Array(parts)) => (0..parts.len())
+            .filter(|part_index| {
+                parts
+                    .get(*part_index)
+                    .and_then(Value::as_object)
+                    .is_some_and(is_cacheable_chat_part)
+            })
             .map(|part_index| ChatLocation::ContentPart(message_index, part_index))
             .collect(),
         _ => Vec::new(),
@@ -299,7 +322,8 @@ fn stamp_chat_location(messages: &mut [Value], location: ChatLocation) -> Result
             if !is_supported_chat_part(part) {
                 return Err("target block does not support an OpenAI cache breakpoint");
             }
-            part.insert("prompt_cache_breakpoint".into(), explicit_breakpoint());
+            part.entry("prompt_cache_breakpoint")
+                .or_insert_with(explicit_breakpoint);
             Ok(())
         }
     }
@@ -321,7 +345,11 @@ fn apply_responses_manual(
 
 fn response_system_locations(root: &Map<String, Value>) -> Vec<ResponsesLocation> {
     let mut locations = Vec::new();
-    if root.get("instructions").is_some_and(Value::is_string) {
+    if root
+        .get("instructions")
+        .and_then(Value::as_str)
+        .is_some_and(|text| !text.trim().is_empty())
+    {
         locations.push(ResponsesLocation::Instructions);
     }
     let Some(items) = root.get("input").and_then(Value::as_array) else {
@@ -340,12 +368,18 @@ fn response_system_locations(root: &Map<String, Value>) -> Vec<ResponsesLocation
 
 fn response_message_locations(root: &Map<String, Value>) -> Vec<ResponsesLocation> {
     match root.get("input") {
-        Some(Value::String(_)) => vec![ResponsesLocation::InputString],
-        Some(Value::Array(items)) => items
-            .iter()
-            .rposition(|item| item.get("role").is_some() && item.get("content").is_some())
-            .map(|index| response_content_locations(items, index))
-            .unwrap_or_default(),
+        Some(Value::String(text)) if !text.trim().is_empty() => {
+            vec![ResponsesLocation::InputString]
+        }
+        Some(Value::Array(items)) => {
+            let mut locations = Vec::new();
+            for (index, item) in items.iter().enumerate() {
+                if item.get("role").is_some() && item.get("content").is_some() {
+                    locations.extend(response_content_locations(items, index));
+                }
+            }
+            locations
+        }
         _ => Vec::new(),
     }
 }
@@ -355,8 +389,16 @@ fn response_content_locations(items: &[Value], item_index: usize) -> Vec<Respons
         .get(item_index)
         .and_then(|message| message.get("content"))
     {
-        Some(Value::String(_)) => vec![ResponsesLocation::ContentString(item_index)],
+        Some(Value::String(text)) if !text.trim().is_empty() => {
+            vec![ResponsesLocation::ContentString(item_index)]
+        }
         Some(Value::Array(parts)) => (0..parts.len())
+            .filter(|part_index| {
+                parts
+                    .get(*part_index)
+                    .and_then(Value::as_object)
+                    .is_some_and(is_cacheable_response_part)
+            })
             .map(|part_index| ResponsesLocation::ContentPart(item_index, part_index))
             .collect(),
         _ => Vec::new(),
@@ -410,7 +452,8 @@ fn stamp_response_location(
             if !is_supported_response_part(part) {
                 return Err("target block does not support an OpenAI cache breakpoint");
             }
-            part.insert("prompt_cache_breakpoint".into(), explicit_breakpoint());
+            part.entry("prompt_cache_breakpoint")
+                .or_insert_with(explicit_breakpoint);
             Ok(())
         }
     }
@@ -496,6 +539,36 @@ fn is_supported_response_part(part: &Map<String, Value>) -> bool {
     )
 }
 
+fn is_cacheable_chat_part(part: &Map<String, Value>) -> bool {
+    if !is_supported_chat_part(part) {
+        return false;
+    }
+    match part.get("type").and_then(Value::as_str) {
+        Some("text") => part
+            .get("text")
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty()),
+        Some("refusal") => part
+            .get("refusal")
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty()),
+        _ => true,
+    }
+}
+
+fn is_cacheable_response_part(part: &Map<String, Value>) -> bool {
+    if !is_supported_response_part(part) {
+        return false;
+    }
+    match part.get("type").and_then(Value::as_str) {
+        Some("input_text") => part
+            .get("text")
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty()),
+        _ => true,
+    }
+}
+
 fn explicit_breakpoint() -> Value {
     json!({"mode": "explicit"})
 }
@@ -528,6 +601,7 @@ fn response_message_with_role(role: &str, text: String, breakpoint: bool) -> Val
     })
 }
 
+#[cfg(test)]
 fn count_breakpoints(value: &Value) -> usize {
     match value {
         Value::Array(values) => values.iter().map(count_breakpoints).sum(),
@@ -586,7 +660,7 @@ mod tests {
     }
 
     #[test]
-    fn magic_respects_existing_breakpoint_cap_but_strips_all_tokens() {
+    fn magic_caps_new_markers_without_counting_prior_turns() {
         let marked = |text: &str| {
             json!({
                 "type": "input_text",
@@ -604,10 +678,36 @@ mod tests {
         }]});
         apply_magic_string_cache_breakpoints(&mut body, ContentGenerationKind::OpenAiResponses);
 
-        assert_eq!(count_breakpoints(&body), 4);
+        assert_eq!(count_breakpoints(&body), 5);
         assert!(!body.to_string().contains(MAGIC));
+        assert!(body["input"][0]["content"][4]["prompt_cache_breakpoint"].is_object());
+    }
+
+    #[test]
+    fn manual_message_flattens_supported_parts_across_chat_messages() {
+        let mut body = json!({"messages": [
+            {"role": "user", "content": [
+                {"type": "text", "text": "first"},
+                {"type": "custom", "value": "unsupported"}
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "text", "text": "second"},
+                {"type": "text", "text": "   "}
+            ]}
+        ]});
+
+        apply_manual_cache_breakpoint(
+            &mut body,
+            ContentGenerationKind::OpenAiChatCompletions,
+            "message",
+            Some(-2),
+            None,
+        )
+        .unwrap();
+
+        assert!(body["messages"][0]["content"][0]["prompt_cache_breakpoint"].is_object());
         assert!(
-            body["input"][0]["content"][4]
+            body["messages"][0]["content"][1]
                 .get("prompt_cache_breakpoint")
                 .is_none()
         );

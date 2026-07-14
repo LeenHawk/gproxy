@@ -46,7 +46,7 @@
     "replacement": "替换内容",
     "target": "目标",
     "index": "索引",
-    "indexHint": ">0:正数第 N 条;<0:倒数第 N 条;0 无效",
+    "indexHint": "按可缓存块计数：>0 正数第 N 块；<0 倒数第 N 块；0 无效",
     "ttl": "缓存 TTL",
     "name": "请求头名称",
     "mode": "模式",

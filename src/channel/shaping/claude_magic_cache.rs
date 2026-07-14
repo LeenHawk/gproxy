@@ -64,7 +64,8 @@ pub fn apply_magic_string_cache_control_triggers(body: &mut Value) {
     let Some(root) = body.as_object_mut() else {
         return;
     };
-    let mut remaining = 4usize.saturating_sub(existing_cache_breakpoint_count(root));
+    let mut remaining =
+        4usize.saturating_sub(super::claude_cache_control::existing_cache_breakpoint_count(root));
 
     if let Some(system) = root.get_mut("system") {
         apply_to_content(system, &mut remaining);
@@ -145,25 +146,6 @@ fn cache_control_ephemeral(ttl: MagicTtl) -> Value {
         Some(t) => json!({ "type": "ephemeral", "ttl": t }),
         None => json!({ "type": "ephemeral" }),
     }
-}
-
-fn existing_cache_breakpoint_count(root: &serde_json::Map<String, Value>) -> usize {
-    let mut count = 0;
-    if let Some(Value::Array(blocks)) = root.get("system") {
-        count += blocks.iter().filter(|b| has_cache_control(b)).count();
-    }
-    if let Some(Value::Array(messages)) = root.get("messages") {
-        for m in messages {
-            if let Some(Value::Array(blocks)) = m.get("content") {
-                count += blocks.iter().filter(|b| has_cache_control(b)).count();
-            }
-        }
-    }
-    count
-}
-
-fn has_cache_control(block: &Value) -> bool {
-    block.get("cache_control").is_some()
 }
 
 #[cfg(test)]

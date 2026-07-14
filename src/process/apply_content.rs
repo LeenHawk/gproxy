@@ -110,70 +110,33 @@ pub fn cache_breakpoint(
             cfg.index,
             cfg.ttl.as_deref(),
         ) {
-            warn_skip("cache_breakpoint", reason);
+            warn_cache_skip(cfg, reason);
         }
         return;
     }
     if kind != Some(ContentGenerationKind::ClaudeMessages) {
-        return warn_skip("cache_breakpoint", "unsupported target protocol");
+        return warn_cache_skip(cfg, "unsupported target protocol");
     }
-    let Some(obj) = body.as_object_mut() else {
-        return warn_skip("cache_breakpoint", "body not an object");
-    };
-    let mut control = json!({"type": "ephemeral"});
-    if let Some(ttl) = &cfg.ttl {
-        control["ttl"] = json!(ttl);
-    }
-    // Top-level (global) breakpoint: stamp `cache_control` on the request root,
-    // enabling Anthropic's automatic prompt caching. `index`/`position` are
-    // irrelevant here. (v1 parity: `CacheBreakpointTarget::TopLevel`.)
-    if matches!(cfg.target.as_str(), "top_level" | "global") {
-        obj.entry("cache_control").or_insert(control);
-        return;
-    }
-    let blocks: Option<&mut Vec<Value>> = match cfg.target.as_str() {
-        // string-form `system` cannot carry block markers — skips via None
-        "system" => obj.get_mut("system").and_then(Value::as_array_mut),
-        "tools" => obj.get_mut("tools").and_then(Value::as_array_mut),
-        "message" => obj
-            .get_mut("messages")
-            .and_then(Value::as_array_mut)
-            .and_then(|m| m.last_mut())
-            .and_then(|m| m.get_mut("content"))
-            .and_then(Value::as_array_mut),
-        _ => None,
-    };
-    let Some(blocks) = blocks else {
-        return warn_skip("cache_breakpoint", "target not found or not a block array");
-    };
-    let Some(idx) = resolve_block_index(blocks.len(), cfg.index) else {
-        return warn_skip("cache_breakpoint", "index out of range or invalid");
-    };
-    if let Some(Value::Object(block)) = blocks.get_mut(idx) {
-        block.insert("cache_control".to_owned(), control);
+    if let Err(reason) =
+        crate::channel::shaping::claude_cache_control::apply_manual_cache_breakpoint(
+            body,
+            &cfg.target,
+            cfg.index,
+            cfg.ttl.as_deref(),
+        )
+    {
+        warn_cache_skip(cfg, reason);
     }
 }
 
-/// Resolve a console-facing **signed, 1-based** `index` against a block array of
-/// length `len`: `>0` is the Nth block from the start, `<0` is the Nth from the
-/// end, `0` is invalid. Omitted (`None`) defaults to the last block. Returns
-/// `None` (skip) when the array is empty or the index is invalid/out of range.
-fn resolve_block_index(len: usize, index: Option<i64>) -> Option<usize> {
-    if len == 0 {
-        return None;
-    }
-    match index {
-        None => Some(len - 1),
-        Some(0) => None,
-        Some(i) if i > 0 => {
-            let nth = i as usize;
-            (nth <= len).then(|| nth - 1)
-        }
-        Some(i) => {
-            let from_end = i.unsigned_abs() as usize;
-            (from_end <= len).then(|| len - from_end)
-        }
-    }
+fn warn_cache_skip(cfg: &CacheBreakpointCfg, reason: &str) {
+    tracing::warn!(
+        rule = "cache_breakpoint",
+        target = %cfg.target,
+        index = ?cfg.index,
+        reason,
+        "process rule skipped"
+    );
 }
 
 fn warn_skip(rule: &str, reason: &str) {
@@ -314,21 +277,5 @@ mod tests {
             "explicit"
         );
         assert_eq!(v["input"][1]["content"][0]["text"], "hello");
-    }
-
-    #[test]
-    fn resolve_block_index_signed_semantics() {
-        // >0: 1-based from the start
-        assert_eq!(resolve_block_index(3, Some(1)), Some(0));
-        assert_eq!(resolve_block_index(3, Some(3)), Some(2));
-        assert_eq!(resolve_block_index(3, Some(4)), None);
-        // <0: 1-based from the end
-        assert_eq!(resolve_block_index(3, Some(-1)), Some(2));
-        assert_eq!(resolve_block_index(3, Some(-3)), Some(0));
-        assert_eq!(resolve_block_index(3, Some(-4)), None);
-        // 0 invalid; omitted → last; empty array → skip
-        assert_eq!(resolve_block_index(3, Some(0)), None);
-        assert_eq!(resolve_block_index(3, None), Some(2));
-        assert_eq!(resolve_block_index(0, Some(1)), None);
     }
 }

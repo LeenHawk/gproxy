@@ -49,18 +49,30 @@ pub(super) fn claude_tool_result_to_text(content: Option<claude::ToolResultConte
 pub(super) fn claude_tools_to_chat(tools: Vec<claude::Tool>) -> Vec<openai::ChatTool> {
     tools
         .into_iter()
-        .filter_map(|tool| match tool {
-            claude::Tool::Custom(tool) => Some(openai::ChatTool::Function {
-                function: openai::FunctionDefinition {
-                    name: tool.name,
-                    description: tool.description,
-                    parameters: Some(claude_schema_to_openai(tool.input_schema)),
-                    strict: tool.common.strict,
+        .filter_map(|tool| {
+            if serde_json::to_value(&tool)
+                .ok()
+                .and_then(|value| value.get("cache_control").cloned())
+                .is_some()
+            {
+                tracing::warn!(
+                    target = "OpenAI tools",
+                    "cache breakpoint dropped during protocol conversion"
+                );
+            }
+            match tool {
+                claude::Tool::Custom(tool) => Some(openai::ChatTool::Function {
+                    function: openai::FunctionDefinition {
+                        name: tool.name,
+                        description: tool.description,
+                        parameters: Some(claude_schema_to_openai(tool.input_schema)),
+                        strict: tool.common.strict,
+                        extra: Default::default(),
+                    },
                     extra: Default::default(),
-                },
-                extra: Default::default(),
-            }),
-            _ => None,
+                }),
+                _ => None,
+            }
         })
         .collect()
 }
