@@ -1,15 +1,47 @@
 use crate::protocol::{claude, openai};
 
-pub(super) fn chat_text_content_to_text(content: openai::ChatTextContent) -> String {
+use super::super::common::claude_cache_control;
+
+pub(super) fn chat_text_content_to_text_and_cache(
+    content: openai::ChatTextContent,
+) -> (String, Option<claude::CacheControl>) {
     match content {
-        openai::ChatTextContent::Text(text) => text,
+        openai::ChatTextContent::Text(text) => (text, None),
+        openai::ChatTextContent::Parts(parts) => {
+            let mut text = Vec::new();
+            let mut cache_control = None;
+            for part in parts {
+                let openai::ChatTextContentPart::Text {
+                    text: part_text,
+                    prompt_cache_breakpoint,
+                    ..
+                } = part;
+                text.push(part_text);
+                if prompt_cache_breakpoint.is_some() {
+                    cache_control = claude_cache_control(prompt_cache_breakpoint);
+                }
+            }
+            (text.join(""), cache_control)
+        }
+    }
+}
+
+pub(super) fn chat_text_content_to_claude_blocks(
+    content: openai::ChatTextContent,
+) -> Vec<claude::ContentBlockParam> {
+    match content {
+        openai::ChatTextContent::Text(text) => non_empty_text_block(text).into_iter().collect(),
         openai::ChatTextContent::Parts(parts) => parts
             .into_iter()
-            .map(|part| match part {
-                openai::ChatTextContentPart::Text { text, .. } => text,
+            .filter_map(|part| {
+                let openai::ChatTextContentPart::Text {
+                    text,
+                    prompt_cache_breakpoint,
+                    ..
+                } = part;
+                non_empty_marked_text_block(text, prompt_cache_breakpoint)
             })
-            .collect::<Vec<_>>()
-            .join(""),
+            .collect(),
     }
 }
 
@@ -23,10 +55,16 @@ pub(super) fn chat_assistant_content_to_claude_blocks(
         openai::ChatAssistantContent::Parts(parts) => parts
             .into_iter()
             .filter_map(|part| match part {
-                openai::ChatAssistantContentPart::Text { text, .. } => non_empty_text_block(text),
-                openai::ChatAssistantContentPart::Refusal { refusal, .. } => {
-                    non_empty_text_block(refusal)
-                }
+                openai::ChatAssistantContentPart::Text {
+                    text,
+                    prompt_cache_breakpoint,
+                    ..
+                } => non_empty_marked_text_block(text, prompt_cache_breakpoint),
+                openai::ChatAssistantContentPart::Refusal {
+                    refusal,
+                    prompt_cache_breakpoint,
+                    ..
+                } => non_empty_marked_text_block(refusal, prompt_cache_breakpoint),
             })
             .collect(),
     }
@@ -48,20 +86,45 @@ fn chat_content_part_to_claude_block(
     part: openai::ChatContentPart,
 ) -> Option<claude::ContentBlockParam> {
     match part {
-        openai::ChatContentPart::Text { text, .. } => non_empty_text_block(text),
-        openai::ChatContentPart::ImageUrl { image_url, .. } => {
-            Some(claude::ContentBlockParam::Image(claude::ImageBlock {
-                source: image_url_to_claude_source(image_url.url),
-                type_: claude::ImageBlockType::Image,
-                cache_control: None,
-            }))
+        openai::ChatContentPart::Text {
+            text,
+            prompt_cache_breakpoint,
+            ..
+        } => non_empty_marked_text_block(text, prompt_cache_breakpoint),
+        openai::ChatContentPart::ImageUrl {
+            image_url,
+            prompt_cache_breakpoint,
+            ..
+        } => Some(claude::ContentBlockParam::Image(claude::ImageBlock {
+            source: image_url_to_claude_source(image_url.url),
+            type_: claude::ImageBlockType::Image,
+            cache_control: claude_cache_control(prompt_cache_breakpoint),
+        })),
+        openai::ChatContentPart::File {
+            file,
+            prompt_cache_breakpoint,
+            ..
+        } => chat_file_to_claude_block(file, prompt_cache_breakpoint),
+        openai::ChatContentPart::InputAudio {
+            prompt_cache_breakpoint,
+            ..
+        } => {
+            warn_dropped_openai_breakpoint(
+                prompt_cache_breakpoint.as_ref(),
+                "input_audio",
+                "Claude message",
+            );
+            None
         }
-        openai::ChatContentPart::File { file, .. } => chat_file_to_claude_block(file),
-        openai::ChatContentPart::InputAudio { .. } => None,
     }
 }
 
-fn chat_file_to_claude_block(file: openai::ChatFileRef) -> Option<claude::ContentBlockParam> {
+fn chat_file_to_claude_block(
+    file: openai::ChatFileRef,
+    breakpoint: Option<openai::PromptCacheBreakpoint>,
+) -> Option<claude::ContentBlockParam> {
+    let had_breakpoint = breakpoint.is_some();
+    let cache_control = claude_cache_control(breakpoint);
     if let Some(file_id) = file.file_id {
         return Some(claude::ContentBlockParam::Document(claude::DocumentBlock {
             source: claude::DocumentSource::File(claude::FileDocumentSource {
@@ -70,13 +133,13 @@ fn chat_file_to_claude_block(file: openai::ChatFileRef) -> Option<claude::Conten
                 extra: Default::default(),
             }),
             type_: claude::DocumentBlockType::Document,
-            cache_control: None,
+            cache_control,
             citations: None,
             context: None,
             title: file.filename,
         }));
     }
-    file.file_data.filter(|data| !data.is_empty()).map(|data| {
+    let block = file.file_data.filter(|data| !data.is_empty()).map(|data| {
         claude::ContentBlockParam::Document(claude::DocumentBlock {
             source: claude::DocumentSource::Text(claude::PlainTextSource {
                 data,
@@ -85,12 +148,20 @@ fn chat_file_to_claude_block(file: openai::ChatFileRef) -> Option<claude::Conten
                 extra: Default::default(),
             }),
             type_: claude::DocumentBlockType::Document,
-            cache_control: None,
+            cache_control,
             citations: None,
             context: None,
             title: file.filename,
         })
-    })
+    });
+    if block.is_none() && had_breakpoint {
+        tracing::warn!(
+            block_type = "file",
+            conversion_target = "Claude message",
+            "cache breakpoint dropped during protocol conversion"
+        );
+    }
+    block
 }
 
 fn image_url_to_claude_source(url: String) -> claude::ImageSource {
@@ -122,34 +193,63 @@ fn parse_data_url_to_image_source(url: &str) -> Option<claude::ImageSource> {
 }
 
 fn non_empty_text_block(text: String) -> Option<claude::ContentBlockParam> {
-    if text.is_empty() {
+    non_empty_marked_text_block(text, None)
+}
+
+fn non_empty_marked_text_block(
+    text: String,
+    breakpoint: Option<openai::PromptCacheBreakpoint>,
+) -> Option<claude::ContentBlockParam> {
+    if text.trim().is_empty() {
+        warn_dropped_openai_breakpoint(breakpoint.as_ref(), "text", "Claude message");
         None
     } else {
-        Some(text_block(text))
+        Some(text_block_with_cache(
+            text,
+            claude_cache_control(breakpoint),
+        ))
+    }
+}
+
+fn warn_dropped_openai_breakpoint(
+    breakpoint: Option<&openai::PromptCacheBreakpoint>,
+    block_type: &str,
+    target: &str,
+) {
+    if breakpoint.is_some() {
+        tracing::warn!(
+            block_type,
+            conversion_target = target,
+            "cache breakpoint dropped during protocol conversion"
+        );
     }
 }
 
 pub(super) fn text_block(text: String) -> claude::ContentBlockParam {
+    text_block_with_cache(text, None)
+}
+
+fn text_block_with_cache(
+    text: String,
+    cache_control: Option<claude::CacheControl>,
+) -> claude::ContentBlockParam {
     claude::ContentBlockParam::Text(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
-        cache_control: None,
+        cache_control,
         citations: None,
         extra: Default::default(),
     })
 }
 
-pub(super) fn mid_conversation_system_block(text: String) -> claude::ContentBlockParam {
+pub(super) fn mid_conversation_system_text_block(
+    mut block: claude::TextBlock,
+) -> claude::ContentBlockParam {
+    let cache_control = block.cache_control.take();
     claude::ContentBlockParam::MidConversationSystem(claude::MidConversationSystemBlock {
-        content: vec![claude::TextBlock {
-            text,
-            type_: claude::TextBlockType::Text,
-            cache_control: None,
-            citations: None,
-            extra: Default::default(),
-        }],
+        content: vec![block],
         type_: claude::MidConversationSystemBlockType::MidConversationSystem,
-        cache_control: None,
+        cache_control,
     })
 }
 
@@ -198,7 +298,9 @@ pub(super) fn system_prompt(
     }
     match text_blocks.len() {
         0 => None,
-        1 => Some(claude::StringOrArray::String(text_blocks.remove(0).text)),
+        1 if text_blocks[0].cache_control.is_none() => {
+            Some(claude::StringOrArray::String(text_blocks.remove(0).text))
+        }
         _ => Some(claude::StringOrArray::Array(text_blocks)),
     }
 }

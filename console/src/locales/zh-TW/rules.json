@@ -46,7 +46,7 @@
     "replacement": "替換內容",
     "target": "目標",
     "index": "索引",
-    "indexHint": ">0:正數第 N 條;<0:倒數第 N 條;0 無效",
+    "indexHint": "按可快取區塊計數：>0 正數第 N 塊；<0 倒數第 N 塊；0 無效",
     "ttl": "快取 TTL",
     "name": "標頭名稱",
     "mode": "模式",

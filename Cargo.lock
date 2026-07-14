@@ -1862,6 +1862,7 @@ dependencies = [
 name = "gproxy-transform"
 version = "2.0.16"
 dependencies = [
+ "blake3",
  "bytes",
  "gproxy-protocol",
  "http",

@@ -46,7 +46,7 @@
     "replacement": "Replacement",
     "target": "Target",
     "index": "Index",
-    "indexHint": ">0: Nth from start; <0: Nth from end; 0 is invalid",
+    "indexHint": "Cacheable blocks: >0 Nth from start; <0 Nth from end; 0 is invalid",
     "ttl": "Cache TTL",
     "name": "Header Name",
     "mode": "Mode",

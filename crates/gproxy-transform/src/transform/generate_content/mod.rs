@@ -1,7 +1,7 @@
 //! Content-generation pairwise transforms.
 
 #[allow(dead_code, unused_imports)]
-mod common;
+pub(crate) mod common;
 
 pub mod claude_messages_to_gemini_generate_content;
 pub mod claude_messages_to_openai_chat;

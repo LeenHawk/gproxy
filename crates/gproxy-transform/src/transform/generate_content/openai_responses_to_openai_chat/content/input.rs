@@ -1,6 +1,6 @@
 use crate::protocol::openai;
 
-use super::util::{response_detail_to_chat_detail, response_output_to_text};
+use super::util::{response_detail_to_chat_detail, response_output_to_chat_content};
 use crate::transform::generate_content::openai_responses_to_openai_chat::tools::{
     custom_call_to_chat_tool_call, function_call_to_chat_tool_call,
 };
@@ -83,14 +83,14 @@ fn easy_message_to_chat_message(
     Some(match message.role {
         openai::ResponseEasyInputMessageRole::Developer => {
             openai::ChatCompletionMessageParam::Developer {
-                content: openai::ChatTextContent::Text(easy_input_content_to_text(message.content)),
+                content: easy_input_content_to_chat_text_content(message.content),
                 name: None,
                 extra: Default::default(),
             }
         }
         openai::ResponseEasyInputMessageRole::System => {
             openai::ChatCompletionMessageParam::System {
-                content: openai::ChatTextContent::Text(easy_input_content_to_text(message.content)),
+                content: easy_input_content_to_chat_text_content(message.content),
                 name: None,
                 extra: Default::default(),
             }
@@ -102,8 +102,8 @@ fn easy_message_to_chat_message(
         },
         openai::ResponseEasyInputMessageRole::Assistant => {
             openai::ChatCompletionMessageParam::Assistant {
-                content: Some(openai::ChatAssistantContent::Text(
-                    easy_input_content_to_text(message.content),
+                content: Some(easy_input_content_to_chat_assistant_content(
+                    message.content,
                 )),
                 audio: None,
                 function_call: None,
@@ -128,10 +128,42 @@ fn easy_input_content_to_chat_content(
     }
 }
 
-fn easy_input_content_to_text(content: openai::ResponseEasyInputContent) -> String {
+fn easy_input_content_to_chat_text_content(
+    content: openai::ResponseEasyInputContent,
+) -> openai::ChatTextContent {
     match content {
-        openai::ResponseEasyInputContent::Text(text) => text,
-        openai::ResponseEasyInputContent::Parts(parts) => response_input_parts_to_text(parts),
+        openai::ResponseEasyInputContent::Text(text) => openai::ChatTextContent::Text(text),
+        openai::ResponseEasyInputContent::Parts(parts) => {
+            response_input_parts_to_chat_text_content(parts)
+        }
+    }
+}
+
+fn easy_input_content_to_chat_assistant_content(
+    content: openai::ResponseEasyInputContent,
+) -> openai::ChatAssistantContent {
+    match content {
+        openai::ResponseEasyInputContent::Text(text) => openai::ChatAssistantContent::Text(text),
+        openai::ResponseEasyInputContent::Parts(parts) => openai::ChatAssistantContent::Parts(
+            parts
+                .into_iter()
+                .filter_map(|part| match part {
+                    openai::ResponseInputContentPart::InputText {
+                        text,
+                        prompt_cache_breakpoint,
+                        ..
+                    } => Some(openai::ChatAssistantContentPart::Text {
+                        text,
+                        prompt_cache_breakpoint,
+                        extra: Default::default(),
+                    }),
+                    other => {
+                        warn_dropped_response_breakpoint(&other, "OpenAI Chat assistant message");
+                        None
+                    }
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -141,15 +173,13 @@ fn input_message_to_chat_message(
     Some(match message.role {
         openai::ResponseInputMessageRole::Developer => {
             openai::ChatCompletionMessageParam::Developer {
-                content: openai::ChatTextContent::Text(response_input_parts_to_text(
-                    message.content,
-                )),
+                content: response_input_parts_to_chat_text_content(message.content),
                 name: None,
                 extra: Default::default(),
             }
         }
         openai::ResponseInputMessageRole::System => openai::ChatCompletionMessageParam::System {
-            content: openai::ChatTextContent::Text(response_input_parts_to_text(message.content)),
+            content: response_input_parts_to_chat_text_content(message.content),
             name: None,
             extra: Default::default(),
         },
@@ -256,7 +286,7 @@ fn typed_item_to_chat_message(
         | openai::TypedResponseItem::CustomToolCallOutput {
             call_id, output, ..
         } => Some(openai::ChatCompletionMessageParam::Tool {
-            content: openai::ChatTextContent::Text(response_output_to_text(output)),
+            content: response_output_to_chat_content(output),
             tool_call_id: call_id,
             extra: Default::default(),
         }),
@@ -354,18 +384,19 @@ fn response_input_part_to_chat_part(
             image_url,
             prompt_cache_breakpoint,
             ..
-        } => image_url
-            .map(|url| openai::ChatContentPart::ImageUrl {
-                image_url: openai::ImageUrl {
-                    url,
-                    detail: detail.and_then(response_detail_to_chat_detail),
+        } => {
+            if let Some(url) = image_url {
+                Some(openai::ChatContentPart::ImageUrl {
+                    image_url: openai::ImageUrl {
+                        url,
+                        detail: detail.and_then(response_detail_to_chat_detail),
+                        extra: Default::default(),
+                    },
+                    prompt_cache_breakpoint,
                     extra: Default::default(),
-                },
-                prompt_cache_breakpoint: prompt_cache_breakpoint.clone(),
-                extra: Default::default(),
-            })
-            .or_else(|| {
-                file_id.map(|file_id| openai::ChatContentPart::File {
+                })
+            } else if let Some(file_id) = file_id {
+                Some(openai::ChatContentPart::File {
                     file: openai::ChatFileRef {
                         file_data: None,
                         file_id: Some(file_id),
@@ -375,7 +406,17 @@ fn response_input_part_to_chat_part(
                     prompt_cache_breakpoint,
                     extra: Default::default(),
                 })
-            }),
+            } else {
+                if prompt_cache_breakpoint.is_some() {
+                    tracing::warn!(
+                        block_type = "input_image",
+                        target = "OpenAI Chat",
+                        "cache breakpoint dropped during protocol conversion"
+                    );
+                }
+                None
+            }
+        }
         openai::ResponseInputContentPart::InputAudio { input_audio, .. } => {
             Some(openai::ChatContentPart::InputAudio {
                 input_audio: openai::InputAudio {
@@ -406,13 +447,52 @@ fn response_input_part_to_chat_part(
     }
 }
 
-fn response_input_parts_to_text(parts: Vec<openai::ResponseInputContentPart>) -> String {
-    parts
-        .into_iter()
-        .filter_map(|part| match part {
-            openai::ResponseInputContentPart::InputText { text, .. } => Some(text),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("")
+fn response_input_parts_to_chat_text_content(
+    parts: Vec<openai::ResponseInputContentPart>,
+) -> openai::ChatTextContent {
+    openai::ChatTextContent::Parts(
+        parts
+            .into_iter()
+            .filter_map(|part| match part {
+                openai::ResponseInputContentPart::InputText {
+                    text,
+                    prompt_cache_breakpoint,
+                    ..
+                } => Some(openai::ChatTextContentPart::Text {
+                    text,
+                    prompt_cache_breakpoint,
+                    extra: Default::default(),
+                }),
+                other => {
+                    warn_dropped_response_breakpoint(&other, "OpenAI Chat text message");
+                    None
+                }
+            })
+            .collect(),
+    )
+}
+
+fn warn_dropped_response_breakpoint(part: &openai::ResponseInputContentPart, target: &str) {
+    let (block_type, has_breakpoint) = match part {
+        openai::ResponseInputContentPart::InputText {
+            prompt_cache_breakpoint,
+            ..
+        } => ("input_text", prompt_cache_breakpoint.is_some()),
+        openai::ResponseInputContentPart::InputImage {
+            prompt_cache_breakpoint,
+            ..
+        } => ("input_image", prompt_cache_breakpoint.is_some()),
+        openai::ResponseInputContentPart::InputFile {
+            prompt_cache_breakpoint,
+            ..
+        } => ("input_file", prompt_cache_breakpoint.is_some()),
+        openai::ResponseInputContentPart::InputAudio { .. } => ("input_audio", false),
+    };
+    if has_breakpoint {
+        tracing::warn!(
+            block_type,
+            conversion_target = target,
+            "cache breakpoint dropped during protocol conversion"
+        );
+    }
 }

@@ -3,8 +3,9 @@ use crate::transform::{TransformContext, TransformError};
 
 use super::super::common;
 use super::content::{
-    claude_blocks_to_assistant_message, claude_blocks_to_user_messages, claude_content_to_text,
-    claude_system_to_text, push_developer_message, push_system_message,
+    claude_blocks_to_assistant_message, claude_blocks_to_user_messages,
+    claude_content_to_chat_text_content, claude_system_to_chat_content, push_developer_message,
+    push_system_message,
 };
 use super::tools::{claude_tool_choice_to_chat, claude_tools_to_chat};
 
@@ -13,8 +14,9 @@ pub fn request(
     input: claude::CreateMessageRequestBody,
     _: &TransformContext,
 ) -> Result<openai::ChatCompletionRequest, TransformError> {
+    let prompt_cache_key = common::claude_prompt_cache_key(&input);
     let mut messages = Vec::new();
-    if let Some(system) = claude_system_to_text(input.system) {
+    if let Some(system) = claude_system_to_chat_content(input.system) {
         push_system_message(&mut messages, system);
     }
 
@@ -40,8 +42,9 @@ pub fn request(
                 });
             }
             claude::MessageRole::Known(claude::MessageRoleKnown::System) => {
-                let text = claude_content_to_text(message.content);
-                push_developer_message(&mut messages, text);
+                if let Some(content) = claude_content_to_chat_text_content(message.content) {
+                    push_developer_message(&mut messages, content);
+                }
             }
             claude::MessageRole::Known(claude::MessageRoleKnown::User)
             | claude::MessageRole::Unknown(_) => match message.content {
@@ -86,8 +89,8 @@ pub fn request(
             .and_then(claude_parallel_tool_calls),
         prediction: None,
         presence_penalty: None,
-        prompt_cache_key: None,
-        prompt_cache_options: None,
+        prompt_cache_key: Some(prompt_cache_key),
+        prompt_cache_options: common::openai_options_for_claude_root(input.cache_control),
         prompt_cache_retention: None,
         reasoning_effort: common::claude_thinking_to_openai(input.thinking),
         response_format: common::claude_output_format_to_chat(output_format),
@@ -139,4 +142,65 @@ fn claude_parallel_tool_calls(choice: &claude::ToolChoice) -> Option<bool> {
 
 fn u64_to_u32(value: u64) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    #[test]
+    fn preserves_claude_root_and_block_cache_controls() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 32,
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+            "system": [
+                {"type": "text", "text": "stable system", "cache_control": {"type": "ephemeral"}}
+            ],
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "stable context", "cache_control": {"type": "ephemeral", "ttl": "5m"}},
+                    {"type": "text", "text": "question"}
+                ]
+            }]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+        );
+
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+
+        assert!(
+            output["prompt_cache_key"]
+                .as_str()
+                .is_some_and(|key| key.starts_with("gproxy:claude:"))
+        );
+        assert_eq!(output["prompt_cache_options"]["mode"], "implicit");
+        assert_eq!(output["prompt_cache_options"]["ttl"], "30m");
+        assert_eq!(
+            output["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+        assert_eq!(
+            output["messages"][1]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+        assert!(
+            output["messages"][1]["content"][1]
+                .get("prompt_cache_breakpoint")
+                .is_none()
+        );
+    }
 }

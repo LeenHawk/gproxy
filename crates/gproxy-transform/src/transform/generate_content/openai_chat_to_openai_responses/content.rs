@@ -32,11 +32,11 @@ fn chat_message_to_response_items(
     match message {
         openai::ChatCompletionMessageParam::Developer { content, .. } => vec![easy_input(
             openai::ResponseEasyInputMessageRole::Developer,
-            openai::ResponseEasyInputContent::Text(chat_text_content_to_text(content)),
+            chat_text_content_to_easy_content(content),
         )],
         openai::ChatCompletionMessageParam::System { content, .. } => vec![easy_input(
             openai::ResponseEasyInputMessageRole::System,
-            openai::ResponseEasyInputContent::Text(chat_text_content_to_text(content)),
+            chat_text_content_to_easy_content(content),
         )],
         openai::ChatCompletionMessageParam::User { content, .. } => vec![easy_input(
             openai::ResponseEasyInputMessageRole::User,
@@ -51,10 +51,17 @@ fn chat_message_to_response_items(
         } => {
             let mut items = Vec::new();
             if let Some(content) = content {
-                items.push(output_message_item(
-                    format!("msg_{index}"),
-                    chat_assistant_content_to_output_parts(content, refusal),
-                ));
+                if assistant_content_has_breakpoint(&content) {
+                    items.push(easy_input(
+                        openai::ResponseEasyInputMessageRole::Assistant,
+                        chat_assistant_content_to_easy_content(content, refusal),
+                    ));
+                } else {
+                    items.push(output_message_item(
+                        format!("msg_{index}"),
+                        chat_assistant_content_to_output_parts(content, refusal),
+                    ));
+                }
             } else if let Some(refusal) = refusal.filter(|value| !value.is_empty()) {
                 items.push(output_message_item(
                     format!("msg_{index}"),
@@ -99,7 +106,7 @@ fn chat_message_to_response_items(
             vec![tool_output_item(
                 kind.1,
                 kind.0,
-                openai::ResponseOutput::Text(chat_text_content_to_text(content)),
+                chat_text_content_to_response_output(content),
             )]
         }
         openai::ChatCompletionMessageParam::Function { content, name, .. } => {
@@ -192,17 +199,114 @@ fn output_message_item(
     ))
 }
 
-fn chat_text_content_to_text(content: openai::ChatTextContent) -> String {
+fn chat_text_content_to_easy_content(
+    content: openai::ChatTextContent,
+) -> openai::ResponseEasyInputContent {
     match content {
-        openai::ChatTextContent::Text(text) => text,
-        openai::ChatTextContent::Parts(parts) => parts
+        openai::ChatTextContent::Text(text) => openai::ResponseEasyInputContent::Text(text),
+        openai::ChatTextContent::Parts(parts) => openai::ResponseEasyInputContent::Parts(
+            parts
+                .into_iter()
+                .map(|part| match part {
+                    openai::ChatTextContentPart::Text {
+                        text,
+                        prompt_cache_breakpoint,
+                        ..
+                    } => openai::ResponseInputContentPart::InputText {
+                        text,
+                        prompt_cache_breakpoint,
+                        extra: Default::default(),
+                    },
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn chat_text_content_to_response_output(
+    content: openai::ChatTextContent,
+) -> openai::ResponseOutput {
+    match content {
+        openai::ChatTextContent::Text(text) => openai::ResponseOutput::Text(text),
+        openai::ChatTextContent::Parts(parts) => openai::ResponseOutput::Parts(
+            parts
+                .into_iter()
+                .map(|part| match part {
+                    openai::ChatTextContentPart::Text {
+                        text,
+                        prompt_cache_breakpoint,
+                        ..
+                    } => openai::ResponseToolOutputContentPart::InputText {
+                        text,
+                        prompt_cache_breakpoint,
+                        extra: Default::default(),
+                    },
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn assistant_content_has_breakpoint(content: &openai::ChatAssistantContent) -> bool {
+    match content {
+        openai::ChatAssistantContent::Text(_) => false,
+        openai::ChatAssistantContent::Parts(parts) => parts.iter().any(|part| match part {
+            openai::ChatAssistantContentPart::Text {
+                prompt_cache_breakpoint,
+                ..
+            }
+            | openai::ChatAssistantContentPart::Refusal {
+                prompt_cache_breakpoint,
+                ..
+            } => prompt_cache_breakpoint.is_some(),
+        }),
+    }
+}
+
+fn chat_assistant_content_to_easy_content(
+    content: openai::ChatAssistantContent,
+    refusal: Option<String>,
+) -> openai::ResponseEasyInputContent {
+    let mut parts = match content {
+        openai::ChatAssistantContent::Text(text) => {
+            vec![openai::ResponseInputContentPart::InputText {
+                text,
+                prompt_cache_breakpoint: None,
+                extra: Default::default(),
+            }]
+        }
+        openai::ChatAssistantContent::Parts(parts) => parts
             .into_iter()
             .map(|part| match part {
-                openai::ChatTextContentPart::Text { text, .. } => text,
+                openai::ChatAssistantContentPart::Text {
+                    text,
+                    prompt_cache_breakpoint,
+                    ..
+                } => openai::ResponseInputContentPart::InputText {
+                    text,
+                    prompt_cache_breakpoint,
+                    extra: Default::default(),
+                },
+                openai::ChatAssistantContentPart::Refusal {
+                    refusal,
+                    prompt_cache_breakpoint,
+                    ..
+                } => openai::ResponseInputContentPart::InputText {
+                    text: refusal,
+                    prompt_cache_breakpoint,
+                    extra: Default::default(),
+                },
             })
-            .collect::<Vec<_>>()
-            .join(""),
+            .collect(),
+    };
+    if let Some(refusal) = refusal.filter(|value| !value.is_empty()) {
+        parts.push(openai::ResponseInputContentPart::InputText {
+            text: refusal,
+            prompt_cache_breakpoint: None,
+            extra: Default::default(),
+        });
     }
+    openai::ResponseEasyInputContent::Parts(parts)
 }
 
 fn chat_assistant_content_to_output_parts(
@@ -278,7 +382,18 @@ fn chat_part_to_response_part(part: openai::ChatContentPart) -> openai::Response
             prompt_cache_breakpoint,
             extra: Default::default(),
         },
-        openai::ChatContentPart::InputAudio { input_audio, .. } => {
+        openai::ChatContentPart::InputAudio {
+            input_audio,
+            prompt_cache_breakpoint,
+            ..
+        } => {
+            if prompt_cache_breakpoint.is_some() {
+                tracing::warn!(
+                    block_type = "input_audio",
+                    target = "OpenAI Responses",
+                    "cache breakpoint dropped during protocol conversion"
+                );
+            }
             openai::ResponseInputContentPart::InputAudio {
                 input_audio: openai::InputAudioContent {
                     data: input_audio.data,

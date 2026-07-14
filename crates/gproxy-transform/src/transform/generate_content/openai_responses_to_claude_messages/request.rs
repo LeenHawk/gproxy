@@ -32,6 +32,38 @@ mod tests {
     }
 
     #[test]
+    fn explicit_responses_cache_keeps_final_four_breakpoints_for_claude() {
+        let input = openai::ResponseCreateRequest {
+            model: Some(openai::OpenAiModelId::Unknown("claude-sonnet-4-6".to_owned())),
+            prompt_cache_options: Some(openai::PromptCacheOptions {
+                mode: Some(openai::PromptCacheMode::Explicit),
+                ttl: Some(openai::PromptCacheTtl::ThirtyMinutes),
+                extra: Default::default(),
+            }),
+            input: Some(serde_json::from_value(json!([
+                {"type": "message", "role": "user", "content": [
+                    {"type": "input_text", "text": "1", "prompt_cache_breakpoint": {"mode": "explicit"}},
+                    {"type": "input_text", "text": "2", "prompt_cache_breakpoint": {"mode": "explicit"}},
+                    {"type": "input_text", "text": "3", "prompt_cache_breakpoint": {"mode": "explicit"}},
+                    {"type": "input_text", "text": "4", "prompt_cache_breakpoint": {"mode": "explicit"}},
+                    {"type": "input_text", "text": "5", "prompt_cache_breakpoint": {"mode": "explicit"}}
+                ]}
+            ])).unwrap()),
+            ..Default::default()
+        };
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert!(output.get("cache_control").is_none());
+        let blocks = output["messages"][0]["content"].as_array().unwrap();
+        assert!(blocks[0].get("cache_control").is_none());
+        assert!(
+            blocks[1..]
+                .iter()
+                .all(|block| block.get("cache_control").is_some())
+        );
+    }
+
+    #[test]
     fn apply_patch_result_reaches_claude_as_tool_result() {
         let input = openai::ResponseCreateRequest {
             model: Some(openai::OpenAiModelId::Unknown("test-model".to_owned())),

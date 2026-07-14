@@ -6,8 +6,9 @@ use crate::transform::{TransformContext, TransformError};
 use super::super::common;
 use super::content::{
     chat_assistant_content_to_claude_blocks, chat_content_to_claude_blocks,
-    chat_text_content_to_text, mid_conversation_system_block, push_claude_block,
-    push_claude_blocks, system_prompt, text_block,
+    chat_text_content_to_claude_blocks, chat_text_content_to_text_and_cache,
+    mid_conversation_system_text_block, push_claude_block, push_claude_blocks, system_prompt,
+    text_block,
 };
 use super::tools::{
     chat_tool_call_to_claude, chat_tool_choice_to_claude, chat_tools_to_claude,
@@ -22,6 +23,8 @@ pub fn request(
     // BEFORE this transform, so model-conditional conversion sees the real
     // target model, not the inbound alias.
     let model = common::openai_model_string(input.model);
+    let explicit_cache_mode =
+        common::openai_cache_mode_is_explicit(input.prompt_cache_options.as_ref());
     let mid_conv_supported = common::supports_mid_conv_system(&model);
     let mut messages = Vec::new();
     let mut system_blocks = Vec::new();
@@ -32,26 +35,30 @@ pub fn request(
         match message {
             openai::ChatCompletionMessageParam::Developer { content, .. }
             | openai::ChatCompletionMessageParam::System { content, .. } => {
-                let text = chat_text_content_to_text(content);
-                if text.is_empty() {
+                let blocks = chat_text_content_to_claude_blocks(content);
+                if blocks.is_empty() {
                     continue;
                 }
                 if !seen_non_system {
-                    system_blocks.push(text_block(text));
+                    system_blocks.extend(blocks);
                 } else if mid_conv_supported {
-                    push_claude_block(
-                        &mut messages,
-                        claude::MessageRole::Known(claude::MessageRoleKnown::User),
-                        mid_conversation_system_block(text),
-                    );
+                    for block in blocks {
+                        if let claude::ContentBlockParam::Text(block) = block {
+                            push_claude_block(
+                                &mut messages,
+                                claude::MessageRole::Known(claude::MessageRoleKnown::User),
+                                mid_conversation_system_text_block(block),
+                            );
+                        }
+                    }
                 } else {
                     // Pre-Opus-4.8 models reject mid_conv_system ("role
                     // 'system' is not supported on this model") — downgrade to
                     // a plain assistant turn.
-                    push_claude_block(
+                    push_claude_blocks(
                         &mut messages,
                         claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
-                        text_block(text),
+                        blocks,
                     );
                 }
             }
@@ -104,7 +111,7 @@ pub fn request(
                 ..
             } => {
                 seen_non_system = true;
-                let content = chat_text_content_to_text(content);
+                let (content, cache_control) = chat_text_content_to_text_and_cache(content);
                 let id = normalized_tool_id(tool_call_id, &mut tool_ids);
                 push_claude_block(
                     &mut messages,
@@ -112,7 +119,7 @@ pub fn request(
                     claude::ContentBlockParam::ToolResult(claude::ToolResultBlock {
                         tool_use_id: id,
                         type_: claude::ToolResultBlockType::ToolResult,
-                        cache_control: None,
+                        cache_control,
                         content: Some(claude::ToolResultContent::Text(content)),
                         is_error: None,
                     }),
@@ -157,7 +164,7 @@ pub fn request(
     }
 
     #[allow(deprecated)]
-    Ok(claude::CreateMessageRequestBody {
+    let output = claude::CreateMessageRequestBody {
         model: model.into(),
         messages,
         max_tokens,
@@ -185,7 +192,8 @@ pub fn request(
         top_p: input.top_p,
         user_profile_id: None,
         extra: Default::default(),
-    })
+    };
+    common::apply_openai_cache_policy(output, explicit_cache_mode)
 }
 
 fn chat_output_config(
@@ -221,8 +229,80 @@ fn openai_service_tier_to_claude_speed(
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
+
+    fn ctx() -> TransformContext {
+        TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+        )
+    }
+
+    #[test]
+    fn explicit_cache_mode_keeps_only_final_four_breakpoints() {
+        let parts = (1..=6)
+            .map(|index| {
+                json!({
+                    "type": "text",
+                    "text": format!("block-{index}"),
+                    "prompt_cache_breakpoint": {"mode": "explicit"}
+                })
+            })
+            .collect::<Vec<_>>();
+        let input = serde_json::from_value(json!({
+            "model": "claude-sonnet-4-6",
+            "prompt_cache_options": {"mode": "explicit", "ttl": "30m"},
+            "messages": [{"role": "user", "content": parts}]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert!(output.get("cache_control").is_none());
+        let blocks = output["messages"][0]["content"].as_array().unwrap();
+        assert!(blocks[0].get("cache_control").is_none());
+        assert!(blocks[1].get("cache_control").is_none());
+        for block in &blocks[2..] {
+            assert_eq!(block["cache_control"]["type"], "ephemeral");
+            assert!(block["cache_control"].get("ttl").is_none());
+        }
+    }
+
+    #[test]
+    fn implicit_cache_mode_uses_root_and_keeps_final_three_explicit_breakpoints() {
+        let parts = (1..=4)
+            .map(|index| {
+                json!({
+                    "type": "text",
+                    "text": format!("block-{index}"),
+                    "prompt_cache_breakpoint": {"mode": "explicit"}
+                })
+            })
+            .collect::<Vec<_>>();
+        let input = serde_json::from_value(json!({
+            "model": "claude-sonnet-4-6",
+            "messages": [{"role": "user", "content": parts}]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert_eq!(output["cache_control"]["type"], "ephemeral");
+        let blocks = output["messages"][0]["content"].as_array().unwrap();
+        assert!(blocks[0].get("cache_control").is_none());
+        assert!(
+            blocks[1..]
+                .iter()
+                .all(|block| block.get("cache_control").is_some())
+        );
+    }
 
     /// Regression: pre-Opus-4.8 models reject `mid_conv_system` ("role 'system'
     /// is not supported on this model") — mid-conversation system messages must
@@ -239,17 +319,7 @@ mod tests {
                 ],
             }))
             .unwrap();
-            let ctx = TransformContext::new(
-                OperationKey::content_generation(
-                    Operation::GenerateContent,
-                    ContentGenerationKind::OpenAiChatCompletions,
-                ),
-                OperationKey::content_generation(
-                    Operation::GenerateContent,
-                    ContentGenerationKind::ClaudeMessages,
-                ),
-            );
-            request(input, &ctx).unwrap()
+            request(input, &ctx()).unwrap()
         };
 
         let old = convert("claude-sonnet-4-5");
