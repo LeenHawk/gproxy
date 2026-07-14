@@ -6,6 +6,8 @@ Provider 路由、协议转换、凭据、配额和可观测性，并提供内�
 
 [English](README.md) · 简体中文
 
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/LeenHawk?logo=githubsponsors&label=赞助)](https://github.com/sponsors/LeenHawk)
+
 - 🪪 **许可证：** AGPL-3.0-or-later · 🐳 **镜像：** `ghcr.io/leenhawk/gproxy`
 - 🦀 **构建目标：** 原生二进制 · Docker · Edge Wasm（Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite）
 - 🖥️ **控制台：** 内置，路径 `/console`
@@ -125,6 +127,15 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 - **[提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)**
 - **[边缘部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)**
 - **[新增 Channel](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
+
+## Star 趋势
+
+[![Star History 趋势图](https://api.star-history.com/svg?repos=LeenHawk/gproxy&type=Date)](https://www.star-history.com/#LeenHawk/gproxy&Date)
+
+## 支持项目
+
+如果 GPROXY 对你有帮助，可以通过 [GitHub Sponsors](https://github.com/sponsors/LeenHawk)
+支持项目持续开发。
 
 ## 许可证
 
