@@ -128,9 +128,15 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 - **[边缘部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)**
 - **[新增 Channel](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
 
-## Star 趋势
+## Star History
 
-[![Star History 趋势图](https://api.star-history.com/svg?repos=LeenHawk/gproxy&type=Date)](https://www.star-history.com/#LeenHawk/gproxy&Date)
+<a href="https://www.star-history.com/?repos=LeenHawk%2Fgproxy&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=LeenHawk/gproxy&type=date&theme=dark&legend=top-left&sealed_token=iBMEerxT7ZQBXRPAHN9XTVM7w_MUgcZCBVAwDDknpHwlPYhZueJ3_ZWhMXa7g67GF9AB9bzaqgBLVC9t5mrlxDZp3sqV-WwLo_JEx5fSsXDYfydUue3XsJlf1ScEWqGCVNW7TnR561_ETJnwEd4Xj61R4S9K5u_DvAD3aYkrxDikk_YkjB-HMUzAs5FG" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=LeenHawk/gproxy&type=date&legend=top-left&sealed_token=iBMEerxT7ZQBXRPAHN9XTVM7w_MUgcZCBVAwDDknpHwlPYhZueJ3_ZWhMXa7g67GF9AB9bzaqgBLVC9t5mrlxDZp3sqV-WwLo_JEx5fSsXDYfydUue3XsJlf1ScEWqGCVNW7TnR561_ETJnwEd4Xj61R4S9K5u_DvAD3aYkrxDikk_YkjB-HMUzAs5FG" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=LeenHawk/gproxy&type=date&legend=top-left&sealed_token=iBMEerxT7ZQBXRPAHN9XTVM7w_MUgcZCBVAwDDknpHwlPYhZueJ3_ZWhMXa7g67GF9AB9bzaqgBLVC9t5mrlxDZp3sqV-WwLo_JEx5fSsXDYfydUue3XsJlf1ScEWqGCVNW7TnR561_ETJnwEd4Xj61R4S9K5u_DvAD3aYkrxDikk_YkjB-HMUzAs5FG" />
+ </picture>
+</a>
 
 ## 支持项目
 

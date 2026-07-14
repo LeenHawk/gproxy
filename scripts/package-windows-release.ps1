@@ -11,9 +11,10 @@ $source = Join-Path $PWD "dist-windows"
 New-Item -ItemType Directory -Force -Path $source | Out-Null
 Copy-Item $binary "$source/gproxy.exe"
 Copy-Item README.md "$source/README.md"
+Copy-Item LICENSE "$source/LICENSE"
 Copy-Item scripts/installers/windows/GPROXY.vbs "$source/GPROXY.vbs"
 
-Compress-Archive -Path "$source/gproxy.exe","$source/README.md" `
+Compress-Archive -Path "$source/gproxy.exe","$source/README.md","$source/LICENSE" `
   -DestinationPath "$artifact.zip" -Force
 
 $wxs = Get-Content scripts/installers/windows/Package.wxs.in -Raw

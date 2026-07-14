@@ -470,7 +470,7 @@ fi
 
 package_dir="$(mktemp -d)"
 trap 'rm -rf "$package_dir"' EXIT
-cp README.md "$package_dir/"
+cp README.md LICENSE "$package_dir/"
 
 if [ "$target_os" = "android" ]; then
   cp "$binary" "$package_dir/gproxy.bin"
@@ -478,12 +478,12 @@ if [ "$target_os" = "android" ]; then
   cp "$(find_android_libcxx "$target")" "$package_dir/libc++_shared.so"
   chmod 644 "$package_dir/libc++_shared.so"
   write_android_launcher "$package_dir/gproxy"
-  (cd "$package_dir" && zip -9 "$output_dir/$artifact.zip" gproxy gproxy.bin libc++_shared.so README.md)
+  (cd "$package_dir" && zip -9 "$output_dir/$artifact.zip" gproxy gproxy.bin libc++_shared.so README.md LICENSE)
   package_android_apk
 else
   cp "$binary" "$package_dir/gproxy"
   chmod 755 "$package_dir/gproxy"
-  (cd "$package_dir" && zip -9 "$output_dir/$artifact.zip" gproxy README.md)
+  (cd "$package_dir" && zip -9 "$output_dir/$artifact.zip" gproxy README.md LICENSE)
   if [ "$target_os" = "linux" ]; then
     bash scripts/package-linux-deb.sh
   elif [ "$target_os" = "macos" ]; then

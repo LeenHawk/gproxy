@@ -475,6 +475,9 @@ jobs:
           sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts > deploy/deno/bundle/main.ts
           cp -R assets/console/. deploy/deno/bundle/console/
           (cd deploy/deno/bundle && zip -9 -r ../../../edge-dist/gproxy-edge-deno.zip .)
+          for bundle in edge-dist/*.zip; do
+            zip -j "$bundle" LICENSE
+          done
           (cd edge-dist && for f in *.zip gproxy.wasm; do shasum -a 256 "$f" > "$f.sha256"; done)
           ls -la edge-dist
 
