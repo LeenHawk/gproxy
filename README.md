@@ -7,6 +7,8 @@ as a native binary, a Docker container, or a serverless edge function.
 
 English · [简体中文](README.zh_CN.md)
 
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/LeenHawk?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/LeenHawk)
+
 - 🪪 **License:** AGPL-3.0-or-later · 🐳 **Image:** `ghcr.io/leenhawk/gproxy`
 - 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite)
 - 🖥️ **Console:** built in, served at `/console`
@@ -138,6 +140,15 @@ Ops endpoints (`/healthz`, `/version`, `/metrics`) are admin-gated.
 - **[Prompt caching](https://gproxy.leenhawk.com/guides/claude-caching/)**
 - **[Edge deployment](https://gproxy.leenhawk.com/deployment/edge/)**
 - **[Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/)**
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=LeenHawk/gproxy&type=Date)](https://www.star-history.com/#LeenHawk/gproxy&Date)
+
+## Support
+
+If GPROXY is useful to you, you can support its continued development through
+[GitHub Sponsors](https://github.com/sponsors/LeenHawk).
 
 ## License
 
