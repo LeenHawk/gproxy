@@ -1,7 +1,6 @@
-//! Locally-served operations (§6.3): model-list/get shaping (gateway-side
-//! lists in each family's wire shape, manual rows merged into upstream lists)
-//! plus the no-upstream serving of `Local`-plan candidates (count_tokens via
-//! [`crate::tokenize`], models from the snapshot's exposed rows).
+//! Locally-served operations (§6.3): model-list/get shaping plus the no-upstream
+//! serving of `Local`-plan candidates (count_tokens via [`crate::tokenize`],
+//! models from the snapshot's exposed rows).
 //! Minimal-field JSON on purpose — list shape per the protocol modules
 //! ([`openai::models`](crate::protocol::openai::models),
 //! [`claude::models`](crate::protocol::claude::models),
@@ -39,13 +38,6 @@ pub fn serve_local(
     let family = op.provider_family();
     match op.operation {
         Operation::CountTokens => Some(local_count(state, ctx, cand, family)),
-        Operation::ListModels => {
-            let entries = exposed_entries(cp, cand.provider.id);
-            Some(json_outcome(
-                StatusCode::OK,
-                render_model_list(family, &entries),
-            ))
-        }
         Operation::GetModel => {
             let id = classify::path_model_id(&ctx.path);
             let entries = exposed_entries(cp, cand.provider.id);
@@ -153,31 +145,6 @@ pub fn render_model(family: Provider, entry: &ModelEntry) -> Bytes {
     to_bytes(&entry_value(family, entry))
 }
 
-/// Merge `additions` into an upstream list body of `family` shape: dedup by id,
-/// append the rest. Unparsable body → warn + return the original untouched.
-pub fn merge_into_list(family: Provider, body: Bytes, additions: &[ModelEntry]) -> Bytes {
-    let Ok(mut v) = serde_json::from_slice::<Value>(&body) else {
-        tracing::warn!("model-list merge: upstream body is not JSON; left untouched");
-        return body;
-    };
-    let key = match family {
-        Provider::OpenAi | Provider::Claude => "data",
-        Provider::Gemini => "models",
-    };
-    let Some(arr) = v.get_mut(key).and_then(Value::as_array_mut) else {
-        tracing::warn!(key, "model-list merge: list array missing; left untouched");
-        return body;
-    };
-    let existing: Vec<String> = arr.iter().filter_map(|m| entry_id(family, m)).collect();
-    for add in additions {
-        let wire_id = wire_id(family, &add.id);
-        if !existing.contains(&wire_id) {
-            arr.push(entry_value(family, add));
-        }
-    }
-    to_bytes(&v)
-}
-
 /// One model object in the family's entry shape.
 fn entry_value(family: Provider, e: &ModelEntry) -> Value {
     match family {
@@ -211,53 +178,6 @@ fn wire_id(family: Provider, id: &str) -> String {
     }
 }
 
-/// The wire id of an existing list element (`id` / `name` per family).
-fn entry_id(family: Provider, m: &Value) -> Option<String> {
-    let key = match family {
-        Provider::Gemini => "name",
-        _ => "id",
-    };
-    m.get(key).and_then(Value::as_str).map(str::to_owned)
-}
-
 fn to_bytes(v: &Value) -> Bytes {
     Bytes::from(serde_json::to_vec(v).expect("json! value serializes"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn entry(id: &str) -> ModelEntry {
-        ModelEntry {
-            id: id.into(),
-            display_name: None,
-        }
-    }
-
-    #[test]
-    fn merge_into_openai_list_dedups_and_appends() {
-        let upstream = render_model_list(Provider::OpenAi, &[entry("gpt-a"), entry("gpt-b")]);
-        let merged = merge_into_list(
-            Provider::OpenAi,
-            upstream,
-            &[entry("gpt-b"), entry("manual-x")],
-        );
-        let v: Value = serde_json::from_slice(&merged).unwrap();
-        let ids: Vec<&str> = v["data"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|m| m["id"].as_str().unwrap())
-            .collect();
-        assert_eq!(ids, ["gpt-a", "gpt-b", "manual-x"]);
-        assert_eq!(v["object"], "list");
-
-        // unparsable upstream body comes back untouched
-        let garbage = Bytes::from_static(b"not json");
-        assert_eq!(
-            merge_into_list(Provider::OpenAi, garbage.clone(), &[entry("x")]),
-            garbage
-        );
-    }
 }

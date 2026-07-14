@@ -68,7 +68,7 @@ pub async fn run_failover(
 
         // M2 dispatch decision per candidate. The snapshot guard is scoped to
         // this lookup only — never held across the upstream call.
-        let (plan, rules, local_models) = {
+        let (plan, rules) = {
             let cp = state.cp();
             let plan = match transform_step::plan_for(
                 &cp,
@@ -91,16 +91,7 @@ pub async fn run_failover(
                 }
             };
             let rules = cp.rule_sets_by_provider.get(&cand.provider.id).cloned();
-            // §6.3 merged models: manual + variant rows join a successful
-            // upstream list (additions captured while the guard is held).
-            let local_models = (ctx.op.expect("classified").operation == Operation::ListModels)
-                .then(|| {
-                    cp.exposed_models_by_provider
-                        .get(&cand.provider.id)
-                        .cloned()
-                })
-                .flatten();
-            (plan, rules, local_models)
+            (plan, rules)
         };
 
         // §3.3 per-credential rpm/tpm budget — a budget skip is not a health
@@ -345,20 +336,6 @@ pub async fn run_failover(
                 // converted bytes no longer match the upstream framing
                 headers.remove(http::header::CONTENT_LENGTH);
             }
-            // §6.3 merged models: append manual + variant entries to a
-            // successful upstream list (inbound-shaped by now).
-            let body = match (&local_models, body) {
-                (Some(models), ResponseBody::Full(b)) if status.is_success() => {
-                    headers.remove(http::header::CONTENT_LENGTH);
-                    let family = ctx.op.expect("classified").provider_family();
-                    ResponseBody::Full(local_ops::merge_into_list(
-                        family,
-                        b,
-                        &local_ops::entries_from(models),
-                    ))
-                }
-                (_, body) => body,
-            };
             #[cfg(not(target_arch = "wasm32"))]
             let body = match (status.is_success(), ctx.op.map(|op| op.kind), body) {
                 (

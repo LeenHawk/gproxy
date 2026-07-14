@@ -19,9 +19,21 @@ pub fn matches(pattern: &str, value: &str) -> bool {
     inner(pattern.as_bytes(), value.as_bytes())
 }
 
+/// Returns `true` when `pattern` can match at least one value beginning with
+/// `prefix`.
+///
+/// Authorization uses this to decide whether a permission such as
+/// `openai-main/gpt-*` grants access to the `openai-main` model namespace
+/// before the complete upstream catalogue is known. The matcher has the same
+/// byte-oriented, `*`-only semantics as [`matches`].
+pub fn can_match_prefix(pattern: &str, prefix: &str) -> bool {
+    let fixed = pattern.split('*').next().unwrap_or(pattern);
+    prefix.starts_with(fixed) || fixed.starts_with(prefix)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::matches;
+    use super::{can_match_prefix, matches};
 
     #[test]
     fn glob_semantics() {
@@ -31,5 +43,15 @@ mod tests {
         assert!(!matches("claude-*", "gpt-4"));
         assert!(!matches("sonnet", "claude-sonnet")); // anchored
         assert!(matches("", ""));
+    }
+
+    #[test]
+    fn prefix_intersection_semantics() {
+        assert!(can_match_prefix("oai/gpt-*", "oai/"));
+        assert!(can_match_prefix("*/gpt-*", "oai/"));
+        assert!(can_match_prefix("*sonnet*", "claude/"));
+        assert!(can_match_prefix("oai/*", "oai/"));
+        assert!(!can_match_prefix("other/*", "oai/"));
+        assert!(!can_match_prefix("to-openai", "oai/"));
     }
 }

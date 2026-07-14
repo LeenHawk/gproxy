@@ -32,14 +32,16 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-聚合模型列表由 GPROXY 自己的 snapshot 返回：
+聚合模型列表会并发刷新每个有权限的 provider：
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \
   -H "Authorization: Bearer sk-dev-local"
 ```
 
-列表包含这个 key 有权限看到的 route 和 alias 名，不是所有上游 provider model 的原始转储。
+每个 provider 请求成功后只把新模型追加到持久化列表，不删除旧模型；某个 provider 超时或
+失败时会使用这份累计列表。最终结果会合并有权限的 route、alias 和 provider 模型，并使用与
+实际调用相同的 `provider/model` 权限逐条过滤。
 
 ## Scoped Provider 路由
 

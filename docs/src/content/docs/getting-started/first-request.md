@@ -32,15 +32,18 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-Aggregated model list routes are served by GPROXY's own snapshot:
+Aggregated model listing refreshes every permitted provider in parallel:
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \
   -H "Authorization: Bearer sk-dev-local"
 ```
 
-The list contains route and alias names the key is allowed to see, not a raw
-dump of every upstream provider model.
+Each successful provider response appends newly discovered ids to the persisted
+provider models without deleting old ones; timeout or failure uses that
+accumulated list. The final result merges permitted route and alias names and
+filters every `provider/model` entry with the same permission check used for
+actual calls.
 
 ## Scoped Provider Routing
 

@@ -190,7 +190,7 @@
   "models": {
     "title": "Models",
     "add": "Add model",
-    "empty": "No models registered. Aggregated /v1/models lists alias/route names; per-provider model rows feed routing and variants.",
+    "empty": "No models persisted yet. Successful model-list refreshes append new ids here and never delete existing rows.",
     "edit": "Edit model",
     "modelId": "Model ID",
     "displayName": "Display name",

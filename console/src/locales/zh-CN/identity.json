@@ -30,8 +30,8 @@
     "copied": "已复制", "copyFailed": "复制失败", "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
   },
   "access": {
-    "permissions": "路由权限", "permissionsHint": "此 scope 可调用的路由/别名 glob 模式（org→team→user 取并集；任意位置均不匹配则拒绝）。",
-    "addPermission": "添加权限", "routePattern": "路由模式", "noPermissions": "此 scope 暂无路由权限。",
+    "permissions": "路由权限", "permissionsHint": "路由名或 provider/model 的 glob 模式；provider 名本身表示该渠道全部模型（org→team→user 取并集）。",
+    "addPermission": "添加权限", "routePattern": "路由/模型模式", "noPermissions": "此 scope 暂无路由权限。",
     "rateLimits": "限流规则", "rateLimitsHint": "按 scope 设定限流；org/team/user 中最严格的生效。",
     "addRateLimit": "添加限流", "rpm": "RPM", "rpd": "RPD", "totalTokens": "总 token 数", "noRateLimits": "此 scope 暂无限流规则。",
     "quota": "配额", "quotaHint": "此 scope 的费用上限（十进制）。cost_used 由计费系统累积。",

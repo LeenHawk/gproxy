@@ -114,6 +114,79 @@ async fn models_list_filtered() {
     assert!(list(allowed) >= 2, "grant holder sees aliases + routes");
 }
 
+#[tokio::test]
+async fn provider_model_child_permission_filters_aggregate_catalogue() {
+    let bundle = bundle_with(
+        "route_permissions",
+        json!([{ "id": 1, "scope": "user", "scope_id": 1,
+                 "route_pattern": "oai/gpt-test" }]),
+    );
+    let upstream = json!({
+        "object": "list",
+        "data": [
+            { "id": "gpt-test", "object": "model", "created": 0, "owned_by": "openai" },
+            { "id": "gpt-secret", "object": "model", "created": 0, "owned_by": "openai" }
+        ]
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&upstream).unwrap()),
+        vec![],
+    ));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+
+    let outcome = crate::pipeline::execute(&state, models_ctx("sk-test"))
+        .await
+        .expect("filtered list");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("expected Full")
+    };
+    let value: Value = serde_json::from_slice(&body).unwrap();
+    let ids: Vec<&str> = value["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|model| model["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["oai/gpt-test"]);
+    assert_eq!(fake.seen.lock().unwrap().len(), 1, "only oai is refreshed");
+}
+
+#[tokio::test]
+async fn provider_model_child_permission_controls_actual_calls() {
+    let bundle = bundle_with(
+        "route_permissions",
+        json!([{ "id": 1, "scope": "user", "scope_id": 1,
+                 "route_pattern": "oai/gpt-test" }]),
+    );
+    let fake = Arc::new(FakeUpstream::new(chat_ok(), vec![]));
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+
+    crate::pipeline::execute(&state, claude_ctx("oai/gpt-test", false))
+        .await
+        .expect("exact child grant");
+    let err = exec_err(&state, claude_ctx("oai/gpt-secret", false)).await;
+    assert!(matches!(err, PipelineError::Forbidden), "got {err:?}");
+
+    let mut scoped_allowed = claude_ctx("gpt-test", false);
+    scoped_allowed.mode = RoutingMode::Scoped {
+        provider: "oai".into(),
+    };
+    crate::pipeline::execute(&state, scoped_allowed)
+        .await
+        .expect("scoped exact child grant");
+    let mut scoped_denied = claude_ctx("gpt-secret", false);
+    scoped_denied.mode = RoutingMode::Scoped {
+        provider: "oai".into(),
+    };
+    let err = exec_err(&state, scoped_denied).await;
+    assert!(matches!(err, PipelineError::Forbidden), "got {err:?}");
+    assert_eq!(
+        fake.seen.lock().unwrap().len(),
+        2,
+        "denied calls never hit upstream"
+    );
+}
+
 /// Regression: `route.enabled = false` used to be ignored by the snapshot —
 /// the route stayed routable and listed. It must 404 (route name AND alias)
 /// and vanish from the aggregated model list.

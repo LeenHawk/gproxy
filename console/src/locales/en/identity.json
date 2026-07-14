@@ -30,8 +30,8 @@
     "copied": "Copied", "copyFailed": "Copy failed", "rotateHint": "Keys can't be edited — to rotate, generate a new one and delete the old."
   },
   "access": {
-    "permissions": "Route permissions", "permissionsHint": "Glob patterns on route/alias names this scope may call (union across org→team→user; no match anywhere = denied).",
-    "addPermission": "Add permission", "routePattern": "Route pattern", "noPermissions": "No route permissions for this scope.",
+    "permissions": "Route permissions", "permissionsHint": "Glob patterns on route names or provider/model; a provider name grants all its models (union across org→team→user).",
+    "addPermission": "Add permission", "routePattern": "Route/model pattern", "noPermissions": "No route permissions for this scope.",
     "rateLimits": "Rate limits", "rateLimitsHint": "Per-scope limits; the strictest of org/team/user applies.",
     "addRateLimit": "Add rate limit", "rpm": "RPM", "rpd": "RPD", "totalTokens": "Total tokens", "noRateLimits": "No rate limits for this scope.",
     "quota": "Quota", "quotaHint": "Cost ceiling for this scope (decimal). cost_used is accumulated by billing.",

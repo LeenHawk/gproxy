@@ -13,6 +13,7 @@ pub mod failover;
 pub(crate) mod health_hooks;
 pub mod ingress;
 pub mod local_ops;
+pub mod model_catalog;
 pub mod outcome;
 pub mod preprocess;
 pub mod route;
