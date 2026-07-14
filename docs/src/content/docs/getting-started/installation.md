@@ -10,6 +10,12 @@ static files are synced into `assets/console/` and embedded in the binary.
 
 Choose the installation path that matches how you want to run it.
 
+:::tip[Start with a prebuilt download]
+Most users should choose a package on the [Downloads](/getting-started/downloads/)
+page or the [latest GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest).
+Do not build from source unless you are developing GPROXY or need a custom build.
+:::
+
 ## Installable Packages
 
 Release builds include native installers as well as portable ZIP archives:
@@ -19,7 +25,7 @@ Release builds include native installers as well as portable ZIP archives:
 | Android | `.apk` | A foreground service keeps GPROXY alive with a persistent notification. Automatic start is on by default for the first app launch and device boot, and can be changed in the launcher. |
 | Windows | `.msi` | Installs per-user under Local AppData, adds a Start menu entry, and starts hidden at login. |
 | macOS | `.dmg` | Drag `GPROXY.app` to Applications. The app runs without a Dock icon and registers a per-user LaunchAgent on first start. |
-| Linux | `.deb` | Installs a desktop launcher and an XDG background login entry. Packages are published for amd64 and arm64. |
+| Linux | `.deb` | Installs a desktop launcher and an XDG background login entry. Packages are published for amd64, arm64, and RISC-V 64. |
 
 On Windows, macOS, and Linux, open **Settings → Background Service** in the
 embedded Console to turn login startup on or off. Turning it off does not stop
@@ -37,7 +43,9 @@ is written to `%LOCALAPPDATA%\GPROXY\logs\gproxy.log` on Windows,
 Use a release binary when you want the native server with the embedded console
 and no local Rust or Node toolchain.
 
-1. Download the archive for your OS and CPU from the GitHub release.
+1. Download the archive for your OS and CPU from the
+   [Downloads](/getting-started/downloads/) page or the
+   [latest GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest).
 2. Extract the archive. On Android, keep `gproxy`, `gproxy.bin`, and
    `libc++_shared.so` in the same directory.
 3. Put it somewhere on your `PATH` or run it directly.
@@ -48,9 +56,10 @@ chmod +x ./gproxy
 ```
 
 Release archives are built by the v2 release workflow for Linux, macOS, Windows,
-Android, x86_64, and aarch64 targets. Linux release binaries are also used as
-the input to the Docker image. Android releases also include per-ABI APKs for
-users who prefer an installable package over the raw executable archive.
+and Android. Linux builds cover x86_64, AArch64, and RISC-V 64, with GNU and
+musl variants. The same three Linux architectures are published in both the
+default GNU Docker image and the `-musl` image. Android releases also include
+per-ABI APKs for users who prefer an installable package over the raw archive.
 
 The Android APK includes a launcher UI and foreground service. Install the
 matching ABI APK and open **GPROXY**. It starts automatically on first launch;
@@ -96,10 +105,16 @@ console. The image defaults to `GPROXY_HOST=0.0.0.0`,
 See [Docker](/deployment/docker/) for persistent volumes, PostgreSQL/MySQL DSNs,
 and tag selection.
 
-## Build From Source
+## Build From Source (Developers Only)
 
-Use a source build when you are developing GPROXY or need a local build before a
-release exists.
+:::caution
+This section is for GPROXY development and custom builds. If you only want to
+run GPROXY, use the [Downloads](/getting-started/downloads/) page instead; do not
+clone the repository or install Rust and Node just to get the application.
+:::
+
+Use a source build only when you are developing GPROXY or need a local build
+before a release exists.
 
 Prerequisites:
 
@@ -150,6 +165,8 @@ runtime secrets.
 
 ## Next Steps
 
+- Use [Downloads](/getting-started/downloads/) to select another platform or
+  package format.
 - Continue with [Quick Start](/getting-started/quick-start/) to boot a local
   instance.
 - Read [Embedded Console](/guides/console/) before putting the native server

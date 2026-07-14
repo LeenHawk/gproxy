@@ -1,0 +1,116 @@
+---
+title: 下载
+description: 下载预构建的 GPROXY 安装包、便携二进制、容器镜像和 Edge Bundle。
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+日常使用请直接选择下面的预构建产物。**如果不是要开发 GPROXY 或制作定制版本，请不要
+克隆仓库、不要自行编译。**
+
+<CardGrid>
+  <LinkCard title="最新 Release" description="查看当前版本、校验值和全部发布文件。" href="https://github.com/LeenHawk/gproxy/releases/latest" />
+  <LinkCard title="全部 GitHub Releases" description="浏览旧版本与发布历史。" href="https://github.com/LeenHawk/gproxy/releases" />
+</CardGrid>
+
+## 原生安装包
+
+这些安装包会集成平台启动入口和后台自动启动功能。
+
+### Windows
+
+<CardGrid>
+  <LinkCard title="Windows x86_64" description="适用于 Intel/AMD 64 位 PC 的 MSI。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-x86_64.msi" />
+  <LinkCard title="Windows ARM64" description="适用于 Windows on ARM 的 MSI。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-aarch64.msi" />
+</CardGrid>
+
+### macOS
+
+<CardGrid>
+  <LinkCard title="macOS Apple 芯片" description="适用于 M 系列 Mac 的 DMG。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-aarch64.dmg" />
+  <LinkCard title="macOS Intel" description="适用于 Intel Mac 的 DMG。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-x86_64.dmg" />
+</CardGrid>
+
+### Linux
+
+<CardGrid>
+  <LinkCard title="Linux amd64" description="适用于 x86_64 GNU/Linux 的 DEB。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64.deb" />
+  <LinkCard title="Linux arm64" description="适用于 AArch64 GNU/Linux 的 DEB。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64.deb" />
+  <LinkCard title="Linux RISC-V 64" description="适用于 riscv64 GNU/Linux 的 DEB。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64.deb" />
+  <LinkCard title="Linux musl amd64" description="包含静态 x86_64 musl 版本的 DEB。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64-musl.deb" />
+  <LinkCard title="Linux musl arm64" description="包含静态 AArch64 musl 版本的 DEB。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64-musl.deb" />
+  <LinkCard title="Linux musl RISC-V 64" description="包含静态 riscv64 musl 版本的 DEB。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64-musl.deb" />
+</CardGrid>
+
+### Android
+
+<CardGrid>
+  <LinkCard title="Android ARM64" description="适用于多数现代 Android 手机和平板的 APK。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-aarch64.apk" />
+  <LinkCard title="Android x86_64" description="适用于 x86_64 设备和模拟器的 APK。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-x86_64.apk" />
+</CardGrid>
+
+## 便携 ZIP
+
+解压后运行 `gproxy`（Windows 为 `gproxy.exe`）。Linux GNU 版本使用 glibc；Linux
+musl 是兼容性更广的静态版本。
+
+### Linux GNU
+
+<CardGrid>
+  <LinkCard title="Linux GNU amd64" description="便携 x86_64 glibc 版本。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64.zip" />
+  <LinkCard title="Linux GNU arm64" description="便携 AArch64 glibc 版本。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64.zip" />
+  <LinkCard title="Linux GNU RISC-V 64" description="便携 riscv64 glibc 版本。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64.zip" />
+</CardGrid>
+
+### Linux musl
+
+<CardGrid>
+  <LinkCard title="Linux musl amd64" description="便携静态 x86_64 版本。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64-musl.zip" />
+  <LinkCard title="Linux musl arm64" description="便携静态 AArch64 版本。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64-musl.zip" />
+  <LinkCard title="Linux musl RISC-V 64" description="便携静态 riscv64 版本。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64-musl.zip" />
+</CardGrid>
+
+### Windows、macOS 与 Android
+
+<CardGrid>
+  <LinkCard title="Windows x86_64 ZIP" description="便携 Windows x86_64 可执行文件。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-x86_64.zip" />
+  <LinkCard title="Windows ARM64 ZIP" description="便携 Windows ARM64 可执行文件。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-aarch64.zip" />
+  <LinkCard title="macOS Apple 芯片 ZIP" description="便携 macOS AArch64 二进制。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-aarch64.zip" />
+  <LinkCard title="macOS Intel ZIP" description="便携 macOS x86_64 二进制。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-x86_64.zip" />
+  <LinkCard title="Android ARM64 ZIP" description="原始二进制、启动器和 C++ runtime。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-aarch64.zip" />
+  <LinkCard title="Android x86_64 ZIP" description="原始二进制、启动器和 C++ runtime。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-x86_64.zip" />
+</CardGrid>
+
+## Docker 镜像
+
+默认镜像使用 GNU libc，`-musl` tag 使用静态 musl 版本。两套镜像都发布
+`linux/amd64`、`linux/arm64` 和 `linux/riscv64`。
+
+<CardGrid>
+  <LinkCard title="GNU 多架构镜像" description="ghcr.io/leenhawk/gproxy:latest" href="https://github.com/LeenHawk/gproxy/pkgs/container/gproxy" />
+  <LinkCard title="musl 多架构镜像" description="ghcr.io/leenhawk/gproxy:latest-musl" href="https://github.com/LeenHawk/gproxy/pkgs/container/gproxy" />
+</CardGrid>
+
+```bash
+docker pull ghcr.io/leenhawk/gproxy:latest
+# 静态 musl 版本：
+docker pull ghcr.io/leenhawk/gproxy:latest-musl
+```
+
+持久化存储和运行参数见 [Docker 部署](/zh-cn/deployment/docker/)。
+
+## Edge Bundles
+
+请上传预构建 Bundle，不要让 Edge 平台自行编译 Rust。
+
+<CardGrid>
+  <LinkCard title="Cloudflare Workers" description="预构建 Cloudflare Bundle。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-cloudflare.zip" />
+  <LinkCard title="Netlify Edge" description="预构建 Netlify Bundle。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-netlify.zip" />
+  <LinkCard title="Supabase Edge" description="预构建 Supabase Bundle。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-supabase.zip" />
+  <LinkCard title="Deno Deploy" description="预构建 Deno Bundle。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-deno.zip" />
+  <LinkCard title="EdgeOne Pages" description="预构建 EdgeOne Pages Bundle。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-eopages.zip" />
+  <LinkCard title="Appwrite Functions" description="预构建 Appwrite Deno Bundle。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-appwrite-deno.zip" />
+</CardGrid>
+
+继续阅读[安装](/zh-cn/getting-started/installation/)了解安装包行为，或进入
+[快速开始](/zh-cn/getting-started/quick-start/)运行刚下载的版本。

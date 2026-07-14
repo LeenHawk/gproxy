@@ -5,10 +5,10 @@ template: splash
 hero:
   tagline: One gateway for multiple LLM providers, with protocol conversion, access control, usage accounting, and an embedded console.
   actions:
-    - text: Start with the overview
-      link: /introduction/what-is-gproxy/
-      icon: right-arrow
-    - text: Run locally
+    - text: Download GPROXY
+      link: /getting-started/downloads/
+      icon: download
+    - text: Quick start
       link: /getting-started/quick-start/
       icon: rocket
       variant: secondary
@@ -27,7 +27,7 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 		See what GPROXY does, which API formats it accepts, and how it chooses an upstream.
 	</Card>
 	<Card title="Getting Started" icon="rocket">
-		Install the binary, import a development snapshot, open the embedded console, and
+		Choose a prebuilt download, install it, open the embedded console, and
 		send the first OpenAI-compatible request.
 	</Card>
 	<Card title="Guides" icon="puzzle">
@@ -41,6 +41,12 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 </CardGrid>
 
 ## Primary Paths
+
+<LinkCard
+	title="Downloads"
+	description="Get native installers, portable binaries, Docker images, and prebuilt edge bundles."
+	href="/getting-started/downloads/"
+/>
 
 <LinkCard
 	title="What is GPROXY v2?"

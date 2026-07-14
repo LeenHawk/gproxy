@@ -44,6 +44,7 @@ jobs:
             case "$1" in
               gproxy-linux-x86_64.zip) echo x86_64-unknown-linux-gnu ;;
               gproxy-linux-aarch64.zip) echo aarch64-unknown-linux-gnu ;;
+              gproxy-linux-riscv64.zip) echo riscv64gc-unknown-linux-gnu ;;
               gproxy-macos-x86_64.zip) echo x86_64-apple-darwin ;;
               gproxy-macos-aarch64.zip) echo aarch64-apple-darwin ;;
               gproxy-windows-x86_64.zip) echo x86_64-pc-windows-msvc ;;

@@ -8,30 +8,35 @@ a minimal import bundle. It uses the current v2 config model: runtime settings
 come from CLI flags or environment variables, while provider, route, user, key,
 and rule records live in persistence and can be imported as JSON.
 
-## 1. Build Or Install
+## 1. Download GPROXY
 
-Use a release binary, Docker image, or local source build. For a source build
-with the console embedded:
+Download the portable archive for your platform from the
+[Downloads](/getting-started/downloads/) page or the
+[latest GitHub Release](https://github.com/LeenHawk/gproxy/releases/latest), then
+extract it and open a terminal in that directory.
+
+:::caution[Do not build from source for normal use]
+If you are not developing GPROXY, do not clone the repository or run Cargo and
+pnpm. Release downloads already contain the optimized binary and embedded
+Console. Developers can use the clearly marked source-build section in
+[Installation](/getting-started/installation/#build-from-source-developers-only).
+:::
+
+Confirm that the downloaded binary starts:
 
 ```bash
-cd console
-pnpm install --frozen-lockfile
-pnpm build
-cd ..
-
-cargo build --release --bin gproxy
+chmod +x ./gproxy
+./gproxy --help
 ```
 
-The binary is `target/release/gproxy`.
+## 2. Prepare A Starter Import Bundle
 
-## 2. Prepare A Dev Import Bundle (Please download from Github Release if you don't want to develop)
-
-The docs site includes a development bundle at
-`docs/public/examples/import-dev.json`. Copy it outside the docs tree before
-putting real upstream keys in it:
+Download the documentation's starter bundle before putting real upstream keys
+in it:
 
 ```bash
-cp docs/public/examples/import-dev.json ./import-dev.local.json
+curl -fsSL https://gproxy.leenhawk.com/examples/import-dev.json \
+  -o ./import-dev.local.json
 ```
 
 Edit the copied file and replace:
@@ -60,7 +65,9 @@ Start the native binary with a local data directory and ask the first-boot hook
 to import the bundle if the store is empty:
 
 ```bash
-./target/release/gproxy --admin-password change-me-please
+GPROXY_IMPORT_FILE=./import-dev.local.json \
+GPROXY_ADMIN_USER=dev \
+./gproxy --admin-password change-me-please
 ```
 
 Useful defaults:

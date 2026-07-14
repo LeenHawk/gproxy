@@ -9,6 +9,7 @@ version="$(awk '/^version = / { gsub(/\"/, "", $3); print $3; exit }' Cargo.toml
 case "$target" in
   x86_64-*) deb_arch=amd64 ;;
   aarch64-*) deb_arch=arm64 ;;
+  riscv64gc-*) deb_arch=riscv64 ;;
   *) echo "unsupported deb architecture: $target" >&2; exit 1 ;;
 esac
 

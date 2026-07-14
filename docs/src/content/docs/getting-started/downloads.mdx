@@ -1,0 +1,117 @@
+---
+title: Downloads
+description: Download prebuilt GPROXY installers, portable binaries, container images, and edge bundles.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+For normal use, choose a prebuilt package below. **Do not clone the repository or
+compile GPROXY yourself unless you are developing GPROXY or need a custom build.**
+
+<CardGrid>
+  <LinkCard title="Latest release notes" description="See the current version, checksums, and every published asset." href="https://github.com/LeenHawk/gproxy/releases/latest" />
+  <LinkCard title="All GitHub Releases" description="Browse older versions and release history." href="https://github.com/LeenHawk/gproxy/releases" />
+</CardGrid>
+
+## Native installers
+
+These packages integrate with the platform launcher and background-start behavior.
+
+### Windows
+
+<CardGrid>
+  <LinkCard title="Windows x86_64" description="MSI installer for Intel and AMD 64-bit PCs." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-x86_64.msi" />
+  <LinkCard title="Windows ARM64" description="MSI installer for Windows on ARM." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-aarch64.msi" />
+</CardGrid>
+
+### macOS
+
+<CardGrid>
+  <LinkCard title="macOS Apple silicon" description="DMG for M-series Macs." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-aarch64.dmg" />
+  <LinkCard title="macOS Intel" description="DMG for Intel Macs." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-x86_64.dmg" />
+</CardGrid>
+
+### Linux
+
+<CardGrid>
+  <LinkCard title="Linux amd64" description="DEB package for x86_64 GNU/Linux." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64.deb" />
+  <LinkCard title="Linux arm64" description="DEB package for AArch64 GNU/Linux." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64.deb" />
+  <LinkCard title="Linux RISC-V 64" description="DEB package for riscv64 GNU/Linux." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64.deb" />
+  <LinkCard title="Linux musl amd64" description="DEB with the static x86_64 musl build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64-musl.deb" />
+  <LinkCard title="Linux musl arm64" description="DEB with the static AArch64 musl build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64-musl.deb" />
+  <LinkCard title="Linux musl RISC-V 64" description="DEB with the static riscv64 musl build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64-musl.deb" />
+</CardGrid>
+
+### Android
+
+<CardGrid>
+  <LinkCard title="Android ARM64" description="APK for most modern Android phones and tablets." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-aarch64.apk" />
+  <LinkCard title="Android x86_64" description="APK for x86_64 devices and emulators." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-x86_64.apk" />
+</CardGrid>
+
+## Portable ZIP archives
+
+Extract the archive and run `gproxy` (`gproxy.exe` on Windows). Linux GNU builds
+use glibc; Linux musl builds are the more portable static option.
+
+### Linux GNU
+
+<CardGrid>
+  <LinkCard title="Linux GNU amd64" description="Portable x86_64 glibc build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64.zip" />
+  <LinkCard title="Linux GNU arm64" description="Portable AArch64 glibc build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64.zip" />
+  <LinkCard title="Linux GNU RISC-V 64" description="Portable riscv64 glibc build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64.zip" />
+</CardGrid>
+
+### Linux musl
+
+<CardGrid>
+  <LinkCard title="Linux musl amd64" description="Portable static x86_64 build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-x86_64-musl.zip" />
+  <LinkCard title="Linux musl arm64" description="Portable static AArch64 build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-aarch64-musl.zip" />
+  <LinkCard title="Linux musl RISC-V 64" description="Portable static riscv64 build." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-linux-riscv64-musl.zip" />
+</CardGrid>
+
+### Windows, macOS, and Android
+
+<CardGrid>
+  <LinkCard title="Windows x86_64 ZIP" description="Portable Windows x86_64 executable." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-x86_64.zip" />
+  <LinkCard title="Windows ARM64 ZIP" description="Portable Windows ARM64 executable." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-windows-aarch64.zip" />
+  <LinkCard title="macOS Apple silicon ZIP" description="Portable macOS AArch64 binary." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-aarch64.zip" />
+  <LinkCard title="macOS Intel ZIP" description="Portable macOS x86_64 binary." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-macos-x86_64.zip" />
+  <LinkCard title="Android ARM64 ZIP" description="Raw binary, launcher, and C++ runtime." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-aarch64.zip" />
+  <LinkCard title="Android x86_64 ZIP" description="Raw binary, launcher, and C++ runtime." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-x86_64.zip" />
+</CardGrid>
+
+## Docker images
+
+The default image uses GNU libc. The `-musl` tag uses the static musl build.
+Both image families publish `linux/amd64`, `linux/arm64`, and `linux/riscv64`.
+
+<CardGrid>
+  <LinkCard title="GNU multi-architecture image" description="ghcr.io/leenhawk/gproxy:latest" href="https://github.com/LeenHawk/gproxy/pkgs/container/gproxy" />
+  <LinkCard title="musl multi-architecture image" description="ghcr.io/leenhawk/gproxy:latest-musl" href="https://github.com/LeenHawk/gproxy/pkgs/container/gproxy" />
+</CardGrid>
+
+```bash
+docker pull ghcr.io/leenhawk/gproxy:latest
+# Static musl alternative:
+docker pull ghcr.io/leenhawk/gproxy:latest-musl
+```
+
+See [Docker deployment](/deployment/docker/) for persistent storage and runtime
+configuration.
+
+## Edge bundles
+
+Upload a prebuilt bundle rather than asking the edge platform to compile Rust.
+
+<CardGrid>
+  <LinkCard title="Cloudflare Workers" description="Prebuilt Cloudflare bundle." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-cloudflare.zip" />
+  <LinkCard title="Netlify Edge" description="Prebuilt Netlify bundle." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-netlify.zip" />
+  <LinkCard title="Supabase Edge" description="Prebuilt Supabase bundle." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-supabase.zip" />
+  <LinkCard title="Deno Deploy" description="Prebuilt Deno bundle." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-deno.zip" />
+  <LinkCard title="EdgeOne Pages" description="Prebuilt EdgeOne Pages bundle." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-eopages.zip" />
+  <LinkCard title="Appwrite Functions" description="Prebuilt Appwrite Deno bundle." href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-edge-appwrite-deno.zip" />
+</CardGrid>
+
+Continue with [Installation](/getting-started/installation/) for package behavior
+or [Quick Start](/getting-started/quick-start/) to launch the downloaded build.

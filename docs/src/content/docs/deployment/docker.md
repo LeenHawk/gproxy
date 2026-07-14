@@ -7,6 +7,9 @@ The official image is `ghcr.io/leenhawk/gproxy`. It is a thin runtime image
 built from a prebuilt Linux binary; the Dockerfile does not compile Rust or the
 console. The binary already contains the embedded console assets.
 
+See the [Downloads](/getting-started/downloads/#docker-images) page for the
+recommended image tags and other prebuilt package formats.
+
 ## Tags
 
 The release workflow publishes per-architecture images and then creates
@@ -14,12 +17,12 @@ multi-architecture manifest lists.
 
 | Tag | Meaning |
 | --- | --- |
-| `latest` | Latest published release, glibc runtime, amd64 and arm64 manifest. |
+| `latest` | Latest published release, glibc runtime, amd64 + arm64 + riscv64 manifest. |
 | `<release-tag>` | Specific release tag. |
-| `latest-musl` | Latest published release, static musl runtime, amd64 and arm64 manifest. |
+| `latest-musl` | Latest published release, static musl runtime, amd64 + arm64 + riscv64 manifest. |
 | `<release-tag>-musl` | Specific release tag, static musl runtime. |
-| `latest-amd64`, `latest-arm64` | Architecture-specific glibc images used to build the manifest. |
-| `latest-amd64-musl`, `latest-arm64-musl` | Architecture-specific musl images. |
+| `latest-amd64`, `latest-arm64`, `latest-riscv64` | Architecture-specific glibc images used to build the manifest. |
+| `latest-amd64-musl`, `latest-arm64-musl`, `latest-riscv64-musl` | Architecture-specific musl images. |
 
 Most deployments should use `latest` or a pinned release tag.
 

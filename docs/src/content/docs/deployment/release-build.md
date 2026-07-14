@@ -48,7 +48,9 @@ cargo build --release --bin gproxy --target x86_64-unknown-linux-gnu
 ```
 
 The release workflow builds Linux glibc, Linux musl, macOS, Windows, and Android
-targets. Android archives include the NDK `libc++_shared.so` runtime beside a
+targets. Linux GNU and musl builds cover x86_64, AArch64, and RISC-V 64; the
+RISC-V targets are cross-compiled with `cross`. Android archives include the NDK
+`libc++_shared.so` runtime beside a
 small `gproxy` launcher script; the actual ELF binary is packaged as
 `gproxy.bin`. The launcher prepends the archive directory to `LD_LIBRARY_PATH`
 so `./gproxy` can find the bundled C++ runtime after extraction. The Android
@@ -61,6 +63,9 @@ installer where applicable: Linux `.deb`, macOS `.dmg`, Windows `.msi`, and
 Android `.apk`. The installer templates live under `scripts/installers/`; the
 packaging entry points are `package-linux-deb.sh`, `package-macos-dmg.sh`,
 `package-windows-release.ps1`, and `package-native-release.sh` for APK/ZIP.
+
+The Docker release combines amd64, arm64, and riscv64 images into both the
+default GNU manifest and the `-musl` manifest.
 
 ## Runtime Configuration
 
