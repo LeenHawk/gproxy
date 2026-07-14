@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-transform"
-version = "2.0.16"
+version = "2.0.17"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 description = "GPROXY provider protocol transforms"
@@ -8,7 +8,7 @@ description = "GPROXY provider protocol transforms"
 [dependencies]
 blake3 = "1"
 bytes = "1"
-gproxy-protocol = { path = "../gproxy-protocol", version = "2.0.16" }
+gproxy-protocol = { path = "../gproxy-protocol", version = "2.0.17" }
 http = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
