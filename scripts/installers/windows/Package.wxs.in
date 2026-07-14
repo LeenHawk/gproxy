@@ -15,12 +15,12 @@
       <Directory Id="AppProgramMenuDir" Name="GPROXY" />
     </StandardDirectory>
     <StandardDirectory Id="StartupFolder">
-      <Component Id="AutoStartFile" Guid="*">
-        <File Id="AutoStartScript" Name="GPROXY.vbs"
-              Source="__SOURCE__\GPROXY.vbs" KeyPath="yes" />
+      <Component Id="AutoStartCleanup" Guid="*">
+        <RemoveFile Id="RemoveAutoStartScript" Name="GPROXY.vbs" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\GPROXY" Name="StartupCleanup"
+                       Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
-
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="GproxyExecutable" Guid="*">
         <File Id="GproxyExe" Source="__SOURCE__\gproxy.exe" KeyPath="yes" />
@@ -35,13 +35,17 @@
                   Arguments="&quot;[#LaunchScript]&quot; open" />
         <RemoveFolder Id="RemoveProgramMenuDir" Directory="AppProgramMenuDir" On="uninstall" />
       </Component>
+      <Component Id="PowerShellLauncherFile" Guid="*">
+        <File Id="PowerShellLauncher" Source="__SOURCE__\GPROXY.ps1" />
+      </Component>
     </DirectoryRef>
 
     <Feature Id="MainFeature" Title="GPROXY" Level="1">
       <ComponentRef Id="GproxyExecutable" />
       <ComponentRef Id="ReadmeFile" />
       <ComponentRef Id="LaunchScriptFile" />
-      <ComponentRef Id="AutoStartFile" />
+      <ComponentRef Id="PowerShellLauncherFile" />
+      <ComponentRef Id="AutoStartCleanup" />
     </Feature>
   </Package>
 </Wix>

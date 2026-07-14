@@ -18,11 +18,11 @@ credential 决定请求转发到哪里。
 client model -> alias 或 route name -> route member -> provider credential
 ```
 
-快速开始 bundle 中的 route 名是 `main`：
+下面假设已经在 Console 创建了名为 `main` 的 route 和 user API key：
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer sk-dev-local" \
+  -H "Authorization: Bearer <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "main",
@@ -36,7 +36,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \
-  -H "Authorization: Bearer sk-dev-local"
+  -H "Authorization: Bearer <your-user-api-key>"
 ```
 
 每个 provider 请求成功后只把新模型追加到持久化列表，不删除旧模型；某个 provider 超时或
@@ -49,8 +49,8 @@ Scoped 路由位于 `/{provider}/v1/*` 和 `/{provider}/v1beta/*`。这种模式
 provider 决定上游，`model` 是上游模型 id：
 
 ```bash
-curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
-  -H "Authorization: Bearer sk-dev-local" \
+curl http://127.0.0.1:8787/provider-name/v1/chat/completions \
+  -H "Authorization: Bearer <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4.1-mini",
@@ -69,7 +69,7 @@ Claude-compatible 调用使用 Anthropic message shape。聚合请求使用 rout
 
 ```bash
 curl http://127.0.0.1:8787/v1/messages \
-  -H "x-api-key: sk-dev-local" \
+  -H "x-api-key: <your-user-api-key>" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
@@ -84,8 +84,8 @@ curl http://127.0.0.1:8787/v1/messages \
 Scoped 模式把 provider 放到路径中，并使用上游模型 id：
 
 ```bash
-curl http://127.0.0.1:8787/claude-main/v1/messages \
-  -H "x-api-key: sk-dev-local" \
+curl http://127.0.0.1:8787/provider-name/v1/messages \
+  -H "x-api-key: <your-user-api-key>" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
@@ -106,7 +106,7 @@ Gemini 把模型放在 path 中。聚合请求在 `models/...` 段中使用 rout
 
 ```bash
 curl "http://127.0.0.1:8787/v1beta/models/main:generateContent" \
-  -H "x-goog-api-key: sk-dev-local" \
+  -H "x-goog-api-key: <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "contents": [
@@ -119,8 +119,8 @@ Scoped 请求使用 provider path 前缀。下面的例子假设你已经创建�
 `aistudio-main` 的 Gemini-capable provider：
 
 ```bash
-curl "http://127.0.0.1:8787/aistudio-main/v1beta/models/gemini-1.5-flash:generateContent" \
-  -H "x-goog-api-key: sk-dev-local" \
+curl "http://127.0.0.1:8787/provider-name/v1beta/models/gemini-1.5-flash:generateContent" \
+  -H "x-goog-api-key: <your-user-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "contents": [

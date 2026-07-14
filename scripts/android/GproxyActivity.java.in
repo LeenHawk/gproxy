@@ -1,12 +1,18 @@
 package __PACKAGE__;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.text.InputType;
 import android.view.View;
 import android.widget.Button;
@@ -16,6 +22,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public final class GproxyActivity extends Activity {
     private EditText adminUserInput;
@@ -64,6 +71,13 @@ public final class GproxyActivity extends Activity {
             public void onCheckedChanged(CompoundButton button, boolean checked) {
                 prefs.edit().putBoolean(GproxyService.PREF_AUTO_START, checked).apply();
                 log(checked ? "Automatic startup enabled." : "Automatic startup disabled.");
+                if (checked) {
+                    offerBackgroundPermission(true);
+                } else {
+                    prefs.edit()
+                        .putBoolean(GproxyService.PREF_BACKGROUND_PERMISSION_ASKED, false)
+                        .apply();
+                }
             }
         });
 
@@ -105,13 +119,28 @@ public final class GproxyActivity extends Activity {
         setContentView(root);
 
         refreshState();
-        if (autoStartSwitch.isChecked()) {
+        final boolean adminConfigured = prefs.getBoolean(
+            GproxyService.PREF_ADMIN_CONFIGURED,
+            prefs.contains(GproxyService.PREF_ADMIN_USER));
+        if (adminConfigured) {
+            prefs.edit().putBoolean(GproxyService.PREF_ADMIN_CONFIGURED, true).apply();
+        }
+        if (autoStartSwitch.isChecked() && adminConfigured) {
             root.post(new Runnable() {
                 @Override
                 public void run() {
                     startGproxy();
+                    offerBackgroundPermission(false);
                 }
             });
+        } else if (autoStartSwitch.isChecked()) {
+            root.post(new Runnable() {
+                @Override
+                public void run() {
+                    offerBackgroundPermission(false);
+                }
+            });
+            log("Choose an admin username and password, then tap Start GPROXY.");
         } else {
             log("Automatic startup is off. Tap Start GPROXY when needed.");
         }
@@ -138,19 +167,75 @@ public final class GproxyActivity extends Activity {
 
     private void startGproxy() {
         String adminUser = adminUserInput.getText().toString().trim();
+        String adminPassword = adminPasswordInput.getText().toString();
         if (adminUser.length() == 0) {
             adminUser = "admin";
             adminUserInput.setText(adminUser);
         }
-        getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE)
-            .edit().putString(GproxyService.PREF_ADMIN_USER, adminUser).apply();
-        GproxyService.start(this, adminUser, adminPasswordInput.getText().toString());
+        SharedPreferences prefs = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE);
+        boolean adminConfigured = prefs.getBoolean(
+            GproxyService.PREF_ADMIN_CONFIGURED,
+            prefs.contains(GproxyService.PREF_ADMIN_USER));
+        if (!adminConfigured
+            && adminPassword.trim().length() == 0) {
+            Toast.makeText(this, "Enter an admin password for first-run setup.", Toast.LENGTH_LONG)
+                .show();
+            return;
+        }
+        prefs.edit()
+            .putString(GproxyService.PREF_ADMIN_USER, adminUser)
+            .putBoolean(GproxyService.PREF_ADMIN_CONFIGURED, true)
+            .apply();
+        GproxyService.start(this, adminUser, adminPassword);
     }
 
     private void refreshState() {
         boolean running = GproxyService.isRunning();
         adminUserInput.setEnabled(!running);
         adminPasswordInput.setEnabled(!running);
+    }
+
+    private void offerBackgroundPermission(boolean force) {
+        if (Build.VERSION.SDK_INT < 23) {
+            return;
+        }
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        if (power != null && power.isIgnoringBatteryOptimizations(getPackageName())) {
+            return;
+        }
+        SharedPreferences prefs = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE);
+        if (!force && prefs.getBoolean(GproxyService.PREF_BACKGROUND_PERMISSION_ASKED, false)) {
+            return;
+        }
+        prefs.edit().putBoolean(GproxyService.PREF_BACKGROUND_PERMISSION_ASKED, true).apply();
+
+        new AlertDialog.Builder(this)
+            .setTitle("Allow background operation")
+            .setMessage(
+                "Automatic startup works best when Android does not battery-optimize GPROXY. "
+                + "Allow background operation in the next system dialog. You can change this later in Settings.")
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Continue", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    openBackgroundPermissionSettings();
+                }
+            })
+            .show();
+    }
+
+    private void openBackgroundPermissionSettings() {
+        Intent request = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+        request.setData(Uri.parse("package:" + getPackageName()));
+        try {
+            startActivity(request);
+        } catch (RuntimeException unavailable) {
+            try {
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            } catch (RuntimeException ignored) {
+                log("Open Android Settings and allow GPROXY to run in the background.");
+            }
+        }
     }
 
     private void log(String line) {

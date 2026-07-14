@@ -7,9 +7,13 @@ import android.content.Intent;
 public final class GproxyBootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        boolean enabled = context.getSharedPreferences(GproxyService.PREFS, Context.MODE_PRIVATE)
-            .getBoolean(GproxyService.PREF_AUTO_START, true);
-        if (enabled) {
+        android.content.SharedPreferences prefs =
+            context.getSharedPreferences(GproxyService.PREFS, Context.MODE_PRIVATE);
+        boolean enabled = prefs.getBoolean(GproxyService.PREF_AUTO_START, true);
+        boolean configured = prefs.getBoolean(
+            GproxyService.PREF_ADMIN_CONFIGURED,
+            prefs.contains(GproxyService.PREF_ADMIN_USER));
+        if (enabled && configured) {
             GproxyService.startFromBoot(context);
         }
     }

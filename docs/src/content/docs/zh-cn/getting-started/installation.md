@@ -21,17 +21,19 @@ Release 除了便携 ZIP，还会发布各平台的原生安装包：
 
 | 平台 | 安装包 | 后台行为 |
 | --- | --- | --- |
-| Android | `.apk` | Foreground Service 通过常驻通知保持运行。首次打开和设备开机默认自动启动，可在 APK 启动器中修改。 |
-| Windows | `.msi` | 按用户安装到 Local AppData，创建开始菜单入口，并在登录系统时隐藏启动。 |
-| macOS | `.dmg` | 把 `GPROXY.app` 拖入 Applications；App 不显示 Dock 图标，首次运行会注册用户级 LaunchAgent。 |
-| Linux | `.deb` | 安装桌面入口和 XDG 登录启动项，提供 amd64、arm64 与 RISC-V 64 包。 |
+| Android | `.apk` | Foreground Service 通过常驻通知保持运行。Launcher 控制打开 App 和设备开机后的自动启动，开启时会请求后台运行权限。 |
+| Windows | `.msi` | 按用户安装到 Local AppData 并创建开始菜单入口；首次设置可选择是否在登录时隐藏启动。 |
+| macOS | `.dmg` | 把 `GPROXY.app` 拖入 Applications；首次设置可选择注册用户级 LaunchAgent，App 不显示 Dock 图标。 |
+| Linux | `.deb` | 安装桌面入口和 XDG 登录启动项；首次设置会询问是否启用，提供 amd64、arm64 与 RISC-V 64 包。 |
 
-Windows、macOS、Linux 可以在内嵌 Console 的 **设置 → 后台运行** 中开关登录
-自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会复制管理员密码、主密钥、
-DSN 或带认证信息的代理 URL；依赖这些值的部署应继续使用已有 service manager。
+MSI、DMG 和 DEB launcher 首次运行时都会要求设置管理员用户名、非空密码，并询问是否
+随系统登录自动启动。Launcher 会保存用户名，但绝不保存密码。之后可以在内嵌 Console 的
+**设置 → 后台运行** 中修改自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会
+复制管理员密码、主密钥、DSN 或带认证信息的代理 URL；依赖这些值的部署应继续使用已有
+service manager。
 
-后台 launcher 的输出（包括首次随机生成且只显示一次的管理员密码）分别写入 Windows
-的 `%LOCALAPPDATA%\GPROXY\logs\gproxy.log`、macOS 的
+后台 launcher 的输出分别写入 Windows 的 `%LOCALAPPDATA%\GPROXY\logs\gproxy.log`
+与 `gproxy-error.log`、macOS 的
 `~/Library/Logs/GPROXY/gproxy.log`，以及 Linux 的
 `${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log`。
 
@@ -57,17 +59,17 @@ AArch64 与 RISC-V 64，并同时提供 GNU 和 musl 版本。默认 GNU Docker 
 使用可安装包而不是原始 executable 压缩包的用户。
 
 Android APK 包含 launcher UI 和 Foreground Service。安装匹配 ABI 的 APK 后打开
-**GPROXY**，首次会自动启动；launcher 中的开关控制以后打开 App 和设备开机时是否
-自动启动。Service 会用下面的参数运行 native server：
+**GPROXY**，填写管理员用户名和密码后点击 **Start GPROXY**。Launcher 中的开关控制
+以后打开 App 和设备开机时是否自动启动。开启开关时，App 会说明后台运行用途，并打开
+Android 的电池优化权限提示。Service 会用下面的参数运行 native server：
 
-```bash
---host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data --admin-user <username>
+```text
+GPROXY_ADMIN_USER=<username>
+--host 127.0.0.1 --port 8787 --data-dir <app-private-data>/data
 ```
 
-如果需要在第一次运行前指定密码，可先关闭自动启动、停止 Service，填写 password
-后再启动。密码只传给这一次启动，launcher 不会持久化它。如果留空，则沿用 GPROXY
-的首次启动随机 admin 密码，并在 app 日志里打印。Service 运行期间 Android 会显示
-常驻通知。
+密码只传给这一次启动，launcher 不会持久化它。完成首次设置后，密码留空会保持已有
+管理员不变；再次填写密码则会主动重置它。Service 运行期间 Android 会显示常驻通知。
 
 Release APK 使用包名 `io.github.leenhawk.gproxy`、app 名称 `GPROXY`，并使用
 Console favicon 作为 launcher 图标。正式发布的 APK 必须使用 GitHub Actions 里配置的

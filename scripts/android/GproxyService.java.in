@@ -21,7 +21,9 @@ import java.util.Map;
 public final class GproxyService extends Service {
     public static final String PREFS = "gproxy";
     public static final String PREF_AUTO_START = "auto_start";
+    public static final String PREF_BACKGROUND_PERMISSION_ASKED = "background_permission_asked";
     public static final String PREF_ADMIN_USER = "admin_user";
+    public static final String PREF_ADMIN_CONFIGURED = "admin_configured";
     public static final String ACTION_EVENT = "__PACKAGE__.EVENT";
     public static final String EXTRA_LOG = "log";
 
@@ -143,12 +145,6 @@ public final class GproxyService extends Service {
             command.add("8787");
             command.add("--data-dir");
             command.add(dataDir.getAbsolutePath());
-            command.add("--admin-user");
-            command.add(adminUser);
-            if (adminPassword != null && adminPassword.length() > 0) {
-                command.add("--admin-password");
-                command.add(adminPassword);
-            }
             if (stopRequested) {
                 finishService();
                 return;
@@ -157,6 +153,10 @@ public final class GproxyService extends Service {
             ProcessBuilder builder = new ProcessBuilder(command);
             Map<String, String> env = builder.environment();
             env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
+            env.put("GPROXY_ADMIN_USER", adminUser);
+            if (adminPassword != null && adminPassword.length() > 0) {
+                env.put("GPROXY_ADMIN_PASSWORD", adminPassword);
+            }
             builder.redirectErrorStream(true);
             process = builder.start();
             if (stopRequested) {

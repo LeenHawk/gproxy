@@ -2,23 +2,150 @@
 set -eu
 
 contents="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+launcher="$contents/MacOS/GPROXY"
+binary="$contents/MacOS/gproxy"
 data_dir="$HOME/Library/Application Support/GPROXY/data"
 log_dir="$HOME/Library/Logs/GPROXY"
+admin_marker="$data_dir/.desktop-admin-user"
+autostart_marker="$data_dir/.autostart-initialized"
+launch_agent="$HOME/Library/LaunchAgents/io.github.leenhawk.gproxy.plist"
+console_url="http://127.0.0.1:8787/console"
+background=false
+
+if [ "${1:-}" = "--background" ]; then
+  background=true
+fi
+
 mkdir -p "$data_dir" "$log_dir"
 
-"$contents/MacOS/gproxy" --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
-server_pid=$!
+is_healthy() {
+  curl -fsS "$console_url" >/dev/null 2>&1
+}
 
-(
-  i=0
-  while [ "$i" -lt 30 ]; do
-    if curl -fsS http://127.0.0.1:8787/console >/dev/null 2>&1; then
-      open http://127.0.0.1:8787/console
-      exit 0
+show_alert() {
+  escaped_message="$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  osascript -e "display alert \"GPROXY\" message \"$escaped_message\"" >/dev/null
+}
+
+xml_escape() {
+  printf '%s' "$1" | sed \
+    -e 's/&/\&amp;/g' \
+    -e 's/</\&lt;/g' \
+    -e 's/>/\&gt;/g' \
+    -e 's/"/\&quot;/g' \
+    -e "s/'/\&apos;/g"
+}
+
+configure_autostart() {
+  enabled="$1"
+  if [ "$enabled" != "true" ]; then
+    rm -f "$launch_agent"
+    return
+  fi
+
+  mkdir -p "$(dirname "$launch_agent")"
+  launcher_xml="$(xml_escape "$launcher")"
+  contents_xml="$(xml_escape "$contents")"
+  cat >"$launch_agent" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>io.github.leenhawk.gproxy</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$launcher_xml</string>
+    <string>--background</string>
+  </array>
+  <key>WorkingDirectory</key><string>$contents_xml</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+</dict>
+</plist>
+EOF
+  chmod 600 "$launch_agent"
+}
+
+if is_healthy; then
+  if [ ! -f "$admin_marker" ]; then
+    show_alert "GPROXY is already running. Stop the existing process, then open the app again to finish administrator setup."
+    exit 1
+  fi
+  if [ "$background" = "false" ]; then
+    open "$console_url"
+  else
+    while is_healthy; do sleep 5; done
+  fi
+  exit 0
+fi
+
+admin_user=""
+admin_password=""
+enable_autostart=""
+if [ ! -f "$admin_marker" ]; then
+  admin_user="$(osascript -e 'text returned of (display dialog "Choose the administrator username used to sign in to Console." default answer "admin" with title "Set up GPROXY" buttons {"Cancel", "Continue"} default button "Continue" cancel button "Cancel")' 2>/dev/null || true)"
+  if [ -z "$(printf '%s' "$admin_user" | tr -d '[:space:]')" ]; then
+    [ -z "$admin_user" ] || show_alert "The administrator username cannot be blank."
+    exit 0
+  fi
+
+  while [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; do
+    admin_password="$(osascript -e 'text returned of (display dialog "Choose an administrator password. It is used for this start only and is not saved." default answer "" with hidden answer with title "Set up GPROXY" buttons {"Cancel", "Continue"} default button "Continue" cancel button "Cancel")' 2>/dev/null || true)"
+    if [ -z "$(printf '%s' "$admin_password" | tr -d '[:space:]')" ]; then
+      choice="$(osascript -e 'button returned of (display dialog "The administrator password cannot be blank." with title "Set up GPROXY" buttons {"Cancel", "Try Again"} default button "Try Again" cancel button "Cancel")' 2>/dev/null || true)"
+      [ "$choice" = "Try Again" ] || exit 0
     fi
-    i=$((i + 1))
-    sleep 0.2
   done
-) &
+
+  autostart_choice="$(osascript -e 'button returned of (display dialog "Start GPROXY automatically when you sign in?" with title "Set up GPROXY" buttons {"No", "Yes"} default button "Yes")')"
+  if [ "$autostart_choice" = "Yes" ]; then
+    enable_autostart=true
+  else
+    enable_autostart=false
+  fi
+fi
+
+if [ -n "$admin_password" ]; then
+  GPROXY_ADMIN_USER="$admin_user" \
+  GPROXY_ADMIN_PASSWORD="$admin_password" \
+    "$binary" --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
+else
+  "$binary" --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
+fi
+server_pid=$!
+unset admin_password
+
+healthy=false
+i=0
+while [ "$i" -lt 75 ]; do
+  if is_healthy; then
+    healthy=true
+    break
+  fi
+  if ! kill -0 "$server_pid" 2>/dev/null; then
+    break
+  fi
+  i=$((i + 1))
+  sleep 0.2
+done
+
+if [ "$healthy" != "true" ]; then
+  kill "$server_pid" 2>/dev/null || true
+  show_alert "GPROXY did not start. Check $log_dir/gproxy.log for details."
+  exit 1
+fi
+
+if [ -n "$admin_user" ]; then
+  printf '%s' "$admin_user" >"$admin_marker"
+  chmod 600 "$admin_marker"
+  printf '1\n' >"$autostart_marker"
+  chmod 600 "$autostart_marker"
+  configure_autostart "$enable_autostart"
+fi
+
+if [ "$background" = "false" ]; then
+  open "$console_url"
+fi
 
 wait "$server_pid"
