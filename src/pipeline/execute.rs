@@ -84,16 +84,18 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     span.record("op", tracing::field::debug(classified.op.operation));
     span.record("kind", tracing::field::debug(classified.op.kind));
 
-    // Aggregated models surface (§6.3): the gateway's own view — alias + route
-    // names — served before preprocess/route (there is no model to route) and
-    // never touching an upstream.
+    // Aggregated models surface (§6.3): refresh every permitted provider under
+    // an independent timeout, fall back to its last good catalogue, then merge
+    // public aliases/routes. Served before preprocess/route because there is no
+    // single model to route.
     if matches!(ctx.mode, RoutingMode::Aggregated)
         && matches!(
             classified.op.operation,
             Operation::ListModels | Operation::GetModel
         )
     {
-        return aggregated_models(&cp, &ctx);
+        drop(cp);
+        return aggregated_models(state, &ctx).await;
     }
 
     // resolve candidates per routing mode, with authz (§8-C permission +
@@ -137,11 +139,14 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                     .ok_or_else(|| PipelineError::UnknownProvider(provider_name.to_owned()))?;
                 span.record("provider", provider.name.as_str());
                 let identity = ctx.identity.as_ref().expect("auth ran first");
-                authz::authorize(
+                let authorized_model =
+                    preprocess::apply_provider_alias(&cp, &provider.name, upstream_model_id);
+                authz::authorize_provider_model(
                     &cp,
                     state.cache.as_ref(),
                     identity,
                     &provider.name,
+                    &authorized_model,
                     unix_now(),
                 )
                 .await?;
@@ -164,14 +169,46 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                 .ok_or_else(|| PipelineError::UnknownProvider(provider.clone()))?;
             span.record("provider", provider.name.as_str());
             let identity = ctx.identity.as_ref().expect("auth ran first");
-            authz::authorize(
-                &cp,
-                state.cache.as_ref(),
-                identity,
-                &provider.name,
-                unix_now(),
-            )
-            .await?;
+            if classified.op.operation == Operation::ListModels {
+                authz::authorize_provider_listing(
+                    &cp,
+                    state.cache.as_ref(),
+                    identity,
+                    &provider.name,
+                    unix_now(),
+                )
+                .await?;
+                let provider = Arc::clone(provider);
+                let identity = Arc::clone(identity);
+                let family = classified.op.provider_family();
+                drop(cp);
+                return Ok(crate::pipeline::model_catalog::serve_scoped(
+                    state, provider, identity, family,
+                )
+                .await);
+            }
+            if let Some(requested) = preprocess::requested_model(&ctx) {
+                let authorized_model =
+                    preprocess::apply_provider_alias(&cp, &provider.name, &requested);
+                authz::authorize_provider_model(
+                    &cp,
+                    state.cache.as_ref(),
+                    identity,
+                    &provider.name,
+                    &authorized_model,
+                    unix_now(),
+                )
+                .await?;
+            } else {
+                authz::authorize(
+                    &cp,
+                    state.cache.as_ref(),
+                    identity,
+                    &provider.name,
+                    unix_now(),
+                )
+                .await?;
+            }
             let cands = scoped_candidates(&cp, provider, &ctx)?;
             // scoped: priced at the scoped provider's (variant-stripped) model
             let est = cands
@@ -384,12 +421,12 @@ fn provider_candidates(
         .collect())
 }
 
-/// Serve aggregated ListModels/GetModel from the snapshot: public route names,
-/// alias patterns, and provider/model entries filtered to what the caller's
-/// permission union allows. Non-permitted GetModel 404s identically to missing
-/// (no existence leak).
-fn aggregated_models(
-    cp: &crate::app::snapshot::ControlPlaneSnapshot,
+/// Serve aggregated ListModels/GetModel: provider catalogues are refreshed in
+/// parallel with persisted fallback, then public route names, aliases, and
+/// provider models are merged and permission-filtered. Non-permitted GetModel
+/// 404s identically to missing (no existence leak).
+async fn aggregated_models(
+    state: &AppState,
     ctx: &RequestCtx,
 ) -> Result<ExecOutcome, PipelineError> {
     let op = ctx.op.expect("classified");
@@ -398,36 +435,67 @@ fn aggregated_models(
 
     let body = match op.operation {
         Operation::ListModels => {
+            // Snapshot only long enough to select the permitted provider
+            // namespaces. Never pin it across the parallel upstream refreshes.
+            let providers: Vec<Arc<crate::store::persistence::records::Provider>> = {
+                let cp = state.cp();
+                cp.providers_by_name
+                    .values()
+                    .filter(|provider| {
+                        provider.enabled
+                            && authz::provider_listing_permitted(&cp, identity, &provider.name)
+                    })
+                    .cloned()
+                    .collect()
+            };
+            // A slow provider consumes only its own timeout; all permitted
+            // providers are refreshed concurrently.
+            let catalogues = futures_util::future::join_all(providers.iter().map(|provider| {
+                crate::pipeline::model_catalog::refresh_or_persisted(state, provider)
+            }))
+            .await;
+
+            let cp = state.cp();
             let mut ids: Vec<String> = Vec::new();
             ids.extend(
                 cp.routes_by_name
                     .keys()
-                    .filter(|id| authz::permitted(cp, identity, id))
+                    .filter(|id| authz::permitted(&cp, identity, id))
                     .cloned(),
             );
             if let Some(global_aliases) = cp.aliases_by_provider.get("*") {
                 ids.extend(
                     global_aliases
                         .iter()
-                        .filter(|alias| target_permitted(cp, identity, &alias.target))
+                        .filter(|alias| target_permitted(&cp, identity, &alias.target))
                         .map(|alias| alias.alias.clone()),
                 );
             }
-            for provider in cp.providers_by_name.values().filter(|p| p.enabled) {
-                if !authz::permitted(cp, identity, &provider.name) {
-                    continue;
-                }
+            for (provider, mut provider_models) in providers.iter().zip(catalogues) {
                 if let Some(models) = cp.exposed_models_by_provider.get(&provider.id) {
-                    ids.extend(
-                        models
-                            .iter()
-                            .map(|m| format!("{}/{}", provider.name, m.full_id)),
-                    );
+                    provider_models.extend(local_ops::entries_from(models));
                 }
+                ids.extend(provider_models.into_iter().filter_map(|model| {
+                    authz::provider_model_permitted(&cp, identity, &provider.name, &model.id)
+                        .then(|| format!("{}/{}", provider.name, model.id))
+                }));
                 if let Some(aliases) = cp.aliases_by_provider.get(&provider.name) {
                     ids.extend(
                         aliases
                             .iter()
+                            .filter(|alias| {
+                                let target = preprocess::apply_provider_alias(
+                                    &cp,
+                                    &provider.name,
+                                    &alias.alias,
+                                );
+                                authz::provider_model_permitted(
+                                    &cp,
+                                    identity,
+                                    &provider.name,
+                                    &target,
+                                )
+                            })
                             .map(|alias| format!("{}/{}", provider.name, alias.alias)),
                     );
                 }
@@ -444,8 +512,9 @@ fn aggregated_models(
             local_ops::render_model_list(family, &entries)
         }
         _ => {
+            let cp = state.cp();
             let id = classify::path_model_id(&ctx.path).ok_or(PipelineError::UnsupportedPath)?;
-            if !resolved_target_permitted(cp, identity, &id) {
+            if !resolved_target_permitted(&cp, identity, &id) {
                 return Err(PipelineError::UnknownRoute(id));
             }
             local_ops::render_model(
@@ -471,9 +540,20 @@ fn target_permitted(
     }
 
     preprocess::split_provider_model(target)
-        .and_then(|(provider_name, _)| cp.providers_by_name.get(provider_name))
-        .filter(|provider| provider.enabled)
-        .is_some_and(|provider| authz::permitted(cp, identity, &provider.name))
+        .and_then(|(provider_name, model)| {
+            let provider = cp
+                .providers_by_name
+                .get(provider_name)
+                .filter(|provider| provider.enabled)?;
+            let model = preprocess::apply_provider_alias(cp, provider_name, model);
+            Some(authz::provider_model_permitted(
+                cp,
+                identity,
+                &provider.name,
+                &model,
+            ))
+        })
+        .unwrap_or(false)
 }
 
 fn resolved_target_permitted(

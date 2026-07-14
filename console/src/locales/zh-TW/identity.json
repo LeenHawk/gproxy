@@ -30,8 +30,8 @@
     "copied": "已複製", "copyFailed": "複製失敗", "rotateHint": "金鑰不可編輯——輪換請產生新金鑰後刪除舊金鑰。"
   },
   "access": {
-    "permissions": "路由權限", "permissionsHint": "此 scope 可呼叫的路由/別名 glob 模式（org→team→user 取聯集；任意位置均不符合則拒絕）。",
-    "addPermission": "新增權限", "routePattern": "路由模式", "noPermissions": "此 scope 尚無路由權限。",
+    "permissions": "路由權限", "permissionsHint": "路由名稱或 provider/model 的 glob 模式；provider 名稱本身代表該渠道全部模型（org→team→user 取聯集）。",
+    "addPermission": "新增權限", "routePattern": "路由/模型模式", "noPermissions": "此 scope 尚無路由權限。",
     "rateLimits": "限流規則", "rateLimitsHint": "按 scope 設定限流；org/team/user 中最嚴格的生效。",
     "addRateLimit": "新增限流", "rpm": "RPM", "rpd": "RPD", "totalTokens": "總 token 數", "noRateLimits": "此 scope 尚無限流規則。",
     "quota": "配額", "quotaHint": "此 scope 的費用上限（十進制）。cost_used 由計費系統累積。",

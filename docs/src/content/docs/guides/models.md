@@ -54,8 +54,8 @@ credential strategy.
 
 Aliases are ordered full-match regex replacements. `provider="*"` applies
 before route/provider resolution; provider-scoped aliases apply after the
-provider is known. Permissions are checked against the exposed route or provider
-name, not hidden credential material.
+provider is known. Permissions are checked against the exposed route or
+hierarchical `provider/model` name, not hidden credential material.
 
 ## Model Listing
 
@@ -67,9 +67,13 @@ wire kind is inferred from the endpoint and credential style:
 - Gemini uses `/v1beta/models`.
 - `GET /v1/models/{id}` and `GET /v1beta/models/{id}` classify as `get_model`.
 
-Routing rules decide whether a provider handles the operation as `local`,
-`passthrough`, `transform_to`, or `unsupported`. Local model listing is served
-from the snapshot and filtered by the authenticated user's permissions.
+Aggregated and scoped model-list requests use the same policy. Each permitted
+provider is queried live (in parallel for aggregated requests) under an
+independent timeout. A successful list adds previously unseen ids to that
+provider's persisted models; it never updates or removes existing rows.
+Timeout or failure uses the accumulated persisted list. The result is filtered
+entry-by-entry with the authenticated user's `provider/model` permissions. The
+timeout is 10 seconds per provider.
 
 ## Variants
 

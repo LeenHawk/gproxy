@@ -13,7 +13,8 @@ Snapshot 按 `(scope, scope_id)` 保存匹配行，热路径不读取持久化�
 
 ## Route Permissions
 
-Route permission 用 glob pattern 授权 route 或 provider 名称：
+Route permission 用 glob pattern 授权 route 名称或分层的
+`provider/model` 名称：
 
 ```json
 {
@@ -25,7 +26,9 @@ Route permission 用 glob pattern 授权 route 或 provider 名称：
 
 有效权限是 user、team、org 三层 pattern 的并集。链路中任意 pattern 匹配暴露名称，请求即可继续；没有任何匹配则拒绝。禁用的 org 或 team 会拒绝请求，即使更低 scope 上有匹配 pattern。
 
-Aggregated 模式下，权限匹配暴露的 route 名称；scoped 模式下匹配暴露的 provider 名称。它不会匹配隐藏的 route member、credential 或内部上游 model id。
+Route 调用匹配暴露的 route 名称。Provider 直连调用使用分层检查：只授权 provider
+名称表示父级全量授权，而 `openai-main/gpt-*` 只授权该 provider 下匹配的模型。
+Aggregated 与 scoped 模型列表会对每个返回项执行同一判断，实际模型调用也使用完全相同的判断。权限不会匹配 credential 或隐藏的 route member。
 
 ## Rate Limits
 

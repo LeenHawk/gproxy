@@ -15,7 +15,8 @@ checks them without reading persistence.
 
 ## Route Permissions
 
-A route permission grants access to route or provider names by glob pattern:
+A route permission grants access to route names or hierarchical
+`provider/model` names by glob pattern:
 
 ```json
 {
@@ -30,9 +31,12 @@ pattern in the chain matches the exposed name, the request can proceed. If no
 pattern matches, the request is denied. A disabled org or disabled team denies
 even if a lower scope has a matching pattern.
 
-Permissions match the exposed route name in aggregated mode and the exposed
-provider name in scoped mode. They do not match hidden route members,
-credentials, or internal upstream model ids.
+Route calls match the exposed route name. Direct provider calls use a
+hierarchical check: a provider-name grant is a parent grant for every model,
+while a pattern such as `openai-main/gpt-*` grants only matching models in that
+provider. Aggregated and scoped model lists apply the same check to every
+returned entry, and actual model calls use the identical predicate. Permissions
+never match credentials or hidden route members.
 
 ## Rate Limits
 

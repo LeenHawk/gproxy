@@ -42,7 +42,7 @@ Route 是 aggregated 模式下暴露给客户端的模型名。一个 route 可�
 
 Snapshot 会按 `tier` 升序、`weight` 降序预排序 member。之后 balance 层根据 route strategy 和 provider credential strategy 做选择。
 
-Alias 是按顺序执行的 full-match regex replacement。`provider="*"` 是全局规则，在 route/provider 解析前执行；provider-scoped alias 会在 provider 已知后执行。权限检查针对暴露的 route 或 provider 名称，而不是隐藏的 route member、credential 或上游 model id。
+Alias 是按顺序执行的 full-match regex replacement。`provider="*"` 是全局规则，在 route/provider 解析前执行；provider-scoped alias 会在 provider 已知后执行。权限检查针对暴露的 route 或分层的 `provider/model` 名称，而不是隐藏的 route member、credential。
 
 ## 模型列表
 
@@ -52,7 +52,10 @@ Alias 是按顺序执行的 full-match regex replacement。`provider="*"` 是全
 - Gemini 使用 `/v1beta/models`。
 - `GET /v1/models/{id}` 和 `GET /v1beta/models/{id}` 会分类为 `get_model`。
 
-Routing rule 决定 provider 对该 operation 使用 `local`、`passthrough`、`transform_to` 还是 `unsupported`。Local 模型列表从 snapshot 返回，并按当前用户权限过滤。
+Aggregated 与 scoped 模型列表使用相同策略。每个有权限的 provider 都会实时请求上游
+（Aggregated 会并发请求），并使用独立超时。请求成功后只把尚不存在的模型追加到持久化
+列表，绝不修改或删除已有行；超时或失败则使用累计的持久化列表。最终结果再按当前用户的
+`provider/model` 权限逐条过滤。每个 provider 的超时固定为 10 秒。
 
 ## Variants
 

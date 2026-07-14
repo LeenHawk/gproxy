@@ -28,12 +28,9 @@ fn scopes(identity: &KeyIdentity) -> Vec<(Scope, i64)> {
     chain
 }
 
-/// 403 unless the org (and team, when set) is enabled AND the permission
-/// union matches `name`. No matching pattern anywhere = deny (secure default).
-pub fn check_permission(
+fn identity_scopes_enabled(
     cp: &ControlPlaneSnapshot,
     identity: &KeyIdentity,
-    name: &str,
 ) -> Result<(), PipelineError> {
     let user = &identity.user;
     match cp.orgs_by_id.get(&user.org_id) {
@@ -46,15 +43,83 @@ pub fn check_permission(
             _ => return Err(PipelineError::Forbidden),
         }
     }
+    Ok(())
+}
+
+fn effective_patterns<'a>(
+    cp: &'a ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+) -> impl Iterator<Item = &'a str> {
+    scopes(identity)
+        .into_iter()
+        .filter_map(|scope| cp.permissions_by_scope.get(&scope))
+        .flat_map(|patterns| patterns.iter().map(String::as_str))
+}
+
+/// 403 unless the org (and team, when set) is enabled AND the permission
+/// union matches `name`. No matching pattern anywhere = deny (secure default).
+pub fn check_permission(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    name: &str,
+) -> Result<(), PipelineError> {
+    identity_scopes_enabled(cp, identity)?;
     // Effective permission = UNION of user ∪ team ∪ org patterns.
-    for scope in scopes(identity) {
-        if let Some(patterns) = cp.permissions_by_scope.get(&scope)
-            && patterns.iter().any(|p| glob::matches(p, name))
-        {
-            return Ok(());
-        }
+    if effective_patterns(cp, identity).any(|pattern| glob::matches(pattern, name)) {
+        return Ok(());
     }
     Err(PipelineError::Forbidden)
+}
+
+/// Canonical public authorization name for a provider model.
+pub fn provider_model_name(provider: &str, model: &str) -> String {
+    format!("{provider}/{model}")
+}
+
+/// Hierarchical provider/model permission check. A provider-name grant is a
+/// parent grant for all of its models (backward compatible); otherwise the
+/// complete `provider/model` name must match a permission glob.
+pub fn check_provider_model_permission(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &str,
+    model: &str,
+) -> Result<(), PipelineError> {
+    identity_scopes_enabled(cp, identity)?;
+    let full = provider_model_name(provider, model);
+    if effective_patterns(cp, identity)
+        .any(|pattern| glob::matches(pattern, provider) || glob::matches(pattern, &full))
+    {
+        Ok(())
+    } else {
+        Err(PipelineError::Forbidden)
+    }
+}
+
+/// Whether the identity has any grant in a provider's model namespace. This
+/// admits a model-list request before its live catalogue is known; individual
+/// returned entries are still filtered with [`provider_model_permitted`].
+pub fn provider_listing_permitted(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &str,
+) -> bool {
+    if identity_scopes_enabled(cp, identity).is_err() {
+        return false;
+    }
+    let prefix = format!("{provider}/");
+    effective_patterns(cp, identity)
+        .any(|pattern| glob::matches(pattern, provider) || glob::can_match_prefix(pattern, &prefix))
+}
+
+/// Boolean form of [`check_provider_model_permission`] for model listings.
+pub fn provider_model_permitted(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    provider: &str,
+    model: &str,
+) -> bool {
+    check_provider_model_permission(cp, identity, provider, model).is_ok()
 }
 
 /// user → team → org; first exceeded rule wins. Incr-then-check: the
@@ -202,6 +267,38 @@ pub async fn authorize(
 ) -> Result<(), PipelineError> {
     check_permission(cp, identity, name)?;
     precheck_limits(cp, cache, identity, name, now_unix).await
+}
+
+/// Provider/model authorization entry point: parent provider grants remain
+/// valid, while child grants can constrain access to specific model globs.
+pub async fn authorize_provider_model(
+    cp: &ControlPlaneSnapshot,
+    cache: &dyn CacheBackend,
+    identity: &KeyIdentity,
+    provider: &str,
+    model: &str,
+    now_unix: i64,
+) -> Result<(), PipelineError> {
+    check_provider_model_permission(cp, identity, provider, model)?;
+    // Rate-limit rows retain their existing provider-level semantics. Model
+    // hierarchy is an authorization concern; changing counter attribution here
+    // would also require changing settle-time token-limit accounting.
+    precheck_limits(cp, cache, identity, provider, now_unix).await
+}
+
+/// Authorize entry into a provider's model-list namespace before the live
+/// catalogue is known. The response is always filtered per model afterwards.
+pub async fn authorize_provider_listing(
+    cp: &ControlPlaneSnapshot,
+    cache: &dyn CacheBackend,
+    identity: &KeyIdentity,
+    provider: &str,
+    now_unix: i64,
+) -> Result<(), PipelineError> {
+    if !provider_listing_permitted(cp, identity, provider) {
+        return Err(PipelineError::Forbidden);
+    }
+    precheck_limits(cp, cache, identity, provider, now_unix).await
 }
 
 #[cfg(all(test, not(target_arch = "wasm32"), feature = "cache-memory"))]

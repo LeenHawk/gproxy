@@ -40,8 +40,8 @@ async fn aggregated_models_lists_aliases_and_routes() {
     for expected in ["claude-test", "claude-direct", "to-openai", "to-claude"] {
         assert!(ids.contains(&expected), "missing {expected} in {ids:?}");
     }
-    // gateway view: never touches an upstream
-    assert!(fake.seen.lock().unwrap().is_empty());
+    // Aggregated listing refreshes every permitted provider concurrently.
+    assert_eq!(fake.seen.lock().unwrap().len(), 2);
 }
 
 fn count_ctx(model: &str) -> RequestCtx {
@@ -143,11 +143,18 @@ fn list_ids(b: &Bytes) -> Vec<String> {
         .collect()
 }
 
-/// Explicit `local` routing rule: scoped ListModels served from the snapshot's
-/// exposed provider_models (manual rows + variants), no upstream call.
+/// Scoped ListModels ignores the old local routing cell, merges live ids with
+/// manual variants, and persists only newly discovered base models.
 #[tokio::test]
-async fn scoped_models_list_served_locally_via_rule() {
-    let fake = Arc::new(FakeUpstream::new(Bytes::new(), vec![]));
+async fn scoped_models_refreshes_and_persists_additions() {
+    let upstream = json!({
+        "object": "list",
+        "data": [{ "id": "gpt-upstream", "object": "model", "created": 0, "owned_by": "openai" }]
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&upstream).unwrap()),
+        vec![],
+    ));
     let (state, _dir) = state_with(Arc::clone(&fake)).await;
 
     let outcome = crate::pipeline::execute(&state, scoped_models_ctx())
@@ -159,38 +166,66 @@ async fn scoped_models_list_served_locally_via_rule() {
     };
     assert_eq!(
         list_ids(&b),
-        ["gpt-test", "gpt-test-thinking"],
-        "exposed rows listed"
+        ["gpt-upstream", "gpt-test", "gpt-test-thinking"],
+        "live + persisted rows listed"
     );
-    assert!(fake.seen.lock().unwrap().is_empty(), "no upstream call");
+    assert_eq!(fake.seen.lock().unwrap().len(), 1, "upstream refreshed");
+
+    let persisted = state.persistence.list_provider_models(1).await.unwrap();
+    assert!(
+        persisted
+            .iter()
+            .any(|model| model.model_id == "gpt-upstream")
+    );
+    let manual = persisted
+        .iter()
+        .find(|model| model.model_id == "gpt-test")
+        .unwrap();
+    assert_eq!(manual.variants_json, Some(json!(["gpt-test-thinking"])));
 }
 
-/// §6.3 merged models: without a local rule, scoped ListModels passes through
-/// to the upstream and the snapshot's manual + variant rows join the list.
+/// Aggregated listing refreshes upstream and falls back to additions persisted
+/// by the previous successful request.
 #[tokio::test]
-async fn scoped_models_upstream_list_merges_manual_rows() {
-    let bundle = bundle_with("routing_rules", json!([]));
+async fn aggregated_models_failure_falls_back_per_provider() {
+    let mut bundle: Value = serde_json::from_str(BUNDLE).unwrap();
+    bundle["route_permissions"] = json!([
+        { "id": 1, "scope": "user", "scope_id": 1, "route_pattern": "oai" }
+    ]);
+    bundle["routing_rules"] = json!([]);
+    let bundle = serde_json::to_string(&bundle).unwrap();
     let upstream = json!({
         "object": "list",
-        "data": [{ "id": "gpt-upstream", "object": "model", "created": 0, "owned_by": "openai" }]
+        "data": [{ "id": "gpt-aggregate-persisted", "object": "model", "created": 0, "owned_by": "openai" }]
     });
-    let fake = Arc::new(FakeUpstream::new(
-        Bytes::from(serde_json::to_vec(&upstream).unwrap()),
-        vec![],
-    ));
+    let mut fake = FakeUpstream::new(Bytes::from(serde_json::to_vec(&upstream).unwrap()), vec![]);
+    fake.statuses = vec![
+        StatusCode::OK,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    ];
+    let fake = Arc::new(fake);
     let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
 
-    let outcome = crate::pipeline::execute(&state, scoped_models_ctx())
+    for _ in 0..2 {
+        let outcome = crate::pipeline::execute(&state, {
+            let mut ctx = scoped_models_ctx();
+            ctx.mode = RoutingMode::Aggregated;
+            ctx
+        })
         .await
-        .expect("ok");
-    assert_eq!(outcome.status, StatusCode::OK);
-    let ResponseBody::Full(b) = outcome.body else {
-        panic!("expected Full")
-    };
-    assert_eq!(
-        list_ids(&b),
-        ["gpt-upstream", "gpt-test", "gpt-test-thinking"],
-        "upstream ids first, manual + variant rows appended"
+        .expect("aggregated catalogue");
+        let ResponseBody::Full(body) = outcome.body else {
+            panic!("expected Full")
+        };
+        assert!(
+            list_ids(&body).contains(&"oai/gpt-aggregate-persisted".to_owned()),
+            "persisted provider model should remain visible"
+        );
+    }
+    assert!(
+        fake.seen.lock().unwrap().len() > 1,
+        "the second listing must still attempt upstream before fallback"
     );
-    assert_eq!(fake.seen.lock().unwrap().len(), 1, "upstream listing hit");
 }
