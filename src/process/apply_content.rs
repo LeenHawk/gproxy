@@ -135,7 +135,7 @@ pub fn cache_breakpoint(
         // string-form `system` cannot carry block markers — skips via None
         "system" => obj.get_mut("system").and_then(Value::as_array_mut),
         "tools" => obj.get_mut("tools").and_then(Value::as_array_mut),
-        "last_message" => obj
+        "message" => obj
             .get_mut("messages")
             .and_then(Value::as_array_mut)
             .and_then(|m| m.last_mut())
@@ -244,12 +244,12 @@ mod tests {
     }
 
     #[test]
-    fn cache_breakpoint_last_message() {
+    fn cache_breakpoint_message() {
         let mut v = json!({"messages": [
             {"role": "user", "content": [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]}
         ]});
         let cfg = CacheBreakpointCfg {
-            target: "last_message".into(),
+            target: "message".into(),
             index: None,
             ttl: Some("5m".into()),
             position: None,

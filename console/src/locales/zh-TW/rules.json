@@ -63,7 +63,7 @@
       "top_level": "頂層(全域)",
       "system": "系統",
       "tools": "工具",
-      "last_message": "最後一則訊息"
+      "message": "訊息"
     },
     "modeOptions": {
       "override": "覆寫",

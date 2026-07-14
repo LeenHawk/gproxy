@@ -31,7 +31,7 @@ The rule accepts these fields:
 
 | Field | Meaning |
 | --- | --- |
-| `target` | `top_level`, `system`, `tools`, or `last_message`. Protocol support differs; see the table below. |
+| `target` | `top_level`, `system`, `tools`, or `message`. Protocol support differs; see the table below. |
 | `index` | Signed, one-based block index. Positive values count from the start, negative values count from the end, and an omitted value selects the last block. `0` is invalid. |
 | `ttl` | Claude: `5m` or `1h`. OpenAI: `30m`. |
 | `position` | Kept for compatibility and currently ignored. |
@@ -47,7 +47,7 @@ is OpenAI Chat or Responses, it writes an OpenAI marker.
 | `top_level` | Adds request-level `cache_control`, enabling Anthropic's automatic prompt caching. | Ensures `prompt_cache_options.mode` is `implicit` unless the request already chose a mode. |
 | `system` | Marks a block in the `system` array. A string-form `system` cannot carry block metadata and is skipped. | Marks system/developer content. For Responses `instructions`, GPROXY inserts a small developer content block immediately after the instructions because `instructions` itself cannot carry breakpoint metadata. |
 | `tools` | Marks a tool definition. | Unsupported by OpenAI and skipped with a warning. |
-| `last_message` | Marks a content block in the last message. | Marks a supported content block in the last Chat message or Responses input message. |
+| `message` | Marks a content block in the final element of the transformed `messages` array, regardless of role. | Marks a supported content block in the final Chat message element or the final Responses input item containing a role and content. |
 
 ## OpenAI Breakpoints
 

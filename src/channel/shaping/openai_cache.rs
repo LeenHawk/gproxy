@@ -59,7 +59,7 @@ pub fn apply_magic_string_cache_breakpoints(body: &mut Value, kind: ContentGener
 
 /// Apply the existing manual `cache_breakpoint` rule to an OpenAI body.
 ///
-/// `system` and `last_message` select content blocks. OpenAI does not support
+/// `system` and `message` select content blocks. OpenAI does not support
 /// breakpoints on tool definitions. `top_level`/`global` configures implicit
 /// request-wide caching, matching the old target's global-policy semantics.
 pub fn apply_manual_cache_breakpoint(
@@ -233,7 +233,7 @@ fn apply_chat_manual(
         .ok_or("missing messages array")?;
     let locations = match target {
         "system" => chat_system_locations(messages),
-        "last_message" => messages
+        "message" => messages
             .len()
             .checked_sub(1)
             .map(|i| chat_content_locations(messages, i))
@@ -312,7 +312,7 @@ fn apply_responses_manual(
 ) -> Result<(), &'static str> {
     let locations = match target {
         "system" => response_system_locations(root),
-        "last_message" => response_last_message_locations(root),
+        "message" => response_message_locations(root),
         _ => return Err("unsupported cache breakpoint target"),
     };
     let selected = resolve_location(&locations, index)?;
@@ -338,7 +338,7 @@ fn response_system_locations(root: &Map<String, Value>) -> Vec<ResponsesLocation
     locations
 }
 
-fn response_last_message_locations(root: &Map<String, Value>) -> Vec<ResponsesLocation> {
+fn response_message_locations(root: &Map<String, Value>) -> Vec<ResponsesLocation> {
     match root.get("input") {
         Some(Value::String(_)) => vec![ResponsesLocation::InputString],
         Some(Value::Array(items)) => items
@@ -614,12 +614,12 @@ mod tests {
     }
 
     #[test]
-    fn manual_responses_last_message_sets_request_ttl() {
+    fn manual_responses_message_sets_request_ttl() {
         let mut body = json!({"input": [{"role": "user", "content": "hello"}]});
         apply_manual_cache_breakpoint(
             &mut body,
             ContentGenerationKind::OpenAiResponses,
-            "last_message",
+            "message",
             None,
             Some("30m"),
         )

@@ -49,9 +49,9 @@ format. Claude uses `cache_control`; OpenAI Chat and Responses use
 }
 ```
 
-OpenAI supports `system` and `last_message` content, plus request-wide behavior
+OpenAI supports `system` and `message` content, plus request-wide behavior
 through `top_level`; it does not support breakpoints on `tools`. Claude supports
-`top_level`, `system`, `tools`, and `last_message`. See
+`top_level`, `system`, `tools`, and `message`. See
 [Prompt Caching](/guides/claude-caching/) for the complete target, TTL, and
 magic-string behavior.
 

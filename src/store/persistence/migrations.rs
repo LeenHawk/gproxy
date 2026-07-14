@@ -289,6 +289,26 @@ pub const MIGRATIONS: &[Migration] = &[
         // creation already materialized a previously absent table.
         sql: MigrationSql::Shared(&[]),
     },
+    Migration {
+        version: 11,
+        description: "cache breakpoint target: rename last_message to message",
+        sql: MigrationSql::ByDialect {
+            sqlite: &["UPDATE rules \
+                SET config_json = json_set(config_json, '$.target', 'message') \
+                WHERE kind = 'cache_breakpoint' \
+                  AND json_extract(config_json, '$.target') = 'last_message'"],
+            postgres: &["UPDATE rules \
+                SET config_json = jsonb_set(\
+                    config_json::jsonb, '{target}', '\"message\"'::jsonb\
+                )::text \
+                WHERE kind = 'cache_breakpoint' \
+                  AND config_json::jsonb ->> 'target' = 'last_message'"],
+            mysql: &["UPDATE rules \
+                SET config_json = JSON_SET(config_json, '$.target', 'message') \
+                WHERE kind = 'cache_breakpoint' \
+                  AND JSON_UNQUOTE(JSON_EXTRACT(config_json, '$.target')) = 'last_message'"],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner
