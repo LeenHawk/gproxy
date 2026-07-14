@@ -19,7 +19,8 @@ export type UpdateStatus =
   | { state: "restarting"; version: string }
   | { state: "failed"; error: string };
 
-// check is a manual, possibly-slow read — disabled by default; refetch on click.
+// Disabled by default for the manual Updates page. The global admin banner
+// explicitly enables this query once when Console opens.
 export const updateCheckQuery = queryOptions({
   queryKey: ["update", "check"],
   queryFn: () => api<CheckReport>("/admin/update/check"),

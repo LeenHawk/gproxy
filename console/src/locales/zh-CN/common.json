@@ -59,6 +59,10 @@
     "network": "网络错误——服务是否可达?",
     "internal": "服务器错误"
   },
+  "updateBanner": {
+    "message": "GPROXY {{version}} 已可更新。",
+    "action": "查看更新"
+  },
   "proxyTest": {
     "action": "测试连接",
     "testing": "正在测试…",

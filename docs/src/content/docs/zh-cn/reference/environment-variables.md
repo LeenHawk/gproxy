@@ -55,11 +55,14 @@ route、alias、权限、quota、pricing、转换规则和实例设置都存放�
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `GPROXY_UPDATE_CHANNEL_SERVE` | `releases` | serve 路径自更新 channel：`releases` 或 `staging`。 |
+| `GPROXY_UPDATE_CHANNEL_SERVE` | 构建 channel | serve 路径自更新 channel 覆盖：`releases` 或 `staging`。Tag 正式构建默认使用 `releases`，来自 `main` 的滚动构建默认使用 `staging`。 |
 | `GPROXY_UPDATE_CHANNEL` | `releases` | `gproxy update` 子命令使用的 channel。它故意不同于 serve 路径变量名，以避免 `clap` env 冲突。 |
 | `GPROXY_UPDATE_RESTART` | `supervisor` | `gproxy update apply` 的重启模式：`supervisor`、`re-exec` 或 `none`。 |
 
 `GPROXY_UPDATE_PUBKEY` 是编译期变量，用于把更新验签公钥嵌入二进制；它不是运行时配置。
+
+Release workflow 还会设置内部编译期变量 `GPROXY_BUILD_CHANNEL`；未设置它的自定义构建默认
+使用 `releases`。
 
 ## 开发与迁移
 

@@ -89,8 +89,8 @@ struct Cli {
     /// collision with the `update` subcommand's `GPROXY_UPDATE_CHANNEL` env —
     /// both map different args but clap would error if the same env key appeared
     /// in two different arg definitions within the same parse call.
-    #[arg(long, env = "GPROXY_UPDATE_CHANNEL_SERVE", default_value = "releases")]
-    update_channel: gproxy::selfupdate::Channel,
+    #[arg(long, env = "GPROXY_UPDATE_CHANNEL_SERVE")]
+    update_channel: Option<gproxy::selfupdate::Channel>,
 
     /// Admin username for the first-boot bootstrap / credential override (§14.2).
     #[arg(long, env = "GPROXY_ADMIN_USER", default_value = "admin")]
@@ -228,7 +228,10 @@ async fn main() -> anyhow::Result<()> {
         max_attempts: cli.max_attempts,
         max_in_flight: cli.max_in_flight,
         trusted_proxies: cli.trusted_proxies,
-        update_channel: match cli.update_channel {
+        update_channel: match cli
+            .update_channel
+            .unwrap_or_else(gproxy::selfupdate::build_channel)
+        {
             gproxy::selfupdate::Channel::Releases => "releases".to_string(),
             gproxy::selfupdate::Channel::Staging => "staging".to_string(),
         },

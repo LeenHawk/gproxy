@@ -73,6 +73,20 @@ impl Channel {
     }
 }
 
+/// Update channel embedded by the release workflow. Tagged builds track stable
+/// releases; rolling builds from `main` track staging. Local/custom builds
+/// default to stable unless the operator overrides the serve-path CLI/env.
+pub fn build_channel() -> Channel {
+    channel_from_build_label(option_env!("GPROXY_BUILD_CHANNEL"))
+}
+
+fn channel_from_build_label(label: Option<&str>) -> Channel {
+    match label {
+        Some("staging") => Channel::Staging,
+        _ => Channel::Releases,
+    }
+}
+
 /// Update policy (§19.4). Governs whether a detected update is applied.
 #[cfg_attr(not(target_arch = "wasm32"), derive(clap::ValueEnum))]
 #[cfg_attr(not(target_arch = "wasm32"), value(rename_all = "lowercase"))]
@@ -448,5 +462,20 @@ pub fn restart(restart: Restart) -> ! {
         Restart::Supervisor => swap::exit_for_supervisor(),
         Restart::ReExec => swap::reexec(),
         Restart::None => std::process::exit(0),
+    }
+}
+
+#[cfg(test)]
+mod build_channel_tests {
+    use super::{Channel, channel_from_build_label};
+
+    #[test]
+    fn build_label_selects_expected_channel() {
+        assert_eq!(channel_from_build_label(Some("staging")), Channel::Staging);
+        assert_eq!(
+            channel_from_build_label(Some("releases")),
+            Channel::Releases
+        );
+        assert_eq!(channel_from_build_label(None), Channel::Releases);
     }
 }

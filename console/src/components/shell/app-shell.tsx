@@ -7,6 +7,7 @@ import { NavList, NAV_ITEMS, type NavItem } from "@/components/shell/nav";
 import { UserMenu } from "@/components/shell/user-menu";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { UpdateBanner } from "@/components/update/update-banner";
 import { cn } from "@/lib/utils";
 
 type ShellFrom = "/_app" | "/_portal";
@@ -127,6 +128,7 @@ export function AppShell({
           <LocaleControls />
           <UserMenu />
         </header>
+        {contextFrom === "/_app" && <UpdateBanner />}
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>

@@ -44,7 +44,7 @@
   "channel": {
     "label": "更新渠道",
     "hint": "本实例自更新跟踪哪个发布通道。",
-    "default": "默认",
+    "default": "构建默认",
     "releases": "稳定版",
     "staging": "预发布版",
     "saved": "已保存更新渠道",

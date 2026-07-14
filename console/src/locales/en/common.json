@@ -59,6 +59,10 @@
     "network": "Network error — is the server reachable?",
     "internal": "Server error"
   },
+  "updateBanner": {
+    "message": "GPROXY {{version}} is available.",
+    "action": "View update"
+  },
   "proxyTest": {
     "action": "Test connection",
     "testing": "Testing…",

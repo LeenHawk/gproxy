@@ -73,6 +73,9 @@ jobs:
       # manifest. Absent → a placeholder all-zero key that rejects every
       # signature (the secure default).
       GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+      # Tagged builds default to stable updates; rolling main builds default to
+      # staging. Runtime CLI/env and Console settings can still override this.
+      GPROXY_BUILD_CHANNEL: ${{ github.ref_type == 'tag' && 'releases' || 'staging' }}
     defaults:
       run:
         shell: bash

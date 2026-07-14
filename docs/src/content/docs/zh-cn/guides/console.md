@@ -45,6 +45,10 @@ pnpm dev
 | Settings | Instance settings、proxy、logging、usage、tokenizer download、retention、update channel。 |
 | Update | 支持 native self-update 的运行时状态。 |
 
+管理员打开 Console 时会自动检查一次当前配置的更新 channel。如果有更新的稳定版或滚动
+staging binary，所有管理页面顶部都会显示提示条并链接到 **Update**。检查失败只在 Update
+页面处理，不会干扰其他 Console 页面。
+
 ## Build and Embed
 
 native 生产构建前运行：
