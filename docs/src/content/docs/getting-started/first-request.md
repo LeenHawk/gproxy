@@ -33,15 +33,18 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-Aggregated model listing refreshes every permitted provider in parallel:
+Aggregated model listing applies each permitted provider's refresh policy in
+parallel:
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \
   -H "Authorization: Bearer <your-user-api-key>"
 ```
 
-Each successful provider response appends newly discovered ids to the persisted
-provider models without deleting old ones; timeout or failure uses that
+Automatic refresh is enabled by default, but a provider can disable it and a
+`local` list-model routing rule always skips upstream I/O. Each successful
+provider response appends newly discovered ids to the persisted provider models
+without deleting old ones; skipped refresh, timeout, or failure uses that
 accumulated list. The final result merges permitted route and alias names and
 filters every `provider/model` entry with the same permission check used for
 actual calls.

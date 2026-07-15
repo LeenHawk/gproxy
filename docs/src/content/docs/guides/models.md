@@ -67,13 +67,19 @@ wire kind is inferred from the endpoint and credential style:
 - Gemini uses `/v1beta/models`.
 - `GET /v1/models/{id}` and `GET /v1beta/models/{id}` classify as `get_model`.
 
-Aggregated and scoped model-list requests use the same policy. Each permitted
-provider is queried live (in parallel for aggregated requests) under an
-independent timeout. A successful list adds previously unseen ids to that
-provider's persisted models; it never updates or removes existing rows.
-Timeout or failure uses the accumulated persisted list. The result is filtered
+Aggregated and scoped model-list requests use the same policy. By default, each
+permitted provider is queried live (in parallel for aggregated requests) under
+an independent timeout. Set the provider's `settings_json.auto_refresh_models`
+to `false` to use only persisted models. A `local` routing rule for the inbound
+`list_models` operation also skips the upstream request, regardless of the
+switch.
+
+A successful live list adds previously unseen ids to that provider's persisted
+models; it never updates or removes existing rows. Disabled/local refresh,
+timeout, or failure uses the accumulated persisted list. The result is filtered
 entry-by-entry with the authenticated user's `provider/model` permissions. The
-timeout is 10 seconds per provider.
+timeout is 10 seconds per provider. The console's explicit **Pull** action is
+not affected by the automatic-refresh switch.
 
 ## Variants
 

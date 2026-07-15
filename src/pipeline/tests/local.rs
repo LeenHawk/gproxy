@@ -40,8 +40,8 @@ async fn aggregated_models_lists_aliases_and_routes() {
     for expected in ["claude-test", "claude-direct", "to-openai", "to-claude"] {
         assert!(ids.contains(&expected), "missing {expected} in {ids:?}");
     }
-    // Aggregated listing refreshes every permitted provider concurrently.
-    assert_eq!(fake.seen.lock().unwrap().len(), 2);
+    // The oai list-model rule is local; only the permitted cla provider refreshes.
+    assert_eq!(fake.seen.lock().unwrap().len(), 1);
 }
 
 fn count_ctx(model: &str) -> RequestCtx {
@@ -143,10 +143,14 @@ fn list_ids(b: &Bytes) -> Vec<String> {
         .collect()
 }
 
-/// Scoped ListModels ignores the old local routing cell, merges live ids with
-/// manual variants, and persists only newly discovered base models.
+/// The provider switch can disable automatic refresh even for a non-local
+/// list-model route. Persisted base/variant rows remain visible.
 #[tokio::test]
-async fn scoped_models_refreshes_and_persists_additions() {
+async fn scoped_models_refresh_can_be_disabled() {
+    let mut bundle: Value = serde_json::from_str(BUNDLE).unwrap();
+    bundle["providers"][0]["settings_json"]["auto_refresh_models"] = json!(false);
+    bundle["routing_rules"][0]["implementation"] = json!("passthrough");
+    let bundle = serde_json::to_string(&bundle).unwrap();
     let upstream = json!({
         "object": "list",
         "data": [{ "id": "gpt-upstream", "object": "model", "created": 0, "owned_by": "openai" }]
@@ -155,7 +159,7 @@ async fn scoped_models_refreshes_and_persists_additions() {
         Bytes::from(serde_json::to_vec(&upstream).unwrap()),
         vec![],
     ));
-    let (state, _dir) = state_with(Arc::clone(&fake)).await;
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
 
     let outcome = crate::pipeline::execute(&state, scoped_models_ctx())
         .await
@@ -166,22 +170,13 @@ async fn scoped_models_refreshes_and_persists_additions() {
     };
     assert_eq!(
         list_ids(&b),
-        ["gpt-upstream", "gpt-test", "gpt-test-thinking"],
-        "live + persisted rows listed"
+        ["gpt-test", "gpt-test-thinking"],
+        "persisted rows listed"
     );
-    assert_eq!(fake.seen.lock().unwrap().len(), 1, "upstream refreshed");
+    assert!(fake.seen.lock().unwrap().is_empty(), "no upstream refresh");
 
     let persisted = state.persistence.list_provider_models(1).await.unwrap();
-    assert!(
-        persisted
-            .iter()
-            .any(|model| model.model_id == "gpt-upstream")
-    );
-    let manual = persisted
-        .iter()
-        .find(|model| model.model_id == "gpt-test")
-        .unwrap();
-    assert_eq!(manual.variants_json, Some(json!(["gpt-test-thinking"])));
+    assert_eq!(persisted.len(), 1, "upstream id was not persisted");
 }
 
 /// Aggregated listing refreshes upstream and falls back to additions persisted

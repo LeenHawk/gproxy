@@ -1,9 +1,10 @@
 //! Live provider model catalogues with additive persistence.
 //!
-//! Aggregated and scoped model-list requests both attempt each relevant
-//! provider's live catalogue under a short total timeout. Successful responses
-//! add previously unseen ids to `provider_models`; timeout/failure falls back to
-//! that persisted list. Existing rows and variants are never changed or removed.
+//! Aggregated and scoped model-list requests use the same per-provider policy:
+//! refresh live unless disabled in settings or routed `local`. Successful
+//! responses add previously unseen ids to `provider_models`; skipped, timed-out
+//! or failed refreshes use that persisted list. Existing rows and variants are
+//! never changed or removed.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -21,8 +22,9 @@ use crate::app::snapshot::{ControlPlaneSnapshot, KeyIdentity};
 use crate::pipeline::authz;
 use crate::pipeline::local_ops::{self, ModelEntry};
 use crate::pipeline::outcome::ExecOutcome;
-use crate::protocol::Provider as ProtocolProvider;
+use crate::protocol::OperationKey;
 use crate::store::persistence::records::{Provider, ProviderModelInput};
+use crate::transform::routing::{self, RoutingDecision};
 
 const MODEL_LIST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -198,25 +200,53 @@ async fn fetch_live(state: &AppState, provider: &Provider) -> Option<Vec<ModelEn
     }
 }
 
-/// Serve one scoped model-list request. Live success persists additions;
-/// failure/timeout keeps serving the accumulated provider models.
+fn automatic_refresh_enabled(provider: &Provider) -> bool {
+    provider
+        .settings_json
+        .get("auto_refresh_models")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true)
+}
+
+fn should_refresh(cp: &ControlPlaneSnapshot, provider: &Provider, source: OperationKey) -> bool {
+    let rules = cp
+        .routing_rules_by_provider
+        .get(&provider.id)
+        .map(|rules| rules.as_slice())
+        .unwrap_or(&[]);
+    automatic_refresh_enabled(provider)
+        && !matches!(routing::decide(rules, source), RoutingDecision::Local)
+}
+
+/// Serve one scoped model-list request. Eligible live success persists
+/// additions; disabled/local refresh and failure/timeout use accumulated rows.
 pub async fn serve_scoped(
     state: &AppState,
     provider: Arc<Provider>,
     identity: Arc<KeyIdentity>,
-    family: ProtocolProvider,
+    source: OperationKey,
 ) -> ExecOutcome {
-    let remote = refresh_or_persisted(state, &provider).await;
+    let remote = models_for_request(state, &provider, source).await;
     let cp = state.cp();
     let entries = merge_and_filter(&cp, &identity, &provider, remote);
     local_ops::json_outcome(
         http::StatusCode::OK,
-        local_ops::render_model_list(family, &entries),
+        local_ops::render_model_list(source.provider_family(), &entries),
     )
 }
 
-/// Shared refresh used by both aggregated and scoped listings.
-pub async fn refresh_or_persisted(state: &AppState, provider: &Provider) -> Vec<ModelEntry> {
+/// Shared catalogue lookup used by aggregated and scoped listings.
+pub async fn models_for_request(
+    state: &AppState,
+    provider: &Provider,
+    source: OperationKey,
+) -> Vec<ModelEntry> {
+    {
+        let cp = state.cp();
+        if !should_refresh(&cp, provider, source) {
+            return manual_entries(&cp, provider.id);
+        }
+    }
     match fetch_live(state, provider).await {
         Some(models) => {
             persist_additions(state, provider, &models).await;
