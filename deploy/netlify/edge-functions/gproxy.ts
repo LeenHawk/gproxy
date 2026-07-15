@@ -22,7 +22,7 @@
 //
 // Build recipe (run from the crate root; pkg/ and the generated glue copies in
 // this dir are gitignored — regenerate after rebuilding the wasm):
-//   cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+//   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 //   wasm-bindgen --target deno --out-dir pkg \
 //     target/wasm32-unknown-unknown/release/gproxy.wasm
 //   cp pkg/gproxy.js pkg/gproxy.d.ts deploy/netlify/edge-functions/_lib/

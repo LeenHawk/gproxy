@@ -3,7 +3,9 @@
 //! Only the executable, working directory, and non-secret CLI arguments are
 //! persisted. Android uses its APK foreground service; containers are skipped.
 
-use std::ffi::{OsStr, OsString};
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 use serde::Serialize;
@@ -34,8 +36,11 @@ pub struct AutoStartStatus {
 #[derive(Debug)]
 pub struct AutoStartManager {
     data_dir: PathBuf,
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     executable: PathBuf,
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     args: Vec<OsString>,
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     working_dir: PathBuf,
     blocked: Option<String>,
 }
@@ -46,8 +51,11 @@ impl AutoStartManager {
         let blocked = sensitive_configuration(&raw_args);
         Self {
             data_dir: std::path::absolute(&data_dir).unwrap_or(data_dir),
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             executable: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("gproxy")),
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             args: safe_serve_args(raw_args.into_iter()),
+            #[cfg(any(target_os = "linux", target_os = "macos", windows))]
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             blocked,
         }
@@ -95,6 +103,7 @@ impl AutoStartManager {
         Ok(self.status())
     }
 
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     fn command_parts(&self) -> impl Iterator<Item = &OsStr> {
         std::iter::once(self.executable.as_os_str())
             .chain(self.args.iter().map(OsString::as_os_str))
@@ -109,6 +118,7 @@ fn parse_bool(value: &str) -> anyhow::Result<bool> {
     }
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn safe_serve_args(args: impl Iterator<Item = OsString>) -> Vec<OsString> {
     let mut safe = Vec::new();
     let mut skip_next = false;

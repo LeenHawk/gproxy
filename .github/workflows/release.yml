@@ -445,7 +445,7 @@ jobs:
           path: assets/console
 
       - name: Build edge wasm
-        run: cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+        run: cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 
       # Each script regenerates that platform's wasm-bindgen glue in-place (the
       # _lib / generated dirs are gitignored build output). All build-only — no

@@ -8,7 +8,7 @@ description = "GPROXY v2 — high-performance LLM proxy (rewrite)"
 [lib]
 name = "gproxy"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [[bin]]
 name = "gproxy"

@@ -68,7 +68,7 @@ artifacts：wasm、glue、平台入口和 config，不包含源码构建流程�
 本地构建适合验证或临时 artifact：
 
 ```bash
-cargo build --lib --target wasm32-unknown-unknown --release \
+cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release \
   --no-default-features --features edge
 ```
 

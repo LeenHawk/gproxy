@@ -4,7 +4,7 @@ set -euo pipefail
 target="${TARGET_TRIPLE:?missing TARGET_TRIPLE}"
 artifact="${ARTIFACT_NAME:?missing ARTIFACT_NAME}"
 binary="target/$target/release/gproxy"
-version="$(awk '/^version = / { gsub(/\"/, "", $3); print $3; exit }' Cargo.toml)"
+version="$(awk '/^version = / { gsub(/"/, "", $3); print $3; exit }' Cargo.toml)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 

@@ -59,8 +59,9 @@ AArch64 与 RISC-V 64，并同时提供 GNU 和 musl 版本。默认 GNU Docker 
 镜像也都包含这三种 Linux 架构。Android release 还会包含按 ABI 拆分的 APK，适合想
 使用可安装包而不是原始 executable 压缩包的用户。
 
-Android APK 包含 launcher UI 和 Foreground Service。安装匹配 ABI 的 APK 后打开
-**GPROXY**，填写管理员用户名和密码后点击 **Start GPROXY**。Launcher 中的开关控制
+Android APK 要求 Android 9（API 28）或更高版本，并包含 launcher UI 和 Foreground
+Service。安装匹配 ABI 的 APK 后打开 **GPROXY**，填写管理员用户名和密码后点击
+**Start GPROXY**。Launcher 中的开关控制
 以后打开 App 和设备开机时是否自动启动。开启开关时，App 会说明后台运行用途，并打开
 Android 的电池优化权限提示。Service 会用下面的参数运行 native server：
 

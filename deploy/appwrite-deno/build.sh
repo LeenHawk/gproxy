@@ -6,7 +6,7 @@
 # pre-built wasm via main.ts.
 #
 # Build-only (no deploy/secrets). Run from the crate root (/home/linhuan/gproxy/v2):
-#   cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+#   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 #   bash deploy/appwrite-deno/build.sh
 set -euo pipefail
 

@@ -10,7 +10,7 @@
 # (runtime WebAssembly.instantiate of the decoded bytes) is the portable form.
 #
 # Build-only (no deploy/secrets). Run from the crate root (/home/linhuan/gproxy/v2):
-#   cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+#   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 #   bash deploy/supabase/build.sh
 set -euo pipefail
 
