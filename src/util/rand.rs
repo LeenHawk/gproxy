@@ -6,7 +6,7 @@
 /// Fill `buf` with cryptographically secure random bytes. Panics only if the
 /// platform RNG is unavailable, which is unrecoverable for our use.
 pub fn fill(buf: &mut [u8]) {
-    getrandom::getrandom(buf).expect("platform RNG unavailable");
+    getrandom::fill(buf).expect("platform RNG unavailable");
 }
 
 /// A fresh array of `N` random bytes.
