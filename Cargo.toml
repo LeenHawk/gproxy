@@ -31,15 +31,15 @@ arc-swap = "1"
 base64 = "0.22"
 blake3 = "1"
 bytes = "1"
-chacha20poly1305 = "0.11.0-rc.3"
+chacha20poly1305 = "0.11.0"
 futures-core = "0.3"
 futures-util = "0.3"
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.0.18" }
 gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "2.0.18" }
 gproxy-transform = { path = "crates/gproxy-transform", version = "2.0.18" }
 # Single RNG source for DEK/nonce/PKCE/ids across native + wasm. Native uses the
-# default OS backend; wasm enables the `js` backend (see the wasm target table).
-getrandom = "0.2"
+# default OS backend; wasm enables the `wasm_js` backend (see the wasm target table).
+getrandom = "0.4"
 http = "1"
 httpdate = "1"
 regex = "1"
@@ -65,25 +65,25 @@ tower = { version = "0.5", default-features = false, features = ["util", "limit"
 tower-http = { version = "0.7", features = ["cors"] }
 clap = { version = "4", features = ["derive", "env"] }
 redis = { version = "1", features = ["tokio-comp", "connection-manager"], optional = true }
-sea-orm = { version = "2.0.0-rc.40", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-postgres", "sqlx-mysql"], optional = true }
+sea-orm = { version = "2.0.0-rc.42", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-postgres", "sqlx-mysql"], optional = true }
 # MIGRATE-V1 (remove in 2.1): read-only reader for the legacy v1 SQLite DB during
 # the one-shot v1→v2 startup migration. Only the `sqlite` driver is needed; the
 # write path goes through the normal `persist-db` backend.
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "sqlite"], optional = true }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "sqlite"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-wreq = { version = "6.0.0-rc.28", features = ["json", "stream", "gzip", "brotli", "zstd", "deflate", "ws", "socks"], optional = true }
-wreq-util = { version = "3.0.0-rc.11", optional = true }
+wreq = { version = "6.0.0-rc.29", features = ["json", "stream", "gzip", "brotli", "zstd", "deflate", "ws", "socks"], optional = true }
+wreq-util = { version = "3.0.0-rc.14", optional = true }
 # self-update (§19, native-only). semver: `releases`-channel version compare.
 # ed25519-dalek: verify the signed release manifest with an embedded public key
 # (already in the tree via jsonwebtoken; pinned here as a direct dep). self-replace:
 # atomic Unix/Windows binary swap.
 semver = "1"
-ed25519-dalek = "2"
+ed25519-dalek = "3"
 self-replace = "1"
 # self-update: extract the `gproxy` executable from the downloaded release `.zip`
 # before the atomic swap. default-features off → only the deflate codec the
 # release packager uses (`zip -9` / Compress-Archive), no extra codecs.
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 # Console SPA embedding (§9; spec 2026-06-13-console-design.md B1). Native-only:
 # wasm/edge builds never embed the console (size-sensitive).
 rust-embed = { version = "8", features = ["include-exclude"] }
@@ -92,11 +92,11 @@ mime_guess = "2"
 # ── wasm32-only ───────────────────────────────────────────────────────────────
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 axum = { version = "0.8", default-features = false, features = ["json"] }
-# Two getrandom majors coexist on wasm: jsonwebtoken/p256/p384 → 0.2 (js
-# feature); chacha20poly1305 0.11 (crypto-common 0.2) → 0.4 (wasm_js feature,
+# Two getrandom majors coexist on wasm: jsonwebtoken/p256/p384 → 0.2 (`js`
+# feature); the application and crypto-common 0.2 → 0.4 (`wasm_js` feature,
 # paired with the --cfg getrandom_backend rustflag in .cargo/config.toml).
-getrandom = { version = "0.2", features = ["js"] }
-getrandom_v04 = { version = "0.4", package = "getrandom", features = ["wasm_js"] }
+getrandom_v02 = { version = "0.2", package = "getrandom", features = ["js"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
