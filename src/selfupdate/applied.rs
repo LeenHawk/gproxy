@@ -1,7 +1,7 @@
 //! Staging-channel rollback guard (§19.3): a small on-disk ledger of applied
-//! artifact sha256s at `<data_dir>/.update/applied.json`.
+//! build identities (commit SHAs) at `<data_dir>/.update/applied.json`.
 //!
-//! The `staging` channel decides updates by sha256 (no version ordering), so
+//! The `staging` channel decides updates by commit identity (with no ordering), so
 //! without a record of what we've installed, an attacker who replays a
 //! stale-but-validly-signed manifest could roll the binary *backward* to a
 //! superseded build (e.g. one with a known bug). We refuse to install a sha we
@@ -17,13 +17,14 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Keep the most-recent N applied shas — bounds the file. Builds that age out
+/// Keep the most-recent N applied identities — bounds the file. Builds that age out
 /// can't be rolled back to anyway, which is acceptable for a dev channel.
 const MAX_HISTORY: usize = 32;
 
 #[derive(Default, Serialize, Deserialize)]
 struct Ledger {
-    /// Lowercase hex sha256s, oldest first, newest last.
+    /// Lowercase commit identities, oldest first, newest last. The serialized
+    /// field name stays `shas` for compatibility with existing ledgers.
     shas: Vec<String>,
 }
 
