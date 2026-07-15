@@ -9,6 +9,7 @@
 use std::path::{Path, PathBuf};
 
 use super::UpdateError;
+use super::extract::{StagedBinary, StagedCompanion};
 use super::verify::sha256_hex;
 
 /// Sentinel exit code the supervisor model exits with after staging a new
@@ -36,8 +37,8 @@ fn current_exe_path() -> Result<PathBuf, UpdateError> {
 ///
 /// Steps: mark the staged file executable → copy the current binary to
 /// `<exe>.prev` → `self_replace::self_replace` (atomic swap, Unix/Windows aware).
-pub fn install(staged: &Path) -> Result<(), UpdateError> {
-    make_executable(staged)?;
+pub fn install(staged: &StagedBinary) -> Result<(), UpdateError> {
+    make_executable(&staged.executable)?;
 
     let exe = current_exe_path()?;
     let prev = prev_path(&exe);
@@ -47,18 +48,88 @@ pub fn install(staged: &Path) -> Result<(), UpdateError> {
         UpdateError::Swap(format!("failed to retain rollback copy at {prev:?}: {e}"))
     })?;
 
-    self_replace::self_replace(staged)
-        .map_err(|e| UpdateError::Swap(format!("self_replace failed: {e}")))?;
+    let installed_companions = install_companions(&exe, &staged.companions)?;
+    if let Err(error) = self_replace::self_replace(&staged.executable) {
+        restore_companions(&installed_companions);
+        return Err(UpdateError::Swap(format!("self_replace failed: {error}")));
+    }
 
     // The staged temp file is consumed by self_replace on success; clean up any
     // residue defensively.
-    let _ = std::fs::remove_file(staged);
+    let _ = std::fs::remove_file(&staged.executable);
+    for companion in &staged.companions {
+        let _ = std::fs::remove_file(&companion.path);
+    }
     Ok(())
 }
 
+#[derive(Debug)]
+struct InstalledCompanion {
+    destination: PathBuf,
+    backup: Option<PathBuf>,
+}
+
+fn install_companions(
+    exe: &Path,
+    companions: &[StagedCompanion],
+) -> Result<Vec<InstalledCompanion>, UpdateError> {
+    let parent = exe.parent().ok_or_else(|| {
+        UpdateError::Swap(format!(
+            "running executable has no parent directory: {exe:?}"
+        ))
+    })?;
+    let mut installed = Vec::new();
+    for companion in companions {
+        let destination = parent.join(companion.file_name);
+        let backup = if destination.is_file() {
+            let backup = prev_path(&destination);
+            std::fs::copy(&destination, &backup).map_err(|e| {
+                UpdateError::Swap(format!(
+                    "failed to retain companion rollback copy at {backup:?}: {e}"
+                ))
+            })?;
+            Some(backup)
+        } else {
+            None
+        };
+        let temp = appended_path(&destination, ".update");
+        if let Err(error) =
+            std::fs::copy(&companion.path, &temp).and_then(|_| std::fs::rename(&temp, &destination))
+        {
+            let _ = std::fs::remove_file(&temp);
+            restore_companions(&installed);
+            return Err(UpdateError::Swap(format!(
+                "failed to install runtime companion at {destination:?}: {error}"
+            )));
+        }
+        installed.push(InstalledCompanion {
+            destination,
+            backup,
+        });
+    }
+    Ok(installed)
+}
+
+fn restore_companions(installed: &[InstalledCompanion]) {
+    for companion in installed.iter().rev() {
+        match &companion.backup {
+            Some(backup) => {
+                let _ = std::fs::copy(backup, &companion.destination);
+            }
+            None => {
+                let _ = std::fs::remove_file(&companion.destination);
+            }
+        }
+    }
+}
+
 fn prev_path(exe: &Path) -> PathBuf {
-    let mut s = exe.as_os_str().to_owned();
-    s.push(".prev");
+    appended_path(exe, ".prev")
+}
+
+fn appended_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut s = path.as_os_str().to_owned();
+    s.push(suffix);
     PathBuf::from(s)
 }
 
@@ -127,5 +198,30 @@ mod tests {
     fn prev_path_appends_suffix() {
         let p = prev_path(Path::new("/usr/local/bin/gproxy"));
         assert_eq!(p, PathBuf::from("/usr/local/bin/gproxy.prev"));
+    }
+
+    #[test]
+    fn companion_install_retains_and_can_restore_previous_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("gproxy.bin");
+        let destination = dir.path().join("libc++_shared.so");
+        let staged = dir.path().join("new-libcxx.so");
+        std::fs::write(&exe, b"exe").unwrap();
+        std::fs::write(&destination, b"old").unwrap();
+        std::fs::write(&staged, b"new").unwrap();
+
+        let installed = install_companions(
+            &exe,
+            &[StagedCompanion {
+                path: staged,
+                file_name: "libc++_shared.so",
+            }],
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(&destination).unwrap(), b"new");
+        assert_eq!(std::fs::read(prev_path(&destination)).unwrap(), b"old");
+
+        restore_companions(&installed);
+        assert_eq!(std::fs::read(destination).unwrap(), b"old");
     }
 }

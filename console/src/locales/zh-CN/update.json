@@ -19,10 +19,16 @@
   },
   "apply": {
     "button": "更新并重启",
+    "apkButton": "下载并安装 APK",
     "confirm": {
       "title": "更新并重启？",
       "description": "此操作将下载新的二进制文件，保留旧版本为 .prev 以便回滚，并自动重启 GPROXY。",
       "confirmLabel": "更新并重启"
+    },
+    "apkConfirm": {
+      "title": "安装 Android 更新？",
+      "description": "此操作将下载并校验已签名的 APK，然后打开 Android 系统安装器；系统会要求你确认应用升级。",
+      "confirmLabel": "下载并安装"
     },
     "securityConfirm": {
       "title": "未完整校验，仍要更新？",
@@ -37,6 +43,7 @@
     "downloading": "正在下载更新…",
     "staged": "已暂存",
     "restarting": "正在重启",
+    "androidInstaller": "正在打开 Android 安装器",
     "failed": "失败",
     "stagedRestartNotice": "新的二进制文件已暂存。",
     "failedError": "错误"

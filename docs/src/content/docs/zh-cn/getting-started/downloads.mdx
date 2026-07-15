@@ -44,6 +44,9 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 ### Android
 
+APK 安装版可以从 Console 更新。GPROXY 校验已签名的 APK 后，会打开 Android 系统安装器
+请求用户确认。便携 Android ZIP 会同时更新 `gproxy.bin` 与配套的 C++ runtime。
+
 <CardGrid>
   <LinkCard title="Android ARM64" description="适用于多数现代 Android 手机和平板的 APK。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-aarch64.apk" />
   <LinkCard title="Android x86_64" description="适用于 x86_64 设备和模拟器的 APK。" href="https://github.com/LeenHawk/gproxy/releases/latest/download/gproxy-android-x86_64.apk" />

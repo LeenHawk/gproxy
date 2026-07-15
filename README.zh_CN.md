@@ -86,7 +86,8 @@ Android APK、Windows MSI、macOS DMG、Linux DEB 和便携 ZIP。Linux GNU 与 
 桌面安装版首次运行时会要求设置管理员用户名、密码以及是否随登录自动启动。Launcher
 不保存明文密码，GPROXY 会持久化 Argon2id 密码哈希供后续登录。
 之后可在 Console 设置中修改自动启动。APK 也提供自动启动开关，并会引导开启 Android
-后台运行权限。
+后台运行权限。Console 自更新会选择匹配的 GNU、musl 或 Android 架构；APK 更新会先完成
+校验，再交由 Android 系统安装器请求用户确认。
 
 > 如果只是想使用 GPROXY，请下载预构建产物。如果不是要开发 GPROXY 或制作定制版本，
 > 请不要克隆仓库并自行编译。

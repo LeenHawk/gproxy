@@ -21,6 +21,8 @@
 //! [`swap`] seams; [`version`] and [`manifest`] are pure and unit-tested.
 
 #[cfg(not(target_arch = "wasm32"))]
+mod android_apk;
+#[cfg(not(target_arch = "wasm32"))]
 mod applied;
 #[cfg(not(target_arch = "wasm32"))]
 mod download;
@@ -127,6 +129,24 @@ pub enum UpdateSafetyRisk {
     MissingPublicKey,
 }
 
+/// How the selected artifact is installed after verification.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateInstallMode {
+    Binary,
+    AndroidApk,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn current_install_mode() -> UpdateInstallMode {
+    if version::is_android_apk_installation() {
+        UpdateInstallMode::AndroidApk
+    } else {
+        UpdateInstallMode::Binary
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone, Copy)]
 pub struct ApplyOptions {
@@ -193,6 +213,9 @@ pub struct CheckReport {
     /// Safety metadata that is absent from the manifest or this binary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub safety: Vec<UpdateSafetyRisk>,
+    /// Whether apply replaces the executable or hands a verified APK to the
+    /// Android system package installer.
+    pub install_mode: UpdateInstallMode,
 }
 
 /// Runtime context for a self-update run.
@@ -230,6 +253,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
                 available: false,
                 notes_url: None,
                 safety: Vec::new(),
+                install_mode: current_install_mode(),
             });
         }
         Err(e) => return Err(e),
@@ -258,6 +282,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
         available: decision.available,
         notes_url: manifest.notes_url.clone(),
         safety,
+        install_mode: current_install_mode(),
     })
 }
 
@@ -375,15 +400,14 @@ pub async fn apply_with_options(
         )));
     }
 
-    // 1. Download the artifact (a release `.zip`) to a temp file on the same
-    //    filesystem as the binary.
-    let staged_zip = download::download_artifact(ctx, &artifact).await?;
+    // 1. Download the release package to private staging storage.
+    let staged_package = download::download_artifact(ctx, &artifact).await?;
 
-    // 2. Integrity: sha256 of the downloaded ZIP must equal the manifest's
+    // 2. Integrity: sha256 of the downloaded package must equal the manifest's
     //    when the manifest provides one. Missing sha256 reached here only after
     //    explicit operator confirmation.
     if let Some(sha) = artifact_sha.as_deref() {
-        verify::verify_sha256(&staged_zip, sha)?;
+        verify::verify_sha256(&staged_package, sha)?;
     }
 
     // 3. Signature: the embedded ed25519 public key must verify the manifest
@@ -393,14 +417,19 @@ pub async fn apply_with_options(
         verify::verify_manifest_signature(&manifest)?;
     }
 
-    // 4. Extract the `gproxy` executable from the staged zip. When safety
-    //    metadata is present, the zip's bytes were sha256-checked and that sha
-    //    is bound by the manifest signature, so the extracted binary inherits
-    //    that trust — no separate inner-hash needed.
-    let staged_bin = extract::extract_binary(&staged_zip)?;
-
-    // 5. Atomic swap, retaining `<exe>.prev` for rollback (§19.5 / §19.8).
-    swap::install(&staged_bin)?;
+    // 4/5. APK installations hand the verified package to the Java wrapper,
+    // which invokes Android's system installer after this child exits. Other
+    // installations extract and atomically replace the executable (plus the
+    // Android portable archive's shared C++ runtime).
+    if version::is_android_apk_installation() {
+        let apk = android_apk::stage(&ctx.data_dir, &staged_package)?;
+        tracing::info!(?apk, "verified Android package staged for system installer");
+    } else {
+        // When safety metadata is present, the archive's bytes were checked and
+        // bound by the manifest signature, so extracted files inherit trust.
+        let staged_bin = extract::extract_binary(&staged_package, &triple)?;
+        swap::install(&staged_bin)?;
+    }
     // Record the applied identity so a later replay of this (now-superseded)
     // build is caught by the rollback guard above. Staging only; best-effort.
     if let Some(local) = &local_identity {
@@ -409,13 +438,13 @@ pub async fn apply_with_options(
     tracing::info!(
         channel = ctx.channel.as_str(),
         version = %manifest.version,
-        "new binary staged"
+        "update artifact staged"
     );
 
     // 6. Restart / hand off (§19.6).
     match options.restart {
         Restart::Supervisor => swap::exit_for_supervisor(),
-        Restart::ReExec => swap::reexec(), // diverges on success
+        Restart::ReExec => restart_now(Restart::ReExec), // diverges on success
         Restart::None => Ok(manifest.version.clone()),
     }
 }
@@ -459,8 +488,16 @@ fn short_identity(value: &str) -> String {
 /// terminal response before the process is replaced.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn restart(restart: Restart) -> ! {
+    restart_now(restart)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn restart_now(restart: Restart) -> ! {
     match restart {
         Restart::Supervisor => swap::exit_for_supervisor(),
+        // An APK cannot replace itself. Exit back to the Java foreground
+        // service, which sees the sentinel and launches the system installer.
+        Restart::ReExec if version::is_android_apk_installation() => swap::exit_for_supervisor(),
         Restart::ReExec => swap::reexec(),
         Restart::None => std::process::exit(0),
     }

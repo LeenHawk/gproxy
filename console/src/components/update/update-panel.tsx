@@ -27,6 +27,7 @@ export function UpdatePanel() {
   const checkError = check.error as ApiError | null;
   const safety = checkData?.safety ?? [];
   const safetyText = formatSafetyRisks(safety, t);
+  const installingApk = checkData?.install_mode === "android_apk";
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [securityConfirmOpen, setSecurityConfirmOpen] = useState(false);
@@ -38,7 +39,7 @@ export function UpdatePanel() {
       setSecurityConfirmOpen(false);
       setSecurityWarning("");
       void qc.invalidateQueries({ queryKey: ["update", "status"] });
-      toast.success(t("status.restarting"));
+      toast.success(t(installingApk ? "status.androidInstaller" : "status.restarting"));
     },
     onError: (e) => {
       if (e instanceof ApiError && e.type === "confirmation_required") {
@@ -134,7 +135,7 @@ export function UpdatePanel() {
           </CardHeader>
           <CardContent>
             <div role="status" aria-live="polite" aria-busy={status.isFetching || applying}>
-              <StatusDisplay statusData={statusData} t={t} />
+              <StatusDisplay statusData={statusData} installingApk={installingApk} t={t} />
             </div>
           </CardContent>
         </Card>
@@ -145,7 +146,7 @@ export function UpdatePanel() {
         <div>
           <Button variant="default" disabled={applying} onClick={() => setConfirmOpen(true)}>
             {applying && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />}
-            {t("apply.button")}
+            {t(installingApk ? "apply.apkButton" : "apply.button")}
           </Button>
         </div>
       )}
@@ -153,9 +154,9 @@ export function UpdatePanel() {
       <ConfirmDangerous
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={t("apply.confirm.title")}
-        description={t("apply.confirm.description")}
-        confirmLabel={t("apply.confirm.confirmLabel")}
+        title={t(installingApk ? "apply.apkConfirm.title" : "apply.confirm.title")}
+        description={t(installingApk ? "apply.apkConfirm.description" : "apply.confirm.description")}
+        confirmLabel={t(installingApk ? "apply.apkConfirm.confirmLabel" : "apply.confirm.confirmLabel")}
         onConfirm={() => apply.mutate(false)}
         pending={applying}
       />
@@ -184,9 +185,11 @@ function formatSafetyRisks(safety: UpdateSafetyRisk[], t: (key: string) => strin
 
 function StatusDisplay({
   statusData,
+  installingApk,
   t,
 }: {
   statusData: UpdateStatus | undefined;
+  installingApk: boolean;
   t: (key: string) => string;
 }) {
   if (!statusData) {
@@ -216,7 +219,7 @@ function StatusDisplay({
       return (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          {t("status.restarting")} — v{statusData.version}
+          {t(installingApk ? "status.androidInstaller" : "status.restarting")} — v{statusData.version}
         </div>
       );
     case "failed":

@@ -157,6 +157,18 @@ public final class GproxyActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (GproxyUpdateProvider.hasPendingUpdate(this)) {
+            try {
+                GproxyUpdateActivity.launch(this);
+            } catch (RuntimeException error) {
+                log("Could not open the pending Android update: " + error);
+            }
+        }
+    }
+
+    @Override
     protected void onStop() {
         if (receiverRegistered) {
             unregisterReceiver(events);

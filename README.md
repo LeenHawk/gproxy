@@ -97,7 +97,9 @@ desktop builds ask for an administrator username, password, and login-startup
 preference on first run. The launcher does not save the plaintext password;
 GPROXY stores its Argon2id hash for future logins. Automatic startup can be
 changed later in Console Settings. The APK provides the same startup switch
-and guides users through Android's background-operation permission.
+and guides users through Android's background-operation permission. Console
+self-update selects the matching GNU, musl, or Android architecture; APK
+updates are verified before Android's system installer asks for approval.
 
 > If you only want to use GPROXY, download a prebuilt package. Do not clone and
 > compile the repository unless you are developing GPROXY or need a custom build.

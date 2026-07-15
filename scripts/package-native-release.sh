@@ -415,6 +415,7 @@ EOF
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
@@ -431,10 +432,20 @@ EOF
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".GproxyUpdateActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.Light.Dialog.Alert" />
         <service
             android:name=".GproxyService"
             android:exported="false"
             android:stopWithTask="false" />
+        <provider
+            android:name=".GproxyUpdateProvider"
+            android:authorities="$package_name.updates"
+            android:exported="false"
+            android:grantUriPermissions="true" />
         <receiver
             android:name=".GproxyBootReceiver"
             android:enabled="true"

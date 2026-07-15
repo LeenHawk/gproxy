@@ -33,6 +33,7 @@ public final class GproxyService extends Service {
     private static final String EXTRA_ADMIN_PASSWORD = "admin_password";
     private static final String CHANNEL_ID = "gproxy-background";
     private static final int NOTIFICATION_ID = 8787;
+    public static final int UPDATE_NOTIFICATION_ID = 8788;
     private static final int MAX_LOG_LINES = 200;
     private static final ArrayDeque<String> RECENT_LOG = new ArrayDeque<String>();
     private static volatile boolean running;
@@ -149,6 +150,7 @@ public final class GproxyService extends Service {
             ProcessBuilder builder = new ProcessBuilder(command);
             Map<String, String> env = builder.environment();
             env.put("LD_LIBRARY_PATH", libcxx.getParentFile().getAbsolutePath());
+            env.put("GPROXY_INSTALLATION_KIND", "android-apk");
             env.put("GPROXY_ADMIN_USER", adminUser);
             if (adminPassword != null && adminPassword.length() > 0) {
                 env.put("GPROXY_ADMIN_PASSWORD", adminPassword);
@@ -186,6 +188,17 @@ public final class GproxyService extends Service {
                     }
                     int code = child.waitFor();
                     appendLog("GPROXY exited with code " + code + ".");
+                    if (code == 42 && GproxyUpdateProvider.hasPendingUpdate(GproxyService.this)) {
+                        appendLog("Verified APK ready; opening Android's installer.");
+                        notifyInstallerReady();
+                        try {
+                            GproxyUpdateActivity.launch(GproxyService.this);
+                        } catch (RuntimeException error) {
+                            appendLog(
+                                "Could not open the installer automatically. Open the GPROXY app to continue: "
+                                + error);
+                        }
+                    }
                 } catch (Exception error) {
                     appendLog("Output reader failed: " + error);
                 } finally {
@@ -289,6 +302,21 @@ public final class GproxyService extends Service {
     private void updateNotification(String text) {
         ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
             .notify(NOTIFICATION_ID, notification(text));
+    }
+
+    private void notifyInstallerReady() {
+        Intent install = new Intent(this, GproxyUpdateActivity.class);
+        PendingIntent action = PendingIntent.getActivity(
+            this, 2, install, pendingIntentFlags(PendingIntent.FLAG_UPDATE_CURRENT));
+        Notification notification = new Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("GPROXY update ready")
+            .setContentText("Tap to approve the verified APK in Android's installer.")
+            .setSmallIcon(getApplicationInfo().icon)
+            .setContentIntent(action)
+            .setAutoCancel(true)
+            .build();
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+            .notify(UPDATE_NOTIFICATION_ID, notification);
     }
 
     @Override

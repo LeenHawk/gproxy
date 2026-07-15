@@ -1,0 +1,99 @@
+package __PACKAGE__;
+
+import android.app.Activity;
+import android.app.NotificationManager;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.widget.Toast;
+
+/** Requests unknown-source permission when needed, then hands the already
+ * verified APK to Android's package installer for explicit user approval. */
+public final class GproxyUpdateActivity extends Activity {
+    private static final int REQUEST_UNKNOWN_SOURCES = 1;
+    private static final int REQUEST_INSTALL = 2;
+
+    public static void launch(Context context) {
+        Intent intent = new Intent(context, GproxyUpdateActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        context.startActivity(intent);
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        ((NotificationManager) getSystemService(NOTIFICATION_SERVICE))
+            .cancel(GproxyService.UPDATE_NOTIFICATION_ID);
+        continueInstall();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_UNKNOWN_SOURCES) {
+            if (canInstallPackages()) {
+                openPackageInstaller();
+            } else {
+                GproxyUpdateProvider.markerFile(this).delete();
+                Toast.makeText(
+                    this,
+                    "Allow GPROXY to install updates, then try again.",
+                    Toast.LENGTH_LONG).show();
+                finish();
+            }
+        } else if (requestCode == REQUEST_INSTALL) {
+            finish();
+        }
+    }
+
+    private void continueInstall() {
+        if (!GproxyUpdateProvider.hasPendingUpdate(this)) {
+            Toast.makeText(this, "No verified GPROXY update is pending.", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        if (canInstallPackages()) {
+            openPackageInstaller();
+            return;
+        }
+        Intent permission = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+        permission.setData(Uri.parse("package:" + getPackageName()));
+        try {
+            startActivityForResult(permission, REQUEST_UNKNOWN_SOURCES);
+        } catch (RuntimeException error) {
+            GproxyUpdateProvider.markerFile(this).delete();
+            Toast.makeText(
+                this,
+                "Open Android Settings and allow GPROXY to install unknown apps.",
+                Toast.LENGTH_LONG).show();
+            finish();
+        }
+    }
+
+    private boolean canInstallPackages() {
+        return Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
+    }
+
+    private void openPackageInstaller() {
+        Intent install = new Intent(Intent.ACTION_VIEW);
+        install.setDataAndType(
+            GproxyUpdateProvider.apkUri(),
+            "application/vnd.android.package-archive");
+        install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(install, REQUEST_INSTALL);
+            // The APK remains available to the content provider while the
+            // installer reads it. Removing only the marker prevents a stale
+            // prompt if the user cancels; checking again can stage it anew.
+            GproxyUpdateProvider.markerFile(this).delete();
+        } catch (RuntimeException error) {
+            GproxyUpdateProvider.markerFile(this).delete();
+            Toast.makeText(this, "Could not open Android's package installer.", Toast.LENGTH_LONG)
+                .show();
+            finish();
+        }
+    }
+}
