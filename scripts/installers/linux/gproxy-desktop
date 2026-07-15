@@ -56,6 +56,8 @@ fi
 admin_user=""
 admin_password=""
 enable_autostart=""
+bootstrap_channels=""
+admin_api_key=""
 if [ ! -f "$admin_marker" ]; then
   admin_user="$(zenity --entry --title="Set up GPROXY" \
     --text="Choose the administrator username used to sign in to Console." \
@@ -83,11 +85,50 @@ if [ ! -f "$admin_marker" ]; then
   else
     enable_autostart=false
   fi
+
+  bootstrap_channels="$(zenity --list --checklist \
+    --title="Set up GPROXY" \
+    --text="Create providers for any built-in channels you want to configure now." \
+    --width=620 --height=620 \
+    --separator=, --print-column=2 --hide-column=2 \
+    --column="Use" --column="ID" --column="Channel" \
+    FALSE openai "OpenAI API" \
+    FALSE openrouter "OpenRouter" \
+    FALSE deepseek "DeepSeek" \
+    FALSE groq "Groq" \
+    FALSE nvidia "NVIDIA NIM" \
+    FALSE vercel "Vercel AI Gateway" \
+    FALSE custom "Custom endpoint (configure base URL later)" \
+    FALSE claudeapi "Anthropic API" \
+    FALSE aistudio "Google AI Studio" \
+    FALSE vertexexpress "Vertex AI Express" \
+    FALSE vertex "Vertex AI" \
+    FALSE codex "OpenAI Codex" \
+    FALSE claudecode "Claude Code" \
+    FALSE geminicli "Gemini CLI" \
+    FALSE antigravity "Antigravity" \
+    FALSE grokbuild "Grok Build" \
+    FALSE kiro "Kiro" \
+    FALSE copilotcli "GitHub Copilot CLI" \
+    FALSE chatgpt "ChatGPT Web" \
+    FALSE claudeweb "Claude Web" 2>/dev/null || true)"
+
+  if zenity --question --title="Set up GPROXY" \
+    --text="Generate an administrator API key? It will be shown once after setup." \
+    --ok-label="Generate" --cancel-label="Skip" 2>/dev/null; then
+    admin_api_key="$(/usr/bin/gproxy generate-key)"
+    case "$admin_api_key" in
+      sk-*) ;;
+      *) show_error "GPROXY could not generate an administrator API key."; exit 1 ;;
+    esac
+  fi
 fi
 
 if [ -n "$admin_password" ]; then
   GPROXY_ADMIN_USER="$admin_user" \
   GPROXY_ADMIN_PASSWORD="$admin_password" \
+  GPROXY_BOOTSTRAP_CHANNELS="$bootstrap_channels" \
+  GPROXY_BOOTSTRAP_ADMIN_API_KEY="$admin_api_key" \
     nohup /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
 else
   nohup /usr/bin/gproxy --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
@@ -121,6 +162,14 @@ if [ -n "$admin_user" ]; then
   printf '1\n' >"$autostart_marker"
   chmod 600 "$autostart_marker"
   configure_autostart "$enable_autostart"
+  if [ -n "$admin_api_key" ]; then
+    printf 'Copy this key now. It grants administrator access and will not be shown again.\n\n%s\n' \
+      "$admin_api_key" | zenity --text-info \
+      --title="GPROXY administrator API key" \
+      --width=620 --height=180 \
+      --ok-label="I have copied the key" 2>/dev/null || true
+    admin_api_key=""
+  fi
 fi
 
 if [ "$open_console" = "true" ]; then

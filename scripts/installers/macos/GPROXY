@@ -83,6 +83,8 @@ fi
 admin_user=""
 admin_password=""
 enable_autostart=""
+bootstrap_channels=""
+admin_api_key=""
 if [ ! -f "$admin_marker" ]; then
   admin_user="$(osascript -e 'text returned of (display dialog "Choose the administrator username used to sign in to Console." default answer "admin" with title "Set up GPROXY" buttons {"Cancel", "Continue"} default button "Continue" cancel button "Cancel")' 2>/dev/null || true)"
   if [ -z "$(printf '%s' "$admin_user" | tr -d '[:space:]')" ]; then
@@ -104,11 +106,38 @@ if [ ! -f "$admin_marker" ]; then
   else
     enable_autostart=false
   fi
+
+  bootstrap_channels="$(osascript <<'APPLESCRIPT' 2>/dev/null || true
+set picked to choose from list {"openai — OpenAI API", "openrouter — OpenRouter", "deepseek — DeepSeek", "groq — Groq", "nvidia — NVIDIA NIM", "vercel — Vercel AI Gateway", "custom — Custom endpoint (configure base URL later)", "claudeapi — Anthropic API", "aistudio — Google AI Studio", "vertexexpress — Vertex AI Express", "vertex — Vertex AI", "codex — OpenAI Codex", "claudecode — Claude Code", "geminicli — Gemini CLI", "antigravity — Antigravity", "grokbuild — Grok Build", "kiro — Kiro", "copilotcli — GitHub Copilot CLI", "chatgpt — ChatGPT Web", "claudeweb — Claude Web"} with title "Set up GPROXY" with prompt "Create providers for any built-in channels you want to configure now." with multiple selections allowed and empty selection allowed
+if picked is false then return ""
+set ids to {}
+repeat with itemName in picked
+  set itemText to itemName as text
+  set end of ids to word 1 of itemText
+end repeat
+set previousDelimiters to AppleScript's text item delimiters
+set AppleScript's text item delimiters to ","
+set joinedIds to ids as text
+set AppleScript's text item delimiters to previousDelimiters
+return joinedIds
+APPLESCRIPT
+)"
+
+  key_choice="$(osascript -e 'button returned of (display dialog "Generate an administrator API key? It will be shown once after setup." with title "Set up GPROXY" buttons {"Skip", "Generate"} default button "Generate")')"
+  if [ "$key_choice" = "Generate" ]; then
+    admin_api_key="$("$binary" generate-key)"
+    case "$admin_api_key" in
+      sk-*) ;;
+      *) show_alert "GPROXY could not generate an administrator API key."; exit 1 ;;
+    esac
+  fi
 fi
 
 if [ -n "$admin_password" ]; then
   GPROXY_ADMIN_USER="$admin_user" \
   GPROXY_ADMIN_PASSWORD="$admin_password" \
+  GPROXY_BOOTSTRAP_CHANNELS="$bootstrap_channels" \
+  GPROXY_BOOTSTRAP_ADMIN_API_KEY="$admin_api_key" \
     "$binary" --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
 else
   "$binary" --data-dir "$data_dir" >>"$log_dir/gproxy.log" 2>&1 &
@@ -142,6 +171,16 @@ if [ -n "$admin_user" ]; then
   printf '1\n' >"$autostart_marker"
   chmod 600 "$autostart_marker"
   configure_autostart "$enable_autostart"
+  if [ -n "$admin_api_key" ]; then
+    osascript - "$admin_api_key" <<'APPLESCRIPT' >/dev/null
+on run argv
+  set apiKey to item 1 of argv
+  set the clipboard to apiKey
+  display dialog "This key grants administrator access and will not be shown again. It has been copied to the clipboard." default answer apiKey with title "GPROXY administrator API key" buttons {"Done"} default button "Done"
+end run
+APPLESCRIPT
+    admin_api_key=""
+  fi
 fi
 
 if [ "$background" = "false" ]; then

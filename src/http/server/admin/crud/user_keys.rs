@@ -43,7 +43,7 @@ pub async fn upsert(
     if body.api_key.is_some() {
         return Err(ApiError::BadRequest(
             "api_key is not accepted: keys are generated server-side on create \
-             (external key material is import-only)"
+             (external key material uses import or host-level first-run bootstrap)"
                 .into(),
         ));
     }

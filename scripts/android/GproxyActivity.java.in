@@ -2,6 +2,8 @@ package __PACKAGE__;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -14,6 +16,7 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.text.InputType;
+import android.util.Base64;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
@@ -24,12 +27,33 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.security.SecureRandom;
+
 public final class GproxyActivity extends Activity {
     private EditText adminUserInput;
     private EditText adminPasswordInput;
     private Switch autoStartSwitch;
+    private Button channelsButton;
+    private Switch generateKeySwitch;
+    private Button startButton;
     private TextView logView;
     private boolean receiverRegistered;
+    private boolean startRequested;
+    private final boolean[] selectedChannels = new boolean[20];
+
+    private static final String[] CHANNEL_IDS = {
+        "openai", "openrouter", "deepseek", "groq", "nvidia", "vercel", "custom",
+        "claudeapi", "aistudio", "vertexexpress", "vertex", "codex", "claudecode",
+        "geminicli", "antigravity", "grokbuild", "kiro", "copilotcli", "chatgpt",
+        "claudeweb"
+    };
+    private static final String[] CHANNEL_LABELS = {
+        "OpenAI API", "OpenRouter", "DeepSeek", "Groq", "NVIDIA NIM",
+        "Vercel AI Gateway", "Custom endpoint (configure base URL later)",
+        "Anthropic API", "Google AI Studio", "Vertex AI Express", "Vertex AI",
+        "OpenAI Codex", "Claude Code", "Gemini CLI", "Antigravity", "Grok Build",
+        "Kiro", "GitHub Copilot CLI", "ChatGPT Web", "Claude Web"
+    };
 
     private final BroadcastReceiver events = new BroadcastReceiver() {
         @Override
@@ -37,6 +61,9 @@ public final class GproxyActivity extends Activity {
             String line = intent.getStringExtra(GproxyService.EXTRA_LOG);
             if (line != null && line.length() > 0) {
                 log(line);
+            }
+            if (!GproxyService.isRunning() && !GproxyService.isStarting()) {
+                startRequested = false;
             }
             refreshState();
         }
@@ -81,9 +108,22 @@ public final class GproxyActivity extends Activity {
             }
         });
 
-        Button start = new Button(this);
-        start.setText("Start GPROXY");
-        start.setOnClickListener(new View.OnClickListener() {
+        channelsButton = new Button(this);
+        channelsButton.setText("Choose built-in channels (optional)");
+        channelsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                chooseChannels();
+            }
+        });
+
+        generateKeySwitch = new Switch(this);
+        generateKeySwitch.setText("Generate an administrator API key (shown once)");
+        generateKeySwitch.setChecked(true);
+
+        startButton = new Button(this);
+        startButton.setText("Start GPROXY");
+        startButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 startGproxy();
@@ -110,7 +150,9 @@ public final class GproxyActivity extends Activity {
         root.addView(adminUserInput);
         root.addView(adminPasswordInput);
         root.addView(autoStartSwitch);
-        root.addView(start);
+        root.addView(channelsButton);
+        root.addView(generateKeySwitch);
+        root.addView(startButton);
         root.addView(stop);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(logView);
@@ -124,6 +166,7 @@ public final class GproxyActivity extends Activity {
             prefs.contains(GproxyService.PREF_ADMIN_USER));
         if (adminConfigured) {
             prefs.edit().putBoolean(GproxyService.PREF_ADMIN_CONFIGURED, true).apply();
+            refreshState();
         }
         if (autoStartSwitch.isChecked() && adminConfigured) {
             root.post(new Runnable() {
@@ -194,17 +237,93 @@ public final class GproxyActivity extends Activity {
                 .show();
             return;
         }
-        prefs.edit()
-            .putString(GproxyService.PREF_ADMIN_USER, adminUser)
-            .putBoolean(GproxyService.PREF_ADMIN_CONFIGURED, true)
-            .apply();
-        GproxyService.start(this, adminUser, adminPassword);
+        String bootstrapChannels = adminConfigured ? "" : selectedChannelIds();
+        String adminApiKey = adminConfigured || !generateKeySwitch.isChecked()
+            ? "" : generateApiKey();
+        GproxyService.start(
+            this, adminUser, adminPassword, bootstrapChannels, adminApiKey);
+        startRequested = true;
+        refreshState();
+        if (adminApiKey.length() > 0) {
+            showGeneratedKey(adminApiKey);
+        }
     }
 
     private void refreshState() {
-        boolean running = GproxyService.isRunning();
-        adminUserInput.setEnabled(!running);
-        adminPasswordInput.setEnabled(!running);
+        boolean busy = GproxyService.isRunning()
+            || GproxyService.isStarting()
+            || startRequested;
+        adminUserInput.setEnabled(!busy);
+        adminPasswordInput.setEnabled(!busy);
+        boolean configured = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE)
+            .getBoolean(GproxyService.PREF_ADMIN_CONFIGURED, false);
+        channelsButton.setEnabled(!busy && !configured);
+        generateKeySwitch.setEnabled(!busy && !configured);
+        startButton.setEnabled(!busy);
+    }
+
+    private void chooseChannels() {
+        new AlertDialog.Builder(this)
+            .setTitle("Built-in channels")
+            .setMultiChoiceItems(
+                CHANNEL_LABELS,
+                selectedChannels,
+                new DialogInterface.OnMultiChoiceClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which, boolean checked) {
+                        selectedChannels[which] = checked;
+                    }
+                })
+            .setPositiveButton("Done", null)
+            .show();
+    }
+
+    private String selectedChannelIds() {
+        StringBuilder ids = new StringBuilder();
+        for (int i = 0; i < CHANNEL_IDS.length; i++) {
+            if (!selectedChannels[i]) {
+                continue;
+            }
+            if (ids.length() > 0) {
+                ids.append(',');
+            }
+            ids.append(CHANNEL_IDS[i]);
+        }
+        return ids.toString();
+    }
+
+    private String generateApiKey() {
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        return "sk-" + Base64.encodeToString(
+            random, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+    }
+
+    private void showGeneratedKey(final String apiKey) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(ClipData.newPlainText("GPROXY admin API key", apiKey));
+        }
+        EditText key = new EditText(this);
+        key.setText(apiKey);
+        key.setSingleLine(true);
+        key.setSelectAllOnFocus(true);
+        key.setKeyListener(null);
+        int pad = dp(20);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(pad, 0, pad, 0);
+        TextView warning = new TextView(this);
+        warning.setText(
+            "This key grants administrator access and will not be shown again. "
+            + "It has been copied to the clipboard.");
+        content.addView(warning);
+        content.addView(key);
+        new AlertDialog.Builder(this)
+            .setTitle("Administrator API key")
+            .setView(content)
+            .setPositiveButton("Done", null)
+            .show();
     }
 
     private void offerBackgroundPermission(boolean force) {
