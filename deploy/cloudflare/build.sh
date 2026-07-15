@@ -16,7 +16,7 @@
 # (which would fail in the Workers module sandbox).
 #
 # Run from the crate root (/home/linhuan/gproxy/v2):
-#   cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+#   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 #   bash deploy/cloudflare/build.sh
 set -euo pipefail
 

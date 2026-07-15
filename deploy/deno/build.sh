@@ -18,7 +18,7 @@ UPLOAD_ROOT="${TMPDIR:-/tmp}/gproxy-deno-upload"
 
 cd "$CRATE_ROOT"
 
-cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 
 rm -rf pkg
 wasm-bindgen --target deno --out-dir pkg \

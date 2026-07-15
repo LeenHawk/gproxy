@@ -64,9 +64,9 @@ musl variants. The same three Linux architectures are published in both the
 default GNU Docker image and the `-musl` image. Android releases also include
 per-ABI APKs for users who prefer an installable package over the raw archive.
 
-The Android APK includes a launcher UI and foreground service. Install the
-matching ABI APK and open **GPROXY**. Enter an administrator username and
-password, then tap **Start GPROXY**. The
+The Android APK requires Android 9 (API 28) or newer and includes a launcher UI
+and foreground service. Install the matching ABI APK and open **GPROXY**. Enter
+an administrator username and password, then tap **Start GPROXY**. The
 launcher switch controls later app-launch and device-boot startup. When
 the switch is enabled, the app explains why background operation is needed and
 opens Android's battery-optimization permission prompt. The service runs the

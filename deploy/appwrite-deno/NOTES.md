@@ -16,7 +16,7 @@ same wasm that runs on Netlify / Supabase / Deno Deploy.
 
 ```bash
 # 1. Build the wasm + glue (needs cargo; the glue is gitignored build output)
-cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 bash deploy/appwrite-deno/build.sh
 
 # 2. Configure the CLI (an API key avoids interactive/region login)

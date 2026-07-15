@@ -18,7 +18,7 @@
 //
 // Build recipe (run from the crate root; pkg/ is gitignored, so are the copies
 // of the glue + .wasm placed alongside this file):
-//   cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+//   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 //   wasm-bindgen --target deno --out-dir pkg \
 //     target/wasm32-unknown-unknown/release/gproxy.wasm
 //   # The crate exports a fn named `fetch` (the WinterCG entry point), which

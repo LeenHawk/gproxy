@@ -7,7 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
+import android.graphics.drawable.Icon;
 import android.os.IBinder;
 
 import java.io.File;
@@ -78,11 +78,7 @@ public final class GproxyService extends Service {
     }
 
     private static void startServiceCompat(Context context, Intent intent) {
-        if (Build.VERSION.SDK_INT >= 26) {
-            context.startForegroundService(intent);
-        } else {
-            context.startService(intent);
-        }
+        context.startForegroundService(intent);
     }
 
     @Override
@@ -205,7 +201,7 @@ public final class GproxyService extends Service {
     private void finishService() {
         running = false;
         starting = false;
-        stopForeground(true);
+        stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
         broadcast(null);
     }
@@ -259,11 +255,9 @@ public final class GproxyService extends Service {
     }
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID, "GPROXY background service", NotificationManager.IMPORTANCE_LOW);
-            getSystemService(NotificationManager.class).createNotificationChannel(channel);
-        }
+        NotificationChannel channel = new NotificationChannel(
+            CHANNEL_ID, "GPROXY background service", NotificationManager.IMPORTANCE_LOW);
+        getSystemService(NotificationManager.class).createNotificationChannel(channel);
     }
 
     private Notification notification(String text) {
@@ -273,19 +267,23 @@ public final class GproxyService extends Service {
         Intent stop = new Intent(this, GproxyService.class).setAction(ACTION_STOP);
         PendingIntent stopAction = PendingIntent.getService(
             this, 1, stop, pendingIntentFlags(PendingIntent.FLAG_UPDATE_CURRENT));
-        Notification.Builder builder = Build.VERSION.SDK_INT >= 26
-            ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
-        return builder.setContentTitle("GPROXY")
+        Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID);
+        builder.setContentTitle("GPROXY")
             .setContentText(text)
             .setSmallIcon(getApplicationInfo().icon)
             .setContentIntent(content)
-            .setOngoing(true)
-            .addAction(0, "Stop", stopAction)
-            .build();
+            .setOngoing(true);
+        addStopAction(builder, stopAction);
+        return builder.build();
+    }
+
+    private void addStopAction(Notification.Builder builder, PendingIntent stopAction) {
+        Icon icon = Icon.createWithResource(this, getApplicationInfo().icon);
+        builder.addAction(new Notification.Action.Builder(icon, "Stop", stopAction).build());
     }
 
     private int pendingIntentFlags(int flags) {
-        return Build.VERSION.SDK_INT >= 23 ? flags | PendingIntent.FLAG_IMMUTABLE : flags;
+        return flags | PendingIntent.FLAG_IMMUTABLE;
     }
 
     private void updateNotification(String text) {

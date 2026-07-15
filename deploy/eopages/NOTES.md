@@ -207,7 +207,7 @@ curl -L -c jar -b jar "https://gproxy-spike-te2iwbpy.edgeone.run/wasmtest?eo_tok
 curl -L      -b jar "https://gproxy-spike-te2iwbpy.edgeone.run/healthz"                              # -> hello-edgeone-pages
 
 # real GPROXY
-cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 bash deploy/eopages/build.sh                 # deno-target glue + lazy base64-inline patch
 edgeone pages deploy deploy/eopages/gproxy   --name gproxy-v2 -e production
 edgeone pages link                           # (enter: gproxy-v2) -> .edgeone/project.json
@@ -246,7 +246,7 @@ Remaining follow-ups:
 ```bash
 cd /home/linhuan/gproxy/v2
 set -a && source ./.env && set +a            # EDGEONE_PAGES_API_TOKEN (+ GPROXY_TEST_* storage)
-cargo build --lib --target wasm32-unknown-unknown --release --no-default-features --features edge
+cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 bash deploy/eopages/build.sh
 # trivial wasm proof:
 edgeone pages deploy deploy/eopages/trivial --name gproxy-spike -t "$EDGEONE_PAGES_API_TOKEN" -e production

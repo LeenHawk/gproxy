@@ -374,7 +374,7 @@ sign_android_apk() {
 }
 
 package_android_apk() {
-  local min_sdk="${ANDROID_MIN_SDK:-21}"
+  local min_sdk="${ANDROID_MIN_SDK:-28}"
   local target_sdk="${ANDROID_TARGET_SDK:-28}"
   local version_name version_code app_label_xml version_name_xml
   version_name="$(android_version_name)"

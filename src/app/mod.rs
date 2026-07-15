@@ -8,6 +8,7 @@ pub mod invalidation;
 #[cfg(feature = "migrate-v1")]
 pub mod migrate_v1;
 pub mod models_index;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod retention;
 pub mod snapshot;
 pub mod update_status;
@@ -238,7 +239,7 @@ impl AppState {
         }
     }
 
-    #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
+    #[cfg(all(not(target_arch = "wasm32"), not(feature = "upstream-wreq")))]
     pub(crate) fn upstream_client_for_cookie_login(
         &self,
         _channel: &Arc<dyn crate::channel::Channel>,

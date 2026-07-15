@@ -78,7 +78,7 @@ config. That branch contains no source build workflow.
 Use local builds for validation or temporary artifacts:
 
 ```bash
-cargo build --lib --target wasm32-unknown-unknown --release \
+cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release \
   --no-default-features --features edge
 ```
 

@@ -14,7 +14,7 @@
 //      GPROXY_TEST_MASTER_KEY (optional) unseals encrypted stored secrets.
 //
 // Full reproduction (pkg/ is gitignored, regenerate it first):
-//   cargo build --lib --target wasm32-unknown-unknown --release
+//   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release
 //   wasm-bindgen --target deno --out-dir pkg \
 //     target/wasm32-unknown-unknown/release/gproxy.wasm
 //   # The crate also exports a fn named `fetch` (the WinterCG entry point),
