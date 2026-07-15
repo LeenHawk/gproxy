@@ -2,8 +2,8 @@
 //!
 //! - `releases`: compare manifest `version` (semver) against
 //!   `CARGO_PKG_VERSION`; a strictly greater manifest version is an update.
-//! - `staging`: `version` is meaningless, so compare the manifest artifact's
-//!   sha256 against the running binary's sha256; any difference is an update.
+//! - `staging`: compare the manifest's commit identity against the identity
+//!   embedded in the running binary; any difference is an update.
 
 use semver::Version;
 
@@ -45,15 +45,15 @@ fn decide_semver(current_str: &str, manifest_version: &str) -> Result<UpdateDeci
     })
 }
 
-/// `staging` channel: sha256 compare. Available iff the manifest artifact's
-/// sha256 differs from the running binary's. Comparison is case-insensitive on
-/// the hex (defensive — both should be lowercase hex).
-pub fn staging_decision(local_sha256: &str, manifest_sha256: &str) -> UpdateDecision {
-    let available = !local_sha256.eq_ignore_ascii_case(manifest_sha256);
+/// `staging` channel: build-identity compare. Official rolling builds embed the
+/// commit SHA that is also carried in the signed manifest's `version` field.
+/// Comparison is case-insensitive because commit SHAs are hexadecimal.
+pub fn staging_decision(local_identity: &str, manifest_identity: &str) -> UpdateDecision {
+    let available = !local_identity.eq_ignore_ascii_case(manifest_identity);
     UpdateDecision {
         // Short prefixes are enough to identify a staging build to a human.
-        current: short_sha(local_sha256),
-        latest: short_sha(manifest_sha256),
+        current: short_sha(local_identity),
+        latest: short_sha(manifest_identity),
         available,
     }
 }
@@ -129,15 +129,15 @@ mod tests {
     }
 
     #[test]
-    fn staging_sha_diff_is_available() {
+    fn staging_build_diff_is_available() {
         let d = staging_decision("aaaa1111", "bbbb2222");
         assert!(d.available);
     }
 
     #[test]
-    fn staging_sha_same_not_available() {
+    fn staging_build_same_not_available() {
         let d = staging_decision("deadbeefcafef00d", "DEADBEEFCAFEF00D");
-        assert!(!d.available, "case-insensitive equal shas → no update");
+        assert!(!d.available, "same commit identity → no update");
         assert_eq!(d.current, "deadbeefcafe");
     }
 

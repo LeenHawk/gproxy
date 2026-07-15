@@ -9,9 +9,9 @@
 //! Two orthogonal release channels (§19.3):
 //! - `releases`: each version is a `vX.X.X` tag/Release; update decided by
 //!   **semver** (manifest `version` vs `CARGO_PKG_VERSION`).
-//! - `staging`: one fixed `staging` tag, CI re-uploads in place; `version` is
-//!   meaningless, so update is decided by comparing the manifest artifact
-//!   **sha256** to the running binary's sha256.
+//! - `staging`: one fixed `staging` tag, CI re-uploads in place; update is
+//!   decided by comparing the signed manifest's commit identity to the commit
+//!   identity embedded in the running binary.
 //!
 //! Trust anchor (§19.2): when the manifest carries sha256/signature metadata,
 //! the binary is verified before replacement. Missing safety metadata is never
@@ -60,7 +60,7 @@ pub enum Channel {
     /// Versioned `vX.X.X` releases; semver comparison. Production default.
     #[default]
     Releases,
-    /// Fixed `staging` tag, rolling re-upload; sha256 comparison.
+    /// Fixed `staging` tag, rolling re-upload; commit-identity comparison.
     Staging,
 }
 
@@ -242,19 +242,8 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
     let decision = match ctx.channel {
         Channel::Releases => version::releases_decision(&manifest.version)?,
         Channel::Staging => {
-            let local = swap::current_exe_sha256()?;
-            match artifact.sha256_value() {
-                Some(sha) => version::staging_decision(&local, sha),
-                None => UpdateDecision {
-                    current: short_identity(&local),
-                    latest: if manifest.version.trim().is_empty() {
-                        "unknown".to_string()
-                    } else {
-                        manifest.version.clone()
-                    },
-                    available: true,
-                },
-            }
+            let local = staging_current_identity()?;
+            version::staging_decision(&local, &manifest.version)
         }
     };
     let safety = if decision.available {
@@ -279,11 +268,24 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
 fn current_identity(ctx: &UpdateContext) -> Result<String, UpdateError> {
     Ok(match ctx.channel {
         Channel::Releases => env!("CARGO_PKG_VERSION").to_string(),
-        Channel::Staging => {
-            let sha = swap::current_exe_sha256()?;
-            sha[..sha.len().min(12)].to_string()
-        }
+        Channel::Staging => short_identity(&staging_current_identity()?),
     })
+}
+
+/// Identity of the running staging build. Official CI builds embed the commit
+/// SHA, matching the signed manifest `version`. Legacy/custom binaries have no
+/// embedded identity; falling back to their executable hash deliberately makes
+/// them take one update into the new identity scheme.
+#[cfg(not(target_arch = "wasm32"))]
+fn staging_current_identity() -> Result<String, UpdateError> {
+    if let Some(identity) = normalized_build_identity(option_env!("GPROXY_BUILD_VERSION")) {
+        return Ok(identity.to_string());
+    }
+    swap::current_exe_sha256()
+}
+
+fn normalized_build_identity(identity: Option<&str>) -> Option<&str> {
+    identity.map(str::trim).filter(|value| !value.is_empty())
 }
 
 /// Download, verify (sha256 + ed25519 signature), atomically swap, and (per
@@ -331,18 +333,17 @@ pub async fn apply_with_options(
         )));
     }
 
-    // The running binary's sha256 — for staging it drives both the
-    // already-up-to-date gate and the rollback guard, so compute it once.
-    let local_sha = match ctx.channel {
-        Channel::Staging => Some(swap::current_exe_sha256()?),
+    // The running build's commit identity drives both the staging
+    // already-up-to-date gate and rollback guard, so resolve it once.
+    let local_identity = match ctx.channel {
+        Channel::Staging => Some(staging_current_identity()?),
         Channel::Releases => None,
     };
 
     // Gate: only proceed if there is actually something to install.
-    let available = match (&local_sha, artifact_sha.as_deref()) {
-        (Some(local), Some(sha)) => version::staging_decision(local, sha).available,
-        (Some(_), None) => true,
-        (None, _) => version::releases_decision(&manifest.version)?.available,
+    let available = match &local_identity {
+        Some(local) => version::staging_decision(local, &manifest.version).available,
+        None => version::releases_decision(&manifest.version)?.available,
     };
     if !available {
         tracing::info!(channel = ctx.channel.as_str(), "already up to date");
@@ -361,16 +362,16 @@ pub async fn apply_with_options(
         );
     }
 
-    // Staging rollback guard (§19.3): `staging` decides by sha and has no version
-    // ordering, so a replayed older-but-validly-signed manifest could roll the
-    // binary backward. Refuse a sha we've already superseded. `releases` is
+    // Staging rollback guard (§19.3): commit SHAs have identity but no ordering,
+    // so a replayed older-but-validly-signed manifest could roll the binary
+    // backward. Refuse an identity we've already superseded. `releases` is
     // ordered by semver vs the compiled-in version and needs no ledger.
-    if let (Some(local), Some(target)) = (&local_sha, artifact_sha.as_deref())
-        && applied::is_rollback(&applied::load(&ctx.data_dir), local, target)
+    if let Some(local) = &local_identity
+        && applied::is_rollback(&applied::load(&ctx.data_dir), local, &manifest.version)
     {
         return Err(UpdateError::Downgrade(format!(
-            "staging artifact {} was already superseded by a newer build",
-            applied::short(target)
+            "staging build {} was already superseded by a newer build",
+            applied::short(&manifest.version)
         )));
     }
 
@@ -400,10 +401,10 @@ pub async fn apply_with_options(
 
     // 5. Atomic swap, retaining `<exe>.prev` for rollback (§19.5 / §19.8).
     swap::install(&staged_bin)?;
-    // Record the applied sha so a later replay of this (now-superseded) build is
-    // caught by the rollback guard above. Staging only; best-effort.
-    if let (Some(local), Some(target)) = (&local_sha, artifact_sha.as_deref()) {
-        applied::record(&ctx.data_dir, local, target);
+    // Record the applied identity so a later replay of this (now-superseded)
+    // build is caught by the rollback guard above. Staging only; best-effort.
+    if let Some(local) = &local_identity {
+        applied::record(&ctx.data_dir, local, &manifest.version);
     }
     tracing::info!(
         channel = ctx.channel.as_str(),
@@ -467,7 +468,7 @@ pub fn restart(restart: Restart) -> ! {
 
 #[cfg(test)]
 mod build_channel_tests {
-    use super::{Channel, channel_from_build_label};
+    use super::{Channel, channel_from_build_label, normalized_build_identity};
 
     #[test]
     fn build_label_selects_expected_channel() {
@@ -477,5 +478,15 @@ mod build_channel_tests {
             Channel::Releases
         );
         assert_eq!(channel_from_build_label(None), Channel::Releases);
+    }
+
+    #[test]
+    fn build_identity_is_trimmed_and_must_not_be_empty() {
+        assert_eq!(
+            normalized_build_identity(Some("  deadbeef  ")),
+            Some("deadbeef")
+        );
+        assert_eq!(normalized_build_identity(Some("  ")), None);
+        assert_eq!(normalized_build_identity(None), None);
     }
 }

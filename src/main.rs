@@ -142,7 +142,7 @@ enum Command {
         #[command(subcommand)]
         action: UpdateAction,
 
-        /// Release channel: `releases` (semver) or `staging` (sha256).
+        /// Release channel: `releases` (semver) or `staging` (commit identity).
         #[arg(long, env = "GPROXY_UPDATE_CHANNEL", default_value = "releases")]
         channel: gproxy::selfupdate::Channel,
     },

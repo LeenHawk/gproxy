@@ -5,7 +5,7 @@ name: release
 # GitHub Release, upload all assets, and publish it only after the manifest is
 # present. Every other trigger (push to `main`, manual dispatch) refreshes the
 # rolling `staging` tag with commit-namespaced native assets plus a signed
-# `staging` (sha256) manifest. Edge bundles and the deploy branch are
+# `staging` manifest keyed by commit identity. Edge bundles and the deploy branch are
 # regenerated on every run.
 on:
   workflow_dispatch:
@@ -30,7 +30,7 @@ env:
   CARGO_NET_RETRY: "10"
   # Effective publish target. Version tag pushes ship to their own tag on the
   # `releases` (semver) channel; push-to-main and manual dispatch refresh the
-  # fixed `staging` tag on the sha256-keyed `staging` channel.
+  # fixed `staging` tag on the commit-keyed `staging` channel.
   PUBLISH_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'staging' }}
   PUBLISH_CHANNEL: ${{ github.ref_type == 'tag' && 'releases' || 'staging' }}
 
@@ -76,6 +76,10 @@ jobs:
       # Tagged builds default to stable updates; rolling main builds default to
       # staging. Runtime CLI/env and Console settings can still override this.
       GPROXY_BUILD_CHANNEL: ${{ github.ref_type == 'tag' && 'releases' || 'staging' }}
+      # Staging compares this embedded identity with the signed manifest's
+      # `version`. Tagged builds carry their tag so overriding them to staging
+      # still correctly offers the rolling build.
+      GPROXY_BUILD_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
     defaults:
       run:
         shell: bash
@@ -379,8 +383,8 @@ jobs:
           UPDATE_SIGNING_PUBLIC_KEY_B64: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
           TAG: ${{ env.PUBLISH_TAG }}
           CHANNEL: ${{ env.PUBLISH_CHANNEL }}
-          # Releases derive `version` from the tag; staging is sha256-keyed, so its
-          # `version` is advisory — carry the commit sha for a human-readable id.
+          # Releases derive `version` from the tag; staging uses the commit SHA
+          # embedded in the corresponding native binaries.
           VERSION: ${{ env.PUBLISH_CHANNEL == 'releases' && env.PUBLISH_TAG || github.sha }}
           REPO: ${{ github.repository }}
           NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.PUBLISH_TAG }}

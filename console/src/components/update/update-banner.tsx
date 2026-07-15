@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { DownloadCloud } from "lucide-react";
+import { DownloadCloud, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { updateCheckQuery } from "@/api/update";
 import { Button } from "@/components/ui/button";
+import { dismissUpdate, readDismissedUpdate } from "@/lib/update-banner-dismissal";
 
 const AUTO_CHECK_STALE_TIME_MS = 15 * 60 * 1000;
 
@@ -12,13 +14,19 @@ const AUTO_CHECK_STALE_TIME_MS = 15 * 60 * 1000;
  *  interrupting normal Console use. */
 export function UpdateBanner() {
   const { t } = useTranslation();
+  const [dismissedIdentity, setDismissedIdentity] = useState(readDismissedUpdate);
   const { data } = useQuery({
     ...updateCheckQuery,
     enabled: true,
     staleTime: AUTO_CHECK_STALE_TIME_MS,
   });
 
-  if (!data?.available) return null;
+  if (!data?.available || dismissedIdentity === data.latest) return null;
+
+  const handleDismiss = () => {
+    dismissUpdate(data.latest);
+    setDismissedIdentity(data.latest);
+  };
 
   return (
     <div
@@ -33,6 +41,16 @@ export function UpdateBanner() {
         </p>
         <Button asChild size="sm" variant="outline" className="shrink-0 bg-background/70">
           <Link to="/update">{t("updateBanner.action")}</Link>
+        </Button>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900"
+          aria-label={t("actions.close")}
+          onClick={handleDismiss}
+        >
+          <X className="size-4" aria-hidden />
         </Button>
       </div>
     </div>

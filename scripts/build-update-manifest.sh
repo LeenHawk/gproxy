@@ -39,8 +39,8 @@ command -v openssl >/dev/null || { echo "openssl is required" >&2; exit 1; }
 
 channel="${CHANNEL:-releases}"
 if [ "$channel" = "staging" ]; then
-  # staging updates are decided by artifact sha256 (see src/selfupdate/version.rs),
-  # so `version` is advisory only — carry the commit sha for a human-readable id.
+  # staging updates are decided by the commit identity in `version` (see
+  # src/selfupdate/version.rs); official binaries embed the same commit SHA.
   version="${VERSION:-staging}"
 elif [ "$channel" = "releases" ]; then
   version="${VERSION:-${TAG#v}}"
