@@ -6,6 +6,10 @@ import { usageInfiniteQuery, type Usage, type UsageFilter } from "@/api/usage";
 import { providersQuery } from "@/api/providers";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { UsageFilters } from "@/components/observability/usage-filters";
+import {
+  formatUsageTimestamp,
+  UsageMobileCard,
+} from "@/components/observability/usage-mobile-card";
 import { RequestDrawer } from "@/components/observability/request-drawer";
 import { AuditTab } from "@/components/observability/audit-tab";
 import { LogsTab } from "@/components/observability/logs-tab";
@@ -24,16 +28,6 @@ export const Route = createFileRoute("/_app/usage/")({
   },
   component: UsagePage,
 });
-
-function fmtAt(unixSecs: number): string {
-  return new Date(unixSecs * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
 
 function UsagePage() {
   const { t } = useTranslation("observability");
@@ -70,7 +64,7 @@ function UsagePage() {
       header: t("usage.columns.at"),
       cell: (r) => (
         <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-          {fmtAt(r.at)}
+          {formatUsageTimestamp(r.at)}
         </span>
       ),
     },
@@ -193,22 +187,14 @@ function UsagePage() {
                 indeterminate: batch.selected.size > 0 && !batch.allSelectedFor(ids),
               } : undefined}
               renderCard={(r) => (
-                <div className="grid gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs">{r.operation}</span>
-                    <span className="tabular-nums text-xs">${parseFloat(r.cost || "0").toFixed(5)}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-                    <span>{fmtAt(r.at)}</span>
-                    {r.model && <span>· {r.model}</span>}
-                    {r.provider_id != null && <span>· {providerMap.get(r.provider_id) ?? `#${r.provider_id}`}</span>}
-                    <span>· {r.latency_ms}ms</span>
-                  </div>
-                  <div className="flex gap-1">
-                    <Badge variant="outline" className="text-xs">{r.usage_source}</Badge>
-                    <Badge variant="secondary" className="text-xs">{r.ended}</Badge>
-                  </div>
-                </div>
+                <UsageMobileCard
+                  usage={r}
+                  providerLabel={
+                    r.provider_id != null
+                      ? (providerMap.get(r.provider_id) ?? `#${r.provider_id}`)
+                      : undefined
+                  }
+                />
               )}
             />
           )}

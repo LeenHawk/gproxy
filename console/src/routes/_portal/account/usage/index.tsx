@@ -5,6 +5,10 @@ import { useTranslation } from "react-i18next";
 import { myRollupsQuery, myUsageInfiniteQuery, type MyUsageFilter } from "@/api/portal";
 import type { Usage } from "@/api/usage";
 import { UsageChart, type Metric } from "@/components/observability/usage-chart";
+import {
+  formatUsageTimestamp,
+  UsageMobileCard,
+} from "@/components/observability/usage-mobile-card";
 import { MyUsageFilters } from "@/components/portal/my-usage-filters";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -28,16 +32,6 @@ export const Route = createFileRoute("/_portal/account/usage/")({
   },
   component: MyUsagePage,
 });
-
-function fmtAt(unixSecs: number): string {
-  return new Date(unixSecs * 1000).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
 
 function MyUsagePage() {
   const { t } = useTranslation("portal");
@@ -70,7 +64,7 @@ function MyUsagePage() {
       header: tObs("usage.columns.at"),
       cell: (r) => (
         <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-          {fmtAt(r.at)}
+          {formatUsageTimestamp(r.at)}
         </span>
       ),
     },
@@ -205,23 +199,7 @@ function MyUsagePage() {
           rows={rows}
           rowKey={(r) => r.id}
           empty={t("usage.empty")}
-          renderCard={(r) => (
-            <div className="grid gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-xs">{r.operation}</span>
-                <span className="tabular-nums text-xs">${parseFloat(r.cost || "0").toFixed(5)}</span>
-              </div>
-              <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-                <span>{fmtAt(r.at)}</span>
-                {r.model && <span>· {r.model}</span>}
-                <span>· {r.latency_ms}ms</span>
-              </div>
-              <div className="flex gap-1">
-                <Badge variant="outline" className="text-xs">{r.usage_source}</Badge>
-                <Badge variant="secondary" className="text-xs">{r.ended}</Badge>
-              </div>
-            </div>
-          )}
+          renderCard={(r) => <UsageMobileCard usage={r} />}
         />
       )}
 

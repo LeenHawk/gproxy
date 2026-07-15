@@ -1,4 +1,5 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
+import { ShieldCheck, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 type ShellFrom = "/_app" | "/_portal";
@@ -21,10 +22,11 @@ export function AreaSwitcher({ contextFrom }: { contextFrom: ShellFrom }) {
     return (
       <Link
         to="/account/keys"
-        className="hidden items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:flex"
+        className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:size-auto sm:gap-1 sm:px-3 sm:py-1.5 sm:text-xs sm:font-medium"
         aria-label={t("nav.myAccount")}
       >
-        {t("nav.myAccount")}
+        <UserRound className="size-4" aria-hidden />
+        <span className="hidden sm:inline">{t("nav.myAccount")}</span>
       </Link>
     );
   }
@@ -32,10 +34,11 @@ export function AreaSwitcher({ contextFrom }: { contextFrom: ShellFrom }) {
   return (
     <Link
       to="/"
-      className="hidden items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:flex"
+      className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:size-auto sm:gap-1 sm:px-3 sm:py-1.5 sm:text-xs sm:font-medium"
       aria-label={t("nav.adminConsole")}
     >
-      {t("nav.adminConsole")}
+      <ShieldCheck className="size-4" aria-hidden />
+      <span className="hidden sm:inline">{t("nav.adminConsole")}</span>
     </Link>
   );
 }

@@ -81,19 +81,23 @@ function ProvidersPage() {
             allSelected: batch.allSelectedFor(ids),
             indeterminate: batch.selected.size > 0 && !batch.allSelectedFor(ids),
           } : undefined}
-          renderCard={(p) => (
-            <div className="grid gap-1">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{p.label ?? p.name}</span>
-                <EnabledBadge enabled={p.enabled} />
+          renderCard={(p) => {
+            const meta = channelMeta(p.channel);
+            return (
+              <div className="grid gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{p.label ?? p.name}</span>
+                  <EnabledBadge enabled={p.enabled} />
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-mono">{p.channel}</span>
+                  {meta && <Badge variant="outline">{t(`family.${meta.family}`)}</Badge>}
+                  <span>·</span>
+                  <span>{t(`strategy.${p.credential_strategy}`, { defaultValue: p.credential_strategy })}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-mono">{p.channel}</span>
-                <span>·</span>
-                <span>{t(`strategy.${p.credential_strategy}`, { defaultValue: p.credential_strategy })}</span>
-              </div>
-            </div>
-          )}
+            );
+          }}
         />
       )}
 
