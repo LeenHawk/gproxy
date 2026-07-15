@@ -58,7 +58,9 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
         renderCard={(r) => (
           <div className="grid gap-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-xs">{r.method} {r.path}</span>
+              <span className="font-mono text-xs">
+                {r.method} {r.path}{r.query ? `?${r.query}` : ""}
+              </span>
               <Badge variant={r.status >= 400 ? "destructive" : "secondary"}>{r.status}</Badge>
             </div>
             <span className="text-xs text-muted-foreground">{fmtAt(r.at)}</span>

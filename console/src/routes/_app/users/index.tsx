@@ -121,6 +121,11 @@ function UsersPage() {
               <span className="text-xs text-muted-foreground">
                 {orgMap.get(u.org_id) ?? `#${u.org_id}`}
               </span>
+              {u.has_password ? (
+                <Badge variant="secondary" className="w-fit">{t("users.hasPassword")}</Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">{t("users.noPassword")}</span>
+              )}
             </div>
           )}
         />
