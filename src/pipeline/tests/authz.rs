@@ -121,6 +121,11 @@ async fn provider_model_child_permission_filters_aggregate_catalogue() {
         json!([{ "id": 1, "scope": "user", "scope_id": 1,
                  "route_pattern": "oai/gpt-test" }]),
     );
+    // This test exercises permission filtering of a live catalogue. The shared
+    // fixture routes oai ListModels locally, so opt this case into passthrough.
+    let mut bundle: Value = serde_json::from_str(&bundle).unwrap();
+    bundle["routing_rules"][0]["implementation"] = json!("passthrough");
+    let bundle = serde_json::to_string(&bundle).unwrap();
     let upstream = json!({
         "object": "list",
         "data": [
