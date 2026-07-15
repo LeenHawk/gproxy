@@ -16,7 +16,9 @@ use http::header::{ACCEPT, CONTENT_TYPE};
 use http::{Request, Response};
 use serde_json::Value;
 
-use super::auth::{CLAUDE_AI_BASE_URL, DEFAULT_REDIRECT_URI, OAUTH_CLIENT_ID, OAUTH_SCOPE};
+use super::auth::{
+    CLAUDE_AI_BASE_URL, DEFAULT_REDIRECT_URI, OAUTH_CLIENT_ID, OAUTH_SCOPE, USER_AGENT,
+};
 use crate::channel::ChannelError;
 use crate::channel::oauth;
 use crate::http::client::UpstreamClient;
@@ -24,7 +26,6 @@ use crate::http::client::UpstreamClient;
 const API_BASE: &str = "https://api.anthropic.com";
 const API_VERSION: &str = "2023-06-01";
 const OAUTH_BETA: &str = "oauth-2025-04-20";
-const USER_AGENT: &str = "claude-code/2.1.199";
 
 /// claude.ai is Cloudflare-fronted and intermittently answers with a managed
 /// "Just a moment…" challenge instead of the real response. The challenge is
