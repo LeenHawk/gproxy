@@ -47,10 +47,12 @@ console, admin API, or JSON import/export.
 | --- | --- | --- |
 | `GPROXY_ADMIN_USER` | `admin` | Admin username used by first-boot bootstrap and by the recovery override. |
 | `GPROXY_ADMIN_PASSWORD` | Empty | If set, force-upserts/resets the named admin user on every startup. The password must satisfy the same policy as the admin API. Remove it after recovery. If unset and the users table is empty, GPROXY creates an admin with a random password and prints it once. |
+| `GPROXY_BOOTSTRAP_CHANNELS` | Empty | Comma-separated built-in channel ids to materialize as enabled providers with default routing rules. Existing providers for a selected channel are kept. The equivalent CLI option is repeatable `--bootstrap-channel`. |
+| `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | Empty | Assign this API key to the named administrator, idempotently by digest. Native installers pass a freshly generated key only to the first server process and display it once; do not keep this plaintext variable in a persistent startup entry. |
 
-There is no `GPROXY_ADMIN_API_KEY` bootstrap variable in the current v2 native
-path. User API keys are generated or managed through the admin/portal APIs, or
-imported through a JSON bundle.
+`gproxy generate-key` prints one CSPRNG-backed `sk-…` key without initializing
+persistence. It exists primarily so launchers can generate a key, pass it via
+the inherited environment, and reveal it without writing plaintext to disk.
 
 ## Self-update
 

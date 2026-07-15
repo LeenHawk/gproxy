@@ -102,12 +102,23 @@ struct Cli {
     #[arg(long, env = "GPROXY_ADMIN_PASSWORD")]
     admin_password: Option<String>,
 
+    /// Built-in channels to create as enabled providers during first-run setup.
+    /// Repeat the flag or pass a comma-separated environment value.
+    #[arg(
+        long = "bootstrap-channel",
+        env = "GPROXY_BOOTSTRAP_CHANNELS",
+        value_delimiter = ','
+    )]
+    bootstrap_channels: Vec<String>,
+
     #[command(subcommand)]
     command: Option<Command>,
 }
 
 #[derive(clap::Subcommand)]
 enum Command {
+    /// Generate a new CSPRNG-backed user API key and print it once.
+    GenerateKey,
     /// Import a config bundle (JSON) into the persistence backend, then exit.
     Import {
         /// Path to the bundle file.
@@ -166,6 +177,14 @@ enum UpdateAction {
 async fn main() -> anyhow::Result<()> {
     init_tracing();
     let cli = Cli::parse();
+
+    // Used by native first-run launchers so the same key can be passed through
+    // an inherited environment variable and shown once without writing it to
+    // disk. It is self-contained and must not initialize persistence.
+    if matches!(&cli.command, Some(Command::GenerateKey)) {
+        println!("{}", gproxy::util::rand::api_key());
+        return Ok(());
+    }
 
     // Self-update (§19): self-contained — needs only an HTTP client + data_dir,
     // so it runs before persistence/cache/server are built, then exits.
@@ -309,6 +328,7 @@ async fn main() -> anyhow::Result<()> {
             return Ok(());
         }
         None => {}
+        Some(Command::GenerateKey) => unreachable!("generate-key is dispatched before persistence"),
         // Handled by the early dispatch above (before persistence is built).
         Some(Command::Update { .. }) => unreachable!("update is dispatched before persistence"),
         #[cfg(feature = "migrate-v1")]
@@ -339,10 +359,16 @@ async fn main() -> anyhow::Result<()> {
     // imported admin pre-empts random creation. The override (if set) force-
     // resets the admin every startup. Only on the serve path — the import/
     // export subcommands have already returned above.
-    gproxy::app::bootstrap::ensure_admin(
+    let bootstrap_admin_api_key = std::env::var("GPROXY_BOOTSTRAP_ADMIN_API_KEY").ok();
+    let channels = gproxy::channel::registry::ChannelRegistry::with_builtin();
+    gproxy::app::install_setup::ensure(
         persistence.as_ref(),
+        cipher.as_ref(),
+        &channels,
         &cli.admin_user,
         cli.admin_password.as_deref(),
+        &cli.bootstrap_channels,
+        bootstrap_admin_api_key.as_deref(),
     )
     .await?;
 
@@ -400,7 +426,7 @@ async fn main() -> anyhow::Result<()> {
     let snapshot =
         gproxy::app::snapshot::ControlPlaneSnapshot::build(persistence.as_ref(), 1).await?;
     let snapshot = Arc::new(arc_swap::ArcSwap::from_pointee(snapshot));
-    let channels = Arc::new(gproxy::channel::registry::ChannelRegistry::with_builtin());
+    let channels = Arc::new(channels);
 
     let state = AppState::new(
         config,

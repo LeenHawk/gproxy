@@ -27,8 +27,13 @@ Release 除了便携 ZIP，还会发布各平台的原生安装包：
 | Linux | `.deb` | 安装桌面入口和 XDG 登录启动项；首次设置会询问是否启用，提供 amd64、arm64 与 RISC-V 64 包。 |
 
 MSI、DMG 和 DEB launcher 首次运行时都会要求设置管理员用户名、非空密码，并询问是否
-随系统登录自动启动。Launcher 会保存用户名，但不保存明文密码；GPROXY 会持久化
-Argon2id 密码哈希供后续登录验证。之后可以在内嵌 Console 的 **设置 → 后台运行** 中
+随系统登录自动启动。安装时还可以从当前 native 构建包含的全部内置渠道中任选若干个，
+创建对应的已启用 provider，并选择是否生成管理员 API key。Key 只会复制或显示一次，
+关闭对话框前需要妥善保存；新建 provider
+尚未包含 credential，`custom` 还需要补充 base URL，仍需进入 Console 完成设置、API key
+或交互登录。Launcher 会保存用户名，但不保存明文密码或生成的明文 API key；GPROXY
+会持久化 Argon2id 密码哈希以及 API key
+的摘要/secret 供后续认证。之后可以在内嵌 Console 的 **设置 → 后台运行** 中
 修改自动启动。关闭只影响下次登录，不会停止当前服务。启动项不会
 复制管理员密码、主密钥、DSN 或带认证信息的代理 URL；依赖这些值的部署应继续使用已有
 service manager。
@@ -60,8 +65,9 @@ AArch64 与 RISC-V 64，并同时提供 GNU 和 musl 版本。默认 GNU Docker 
 使用可安装包而不是原始 executable 压缩包的用户。
 
 Android APK 要求 Android 9（API 28）或更高版本，并包含 launcher UI 和 Foreground
-Service。安装匹配 ABI 的 APK 后打开 **GPROXY**，填写管理员用户名和密码后点击
-**Start GPROXY**。Launcher 中的开关控制
+Service。安装匹配 ABI 的 APK 后打开 **GPROXY**，填写管理员用户名和密码，可从全部
+内置渠道中任选若干个，并选择是否生成管理员 API key，然后点击 **Start GPROXY**。
+生成的 key 会自动复制并且只显示一次。Launcher 中的开关控制
 以后打开 App 和设备开机时是否自动启动。开启开关时，App 会说明后台运行用途，并打开
 Android 的电池优化权限提示。Service 会用下面的参数运行 native server：
 

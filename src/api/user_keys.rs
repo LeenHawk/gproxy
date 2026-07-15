@@ -46,7 +46,8 @@ fn default_true() -> bool {
 /// GENERATED server-side and returned once), `Some(id)` updates label/enabled
 /// (key material is immutable — rotate by create + delete). `api_key` is kept
 /// in the shape only so a caller supplying one gets an explicit 400 instead of
-/// a silent ignore; external key material enters via the import path alone.
+/// a silent ignore; external key material uses the separate import or native
+/// first-run bootstrap paths.
 #[derive(serde::Deserialize)]
 pub struct UserKeyUpsert {
     #[serde(default)]

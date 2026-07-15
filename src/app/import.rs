@@ -145,8 +145,9 @@ pub async fn import_bundle(
         n += 1;
     }
     for k in bundle.user_keys {
-        // The import bundle is the ONLY entrance for external key material
-        // (the admin API generates keys server-side): blank keys are rejected;
+        // Bundle import is one of the two bootstrap entrances for external key
+        // material (the other is native first-run setup; admin APIs generate
+        // keys server-side): blank keys are rejected;
         // short ones are accepted but flagged — they lack the ≥32-char
         // random-equivalent strength a generated key has.
         let bare = k.api_key.trim();

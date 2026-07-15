@@ -24,11 +24,13 @@ binary and the embedded Console. Developers can use the clearly marked
 
 Open the installed GPROXY launcher from an MSI, DMG, or DEB package. On its
 first run, enter an administrator username and a non-blank password. The setup
-also asks whether GPROXY should start automatically when you sign in. The
-launcher does not save the plaintext password. GPROXY hashes it with Argon2id
-and persists the hash in its data store for future Console logins.
+also asks whether GPROXY should start automatically when you sign in. You may
+select any of the built-in channels to create as providers and generate an
+administrator API key. Copy the key from the one-time reveal. The launcher does
+not save the plaintext password or API key. GPROXY hashes the password with
+Argon2id and persists the key securely for future authentication.
 
-The Android APK provides the same username and password fields in its launcher.
+The Android APK provides the same setup choices in its launcher.
 Its automatic-start switch controls app-launch and device-boot startup. When
 automatic startup is enabled, allow background operation in Android's system
 prompt so battery optimization does not stop the service.
@@ -62,9 +64,10 @@ In Console:
 1. Create a **Provider**, then add its upstream API credential.
 2. Create a **Route** and add a route member that targets the provider and
    upstream model.
-3. Create a user API key and grant that user permission to call the route.
+3. Use the administrator API key generated during setup, or create a separate
+   user API key and grant that user permission to call the route.
 
-Keep the route name and generated user API key for the next step. Console is
+Keep the route name and selected API key for the next step. Console is
 the source of truth for providers, credentials, routes, permissions, quotas,
 and other day-to-day settings.
 

@@ -21,10 +21,11 @@ Release 下载已经包含优化后的二进制与内嵌 Console。开发者可�
 ## 2. 设置管理员账号
 
 安装 MSI、DMG 或 DEB 后打开 GPROXY。首次运行会要求输入管理员用户名和非空密码，
-并询问是否在登录系统时自动启动 GPROXY。Launcher 不保存明文密码；GPROXY 会使用
-Argon2id 生成密码哈希并持久化到 data store，供后续登录验证。
+并询问是否在登录系统时自动启动 GPROXY。此处还可以从全部内置渠道中任选若干个创建为
+provider，并选择生成管理员 API key；生成后请从只显示一次的对话框中复制。Launcher 不保存
+明文密码或明文 API key；GPROXY 会使用 Argon2id 生成密码哈希，并安全保存 key 供后续认证。
 
-Android APK 的 launcher 也提供用户名、密码和自动启动开关。该开关同时控制打开 App
+Android APK 的 launcher 也提供相同的首次设置选项。自动启动开关同时控制打开 App
 和设备开机后的自动启动；开启时请在 Android 系统提示中允许后台运行，避免电池优化停止
 Service。
 
@@ -53,9 +54,9 @@ upsert 对应管理员；后续启动时应移除这个参数，除非确实要�
 
 1. 创建 **Provider**，再添加真实的上游 API credential。
 2. 创建 **Route**，并添加指向该 provider 与上游模型的 route member。
-3. 创建 user API key，并授予该用户调用这条 route 的权限。
+3. 使用安装时生成的管理员 API key，或另建 user API key 并授予该用户调用这条 route 的权限。
 
-记下 route name 和生成的 user API key。Provider、credential、route、permission、quota
+记下 route name 和选用的 API key。Provider、credential、route、permission、quota
 及其他日常设置都以 Console 中的持久化配置为准。
 
 ## 5. 发起 Gateway 请求

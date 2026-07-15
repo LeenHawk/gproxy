@@ -79,11 +79,11 @@ pub(super) async fn dispatch_user_keys(
                 let body: UserKeyUpsert = json_body(body)?;
 
                 // Reject caller-supplied key material (security: keys are
-                // generated server-side; external import uses a separate path).
+                // generated server-side; external bootstrap uses separate paths).
                 if body.api_key.is_some() {
                     return Err(ApiError::BadRequest(
                         "api_key is not accepted: keys are generated server-side on create \
-                         (external key material is import-only)"
+                         (external key material uses import or host-level first-run bootstrap)"
                             .into(),
                     ));
                 }

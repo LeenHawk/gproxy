@@ -28,9 +28,16 @@ Release builds include native installers as well as portable ZIP archives:
 | Linux | `.deb` | Installs a desktop launcher and an XDG login entry. First-run setup asks whether to enable it. Packages are published for amd64, arm64, and RISC-V 64. |
 
 The MSI, DMG, and DEB launchers ask for an administrator username, a non-blank
-password, and the login-startup preference on first run. They save the username
-but not the plaintext password; GPROXY persists its Argon2id hash for future
-Console logins. Afterward, open **Settings → Background Service** in the
+password, and the login-startup preference on first run. Setup can also create
+enabled providers for any selected built-in channels and generate an API
+key for the administrator. The key is copied or displayed once; save it before
+closing the dialog. Setup lists every channel included in the native build;
+providers start without credentials, and `custom` also needs its base URL, so
+finish their settings, API-key, or interactive login setup in Console. Launchers
+save the username but
+not the plaintext password or generated API key; GPROXY persists the Argon2id
+password hash and the API-key digest/secret for later authentication. Afterward,
+open **Settings → Background Service** in the
 embedded Console to change login startup. Turning it off does not stop the
 currently running server. Startup entries never copy admin passwords, master
 keys, DSNs, or authenticated proxy URLs. Deployments that depend on those
@@ -66,7 +73,9 @@ per-ABI APKs for users who prefer an installable package over the raw archive.
 
 The Android APK requires Android 9 (API 28) or newer and includes a launcher UI
 and foreground service. Install the matching ABI APK and open **GPROXY**. Enter
-an administrator username and password, then tap **Start GPROXY**. The
+an administrator username and password, optionally choose any built-in channels
+and administrator API-key generation, then tap **Start GPROXY**. The generated
+key is copied and displayed once. The
 launcher switch controls later app-launch and device-boot startup. When
 the switch is enabled, the app explains why background operation is needed and
 opens Android's battery-optimization permission prompt. The service runs the
