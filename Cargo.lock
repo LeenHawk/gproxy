@@ -1786,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy"
-version = "2.0.18"
+version = "2.0.19"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1842,7 +1842,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "2.0.18"
+version = "2.0.19"
 dependencies = [
  "http",
  "serde",
@@ -1851,7 +1851,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-tokenize"
-version = "2.0.18"
+version = "2.0.19"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1867,7 +1867,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-transform"
-version = "2.0.18"
+version = "2.0.19"
 dependencies = [
  "blake3",
  "bytes",
