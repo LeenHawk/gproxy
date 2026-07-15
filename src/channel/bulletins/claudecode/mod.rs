@@ -37,9 +37,8 @@ fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     )
 }
 
-/// Real Claude Code sends model calls to `/v1/messages?beta=true`. Preserve any
-/// caller query, but make the fingerprint marker present on the exact model
-/// endpoint.
+/// Claude Code model calls carry `beta=true`. Preserve any caller query and
+/// avoid adding a duplicate beta key.
 fn model_query(query: Option<&str>) -> String {
     let Some(q) = query.map(str::trim).filter(|q| !q.is_empty()) else {
         return "beta=true".to_owned();
@@ -164,16 +163,24 @@ impl Channel for ClaudeCodeChannel {
             .filter(|s| !s.is_empty())
             .unwrap_or(auth::DEFAULT_BASE_URL);
 
-        // Stable per-credential `device_id`; `session_id` is deterministic per
-        // (device, conversation, hour) and capped at ≤1000 slots — the SAME value
-        // is sent as `x-claude-code-session-id` and inside `metadata.user_id`.
+        // Stable per-credential `device_id`; v1 reuses a random session UUID for
+        // a 20-minute process window. An explicit downstream session id wins.
+        // The SAME value is sent in the header and `metadata.user_id`.
         let device_id = auth::device_id(ctx.secret);
-        let now_secs = crate::util::time::unix_now().max(0) as u64;
-        let session_id = cch::session_id(&device_id, &ctx.body, now_secs);
+        let explicit_session_id = ctx
+            .headers
+            .get("x-claude-code-session-id")
+            .or_else(|| ctx.headers.get("session_id"))
+            .and_then(|value| value.to_str().ok());
+        let session_id = cch::session_id(
+            &device_id,
+            explicit_session_id,
+            crate::util::time::unix_now_ms(),
+        );
 
         // The model call (`POST /v1/messages`) carries the CLI billing header +
-        // `metadata.user_id`; `cch` is computed over the same canonicalized byte
-        // stream as the native Claude Code 2.1.199 rewrite path.
+        // `metadata.user_id`; the v1-compatible billing header keeps the
+        // literal `cch=00000` value used by Claude Code 2.1.112.
         // Match the path EXACTLY (not by prefix): the sibling
         // `POST /v1/messages/count_tokens` endpoint rejects `metadata`
         // ("metadata: Extra inputs are not permitted"), so it must NOT be
@@ -192,7 +199,6 @@ impl Channel for ClaudeCodeChannel {
                 &device_id,
                 account_uuid,
                 &session_id,
-                "sdk-cli",
             ))
         } else {
             ctx.body
@@ -207,9 +213,7 @@ impl Channel for ClaudeCodeChannel {
         // content-type / accept).
         let headers = allow_headers(ctx.headers, &["anthropic-beta"]);
         let mut req = build_request(ctx.method, uri, headers, body)?;
-        // `x-client-request-id` rides only the direct api.anthropic.com model call.
-        let with_request_id = is_messages && base == auth::DEFAULT_BASE_URL;
-        auth::apply(&mut req, &access_token, &session_id, with_request_id)?;
+        auth::apply(&mut req, &access_token, &session_id)?;
         Ok(PreparedRequest::new(req))
     }
 
@@ -364,22 +368,29 @@ mod tests {
         assert_eq!(req.headers().get("x-stainless-lang").unwrap(), "js");
         assert_eq!(
             req.headers().get("x-stainless-package-version").unwrap(),
-            "0.94.0"
+            "0.81.0"
         );
         assert_eq!(req.headers().get("x-stainless-runtime").unwrap(), "node");
         assert_eq!(
             req.headers().get("user-agent").unwrap(),
-            "claude-cli/2.1.199 (external, sdk-cli)"
+            "claude-cli/2.1.112 (external, cli)"
         );
         assert_eq!(
             req.headers().get("x-stainless-runtime-version").unwrap(),
-            "v26.3.0"
+            "v22.20.0"
         );
+        assert_eq!(req.headers().get("accept-language").unwrap(), "*");
+        assert_eq!(req.headers().get("sec-fetch-mode").unwrap(), "cors");
+        assert_eq!(
+            req.headers().get("accept-encoding").unwrap(),
+            "gzip, deflate"
+        );
+        assert!(req.headers().get("x-client-request-id").is_none());
         assert!(req.headers().get("x-claude-code-session-id").is_some());
     }
 
     #[test]
-    fn model_query_adds_beta_true_without_touching_other_endpoints() {
+    fn model_query_adds_beta_true_without_duplication() {
         assert_eq!(model_query(None), "beta=true");
         assert_eq!(model_query(Some("foo=1")), "beta=true&foo=1");
         assert_eq!(model_query(Some("beta=true&foo=1")), "beta=true&foo=1");

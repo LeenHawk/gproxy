@@ -40,24 +40,23 @@ pub(super) const OAUTH_SCOPE: &str =
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
-pub(super) const USER_AGENT: &str = "claude-cli/2.1.199 (external, sdk-cli)";
+pub(super) const USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
+const PROFILE_USER_AGENT: &str = "claude-code/2.1.112";
 
 /// Refresh slightly before expiry to avoid racing a 401 mid-flight.
 const EXPIRY_SKEW_MS: i64 = 60_000;
 
-/// Anthropic JS SDK (Stainless-generated) default header values, mirroring real
-/// Claude Code 2.1.199 / `@anthropic-ai/sdk` 0.94.0 model-path traffic.
-/// Injected verbatim; per-credential overrides are an M7a fingerprint-pool
-/// concern.
+/// Anthropic JS SDK (Stainless-generated) values used by gproxy v1's Claude
+/// Code 2.1.112 fingerprint.
 const STAINLESS: &[(&str, &str)] = &[
     ("x-stainless-retry-count", "0"),
     ("x-stainless-timeout", "600"),
     ("x-stainless-lang", "js"),
-    ("x-stainless-package-version", "0.94.0"),
+    ("x-stainless-package-version", "0.81.0"),
     ("x-stainless-os", "Linux"),
     ("x-stainless-arch", "x64"),
     ("x-stainless-runtime", "node"),
-    ("x-stainless-runtime-version", "v26.3.0"),
+    ("x-stainless-runtime-version", "v22.20.0"),
 ];
 
 /// Read a trimmed, non-empty string field from the secret.
@@ -70,9 +69,8 @@ fn secret_str<'a>(secret: &'a Value, key: &str) -> Option<&'a str> {
 }
 
 /// Stable per-credential `device_id` (a 64-hex string, mirroring the real CLI).
-/// The persisted `device_id` wins; otherwise it is derived deterministically
-/// from the most stable identifier the secret carries (account_uuid → refresh →
-/// access token), so it stays constant for the credential's life.
+/// The persisted random id wins. The deterministic fallback keeps legacy
+/// secrets without a persisted id stable until their next refresh.
 pub(super) fn device_id(secret: &Value) -> String {
     if let Some(d) = secret_str(secret, "device_id") {
         return d.to_owned();
@@ -86,13 +84,16 @@ pub(super) fn device_id(secret: &Value) -> String {
         .to_string()
 }
 
-/// Lock the derived `device_id` into the secret once, so later token rotations
-/// don't change it. Called from the secret-producing paths (login / refresh).
+/// Lock a random v1-style `device_id` into newly produced/refreshed secrets so
+/// later token rotations don't change it.
 pub(super) fn ensure_device_id(secret: &mut Value) {
     if secret_str(secret, "device_id").is_some() {
         return;
     }
-    let d = device_id(secret);
+    let d: String = crate::util::rand::bytes::<32>()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     if let Some(obj) = secret.as_object_mut() {
         obj.insert("device_id".into(), Value::String(d));
     }
@@ -226,7 +227,7 @@ pub(super) async fn enrich_from_profile(client: &Arc<dyn UpstreamClient>, secret
         .header(http::header::AUTHORIZATION, format!("Bearer {at}"))
         .header(http::header::ACCEPT, "application/json")
         .header("anthropic-beta", ANTHROPIC_BETA)
-        .header(http::header::USER_AGENT, USER_AGENT)
+        .header(http::header::USER_AGENT, PROFILE_USER_AGENT)
         .body(Bytes::new())
     else {
         return;
@@ -402,13 +403,13 @@ pub(super) async fn token_post(
         .map_err(|e| ChannelError::Build(format!("token response parse: {e}")))
 }
 
-/// Inject the OAuth bearer + claude-cli / Stainless impersonation headers onto
-/// the prepared upstream request. A per-request session-id is generated.
+/// Inject the OAuth bearer + v1 claude-cli / Stainless impersonation headers
+/// onto the prepared upstream request. The caller supplies the process-scoped
+/// session id shared with `metadata.user_id`.
 pub(super) fn apply(
     req: &mut Request<Bytes>,
     access_token: &str,
     session_id: &str,
-    with_request_id: bool,
 ) -> Result<(), ChannelError> {
     let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
         .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
@@ -443,12 +444,6 @@ pub(super) fn apply(
         HeaderName::from_static("x-claude-code-session-id"),
         session_id,
     );
-    // The Stainless SDK adds a fresh per-request id only on the direct API host.
-    if with_request_id {
-        let rid = HeaderValue::from_str(&crate::util::rand::uuid_v4())
-            .map_err(|e| ChannelError::Build(format!("bad request id: {e}")))?;
-        h.insert(HeaderName::from_static("x-client-request-id"), rid);
-    }
     h.insert(
         http::header::USER_AGENT,
         HeaderValue::from_static(USER_AGENT),
@@ -459,5 +454,22 @@ pub(super) fn apply(
             HeaderValue::from_static(value),
         );
     }
+    h.insert(
+        http::header::ACCEPT,
+        HeaderValue::from_static("application/json"),
+    );
+    h.insert(
+        http::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    h.insert(http::header::ACCEPT_LANGUAGE, HeaderValue::from_static("*"));
+    h.insert(
+        HeaderName::from_static("sec-fetch-mode"),
+        HeaderValue::from_static("cors"),
+    );
+    h.insert(
+        http::header::ACCEPT_ENCODING,
+        HeaderValue::from_static("gzip, deflate"),
+    );
     Ok(())
 }
