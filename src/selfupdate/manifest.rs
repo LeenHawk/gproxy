@@ -22,10 +22,10 @@ use serde::Deserialize;
 pub struct Artifact {
     /// Rust target triple, e.g. `x86_64-unknown-linux-gnu`.
     pub target_triple: String,
-    /// Download URL for the release `.zip` (binary + README); the executable is
-    /// extracted from it after verification.
+    /// Download URL for the release package. This is normally the portable
+    /// `.zip`; `*-android-apk` targets point at the signed `.apk` instead.
     pub url: String,
-    /// Lowercase hex sha256 of the downloaded `.zip` artifact.
+    /// Lowercase hex sha256 of the downloaded release artifact.
     #[serde(default)]
     pub sha256: String,
     /// Size in bytes (advisory; integrity is sha256).

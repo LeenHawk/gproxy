@@ -63,28 +63,66 @@ fn short_sha(sha: &str) -> String {
     sha[..n].to_string()
 }
 
-/// The target triple of the running binary, used to pick the manifest artifact.
-/// Built from compile-time `cfg` so it always matches the binary in hand.
+/// The manifest target identifier of the running installation, used to pick
+/// the correct release artifact. It is normally the Rust target triple. APK
+/// launches add an `-apk` suffix because they must install the signed APK via
+/// Android's package installer instead of replacing only the child executable.
 pub fn current_target_triple() -> String {
-    // env::consts gives os/arch; map to the conventional Rust triple. This
-    // covers the platforms GPROXY ships; an unmatched combo falls back to a
-    // best-effort `arch-os` string that simply won't match any artifact (→
-    // NoArtifact, which is the correct, safe outcome).
-    target_triple_for(std::env::consts::ARCH, std::env::consts::OS)
+    // env::consts gives os/arch while target_env distinguishes GNU from musl.
+    // The APK launcher marks its installation kind at runtime; the very same
+    // Android executable can also be distributed in a portable ZIP.
+    let target_env = if cfg!(target_env = "musl") {
+        "musl"
+    } else if cfg!(target_env = "gnu") {
+        "gnu"
+    } else if cfg!(target_env = "msvc") {
+        "msvc"
+    } else {
+        ""
+    };
+    target_triple_for(
+        std::env::consts::ARCH,
+        std::env::consts::OS,
+        target_env,
+        std::env::var("GPROXY_INSTALLATION_KIND").ok().as_deref(),
+    )
 }
 
-fn target_triple_for(arch: &str, os: &str) -> String {
-    match (arch, os) {
-        ("x86_64", "linux") => "x86_64-unknown-linux-gnu",
-        ("aarch64", "linux") => "aarch64-unknown-linux-gnu",
-        ("riscv64", "linux") => "riscv64gc-unknown-linux-gnu",
-        ("x86_64", "macos") => "x86_64-apple-darwin",
-        ("aarch64", "macos") => "aarch64-apple-darwin",
-        ("x86_64", "windows") => "x86_64-pc-windows-msvc",
-        ("aarch64", "windows") => "aarch64-pc-windows-msvc",
+pub(super) fn is_android_apk_installation() -> bool {
+    cfg!(target_os = "android")
+        && installation_is_android_apk(std::env::var("GPROXY_INSTALLATION_KIND").ok().as_deref())
+}
+
+fn installation_is_android_apk(installation_kind: Option<&str>) -> bool {
+    installation_kind == Some("android-apk")
+}
+
+fn target_triple_for(
+    arch: &str,
+    os: &str,
+    target_env: &str,
+    installation_kind: Option<&str>,
+) -> String {
+    let triple = match (arch, os, target_env) {
+        ("x86_64", "linux", "gnu") => "x86_64-unknown-linux-gnu",
+        ("aarch64", "linux", "gnu") => "aarch64-unknown-linux-gnu",
+        ("riscv64", "linux", "gnu") => "riscv64gc-unknown-linux-gnu",
+        ("x86_64", "linux", "musl") => "x86_64-unknown-linux-musl",
+        ("aarch64", "linux", "musl") => "aarch64-unknown-linux-musl",
+        ("riscv64", "linux", "musl") => "riscv64gc-unknown-linux-musl",
+        ("x86_64", "android", _) => "x86_64-linux-android",
+        ("aarch64", "android", _) => "aarch64-linux-android",
+        ("x86_64", "macos", _) => "x86_64-apple-darwin",
+        ("aarch64", "macos", _) => "aarch64-apple-darwin",
+        ("x86_64", "windows", "msvc") => "x86_64-pc-windows-msvc",
+        ("aarch64", "windows", "msvc") => "aarch64-pc-windows-msvc",
         _ => return format!("{arch}-{os}"),
+    };
+    if os == "android" && installation_is_android_apk(installation_kind) {
+        format!("{triple}-apk")
+    } else {
+        triple.to_string()
     }
-    .to_string()
 }
 
 #[cfg(test)]
@@ -144,8 +182,40 @@ mod tests {
     #[test]
     fn maps_riscv64_linux_release_target() {
         assert_eq!(
-            target_triple_for("riscv64", "linux"),
+            target_triple_for("riscv64", "linux", "gnu", None),
             "riscv64gc-unknown-linux-gnu"
+        );
+    }
+
+    #[test]
+    fn distinguishes_all_linux_musl_release_targets() {
+        assert_eq!(
+            target_triple_for("x86_64", "linux", "musl", None),
+            "x86_64-unknown-linux-musl"
+        );
+        assert_eq!(
+            target_triple_for("aarch64", "linux", "musl", None),
+            "aarch64-unknown-linux-musl"
+        );
+        assert_eq!(
+            target_triple_for("riscv64", "linux", "musl", None),
+            "riscv64gc-unknown-linux-musl"
+        );
+    }
+
+    #[test]
+    fn distinguishes_portable_android_from_apk_installations() {
+        assert_eq!(
+            target_triple_for("aarch64", "android", "", None),
+            "aarch64-linux-android"
+        );
+        assert_eq!(
+            target_triple_for("aarch64", "android", "", Some("android-apk")),
+            "aarch64-linux-android-apk"
+        );
+        assert_eq!(
+            target_triple_for("x86_64", "android", "", Some("android-apk")),
+            "x86_64-linux-android-apk"
         );
     }
 }

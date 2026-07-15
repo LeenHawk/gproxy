@@ -7,9 +7,9 @@
 #   channel\n version\n notes_url(or "")\n min_compatible_data_version\n
 #   then, per artifact in declared order: target_triple|url|sha256|size\n
 #
-# Artifacts point at the existing release `.zip` assets (the executable is
-# extracted at apply time); `sha256` is the zip's sha, reused verbatim from each
-# `<name>.zip.sha256` produced by the build job.
+# Artifacts point at existing release packages: portable `.zip` files for
+# executable replacement and `.apk` files for Android package installations.
+# `sha256` is reused verbatim from each package's `.sha256` sidecar.
 #
 # Env:
 #   UPDATE_SIGNING_PRIVATE_KEY_B64   base64 of the ed25519 PEM private key (required)
@@ -67,6 +67,13 @@ triples=(
   x86_64-unknown-linux-gnu
   aarch64-unknown-linux-gnu
   riscv64gc-unknown-linux-gnu
+  x86_64-unknown-linux-musl
+  aarch64-unknown-linux-musl
+  riscv64gc-unknown-linux-musl
+  x86_64-linux-android
+  aarch64-linux-android
+  x86_64-linux-android-apk
+  aarch64-linux-android-apk
   x86_64-apple-darwin
   aarch64-apple-darwin
   x86_64-pc-windows-msvc
@@ -80,14 +87,19 @@ printf '%s\n%s\n%s\n%s\n' "$channel" "$version" "$NOTES_URL" "$min_dv" > "$paylo
 
 artifacts='[]'
 for t in "${triples[@]}"; do
-  dir="$ASSETS_DIR/release-asset-$t"
-  zip="$(ls "$dir"/*.zip 2>/dev/null | head -1 || true)"
-  shafile="$(ls "$dir"/*.zip.sha256 2>/dev/null | head -1 || true)"
-  { [ -n "$zip" ] && [ -f "$zip" ]; } || { echo "missing .zip for $t in $dir" >&2; exit 1; }
-  { [ -n "$shafile" ] && [ -f "$shafile" ]; } || { echo "missing .zip.sha256 for $t in $dir" >&2; exit 1; }
-  asset="$(basename "$zip")"
+  source_t="${t%-apk}"
+  extension=zip
+  if [[ "$t" == *-android-apk ]]; then
+    extension=apk
+  fi
+  dir="$ASSETS_DIR/release-asset-$source_t"
+  package="$(find "$dir" -maxdepth 1 -type f -name "*.$extension" -print 2>/dev/null | sort | head -1 || true)"
+  shafile="$(find "$dir" -maxdepth 1 -type f -name "*.$extension.sha256" -print 2>/dev/null | sort | head -1 || true)"
+  { [ -n "$package" ] && [ -f "$package" ]; } || { echo "missing .$extension for $t in $dir" >&2; exit 1; }
+  { [ -n "$shafile" ] && [ -f "$shafile" ]; } || { echo "missing .$extension.sha256 for $t in $dir" >&2; exit 1; }
+  asset="$(basename "$package")"
   sha="$(awk '{print $1}' "$shafile")"
-  size="$(stat -c%s "$zip")"
+  size="$(stat -c%s "$package")"
   url="https://github.com/$REPO/releases/download/$TAG/$asset"
   printf '%s|%s|%s|%s\n' "$t" "$url" "$sha" "$size" >> "$payload"
   artifacts="$(jq -c --arg t "$t" --arg u "$url" --arg s "$sha" --argjson z "$size" \

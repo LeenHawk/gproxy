@@ -7,6 +7,7 @@ export interface CheckReport {
   available: boolean;
   notes_url: string | null;
   safety?: UpdateSafetyRisk[];
+  install_mode: "binary" | "android_apk";
 }
 
 export type UpdateSafetyRisk = "missing_sha256" | "missing_signature" | "missing_public_key";

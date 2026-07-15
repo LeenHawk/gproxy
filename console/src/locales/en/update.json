@@ -19,10 +19,16 @@
   },
   "apply": {
     "button": "Update & restart",
+    "apkButton": "Download & install APK",
     "confirm": {
       "title": "Update and restart?",
       "description": "This downloads the new binary, keeps the previous version as .prev for rollback, and restarts GPROXY automatically.",
       "confirmLabel": "Update & restart"
+    },
+    "apkConfirm": {
+      "title": "Install the Android update?",
+      "description": "This downloads and verifies the signed APK, then opens Android's system installer. Android will ask you to approve the app update.",
+      "confirmLabel": "Download & install"
     },
     "securityConfirm": {
       "title": "Apply without full verification?",
@@ -37,6 +43,7 @@
     "downloading": "Downloading update…",
     "staged": "Staged",
     "restarting": "Restarting",
+    "androidInstaller": "Opening Android installer",
     "failed": "Failed",
     "stagedRestartNotice": "A new binary has been staged.",
     "failedError": "Error"

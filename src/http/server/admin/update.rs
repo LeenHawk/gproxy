@@ -1,7 +1,7 @@
 //! §19.10 self-update admin endpoints (native-only):
 //!   GET  /admin/update/check  — manifest fetch, returns CheckReport.
 //!   GET  /admin/update/status — in-process status state machine snapshot.
-//!   POST /admin/update/apply  — download + verify-or-confirm + swap, then auto re-exec.
+//!   POST /admin/update/apply  — verify + install binary or hand off APK.
 
 use axum::Json;
 use axum::body::Bytes;
@@ -104,8 +104,8 @@ pub async fn status(State(state): State<AppState>) -> Json<UpdateStatus> {
 const ADMIN_RESTART_DELAY: Duration = Duration::from_millis(750);
 
 /// `POST /admin/update/apply` — download, verify or require confirmation,
-/// atomically swap the binary, send a final status response, then restart the
-/// process in the background.
+/// install the selected artifact, send a final status response, then restart
+/// the process or hand an APK to Android's package installer in the background.
 ///
 /// # Single-flight guard
 /// If a check/apply is already in flight (`Checking` | `Downloading`), returns
@@ -204,7 +204,7 @@ fn parse_apply_request(body: &[u8]) -> Result<ApplyRequest, ApiError> {
 fn schedule_restart(version: String) {
     std::thread::spawn(move || {
         std::thread::sleep(ADMIN_RESTART_DELAY);
-        tracing::info!(version, "update applied; re-executing into new binary");
+        tracing::info!(version, "update applied; completing install hand-off");
         selfupdate::restart(Restart::ReExec);
     });
 }

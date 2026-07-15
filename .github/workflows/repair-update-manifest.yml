@@ -38,17 +38,26 @@ jobs:
           gh release download "$TAG" \
             --pattern '*.zip' \
             --pattern '*.zip.sha256' \
+            --pattern '*.apk' \
+            --pattern '*.apk.sha256' \
             --dir flat
 
           map_asset() {
             case "$1" in
-              gproxy-linux-x86_64.zip) echo x86_64-unknown-linux-gnu ;;
-              gproxy-linux-aarch64.zip) echo aarch64-unknown-linux-gnu ;;
-              gproxy-linux-riscv64.zip) echo riscv64gc-unknown-linux-gnu ;;
-              gproxy-macos-x86_64.zip) echo x86_64-apple-darwin ;;
-              gproxy-macos-aarch64.zip) echo aarch64-apple-darwin ;;
-              gproxy-windows-x86_64.zip) echo x86_64-pc-windows-msvc ;;
-              gproxy-windows-aarch64.zip) echo aarch64-pc-windows-msvc ;;
+              gproxy-linux-x86_64-musl.zip|gproxy-linux-x86_64-musl-*.zip) echo x86_64-unknown-linux-musl ;;
+              gproxy-linux-aarch64-musl.zip|gproxy-linux-aarch64-musl-*.zip) echo aarch64-unknown-linux-musl ;;
+              gproxy-linux-riscv64-musl.zip|gproxy-linux-riscv64-musl-*.zip) echo riscv64gc-unknown-linux-musl ;;
+              gproxy-linux-x86_64.zip|gproxy-linux-x86_64-[0-9a-f]*.zip) echo x86_64-unknown-linux-gnu ;;
+              gproxy-linux-aarch64.zip|gproxy-linux-aarch64-[0-9a-f]*.zip) echo aarch64-unknown-linux-gnu ;;
+              gproxy-linux-riscv64.zip|gproxy-linux-riscv64-[0-9a-f]*.zip) echo riscv64gc-unknown-linux-gnu ;;
+              gproxy-android-x86_64.zip|gproxy-android-x86_64-*.zip) echo x86_64-linux-android ;;
+              gproxy-android-aarch64.zip|gproxy-android-aarch64-*.zip) echo aarch64-linux-android ;;
+              gproxy-android-x86_64.apk|gproxy-android-x86_64-*.apk) echo x86_64-linux-android ;;
+              gproxy-android-aarch64.apk|gproxy-android-aarch64-*.apk) echo aarch64-linux-android ;;
+              gproxy-macos-x86_64.zip|gproxy-macos-x86_64-*.zip) echo x86_64-apple-darwin ;;
+              gproxy-macos-aarch64.zip|gproxy-macos-aarch64-*.zip) echo aarch64-apple-darwin ;;
+              gproxy-windows-x86_64.zip|gproxy-windows-x86_64-*.zip) echo x86_64-pc-windows-msvc ;;
+              gproxy-windows-aarch64.zip|gproxy-windows-aarch64-*.zip) echo aarch64-pc-windows-msvc ;;
               *) return 1 ;;
             esac
           }
@@ -60,6 +69,15 @@ jobs:
             mkdir -p "dl/release-asset-$triple"
             cp "$zip" "dl/release-asset-$triple/"
             cp "$zip.sha256" "dl/release-asset-$triple/"
+          done
+
+          for apk in flat/*.apk; do
+            name="$(basename "$apk")"
+            triple="$(map_asset "$name" || true)"
+            [ -n "$triple" ] || continue
+            mkdir -p "dl/release-asset-$triple"
+            cp "$apk" "dl/release-asset-$triple/"
+            cp "$apk.sha256" "dl/release-asset-$triple/"
           done
 
       - name: Build signed manifest
