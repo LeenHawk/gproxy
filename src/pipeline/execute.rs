@@ -84,10 +84,10 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     span.record("op", tracing::field::debug(classified.op.operation));
     span.record("kind", tracing::field::debug(classified.op.kind));
 
-    // Aggregated models surface (§6.3): refresh every permitted provider under
-    // an independent timeout, fall back to its last good catalogue, then merge
-    // public aliases/routes. Served before preprocess/route because there is no
-    // single model to route.
+    // Aggregated models surface (§6.3): apply each permitted provider's refresh
+    // policy, fall back to persisted catalogues, then merge public aliases and
+    // routes. Served before preprocess/route because there is no single model
+    // to route.
     if matches!(ctx.mode, RoutingMode::Aggregated)
         && matches!(
             classified.op.operation,
@@ -180,10 +180,10 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
                 .await?;
                 let provider = Arc::clone(provider);
                 let identity = Arc::clone(identity);
-                let family = classified.op.provider_family();
+                let source = classified.op;
                 drop(cp);
                 return Ok(crate::pipeline::model_catalog::serve_scoped(
-                    state, provider, identity, family,
+                    state, provider, identity, source,
                 )
                 .await);
             }
@@ -448,10 +448,10 @@ async fn aggregated_models(
                     .cloned()
                     .collect()
             };
-            // A slow provider consumes only its own timeout; all permitted
-            // providers are refreshed concurrently.
+            // Eligible providers refresh concurrently; local/disabled refresh
+            // providers read their persisted catalogues without upstream I/O.
             let catalogues = futures_util::future::join_all(providers.iter().map(|provider| {
-                crate::pipeline::model_catalog::refresh_or_persisted(state, provider)
+                crate::pipeline::model_catalog::models_for_request(state, provider, op)
             }))
             .await;
 

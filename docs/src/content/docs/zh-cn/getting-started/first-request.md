@@ -32,16 +32,17 @@ curl http://127.0.0.1:8787/v1/chat/completions \
   }'
 ```
 
-聚合模型列表会并发刷新每个有权限的 provider：
+聚合模型列表会并发应用每个有权限 provider 的刷新策略：
 
 ```bash
 curl http://127.0.0.1:8787/v1/models \
   -H "Authorization: Bearer <your-user-api-key>"
 ```
 
-每个 provider 请求成功后只把新模型追加到持久化列表，不删除旧模型；某个 provider 超时或
-失败时会使用这份累计列表。最终结果会合并有权限的 route、alias 和 provider 模型，并使用与
-实际调用相同的 `provider/model` 权限逐条过滤。
+自动刷新默认开启，但 provider 可以关闭；模型列表路由为 `local` 时也始终跳过上游请求。
+每个 provider 请求成功后只把新模型追加到持久化列表，不删除旧模型；跳过刷新、超时或失败时
+会使用这份累计列表。最终结果会合并有权限的 route、alias 和 provider 模型，并使用与实际调用
+相同的 `provider/model` 权限逐条过滤。
 
 ## Scoped Provider 路由
 

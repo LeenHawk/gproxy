@@ -5,6 +5,7 @@
  * Surfaced keys:
  *   base_url          — all channels (optional override; required for "custom")
  *   circuit_breaker   — all channels (both sub-fields must be filled or both omitted)
+ *   auto_refresh_models — all channels (default true)
  *   location          — vertex only
  *   profile_arn       — kiro only
  *   enable_magic_cache — Claude/OpenAI-capable channels (magic-string prompt cache triggers)
@@ -34,6 +35,7 @@ export interface SettingsState {
   baseUrl: string;
   consecutiveFailures: string;
   cooldownSecs: string;
+  autoRefreshModels: boolean;
   location: string;
   profileArn: string;
   enableMagicCache: boolean;
@@ -60,6 +62,7 @@ export function initSettingsState(settingsJson: unknown): SettingsState {
         : "",
     cooldownSecs:
       typeof cb.cooldown_secs === "number" ? String(cb.cooldown_secs) : "",
+    autoRefreshModels: s.auto_refresh_models !== false,
     location: typeof s.location === "string" ? s.location : "",
     profileArn: typeof s.profile_arn === "string" ? s.profile_arn : "",
     enableMagicCache: s.enable_magic_cache === true,
@@ -94,6 +97,13 @@ export function assembleSettings(
     result.circuit_breaker = { consecutive_failures: cf, cooldown_secs: cs };
   } else {
     delete result.circuit_breaker;
+  }
+
+  // Automatic model refresh defaults on; persist only the opt-out.
+  if (state.autoRefreshModels) {
+    delete result.auto_refresh_models;
+  } else {
+    result.auto_refresh_models = false;
   }
 
   // location (vertex only)
@@ -211,6 +221,18 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
             />
           </div>
         </div>
+      </div>
+
+      <div className="grid gap-1">
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="sf-auto-refresh-models">{t("fields.autoRefreshModels")}</Label>
+          <Switch
+            id="sf-auto-refresh-models"
+            checked={state.autoRefreshModels}
+            onCheckedChange={(v) => onChange({ autoRefreshModels: v })}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">{t("form.autoRefreshModelsHint")}</p>
       </div>
 
       {/* vertex: location */}
