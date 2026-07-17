@@ -26,9 +26,7 @@ secrets，Netlify 模板在 `deploy/netlify/netlify.toml` 中声明。两个一�
 可以之后再添加可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
 
 Cloudflare Workers、Netlify Edge 和 Deno Deploy 会把 React Console
-放进同一个部署，并让 `/` 跳到 `/console/`。Appwrite Functions 默认是平台函数 URL，
-不是站点根路径；如果该平台也需要 Web UI，需要通过自定义
-同源根路径/反代来服务 Console。
+放进同一个部署，并让 `/` 跳到 `/console/`。
 
 ## Runtime 服务
 
@@ -55,7 +53,6 @@ release workflow 发布：
 | `gproxy-edge-cloudflare.zip` | Cloudflare Workers。 |
 | `gproxy-edge-netlify.zip` | Netlify Edge Functions。 |
 | `gproxy-edge-deno.zip` | Deno Deploy compact upload root。 |
-| `gproxy-edge-appwrite-deno.zip` | Appwrite Functions on `deno-2.0`。 |
 | `gproxy.wasm` | 供检查或自定义打包的 raw wasm。 |
 
 发布 release 时，workflow 还会刷新 orphan `deploy` branch，里面只包含 ready-to-deploy
@@ -71,14 +68,13 @@ cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release 
 ```
 
 `wasm-bindgen-cli` 必须匹配 `Cargo.lock` 中的 `wasm-bindgen` crate 版本。当前 workflow
-安装 `0.2.123`。
+安装 `0.2.126`。
 
 生成平台 bundle：
 
 ```bash
 bash deploy/cloudflare/build.sh
 bash deploy/netlify/build.sh
-bash deploy/appwrite-deno/build.sh
 ```
 
 `deploy/deno/build.sh` 不同：它会通过 Deno Deploy CLI module 构建并部署，所以 release
@@ -89,7 +85,7 @@ workflow 不直接调用该脚本，而是内联生成 Deno bundle。
 | 平台组 | Bundle 形态 |
 | --- | --- |
 | Cloudflare Workers | `wasm-bindgen --target web`；`.wasm` 作为静态 `WebAssembly.Module` 打包。 |
-| Netlify、Appwrite Deno | `wasm-bindgen --target deno`；wasm base64 内联，运行时 instantiate。 |
+| Netlify | `wasm-bindgen --target deno`；wasm base64 内联，运行时 instantiate。 |
 | Deno Deploy | `main.ts` 加生成的 `pkg/` 目录。 |
 
 Cloudflare 不允许从 byte buffer 做任意 runtime wasm compilation，因此走 static module
@@ -124,10 +120,6 @@ Deno Deploy 使用包含 `main.ts`、`pkg/` 和 `deno.json` 的 compact root。�
 Deno Deploy CLI module，不走旧 Deploy Classic `deployctl`。upload root 也包含 Console
 构建产物，`main.ts` 会先服务 `/console/*`，再把 API 流量交给 wasm。
 
-Appwrite Functions 通过 `deno-2.0` runtime 运行预构建 wasm。不要用 Appwrite 的 Rust
-runtime 部署这个 bundle。Appwrite 默认函数 URL 不是站点根路径，所以 release bundle 不声明
-内置 Console。
-
 ## Edge 限制
 
 edge runtime 尽量共享相同 routing engine、transform pipeline、admin/user dispatcher
@@ -135,6 +127,8 @@ edge runtime 尽量共享相同 routing engine、transform pipeline、admin/user
 
 - `/admin/update/*`
 - `/admin/login-flows/cookie`
-- `/admin/credentials/{id}/usage`
+
+credential 实时 usage 与 rate-limit reset-credit 操作使用 edge fetch transport。三个受支持
+的 edge 目标都会通过真正的 `ReadableStream` 实时转发上游 SSE，并保留逐帧协议转换。
 
 ops endpoints（`/healthz`、`/version`、`/metrics`）在 edge 上和 native 一样需要 admin 鉴权。

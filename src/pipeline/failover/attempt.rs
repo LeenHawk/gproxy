@@ -20,12 +20,10 @@ use crate::pipeline::settle;
 use crate::pipeline::transform::{self as transform_step, AttemptMemo, TransformPlan};
 use crate::protocol::ContentGenerationKind;
 
-/// Uniform per-attempt response body source. `Streaming` is native-only; on wasm
-/// the executor always buffers, so `classify` runs identically on status+headers
-/// regardless of mode and only the tail materialization branches.
+/// Uniform per-attempt response body source. Streaming is backed by wreq on
+/// native and Fetch `ReadableStream` on wasm.
 pub enum BodySource {
     Buffered(Bytes),
-    #[cfg(not(target_arch = "wasm32"))]
     Streaming(crate::http::client::RespStream),
 }
 
@@ -252,7 +250,6 @@ pub(super) async fn attempt(
 
     let disposition = match &source {
         BodySource::Buffered(b) => channel.classify(status, &headers, b),
-        #[cfg(not(target_arch = "wasm32"))]
         BodySource::Streaming(_) => channel.classify(status, &headers, &Bytes::new()),
     };
 
@@ -316,9 +313,7 @@ pub(super) struct BufferedSettle {
 }
 
 /// What [`materialize`] needs to capture a streaming upstream response body.
-/// `Some` only when upstream response-body logging is enabled. (On wasm there is
-/// no streaming arm, so the fields are constructed for the gating check only.)
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+/// `Some` only when upstream response-body logging is enabled.
 pub(super) struct UpstreamRespCapture {
     pub state: AppState,
     pub request_id: String,
@@ -394,7 +389,6 @@ pub(super) async fn materialize(
                 settle,
             })
         }
-        #[cfg(not(target_arch = "wasm32"))]
         BodySource::Streaming(st) => {
             if !status.is_success() {
                 // Streamed error: undecoded passthrough, no upstream capture.
@@ -467,7 +461,6 @@ pub(super) async fn materialize(
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 async fn collect_byte_stream(
     st: crate::pipeline::outcome::ByteStream,
 ) -> Result<Bytes, PipelineError> {
@@ -549,9 +542,7 @@ fn decode_buffered_stream(channel: &Arc<dyn Channel>, body: &Bytes) -> Vec<u8> {
     }
 }
 
-/// One upstream send → uniform `(status, headers, BodySource)`. Streaming on
-/// native when requested; always buffered on wasm.
-#[cfg(not(target_arch = "wasm32"))]
+/// One upstream send → uniform `(status, headers, BodySource)`.
 async fn send_once(
     client: &dyn UpstreamClient,
     req: http::Request<Bytes>,
@@ -565,15 +556,4 @@ async fn send_once(
         let (parts, body) = resp.into_parts();
         Ok((parts.status, parts.headers, BodySource::Buffered(body)))
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn send_once(
-    client: &dyn UpstreamClient,
-    req: http::Request<Bytes>,
-    _stream: bool,
-) -> Result<(StatusCode, HeaderMap, BodySource), ClientError> {
-    let resp = client.send(req).await?;
-    let (parts, body) = resp.into_parts();
-    Ok((parts.status, parts.headers, BodySource::Buffered(body)))
 }

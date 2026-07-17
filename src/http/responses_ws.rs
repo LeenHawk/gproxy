@@ -6,7 +6,6 @@
 //! back to JSON text messages for the WebSocket client.
 
 use bytes::Bytes;
-#[cfg(not(target_arch = "wasm32"))]
 use futures_util::StreamExt as _;
 use http::header::{
     ACCEPT, CONNECTION, CONTENT_TYPE, SEC_WEBSOCKET_ACCEPT, SEC_WEBSOCKET_EXTENSIONS,
@@ -149,7 +148,6 @@ pub(crate) async fn outcome_to_messages(outcome: ExecOutcome) -> Result<Vec<Stri
                 messages.push(json_body_to_message(&body)?);
             }
         }
-        #[cfg(not(target_arch = "wasm32"))]
         ResponseBody::Stream(mut stream) => {
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|error| {
@@ -177,7 +175,6 @@ fn json_body_to_message(body: &Bytes) -> Result<String, WsFrameError> {
 async fn collect_body(body: ResponseBody) -> Result<Bytes, WsFrameError> {
     match body {
         ResponseBody::Full(body) => Ok(body),
-        #[cfg(not(target_arch = "wasm32"))]
         ResponseBody::Stream(mut stream) => {
             let mut out = Vec::new();
             while let Some(chunk) = stream.next().await {

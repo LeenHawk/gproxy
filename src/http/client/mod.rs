@@ -15,13 +15,16 @@ pub enum ClientError {
     Config(String),
 }
 
-/// Streaming response body (NATIVE only). Item error is [`ClientError`] — the
-/// SAME typedef as [`crate::pipeline::outcome::ByteStream`], so the failover →
-/// outcome → axum `Body::from_stream` handoff needs no re-box (`ClientError:
-/// Error + Send + Sync + 'static` satisfies `Into<BoxError>`).
+/// Streaming response body. Native streams are `Send` for axum/tokio; wasm
+/// streams stay local because Fetch `ReadableStream` handles are JS-bound.
+/// Item error is [`ClientError`] — the SAME typedef as
+/// [`crate::pipeline::outcome::ByteStream`].
 #[cfg(not(target_arch = "wasm32"))]
 pub type RespStream =
     std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, ClientError>> + Send>>;
+#[cfg(target_arch = "wasm32")]
+pub type RespStream =
+    std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, ClientError>>>>;
 
 /// An open conduit WebSocket (NATIVE only): text-frame send + receive. Kept
 /// minimal and object-safe so [`UpstreamClient::open_conduit`] can hand one back
@@ -49,8 +52,8 @@ pub trait UpstreamClient: Send + Sync {
 
     /// Send a fully prepared Responses WebSocket request and return the
     /// collected response as an SSE body. Native normally uses
-    /// [`open_websocket`](Self::open_websocket) for streaming; wasm edge uses
-    /// this buffered hook because `ResponseBody::Stream` is native-only.
+    /// [`open_websocket`](Self::open_websocket) for streaming; the edge
+    /// Responses-WebSocket bridge uses this collected round-trip hook.
     async fn send_websocket(
         &self,
         _req: http::Request<Bytes>,
@@ -60,20 +63,18 @@ pub trait UpstreamClient: Send + Sync {
         ))
     }
 
-    /// Streaming variant (NATIVE only): status + headers immediately, body as a
-    /// `ClientError`-itemed byte stream. The default buffers via `send` and wraps
-    /// the whole body as one chunk — a correct, lower-fidelity fallback;
-    /// `WreqClient` overrides with `bytes_stream()`.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// Streaming variant: status + headers immediately, body as a
+    /// `ClientError`-itemed byte stream. The default buffers via `send` and
+    /// wraps the whole body as one chunk — a correct, lower-fidelity fallback;
+    /// target transports override it with their native streaming primitive.
     async fn send_streaming(
         &self,
         req: http::Request<Bytes>,
     ) -> Result<(http::StatusCode, http::HeaderMap, RespStream), ClientError> {
-        use futures_util::StreamExt;
         let resp = self.send(req).await?;
         let (parts, body) = resp.into_parts();
         let once = futures_util::stream::once(async move { Ok::<Bytes, ClientError>(body) });
-        Ok((parts.status, parts.headers, once.boxed()))
+        Ok((parts.status, parts.headers, Box::pin(once)))
     }
 
     /// Open a conduit WebSocket to `url` (NATIVE only). The default returns a

@@ -3,10 +3,8 @@
 //! [`crate::tokenize::harvest`]), and the protocol-shaped mid-stream error
 //! frame emitted before an abnormal close (不裸断).
 
-#[cfg(not(target_arch = "wasm32"))]
 use bytes::Bytes;
 use serde_json::Value;
-#[cfg(not(target_arch = "wasm32"))]
 use serde_json::json;
 
 use crate::protocol::ContentGenerationKind;
@@ -86,8 +84,7 @@ fn frame_text(kind: ContentGenerationKind, frame: &SseFrame) -> Option<String> {
 
 /// ONE protocol-shaped error frame for a mid-stream upstream failure, in the
 /// INBOUND family's wire shape, so the client sees a clean protocol-level end
-/// instead of a bare transport break. Native-only (wasm never streams).
-#[cfg(not(target_arch = "wasm32"))]
+/// instead of a bare transport break.
 pub fn error_frame(kind: ContentGenerationKind) -> Bytes {
     const MESSAGE: &str = "upstream request failed";
     let encoded = match kind {

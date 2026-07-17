@@ -10,7 +10,7 @@ English · [简体中文](README.zh_CN.md)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/LeenHawk?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/LeenHawk)
 
 - 🪪 **License:** AGPL-3.0-or-later · 🐳 **Image:** `ghcr.io/leenhawk/gproxy`
-- 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify / Appwrite)
+- 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify)
 - 🖥️ **Console:** built in, served at `/console`
 
 ---
@@ -59,7 +59,7 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 
 ### ☁️ Serverless edge (WebAssembly)
 
-Prebuilt bundles for four edge platforms live on the
+Prebuilt bundles for three edge platforms live on the
 [**`deploy` branch**](https://github.com/LeenHawk/gproxy/tree/deploy), so you do
 not need a Rust toolchain to deploy them. Edge deployments use **Turso** for
 persistent configuration and can optionally use **Upstash** for shared caching.
@@ -82,7 +82,6 @@ Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a non-blank
 | Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | Deploy button or `wrangler deploy` |
 | Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | Deploy button or `netlify deploy --prod` |
 | Deno Deploy | — | `deploy/deno/build.sh` (CLI) |
-| **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions` (deno-2.0, CLI) |
 
 ### 📦 Native installers and binaries
 

@@ -426,8 +426,8 @@ fn error_to_ws(e: &crate::pipeline::error::PipelineError) -> Result<Response, Js
 }
 
 /// Map an [`ExecOutcome`](crate::pipeline::outcome::ExecOutcome) to a Response:
-/// status + hop-by-hop-sanitized headers + the buffered body + the request id.
-/// On wasm the body is always `Full` (the streaming variant is native-only).
+/// status + hop-by-hop-sanitized headers + buffered or streaming body + the
+/// request id.
 fn outcome_to_ws(
     outcome: crate::pipeline::outcome::ExecOutcome,
     request_id: &str,
@@ -446,8 +446,39 @@ fn outcome_to_ws(
         .append("x-gproxy-request-id", request_id)
         .map_err(js_err)?;
 
-    let ResponseBody::Full(bytes) = outcome.body;
-    js_response(outcome.status.as_u16(), &headers, &bytes)
+    match outcome.body {
+        ResponseBody::Full(bytes) => js_response(outcome.status.as_u16(), &headers, &bytes),
+        ResponseBody::Stream(stream) => {
+            js_stream_response(outcome.status.as_u16(), &headers, stream)
+        }
+    }
+}
+
+/// Build a JS `Response` whose body pulls chunks from the Rust pipeline as a
+/// WHATWG `ReadableStream`. `wasm-streams` propagates JS cancellation by
+/// dropping the Rust stream, which in turn settles usage as interrupted.
+fn js_stream_response(
+    status: u16,
+    headers: &Headers,
+    stream: crate::pipeline::outcome::ByteStream,
+) -> Result<Response, JsValue> {
+    use futures_util::StreamExt;
+
+    let stream = stream.map(|item| match item {
+        Ok(bytes) => {
+            // Own each chunk on the JS heap; a view into wasm linear memory can
+            // be invalidated by later allocations before the host consumes it.
+            let chunk = Uint8Array::new_with_length(bytes.len() as u32);
+            chunk.copy_from(&bytes);
+            Ok(JsValue::from(chunk))
+        }
+        Err(error) => Err(JsValue::from_str(&error.to_string())),
+    });
+    let body = wasm_streams::ReadableStream::from_stream(stream).into_raw();
+    let init = ResponseInit::new();
+    init.set_status(status);
+    init.set_headers_headers(headers);
+    Response::new_with_opt_readable_stream_and_init(Some(&body), &init).map_err(js_err)
 }
 
 /// Core response builder: status + headers + a JS-OWNED body copy.

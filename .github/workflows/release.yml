@@ -452,7 +452,6 @@ jobs:
         run: |
           bash deploy/cloudflare/build.sh
           bash deploy/netlify/build.sh
-          bash deploy/appwrite-deno/build.sh
           # deno: deploy/deno/build.sh also *deploys* (needs a token), so generate
           # the deno-target glue inline here for a build-only bundle.
           wasm-bindgen --target deno --out-dir deploy/deno/pkg target/wasm32-unknown-unknown/release/gproxy.wasm
@@ -464,7 +463,6 @@ jobs:
           cp target/wasm32-unknown-unknown/release/gproxy.wasm edge-dist/gproxy.wasm
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-cloudflare.zip cloudflare -x 'cloudflare/build.sh')
           (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-netlify.zip netlify -x 'netlify/build.sh')
-          (cd deploy && zip -9 -r ../edge-dist/gproxy-edge-appwrite-deno.zip appwrite-deno -x 'appwrite-deno/build.sh' 'appwrite-deno/NOTES.md')
           # deno: compact upload root (main.ts path-fixed to ./pkg + the glue)
           rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg deploy/deno/bundle/console
           cp -R deploy/deno/pkg/. deploy/deno/bundle/pkg/
@@ -493,7 +491,7 @@ jobs:
         run: |
           set -euo pipefail
           stage="$(mktemp -d)"
-          for p in cloudflare netlify appwrite-deno; do
+          for p in cloudflare netlify; do
             cp -r "deploy/$p" "$stage/$p"
             rm -f "$stage/$p/build.sh" "$stage/$p/NOTES.md"
           done
