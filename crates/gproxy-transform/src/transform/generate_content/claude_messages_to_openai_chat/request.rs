@@ -90,7 +90,7 @@ pub fn request(
         prediction: None,
         presence_penalty: None,
         prompt_cache_key: Some(prompt_cache_key),
-        prompt_cache_options: common::openai_options_for_claude_root(input.cache_control),
+        prompt_cache_options: Some(common::openai_options_for_claude_root(input.cache_control)),
         prompt_cache_retention: None,
         reasoning_effort: common::claude_thinking_to_openai(input.thinking),
         response_format: common::claude_output_format_to_chat(output_format),
@@ -202,5 +202,29 @@ mod tests {
                 .get("prompt_cache_breakpoint")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn defaults_to_implicit_openai_cache_mode_without_claude_cache_control() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "hello"}]
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+        );
+
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+        assert_eq!(output["prompt_cache_options"]["mode"], "implicit");
+        assert!(output["prompt_cache_options"].get("ttl").is_none());
     }
 }
