@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { orgsQuery, usersQuery, type UserView } from "@/api/identity";
 import { DataTable, type DataColumn } from "@/components/data-table";
@@ -27,12 +27,29 @@ function UsersPage() {
   const { data: users, isPending } = useQuery(usersQuery);
   const { data: orgs } = useQuery(orgsQuery);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<UserView | undefined>(undefined);
 
   const rows = users ?? [];
   const batch = useBatch("users", ["users"]);
   const ids = rows.map((u) => u.id);
 
   const orgMap = new Map((orgs ?? []).map((o) => [o.id, o.name]));
+
+  const editAction = (user: UserView) => (
+    <div className="flex items-center justify-end">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t("users.edit")}
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditTarget(user);
+        }}
+      >
+        <Pencil className="size-4" aria-hidden />
+      </Button>
+    </div>
+  );
 
   const columns: DataColumn<UserView>[] = [
     {
@@ -74,6 +91,12 @@ function UsersPage() {
         <Badge variant={u.enabled ? "secondary" : "outline"}>{u.enabled ? "on" : "off"}</Badge>
       ),
     },
+    ...(batch.mode ? [] : [{
+      key: "actions",
+      header: "",
+      cell: editAction,
+      className: "w-16 text-right",
+    } as DataColumn<UserView>]),
   ];
 
   return (
@@ -126,6 +149,7 @@ function UsersPage() {
               ) : (
                 <span className="text-xs text-muted-foreground">{t("users.noPassword")}</span>
               )}
+              {!batch.mode && editAction(u)}
             </div>
           )}
         />
@@ -149,6 +173,20 @@ function UsersPage() {
             void navigate({ to: "/users/$userId", params: { userId: String(saved.id) } });
           }}
         />
+      </EntityDialog>
+
+      <EntityDialog
+        open={editTarget !== undefined}
+        onOpenChange={(open) => { if (!open) setEditTarget(undefined); }}
+        title={t("users.edit")}
+      >
+        {editTarget && (
+          <UserForm
+            key={editTarget.id}
+            user={editTarget}
+            onSaved={() => setEditTarget(undefined)}
+          />
+        )}
       </EntityDialog>
     </div>
   );
