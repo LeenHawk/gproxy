@@ -4,7 +4,7 @@
 // from tests.rs. All tests use non-admin sessions except where noted.
 //
 // Coverage:
-//   - /user/keys: create (plaintext-once), list (redacted), cross-user PATCH/DELETE → 404;
+//   - /user/keys: create/list plaintext, cross-user PATCH/DELETE → 404;
 //     first user's key survives the cross-user attempt.
 //   - /user/usage?user_id=<other>: still the session user's scope (field absent →
 //     structurally un-smuggleable).
@@ -17,11 +17,11 @@
 
 // ── /user/keys ────────────────────────────────────────────────────────────────
 
-/// `POST /user/keys` → response has `api_key` (plaintext-once); list → redacted;
-/// a SECOND user's session cannot PATCH/DELETE the first user's key → 404; the
-/// first user's key survives.
+/// `POST /user/keys` and the scoped list expose `api_key`; a SECOND user's
+/// session cannot PATCH/DELETE the first user's key → 404; the first user's key
+/// survives.
 #[tokio::test]
-async fn portal_keys_plaintext_once_and_cross_user_404() {
+async fn portal_keys_plaintext_list_and_cross_user_404() {
     let (state, _dir) = state_with(vec![]).await;
     let uid1 = seed_user(&state, "pk-user1", false).await;
     let uid2 = seed_user(&state, "pk-user2", false).await;
@@ -37,31 +37,24 @@ async fn portal_keys_plaintext_once_and_cross_user_404() {
     let v = parse_json(&resp);
     let bare_key = v["api_key"]
         .as_str()
-        .expect("api_key must be present on create (plaintext-once)");
+        .expect("api_key must be present on create");
     assert!(
         bare_key.starts_with("sk-"),
         "bare key should start with sk-, got: {bare_key}"
     );
     let key_id = v["id"].as_i64().unwrap();
 
-    // user1 lists keys → api_key absent on list items, key_prefix present.
+    // user1 lists keys → complete api_key remains visible.
     let p = parts("GET", "/user/keys", Some(&cookie1), None);
     let resp = run(&state, &p, b"").await.expect("list");
     assert_eq!(resp.status, http::StatusCode::OK);
     let list = parse_json(&resp);
     let items = list.as_array().unwrap();
     assert!(!items.is_empty(), "list should not be empty");
-    for item in items {
-        assert!(
-            item.get("api_key").is_none() || item["api_key"].is_null(),
-            "api_key must be absent from list items: {:?}",
-            item
-        );
-        assert!(
-            item.get("key_prefix").is_some(),
-            "key_prefix must be present in list items"
-        );
-    }
+    assert!(
+        items.iter().any(|item| item["api_key"] == bare_key),
+        "created api_key must be returned by the user's list: {items:?}"
+    );
 
     // user2 attempts PATCH on user1's key → 404 (no existence leak).
     let p = parts(

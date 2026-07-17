@@ -7,7 +7,7 @@ export interface Team { id: number; org_id: number; name: string; enabled: boole
 export interface TeamInput { id?: number | null; org_id: number; name: string; enabled: boolean; }
 export interface UserView { id: number; name: string; org_id: number; team_id: number | null; has_password: boolean; enabled: boolean; is_admin: boolean; created_at: number; updated_at: number; }
 export interface UserUpsert { id?: number | null; name: string; org_id: number; team_id?: number | null; password?: string; enabled: boolean; is_admin: boolean; }
-export interface UserKeyView { id: number; user_id: number; label: string | null; enabled: boolean; key_prefix: string; api_key?: string; }
+export interface UserKeyView { id: number; user_id: number; label: string | null; enabled: boolean; api_key: string; }
 export interface UserKeyUpsert { id?: number | null; label?: string | null; enabled: boolean; }
 
 export const orgsQuery = queryOptions({ queryKey: ["orgs"], queryFn: () => api<Org[]>("/admin/orgs") });

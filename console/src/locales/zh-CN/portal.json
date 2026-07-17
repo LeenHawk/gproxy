@@ -16,17 +16,14 @@
     "add": "生成密钥",
     "empty": "暂无 API 密钥。",
     "label": "标签",
-    "prefix": "前缀",
+    "key": "API 密钥",
     "enabled": "已启用",
     "disabled": "已停用",
     "enable": "启用",
     "disable": "禁用",
     "disableConfirm": "禁用该 API 密钥？使用它的客户端将被拒绝。",
     "delete": "删除密钥",
-    "deleteConfirm": "删除该 API 密钥？使用它的客户端将停止工作。",
-    "created": "API 密钥已创建——请立即复制，仅显示一次。",
-    "copied": "已复制",
-    "copyFailed": "复制失败"
+    "deleteConfirm": "删除该 API 密钥？使用它的客户端将停止工作。"
   },
   "usage": {
     "empty": "暂无使用记录。",

@@ -16,17 +16,14 @@
     "add": "產生金鑰",
     "empty": "尚無 API 金鑰。",
     "label": "標籤",
-    "prefix": "前綴",
+    "key": "API 金鑰",
     "enabled": "已啟用",
     "disabled": "已停用",
     "enable": "啟用",
     "disable": "停用",
     "disableConfirm": "停用該 API 金鑰？使用它的用戶端將被拒絕。",
     "delete": "刪除金鑰",
-    "deleteConfirm": "刪除該 API 金鑰？使用它的用戶端將停止運作。",
-    "created": "API 金鑰已建立——請立即複製，僅顯示一次。",
-    "copied": "已複製",
-    "copyFailed": "複製失敗"
+    "deleteConfirm": "刪除該 API 金鑰？使用它的用戶端將停止運作。"
   },
   "usage": {
     "empty": "尚無使用記錄。",

@@ -24,10 +24,9 @@
   },
   "keys": {
     "title": "API keys", "add": "Generate key", "empty": "No API keys.",
-    "label": "Label", "prefix": "Prefix", "enabled": "Enabled",
+    "label": "Label", "key": "API key", "enabled": "Enabled",
     "delete": "Delete key", "deleteConfirm": "Delete this API key? Clients using it stop working.",
-    "created": "API key created — copy it now, it is shown only once.",
-    "copied": "Copied", "copyFailed": "Copy failed", "rotateHint": "Keys can't be edited — to rotate, generate a new one and delete the old."
+    "rotateHint": "Keys can't be edited — to rotate, generate a new one and delete the old."
   },
   "access": {
     "permissions": "Route permissions", "permissionsHint": "Glob patterns on route names or provider/model; a provider name grants all its models (union across org→team→user).",

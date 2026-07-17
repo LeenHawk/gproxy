@@ -129,8 +129,8 @@ pub(super) async fn dispatch(
 
 // ── /user/keys handlers ───────────────────────────────────────────────────────
 
-/// `GET /user/keys` — list all keys belonging to the session user.
-/// `api_key` is never included in list responses.
+/// `GET /user/keys` — list all keys belonging to the session user, including
+/// each complete API key.
 async fn list_keys(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let keys = state
@@ -138,13 +138,15 @@ async fn list_keys(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
         .list_user_keys(u.id)
         .await
         .map_err(internal)?;
-    Resp::json(
-        200,
-        &keys.into_iter().map(UserKeyView::from).collect::<Vec<_>>(),
-    )
+    let views = keys
+        .into_iter()
+        .map(|key| UserKeyView::from_stored(key, state.cipher.as_ref()))
+        .collect::<anyhow::Result<Vec<_>>>()
+        .map_err(internal)?;
+    Resp::json(200, &views)
 }
 
-/// `POST /user/keys` — create a key for the session user; bare key returned once.
+/// `POST /user/keys` — create a key for the session user and return the bare key.
 /// Caller-supplied `api_key` is rejected (400). `user_id` from session only.
 async fn create_key(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
@@ -183,8 +185,7 @@ async fn create_key(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Res
         .map_err(internal)?;
     invalidate(state).await;
 
-    let mut view = UserKeyView::from(key);
-    view.api_key = Some(bare); // plaintext-once
+    let view = UserKeyView::from_plain(key, bare);
     Resp::json(200, &view)
 }
 
@@ -223,8 +224,8 @@ async fn update_key(
         .map_err(internal)?;
     invalidate(state).await;
 
-    // api_key stays None on updates (not returned again).
-    Resp::json(200, &UserKeyView::from(key))
+    let view = UserKeyView::from_stored(key, state.cipher.as_ref()).map_err(internal)?;
+    Resp::json(200, &view)
 }
 
 /// `DELETE /user/keys/{id}` — delete a key the session user owns.
