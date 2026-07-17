@@ -14,6 +14,7 @@
 pub(crate) mod auth;
 pub(crate) mod authz;
 pub(crate) mod batch;
+pub(crate) mod credential_ops;
 pub mod crud;
 pub(crate) mod login_flows;
 pub(crate) mod nested;
@@ -240,6 +241,11 @@ async fn route(state: &AppState, parts: &Parts, body: &Bytes) -> Option<Result<R
         return Some(r);
     }
 
+    // Live credential operations that call the upstream account API.
+    if let Some(r) = credential_ops::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
     // 6. Special admin CRUD (user-keys / users / credentials) with server-side
     //    crypto: key gen + seal, password hash, secret seal, redaction.
     //    Must come BEFORE the identity arm (step 7) and AFTER nested (step 2)
@@ -256,7 +262,7 @@ async fn route(state: &AppState, parts: &Parts, body: &Bytes) -> Option<Result<R
     }
 
     // 8. Login-flows (`/admin/login-flows/*`) and explicit 501 degradations
-    //    (`/admin/update/*`, `/admin/credentials/{id}/usage`). Evaluated after
+    //    (`/admin/update/*`). Evaluated after
     //    special (step 6) so the 3-seg credentials arms there win; the
     //    login-flows arms are disjoint from all prior steps.
     if let Some(r) = login_flows::dispatch(state, parts, body).await {

@@ -7,7 +7,7 @@
 // Coverage:
 //   - /admin/login-flows/cookie → 501 (NotImplemented, type "not_implemented")
 //   - /admin/update/check|status|apply → 501
-//   - /admin/credentials/{id}/usage → 501
+//   - live credential usage/reset-credit routes are edge-wired (missing id → 404)
 //   - /admin/login-flows/start without admin cookie → 401 (guard_admin runs first)
 //   - /admin/login-flows/start with valid admin cookie + body → NOT 401/404; the
 //     route is wired and guarded (codex channel authcode_start is client-free so
@@ -51,19 +51,38 @@ async fn update_check_is_501() {
     }
 }
 
-/// `GET /admin/credentials/{id}/usage` → 501.
+/// Live usage is routed on edge; a missing credential is a normal 404 rather
+/// than the old platform-level 501.
 #[tokio::test]
-async fn credential_usage_is_501() {
+async fn credential_usage_is_wired() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "lf-cred-admin", true).await;
     let cookie = cookie_for(&state, admin_id).await;
 
     let p = parts("GET", "/admin/credentials/42/usage", Some(&cookie), None);
-    let err = run(&state, &p, b"")
+    let err = run(&state, &p, b"").await.expect_err("missing credential");
+    assert_eq!(err.status(), http::StatusCode::NOT_FOUND);
+    assert_eq!(err.type_str(), "not_found");
+}
+
+/// Reset-credit uses the same Edge fetch transport and is registered too.
+#[tokio::test]
+async fn rate_limit_reset_credit_is_wired() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "lf-reset-admin", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    let p = parts(
+        "POST",
+        "/admin/credentials/42/rate-limit-reset-credit",
+        Some(&cookie),
+        None,
+    );
+    let err = run(&state, &p, br#"{"idempotency_key":"once-42"}"#)
         .await
-        .expect_err("501");
-    assert_eq!(err.status(), http::StatusCode::NOT_IMPLEMENTED);
-    assert_eq!(err.type_str(), "not_implemented");
+        .expect_err("missing credential");
+    assert_eq!(err.status(), http::StatusCode::NOT_FOUND);
+    assert_eq!(err.type_str(), "not_found");
 }
 
 // ── guard_admin on login-flows ────────────────────────────────────────────────

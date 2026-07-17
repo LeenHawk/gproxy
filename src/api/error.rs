@@ -18,7 +18,7 @@ pub enum ApiError {
     /// seconds (e.g. "60"). Used by the login throttle.
     TooManyRequests(String),
     /// 501 Not Implemented. Used for endpoints that are intentionally absent on
-    /// the edge build (e.g. cookie-login, self-update, credential-usage).
+    /// the edge build (e.g. cookie-login and self-update).
     NotImplemented(String),
 }
 

@@ -82,8 +82,14 @@ pub async fn invalidate(state: &crate::app::AppState) {
     }
 }
 
-/// Edge has no synchronous pub/sub invalidation; the §7.2 config-version poll
-/// (edge.rs) refreshes the snapshot within one interval. No-op here so CRUD
-/// cores compile on wasm.
+/// Edge has no push listener, but mutations still have to bump the shared
+/// version stamp for peer isolates and reload the current isolate immediately.
+/// REST cache backends implement `publish` as a no-op; peers observe the
+/// version bump through the §7.2 poll in `http::edge`.
 #[cfg(target_arch = "wasm32")]
-pub async fn invalidate(_state: &crate::app::AppState) {}
+pub async fn invalidate(state: &crate::app::AppState) {
+    crate::app::invalidation::broadcast(state.cache.as_ref(), b"config").await;
+    if let Err(error) = state.reload_snapshot().await {
+        tracing::warn!(%error, "edge snapshot reload after admin mutation failed");
+    }
+}

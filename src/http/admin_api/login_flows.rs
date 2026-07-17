@@ -7,8 +7,7 @@
 //! endpoint requires the native `upstream-wreq` browser-TLS client and is
 //! degraded to 501 on edge.
 //!
-//! Also serves the explicit 501 degradation arms for self-update endpoints and
-//! the `credentials/{id}/usage` read (both native-only features).
+//! Also serves the explicit 501 degradation arms for self-update endpoints.
 
 use bytes::Bytes;
 use http::Method;
@@ -28,7 +27,7 @@ use crate::store::persistence::records::CredentialInput;
 use super::{Resp, json_body, segments};
 
 /// Dispatch `/admin/login-flows/*` and the explicit 501 degradation arms for
-/// `/admin/update/*` and `/admin/credentials/{id}/usage`.
+/// `/admin/update/*`.
 ///
 /// Returns `Some(result)` when the path is handled here; `None` to fall through.
 pub(super) async fn dispatch(
@@ -61,11 +60,6 @@ pub(super) async fn dispatch(
         (_, ["admin", "update", "check" | "status" | "apply"]) => Some(Err(
             ApiError::NotImplemented("self-update is unavailable on edge".to_string()),
         )),
-
-        // credential live-usage (B6.2 follow-up, fetch_usage needs upstream-wreq).
-        (_, ["admin", "credentials", _id, "usage"]) => Some(Err(ApiError::NotImplemented(
-            "live credential usage is unavailable on edge".to_string(),
-        ))),
 
         _ => None,
     }
