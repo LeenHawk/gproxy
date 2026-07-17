@@ -6,10 +6,6 @@
 //! `server/admin/usage.rs`) so they compile on wasm32. Mounted behind
 //! `guard_admin`.
 //!
-//! `GET /admin/credentials/{id}/usage` is intentionally omitted on the edge:
-//! it calls `credentials::usage::fetch_usage`, which requires the
-//! `upstream-wreq` native feature (unavailable in wasm / edge builds). The
-//! route falls through to the caller's 404 — the native axum router handles it.
 
 use bytes::Bytes;
 use http::Method;
@@ -86,10 +82,6 @@ pub(super) async fn dispatch(
         (&Method::GET, ["admin", "credentials", id, "status"]) => {
             credential_status(state, parts, id).await
         }
-
-        // NOTE: GET /admin/credentials/{id}/usage is intentionally absent here.
-        // That route calls `credentials::usage::fetch_usage` which requires
-        // the native `upstream-wreq` feature. The native axum router handles it.
 
         // Request logs
         (&Method::GET, ["admin", "logs"]) => list_logs(state, parts).await,
