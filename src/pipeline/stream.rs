@@ -1,6 +1,5 @@
-//! Streaming response tail (§6.4, D4). Native-only. Holds ONLY the body-side
-//! conversion invoked by `failover` when materializing a streaming attempt — it
-//! does not iterate candidates or call `classify`.
+//! Streaming response tail (§6.4, D4): body-side conversion invoked by
+//! `failover`; it does not iterate candidates or call `classify`.
 
 use crate::channel::ChannelStreamDecoder;
 use crate::http::client::RespStream;
@@ -8,14 +7,17 @@ use crate::pipeline::outcome::ByteStream;
 use crate::pipeline::settle::StreamGuard;
 use crate::transform::stream_adapter::SseTransformer;
 
+#[cfg(not(target_arch = "wasm32"))]
 const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SyntheticTransport {
     Sse,
     GeminiJson,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn synthetic_transport(ctx: &crate::pipeline::context::RequestCtx) -> SyntheticTransport {
     if matches!(
         ctx.op.map(|op| op.kind),
@@ -36,6 +38,7 @@ pub fn synthetic_transport(ctx: &crate::pipeline::context::RequestCtx) -> Synthe
 /// Return the downstream stream immediately while the normal failover loop runs
 /// in a background task against a non-streaming target. The task owns all
 /// accounting work, so client disconnect does not leak pending quota charges.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn synthetic_outcome(
     state: crate::app::AppState,
     ctx: crate::pipeline::context::RequestCtx,
@@ -115,6 +118,7 @@ pub fn synthetic_outcome(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn synthetic_keepalive(
     kind: crate::protocol::ContentGenerationKind,
     transport: SyntheticTransport,
@@ -128,6 +132,7 @@ fn synthetic_keepalive(
     bytes::Bytes::from_static(b": keep-alive\n\n")
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn synthetic_final(
     kind: crate::protocol::ContentGenerationKind,
     transport: SyntheticTransport,
@@ -148,6 +153,7 @@ fn synthetic_final(
     crate::transform::stream_adapter::synthesize_sse(kind, body).map(bytes::Bytes::from)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn synthetic_error(
     kind: crate::protocol::ContentGenerationKind,
     transport: SyntheticTransport,
@@ -295,13 +301,23 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
                 None => {
                     st.inner = None;
                     if let Some(g) = st.guard.take() {
-                        g.finish();
+                        finish_stream_guard(g).await;
                     }
                     None
                 }
             }
         },
     ))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn finish_stream_guard(guard: StreamGuard) {
+    guard.finish();
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn finish_stream_guard(guard: StreamGuard) {
+    guard.finish().await;
 }
 
 /// Convert a mid-stream transport error into one protocol-shaped downstream
@@ -343,8 +359,7 @@ pub fn instrument_error_frame(
 
 /// Buffers post-decode upstream response bytes for a streaming response and, on
 /// EOF or client drop, backfills `upstream_requests.response_body` (§8-D, bounded
-/// by `RelayBuffer`'s ~4MB cap). Native-only.
-#[cfg(not(target_arch = "wasm32"))]
+/// by `RelayBuffer`'s ~4MB cap).
 pub struct RawCaptureGuard {
     inner: Option<(
         crate::app::AppState,
@@ -353,7 +368,6 @@ pub struct RawCaptureGuard {
     )>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl RawCaptureGuard {
     pub fn new(state: crate::app::AppState, request_id: String) -> Self {
         Self {
@@ -375,14 +389,18 @@ impl RawCaptureGuard {
     fn flush(&mut self) {
         if let Some((state, rid, buf)) = self.inner.take() {
             let bytes = buf.concat_for_log();
+            #[cfg(not(target_arch = "wasm32"))]
             tokio::spawn(async move {
+                crate::pipeline::capture::record_upstream_response(&state, &rid, &bytes).await;
+            });
+            #[cfg(target_arch = "wasm32")]
+            wasm_bindgen_futures::spawn_local(async move {
                 crate::pipeline::capture::record_upstream_response(&state, &rid, &bytes).await;
             });
         }
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Drop for RawCaptureGuard {
     fn drop(&mut self) {
         self.flush();
@@ -392,7 +410,6 @@ impl Drop for RawCaptureGuard {
 /// Tee post-decode upstream chunks into `guard` while passing them through
 /// unchanged. Spliced AFTER the channel decoder and BEFORE any protocol
 /// transform, so it sees the provider's response in its native wire shape.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn capture_raw_stream(s: ByteStream, guard: RawCaptureGuard) -> ByteStream {
     use futures_util::StreamExt;
 

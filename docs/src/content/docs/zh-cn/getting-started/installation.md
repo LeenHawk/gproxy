@@ -155,9 +155,8 @@ cargo build --release --bin gproxy
 在有 Rust 的机器/CI 构建 wasm -> 生成平台 bundle -> 上传 bundle
 ```
 
-release artifacts 包含 `gproxy-edge-cloudflare.zip`、`gproxy-edge-netlify.zip`、
-`gproxy-edge-deno.zip` 和
-`gproxy-edge-appwrite-deno.zip`。
+release artifacts 包含 `gproxy-edge-cloudflare.zip`、`gproxy-edge-netlify.zip` 和
+`gproxy-edge-deno.zip`。
 
 平台命令和 runtime secrets 见 [Edge Wasm 部署](/zh-cn/deployment/edge/)。
 

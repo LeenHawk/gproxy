@@ -43,9 +43,8 @@ pub enum TransportKind {
 /// Used by envelope/binary channels (code-assist per-frame unwrap, kiro Smithy
 /// → SSE). Sync core, mirrors the protocol `SseTransformer`
 /// ([`crate::transform::stream_adapter::SseTransformer`]): `push` per upstream
-/// chunk, `finish` at EOF. Streaming is native-only, but the trait is defined
-/// on both targets (the hook returns `None` everywhere by default) — the `Send`
-/// bound is harmless on wasm since the decoder is never held across an await.
+/// chunk, `finish` at EOF. The same decoder runs over wreq streams on native
+/// and Fetch `ReadableStream` chunks on edge.
 pub trait ChannelStreamDecoder: Send {
     /// Feed one raw upstream chunk; return decoded bytes (possibly empty while a
     /// frame is still buffering).

@@ -142,8 +142,7 @@ pub async fn settle_body(ctx: SettleCtx, body: &Bytes, stream: bool) {
     settle_full(ctx, body, stream).await;
 }
 
-/// Inline settle for a fully-buffered body (non-streaming, or wasm's buffered
-/// streaming). Usage-in-body is the fast path; a miss falls to the counting
+/// Inline settle for a fully-buffered body. Usage-in-body is the fast path; a miss falls to the counting
 /// ladder (spawned on native so the response isn't delayed).
 async fn settle_full(ctx: SettleCtx, body: &Bytes, stream: bool) {
     let extracted = if stream {
@@ -169,25 +168,21 @@ async fn settle_full(ctx: SettleCtx, body: &Bytes, stream: bool) {
     }
 }
 
-// ── bounded relay buffer + Drop guard (native streaming only) ────────────────
+// ── bounded relay buffer + Drop guard ───────────────────────────────────────
 
-#[cfg(not(target_arch = "wasm32"))]
 const BUFFER_CAP: usize = 4 << 20;
-#[cfg(not(target_arch = "wasm32"))]
 const TAIL_KEEP: usize = 64 << 10;
 
 /// Bounded chunk buffer: beyond ~4MB the oldest chunks are dropped, but the
 /// most recent ~64KB tail (where final usage frames live) and the running
 /// relayed-byte total are always kept. Shared with `pipeline::stream` for
 /// upstream raw-response capture (§8-D).
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) struct RelayBuffer {
     chunks: std::collections::VecDeque<Bytes>,
     stored: usize,
     total: u64,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl RelayBuffer {
     pub(crate) fn new() -> Self {
         Self {
@@ -246,12 +241,10 @@ impl RelayBuffer {
 /// settle task; whichever fires first wins.
 ///
 /// [`finish`]: StreamGuard::finish
-#[cfg(not(target_arch = "wasm32"))]
 pub struct StreamGuard {
     inner: Option<(SettleCtx, RelayBuffer)>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl StreamGuard {
     pub fn new(ctx: SettleCtx) -> Self {
         Self {
@@ -266,11 +259,22 @@ impl StreamGuard {
         }
     }
 
-    /// Explicit normal end — settles `Complete`.
+    /// Explicit normal end — settles `Complete` without delaying native EOF.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn finish(mut self) {
         self.complete(Ended::Complete);
     }
 
+    /// Explicit normal end on edge. Await the persistence work before closing
+    /// the JS response stream so the host keeps the request context alive.
+    #[cfg(target_arch = "wasm32")]
+    pub async fn finish(mut self) {
+        if let Some((ctx, buf)) = self.inner.take() {
+            settle_stream(ctx, buf, Ended::Complete).await;
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn complete(&mut self, ended: Ended) {
         let Some((ctx, buf)) = self.inner.take() else {
             return;
@@ -286,16 +290,21 @@ impl StreamGuard {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Drop for StreamGuard {
     fn drop(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
         self.complete(Ended::Interrupted);
+        #[cfg(target_arch = "wasm32")]
+        if let Some((ctx, buf)) = self.inner.take() {
+            wasm_bindgen_futures::spawn_local(settle_stream(ctx, buf, Ended::Interrupted));
+        }
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
     let bytes = buf.concat();
+    let log_state = ctx.state.clone();
+    let log_request_id = ctx.request_id.clone();
     tracing::debug!(
         request_id = %ctx.request_id,
         relayed_bytes = buf.total,
@@ -304,22 +313,26 @@ async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         "settling stream"
     );
     let frames = frames::decode(&bytes);
-    let (usage, source) = match ended {
-        // normal end: trust the upstream-reported final usage when present
-        Ended::Complete => match extract::from_stream_frames(ctx.usage_kind, &frames) {
-            Some(u) => (u, UsageSource::Upstream),
-            None => ladder(&ctx, &frames::produced_text(ctx.usage_kind, &frames)).await,
-        },
-        // abnormal end: bill the PRODUCED part via the counting ladder (§17)
-        Ended::Interrupted => ladder(&ctx, &frames::produced_text(ctx.usage_kind, &frames)).await,
-    };
-    record(&ctx, usage, source, ended).await;
+    if ended == Ended::Complete
+        && let Some(usage) = extract::from_stream_frames(ctx.usage_kind, &frames)
+    {
+        record(&ctx, usage, UsageSource::Upstream, ended).await;
+    } else {
+        let text = frames::produced_text(ctx.usage_kind, &frames);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (usage, source) = ladder(&ctx, &text).await;
+            record(&ctx, usage, source, ended).await;
+        }
+        #[cfg(target_arch = "wasm32")]
+        count_and_record(ctx, text, ended).await;
+    }
     // §8-D: backfill the captured downstream response body (the row was
     // appended at execute() return; this UPDATE lands after it). Gated inside.
     // `concat_for_log` surfaces head-drop truncation on >4MB streams.
     crate::pipeline::capture::record_downstream_response(
-        &ctx.state,
-        &ctx.request_id,
+        &log_state,
+        &log_request_id,
         &buf.concat_for_log(),
     )
     .await;

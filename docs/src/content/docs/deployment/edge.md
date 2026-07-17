@@ -33,8 +33,6 @@ sealed stored secrets.
 
 Cloudflare Workers, Netlify Edge, and Deno Deploy bundle the
 React Console into the same deployment and redirect `/` to `/console/`.
-Appwrite Functions use platform function URLs rather than a site root; serve the
-Console through a custom same-origin root route if you need the web UI there.
 
 ## Runtime Services
 
@@ -63,7 +61,6 @@ The release workflow publishes:
 | `gproxy-edge-cloudflare.zip` | Cloudflare Workers. |
 | `gproxy-edge-netlify.zip` | Netlify Edge Functions. |
 | `gproxy-edge-deno.zip` | Deno Deploy compact upload root. |
-| `gproxy-edge-appwrite-deno.zip` | Appwrite Functions on `deno-2.0`. |
 | `gproxy.wasm` | Raw wasm artifact for inspection or custom packaging. |
 
 On published releases the workflow also refreshes the orphan `deploy` branch
@@ -80,14 +77,13 @@ cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release 
 ```
 
 `wasm-bindgen-cli` must match the `wasm-bindgen` crate version in `Cargo.lock`.
-The current workflow installs `0.2.123`.
+The current workflow installs `0.2.126`.
 
 Generate platform bundles:
 
 ```bash
 bash deploy/cloudflare/build.sh
 bash deploy/netlify/build.sh
-bash deploy/appwrite-deno/build.sh
 ```
 
 `deploy/deno/build.sh` is different: it builds and deploys through Deno's Deploy
@@ -99,7 +95,7 @@ calling that script.
 | Platform group | Bundle shape |
 | --- | --- |
 | Cloudflare Workers | `wasm-bindgen --target web`; `.wasm` packaged as a static `WebAssembly.Module`. |
-| Netlify, Appwrite Deno | `wasm-bindgen --target deno`; wasm base64-inlined for runtime instantiate. |
+| Netlify | `wasm-bindgen --target deno`; wasm base64-inlined for runtime instantiate. |
 | Deno Deploy | `main.ts` plus generated `pkg/` directory. |
 
 Cloudflare does not allow arbitrary runtime wasm compilation from byte buffers,
@@ -139,10 +135,6 @@ The current path uses the new Deno Deploy CLI module rather than old Deploy
 Classic `deployctl`. The upload root also includes the Console build, and
 `main.ts` serves `/console/*` before forwarding API traffic to wasm.
 
-Appwrite Functions run the prebuilt wasm through the `deno-2.0` runtime. Do not
-use Appwrite's Rust runtime for this bundle. Appwrite's default function URL is
-not a site root, so the release bundle does not claim an embedded Console there.
-
 ## Edge Limitations
 
 The edge runtime shares the same routing engine, transform pipeline, admin/user
@@ -151,7 +143,10 @@ dispatcher, and protocol logic where possible, but a few native-only APIs return
 
 - `/admin/update/*`
 - `/admin/login-flows/cookie`
-- `/admin/credentials/{id}/usage`
+
+Live credential usage and rate-limit reset-credit operations use the edge fetch
+transport. Upstream SSE is relayed as a real streaming `ReadableStream` on all
+three supported edge targets, including per-frame protocol conversion.
 
 Ops endpoints (`/healthz`, `/version`, `/metrics`) are admin-gated on edge just
 as they are on native.

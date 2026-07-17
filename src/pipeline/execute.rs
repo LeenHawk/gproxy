@@ -44,7 +44,6 @@ pub async fn execute(state: &AppState, ctx: RequestCtx) -> Result<ExecOutcome, P
         let (status, resp_body): (http::StatusCode, Option<bytes::Bytes>) = match &result {
             Ok(o) => {
                 let b = match &o.body {
-                    #[cfg(not(target_arch = "wasm32"))]
                     ResponseBody::Stream(_) => None,
                     ResponseBody::Full(b) if want_body => Some(b.clone()),
                     ResponseBody::Full(_) => None,
@@ -279,9 +278,9 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         pending::refund(state.cache.as_ref(), &quota_scopes, pending_micros).await;
     }
 
-    // Edge currently buffers all response bodies. Preserve the synthetic
-    // route's wire contract even though live keepalives require the native
-    // streaming runtime.
+    // Edge pass-through streams are live. A synthetic stream still waits for
+    // its deliberately non-streaming upstream, then encodes that one buffered
+    // response into the requested stream wire shape.
     #[cfg(target_arch = "wasm32")]
     if synthesize_stream
         && let Ok(outcome) = &mut result

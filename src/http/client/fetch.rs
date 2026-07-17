@@ -2,10 +2,8 @@
 //!
 //! Dispatches via `WorkerGlobalScope.fetch()` (Cloudflare Workers / WinterCG).
 //!
-// TODO: unverified end-to-end — no edge runtime to round-trip against yet;
-//       compile-checked only.
-
 use bytes::Bytes;
+use futures_util::StreamExt;
 use js_sys::{Array, Uint8Array, global};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -102,83 +100,120 @@ impl Default for FetchClient {
     }
 }
 
+/// Dispatch one request and return response metadata immediately, leaving the
+/// JS body untouched so callers can choose buffered or streaming consumption.
+async fn fetch_raw(
+    req: http::Request<Bytes>,
+) -> Result<(http::StatusCode, http::HeaderMap, Response), ClientError> {
+    let (parts, body_bytes) = req.into_parts();
+
+    let js_headers = Headers::new().map_err(js_err)?;
+    for (name, value) in &parts.headers {
+        let value = value
+            .to_str()
+            .map_err(|error| ClientError::Transport(error.to_string()))?;
+        js_headers.append(name.as_str(), value).map_err(js_err)?;
+    }
+
+    let init = RequestInit::new();
+    init.set_method(parts.method.as_str());
+    init.set_headers_headers(&js_headers);
+    if parts.method != http::Method::GET
+        && parts.method != http::Method::HEAD
+        && !body_bytes.is_empty()
+    {
+        let body = Uint8Array::from(body_bytes.as_ref());
+        init.set_body_opt_u8_array(Some(&body));
+    }
+
+    let request = Request::new_with_str_and_init(&parts.uri.to_string(), &init).map_err(js_err)?;
+    let scope = global().unchecked_into::<WorkerGlobalScope>();
+    let value = JsFuture::from(scope.fetch_with_request(&request))
+        .await
+        .map_err(js_err)?;
+    let response: Response = value.unchecked_into();
+    let status = http::StatusCode::from_u16(response.status())
+        .map_err(|error| ClientError::Transport(error.to_string()))?;
+    let headers = response_headers(&response)?;
+    Ok((status, headers, response))
+}
+
+fn response_headers(response: &Response) -> Result<http::HeaderMap, ClientError> {
+    let mut headers = http::HeaderMap::new();
+    let Some(iter) = js_sys::try_iter(&response.headers()).map_err(js_err)? else {
+        return Ok(headers);
+    };
+    for entry in iter {
+        let entry = entry.map_err(js_err)?;
+        let pair: Array = entry.unchecked_into();
+        let name = pair.get(0).as_string().unwrap_or_default();
+        let value = pair.get(1).as_string().unwrap_or_default();
+        if let (Ok(name), Ok(value)) = (
+            http::header::HeaderName::try_from(name.as_str()),
+            http::header::HeaderValue::try_from(value.as_str()),
+        ) {
+            headers.append(name, value);
+        } else {
+            tracing::warn!("dropping unparseable response header: {name}");
+        }
+    }
+    Ok(headers)
+}
+
+fn response_with_body(
+    status: http::StatusCode,
+    headers: http::HeaderMap,
+    body: Bytes,
+) -> Result<http::Response<Bytes>, ClientError> {
+    let mut response = http::Response::builder().status(status);
+    if let Some(response_headers) = response.headers_mut() {
+        *response_headers = headers;
+    }
+    response
+        .body(body)
+        .map_err(|error| ClientError::Transport(error.to_string()))
+}
+
 #[async_trait::async_trait(?Send)]
 impl UpstreamClient for FetchClient {
     async fn send(&self, req: http::Request<Bytes>) -> Result<http::Response<Bytes>, ClientError> {
-        let (parts, body_bytes) = req.into_parts();
-
-        // Build web_sys::Headers from http::HeaderMap.
-        let js_headers = Headers::new().map_err(js_err)?;
-        for (name, value) in &parts.headers {
-            let val_str = value
-                .to_str()
-                .map_err(|e| ClientError::Transport(e.to_string()))?;
-            js_headers.append(name.as_str(), val_str).map_err(js_err)?;
-        }
-
-        // Set up RequestInit: method, headers, body (as Uint8Array).
-        let init = RequestInit::new();
-        init.set_method(parts.method.as_str());
-        init.set_headers_headers(&js_headers);
-        // The Fetch standard throws TypeError if a body is set on GET/HEAD.
-        // Only set body when the method allows it and the body is non-empty.
-        if parts.method != http::Method::GET
-            && parts.method != http::Method::HEAD
-            && !body_bytes.is_empty()
-        {
-            let body_arr = Uint8Array::from(body_bytes.as_ref());
-            init.set_body_opt_u8_array(Some(&body_arr));
-        }
-
-        // Build Request from the URI string.
-        let uri_str = parts.uri.to_string();
-        let js_req = Request::new_with_str_and_init(&uri_str, &init).map_err(js_err)?;
-
-        // Dispatch via WorkerGlobalScope.fetch().
-        let scope = global().unchecked_into::<WorkerGlobalScope>();
-        let resp_val = JsFuture::from(scope.fetch_with_request(&js_req))
-            .await
-            .map_err(js_err)?;
-        let js_resp: Response = resp_val.unchecked_into();
-
-        let status_code = js_resp.status();
-        let js_resp_headers = js_resp.headers();
-
-        // Read body via array_buffer().
-        let buf_promise = js_resp.array_buffer().map_err(js_err)?;
+        let (status, headers, response) = fetch_raw(req).await?;
+        let buf_promise = response.array_buffer().map_err(js_err)?;
         let buf_val = JsFuture::from(buf_promise).await.map_err(js_err)?;
-        let body_out: Bytes = Uint8Array::new(&buf_val).to_vec().into();
+        let body = Uint8Array::new(&buf_val).to_vec().into();
+        response_with_body(status, headers, body)
+    }
 
-        // Convert headers back into http::HeaderMap.
-        let mut http_headers = http::HeaderMap::new();
-        let header_iter = js_sys::try_iter(&js_resp_headers).map_err(js_err)?;
-        if let Some(iter) = header_iter {
-            for entry in iter {
-                let entry = entry.map_err(js_err)?;
-                let arr: js_sys::Array = entry.unchecked_into();
-                let name = arr.get(0).as_string().unwrap_or_default();
-                let val = arr.get(1).as_string().unwrap_or_default();
-                if let (Ok(hn), Ok(hv)) = (
-                    http::header::HeaderName::try_from(name.as_str()),
-                    http::header::HeaderValue::try_from(val.as_str()),
-                ) {
-                    http_headers.append(hn, hv);
-                } else {
-                    tracing::warn!("dropping unparseable response header: {name}");
-                }
+    async fn send_streaming(
+        &self,
+        req: http::Request<Bytes>,
+    ) -> Result<
+        (
+            http::StatusCode,
+            http::HeaderMap,
+            crate::http::client::RespStream,
+        ),
+        ClientError,
+    > {
+        let (status, headers, response) = fetch_raw(req).await?;
+        let stream: crate::http::client::RespStream = match response.body() {
+            Some(body) => {
+                let chunks = wasm_streams::ReadableStream::from_raw(body)
+                    .into_stream()
+                    .map(|chunk| {
+                        let value = chunk.map_err(js_err)?;
+                        let array: Uint8Array = value.dyn_into().map_err(|_| {
+                            ClientError::Transport(
+                                "fetch response stream yielded a non-Uint8Array chunk".into(),
+                            )
+                        })?;
+                        Ok(Bytes::from(array.to_vec()))
+                    });
+                Box::pin(chunks)
             }
-        }
-
-        let status = http::StatusCode::from_u16(status_code)
-            .map_err(|e| ClientError::Transport(e.to_string()))?;
-
-        let mut builder = http::Response::builder().status(status);
-        if let Some(hmap) = builder.headers_mut() {
-            *hmap = http_headers;
-        }
-        builder
-            .body(body_out)
-            .map_err(|e| ClientError::Transport(e.to_string()))
+            None => Box::pin(futures_util::stream::empty()),
+        };
+        Ok((status, headers, stream))
     }
 
     async fn send_websocket(

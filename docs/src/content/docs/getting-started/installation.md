@@ -172,8 +172,8 @@ build wasm in CI or on a machine with Rust -> generate platform bundle -> upload
 ```
 
 Release artifacts include platform zip files such as
-`gproxy-edge-cloudflare.zip`, `gproxy-edge-netlify.zip`,
-`gproxy-edge-deno.zip`, and `gproxy-edge-appwrite-deno.zip`.
+`gproxy-edge-cloudflare.zip`, `gproxy-edge-netlify.zip`, and
+`gproxy-edge-deno.zip`.
 
 See [Edge Wasm Deployment](/deployment/edge/) for platform-specific commands and
 runtime secrets.
