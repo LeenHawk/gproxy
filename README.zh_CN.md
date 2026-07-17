@@ -9,7 +9,7 @@ Provider 路由、协议转换、凭据、配额和可观测性，并提供内�
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/LeenHawk?logo=githubsponsors&label=赞助)](https://github.com/sponsors/LeenHawk)
 
 - 🪪 **许可证：** AGPL-3.0-or-later · 🐳 **镜像：** `ghcr.io/leenhawk/gproxy`
-- 🦀 **构建目标：** 原生二进制 · Docker · Edge Wasm（Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite）
+- 🦀 **构建目标：** 原生二进制 · Docker · Edge Wasm（Cloudflare / Deno / Netlify / Appwrite）
 - 🖥️ **控制台：** 内置，路径 `/console`
 
 ---
@@ -53,7 +53,7 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 
 ### ☁️ Serverless Edge（WebAssembly）
 
-六个边缘平台的预构建产物都在
+四个边缘平台的预构建产物都在
 [**`deploy` 分支**](https://github.com/LeenHawk/gproxy/tree/deploy)，部署时不需要准备 Rust
 工具链。Edge 部署使用 **Turso** 保存持久配置，也可以选用 **Upstash** 做共享缓存。各平台的
 具体步骤见[边缘部署指南](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)。
@@ -64,8 +64,8 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 Cloudflare 和 Netlify 按钮会在部署前要求填写必需的 `TURSO_URL` 和
 `TURSO_TOKEN` secrets。这里要填 Turso 的 HTTP URL（`https://<db>.turso.io`），
 不要填 `libsql://` URL。可选的 Upstash cache 和 `GPROXY_MASTER_KEY` secrets
-可以在 worker/site 创建后再补。Cloudflare Workers、Netlify Edge、Deno Deploy 和
-EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPROXY_ADMIN_USER` 和
+可以在 worker/site 创建后再补。Cloudflare Workers、Netlify Edge 和 Deno Deploy
+会在同一个部署里带上 Console 静态资产。设置 `GPROXY_ADMIN_USER` 和
 非空的 `GPROXY_ADMIN_PASSWORD`，部署后打开 `/console`。
 
 | 平台 | 产物 | 部署 |
@@ -73,8 +73,6 @@ EdgeOne Pages 会在同一个部署里带上 Console 静态资产。设置 `GPRO
 | Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | 部署按钮或 `wrangler deploy` |
 | Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | 部署按钮或 `netlify deploy --prod` |
 | Deno Deploy | — | `deploy/deno/build.sh`（CLI） |
-| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy`（Docker/eszip，CLI） |
-| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy`（CLI） |
 | **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions`（deno-2.0，CLI） |
 
 ### 📦 原生安装包与二进制

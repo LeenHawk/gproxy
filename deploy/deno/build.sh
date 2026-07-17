@@ -6,6 +6,7 @@
 #   main.ts
 #   pkg/gproxy.js
 #   pkg/gproxy_bg.wasm
+#   pkg/snippets/**  (wasm-bindgen inline_js modules)
 # This script recreates that shape from the repo and deploys it.
 set -euo pipefail
 
@@ -24,14 +25,12 @@ rm -rf pkg
 wasm-bindgen --target deno --out-dir pkg \
   target/wasm32-unknown-unknown/release/gproxy.wasm
 
-perl -0pi -e \
-  's/instantiateStreaming\(fetch\(wasmUrl\)/instantiateStreaming(globalThis.fetch(wasmUrl)/' \
-  pkg/gproxy.js
+grep -q "export function gproxyFetch" pkg/gproxy.js \
+  || { echo "missing gproxyFetch export in generated glue" >&2; exit 1; }
 
 rm -rf "$UPLOAD_ROOT"
 mkdir -p "$UPLOAD_ROOT/pkg" "$UPLOAD_ROOT/console"
-cp pkg/gproxy.js pkg/gproxy.d.ts pkg/gproxy_bg.wasm pkg/gproxy_bg.wasm.d.ts \
-  "$UPLOAD_ROOT/pkg/"
+cp -R pkg/. "$UPLOAD_ROOT/pkg/"
 sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts \
   > "$UPLOAD_ROOT/main.ts"
 if [ -f assets/console/index.html ]; then
@@ -44,7 +43,7 @@ cat > "$UPLOAD_ROOT/deno.json" <<JSON
   "deploy": {
     "org": "$DENO_DEPLOY_ORG",
     "app": "$DENO_DEPLOY_PROJECT",
-    "include": ["main.ts", "pkg/**", "console/**"]
+    "include": ["deno.json", "main.ts", "pkg/**", "console/**"]
   }
 }
 JSON

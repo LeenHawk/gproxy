@@ -25,9 +25,9 @@ secrets，Netlify 模板在 `deploy/netlify/netlify.toml` 中声明。两个一�
 非空，用于第一次登录 Console。如果部署需要 Upstash cache 或 sealed stored secrets，
 可以之后再添加可选的 `UPSTASH_URL`、`UPSTASH_TOKEN` 和 `GPROXY_MASTER_KEY` secrets。
 
-Cloudflare Workers、Netlify Edge、Deno Deploy 和 EdgeOne Pages 会把 React Console
-放进同一个部署，并让 `/` 跳到 `/console/`。Supabase Edge Functions 和 Appwrite
-Functions 默认是平台函数 URL，不是站点根路径；如果这些平台也需要 Web UI，需要通过自定义
+Cloudflare Workers、Netlify Edge 和 Deno Deploy 会把 React Console
+放进同一个部署，并让 `/` 跳到 `/console/`。Appwrite Functions 默认是平台函数 URL，
+不是站点根路径；如果该平台也需要 Web UI，需要通过自定义
 同源根路径/反代来服务 Console。
 
 ## Runtime 服务
@@ -54,9 +54,7 @@ release workflow 发布：
 | --- | --- |
 | `gproxy-edge-cloudflare.zip` | Cloudflare Workers。 |
 | `gproxy-edge-netlify.zip` | Netlify Edge Functions。 |
-| `gproxy-edge-supabase.zip` | Supabase Edge Functions。 |
 | `gproxy-edge-deno.zip` | Deno Deploy compact upload root。 |
-| `gproxy-edge-eopages.zip` | Tencent EdgeOne Pages。 |
 | `gproxy-edge-appwrite-deno.zip` | Appwrite Functions on `deno-2.0`。 |
 | `gproxy.wasm` | 供检查或自定义打包的 raw wasm。 |
 
@@ -80,8 +78,6 @@ cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release 
 ```bash
 bash deploy/cloudflare/build.sh
 bash deploy/netlify/build.sh
-bash deploy/supabase/build.sh
-bash deploy/eopages/build.sh
 bash deploy/appwrite-deno/build.sh
 ```
 
@@ -93,7 +89,7 @@ workflow 不直接调用该脚本，而是内联生成 Deno bundle。
 | 平台组 | Bundle 形态 |
 | --- | --- |
 | Cloudflare Workers | `wasm-bindgen --target web`；`.wasm` 作为静态 `WebAssembly.Module` 打包。 |
-| Netlify、Supabase、EdgeOne、Appwrite Deno | `wasm-bindgen --target deno`；wasm base64 内联，运行时 instantiate。 |
+| Netlify、Appwrite Deno | `wasm-bindgen --target deno`；wasm base64 内联，运行时 instantiate。 |
 | Deno Deploy | `main.ts` 加生成的 `pkg/` 目录。 |
 
 Cloudflare 不允许从 byte buffer 做任意 runtime wasm compilation，因此走 static module
@@ -123,14 +119,6 @@ Netlify 使用 `deploy/netlify/netlify.toml` 和 `edge-functions/` 入口。用
 `[template.environment]` 要求填写必需的 Turso 环境变量和 admin 凭据。publish 目录会包含
 Console SPA；`/console/*` 会从 edge function 中排除，由 Netlify 静态文件和 SPA fallback
 服务。
-
-Supabase 使用 `deploy/supabase/functions/gproxy`，部署命令应包含
-`supabase functions deploy gproxy --no-verify-jwt`。当 API upload path 会丢 sibling
-wasm 文件时，不要使用该路径。
-
-EdgeOne Pages 使用 `deploy/eopages/gproxy`，需要较新的 `edgeone` CLI。生成的 catch-all
-edge function 接收 API 路径，`/` 和 `/console/*` 由平台静态内容加一个小的 SPA fallback
-edge function 服务。
 
 Deno Deploy 使用包含 `main.ts`、`pkg/` 和 `deno.json` 的 compact root。当前路径使用新的
 Deno Deploy CLI module，不走旧 Deploy Classic `deployctl`。upload root 也包含 Console

@@ -2,7 +2,7 @@
 # Regenerate the wasm-bindgen `deno`-target glue for the Appwrite Functions
 # (deno-2.0 runtime) entry, then inline the wasm as base64 so the function bundle
 # is self-contained. Appwrite's deno runtime runs the SAME wasm as Netlify /
-# Supabase / Deno Deploy — Appwrite never builds Rust, it just serves the
+# Deno Deploy — Appwrite never builds Rust, it just serves the
 # pre-built wasm via main.ts.
 #
 # Build-only (no deploy/secrets). Run from the crate root (/home/linhuan/gproxy/v2):

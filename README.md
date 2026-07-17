@@ -10,7 +10,7 @@ English · [简体中文](README.zh_CN.md)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/LeenHawk?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/LeenHawk)
 
 - 🪪 **License:** AGPL-3.0-or-later · 🐳 **Image:** `ghcr.io/leenhawk/gproxy`
-- 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify / Supabase / EdgeOne / Appwrite)
+- 🦀 **Targets:** native binary · Docker · edge wasm (Cloudflare / Deno / Netlify / Appwrite)
 - 🖥️ **Console:** built in, served at `/console`
 
 ---
@@ -59,7 +59,7 @@ docker run -p 8787:8787 -e GPROXY_ADMIN_PASSWORD=change-me ghcr.io/leenhawk/gpro
 
 ### ☁️ Serverless edge (WebAssembly)
 
-Prebuilt bundles for six edge platforms live on the
+Prebuilt bundles for four edge platforms live on the
 [**`deploy` branch**](https://github.com/LeenHawk/gproxy/tree/deploy), so you do
 not need a Rust toolchain to deploy them. Edge deployments use **Turso** for
 persistent configuration and can optionally use **Upstash** for shared caching.
@@ -73,7 +73,7 @@ The Cloudflare and Netlify buttons prompt for the required `TURSO_URL` and
 `TURSO_TOKEN` secrets before deployment. Use Turso's HTTP URL
 (`https://<db>.turso.io`), not the `libsql://` URL. Optional Upstash cache and
 `GPROXY_MASTER_KEY` secrets can be added after the worker/site is created.
-Cloudflare Workers, Netlify Edge, Deno Deploy, and EdgeOne Pages also ship the
+Cloudflare Workers, Netlify Edge, and Deno Deploy also ship the
 Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a non-blank
 `GPROXY_ADMIN_PASSWORD`, then open `/console` after deploy.
 
@@ -82,8 +82,6 @@ Console assets in the same deployment. Set `GPROXY_ADMIN_USER` and a non-blank
 | Cloudflare Workers | [`deploy/cloudflare`](https://github.com/LeenHawk/gproxy/tree/deploy/cloudflare) | Deploy button or `wrangler deploy` |
 | Netlify Edge | [`deploy/netlify`](https://github.com/LeenHawk/gproxy/tree/deploy/netlify) | Deploy button or `netlify deploy --prod` |
 | Deno Deploy | — | `deploy/deno/build.sh` (CLI) |
-| Supabase Edge | [`deploy/supabase`](https://github.com/LeenHawk/gproxy/tree/deploy/supabase) | `supabase functions deploy gproxy` (Docker/eszip, CLI) |
-| EdgeOne Pages | [`deploy/eopages`](https://github.com/LeenHawk/gproxy/tree/deploy/eopages) | `edgeone pages deploy` (CLI) |
 | **Appwrite Functions** | [`deploy/appwrite-deno`](https://github.com/LeenHawk/gproxy/tree/deploy/appwrite-deno) | `appwrite push functions` (deno-2.0, CLI) |
 
 ### 📦 Native installers and binaries

@@ -4,7 +4,7 @@
 use serde_json::Value;
 
 /// Keys whose string values are human text worth counting.
-const TEXT_KEYS: &[&str] = &["text", "content", "instructions", "system"];
+const TEXT_KEYS: &[&str] = &["text", "content", "input", "instructions", "system"];
 /// Keys whose non-string values (tool defs, structured system) are counted
 /// by serializing the whole subtree.
 const SERIALIZE_KEYS: &[&str] = &["tools", "tool_choice", "system"];
@@ -83,5 +83,17 @@ mod tests {
         assert!(texts.iter().any(|t| t == "hi!"));
         assert!(texts.iter().any(|t| t == "be terse"));
         assert!(texts.iter().any(|t| t.contains("get_weather")));
+    }
+
+    #[test]
+    fn harvest_openai_responses_string_input() {
+        let body = serde_json::json!({
+            "model": "deepseek-v4-flash",
+            "input": "Count these words."
+        })
+        .to_string();
+        let (texts, messages) = harvest(body.as_bytes());
+        assert_eq!(texts, ["Count these words."]);
+        assert_eq!(messages, 0);
     }
 }

@@ -19,6 +19,7 @@ pub(crate) mod login_flows;
 pub(crate) mod nested;
 pub(crate) mod observability;
 pub(crate) mod portal;
+pub(crate) mod provider_ops;
 pub(crate) mod settings;
 pub(crate) mod special;
 
@@ -231,6 +232,11 @@ async fn route(state: &AppState, parts: &Parts, body: &Bytes) -> Option<Result<R
 
     // 5. Read-only observability (usage / rollups / audit / logs / cred-status).
     if let Some(r) = observability::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
+    // Live provider operations that are not CRUD (currently upstream models).
+    if let Some(r) = provider_ops::dispatch(state, parts).await {
         return Some(r);
     }
 

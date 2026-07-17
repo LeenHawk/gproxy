@@ -156,7 +156,7 @@ cargo build --release --bin gproxy
 ```
 
 release artifacts 包含 `gproxy-edge-cloudflare.zip`、`gproxy-edge-netlify.zip`、
-`gproxy-edge-supabase.zip`、`gproxy-edge-deno.zip`、`gproxy-edge-eopages.zip` 和
+`gproxy-edge-deno.zip` 和
 `gproxy-edge-appwrite-deno.zip`。
 
 平台命令和 runtime secrets 见 [Edge Wasm 部署](/zh-cn/deployment/edge/)。

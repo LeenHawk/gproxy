@@ -31,11 +31,10 @@ first Console login. Add optional `UPSTASH_URL`, `UPSTASH_TOKEN`, and
 `GPROXY_MASTER_KEY` secrets later if the deployment needs Upstash cache or
 sealed stored secrets.
 
-Cloudflare Workers, Netlify Edge, Deno Deploy, and EdgeOne Pages bundle the
+Cloudflare Workers, Netlify Edge, and Deno Deploy bundle the
 React Console into the same deployment and redirect `/` to `/console/`.
-Supabase Edge Functions and Appwrite Functions use platform function URLs rather
-than a site root; serve the Console through a custom same-origin root route if
-you need the web UI there.
+Appwrite Functions use platform function URLs rather than a site root; serve the
+Console through a custom same-origin root route if you need the web UI there.
 
 ## Runtime Services
 
@@ -63,9 +62,7 @@ The release workflow publishes:
 | --- | --- |
 | `gproxy-edge-cloudflare.zip` | Cloudflare Workers. |
 | `gproxy-edge-netlify.zip` | Netlify Edge Functions. |
-| `gproxy-edge-supabase.zip` | Supabase Edge Functions. |
 | `gproxy-edge-deno.zip` | Deno Deploy compact upload root. |
-| `gproxy-edge-eopages.zip` | Tencent EdgeOne Pages. |
 | `gproxy-edge-appwrite-deno.zip` | Appwrite Functions on `deno-2.0`. |
 | `gproxy.wasm` | Raw wasm artifact for inspection or custom packaging. |
 
@@ -90,8 +87,6 @@ Generate platform bundles:
 ```bash
 bash deploy/cloudflare/build.sh
 bash deploy/netlify/build.sh
-bash deploy/supabase/build.sh
-bash deploy/eopages/build.sh
 bash deploy/appwrite-deno/build.sh
 ```
 
@@ -104,7 +99,7 @@ calling that script.
 | Platform group | Bundle shape |
 | --- | --- |
 | Cloudflare Workers | `wasm-bindgen --target web`; `.wasm` packaged as a static `WebAssembly.Module`. |
-| Netlify, Supabase, EdgeOne, Appwrite Deno | `wasm-bindgen --target deno`; wasm base64-inlined for runtime instantiate. |
+| Netlify, Appwrite Deno | `wasm-bindgen --target deno`; wasm base64-inlined for runtime instantiate. |
 | Deno Deploy | `main.ts` plus generated `pkg/` directory. |
 
 Cloudflare does not allow arbitrary runtime wasm compilation from byte buffers,
@@ -138,15 +133,6 @@ site environment variables with `netlify env:set`, then run `netlify deploy
 variables and admin credentials through `[template.environment]`. The publish
 directory includes the Console SPA; `/console/*` is excluded from the edge
 function so Netlify can serve static files and the SPA fallback.
-
-Supabase uses `deploy/supabase/functions/gproxy` and should be deployed with
-`supabase functions deploy gproxy --no-verify-jwt`. Avoid the API upload path
-when it drops sibling wasm files.
-
-EdgeOne Pages uses `deploy/eopages/gproxy` and needs a recent `edgeone` CLI.
-The generated catch-all edge function receives API paths while `/` and
-`/console/*` are served as platform static content with a small SPA fallback
-edge function.
 
 Deno Deploy uses a compact root containing `main.ts`, `pkg/`, and `deno.json`.
 The current path uses the new Deno Deploy CLI module rather than old Deploy

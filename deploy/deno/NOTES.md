@@ -74,8 +74,8 @@ The script:
 
 1. Builds `target/wasm32-unknown-unknown/release/gproxy.wasm`.
 2. Runs `wasm-bindgen --target deno --out-dir pkg`.
-3. Patches the generated loader to call `globalThis.fetch(wasmUrl)` so the Rust
-   export named `fetch` does not shadow Deno's global `fetch`.
+3. Verifies that the generated glue exposes `gproxyFetch`; the distinct export
+   name leaves Deno's global `fetch` available to the wasm loader.
 4. Creates `/tmp/gproxy-deno-upload` with root `main.ts` and `pkg/`.
 5. Deploys that compact upload root to `leenhawk20/gproxy-deno`.
 

@@ -171,7 +171,12 @@ pub async fn init(
 /// [`pipeline::execute`] / [`metrics`](crate::http::server::metrics) itself.
 ///
 /// Returns 503 if [`init`] has not yet been called.
-#[wasm_bindgen]
+// Do not export this as plain `fetch`: wasm-bindgen's Deno loader also calls a
+// top-level `fetch(wasmUrl)`, and an exported function with that name shadows
+// the runtime global during module initialisation (the generated wrapper then
+// touches `wasm` before it has been initialised).  A distinct JS name keeps the
+// generated module bootable without a post-generation text patch.
+#[wasm_bindgen(js_name = gproxyFetch)]
 pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
     let Some(state) = STATE.get() else {
         return service_unavailable("GPROXY edge not initialised: call init() first");

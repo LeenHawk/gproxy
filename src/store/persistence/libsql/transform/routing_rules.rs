@@ -148,6 +148,49 @@ pub async fn upsert(client: &LibsqlClient, input: RoutingRuleInput) -> anyhow::R
         .ok_or_else(|| anyhow::anyhow!("routing_rule vanished after upsert"))
 }
 
+/// Materialize a complete channel table in one Hrana execute. Provider
+/// creation can contain twenty-plus rules; issuing the regular multi-request
+/// upsert for every row exceeds Cloudflare's per-request subrequest budget.
+pub async fn upsert_batch(
+    client: &LibsqlClient,
+    inputs: &[RoutingRuleInput],
+) -> anyhow::Result<()> {
+    if inputs.is_empty() {
+        return Ok(());
+    }
+
+    let now = now_secs();
+    let values = std::iter::repeat_n("(NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", inputs.len())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "INSERT INTO routing_rules \
+         (id, provider_id, operation, kind, implementation, dest_operation, dest_kind, \
+          sort_order, enabled, created_at, updated_at) VALUES {values} \
+         ON CONFLICT(provider_id, operation, kind) DO UPDATE SET \
+          implementation=excluded.implementation, dest_operation=excluded.dest_operation, \
+          dest_kind=excluded.dest_kind, sort_order=excluded.sort_order, \
+          enabled=excluded.enabled, updated_at=excluded.updated_at"
+    );
+    let mut args = Vec::with_capacity(inputs.len() * 10);
+    for input in inputs {
+        args.extend([
+            arg_integer(input.provider_id),
+            arg_text(&input.operation),
+            arg_text(&input.kind),
+            arg_text(&input.implementation),
+            arg_opt_text(input.dest_operation.as_deref()),
+            arg_opt_text(input.dest_kind.as_deref()),
+            arg_integer(input.sort_order),
+            arg_bool(input.enabled),
+            arg_integer(now),
+            arg_integer(now),
+        ]);
+    }
+    client.execute(&sql, &args).await?;
+    Ok(())
+}
+
 pub async fn delete(client: &LibsqlClient, id: i64) -> anyhow::Result<bool> {
     let n = exec(
         client,
