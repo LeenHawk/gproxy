@@ -53,7 +53,7 @@ pub(super) async fn dispatch_user_keys(
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
     match (&parts.method, segs.as_slice()) {
-        // GET /admin/users/{user_id}/keys — redacted list
+        // GET /admin/users/{user_id}/keys — list with complete API keys
         (&Method::GET, ["admin", "users", user_id, "keys"]) => Some(
             async {
                 guard_admin(state, parts).await?;
@@ -63,10 +63,12 @@ pub(super) async fn dispatch_user_keys(
                     .list_user_keys(user_id)
                     .await
                     .map_err(internal)?;
-                Resp::json(
-                    200,
-                    &keys.into_iter().map(UserKeyView::from).collect::<Vec<_>>(),
-                )
+                let views = keys
+                    .into_iter()
+                    .map(|key| UserKeyView::from_stored(key, state.cipher.as_ref()))
+                    .collect::<anyhow::Result<Vec<_>>>()
+                    .map_err(internal)?;
+                Resp::json(200, &views)
             }
             .await,
         ),
@@ -132,9 +134,12 @@ pub(super) async fn dispatch_user_keys(
                     .await
                     .map_err(ApiError::from_upsert)?;
                 invalidate(state).await;
-                let mut view = UserKeyView::from(key);
-                // Set the bare key in the response ONLY on create (plaintext-once).
-                view.api_key = bare;
+                let view = match bare {
+                    Some(api_key) => UserKeyView::from_plain(key, api_key),
+                    None => {
+                        UserKeyView::from_stored(key, state.cipher.as_ref()).map_err(internal)?
+                    }
+                };
                 Resp::json(200, &view)
             }
             .await,

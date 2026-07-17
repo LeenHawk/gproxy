@@ -24,10 +24,9 @@
   },
   "keys": {
     "title": "API 密钥", "add": "生成密钥", "empty": "还没有 API 密钥。",
-    "label": "显示名", "prefix": "前缀", "enabled": "启用",
+    "label": "显示名", "key": "API 密钥", "enabled": "启用",
     "delete": "删除密钥", "deleteConfirm": "删除此 API 密钥？使用它的客户端将停止工作。",
-    "created": "API 密钥已生成——请立即复制，仅展示一次。",
-    "copied": "已复制", "copyFailed": "复制失败", "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
+    "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
   },
   "access": {
     "permissions": "路由权限", "permissionsHint": "路由名或 provider/model 的 glob 模式；provider 名本身表示该渠道全部模型（org→team→user 取并集）。",

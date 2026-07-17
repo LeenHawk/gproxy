@@ -60,9 +60,9 @@ function MyKeysPage() {
       cell: (k) => <span className="text-sm">{k.label ?? "—"}</span>,
     },
     {
-      key: "key_prefix",
-      header: t("keys.prefix"),
-      cell: (k) => <span className="font-mono text-sm">{k.key_prefix}</span>,
+      key: "api_key",
+      header: t("keys.key"),
+      cell: (k) => <span className="break-all font-mono text-sm">{k.api_key}</span>,
     },
     {
       key: "enabled",
@@ -136,7 +136,7 @@ function MyKeysPage() {
                   {k.enabled ? t("keys.enabled") : t("keys.disabled")}
                 </Badge>
               </div>
-              <span className="font-mono text-xs text-muted-foreground">{k.key_prefix}</span>
+              <span className="break-all font-mono text-xs text-muted-foreground">{k.api_key}</span>
               <div className="flex items-center justify-between">
                 <Switch
                   size="sm"

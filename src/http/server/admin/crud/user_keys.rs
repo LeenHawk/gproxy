@@ -1,8 +1,8 @@
 //! User-keys CRUD — special-cased: the bare key is GENERATED server-side on
-//! create (digest derived, ciphertext sealed, the key itself returned ONCE in
-//! the response); updates touch only label/enabled. Caller-supplied key
+//! create (digest derived and ciphertext sealed); updates touch only
+//! label/enabled. Caller-supplied key
 //! material is rejected here — the import path is its sole entrance. Reads
-//! expose only a short `key_prefix` ([`UserKeyView`]).
+//! decrypt the key for display by authenticated console users.
 
 use axum::Json;
 use axum::extract::{Path, State};
@@ -17,7 +17,7 @@ use crate::app::AppState;
 use crate::pipeline::auth::key_digest;
 use crate::store::persistence::records::UserKeyInput;
 
-/// `GET /admin/users/{user_id}/keys` — redacted list.
+/// `GET /admin/users/{user_id}/keys` — list with complete API keys.
 pub async fn list(
     State(state): State<AppState>,
     Path(user_id): Path<i64>,
@@ -27,12 +27,17 @@ pub async fn list(
         .list_user_keys(user_id)
         .await
         .map_err(internal)?;
-    Ok(Json(keys.into_iter().map(UserKeyView::from).collect()))
+    let views = keys
+        .into_iter()
+        .map(|key| UserKeyView::from_stored(key, state.cipher.as_ref()))
+        .collect::<anyhow::Result<Vec<_>>>()
+        .map_err(internal)?;
+    Ok(Json(views))
 }
 
 /// `POST /admin/users/{user_id}/keys` — create or update. On create the key is
-/// generated server-side (CSPRNG) and the bare value is returned ONCE in the
-/// response; on update the stored digest + ciphertext are kept (key material
+/// generated server-side (CSPRNG); on update the stored digest + ciphertext
+/// are kept (key material
 /// is immutable — rotate by create + delete). A caller-supplied `api_key` is
 /// rejected outright.
 pub async fn upsert(
@@ -91,8 +96,10 @@ pub async fn upsert(
         .await
         .map_err(upsert_err)?;
     invalidate(&state).await;
-    let mut view = UserKeyView::from(key);
-    view.api_key = bare;
+    let view = match bare {
+        Some(api_key) => UserKeyView::from_plain(key, api_key),
+        None => UserKeyView::from_stored(key, state.cipher.as_ref()).map_err(internal)?,
+    };
     Ok(Json(view))
 }
 

@@ -16,9 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
 import { useBatch } from "@/hooks/use-batch";
 
 export function UserKeysTab({ user }: { user: UserView }) {
@@ -33,22 +30,13 @@ export function UserKeysTab({ user }: { user: UserView }) {
   const [generateOpen, setGenerateOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<UserKeyView | undefined>(undefined);
-  // One-time key reveal state — cleared on dialog close
-  const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const [revealOpen, setRevealOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const generate = useMutation({
     mutationFn: () => createUserKey(user.id, { label: label.trim() || null, enabled: true }),
-    onSuccess: (created) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: userKeysQuery(user.id).queryKey });
       setGenerateOpen(false);
       setLabel("");
-      if (created.api_key != null) {
-        setRevealedKey(created.api_key);
-        setCopied(false);
-        setRevealOpen(true);
-      }
     },
     onError: (error) => {
       toast.error(error instanceof ApiError ? error.message : String(error));
@@ -67,26 +55,6 @@ export function UserKeysTab({ user }: { user: UserView }) {
       setDeleteTarget(undefined);
     },
   });
-
-  const handleCopy = async (value: string) => {
-    if (!navigator.clipboard) { toast.error(t("keys.copyFailed")); return; }
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      toast.success(t("keys.copied"));
-    } catch {
-      toast.error(t("keys.copyFailed"));
-    }
-  };
-
-  const handleRevealClose = (open: boolean) => {
-    setRevealOpen(open);
-    if (!open) {
-      // Clear the one-time key from state when dialog closes
-      setRevealedKey(null);
-      setCopied(false);
-    }
-  };
 
   const actionsColumn = (k: UserKeyView) => (
     <div className="flex items-center justify-end">
@@ -109,9 +77,9 @@ export function UserKeysTab({ user }: { user: UserView }) {
       cell: (k) => <span className="text-sm">{k.label ?? "—"}</span>,
     },
     {
-      key: "key_prefix",
-      header: t("keys.prefix"),
-      cell: (k) => <span className="font-mono text-sm">{k.key_prefix}</span>,
+      key: "api_key",
+      header: t("keys.key"),
+      cell: (k) => <span className="break-all font-mono text-sm">{k.api_key}</span>,
     },
     {
       key: "enabled",
@@ -161,7 +129,7 @@ export function UserKeysTab({ user }: { user: UserView }) {
                 <span className="text-sm">{k.label ?? "—"}</span>
                 <Badge variant={k.enabled ? "secondary" : "outline"}>{k.enabled ? "on" : "off"}</Badge>
               </div>
-              <span className="font-mono text-xs text-muted-foreground">{k.key_prefix}</span>
+              <span className="break-all font-mono text-xs text-muted-foreground">{k.api_key}</span>
               {!batch.mode && actionsColumn(k)}
             </div>
           )}
@@ -196,25 +164,6 @@ export function UserKeysTab({ user }: { user: UserView }) {
           <Button type="submit" disabled={generate.isPending}>{t("keys.add")}</Button>
         </form>
       </EntityDialog>
-
-      {/* One-time key reveal */}
-      <AlertDialog open={revealOpen} onOpenChange={handleRevealClose}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("keys.title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("keys.created")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="rounded-md border bg-muted px-3 py-2">
-            <code className="break-all font-mono text-sm">{revealedKey}</code>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tc("actions.close")}</AlertDialogCancel>
-            <Button onClick={() => handleCopy(revealedKey ?? "")} disabled={copied}>
-              {copied ? tc("actions.copied") : tc("actions.copy")}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Delete confirmation */}
       <ConfirmDangerous

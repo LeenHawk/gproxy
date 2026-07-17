@@ -5,9 +5,9 @@
 //! request body or path parameters.
 //!
 //! SECURITY:
-//! - `list`  : only returns keys belonging to the session user.
-//! - `create`: generates key server-side; returns the bare key ONCE in the
-//!   response (`api_key`); subsequent reads never include it.
+//! - `list`  : only returns keys belonging to the session user, including the
+//!   decrypted value for direct display in the authenticated console.
+//! - `create`: generates the key server-side.
 //! - `update`: ownership-checks via `get_user_key` + `owns` before any write.
 //!   Cross-user access returns 404 (no existence leak).
 //! - `delete`: same ownership check before deletion.
@@ -62,8 +62,8 @@ pub struct UpdateBody {
 
 // ── handlers ──────────────────────────────────────────────────────────────────
 
-/// `GET /user/keys` — list all keys belonging to the session user.
-/// `api_key` is never included in list responses.
+/// `GET /user/keys` — list all keys belonging to the session user, including
+/// each complete API key.
 pub async fn list(
     State(state): State<AppState>,
     Extension(u): Extension<SessionUser>,
@@ -73,14 +73,18 @@ pub async fn list(
         .list_user_keys(u.id)
         .await
         .map_err(internal)?;
-    Ok(Json(keys.into_iter().map(UserKeyView::from).collect()))
+    let views = keys
+        .into_iter()
+        .map(|key| UserKeyView::from_stored(key, state.cipher.as_ref()))
+        .collect::<anyhow::Result<Vec<_>>>()
+        .map_err(internal)?;
+    Ok(Json(views))
 }
 
 /// `POST /user/keys` — create a new key for the session user.
 ///
-/// The bare key is generated server-side and returned **once** in
-/// `api_key`. The caller must copy it immediately; subsequent reads
-/// return only the `key_prefix`.
+/// The bare key is generated server-side and returned in `api_key`; subsequent
+/// authenticated reads return it as well.
 pub async fn create(
     State(state): State<AppState>,
     Extension(u): Extension<SessionUser>,
@@ -119,8 +123,7 @@ pub async fn create(
         .map_err(internal)?;
     invalidate(&state).await;
 
-    let mut view = UserKeyView::from(key);
-    view.api_key = Some(bare); // one-time plaintext
+    let view = UserKeyView::from_plain(key, bare);
     Ok(Json(view))
 }
 
@@ -158,7 +161,9 @@ pub async fn update(
         .map_err(internal)?;
     invalidate(&state).await;
 
-    Ok(Json(UserKeyView::from(key))) // api_key stays None on updates
+    Ok(Json(
+        UserKeyView::from_stored(key, state.cipher.as_ref()).map_err(internal)?,
+    ))
 }
 
 /// `DELETE /user/keys/{id}` — delete a key the session user owns.

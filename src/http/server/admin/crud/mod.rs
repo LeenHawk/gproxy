@@ -637,8 +637,8 @@ mod tests {
         );
     }
 
-    /// User keys are generated server-side: the bare key appears ONCE in the
-    /// create response (and matches the stored digest), never on reads, and a
+    /// User keys are generated server-side: the bare key appears in create and
+    /// authenticated list responses (and matches the stored digest), while a
     /// caller-supplied api_key is rejected outright.
     #[tokio::test]
     async fn user_key_generated_server_side() {
@@ -662,7 +662,7 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
-        // Create without key material → generated, returned once.
+        // Create without key material → generated and returned.
         let resp = app
             .clone()
             .oneshot(
@@ -677,7 +677,7 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = resp.into_body().collect().await.unwrap().to_bytes();
         let view: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let bare = view["api_key"].as_str().expect("bare key once on create");
+        let bare = view["api_key"].as_str().expect("bare key on create");
         assert!(bare.starts_with("sk-") && bare.len() >= 35, "got {bare}");
         let prefix = view["key_prefix"].as_str().unwrap();
         assert_eq!(prefix.len(), 8);
@@ -689,7 +689,7 @@ mod tests {
             crate::pipeline::auth::key_digest(bare)
         );
 
-        // Reads never echo the bare key.
+        // Authenticated list reads include the complete key for the console.
         let resp = app
             .oneshot(
                 Request::get(format!("/admin/users/{user_id}/keys"))
@@ -706,8 +706,8 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .all(|k| k.get("api_key").is_none()),
-            "bare key leaked into a read: {listed}"
+                .any(|k| k["api_key"] == bare),
+            "bare key missing from authenticated list: {listed}"
         );
     }
 

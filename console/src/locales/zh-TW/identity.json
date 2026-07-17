@@ -24,10 +24,9 @@
   },
   "keys": {
     "title": "API 金鑰", "add": "產生金鑰", "empty": "尚無 API 金鑰。",
-    "label": "顯示名稱", "prefix": "前綴", "enabled": "啟用",
+    "label": "顯示名稱", "key": "API 金鑰", "enabled": "啟用",
     "delete": "刪除金鑰", "deleteConfirm": "刪除此 API 金鑰？使用它的用戶端將停止運作。",
-    "created": "API 金鑰已產生——請立即複製，僅顯示一次。",
-    "copied": "已複製", "copyFailed": "複製失敗", "rotateHint": "金鑰不可編輯——輪換請產生新金鑰後刪除舊金鑰。"
+    "rotateHint": "金鑰不可編輯——輪換請產生新金鑰後刪除舊金鑰。"
   },
   "access": {
     "permissions": "路由權限", "permissionsHint": "路由名稱或 provider/model 的 glob 模式；provider 名稱本身代表該渠道全部模型（org→team→user 取聯集）。",

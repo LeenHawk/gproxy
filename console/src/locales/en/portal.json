@@ -16,17 +16,14 @@
     "add": "Generate key",
     "empty": "No API keys.",
     "label": "Label",
-    "prefix": "Prefix",
+    "key": "API key",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "enable": "Enable",
     "disable": "Disable",
     "disableConfirm": "Disable this API key? Clients using it will be rejected.",
     "delete": "Delete key",
-    "deleteConfirm": "Delete this API key? Clients using it stop working.",
-    "created": "API key created — copy it now, it is shown only once.",
-    "copied": "Copied",
-    "copyFailed": "Copy failed"
+    "deleteConfirm": "Delete this API key? Clients using it stop working."
   },
   "usage": {
     "empty": "No usage records.",

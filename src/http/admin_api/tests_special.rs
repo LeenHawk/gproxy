@@ -1,5 +1,5 @@
 // Integration tests for edge dispatcher special admin CRUD:
-// user-keys (gen+seal+plaintext-once+ownership),
+// user-keys (gen+seal+plaintext display+ownership),
 // users (password hash+redact+keep-existing),
 // credentials (seal+redact+provider-scope) — B6.3 Task 2.
 //
@@ -9,10 +9,10 @@
 
 // ── user-keys ─────────────────────────────────────────────────────────────────
 
-/// Create → response has `api_key` (the bare `sk-...` plaintext) ONCE.
-/// GET list → key present with `key_prefix`, NO `api_key` in any item.
+/// Create and GET list both expose the complete `api_key` to the authenticated
+/// administrator.
 #[tokio::test]
-async fn user_keys_create_returns_plaintext_once_list_redacts() {
+async fn user_keys_create_and_list_return_plaintext() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-keys", true).await;
     let cookie = cookie_for(&state, admin_id).await;
@@ -31,14 +31,14 @@ async fn user_keys_create_returns_plaintext_once_list_redacts() {
     let v = parse_json(&resp);
     let bare_key = v["api_key"]
         .as_str()
-        .expect("api_key must be present on create (plaintext-once)");
+        .expect("api_key must be present on create");
     assert!(
         bare_key.starts_with("sk-"),
         "bare key should start with sk-, got: {bare_key}"
     );
     let key_id = v["id"].as_i64().unwrap();
 
-    // GET list → items present, NO api_key field on any item.
+    // GET list → complete api_key remains present for direct console display.
     let p = parts(
         "GET",
         &format!("/admin/users/{admin_id}/keys"),
@@ -50,18 +50,10 @@ async fn user_keys_create_returns_plaintext_once_list_redacts() {
     let list = parse_json(&resp);
     let items = list.as_array().unwrap();
     assert!(!items.is_empty(), "list should have at least one key");
-    for item in items {
-        assert!(
-            item.get("api_key").is_none() || item["api_key"].is_null(),
-            "api_key must be absent from list items (redacted): {:?}",
-            item
-        );
-        // key_prefix must be present
-        assert!(
-            item.get("key_prefix").is_some(),
-            "key_prefix must be present in list items"
-        );
-    }
+    assert!(
+        items.iter().any(|item| item["api_key"] == bare_key),
+        "created api_key must be returned by the list: {items:?}"
+    );
 
     // DELETE → 204.
     let p = parts(
