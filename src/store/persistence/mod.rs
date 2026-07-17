@@ -217,6 +217,19 @@ pub trait PersistenceBackend: Send + Sync {
     /// Insert or update a routing rule (unique per `(provider_id, operation, kind)`).
     async fn upsert_routing_rule(&self, input: RoutingRuleInput) -> anyhow::Result<RoutingRule>;
 
+    /// Materialize a channel routing table. Backends may override this to fold
+    /// the writes into one storage round-trip (required by edge subrequest
+    /// limits); the default preserves native/file behavior.
+    async fn upsert_routing_rules_batch(
+        &self,
+        inputs: Vec<RoutingRuleInput>,
+    ) -> anyhow::Result<()> {
+        for input in inputs {
+            self.upsert_routing_rule(input).await?;
+        }
+        Ok(())
+    }
+
     /// Delete a routing rule by id.
     async fn delete_routing_rule(&self, id: i64) -> anyhow::Result<bool>;
 

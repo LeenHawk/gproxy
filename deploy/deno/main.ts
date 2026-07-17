@@ -20,23 +20,15 @@
 //   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 //   wasm-bindgen --target deno --out-dir pkg \
 //     target/wasm32-unknown-unknown/release/gproxy.wasm
-//   # The crate exports a fn named `fetch` (the WinterCG entry point), which
-//   # shadows the global `fetch` that wasm-bindgen's deno loader uses to read
-//   # the .wasm at import ("Cannot access 'wasm' before initialization"). Force
-//   # the loader to use the global explicitly:
-//   perl -0pi -e \
-//     's/instantiateStreaming\(fetch\(wasmUrl\)/instantiateStreaming(globalThis.fetch(wasmUrl)/' \
-//     pkg/gproxy.js
 //
 // Deploy with deploy/deno/build.sh. The script builds a temporary upload root
 // whose main.ts imports ./pkg/gproxy.js, matching Deno Deploy's app build
 // configuration, and copies the Console build to ./console so this entry can
 // serve the same-origin web UI.
 //
-// `wasmFetch` is aliased from the wasm `fetch` export so it does not shadow
-// Deno's global `fetch`, which the glue's loader still needs at import time.
-
-import { fetch as wasmFetch, init } from "../../pkg/gproxy.js";
+// The Rust export deliberately uses a distinct JS name so wasm-bindgen's
+// loader can call the runtime's global `fetch` while initialising the module.
+import { gproxyFetch as wasmFetch, init } from "../../pkg/gproxy.js";
 
 function reqEnv(name: string): string {
   const v = Deno.env.get(name);

@@ -209,6 +209,12 @@ impl PersistenceBackend for LibsqlPersistence {
     async fn upsert_routing_rule(&self, input: RoutingRuleInput) -> anyhow::Result<RoutingRule> {
         transform::routing_rules::upsert(&self.client, input).await
     }
+    async fn upsert_routing_rules_batch(
+        &self,
+        inputs: Vec<RoutingRuleInput>,
+    ) -> anyhow::Result<()> {
+        transform::routing_rules::upsert_batch(&self.client, &inputs).await
+    }
     async fn delete_routing_rule(&self, id: i64) -> anyhow::Result<bool> {
         transform::routing_rules::delete(&self.client, id).await
     }

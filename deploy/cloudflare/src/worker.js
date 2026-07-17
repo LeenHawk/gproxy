@@ -7,7 +7,7 @@
 // glue and hands it the bundled Module:
 //
 //   import wasmModule from "./_lib/gproxy_bg.wasm";           // WebAssembly.Module
-//   import initWasm, { fetch as wasmFetch, init as gproxyInit } from "./_lib/gproxy.js";
+//   import initWasm, { gproxyFetch as wasmFetch, init as gproxyInit } from "./_lib/gproxy.js";
 //   await initWasm({ module_or_path: wasmModule });           // WebAssembly.instantiate(Module, imports)
 //
 // The web-target default export (`__wbg_init`) routes a `WebAssembly.Module`
@@ -35,7 +35,7 @@
 
 import wasmModule from "./_lib/gproxy_bg.wasm";
 import initWasm, {
-  fetch as wasmFetch,
+  gproxyFetch as wasmFetch,
   init as gproxyInit,
   responses_websocket_frame as wasmResponsesWebSocketFrame,
 } from "./_lib/gproxy.js";

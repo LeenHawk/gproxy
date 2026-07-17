@@ -65,6 +65,7 @@ pub async fn seed_default_routing(
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let mut sort_order = 0i64;
+    let mut inputs = Vec::with_capacity(table.len());
     for (source, decision) in table {
         let (implementation, dest_operation, dest_kind) = decision_strs(&decision);
         let operation = to_str(&source.operation);
@@ -77,22 +78,24 @@ pub async fn seed_default_routing(
             continue; // keep the existing/edited rule
         }
 
-        persistence
-            .upsert_routing_rule(RoutingRuleInput {
-                id: existing_id,
-                provider_id,
-                operation,
-                kind,
-                implementation,
-                dest_operation,
-                dest_kind,
-                sort_order,
-                enabled: true,
-            })
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        inputs.push(RoutingRuleInput {
+            id: existing_id,
+            provider_id,
+            operation,
+            kind,
+            implementation,
+            dest_operation,
+            dest_kind,
+            sort_order,
+            enabled: true,
+        });
         sort_order += 1;
     }
+
+    persistence
+        .upsert_routing_rules_batch(inputs)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     Ok(())
 }

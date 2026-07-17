@@ -1,7 +1,7 @@
 // GPROXY on Appwrite Functions — **deno-2.0 runtime** (pre-built wasm, no cargo).
 //
 // This wraps the SAME wasm-bindgen `--target deno` edge build that runs on
-// Netlify / Supabase / Deno Deploy. Appwrite's open-runtimes deno runtime calls
+// Netlify / Deno Deploy. Appwrite's open-runtimes deno runtime calls
 // this default export per request; we bridge its `context.req` to the wasm
 // `fetch` export (the same http::server::router native uses) and write the
 // result to `context.res`.
@@ -14,7 +14,7 @@
 //   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash cache; falls back to libSQL)
 //   GPROXY_MASTER_KEY               (optional — unseals stored secrets)
 
-import { fetch as wasmFetch, init } from "./gproxy.js";
+import { gproxyFetch as wasmFetch, init } from "./gproxy.js";
 
 function reqEnv(name: string): string {
   const v = Deno.env.get(name);

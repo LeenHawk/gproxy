@@ -3,7 +3,7 @@
 GPROXY runs on Appwrite Functions as a **Deno** function that serves the
 **pre-built edge wasm** — Appwrite never compiles Rust. `main.ts` bridges
 Appwrite's `context.req` → the wasm `fetch` export → `context.res`. This is the
-same wasm that runs on Netlify / Supabase / Deno Deploy.
+same wasm that runs on Netlify / Deno Deploy.
 
 > **Why not the native Rust runtime?** Appwrite's `rust-1.83` runtime can't build
 > GPROXY: it compiles your crate with **Cargo 1.83** (GPROXY is edition 2024 /

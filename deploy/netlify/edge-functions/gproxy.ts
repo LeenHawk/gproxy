@@ -1,7 +1,7 @@
 // GPROXY v2 — Netlify Edge Function entry.
 //
 // Netlify Edge Functions run on Deno Deploy infrastructure, so the same
-// wasm-bindgen `--target deno` glue used for the Supabase / Deno Deploy entries
+// wasm-bindgen `--target deno` glue used for the Deno Deploy entries
 // applies here. The wasm is INLINED as base64 (gproxy_wasm_inline.ts) and
 // instantiated via `WebAssembly.instantiate(bytes, …)` so the function bundle
 // is fully self-contained — no sibling `.wasm` file to fetch at runtime (this
@@ -43,16 +43,16 @@
 //                                 UPSTASH_TOKEN / GPROXY_MASTER_KEY)
 //   netlify deploy --prod --dir public
 //
-// `wasmFetch` is aliased from the wasm `fetch` export so it does not shadow the
-// runtime's global `fetch`.
+// The Rust export deliberately uses a distinct JS name so the generated loader
+// can keep using the runtime's global `fetch` during module initialisation.
 
 // The generated glue lives in the `_lib/` subdirectory — Netlify only treats
 // TOP-LEVEL files in the edge-functions dir as standalone functions, so nesting
 // the glue keeps it as an imported module rather than a second "function".
-import { fetch as wasmFetch, init } from "./_lib/gproxy.js";
+import { gproxyFetch as wasmFetch, init } from "./_lib/gproxy.js";
 
 // Netlify exposes site env vars via the `Netlify.env` API on the edge runtime;
-// fall back to `Deno.env` for parity with the Supabase / Deno Deploy entries.
+// fall back to `Deno.env` for parity with the Deno Deploy entries.
 function getEnv(name: string): string | undefined {
   // deno-lint-ignore no-explicit-any
   const ne = (globalThis as any).Netlify?.env;
@@ -96,7 +96,7 @@ function ensureInit(): Promise<void> {
 
 // The wasm router matches bare paths (`/healthz`, `/version`). Netlify Edge
 // Functions invoke the handler with the ORIGINAL request URL (no synthetic
-// function-name prefix, unlike Supabase), so the request path passes straight
+// function-name prefix, so the request path passes straight
 // through to the router.
 export default async (req: Request): Promise<Response> => {
   await ensureInit();

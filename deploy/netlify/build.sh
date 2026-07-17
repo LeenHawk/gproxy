@@ -2,7 +2,7 @@
 # Regenerate the wasm-bindgen `deno`-target glue for the Netlify Edge Function
 # entry, then inline the wasm as base64 so the bundle is self-contained (no
 # sibling .wasm to fetch at runtime). Netlify Edge Functions run on Deno Deploy
-# infra, so this mirrors the eopages inline approach.
+# infra, so this uses a self-contained inline approach.
 #
 # Build-only (no deploy/secrets). Run from the crate root (/home/linhuan/gproxy/v2):
 #   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
