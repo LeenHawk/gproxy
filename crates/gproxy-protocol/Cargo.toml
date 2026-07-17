@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-protocol"
-version = "2.0.19"
+version = "2.0.20"
 edition = "2024"
 authors = ["LeenHawk <leenhawk@leenhawk.com>"]
 license = "MIT"
