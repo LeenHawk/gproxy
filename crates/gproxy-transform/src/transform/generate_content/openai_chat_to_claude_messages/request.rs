@@ -23,8 +23,8 @@ pub fn request(
     // BEFORE this transform, so model-conditional conversion sees the real
     // target model, not the inbound alias.
     let model = common::openai_model_string(input.model);
-    let explicit_cache_mode =
-        common::openai_cache_mode_is_explicit(input.prompt_cache_options.as_ref());
+    let implicit_cache_mode =
+        common::openai_cache_mode_is_implicit(input.prompt_cache_options.as_ref());
     let mid_conv_supported = common::supports_mid_conv_system(&model);
     let mut messages = Vec::new();
     let mut system_blocks = Vec::new();
@@ -193,7 +193,7 @@ pub fn request(
         user_profile_id: None,
         extra: Default::default(),
     };
-    common::apply_openai_cache_policy(output, explicit_cache_mode)
+    common::apply_openai_cache_policy(output, implicit_cache_mode)
 }
 
 fn chat_output_config(
@@ -289,6 +289,7 @@ mod tests {
             .collect::<Vec<_>>();
         let input = serde_json::from_value(json!({
             "model": "claude-sonnet-4-6",
+            "prompt_cache_options": {"mode": "implicit"},
             "messages": [{"role": "user", "content": parts}]
         }))
         .unwrap();
@@ -302,6 +303,18 @@ mod tests {
                 .iter()
                 .all(|block| block.get("cache_control").is_some())
         );
+    }
+
+    #[test]
+    fn unspecified_cache_mode_does_not_add_root_cache_control() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-sonnet-4-6",
+            "messages": [{"role": "user", "content": "hello"}]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert!(output.get("cache_control").is_none());
     }
 
     /// Regression: pre-Opus-4.8 models reject `mid_conv_system` ("role 'system'

@@ -39,12 +39,12 @@ pub(in crate::transform::generate_content) fn claude_cache_control(
 
 pub(crate) fn openai_options_for_claude_root(
     cache_control: Option<claude::CacheControl>,
-) -> Option<openai::PromptCacheOptions> {
-    cache_control.map(|_| openai::PromptCacheOptions {
+) -> openai::PromptCacheOptions {
+    openai::PromptCacheOptions {
         mode: Some(openai::PromptCacheMode::Implicit),
-        ttl: Some(openai::PromptCacheTtl::ThirtyMinutes),
+        ttl: cache_control.map(|_| openai::PromptCacheTtl::ThirtyMinutes),
         extra: Default::default(),
-    })
+    }
 }
 
 /// Derive the stable routing key OpenAI uses to improve prompt-cache affinity.
@@ -137,23 +137,23 @@ fn update_hash_component(hasher: &mut blake3::Hasher, value: &[u8]) {
     hasher.update(value);
 }
 
-pub(in crate::transform::generate_content) fn openai_cache_mode_is_explicit(
+pub(in crate::transform::generate_content) fn openai_cache_mode_is_implicit(
     options: Option<&openai::PromptCacheOptions>,
 ) -> bool {
     matches!(
         options.and_then(|options| options.mode.as_ref()),
-        Some(openai::PromptCacheMode::Explicit)
+        Some(openai::PromptCacheMode::Implicit)
     )
 }
 
 /// Map OpenAI's request-wide cache policy onto Claude's four-slot model.
 ///
-/// Explicit mode keeps the final four explicit block markers. Implicit mode
-/// uses one top-level automatic marker and keeps only the final three explicit
-/// markers. OpenAI's missing mode is implicit by definition.
+/// Explicit or unspecified mode keeps the final four explicit block markers
+/// without enabling Claude request-level caching. Implicit mode uses one
+/// top-level automatic marker and keeps only the final three explicit markers.
 pub(in crate::transform::generate_content) fn apply_openai_cache_policy(
     body: claude::CreateMessageRequestBody,
-    explicit_mode: bool,
+    implicit_mode: bool,
 ) -> Result<claude::CreateMessageRequestBody, TransformError> {
     let mut value = serde_json::to_value(body).map_err(|error| TransformError::Serialization {
         reason: error.to_string(),
@@ -164,13 +164,13 @@ pub(in crate::transform::generate_content) fn apply_openai_cache_policy(
             reason: "Claude request did not serialize to an object".to_owned(),
         })?;
 
-    if explicit_mode {
-        root.remove("cache_control");
-    } else {
+    if implicit_mode {
         root.insert("cache_control".into(), json!({"type": "ephemeral"}));
+    } else {
+        root.remove("cache_control");
     }
 
-    let keep = if explicit_mode { 4 } else { 3 };
+    let keep = if implicit_mode { 3 } else { 4 };
     let locations = claude_cache_locations(root);
     let drop_count = locations.len().saturating_sub(keep);
     for location in locations.into_iter().take(drop_count) {

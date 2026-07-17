@@ -37,11 +37,12 @@ description: 通过 Provider 规则或 GPROXY 魔法字符串添加 Claude 和 O
 Messages 请求，并写入 Claude 断点；目标是 OpenAI Chat 或 Responses 时，则写入 OpenAI
 断点。
 
-协议本身携带的断点也会随转换保留：Claude 顶层 `cache_control` 转为 OpenAI `implicit` 模式，
+协议本身携带的断点也会随转换保留：Claude 请求转为 OpenAI 时默认使用 `implicit` 模式，
 可表示的块级 `cache_control` 转为显式 OpenAI 断点。OpenAI 转 Claude 时，`explicit` 模式只
-保留提示词顺序中最后 4 个显式断点；`implicit`（含省略 mode）使用一个 Claude 顶层自动断点，
-并保留最后 3 个显式断点。OpenAI 的 30 分钟 TTL 在 Claude 没有等价值，因此使用 Claude 默认
-的 5 分钟 TTL。
+保留提示词顺序中最后 4 个显式断点；明确指定的 `implicit` 模式使用一个 Claude 顶层自动断点，
+并保留最后 3 个显式断点。OpenAI 未指定缓存模式时，转换不会添加 Claude 顶层
+`cache_control`；若存在显式块级断点，仍保留最后 4 个。OpenAI 的 30 分钟 TTL 在 Claude
+没有等价值，因此使用 Claude 默认的 5 分钟 TTL。
 
 ### 各目标的行为
 

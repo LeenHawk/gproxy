@@ -41,13 +41,15 @@ the rule sees a Claude Messages body and writes a Claude marker. If the target
 is OpenAI Chat or Responses, it writes an OpenAI marker.
 
 Cache markers carried by the source protocol survive conversion where the
-target can represent them. Claude request-level `cache_control` becomes OpenAI
+target can represent them. Claude requests converted to OpenAI default to
 `implicit` mode, and representable block markers become explicit OpenAI
 breakpoints. OpenAI `explicit` mode keeps the final four explicit breakpoints
-when converted to Claude. `implicit` mode (including an omitted mode) uses one
+when converted to Claude. An explicitly selected `implicit` mode uses one
 Claude request-level automatic marker and keeps the final three explicit
-markers. OpenAI's 30-minute TTL has no exact Claude equivalent, so conversion
-uses Claude's default 5-minute TTL.
+markers. When OpenAI omits the cache mode, conversion does not add a Claude
+request-level `cache_control`; any explicit block markers still keep the final
+four positions. OpenAI's 30-minute TTL has no exact Claude equivalent, so
+conversion uses Claude's default 5-minute TTL.
 
 ### Target behavior
 
