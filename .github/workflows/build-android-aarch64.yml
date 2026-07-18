@@ -1,0 +1,96 @@
+name: build-android-aarch64
+
+# 主人克隆专用:把当前源码编成 android aarch64 的 gproxy 便携二进制,
+# 发布到固定 tag `android-latest` 的 Release,供手机酒馆管家(菜单 x / i)直接下载。
+# 走克隆而非上游:主人在 GitHub App 里点 "Run workflow"(通常先 Sync fork 拿上游最新,再点)即出新二进制。
+# 只产便携 zip(裸 ELF + libc++_shared.so),不产 APK、不签名、不需要任何仓库 Secret。
+#   - 不给 GPROXY_UPDATE_PUBKEY:gproxy 自带的自更新会验不了签名(我们不用它,靠管家从本仓库 Release 下),
+#     反代/控制台功能完全不受影响。
+#   - console 前端产物(assets/console)是 gitignore 的,必须先用 pnpm 现编,否则控制台是空的。
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-android-aarch64
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build + publish android aarch64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # 1) 先编 console 前端 → postbuild 同步到 assets/console(rust-embed 把它烤进二进制)
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+      - name: Build console embed
+        working-directory: console
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      # 2) rust + android 目标 + NDK + cargo-ndk
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-aarch64
+      - name: Set up Android NDK toolchain
+        uses: android-actions/setup-android@v4
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      # 3) 交叉编译 gproxy(不给 GPROXY_UPDATE_PUBKEY = 自更新验签禁用,反代功能不受影响)
+      - name: Build gproxy (aarch64-linux-android)
+        run: cargo ndk -t arm64-v8a build --release --bin gproxy
+
+      # 4) 组装最简便携包:裸 gproxy(ELF)+ libc++_shared.so(从 NDK sysroot 捞)
+      #    管家在 proot 里用 LD_LIBRARY_PATH 跑裸二进制,不用上游那个 /system/bin/sh 启动器。
+      - name: Package portable zip
+        id: pkg
+        run: |
+          set -euo pipefail
+          bin="target/aarch64-linux-android/release/gproxy"
+          test -f "$bin" || { echo "binary not found: $bin" >&2; exit 1; }
+          ndk="${ANDROID_NDK_ROOT:-${ANDROID_NDK_HOME:-}}"
+          if [ -z "$ndk" ] && [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
+            ndk="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          fi
+          test -n "$ndk" || { echo "Android NDK not found (ANDROID_NDK_ROOT/ANDROID_HOME unset)" >&2; exit 1; }
+          libcxx="$(find "$ndk/toolchains/llvm/prebuilt" \
+            -path "*/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
+            -type f | sort | head -1)"
+          test -n "$libcxx" || { echo "libc++_shared.so not found under $ndk" >&2; exit 1; }
+          mkdir -p dist/pkg
+          cp "$bin" dist/pkg/gproxy
+          cp "$libcxx" dist/pkg/libc++_shared.so
+          chmod 755 dist/pkg/gproxy
+          ( cd dist/pkg && zip -9 ../gproxy-android-aarch64.zip gproxy libc++_shared.so )
+          ver="$(awk '/^\[package\]/{p=1;next} /^\[/{p=0} p&&$1=="version"{gsub(/"/,"",$3);print $3;exit}' Cargo.toml)"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "== dist ==" && ls -la dist
+
+      # 5) 刷新固定 tag `android-latest` 的 Release(管家按这个 tag 直接下 zip)
+      - name: Publish rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ steps.pkg.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release delete android-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create android-latest dist/gproxy-android-aarch64.zip \
+            --title "Android aarch64 (rolling · v${VER})" \
+            --notes "手机酒馆管家(菜单 x / i)直下的便携二进制。源码 v${VER},提交 ${GITHUB_SHA}。内含裸 ELF + libc++_shared.so,不含 APK/签名。" \
+            --latest=false
