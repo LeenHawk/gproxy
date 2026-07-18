@@ -81,6 +81,35 @@ pub struct UsageInput {
     pub ended: String,
 }
 
+/// Aggregate totals across all usage rows matching an explorer filter.
+/// Unlike [`UsageRollup`], this preserves each cache-creation window so the
+/// usage page can present the same complete summary as the per-request rows.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct UsageSummary {
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_5m_tokens: i64,
+    pub cache_creation_30m_tokens: i64,
+    pub cache_creation_1h_tokens: i64,
+    #[serde(with = "rust_decimal::serde::str")]
+    pub cost: Decimal,
+}
+
+impl UsageSummary {
+    pub fn add(&mut self, usage: &Usage) {
+        self.requests += 1;
+        self.input_tokens += usage.input_tokens;
+        self.output_tokens += usage.output_tokens;
+        self.cache_read_tokens += usage.cache_read_tokens;
+        self.cache_creation_5m_tokens += usage.cache_creation_5m_tokens;
+        self.cache_creation_30m_tokens += usage.cache_creation_30m_tokens;
+        self.cache_creation_1h_tokens += usage.cache_creation_1h_tokens;
+        self.cost += usage.cost;
+    }
+}
+
 /// An aggregated usage bucket for one `(granularity, bucket_start, dimensions)`
 /// tuple (§8-D). Metrics are accumulated across requests.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

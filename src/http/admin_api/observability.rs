@@ -72,6 +72,7 @@ pub(super) async fn dispatch(
     let r = match (&parts.method, segs.as_slice()) {
         // Usage explorer
         (&Method::GET, ["admin", "usage"]) => list_usage(state, parts).await,
+        (&Method::GET, ["admin", "usage-summary"]) => usage_summary(state, parts).await,
         (&Method::GET, ["admin", "usage-rollups"]) => list_usage_rollups(state, parts).await,
 
         // Audit
@@ -122,6 +123,27 @@ async fn list_usage(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
         .await
         .map_err(internal)?;
     Resp::json(200, &rows)
+}
+
+async fn usage_summary(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    let q: UsageFilterQuery = query(parts)?;
+    let store_q = StoreUsageQuery {
+        at_from: q.at_from,
+        at_to: q.at_to,
+        provider_id: q.provider_id,
+        user_id: q.user_id,
+        route_name: q.route_name,
+        model: q.model,
+        before_id: None,
+        limit: 0,
+    };
+    let summary = state
+        .persistence
+        .summarize_usages(&store_q)
+        .await
+        .map_err(internal)?;
+    Resp::json(200, &summary)
 }
 
 async fn list_usage_rollups(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {

@@ -1,8 +1,8 @@
 //! Tests for [`DbPersistence`].
 
 use super::DbPersistence;
-use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::*;
+use crate::store::persistence::{PersistenceBackend, UsageQuery};
 use serde_json::json;
 
 async fn mem() -> DbPersistence {
@@ -692,6 +692,67 @@ async fn metrics_aggregate_sums_rollups_and_buckets_latency() {
     assert_eq!(m.latency_buckets[0], 0, "≤50ms");
     assert_eq!(m.latency_buckets[1], 1, "≤100ms");
     assert_eq!(m.latency_buckets[4], 2, "≤1000ms cumulative");
+}
+
+#[tokio::test]
+async fn usage_summary_matches_filters_and_ignores_pagination() {
+    let db = mem().await;
+    for (rid, at, provider_id, model, input, output, cost) in [
+        ("r1", 100, 1, "model-a", 10, 20, "0.001"),
+        ("r2", 200, 1, "model-a", 30, 40, "0.002"),
+        ("r3", 300, 2, "model-b", 50, 60, "0.004"),
+    ] {
+        db.append_usage(UsageInput {
+            request_id: rid.to_owned(),
+            at,
+            route_name: Some("default".into()),
+            provider_id: Some(provider_id),
+            credential_id: None,
+            org_id: None,
+            team_id: None,
+            user_id: Some(7),
+            user_key_id: None,
+            operation: "chat".into(),
+            kind: "openai".into(),
+            model: Some(model.into()),
+            input_tokens: input,
+            output_tokens: output,
+            cache_read_tokens: input + 1,
+            cache_creation_5m_tokens: input + 2,
+            cache_creation_30m_tokens: input + 3,
+            cache_creation_1h_tokens: input + 4,
+            cost: cost.parse().unwrap(),
+            latency_ms: 0,
+            usage_source: "upstream".into(),
+            ended: "complete".into(),
+        })
+        .await
+        .unwrap();
+    }
+
+    let summary = db
+        .summarize_usages(&UsageQuery {
+            at_from: Some(100),
+            at_to: Some(250),
+            provider_id: Some(1),
+            user_id: Some(7),
+            route_name: Some("default".into()),
+            model: Some("model-a".into()),
+            // Summary deliberately covers the full filtered result set.
+            before_id: Some(2),
+            limit: 1,
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(summary.requests, 2);
+    assert_eq!(summary.input_tokens, 40);
+    assert_eq!(summary.output_tokens, 60);
+    assert_eq!(summary.cache_read_tokens, 42);
+    assert_eq!(summary.cache_creation_5m_tokens, 44);
+    assert_eq!(summary.cache_creation_30m_tokens, 46);
+    assert_eq!(summary.cache_creation_1h_tokens, 48);
+    assert_eq!(summary.cost, "0.003".parse().unwrap());
 }
 
 #[tokio::test]

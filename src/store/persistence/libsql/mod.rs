@@ -36,7 +36,7 @@ use super::records::{
     RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
-    UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
+    UsageRollupInput, UsageSummary, User, UserInput, UserKey, UserKeyInput,
 };
 
 /// Edge persistence backend backed by a Turso/libSQL database via Hrana HTTP.
@@ -389,6 +389,9 @@ impl PersistenceBackend for LibsqlPersistence {
     }
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
         usage::usages::query(&self.client, q).await
+    }
+    async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
+        usage::usages::summarize(&self.client, q).await
     }
     async fn add_usage_rollup(&self, input: UsageRollupInput) -> anyhow::Result<UsageRollup> {
         usage::usage_rollups::add(&self.client, input).await

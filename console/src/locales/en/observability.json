@@ -41,6 +41,7 @@
     },
     "loadMore": "Load more",
     "empty": "No usage records match the current filters.",
+    "summary": "Usage summary",
     "presets": {
       "all": "All",
       "1h": "1h",

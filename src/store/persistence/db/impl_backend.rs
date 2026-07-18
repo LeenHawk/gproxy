@@ -14,7 +14,7 @@ use crate::store::persistence::records::{
     RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
-    UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
+    UsageRollupInput, UsageSummary, User, UserInput, UserKey, UserKeyInput,
 };
 
 #[async_trait]
@@ -392,6 +392,10 @@ impl PersistenceBackend for DbPersistence {
 
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
         ops::usage::usages::query(&self.conn, q).await
+    }
+
+    async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
+        ops::usage::usages::summarize(&self.conn, q).await
     }
 
     async fn delete_usage(&self, id: i64) -> anyhow::Result<bool> {
