@@ -28,7 +28,8 @@
     "edit": "Edit",
     "close": "Close",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "copyFailed": "Copy failed. Please try again."
   },
   "login": {
     "title": "Sign in to GPROXY",

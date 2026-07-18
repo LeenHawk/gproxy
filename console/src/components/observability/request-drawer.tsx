@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { downstreamLogsQuery, upstreamLogsQuery } from "@/api/usage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,16 +33,45 @@ function statusVariant(status: number): "default" | "secondary" | "destructive" 
 }
 
 function JsonCollapsible({ label, data }: { label: string; data: unknown }) {
+  const { t } = useTranslation("common");
+  const [copied, setCopied] = useState(false);
+
   if (data == null) return null;
-  const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+  const text = typeof data === "string" ? data : (JSON.stringify(data, null, 2) ?? String(data));
+
+  async function copyText() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error(t("actions.copyFailed"));
+    }
+  }
+
+  const copyLabel = `${t(copied ? "actions.copied" : "actions.copy")} ${label}`;
+
   return (
     <Collapsible>
-      <CollapsibleTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-muted-foreground px-2">
-          <ChevronsUpDown className="size-3" aria-hidden />
-          {label}
+      <div className="flex items-center gap-1">
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-muted-foreground">
+            <ChevronsUpDown className="size-3" aria-hidden />
+            {label}
+          </Button>
+        </CollapsibleTrigger>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground"
+          aria-label={copyLabel}
+          title={copyLabel}
+          onClick={() => void copyText()}
+        >
+          {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
         </Button>
-      </CollapsibleTrigger>
+      </div>
       <CollapsibleContent>
         <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs font-mono">
           {text}
