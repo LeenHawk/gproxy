@@ -37,6 +37,21 @@ async fn usage_empty_list_ok() {
     assert!(v.as_array().unwrap().is_empty());
 }
 
+#[tokio::test]
+async fn usage_empty_summary_ok() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-obs-summary", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    let p = parts("GET", "/admin/usage-summary", Some(&cookie), None);
+    let resp = run(&state, &p, b"").await.expect("200");
+    assert_eq!(resp.status, http::StatusCode::OK);
+    let v = parse_json(&resp);
+    assert_eq!(v["requests"], 0);
+    assert_eq!(v["cache_creation_30m_tokens"], 0);
+    assert_eq!(v["cost"], "0");
+}
+
 // ── GET /admin/usage with bad query param → 400 ──────────────────────────────
 
 #[tokio::test]

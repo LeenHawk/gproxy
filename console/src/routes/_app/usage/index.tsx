@@ -2,10 +2,16 @@ import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { usageInfiniteQuery, type Usage, type UsageFilter } from "@/api/usage";
+import {
+  usageInfiniteQuery,
+  usageSummaryQuery,
+  type Usage,
+  type UsageFilter,
+} from "@/api/usage";
 import { providersQuery } from "@/api/providers";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { UsageFilters } from "@/components/observability/usage-filters";
+import { UsageSummaryBar } from "@/components/observability/usage-summary-bar";
 import {
   formatUsageTimestamp,
   UsageMobileCard,
@@ -47,11 +53,14 @@ function UsagePage() {
   // (pages reset for free); fetchNextPage appends and survives refetches.
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending } =
     useInfiniteQuery(usageInfiniteQuery(filter));
+  const { data: summary, isPending: summaryPending } = useQuery(
+    usageSummaryQuery(filter),
+  );
   const rows = data?.pages.flat() ?? [];
   const ids = rows.map((r) => r.id);
 
   // Batch: usage is read-only — delete only.
-  const batch = useBatch("usage", ["usage", "infinite", filter]);
+  const batch = useBatch("usage", ["usage"]);
 
   function openRid(rid: string) {
     setSelectedRid(rid);
@@ -165,6 +174,8 @@ function UsagePage() {
               {batch.mode ? tc("batch.cancel") : tc("batch.select")}
             </Button>
           </div>
+
+          <UsageSummaryBar summary={summary} pending={summaryPending} />
 
           {isPending ? (
             <div className="space-y-2" aria-busy="true">

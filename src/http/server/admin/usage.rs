@@ -20,6 +20,7 @@ use crate::channel::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
 use crate::store::persistence::UsageQuery as StoreUsageQuery;
 use crate::store::persistence::records::{
     AuditLog, CredentialStatus, DownstreamRequest, UpstreamRequest, Usage, UsageRollup,
+    UsageSummary,
 };
 
 /// `?limit=N` for the audit listing; defaults to 100, capped at 1000.
@@ -67,6 +68,31 @@ pub async fn list_usage(
         state
             .persistence
             .query_usages(&query)
+            .await
+            .map_err(internal)?,
+    ))
+}
+
+/// `GET /admin/usage-summary` — totals across every usage row matching the
+/// explorer filters. Pagination parameters, if supplied, are ignored.
+pub async fn usage_summary(
+    State(state): State<AppState>,
+    Query(q): Query<UsageFilterQuery>,
+) -> Result<Json<UsageSummary>, ApiError> {
+    let query = StoreUsageQuery {
+        at_from: q.at_from,
+        at_to: q.at_to,
+        provider_id: q.provider_id,
+        user_id: q.user_id,
+        route_name: q.route_name,
+        model: q.model,
+        before_id: None,
+        limit: 0,
+    };
+    Ok(Json(
+        state
+            .persistence
+            .summarize_usages(&query)
             .await
             .map_err(internal)?,
     ))

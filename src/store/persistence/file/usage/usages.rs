@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::store::persistence::UsageQuery;
-use crate::store::persistence::records::{Usage, UsageInput};
+use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
 
 use crate::store::persistence::file::table::{self, now_secs};
 
@@ -78,25 +78,37 @@ pub(crate) async fn list(root: &Path, limit: u64) -> anyhow::Result<Vec<Usage>> 
     Ok(rows)
 }
 
+fn matches_filter(r: &Usage, q: &UsageQuery) -> bool {
+    q.at_from.is_none_or(|v| r.at >= v)
+        && q.at_to.is_none_or(|v| r.at <= v)
+        && q.provider_id.is_none_or(|v| r.provider_id == Some(v))
+        && q.user_id.is_none_or(|v| r.user_id == Some(v))
+        && q.route_name
+            .as_ref()
+            .is_none_or(|v| r.route_name.as_deref() == Some(v.as_str()))
+        && q.model
+            .as_ref()
+            .is_none_or(|v| r.model.as_deref() == Some(v.as_str()))
+}
+
 /// Filtered + keyset-paginated usage rows (B4). Loads the table, retains rows
 /// matching every supplied filter (and the `id < before_id` cursor), sorts
 /// `id` DESC, then truncates to `limit`.
 pub(crate) async fn query(root: &Path, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
     let mut rows: Vec<Usage> = table::load::<Usage>(&path(root)).await?.rows;
-    rows.retain(|r| {
-        q.at_from.is_none_or(|v| r.at >= v)
-            && q.at_to.is_none_or(|v| r.at <= v)
-            && q.provider_id.is_none_or(|v| r.provider_id == Some(v))
-            && q.user_id.is_none_or(|v| r.user_id == Some(v))
-            && q.route_name
-                .as_ref()
-                .is_none_or(|v| r.route_name.as_deref() == Some(v.as_str()))
-            && q.model
-                .as_ref()
-                .is_none_or(|v| r.model.as_deref() == Some(v.as_str()))
-            && q.before_id.is_none_or(|v| r.id < v)
-    });
+    rows.retain(|r| matches_filter(r, q) && q.before_id.is_none_or(|v| r.id < v));
     rows.sort_by_key(|r| std::cmp::Reverse(r.id));
     rows.truncate(q.limit as usize);
     Ok(rows)
+}
+
+/// Full-result summary for the file backend. The file store is dev-scale, so
+/// it folds the already-required JSON table scan in memory.
+pub(crate) async fn summarize(root: &Path, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
+    let rows = table::load::<Usage>(&path(root)).await?.rows;
+    let mut summary = UsageSummary::default();
+    for row in rows.iter().filter(|r| matches_filter(r, q)) {
+        summary.add(row);
+    }
+    Ok(summary)
 }

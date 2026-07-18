@@ -8,7 +8,7 @@ use crate::store::persistence::libsql::row::{
 use crate::store::persistence::libsql::util::{
     arg_opt_i64, arg_opt_text, last_rowid, now_secs, query as run_query, query_one,
 };
-use crate::store::persistence::records::{Usage, UsageInput};
+use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
 use serde_json::Value;
 
 const COLS: &str = "id, request_id, at, route_name, provider_id, credential_id, org_id, team_id, \
@@ -166,4 +166,57 @@ pub async fn query(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<Vec<
         .iter()
         .map(decode)
         .collect()
+}
+
+/// Backend-side full-result aggregate for the edge usage explorer. Pagination
+/// is deliberately absent so the totals cover every matching usage row.
+pub async fn summarize(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
+    let mut sql = String::from(
+        "SELECT COUNT(*), COALESCE(SUM(input_tokens), 0), \
+         COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cache_read_tokens), 0), \
+         COALESCE(SUM(cache_creation_5m_tokens), 0), \
+         COALESCE(SUM(cache_creation_30m_tokens), 0), \
+         COALESCE(SUM(cache_creation_1h_tokens), 0), \
+         CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT) \
+         FROM usages WHERE 1=1",
+    );
+    let mut args: Vec<Value> = Vec::new();
+    if let Some(v) = q.at_from {
+        sql.push_str(" AND at >= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.at_to {
+        sql.push_str(" AND at <= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.provider_id {
+        sql.push_str(" AND provider_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.user_id {
+        sql.push_str(" AND user_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(ref v) = q.route_name {
+        sql.push_str(" AND route_name = ?");
+        args.push(arg_text(v));
+    }
+    if let Some(ref v) = q.model {
+        sql.push_str(" AND model = ?");
+        args.push(arg_text(v));
+    }
+
+    let row = query_one(client, &sql, &args)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("usage summary query returned no row"))?;
+    Ok(UsageSummary {
+        requests: col_i64(&row, 0)?,
+        input_tokens: col_i64(&row, 1)?,
+        output_tokens: col_i64(&row, 2)?,
+        cache_read_tokens: col_i64(&row, 3)?,
+        cache_creation_5m_tokens: col_i64(&row, 4)?,
+        cache_creation_30m_tokens: col_i64(&row, 5)?,
+        cache_creation_1h_tokens: col_i64(&row, 6)?,
+        cost: col_decimal(&row, 7)?,
+    })
 }

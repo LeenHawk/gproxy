@@ -23,7 +23,7 @@ use crate::store::persistence::records::{
     RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
-    UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
+    UsageRollupInput, UsageSummary, User, UserInput, UserKey, UserKeyInput,
 };
 
 #[async_trait]
@@ -446,6 +446,10 @@ impl PersistenceBackend for FilePersistence {
 
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
         usages::query(&self.root, q).await
+    }
+
+    async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
+        usages::summarize(&self.root, q).await
     }
 
     async fn delete_usage(&self, id: i64) -> anyhow::Result<bool> {

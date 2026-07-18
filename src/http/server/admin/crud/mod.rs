@@ -936,6 +936,24 @@ mod tests {
         assert_eq!(list.as_array().unwrap().len(), 2);
         assert!(list[0].get("secret_json").is_none());
 
+        // Summary uses the same filters but covers the full result set.
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::get("/admin/usage-summary?model=gpt-4o&limit=1")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let summary: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(summary["requests"], 2);
+        assert_eq!(summary["input_tokens"], 20);
+        assert_eq!(summary["output_tokens"], 40);
+
         // GET /admin/usage-rollups (valid granularity) → 200.
         let resp = app
             .clone()

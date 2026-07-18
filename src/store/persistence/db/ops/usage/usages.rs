@@ -1,13 +1,14 @@
 //! Usage ops for the `db` backend (append-only, idempotent by `request_id`).
 
 use sea_orm::ActiveValue::{NotSet, Set};
+use sea_orm::sea_query::Value;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection,
+    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Statement,
 };
 
 use crate::store::persistence::UsageQuery;
-use crate::store::persistence::records::{Usage, UsageInput};
+use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
 
 use crate::store::persistence::db::entities::usage::usage;
 
@@ -131,4 +132,92 @@ pub async fn query(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Result<
         .into_iter()
         .map(to_record)
         .collect()
+}
+
+fn push_summary_filter(
+    sql: &mut String,
+    values: &mut Vec<Value>,
+    backend: DatabaseBackend,
+    column: &str,
+    operator: &str,
+    value: Value,
+) {
+    let placeholder = if backend == DatabaseBackend::Postgres {
+        format!("${}", values.len() + 1)
+    } else {
+        "?".to_owned()
+    };
+    sql.push_str(&format!(" AND {column} {operator} {placeholder}"));
+    values.push(value);
+}
+
+/// Backend-side full-result aggregate for the usage explorer. Values remain
+/// bound parameters; only fixed column/operator names are interpolated.
+pub async fn summarize(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
+    let backend = conn.get_database_backend();
+    let cost_expr = match backend {
+        DatabaseBackend::MySql => "CAST(COALESCE(SUM(CAST(cost AS DECIMAL(65, 30))), 0) AS CHAR)",
+        DatabaseBackend::Postgres | DatabaseBackend::Sqlite => {
+            "CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT)"
+        }
+        _ => "CAST(COALESCE(SUM(CAST(cost AS NUMERIC)), 0) AS TEXT)",
+    };
+    let mut sql = format!(
+        "SELECT COUNT(*) AS requests, \
+         CAST(COALESCE(SUM(input_tokens), 0) AS BIGINT) AS input_tokens, \
+         CAST(COALESCE(SUM(output_tokens), 0) AS BIGINT) AS output_tokens, \
+         CAST(COALESCE(SUM(cache_read_tokens), 0) AS BIGINT) AS cache_read_tokens, \
+         CAST(COALESCE(SUM(cache_creation_5m_tokens), 0) AS BIGINT) AS cache_creation_5m_tokens, \
+         CAST(COALESCE(SUM(cache_creation_30m_tokens), 0) AS BIGINT) AS cache_creation_30m_tokens, \
+         CAST(COALESCE(SUM(cache_creation_1h_tokens), 0) AS BIGINT) AS cache_creation_1h_tokens, \
+         {cost_expr} AS cost FROM usages WHERE 1=1"
+    );
+    let mut values = Vec::new();
+    if let Some(v) = q.at_from {
+        push_summary_filter(&mut sql, &mut values, backend, "at", ">=", v.into());
+    }
+    if let Some(v) = q.at_to {
+        push_summary_filter(&mut sql, &mut values, backend, "at", "<=", v.into());
+    }
+    if let Some(v) = q.provider_id {
+        push_summary_filter(&mut sql, &mut values, backend, "provider_id", "=", v.into());
+    }
+    if let Some(v) = q.user_id {
+        push_summary_filter(&mut sql, &mut values, backend, "user_id", "=", v.into());
+    }
+    if let Some(ref v) = q.route_name {
+        push_summary_filter(
+            &mut sql,
+            &mut values,
+            backend,
+            "route_name",
+            "=",
+            v.clone().into(),
+        );
+    }
+    if let Some(ref v) = q.model {
+        push_summary_filter(
+            &mut sql,
+            &mut values,
+            backend,
+            "model",
+            "=",
+            v.clone().into(),
+        );
+    }
+
+    let row = conn
+        .query_one_raw(Statement::from_sql_and_values(backend, sql, values))
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("usage summary query returned no row"))?;
+    Ok(UsageSummary {
+        requests: row.try_get("", "requests")?,
+        input_tokens: row.try_get("", "input_tokens")?,
+        output_tokens: row.try_get("", "output_tokens")?,
+        cache_read_tokens: row.try_get("", "cache_read_tokens")?,
+        cache_creation_5m_tokens: row.try_get("", "cache_creation_5m_tokens")?,
+        cache_creation_30m_tokens: row.try_get("", "cache_creation_30m_tokens")?,
+        cache_creation_1h_tokens: row.try_get("", "cache_creation_1h_tokens")?,
+        cost: row.try_get::<String>("", "cost")?.parse()?,
+    })
 }

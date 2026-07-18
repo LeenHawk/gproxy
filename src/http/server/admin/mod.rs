@@ -103,6 +103,7 @@ pub fn admin_router(state: AppState) -> Router<AppState> {
         .merge(crud::routes())
         // M10d read-only observability: usage, rollups, credential health, logs.
         .route("/admin/usage", get(usage::list_usage))
+        .route("/admin/usage-summary", get(usage::usage_summary))
         .route("/admin/usage-rollups", get(usage::list_usage_rollups))
         .route(
             "/admin/credentials/{id}/status",

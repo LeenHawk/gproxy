@@ -32,4 +32,4 @@ pub use transform::{
     ProviderRuleSet, ProviderRuleSetInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet,
     RuleSetInput,
 };
-pub use usage::{Usage, UsageInput, UsageRollup, UsageRollupInput};
+pub use usage::{Usage, UsageInput, UsageRollup, UsageRollupInput, UsageSummary};

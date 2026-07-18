@@ -45,6 +45,17 @@ export interface UsageRollup {
   cost: string;
 }
 
+export interface UsageSummary {
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_5m_tokens: number;
+  cache_creation_30m_tokens: number;
+  cache_creation_1h_tokens: number;
+  cost: string;
+}
+
 export interface DownstreamRequest {
   id: number;
   request_id: string;
@@ -123,6 +134,15 @@ export const usageQuery = (f: UsageFilter) =>
   queryOptions({
     queryKey: ["usage", f],
     queryFn: () => api<Usage[]>(`/admin/usage${usageQs(f)}`),
+  });
+
+export const usageSummaryQuery = (
+  f: Omit<UsageFilter, "before_id" | "limit">,
+) =>
+  queryOptions({
+    queryKey: ["usage", "summary", f],
+    queryFn: () =>
+      api<UsageSummary>(`/admin/usage-summary${usageQs(f)}`),
   });
 
 export const PAGE = 50;

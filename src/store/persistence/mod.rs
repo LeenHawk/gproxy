@@ -67,7 +67,7 @@ use records::{
     RateLimit, RateLimitInput, Route, RouteInput, RouteMember, RouteMemberInput, RoutePermission,
     RoutePermissionInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, RuleSet, RuleSetInput,
     Scope, Team, TeamInput, UpstreamRequest, UpstreamRequestInput, Usage, UsageInput, UsageRollup,
-    UsageRollupInput, User, UserInput, UserKey, UserKeyInput,
+    UsageRollupInput, UsageSummary, User, UserInput, UserKey, UserKeyInput,
 };
 
 /// Durable storage abstraction.
@@ -412,6 +412,10 @@ pub trait PersistenceBackend: Send + Sync {
     /// Filtered + keyset-paginated usage rows for the usage explorer (B4). Rows
     /// are returned `id` DESC; `q.before_id` is the cursor (`id < before_id`).
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>>;
+
+    /// Aggregate every usage row matching the explorer filters. Pagination
+    /// fields (`before_id`, `limit`) do not affect the totals.
+    async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary>;
 
     /// Accumulate metric deltas into the rollup bucket identified by the input's
     /// `(granularity, bucket_start, dimensions)`; creates the bucket if absent.
