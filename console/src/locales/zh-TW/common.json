@@ -28,7 +28,8 @@
     "edit": "編輯",
     "close": "關閉",
     "copy": "複製",
-    "copied": "已複製"
+    "copied": "已複製",
+    "copyFailed": "複製失敗，請重試"
   },
   "login": {
     "title": "登入 GPROXY",
