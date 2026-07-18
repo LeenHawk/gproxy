@@ -405,6 +405,8 @@ package_android_apk() {
 </resources>
 EOF
 
+  # The launcher health-checks the loopback Console over HTTP. Android 9+
+  # blocks HttpURLConnection cleartext for target SDK 28 unless we opt in.
   cat > "$work/AndroidManifest.xml" <<EOF
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="$package_name"
@@ -421,6 +423,7 @@ EOF
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:usesCleartextTraffic="true"
         android:extractNativeLibs="true"
         android:allowBackup="false"
         android:supportsRtl="true">
