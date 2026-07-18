@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,17 +19,24 @@ export function RewriteFields({ value, onChange, onValidChange }: Props) {
   const action = value.action ?? "set";
   const showValue = action === "set" || action === "merge";
 
-  // Reset when action changes to delete
-  useEffect(() => {
-    if (!showValue) {
-      onValidChange?.(true);
-      // Drop value_json from the parent config when switching to delete
-      const { value_json: _v, ...rest } = value;
-      onChange({ ...rest });
+  function changeAction(nextAction: string) {
+    const next: RewriteValue = { ...value, action: nextAction };
+    if (nextAction === "delete") {
+      delete next.value_json;
+    } else if (nextAction === "merge") {
+      if (
+        next.value_json === null
+        || typeof next.value_json !== "object"
+        || Array.isArray(next.value_json)
+      ) {
+        next.value_json = {};
+      }
+    } else if (!("value_json" in next)) {
+      next.value_json = null;
     }
-    // Only trigger on showValue change (driven by action)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showValue]);
+    onValidChange?.(true);
+    onChange(next);
+  }
 
   return (
     <div className="grid gap-3">
@@ -47,7 +53,7 @@ export function RewriteFields({ value, onChange, onValidChange }: Props) {
         <Label htmlFor="cfg-rw-action">{t("config.action")}</Label>
         <Select
           value={action}
-          onValueChange={(v) => onChange({ ...value, action: v })}
+          onValueChange={changeAction}
         >
           <SelectTrigger id="cfg-rw-action"><SelectValue /></SelectTrigger>
           <SelectContent>
