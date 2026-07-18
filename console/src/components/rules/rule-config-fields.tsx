@@ -5,6 +5,7 @@ import { JsonField, parseJsonText } from "@/components/form/json-field";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { TRANSFORM_TEMPLATES, type TransformTemplate } from "@/lib/transform-templates";
+import { normalizeRuleConfig } from "@/lib/rule-config";
 import { SystemTextFields } from "./config/system-text";
 import { RewriteFields } from "./config/rewrite";
 import { CacheBreakpointFields } from "./config/cache-breakpoint";
@@ -19,7 +20,9 @@ interface Props {
 
 export function RuleConfigFields({ kind, value, onChange, onValidChange }: Props) {
   const { t } = useTranslation("rules");
-  const [rawText, setRawText] = useState<string>(() => JSON.stringify(value ?? {}, null, 2));
+  const [rawText, setRawText] = useState<string>(() =>
+    JSON.stringify(normalizeRuleConfig(kind, value), null, 2),
+  );
   const [rawValid, setRawValid] = useState(true);
   const [open, setOpen] = useState(false);
 
@@ -34,7 +37,7 @@ export function RuleConfigFields({ kind, value, onChange, onValidChange }: Props
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
-      setRawText(JSON.stringify(value ?? {}, null, 2));
+      setRawText(JSON.stringify(normalizeRuleConfig(kind, value), null, 2));
       setRawValid(true);
     } else {
       // Structured editor is source of truth when closing — parent value is always valid.
@@ -52,7 +55,7 @@ export function RuleConfigFields({ kind, value, onChange, onValidChange }: Props
     onChange(tpl.config);
   };
 
-  const v = (value ?? {}) as Record<string, unknown>;
+  const v = normalizeRuleConfig(kind, value);
 
   return (
     <div className="grid gap-3">

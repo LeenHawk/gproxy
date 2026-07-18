@@ -248,13 +248,17 @@ fn compile_row(row: &Rule) -> Option<CompiledRule> {
                 path: String,
                 action: RewriteAction,
                 #[serde(default)]
-                value_json: Option<Value>,
+                value_json: Value,
             }
             let raw: Raw = serde_json::from_value(row.config_json.clone()).ok()?;
+            let value_json = match raw.action {
+                RewriteAction::Delete => None,
+                RewriteAction::Set | RewriteAction::Merge => Some(raw.value_json),
+            };
             RuleConfig::Rewrite {
                 path: raw.path,
                 action: raw.action,
-                value_json: raw.value_json,
+                value_json,
             }
         }
         "transform" => {
@@ -343,4 +347,52 @@ fn compile_row(row: &Rule) -> Option<CompiledRule> {
         model_pattern: row.filter_model_pattern.clone(),
         operations,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(kind: &str, config_json: Value) -> Rule {
+        Rule {
+            id: 1,
+            rule_set_id: 1,
+            kind: kind.to_owned(),
+            config_json,
+            filter_model_pattern: None,
+            filter_operation_keys: None,
+            sort_order: 0,
+            enabled: true,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn rewrite_set_preserves_json_null() {
+        let rules = compile_rules(&[rule(
+            "rewrite",
+            serde_json::json!({
+                "path": "optional_field",
+                "action": "set",
+                "value_json": null,
+            }),
+        )]);
+        let RuleConfig::Rewrite { value_json, .. } = &rules[0].config else {
+            panic!("expected rewrite rule");
+        };
+        assert_eq!(value_json.as_ref(), Some(&Value::Null));
+    }
+
+    #[test]
+    fn header_rule_accepts_materialized_empty_value() {
+        let rules = compile_rules(&[rule(
+            "header",
+            serde_json::json!({"name": "x-empty", "value": "", "mode": "override"}),
+        )]);
+        let RuleConfig::Header { value, .. } = &rules[0].config else {
+            panic!("expected header rule");
+        };
+        assert_eq!(value, "");
+    }
 }

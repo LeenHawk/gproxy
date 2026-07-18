@@ -33,7 +33,11 @@ export function RewriteValueField({ value, onChange, onValidChange }: Props) {
     else if (next === "number") onChange(typeof value === "number" ? value : 0);
     else if (next === "boolean") onChange(typeof value === "boolean" ? value : false);
     else if (next === "null") onChange(null);
-    else { setJsonText(JSON.stringify(value ?? {}, null, 2)); }
+    else {
+      const nextValue = value ?? {};
+      setJsonText(JSON.stringify(nextValue, null, 2));
+      onChange(nextValue);
+    }
   };
 
   return (

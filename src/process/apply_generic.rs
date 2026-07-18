@@ -255,6 +255,8 @@ mod tests {
         let mut v = json!({"a": {"b": 1}, "arr": [1, 2]});
         rewrite(&mut v, "a.c.d", RewriteAction::Set, Some(&json!(9)));
         assert_eq!(v["a"]["c"]["d"], 9); // set creates parents
+        rewrite(&mut v, "a.nullable", RewriteAction::Set, Some(&Value::Null));
+        assert!(v["a"]["nullable"].is_null());
         rewrite(&mut v, "arr.0", RewriteAction::Delete, None);
         assert_eq!(v["arr"], json!([2]));
         rewrite(

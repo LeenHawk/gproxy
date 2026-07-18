@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { upsertRule, type Rule } from "@/api/rules";
 import { ApiError } from "@/api/http";
+import { normalizeRuleConfig } from "@/lib/rule-config";
 import { ModelPatternField, OperationChips, toOperationArray, fromOperationArray } from "./filter-fields";
 import { RuleConfigFields } from "./rule-config-fields";
 import { RuleKindPicker } from "./rule-kind-picker";
@@ -38,21 +39,22 @@ export function RuleForm({ ruleSetId, rule, modelOptions, onSaved }: Props) {
   const { t } = useTranslation("rules");
   const qc = useQueryClient();
   const initialKind = rule?.kind ?? "transform";
+  const initialConfig = normalizeRuleConfig(initialKind, rule?.config_json);
 
   const [kind, setKind] = useState(initialKind);
   const [sortOrder, setSortOrder] = useState(String(rule?.sort_order ?? 0));
   const [enabled, setEnabled] = useState(rule?.enabled ?? true);
   const [filterModelPattern, setFilterModelPattern] = useState(rule?.filter_model_pattern ?? "");
   const [ops, setOps] = useState<string[]>(toOperationArray(rule?.filter_operation_keys));
-  const [configValue, setConfigValue] = useState<unknown>(rule?.config_json ?? {});
+  const [configValue, setConfigValue] = useState<unknown>(initialConfig);
   const [configValid, setConfigValid] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, unknown>>({ [initialKind]: rule?.config_json ?? {} });
+  const [drafts, setDrafts] = useState<Record<string, unknown>>({ [initialKind]: initialConfig });
 
   const handleKindChange = (k: string) => {
     setDrafts((d) => ({ ...d, [kind]: configValue })); // stash current
     setKind(k);
-    setConfigValue(drafts[k] ?? {});                    // restore or empty
+    setConfigValue(normalizeRuleConfig(k, drafts[k]));  // restore or initialize
     setConfigValid(true);
   };
 
@@ -61,14 +63,15 @@ export function RuleForm({ ruleSetId, rule, modelOptions, onSaved }: Props) {
       const orderNum = Number(sortOrder);
       if (!Number.isFinite(orderNum)) throw new ApiError(0, "bad_request", t("validation.sortOrderRequired"));
       if (!configValid) throw new ApiError(0, "bad_request", t("validation.configInvalid"));
-      const cfgErr = validateConfig(kind, configValue, t);
+      const normalizedConfig = normalizeRuleConfig(kind, configValue);
+      const cfgErr = validateConfig(kind, normalizedConfig, t);
       if (cfgErr) throw new ApiError(0, "bad_request", cfgErr);
 
       return upsertRule(ruleSetId, {
         id: rule?.id ?? null,
         rule_set_id: ruleSetId,
         kind,
-        config_json: configValue,
+        config_json: normalizedConfig,
         filter_model_pattern: filterModelPattern.trim() || null,
         filter_operation_keys: fromOperationArray(ops),
         sort_order: orderNum,
