@@ -103,8 +103,22 @@ wildcards, and an optional exact `from` guard:
 }
 ```
 
-`phase` is `request`, `response`, or `both`; it defaults to `request`. Regex
-matching is broad after JSON serialization, so keep patterns precise.
+Use `replace_regex` to apply a Rust regex only to string values selected by
+`locate.path` or `locate.paths`:
+
+```json
+{
+  "phase": "request",
+  "locate": { "paths": ["tools.*.name", "tool_choice.name"] },
+  "actions": [
+    { "op": "replace_regex", "pattern": "^mcp_([^_].*)$", "with": "mcp__$1" }
+  ]
+}
+```
+
+`phase` is `request`, `response`, or `both`; it defaults to `request`.
+`locate.match` is broad after JSON serialization, while `replace_regex` is
+limited to the selected path values.
 
 ## `header`
 

@@ -26,6 +26,7 @@ import {
   buildProviderRuleSetColumns,
   ProviderRuleSetCard,
 } from "./provider-rule-set-row";
+import { OpenCodeRuleSetButton } from "./opencode-rule-set-button";
 
 export function ProviderRulesTab({ providerId }: { providerId: number }) {
   const { t } = useTranslation("rules");
@@ -95,6 +96,12 @@ export function ProviderRulesTab({ providerId }: { providerId: number }) {
         <div className="flex gap-2">
           {!batch.mode && (
             <>
+              <OpenCodeRuleSetButton
+                providerId={providerId}
+                ruleSets={allRuleSets}
+                attachments={attachments}
+                onApplied={(id) => { invalidate(); setDrawerSetId(id); }}
+              />
               <Button
                 variant="outline"
                 size="sm"
