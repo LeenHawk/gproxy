@@ -26,7 +26,7 @@ import {
   buildProviderRuleSetColumns,
   ProviderRuleSetCard,
 } from "./provider-rule-set-row";
-import { OpenCodeRuleSetButton } from "./opencode-rule-set-button";
+import { ApplicationPresetButton } from "./application-preset-button";
 
 export function ProviderRulesTab({ providerId }: { providerId: number }) {
   const { t } = useTranslation("rules");
@@ -96,7 +96,7 @@ export function ProviderRulesTab({ providerId }: { providerId: number }) {
         <div className="flex gap-2">
           {!batch.mode && (
             <>
-              <OpenCodeRuleSetButton
+              <ApplicationPresetButton
                 providerId={providerId}
                 ruleSets={allRuleSets}
                 attachments={attachments}
