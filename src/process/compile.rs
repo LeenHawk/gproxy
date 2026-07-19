@@ -81,6 +81,7 @@ pub enum TransformLocate {
 #[derive(Debug, Clone)]
 pub enum TransformAction {
     ReplaceText { from: Option<String>, with: String },
+    ReplaceRegex { regex: Regex, with: String },
 }
 
 #[derive(Debug, Clone)]
@@ -278,6 +279,8 @@ fn compile_row(row: &Rule) -> Option<CompiledRule> {
                 #[serde(default)]
                 from: Option<String>,
                 #[serde(default)]
+                pattern: Option<String>,
+                #[serde(default)]
                 with: Option<String>,
                 #[serde(default)]
                 to: Option<String>,
@@ -307,10 +310,21 @@ fn compile_row(row: &Rule) -> Option<CompiledRule> {
                         from: action.from,
                         with: action.with.or(action.to)?,
                     }),
+                    "replace_regex" => actions.push(TransformAction::ReplaceRegex {
+                        regex: Regex::new(action.pattern.as_deref()?).ok()?,
+                        with: action.with.or(action.to)?,
+                    }),
                     _ => return None,
                 }
             }
             if actions.is_empty() {
+                return None;
+            }
+            if matches!(&locate, TransformLocate::Match(_))
+                && actions
+                    .iter()
+                    .any(|action| matches!(action, TransformAction::ReplaceRegex { .. }))
+            {
                 return None;
             }
             RuleConfig::Transform(TransformCfg {
@@ -394,5 +408,30 @@ mod tests {
             panic!("expected header rule");
         };
         assert_eq!(value, "");
+    }
+
+    #[test]
+    fn scoped_regex_action_compiles_and_rejects_invalid_patterns() {
+        let valid = compile_rules(&[rule(
+            "transform",
+            serde_json::json!({
+                "locate": { "path": "tools.*.name" },
+                "actions": [{
+                    "op": "replace_regex",
+                    "pattern": "^mcp_([^_].*)$",
+                    "with": "mcp__$1"
+                }]
+            }),
+        )]);
+        assert_eq!(valid.len(), 1);
+
+        let invalid = compile_rules(&[rule(
+            "transform",
+            serde_json::json!({
+                "locate": { "path": "tools.*.name" },
+                "actions": [{ "op": "replace_regex", "pattern": "(", "with": "x" }]
+            }),
+        )]);
+        assert!(invalid.is_empty());
     }
 }

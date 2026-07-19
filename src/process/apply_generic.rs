@@ -176,6 +176,14 @@ fn apply_transform_action(value: &mut Value, action: &TransformAction) {
                 *value = Value::String(with.clone());
             }
         }
+        TransformAction::ReplaceRegex { regex, with } => {
+            let Some(text) = value.as_str() else {
+                return;
+            };
+            if let std::borrow::Cow::Owned(replaced) = regex.replace_all(text, with.as_str()) {
+                *value = Value::String(replaced);
+            }
+        }
     }
 }
 
@@ -188,7 +196,9 @@ pub fn transform_text(body: Bytes, cfg: &TransformCfg) -> Bytes {
     let text = String::from_utf8_lossy(&body);
     let mut out: Option<String> = None;
     for action in &cfg.actions {
-        let TransformAction::ReplaceText { with, .. } = action;
+        let TransformAction::ReplaceText { with, .. } = action else {
+            continue;
+        };
         let next = match (&out, cfg.limit) {
             (Some(current), Some(limit)) => regex.replacen(current, limit, with.as_str()),
             (Some(current), None) => regex.replace_all(current, with.as_str()),
@@ -298,5 +308,31 @@ mod tests {
             h.get(&beta).unwrap(),
             "context-1m,interleaved-thinking-2025-05-14"
         );
+    }
+
+    #[test]
+    fn scoped_regex_only_rewrites_selected_string_values() {
+        let mut value = json!({
+            "tools": [
+                { "name": "mcp_search" },
+                { "name": "mcp__native" }
+            ],
+            "message": "mcp_search"
+        });
+        let cfg = TransformCfg {
+            phase: super::super::compile::TransformPhase::Request,
+            locate: TransformLocate::Path("tools.*.name".into()),
+            actions: vec![TransformAction::ReplaceRegex {
+                regex: regex::Regex::new(r"^mcp_([^_].*)$").unwrap(),
+                with: "mcp__$1".into(),
+            }],
+            limit: None,
+        };
+
+        transform_value(&mut value, &cfg);
+
+        assert_eq!(value["tools"][0]["name"], "mcp__search");
+        assert_eq!(value["tools"][1]["name"], "mcp__native");
+        assert_eq!(value["message"], "mcp_search");
     }
 }

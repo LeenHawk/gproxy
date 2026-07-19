@@ -93,7 +93,20 @@ Target、TTL 和魔法字符串行为见[提示缓存](/zh-cn/guides/claude-cach
 }
 ```
 
-`phase` 可为 `request`、`response` 或 `both`，默认是 `request`。Regex 是序列化后的宽泛匹配，因此 pattern 要尽量精确。
+使用 `replace_regex` 可以只对 `locate.path` 或 `locate.paths` 选中的字符串值执行 Rust 正则：
+
+```json
+{
+  "phase": "request",
+  "locate": { "paths": ["tools.*.name", "tool_choice.name"] },
+  "actions": [
+    { "op": "replace_regex", "pattern": "^mcp_([^_].*)$", "with": "mcp__$1" }
+  ]
+}
+```
+
+`phase` 可为 `request`、`response` 或 `both`，默认是 `request`。`locate.match` 会在序列化后的
+body 上做宽泛匹配，而 `replace_regex` 只处理所选路径上的值。
 
 ## `header`
 

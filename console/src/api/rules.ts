@@ -28,6 +28,7 @@ export const providerRuleSetsQuery = (pid: number) => queryOptions({ queryKey: [
 
 export function upsertRuleSet(i: RuleSetInput) { return api<RuleSet>("/admin/rule-sets", { method: "POST", body: JSON.stringify(i) }); }
 export function deleteRuleSet(id: number) { return api<void>(`/admin/rule-sets/${id}`, { method: "DELETE" }); }
+export function listRules(rsId: number) { return api<Rule[]>(`/admin/rule-sets/${rsId}/rules`); }
 export function upsertRule(rsId: number, i: RuleInput) { return api<Rule>(`/admin/rule-sets/${rsId}/rules`, { method: "POST", body: JSON.stringify(i) }); }
 export function deleteRule(id: number) { return api<void>(`/admin/rules/${id}`, { method: "DELETE" }); }
 export function upsertRoutingRule(pid: number, i: RoutingRuleInput) { return api<RoutingRule>(`/admin/providers/${pid}/routing-rules`, { method: "POST", body: JSON.stringify(i) }); }
