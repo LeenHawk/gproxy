@@ -174,10 +174,11 @@
   "transformTemplate": {
     "fillFrom": "Fill from template"
   },
-  "opencodePreset": {
-    "apply": "Apply OpenCode preset",
-    "refresh": "Refresh OpenCode preset",
-    "applied": "OpenCode compatibility rules applied"
+  "applicationPreset": {
+    "trigger": "Client presets",
+    "apply": "Apply",
+    "refresh": "Refresh",
+    "applied": "{{name}} compatibility rules applied"
   },
   "createAndAttach": "New rule set",
   "attachExisting": "Attach existing",
