@@ -226,6 +226,8 @@
       "preview": "Preview",
       "suggestedName": "Suggested name",
       "injects": "Injects",
+      "upstream": "Allowed upstreams",
+      "upstreamHint": "Enter upstream slugs separated by commas.",
       "add": "Add variant",
       "apply": "Apply behavior",
       "cancel": "Cancel"
