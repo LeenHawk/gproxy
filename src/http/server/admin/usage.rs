@@ -17,11 +17,11 @@ use crate::api::error::ApiError;
 use crate::api::tls_presets::TlsPreset;
 use crate::app::AppState;
 use crate::channel::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
-use crate::store::persistence::UsageQuery as StoreUsageQuery;
 use crate::store::persistence::records::{
     AuditLog, CredentialStatus, DownstreamRequest, UpstreamRequest, Usage, UsageRollup,
     UsageSummary,
 };
+use crate::store::persistence::{LogQuery as StoreLogQuery, UsageQuery as StoreUsageQuery};
 
 /// `?limit=N` for the audit listing; defaults to 100, capped at 1000.
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -246,10 +246,15 @@ fn models_error(e: crate::credentials::upstream_models::ModelsError) -> ApiError
     }
 }
 
-/// `GET /admin/logs` — recent downstream request logs (id desc, `before_id`
+/// `GET /admin/logs` — filtered downstream request logs (id desc, `before_id`
 /// keyset, `limit` default 100 capped 1000). The logs explorer listing.
 #[derive(Debug, Deserialize)]
 pub struct LogsQuery {
+    pub at_from: Option<i64>,
+    pub at_to: Option<i64>,
+    pub provider_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub route_name: Option<String>,
     pub before_id: Option<i64>,
     pub limit: Option<u64>,
 }
@@ -259,10 +264,19 @@ pub async fn list_logs(
     Query(q): Query<LogsQuery>,
 ) -> Result<Json<Vec<DownstreamRequest>>, ApiError> {
     let limit = q.limit.unwrap_or(DEFAULT_USAGE_LIMIT).min(MAX_USAGE_LIMIT);
+    let query = StoreLogQuery {
+        at_from: q.at_from,
+        at_to: q.at_to,
+        provider_id: q.provider_id,
+        user_id: q.user_id,
+        route_name: q.route_name,
+        before_id: q.before_id,
+        limit,
+    };
     Ok(Json(
         state
             .persistence
-            .list_recent_downstream_requests(limit, q.before_id)
+            .query_downstream_requests(&query)
             .await
             .map_err(internal)?,
     ))

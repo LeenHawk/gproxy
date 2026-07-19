@@ -15,7 +15,7 @@ use serde::Deserialize;
 use crate::admin::guard::guard_admin;
 use crate::api::error::ApiError;
 use crate::app::AppState;
-use crate::store::persistence::UsageQuery as StoreUsageQuery;
+use crate::store::persistence::{LogQuery as StoreLogQuery, UsageQuery as StoreUsageQuery};
 
 use super::{Resp, internal, parse_i64, query, segments};
 
@@ -52,10 +52,15 @@ pub(crate) struct AuditQuery {
     pub limit: Option<u64>,
 }
 
-/// `?before_id=&limit=` for the logs listing (field-aligned with
+/// Filters plus `?before_id=&limit=` for the logs listing (field-aligned with
 /// `LogsQuery` in `server/admin/usage.rs`).
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub(crate) struct LogsQuery {
+    pub at_from: Option<i64>,
+    pub at_to: Option<i64>,
+    pub provider_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub route_name: Option<String>,
     pub before_id: Option<i64>,
     pub limit: Option<u64>,
 }
@@ -199,9 +204,18 @@ async fn list_logs(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: LogsQuery = query(parts)?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    let store_q = StoreLogQuery {
+        at_from: q.at_from,
+        at_to: q.at_to,
+        provider_id: q.provider_id,
+        user_id: q.user_id,
+        route_name: q.route_name,
+        before_id: q.before_id,
+        limit,
+    };
     let rows = state
         .persistence
-        .list_recent_downstream_requests(limit, q.before_id)
+        .query_downstream_requests(&store_q)
         .await
         .map_err(internal)?;
     Resp::json(200, &rows)

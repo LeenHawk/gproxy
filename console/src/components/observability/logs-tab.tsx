@@ -1,7 +1,9 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { logsInfiniteQuery, type DownstreamRequest } from "@/api/usage";
+import { logsInfiniteQuery, type DownstreamRequest, type UsageFilter } from "@/api/usage";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { UsageFilters } from "@/components/observability/usage-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,8 +18,9 @@ function fmtAt(unixSecs: number): string {
  *  drawer (downstream + upstream detail) via `onSelect`. */
 export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void }) {
   const { t } = useTranslation("observability");
+  const [filter, setFilter] = useState<Omit<UsageFilter, "before_id" | "limit">>({});
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending } =
-    useInfiniteQuery(logsInfiniteQuery());
+    useInfiniteQuery(logsInfiniteQuery(filter));
   const rows = data?.pages.flat() ?? [];
 
   const cols: DataColumn<DownstreamRequest>[] = [
@@ -49,6 +52,12 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
 
   return (
     <div className="space-y-4">
+      <UsageFilters
+        value={filter}
+        onChange={setFilter}
+        showModel={false}
+        routeListId="logs-route-datalist"
+      />
       <DataTable
         columns={cols}
         rows={rows}

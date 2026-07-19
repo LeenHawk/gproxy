@@ -2,7 +2,7 @@
 
 use super::DbPersistence;
 use crate::store::persistence::records::*;
-use crate::store::persistence::{PersistenceBackend, UsageQuery};
+use crate::store::persistence::{LogQuery, PersistenceBackend, UsageQuery};
 use serde_json::json;
 
 async fn mem() -> DbPersistence {
@@ -753,6 +753,67 @@ async fn usage_summary_matches_filters_and_ignores_pagination() {
     assert_eq!(summary.cache_creation_30m_tokens, 46);
     assert_eq!(summary.cache_creation_1h_tokens, 48);
     assert_eq!(summary.cost, "0.003".parse().unwrap());
+}
+
+#[tokio::test]
+async fn downstream_logs_filter_by_time_and_usage_dimensions() {
+    let db = mem().await;
+    for (rid, at) in [("match", 200), ("other", 50)] {
+        db.append_downstream_request(DownstreamRequestInput {
+            request_id: rid.into(),
+            at,
+            method: "POST".into(),
+            path: "/v1/messages".into(),
+            query: None,
+            status: 200,
+            headers_json: None,
+            body: None,
+            response_body: None,
+        })
+        .await
+        .unwrap();
+        db.append_usage(UsageInput {
+            request_id: rid.into(),
+            at,
+            route_name: Some(if rid == "match" { "chat" } else { "other" }.into()),
+            provider_id: Some(if rid == "match" { 1 } else { 2 }),
+            credential_id: None,
+            org_id: None,
+            team_id: None,
+            user_id: Some(if rid == "match" { 7 } else { 8 }),
+            user_key_id: None,
+            operation: "chat".into(),
+            kind: "openai".into(),
+            model: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_5m_tokens: 0,
+            cache_creation_30m_tokens: 0,
+            cache_creation_1h_tokens: 0,
+            cost: rust_decimal::Decimal::ZERO,
+            latency_ms: 0,
+            usage_source: "counted".into(),
+            ended: "complete".into(),
+        })
+        .await
+        .unwrap();
+    }
+
+    let rows = db
+        .query_downstream_requests(&LogQuery {
+            at_from: Some(100),
+            provider_id: Some(1),
+            user_id: Some(7),
+            route_name: Some("chat".into()),
+            limit: 10,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].request_id, "match");
 }
 
 #[tokio::test]

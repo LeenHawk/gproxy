@@ -1,7 +1,9 @@
 //! File-backend downstream-request log ops over `downstream_requests.json`.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use crate::store::persistence::LogQuery;
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
 
 use crate::store::persistence::file::table::{self, now_secs};
@@ -85,17 +87,42 @@ pub(crate) async fn update_response_body(
     Ok(())
 }
 
-/// Recent rows across all requests, `id` DESC, keyset cursor `before_id`.
-pub(crate) async fn list_recent(
-    root: &Path,
-    limit: u64,
-    before_id: Option<i64>,
-) -> anyhow::Result<Vec<DownstreamRequest>> {
+/// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
+pub(crate) async fn query(root: &Path, q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>> {
     let mut rows = table::load::<DownstreamRequest>(&path(root)).await?.rows;
+    let request_ids = if q.provider_id.is_some() || q.user_id.is_some() || q.route_name.is_some() {
+        let usages =
+            table::load::<crate::store::persistence::records::Usage>(&root.join("usages.json"))
+                .await?;
+        Some(
+            usages
+                .rows
+                .into_iter()
+                .filter(|u| {
+                    q.provider_id.is_none_or(|v| u.provider_id == Some(v))
+                        && q.user_id.is_none_or(|v| u.user_id == Some(v))
+                        && q.route_name
+                            .as_ref()
+                            .is_none_or(|v| u.route_name.as_deref() == Some(v.as_str()))
+                })
+                .map(|u| u.request_id)
+                .collect::<HashSet<_>>(),
+        )
+    } else {
+        None
+    };
+
     rows.sort_by_key(|r| std::cmp::Reverse(r.id));
     Ok(rows
         .into_iter()
-        .filter(|r| before_id.is_none_or(|b| r.id < b))
-        .take(limit as usize)
+        .filter(|r| {
+            q.before_id.is_none_or(|v| r.id < v)
+                && q.at_from.is_none_or(|v| r.at >= v)
+                && q.at_to.is_none_or(|v| r.at <= v)
+                && request_ids
+                    .as_ref()
+                    .is_none_or(|ids| ids.contains(&r.request_id))
+        })
+        .take(q.limit as usize)
         .collect())
 }

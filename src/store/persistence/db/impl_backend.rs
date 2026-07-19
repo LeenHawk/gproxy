@@ -445,12 +445,11 @@ impl PersistenceBackend for DbPersistence {
         ops::logs::downstream_requests::list(&self.conn, request_id).await
     }
 
-    async fn list_recent_downstream_requests(
+    async fn query_downstream_requests(
         &self,
-        limit: u64,
-        before_id: Option<i64>,
+        q: &crate::store::persistence::LogQuery,
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
-        ops::logs::downstream_requests::list_recent(&self.conn, limit, before_id).await
+        ops::logs::downstream_requests::query(&self.conn, q).await
     }
 
     async fn update_downstream_response(
