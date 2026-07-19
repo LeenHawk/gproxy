@@ -1,6 +1,7 @@
 import { CLAUDE_GROUPS } from "./claude";
 import { OPENAI_RESPONSE_GROUPS, OPENAI_CHAT_GROUPS } from "./openai";
 import { GEMINI_GROUPS } from "./gemini";
+import { OPENROUTER_PROVIDER_SOURCE_GROUP } from "./openrouter";
 import { VERCEL_GATEWAY_SOURCE_GROUP } from "./vercel";
 
 export type SuffixProtocol =
@@ -42,14 +43,22 @@ export const SUFFIX_PROTOCOL_LABELS: Record<SuffixProtocol, string> = {
   gemini: "Gemini",
 };
 
-/** Append the Vercel gateway-source group only for the `vercel` channel. */
+/** Gateway channels get an extra upstream-source group (`only` injection). */
 export function suffixGroupsForChannel(
   protocol: SuffixProtocol,
   channel: string | undefined,
 ): SuffixGroup[] {
   const base = SUFFIX_GROUPS_BY_PROTOCOL[protocol];
-  return channel === "vercel" ? [...base, VERCEL_GATEWAY_SOURCE_GROUP] : base;
+  const source = UPSTREAM_SOURCE_GROUP_BY_CHANNEL[channel ?? ""];
+  return source ? [...base, source] : base;
 }
+
+/** Per-channel upstream-source group; its key doubles as the picker's
+ *  mutual-exclusion key against the custom upstream input. */
+export const UPSTREAM_SOURCE_GROUP_BY_CHANNEL: Record<string, SuffixGroup> = {
+  openrouter: OPENROUTER_PROVIDER_SOURCE_GROUP,
+  vercel: VERCEL_GATEWAY_SOURCE_GROUP,
+};
 
 /** Guess default protocol from channel; falls back to openai_response. */
 export function suffixProtocolForChannel(channel: string | undefined): SuffixProtocol {

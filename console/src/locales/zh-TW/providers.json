@@ -226,6 +226,8 @@
       "preview": "預覽",
       "suggestedName": "建議名",
       "injects": "注入參數",
+      "upstream": "指定上游",
+      "upstreamHint": "填寫上游 slug；多個上游使用英文逗號分隔。",
       "add": "新增變體",
       "apply": "套用行為",
       "cancel": "取消"

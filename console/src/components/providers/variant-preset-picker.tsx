@@ -4,14 +4,28 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  SUFFIX_PROTOCOL_LABELS, suffixGroupsForChannel, suffixProtocolForChannel,
+  SUFFIX_PROTOCOL_LABELS, UPSTREAM_SOURCE_GROUP_BY_CHANNEL,
+  suffixGroupsForChannel, suffixProtocolForChannel,
   type SuffixAction, type SuffixProtocol,
 } from "@/components/providers/suffix-presets";
 
 // Radix <SelectItem value=""> crashes at runtime — use a sentinel for "none".
 const NONE = "__none__";
+
+function parseUpstreams(value: string): string[] {
+  return [...new Set(value.split(",").map((v) => v.trim()).filter(Boolean))];
+}
+
+function upstreamSuffix(upstreams: string[]): string {
+  const value = upstreams
+    .map((v) => v.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, ""))
+    .filter(Boolean)
+    .join("-");
+  return value ? `-via-${value}` : "";
+}
 
 export function VariantPresetPicker({
   modelId, channel, onConfirm, onCancel,
@@ -25,8 +39,16 @@ export function VariantPresetPicker({
   const [protocol, setProtocol] = useState<SuffixProtocol>(() => suffixProtocolForChannel(channel));
   // group key → selected entry index (as string), or NONE.
   const [picks, setPicks] = useState<Record<string, string>>({});
+  const [upstream, setUpstream] = useState("");
 
   const groups = suffixGroupsForChannel(protocol, channel);
+  // Dropdown and custom input are mutually exclusive — both inject `only`.
+  const sourceGroupKey = UPSTREAM_SOURCE_GROUP_BY_CHANNEL[channel]?.key ?? null;
+  const upstreamPath = channel === "openrouter"
+    ? "provider.only"
+    : channel === "vercel"
+      ? "providerOptions.gateway.only"
+      : null;
 
   const { suffix, actions } = useMemo(() => {
     let s = "";
@@ -39,8 +61,13 @@ export function VariantPresetPicker({
       s += entry.suffix;
       a.push(...entry.actions);
     }
+    const upstreams = parseUpstreams(upstream);
+    if (upstreamPath && upstreams.length > 0) {
+      s += upstreamSuffix(upstreams);
+      a.push({ path: upstreamPath, value: upstreams });
+    }
     return { suffix: s, actions: a };
-  }, [groups, picks]);
+  }, [groups, picks, upstream, upstreamPath]);
 
   return (
     <div className="grid gap-3 rounded-md border bg-muted/30 p-3">
@@ -61,7 +88,10 @@ export function VariantPresetPicker({
           <Label>{g.label}</Label>
           <Select
             value={picks[g.key] ?? NONE}
-            onValueChange={(v) => setPicks((prev) => ({ ...prev, [g.key]: v }))}
+            onValueChange={(v) => {
+              setPicks((prev) => ({ ...prev, [g.key]: v }));
+              if (g.key === sourceGroupKey && v !== NONE) setUpstream("");
+            }}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -73,6 +103,28 @@ export function VariantPresetPicker({
           </Select>
         </div>
       ))}
+
+      {upstreamPath && (
+        <div className="grid gap-1">
+          <Label htmlFor="variant-upstream">{t("models.variantPicker.upstream")}</Label>
+          <Input
+            id="variant-upstream"
+            className="font-mono text-xs"
+            value={upstream}
+            placeholder={channel === "openrouter" ? "anthropic, google-vertex/us-east5" : "anthropic, bedrock"}
+            onChange={(e) => {
+              const value = e.target.value;
+              setUpstream(value);
+              if (value.trim() && sourceGroupKey) {
+                setPicks((prev) => ({ ...prev, [sourceGroupKey]: NONE }));
+              }
+            }}
+          />
+          <p className="text-xs text-muted-foreground">
+            {t("models.variantPicker.upstreamHint")}
+          </p>
+        </div>
+      )}
 
       <div className="rounded border bg-background p-2 text-xs">
         <div className="text-muted-foreground">{t("models.variantPicker.suggestedName")}</div>
