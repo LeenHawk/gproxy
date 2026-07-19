@@ -1,9 +1,10 @@
 //! Downstream-request log ops for the libSQL edge backend (append-only).
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
+use crate::store::persistence::LogQuery;
 use crate::store::persistence::libsql::row::{Row, col_i64, col_opt_json, col_opt_str, col_str};
 use crate::store::persistence::libsql::util::{
-    arg_opt_text, exec, last_rowid, now_secs, query, query_one,
+    arg_opt_text, exec, last_rowid, now_secs, query as run_query, query_one,
 };
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
 
@@ -76,7 +77,7 @@ pub async fn list(
     client: &LibsqlClient,
     request_id: &str,
 ) -> anyhow::Result<Vec<DownstreamRequest>> {
-    query(
+    run_query(
         client,
         &format!("SELECT {COLS} FROM downstream_requests WHERE request_id = ?"),
         &[arg_text(request_id)],
@@ -108,21 +109,43 @@ pub async fn update_response_body(
     .map(|_| ())
 }
 
-/// Recent rows across all requests, `id` DESC, keyset cursor `before_id`.
-pub async fn list_recent(
-    client: &LibsqlClient,
-    limit: u64,
-    before_id: Option<i64>,
-) -> anyhow::Result<Vec<DownstreamRequest>> {
+/// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
+pub async fn query(client: &LibsqlClient, q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>> {
     let mut sql = format!("SELECT {COLS} FROM downstream_requests WHERE 1=1");
     let mut args: Vec<serde_json::Value> = Vec::new();
-    if let Some(v) = before_id {
+    if let Some(v) = q.before_id {
         sql.push_str(" AND id < ?");
         args.push(arg_integer(v));
     }
+    if let Some(v) = q.at_from {
+        sql.push_str(" AND at >= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.at_to {
+        sql.push_str(" AND at <= ?");
+        args.push(arg_integer(v));
+    }
+    if q.provider_id.is_some() || q.user_id.is_some() || q.route_name.is_some() {
+        sql.push_str(
+            " AND EXISTS (SELECT 1 FROM usages u WHERE u.request_id = downstream_requests.request_id",
+        );
+        if let Some(v) = q.provider_id {
+            sql.push_str(" AND u.provider_id = ?");
+            args.push(arg_integer(v));
+        }
+        if let Some(v) = q.user_id {
+            sql.push_str(" AND u.user_id = ?");
+            args.push(arg_integer(v));
+        }
+        if let Some(ref v) = q.route_name {
+            sql.push_str(" AND u.route_name = ?");
+            args.push(arg_text(v));
+        }
+        sql.push(')');
+    }
     sql.push_str(" ORDER BY id DESC LIMIT ?");
-    args.push(arg_integer(limit as i64));
-    query(client, &sql, &args)
+    args.push(arg_integer(q.limit as i64));
+    run_query(client, &sql, &args)
         .await?
         .iter()
         .map(decode)

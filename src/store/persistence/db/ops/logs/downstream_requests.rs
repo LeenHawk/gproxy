@@ -1,11 +1,16 @@
 //! Downstream-request log ops for the `db` backend (append-only).
 
 use sea_orm::ActiveValue::{NotSet, Set};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, QueryTrait,
+};
 
+use crate::store::persistence::LogQuery;
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
 
 use crate::store::persistence::db::entities::logs::downstream_request;
+use crate::store::persistence::db::entities::usage::usage;
 
 fn to_record(m: downstream_request::Model) -> anyhow::Result<DownstreamRequest> {
     Ok(DownstreamRequest {
@@ -70,19 +75,41 @@ pub async fn list(
         .collect()
 }
 
-/// Recent rows across all requests, `id` DESC, keyset cursor `before_id`.
-pub async fn list_recent(
+/// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
+pub async fn query(
     conn: &DatabaseConnection,
-    limit: u64,
-    before_id: Option<i64>,
+    q: &LogQuery,
 ) -> anyhow::Result<Vec<DownstreamRequest>> {
-    use sea_orm::{QueryOrder, QuerySelect};
+    use downstream_request::Column as D;
+    use usage::Column as U;
+
     let mut sel = downstream_request::Entity::find();
-    if let Some(v) = before_id {
-        sel = sel.filter(downstream_request::Column::Id.lt(v));
+    if let Some(v) = q.at_from {
+        sel = sel.filter(D::At.gte(v));
     }
-    sel.order_by_desc(downstream_request::Column::Id)
-        .limit(limit)
+    if let Some(v) = q.at_to {
+        sel = sel.filter(D::At.lte(v));
+    }
+    if let Some(v) = q.before_id {
+        sel = sel.filter(D::Id.lt(v));
+    }
+
+    if q.provider_id.is_some() || q.user_id.is_some() || q.route_name.is_some() {
+        let mut usages = usage::Entity::find().select_only().column(U::RequestId);
+        if let Some(v) = q.provider_id {
+            usages = usages.filter(U::ProviderId.eq(v));
+        }
+        if let Some(v) = q.user_id {
+            usages = usages.filter(U::UserId.eq(v));
+        }
+        if let Some(ref v) = q.route_name {
+            usages = usages.filter(U::RouteName.eq(v.clone()));
+        }
+        sel = sel.filter(D::RequestId.in_subquery(usages.into_query()));
+    }
+
+    sel.order_by_desc(D::Id)
+        .limit(q.limit)
         .all(conn)
         .await?
         .into_iter()

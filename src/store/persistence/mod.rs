@@ -51,6 +51,20 @@ pub struct UsageQuery {
     pub limit: u64,
 }
 
+/// Filter + cursor for the downstream request log explorer. Provider, user,
+/// and route dimensions are resolved through the usage row sharing the same
+/// `request_id`.
+#[derive(Debug, Default, Clone)]
+pub struct LogQuery {
+    pub at_from: Option<i64>,
+    pub at_to: Option<i64>,
+    pub provider_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub route_name: Option<String>,
+    pub before_id: Option<i64>,
+    pub limit: u64,
+}
+
 #[cfg(all(not(target_arch = "wasm32"), feature = "persist-db"))]
 pub use db::DbPersistence;
 #[cfg(all(not(target_arch = "wasm32"), feature = "persist-file"))]
@@ -452,12 +466,11 @@ pub trait PersistenceBackend: Send + Sync {
         request_id: &str,
     ) -> anyhow::Result<Vec<DownstreamRequest>>;
 
-    /// Recent downstream request logs across all requests, keyset-paginated `id`
-    /// DESC (`before_id` cursor). Powers the Logs explorer.
-    async fn list_recent_downstream_requests(
+    /// Filtered downstream request logs across all requests, keyset-paginated
+    /// `id` DESC (`before_id` cursor). Powers the Logs explorer.
+    async fn query_downstream_requests(
         &self,
-        limit: u64,
-        before_id: Option<i64>,
+        q: &LogQuery,
     ) -> anyhow::Result<Vec<DownstreamRequest>>;
 
     /// Backfill the captured client-facing response body onto an existing

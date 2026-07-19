@@ -420,12 +420,11 @@ impl PersistenceBackend for LibsqlPersistence {
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
         logs::downstream_requests::list(&self.client, request_id).await
     }
-    async fn list_recent_downstream_requests(
+    async fn query_downstream_requests(
         &self,
-        limit: u64,
-        before_id: Option<i64>,
+        q: &crate::store::persistence::LogQuery,
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
-        logs::downstream_requests::list_recent(&self.client, limit, before_id).await
+        logs::downstream_requests::query(&self.client, q).await
     }
     async fn update_downstream_response(
         &self,

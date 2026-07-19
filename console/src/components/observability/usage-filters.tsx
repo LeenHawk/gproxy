@@ -32,9 +32,16 @@ function presetToAtFrom(key: PresetKey): number | undefined {
 interface UsageFiltersProps {
   value: Omit<UsageFilter, "before_id" | "limit">;
   onChange: (f: Omit<UsageFilter, "before_id" | "limit">) => void;
+  showModel?: boolean;
+  routeListId?: string;
 }
 
-export function UsageFilters({ value, onChange }: UsageFiltersProps) {
+export function UsageFilters({
+  value,
+  onChange,
+  showModel = true,
+  routeListId = "route-datalist",
+}: UsageFiltersProps) {
   const { t } = useTranslation("observability");
   const { data: providers } = useQuery(providersQuery);
   const { data: users } = useQuery(usersQuery);
@@ -132,24 +139,25 @@ export function UsageFilters({ value, onChange }: UsageFiltersProps) {
           placeholder={t("usage.filters.route")}
           value={value.route_name ?? ""}
           onChange={(e) => setField("route_name", e.target.value || undefined)}
-          list="route-datalist"
+          list={routeListId}
           className="h-8 text-sm"
         />
-        <datalist id="route-datalist">
+        <datalist id={routeListId}>
           {(routes ?? []).map((r) => (
             <option key={r.id} value={r.name} />
           ))}
         </datalist>
       </div>
 
-      {/* Model */}
-      <Input
-        size={14}
-        placeholder={t("usage.filters.model")}
-        value={value.model ?? ""}
-        onChange={(e) => setField("model", e.target.value || undefined)}
-        className="h-8 text-sm"
-      />
+      {showModel && (
+        <Input
+          size={14}
+          placeholder={t("usage.filters.model")}
+          value={value.model ?? ""}
+          onChange={(e) => setField("model", e.target.value || undefined)}
+          className="h-8 text-sm"
+        />
+      )}
 
       {/* Clear */}
       <Button
