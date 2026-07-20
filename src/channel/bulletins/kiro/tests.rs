@@ -134,6 +134,11 @@ fn request_build() {
     let ctx = PrepareCtx {
         secret: &secret,
         provider_settings: &settings,
+        op: crate::protocol::OperationKey::content_generation(
+            crate::protocol::Operation::GenerateContent,
+            crate::protocol::ContentGenerationKind::OpenAiResponses,
+        ),
+        stream: false,
         upstream_model_id: "claude-sonnet-4-5",
         method: Method::POST,
         path: "/v1/responses",

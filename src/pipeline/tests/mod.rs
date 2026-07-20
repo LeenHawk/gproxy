@@ -272,8 +272,25 @@ const BUNDLE: &str = r#"{
   ],
   "route_permissions": [{ "id": 1, "scope": "user", "scope_id": 1, "route_pattern": "*" }],
   "providers": [
-    { "id": 1, "name": "oai", "channel": "openai", "label": null, "settings_json": { "base_url": "http://fake.local" }, "credential_strategy": "round_robin", "proxy_url": null, "tls_fingerprint": null, "enabled": true },
-    { "id": 2, "name": "cla", "channel": "claudeapi", "label": null, "settings_json": { "base_url": "http://fake.local" }, "credential_strategy": "round_robin", "proxy_url": null, "tls_fingerprint": null, "enabled": true }
+    { "id": 1, "name": "oai", "channel": "openai", "label": null, "settings_json": { "endpoints": {
+      "openai_list_models": "http://fake.local/v1/models",
+      "openai_get_model": "http://fake.local/v1/models/{model}",
+      "openai_chat_completions": "http://fake.local/v1/chat/completions",
+      "openai_responses": "http://fake.local/v1/responses",
+      "openai_embeddings": "http://fake.local/v1/embeddings",
+      "image_generations": "http://fake.local/v1/images/generations",
+      "image_edits": "http://fake.local/v1/images/edits",
+      "openai_compact": "http://fake.local/v1/responses/compact"
+    } }, "credential_strategy": "round_robin", "proxy_url": null, "tls_fingerprint": null, "enabled": true },
+    { "id": 2, "name": "cla", "channel": "claudeapi", "label": null, "settings_json": { "endpoints": {
+      "openai_list_models": "http://fake.local/v1/models",
+      "claude_list_models": "http://fake.local/v1/models",
+      "openai_get_model": "http://fake.local/v1/models/{model}",
+      "claude_get_model": "http://fake.local/v1/models/{model}",
+      "claude_count_tokens": "http://fake.local/v1/messages/count_tokens",
+      "openai_chat_completions": "http://fake.local/v1/chat/completions",
+      "claude_messages": "http://fake.local/v1/messages"
+    } }, "credential_strategy": "round_robin", "proxy_url": null, "tls_fingerprint": null, "enabled": true }
   ],
   "credentials": [
     { "id": 1, "provider_id": 1, "label": null, "secret_json": { "api_key": "up-key" }, "proxy_url": null, "tls_fingerprint": null, "enabled": true },

@@ -86,7 +86,7 @@ The provider record carries:
 | --- | --- |
 | `name` | Unique provider name. Scoped routes use this in the URL. |
 | `channel` | Channel registry id, such as `openai` or `claudeapi`. |
-| `settings_json` | Free-form channel settings. Common keys include `base_url` and channel toggles. |
+| `settings_json` | Free-form channel settings. Common keys include `base_url`, `endpoints`, and channel toggles. |
 | `credential_strategy` | Credential-pool strategy, currently `round_robin` or `sticky`. |
 | `proxy_url` | Native outbound proxy fallback for the provider. Edge ignores native proxy settings. |
 | `tls_fingerprint` | Optional provider-level TLS/HTTP2 emulation profile. Credential settings can override it. |
@@ -96,7 +96,8 @@ Common `settings_json` values are available as fields in the console:
 
 | Setting | Use |
 | --- | --- |
-| `base_url` | Override the channel's default upstream URL. |
+| `base_url` | Channel-wide fallback prefix. The standard operation path is appended when no exact endpoint override exists. |
+| `endpoints` | Optional exact URL overrides, for example `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`. Overrides take precedence over `base_url`, and no path is appended. Dynamic model paths may use `{model}`. |
 | `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
 | `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels. |
 

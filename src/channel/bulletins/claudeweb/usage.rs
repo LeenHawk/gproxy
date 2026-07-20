@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use super::auth;
 use crate::channel::ChannelError;
-use crate::channel::http_util::{build_request, join_url};
+use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{UsageSnapshot, UsageWindow};
 
 pub(super) fn request(
@@ -27,8 +27,13 @@ pub(super) fn request(
         .filter(|s| !s.is_empty())
         .unwrap_or(auth::DEFAULT_BASE_URL)
         .trim_end_matches('/');
-    let path = format!("/api/organizations/{organization}/usage");
-    let uri = join_url(base, &path, None)?;
+    let uri = match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
+        Some(url) => exact_url(&url.replace("{organization}", organization), None)?,
+        None => {
+            let path = format!("/api/organizations/{organization}/usage");
+            join_url(base, &path, None)?
+        }
+    };
     let mut request = build_request(Method::GET, uri, http::HeaderMap::new(), Bytes::new())?;
     request.headers_mut().insert(
         header::ACCEPT,

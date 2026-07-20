@@ -20,7 +20,7 @@ use http::{HeaderMap, Method, Request, StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::channel::http_util::{build_request, join_url};
+use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{UsageSnapshot, UsageWindow};
 use crate::channel::{ChannelError, ChannelStreamDecoder};
 use crate::transform::common::sse::SseDecoder;
@@ -167,9 +167,28 @@ pub fn user_quota_request(
     project_id: &str,
     user_agent: &str,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
+    let uri = join_url(base, "/v1internal:retrieveUserQuota", None)?;
+    user_quota_request_with_uri(uri, access_token, project_id, user_agent)
+}
+
+pub fn user_quota_request_at(
+    url: &str,
+    access_token: &str,
+    project_id: &str,
+    user_agent: &str,
+) -> Result<Option<Request<Bytes>>, ChannelError> {
+    let uri = exact_url(url, None)?;
+    user_quota_request_with_uri(uri, access_token, project_id, user_agent)
+}
+
+fn user_quota_request_with_uri(
+    uri: http::Uri,
+    access_token: &str,
+    project_id: &str,
+    user_agent: &str,
+) -> Result<Option<Request<Bytes>>, ChannelError> {
     let body = serde_json::to_vec(&json!({ "project": project_id }))
         .map_err(|e| ChannelError::Build(e.to_string()))?;
-    let uri = join_url(base, "/v1internal:retrieveUserQuota", None)?;
     let mut req = build_request(Method::POST, uri, HeaderMap::new(), Bytes::from(body))?;
     let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
         .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;

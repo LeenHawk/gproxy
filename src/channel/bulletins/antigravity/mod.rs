@@ -223,13 +223,23 @@ impl Channel for AntigravityChannel {
     ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
         let access_token = auth::access_token(secret)?;
         let project_id = auth::project_id(secret)?;
-        let base = settings
-            .get("base_url")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or(auth::BASE_URL);
-        envelope::user_quota_request(base, access_token, project_id, auth::USER_AGENT_VALUE)
+        match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
+            Some(url) => envelope::user_quota_request_at(
+                &url,
+                access_token,
+                project_id,
+                auth::USER_AGENT_VALUE,
+            ),
+            None => {
+                let base = settings
+                    .get("base_url")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|base| !base.is_empty())
+                    .unwrap_or(auth::BASE_URL);
+                envelope::user_quota_request(base, access_token, project_id, auth::USER_AGENT_VALUE)
+            }
+        }
     }
 
     fn parse_usage(
@@ -289,6 +299,11 @@ mod tests {
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::GeminiGenerateContent,
+            ),
+            stream: false,
             upstream_model_id: "gemini-2.5-pro",
             method: Method::POST,
             path: "/v1beta/models/gemini-2.5-pro:generateContent",
@@ -334,6 +349,11 @@ mod tests {
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::provider(
+                crate::protocol::Operation::ListModels,
+                crate::protocol::Provider::Gemini,
+            ),
+            stream: false,
             upstream_model_id: "",
             method: Method::GET,
             path: "/v1beta/models",

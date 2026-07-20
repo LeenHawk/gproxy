@@ -53,14 +53,6 @@ pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) 
 
 pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access_token = auth::access_token(ctx.secret)?.to_string();
-    let base = ctx
-        .provider_settings
-        .get("base_url")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(auth::DEFAULT_BASE_URL);
-
     // Stable per-credential `device_id`; an explicit downstream session id wins.
     // The same value is sent in the header and `metadata.user_id`.
     let device_id = auth::device_id(ctx.secret);
@@ -95,7 +87,25 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     };
 
     let model_query = is_messages.then(|| model_query(ctx.query));
-    let uri = join_url(base, ctx.path, model_query.as_deref().or(ctx.query))?;
+    let query = model_query.as_deref().or(ctx.query);
+    let uri = match crate::channel::settings::endpoint_url(
+        ctx.provider_settings,
+        ctx.op,
+        ctx.stream,
+        ctx.upstream_model_id,
+    ) {
+        Some(url) => crate::channel::http_util::exact_url(&url, query)?,
+        None => {
+            let base = ctx
+                .provider_settings
+                .get("base_url")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|base| !base.is_empty())
+                .unwrap_or(auth::DEFAULT_BASE_URL);
+            join_url(base, ctx.path, query)?
+        }
+    };
     let headers = allow_headers(ctx.headers, &["anthropic-beta"]);
     let mut request = build_request(ctx.method, uri, headers, body)?;
     auth::apply(&mut request, &access_token, &session_id)?;

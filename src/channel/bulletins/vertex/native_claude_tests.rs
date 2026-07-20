@@ -32,6 +32,11 @@ fn prepare(path: &str, model: &str, body: Bytes, headers: &HeaderMap) -> Request
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            stream: false,
             upstream_model_id: model,
             method: Method::POST,
             path,

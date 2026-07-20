@@ -17,7 +17,7 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request, join_url};
+use crate::channel::http_util::{allow_headers, allow_query, build_request};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind, Provider};
 
@@ -112,10 +112,9 @@ impl Channel for DeepSeekChannel {
         // upstream path. `common::build_request` is inlined here because it
         // consumes `ctx.path` verbatim and we need the rewritten path.
         let path = auth::upstream_path(ctx.path).to_string();
-        let base_url = common::resolve_base_url(&ctx, &DEFAULTS)?;
         let api_key = common::resolve_api_key(&ctx)?;
         let query = allow_query(ctx.query, DEFAULTS.forward_query);
-        let uri = join_url(&base_url, &path, query.as_deref())?;
+        let uri = common::resolve_uri(&ctx, &DEFAULTS, &path, query.as_deref())?;
         let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
         let mut req = build_request(ctx.method, uri, headers, ctx.body)?;
         auth::apply(&mut req, &path, &api_key)?;
@@ -155,6 +154,11 @@ mod tests {
             .prepare(PrepareCtx {
                 secret: &secret,
                 provider_settings: &settings,
+                op: crate::protocol::OperationKey::content_generation(
+                    crate::protocol::Operation::GenerateContent,
+                    crate::protocol::ContentGenerationKind::OpenAiChatCompletions,
+                ),
+                stream: false,
                 upstream_model_id: "deepseek-chat",
                 method: Method::POST,
                 path,

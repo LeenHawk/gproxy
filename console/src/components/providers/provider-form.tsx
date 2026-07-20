@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   SettingsFields, type SettingsState, initSettingsState, assembleSettings,
 } from "./settings-fields";
+import { isValidEndpointUrl } from "./endpoint-fields";
 import { TlsFingerprintField } from "./tls-fingerprint-field";
 import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
@@ -39,7 +40,7 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
   const [proxyUrl, setProxyUrl] = useState(provider?.proxy_url ?? "");
   const [enabled, setEnabled] = useState(provider?.enabled ?? true);
   const [settings, setSettings] = useState<SettingsState>(() =>
-    initSettingsState(provider?.settings_json),
+    initSettingsState(provider?.settings_json, provider?.channel ?? "openai"),
   );
   const [tls, setTls] = useState<unknown>(provider?.tls_fingerprint ?? null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -47,8 +48,15 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
   const mutation = useMutation({
     mutationFn: () => {
       if (!name.trim()) throw new ApiError(0, "bad_request", t("form.required"));
-      if (channel === "custom" && !settings.baseUrl.trim()) {
-        throw new ApiError(0, "bad_request", t("form.baseUrlRequired"));
+      if (channel === "custom" && !settings.baseUrl.trim() && settings.endpoints.length === 0) {
+        throw new ApiError(0, "bad_request", t("form.baseUrlOrEndpointRequired"));
+      }
+      const endpointKinds = new Set(settings.endpoints.map((row) => row.kind));
+      if (
+        endpointKinds.size !== settings.endpoints.length
+        || settings.endpoints.some((row) => !row.kind || !isValidEndpointUrl(row.url))
+      ) {
+        throw new ApiError(0, "bad_request", t("endpoints.invalid"));
       }
 
       const settings_json = assembleSettings(provider?.settings_json, settings, channel);
@@ -105,7 +113,7 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
       </div>
       <div className="grid gap-2">
         <Label>{t("fields.channel")}</Label>
-        <Select value={channel} disabled={editing} onValueChange={(v) => { setChannel(v); setSettings(initSettingsState(provider?.settings_json)); }}>
+        <Select value={channel} disabled={editing} onValueChange={(v) => { setChannel(v); setSettings(initSettingsState(provider?.settings_json, v)); }}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             {(["api_key", "oauth_tokens", "service_account", "github_token"] as const).map((family) => {

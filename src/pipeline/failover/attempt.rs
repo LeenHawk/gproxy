@@ -96,6 +96,8 @@ pub(super) async fn attempt(
     let prepared = match channel.prepare(PrepareCtx {
         secret,
         provider_settings: &cand.provider.settings_json,
+        op: shape.op,
+        stream: shape.stream,
         upstream_model_id: &cand.upstream_model_id,
         method: parts.method.clone(),
         path: &parts.path,

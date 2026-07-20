@@ -3,7 +3,8 @@
  * Replaces the raw-JSON `settings_json` textarea with typed controls.
  *
  * Surfaced keys:
- *   base_url          — all channels (optional override; required for "custom")
+ *   base_url          — channel-wide fallback prefix
+ *   endpoints         — exact per-operation upstream URLs
  *   circuit_breaker   — all channels (both sub-fields must be filled or both omitted)
  *   auto_refresh_models — all channels (default true)
  *   location          — vertex only
@@ -19,7 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { DEFAULT_BASE_URL } from "@/lib/channel-meta";
+import {
+  channelMeta, DEFAULT_BASE_URL, ENDPOINT_KINDS, type EndpointKind,
+} from "@/lib/channel-meta";
+import { EndpointFields, type EndpointRow } from "./endpoint-fields";
 
 // Channels whose backend honors magic-string cache triggers on native Claude/OpenAI bodies.
 const MAGIC_CACHE_CHANNELS = new Set([
@@ -33,6 +37,7 @@ type ChatgptMode = (typeof CHATGPT_MODES)[number];
 
 export interface SettingsState {
   baseUrl: string;
+  endpoints: EndpointRow[];
   consecutiveFailures: string;
   cooldownSecs: string;
   autoRefreshModels: boolean;
@@ -44,9 +49,17 @@ export interface SettingsState {
   projectName: string;
 }
 
-export function initSettingsState(settingsJson: unknown): SettingsState {
-  const s = (settingsJson ?? {}) as Record<string, unknown>;
-  const cb = (s.circuit_breaker ?? {}) as Record<string, unknown>;
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+export function initSettingsState(settingsJson: unknown, channel: string): SettingsState {
+  const s = objectValue(settingsJson) ?? {};
+  const cb = objectValue(s.circuit_breaker) ?? {};
+  const supported = new Set(channelMeta(channel)?.endpointKinds ?? []);
+  const endpoints = objectValue(s.endpoints);
   // `mode` is canonical; fall back to the legacy `temporary_chat` bool
   // (true/absent → temporary, false → normal) to match the backend.
   const mode = CHATGPT_MODES.includes(s.mode as ChatgptMode)
@@ -56,6 +69,15 @@ export function initSettingsState(settingsJson: unknown): SettingsState {
       : "temporary";
   return {
     baseUrl: typeof s.base_url === "string" ? s.base_url : "",
+    endpoints: endpoints
+      ? Object.entries(endpoints)
+          .filter((entry): entry is [EndpointKind, string] =>
+            ENDPOINT_KINDS.includes(entry[0] as EndpointKind)
+              && supported.has(entry[0] as EndpointKind)
+              && typeof entry[1] === "string",
+          )
+          .map(([kind, url]) => ({ kind, url }))
+      : [],
     consecutiveFailures:
       typeof cb.consecutive_failures === "number"
         ? String(cb.consecutive_failures)
@@ -81,13 +103,23 @@ export function assembleSettings(
   state: SettingsState,
   channel: string,
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = { ...(base as Record<string, unknown> ?? {}) };
+  const result: Record<string, unknown> = { ...(objectValue(base) ?? {}) };
 
-  // base_url: include only if non-empty
   if (state.baseUrl.trim()) {
     result.base_url = state.baseUrl.trim();
   } else {
     delete result.base_url;
+  }
+
+  const endpoints = Object.fromEntries(
+    state.endpoints
+      .filter((row): row is EndpointRow & { kind: EndpointKind } => row.kind !== "")
+      .map((row) => [row.kind, row.url.trim()]),
+  );
+  if (Object.keys(endpoints).length > 0) {
+    result.endpoints = endpoints;
+  } else {
+    delete result.endpoints;
   }
 
   // circuit_breaker: include only when BOTH fields are filled
@@ -170,25 +202,24 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
 
   return (
     <div className="grid gap-3">
-      {/* base_url */}
       <div className="grid gap-2">
         <Label htmlFor="sf-base-url">{t("fields.baseUrl")}</Label>
         <Input
           id="sf-base-url"
           value={state.baseUrl}
-          onChange={(e) => onChange({ baseUrl: e.target.value })}
-          placeholder={
-            isCustom
-              ? t("form.baseUrlRequired")
-              : defaultUrl
-                ? defaultUrl
-                : t("form.baseUrlHint")
-          }
+          onChange={(event) => onChange({ baseUrl: event.target.value })}
+          placeholder={isCustom ? t("form.baseUrlOrEndpointRequired") : defaultUrl ?? t("form.baseUrlHint")}
         />
         {!isCustom && (
           <p className="text-xs text-muted-foreground">{t("form.baseUrlHint")}</p>
         )}
       </div>
+
+      <EndpointFields
+        channel={channel}
+        rows={state.endpoints}
+        onChange={(endpoints) => onChange({ endpoints })}
+      />
 
       {/* circuit breaker */}
       <div className="grid gap-2">
