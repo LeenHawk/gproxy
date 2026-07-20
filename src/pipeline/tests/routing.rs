@@ -146,3 +146,36 @@ async fn scoped_variant_suffix_strips_to_base() {
     let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
     assert_eq!(up["model"], "gpt-test", "variant suffix stripped to base");
 }
+
+#[tokio::test]
+async fn direct_provider_candidates_respect_exact_model_health() {
+    let fake = Arc::new(FakeUpstream::new(Bytes::from("{}"), vec![]));
+    let (state, _dir) = state_with(fake).await;
+    let (blocked, available) = {
+        let cp = state.cp();
+        let provider = cp.providers_by_name.get("oai").expect("provider");
+        (
+            crate::pipeline::balance::prepare_provider(&cp, provider, "gpt-test-thinking".into()),
+            crate::pipeline::balance::prepare_provider(&cp, provider, "gpt-other".into()),
+        )
+    };
+    state
+        .health
+        .cool_credential_model(1, "gpt-test", crate::util::time::unix_now() + 60);
+
+    assert!(
+        blocked
+            .candidates(state.health.as_ref(), state.cache.as_ref(), Some(1))
+            .await
+            .is_err(),
+        "variant resolves to the blocked base model"
+    );
+    assert_eq!(
+        available
+            .candidates(state.health.as_ref(), state.cache.as_ref(), Some(1))
+            .await
+            .expect("different model remains available")
+            .len(),
+        1
+    );
+}

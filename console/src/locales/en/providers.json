@@ -152,7 +152,8 @@
     "recovered": "healthy",
     "rate_limited": "rate-limited",
     "auth_dead": "auth dead",
-    "until": "until {{time}}"
+    "until": "until {{time}}",
+    "modelIssues": "Abnormal models: {{count}}"
   },
   "usage": {
     "title": "Upstream usage",

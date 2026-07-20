@@ -14,7 +14,9 @@ use super::entities::authz::{quota, rate_limit, route_permission};
 use super::entities::identity::{org, team, user, user_key};
 use super::entities::logs::{audit_log, downstream_request, upstream_request};
 use super::entities::pricing::price_rule;
-use super::entities::provider::{credential, credential_status, provider, provider_model};
+use super::entities::provider::{
+    credential, credential_model_status, credential_status, provider, provider_model,
+};
 use super::entities::routing::{alias, route, route_member};
 use super::entities::settings::instance_setting;
 use super::entities::tokenize::tokenizer_vocab;
@@ -28,6 +30,7 @@ pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> 
     create_table(conn, &schema, provider::Entity).await?;
     create_table(conn, &schema, credential::Entity).await?;
     create_table(conn, &schema, credential_status::Entity).await?;
+    create_table(conn, &schema, credential_model_status::Entity).await?;
     create_table(conn, &schema, provider_model::Entity).await?;
     create_table(conn, &schema, price_rule::Entity).await?;
     create_table(conn, &schema, route::Entity).await?;
@@ -128,6 +131,11 @@ pub(super) async fn create_composite_unique_indexes(
         ),
         ("uq_aliases_provider_alias", "aliases", "provider, alias"),
         ("uq_quotas_scope", "quotas", "scope, scope_id"),
+        (
+            "uq_credential_model_statuses_dims",
+            "credential_model_statuses",
+            "credential_id, channel, model_id",
+        ),
     ];
     for (name, table, cols) in defs {
         let sql = if mysql {

@@ -45,6 +45,10 @@ export interface CredentialStatus {
   updated_at: number;
 }
 
+export interface CredentialModelStatus extends CredentialStatus {
+  model_id: string;
+}
+
 export interface UsageWindow {
   name: string;
   label?: string;
@@ -95,6 +99,14 @@ export const credentialStatusQuery = (credentialId: number) =>
   queryOptions({
     queryKey: ["credentials", credentialId, "status"],
     queryFn: () => api<CredentialStatus[]>(`/admin/credentials/${credentialId}/status`),
+    staleTime: 30_000,
+  });
+
+export const credentialModelStatusesQuery = (credentialId: number) =>
+  queryOptions({
+    queryKey: ["credentials", credentialId, "model-statuses"],
+    queryFn: () =>
+      api<CredentialModelStatus[]>(`/admin/credentials/${credentialId}/model-statuses`),
     staleTime: 30_000,
   });
 

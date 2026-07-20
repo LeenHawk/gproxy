@@ -1,6 +1,6 @@
 //! Shared read-only admin observability endpoints.
 //!
-//! Covers usage, usage-rollups, audit, credential-statuses, and request logs.
+//! Covers usage, usage-rollups, audit, credential health, and request logs.
 //! All handlers are GET (read-only, no invalidate), target-independent, and
 //! mounted behind `guard_admin`.
 //!
@@ -80,6 +80,12 @@ pub(super) async fn dispatch(
         (&Method::GET, ["admin", "credential-statuses"]) => credential_statuses(state, parts).await,
         (&Method::GET, ["admin", "credentials", id, "status"]) => {
             credential_status(state, parts, id).await
+        }
+        (&Method::GET, ["admin", "credential-model-statuses"]) => {
+            credential_model_statuses(state, parts).await
+        }
+        (&Method::GET, ["admin", "credentials", id, "model-statuses"]) => {
+            credential_model_status(state, parts, id).await
         }
 
         // Request logs
@@ -188,6 +194,31 @@ async fn credential_status(state: &AppState, parts: &Request, id: &str) -> Resul
     let rows = state
         .persistence
         .list_credential_statuses(id)
+        .await
+        .map_err(internal)?;
+    Resp::json(200, &rows)
+}
+
+async fn credential_model_statuses(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    let rows = state
+        .persistence
+        .list_all_credential_model_statuses()
+        .await
+        .map_err(internal)?;
+    Resp::json(200, &rows)
+}
+
+async fn credential_model_status(
+    state: &AppState,
+    parts: &Request,
+    id: &str,
+) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    let id = parse_i64(id)?;
+    let rows = state
+        .persistence
+        .list_credential_model_statuses(id)
         .await
         .map_err(internal)?;
     Resp::json(200, &rows)

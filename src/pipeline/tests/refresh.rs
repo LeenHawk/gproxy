@@ -8,6 +8,7 @@ use std::sync::atomic::AtomicUsize;
 
 use crate::channel::registry::ChannelRegistry;
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, TransportKind};
+use crate::health::CredAdmit;
 use crate::http::client::UpstreamClient;
 
 /// A claude-speaking channel whose bearer token IS `secret["access_token"]`, so
@@ -92,7 +93,7 @@ const REFRESH_BUNDLE: &str = r#"{
     { "id": 1, "name": "rp", "channel": "test_refresh", "label": null, "settings_json": { "base_url": "http://fake.local" }, "credential_strategy": "round_robin", "proxy_url": null, "tls_fingerprint": null, "enabled": true }
   ],
   "credentials": [
-    { "id": 1, "provider_id": 1, "label": null, "secret_json": { "access_token": "initial" }, "proxy_url": null, "tls_fingerprint": null, "enabled": true }
+    { "id": 1, "provider_id": 1, "label": null, "kind": "oauth", "secret_json": { "access_token": "initial" }, "proxy_url": null, "tls_fingerprint": null, "enabled": true }
   ],
   "provider_models": [],
   "routes": [{ "id": 1, "name": "to-refresh", "strategy": "failover", "enabled": true, "description": null }],
@@ -192,6 +193,12 @@ async fn authdead_refresh_retry_succeeds() {
         Some("refreshed-token"),
         "writeback persisted"
     );
+    assert_eq!(
+        state
+            .health
+            .credential_available(1, crate::util::time::unix_now()),
+        CredAdmit::Yes
+    );
 }
 
 /// A failed forced refresh cools the credential and advances — it must NOT
@@ -231,6 +238,14 @@ async fn refresh_failure_skips_credential() {
         "no retry after a failed refresh"
     );
     assert_eq!(refreshes.load(Ordering::SeqCst), 1, "refresh was attempted");
+    let now = crate::util::time::unix_now();
+    assert_eq!(state.health.credential_available(1, now), CredAdmit::No);
+    assert_eq!(
+        state
+            .health
+            .credential_model_available(1, "another-model", now),
+        CredAdmit::No
+    );
 }
 
 /// Bundle: one failover route with five members across five `openai` providers,

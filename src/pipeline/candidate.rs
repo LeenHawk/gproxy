@@ -228,7 +228,15 @@ impl CandidateRequest {
                 )
                 .await?
             }
-            CandidateSource::Provider(provider) => provider.candidates()?,
+            CandidateSource::Provider(provider) => {
+                provider
+                    .candidates(
+                        state.health.as_ref(),
+                        state.cache.as_ref(),
+                        Some(identity.user_key.id),
+                    )
+                    .await?
+            }
         };
         let est_micros = candidates
             .iter()

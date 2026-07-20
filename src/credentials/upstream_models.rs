@@ -105,7 +105,6 @@ pub async fn fetch_models(
             credential: Arc::clone(&credential),
             upstream_model_id: String::new(),
             member_id: None,
-            breaker_cfg: cfg.clone(),
         };
         match fetch_models_for_credential(state, &channel, family, &cand).await {
             CredentialPull::Success(models) => return Ok(models),
@@ -143,12 +142,12 @@ async fn fetch_models_for_credential(
     {
         Ok(v) => v,
         Err(e) => {
-            health_hooks::record_attempt(state, cand, &Disposition::AuthDead, None);
+            record_credential_attempt(state, cand, &Disposition::AuthDead);
             return CredentialPull::Next(ModelsError::Channel(e));
         }
     };
     if let Some(body) = channel.credential_models(&secret) {
-        health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+        record_credential_attempt(state, cand, &Disposition::Success);
         return CredentialPull::Success(parse_models(family, &body));
     }
     let client =
@@ -167,7 +166,7 @@ async fn fetch_models_for_credential(
     .await
     {
         Ok(ModelPullResult::Success(models)) => {
-            health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+            record_credential_attempt(state, cand, &Disposition::Success);
             CredentialPull::Success(models)
         }
         Ok(ModelPullResult::Failure {
@@ -205,7 +204,7 @@ async fn fetch_models_for_credential(
                         error = %e,
                         "forced refresh after model-list AuthDead failed; skipping credential"
                     );
-                    health_hooks::record_attempt(state, cand, &Disposition::AuthDead, None);
+                    record_credential_attempt(state, cand, &Disposition::AuthDead);
                     CredentialPull::Next(ModelsError::Status(status.as_u16()))
                 }
             }
@@ -221,14 +220,14 @@ fn finish_http_result(
 ) -> CredentialPull {
     match result {
         Ok(ModelPullResult::Success(models)) => {
-            health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+            record_credential_attempt(state, cand, &Disposition::Success);
             CredentialPull::Success(models)
         }
         Ok(ModelPullResult::Failure {
             status,
             disposition,
         }) => {
-            health_hooks::record_attempt(state, cand, &disposition, None);
+            record_credential_attempt(state, cand, &disposition);
             let err = ModelsError::Status(status.as_u16());
             if disposition.should_failover() {
                 CredentialPull::Next(err)
@@ -237,15 +236,19 @@ fn finish_http_result(
             }
         }
         Err(ModelsError::Channel(ChannelError::InvalidCredential(e))) => {
-            health_hooks::record_attempt(state, cand, &Disposition::AuthDead, None);
+            record_credential_attempt(state, cand, &Disposition::AuthDead);
             CredentialPull::Next(ModelsError::Channel(ChannelError::InvalidCredential(e)))
         }
         Err(err @ (ModelsError::Upstream(_) | ModelsError::Decrypt(_))) => {
-            health_hooks::record_attempt(state, cand, &Disposition::Transient, None);
+            record_credential_attempt(state, cand, &Disposition::Transient);
             CredentialPull::Next(err)
         }
         Err(err) => CredentialPull::Next(err),
     }
+}
+
+fn record_credential_attempt(state: &AppState, cand: &Candidate, disposition: &Disposition) {
+    health_hooks::record_credential_attempt(state, &cand.provider, &cand.credential, disposition);
 }
 
 enum ModelPullResult {

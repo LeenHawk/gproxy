@@ -1,6 +1,7 @@
 use crate::store::persistence::records::{
-    Credential, CredentialInput, CredentialStatus, CredentialStatusInput, PriceRule,
-    PriceRuleInput, Provider, ProviderInput, ProviderModel, ProviderModelInput,
+    Credential, CredentialInput, CredentialModelStatus, CredentialModelStatusInput,
+    CredentialStatus, CredentialStatusInput, PriceRule, PriceRuleInput, Provider, ProviderInput,
+    ProviderModel, ProviderModelInput,
 };
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -33,6 +34,18 @@ pub trait ProviderPersistence {
         input: CredentialStatusInput,
     ) -> anyhow::Result<CredentialStatus>;
     async fn delete_credential_status(&self, id: i64) -> anyhow::Result<bool>;
+    async fn list_credential_model_statuses(
+        &self,
+        credential_id: i64,
+    ) -> anyhow::Result<Vec<CredentialModelStatus>>;
+    async fn list_all_credential_model_statuses(
+        &self,
+    ) -> anyhow::Result<Vec<CredentialModelStatus>>;
+    async fn upsert_credential_model_status(
+        &self,
+        input: CredentialModelStatusInput,
+    ) -> anyhow::Result<CredentialModelStatus>;
+    async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool>;
 
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>>;
     async fn upsert_provider_model(
@@ -109,6 +122,26 @@ impl ProviderPersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn delete_credential_status(&self, id: i64) -> anyhow::Result<bool> {
         super::PersistenceBackend::delete_credential_status(self, id).await
+    }
+    async fn list_credential_model_statuses(
+        &self,
+        credential_id: i64,
+    ) -> anyhow::Result<Vec<CredentialModelStatus>> {
+        super::PersistenceBackend::list_credential_model_statuses(self, credential_id).await
+    }
+    async fn list_all_credential_model_statuses(
+        &self,
+    ) -> anyhow::Result<Vec<CredentialModelStatus>> {
+        super::PersistenceBackend::list_all_credential_model_statuses(self).await
+    }
+    async fn upsert_credential_model_status(
+        &self,
+        input: CredentialModelStatusInput,
+    ) -> anyhow::Result<CredentialModelStatus> {
+        super::PersistenceBackend::upsert_credential_model_status(self, input).await
+    }
+    async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool> {
+        super::PersistenceBackend::delete_credential_model_status(self, id).await
     }
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>> {
         super::PersistenceBackend::list_provider_models(self, provider_id).await

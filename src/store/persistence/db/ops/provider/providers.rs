@@ -128,6 +128,7 @@ pub async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> 
     // cascade: this provider's credentials (and their statuses) and models.
     for cred in super::credentials::list(conn, id).await? {
         super::credential_statuses::delete_by_credential(conn, cred.id).await?;
+        super::credential_model_statuses::delete_by_credential(conn, cred.id).await?;
     }
     super::credentials::delete_by_provider(conn, id).await?;
     super::provider_models::delete_by_provider(conn, id).await?;

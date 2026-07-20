@@ -2,8 +2,9 @@ use async_trait::async_trait;
 
 use super::super::{DbPersistence, ops};
 use crate::store::persistence::records::{
-    Credential, CredentialInput, CredentialStatus, CredentialStatusInput, PriceRule,
-    PriceRuleInput, Provider, ProviderInput, ProviderModel, ProviderModelInput,
+    Credential, CredentialInput, CredentialModelStatus, CredentialModelStatusInput,
+    CredentialStatus, CredentialStatusInput, PriceRule, PriceRuleInput, Provider, ProviderInput,
+    ProviderModel, ProviderModelInput,
 };
 use crate::store::persistence::traits::ProviderPersistence;
 
@@ -70,6 +71,26 @@ impl ProviderPersistence for DbPersistence {
     }
     async fn delete_credential_status(&self, id: i64) -> anyhow::Result<bool> {
         ops::provider::credential_statuses::delete(&self.conn, id).await
+    }
+    async fn list_credential_model_statuses(
+        &self,
+        credential_id: i64,
+    ) -> anyhow::Result<Vec<CredentialModelStatus>> {
+        ops::provider::credential_model_statuses::list(&self.conn, credential_id).await
+    }
+    async fn list_all_credential_model_statuses(
+        &self,
+    ) -> anyhow::Result<Vec<CredentialModelStatus>> {
+        ops::provider::credential_model_statuses::list_all(&self.conn).await
+    }
+    async fn upsert_credential_model_status(
+        &self,
+        input: CredentialModelStatusInput,
+    ) -> anyhow::Result<CredentialModelStatus> {
+        ops::provider::credential_model_statuses::upsert(&self.conn, input).await
+    }
+    async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool> {
+        ops::provider::credential_model_statuses::delete(&self.conn, id).await
     }
 
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>> {

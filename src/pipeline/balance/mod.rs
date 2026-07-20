@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::app::snapshot::{ControlPlaneSnapshot, ResolvedRoute};
-use crate::health::config::{breaker_config, breaker_config_merged};
+use crate::health::config::breaker_config;
 use crate::health::{CredAdmit, HealthState};
 use crate::pipeline::context::Candidate;
 use crate::pipeline::error::PipelineError;
@@ -90,20 +90,35 @@ impl PreparedProvider {
         (self.provider.id, &self.upstream_model_id)
     }
 
-    pub(crate) fn candidates(&self) -> Result<Vec<Candidate>, PipelineError> {
+    pub(crate) async fn candidates(
+        &self,
+        health: &HealthState,
+        cache: &dyn CacheBackend,
+        user_key_id: Option<i64>,
+    ) -> Result<Vec<Candidate>, PipelineError> {
         if self.credentials.is_empty() {
             return Err(PipelineError::NoCredentials);
         }
-        let breaker_cfg = breaker_config(&self.provider.settings_json);
-        Ok(self
-            .credentials
-            .iter()
+        let credentials = credential_pool(
+            &self.credentials,
+            &self.provider,
+            &self.upstream_model_id,
+            health,
+            cache,
+            user_key_id,
+            unix_now(),
+        )
+        .await;
+        if credentials.is_empty() {
+            return Err(PipelineError::NoCredentials);
+        }
+        Ok(credentials
+            .into_iter()
             .map(|credential| Candidate {
                 provider: Arc::clone(&self.provider),
-                credential: Arc::clone(credential),
+                credential,
                 upstream_model_id: self.upstream_model_id.clone(),
                 member_id: None,
-                breaker_cfg: breaker_cfg.clone(),
             })
             .collect())
     }
@@ -143,23 +158,27 @@ pub(crate) async fn candidates(
             .providers
             .get(&member.provider_id)
             .expect("member admitted only with a live provider");
-        // Member breaker thresholds: route override merged over the provider.
-        let breaker_cfg = breaker_config_merged(
-            prepared.route.settings_json.as_ref(),
-            &provider.settings_json,
-        );
         let pool = prepared
             .credentials
             .get(&provider.id)
             .map(Vec::as_slice)
             .unwrap_or_default();
-        for cred in credential_pool(pool, provider, health, cache, user_key_id, now).await {
+        for cred in credential_pool(
+            pool,
+            provider,
+            &member.upstream_model_id,
+            health,
+            cache,
+            user_key_id,
+            now,
+        )
+        .await
+        {
             out.push(Candidate {
                 provider: Arc::clone(provider),
                 credential: cred,
                 upstream_model_id: member.upstream_model_id.clone(),
                 member_id: Some(member.id),
-                breaker_cfg: breaker_cfg.clone(),
             });
         }
     }
@@ -177,15 +196,17 @@ pub(crate) async fn candidates(
 async fn credential_pool(
     pool: &[Arc<Credential>],
     provider: &Arc<Provider>,
+    upstream_model_id: &str,
     health: &HealthState,
     cache: &dyn CacheBackend,
     user_key_id: Option<i64>,
     now: i64,
 ) -> Vec<Arc<Credential>> {
-    let cfg = breaker_config(&provider.settings_json);
     let filtered: Vec<Arc<Credential>> = pool
         .iter()
-        .filter(|c| health.admit_credential(c.id, &cfg, now) != CredAdmit::No)
+        .filter(|c| {
+            health.credential_model_available(c.id, upstream_model_id, now) != CredAdmit::No
+        })
         .cloned()
         .collect();
     if filtered.is_empty() {
