@@ -51,16 +51,25 @@ plane" rather than to debug LLM payloads.
 
 ## Credential Health
 
-Credential status rows track each credential/channel pair:
+Credential-wide status rows track each credential/channel pair. Model-specific
+rows separately track each credential/channel/final-upstream-model tuple:
 
 - `health_kind`;
 - optional structured `health_json`;
 - `checked_at`;
 - `last_error`.
 
-The pipeline and channel response classifier decide when a credential should be
-retried, cooled down, or treated as auth-dead. The console shows current status
-through `/admin/credential-statuses`.
+The pipeline and channel response classifier decide when a credential or only
+one model should be retried, cooled down, or treated as auth-dead. The console
+keeps these scopes separate through `/admin/credential-statuses` and
+`/admin/credential-model-statuses`. Per-credential views use
+`/admin/credentials/{id}/status` and
+`/admin/credentials/{id}/model-statuses`, respectively.
+
+Model-bound failures default to the exact credential/final-upstream-model pair
+and are never promoted from failure counts or cross-model correlation.
+Credential-wide operations such as model-list, usage, and token refresh update
+credential-wide health instead.
 
 ## Metrics
 

@@ -35,6 +35,7 @@ mod fetch {
         CacheConfig, DEFAULT_MAX_ATTEMPTS, DEFAULT_MAX_IN_FLIGHT, PersistenceConfig, RuntimeConfig,
         UpstreamConfig,
     };
+    use crate::health::CredAdmit;
     use crate::http::client::ClientError;
 
     const BUNDLE: &str = r#"{
@@ -175,6 +176,12 @@ mod fetch {
                 .map(|s| s.authorization.as_deref())
                 .collect::<Vec<_>>(),
             [Some("Bearer bad-key"), Some("Bearer good-key")]
+        );
+        let now = crate::util::time::unix_now();
+        assert_eq!(state.health.credential_available(1, now), CredAdmit::No);
+        assert_eq!(
+            state.health.credential_model_available(1, "any-model", now),
+            CredAdmit::No
         );
     }
 }

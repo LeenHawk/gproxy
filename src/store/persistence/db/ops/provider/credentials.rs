@@ -145,6 +145,7 @@ pub async fn update_secret_if_current(
 
 pub async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> {
     super::credential_statuses::delete_by_credential(conn, id).await?;
+    super::credential_model_statuses::delete_by_credential(conn, id).await?;
     let res = credential::Entity::delete_by_id(id).exec(conn).await?;
     Ok(res.rows_affected > 0)
 }

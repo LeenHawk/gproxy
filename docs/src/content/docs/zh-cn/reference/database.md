@@ -55,7 +55,7 @@ migration tracker。libSQL 后端使用匹配的 `CREATE TABLE IF NOT EXISTS` SQ
 
 | 分组 | 表 |
 | --- | --- |
-| Providers | `providers`, `credentials`, `credential_statuses`, `provider_models` |
+| Providers | `providers`, `credentials`, `credential_statuses`, `credential_model_statuses`, `provider_models` |
 | Routing | `routes`, `route_members`, `aliases` |
 | Transform | `routing_rules`, `rule_sets`, `rules`, `provider_rule_sets` |
 | Identity and authz | `orgs`, `teams`, `users`, `user_keys`, `route_permissions`, `rate_limits`, `quotas` |

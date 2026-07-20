@@ -103,6 +103,12 @@ export interface CredentialStatus {
   health_json: { state?: string; open_until?: number; reason?: string } | null;
   checked_at: number | null;
   last_error: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CredentialModelStatus extends CredentialStatus {
+  model_id: string;
 }
 
 export interface UsageFilter {
@@ -202,5 +208,11 @@ export const auditQuery = (limit = 100) =>
 export const credentialStatusesQuery = queryOptions({
   queryKey: ["credential-statuses"],
   queryFn: () => api<CredentialStatus[]>("/admin/credential-statuses"),
+  staleTime: 30_000,
+});
+
+export const credentialModelStatusesQuery = queryOptions({
+  queryKey: ["credential-model-statuses"],
+  queryFn: () => api<CredentialModelStatus[]>("/admin/credential-model-statuses"),
   staleTime: 30_000,
 });

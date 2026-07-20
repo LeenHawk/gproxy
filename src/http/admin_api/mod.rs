@@ -384,6 +384,7 @@ fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
             | "usage-summary"
             | "usage-rollups"
             | "credential-statuses"
+            | "credential-model-statuses"
             | "logs"
             | "audit"
             | "tls-presets",
@@ -418,7 +419,12 @@ fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
         | ["admin", "rule-sets", _, "rules"]
         | ["admin", "users", _, "keys"] => Some("GET,HEAD,POST"),
         ["admin", "providers", _, "upstream-models"]
-        | ["admin", "credentials", _, "status" | "secret" | "usage"]
+        | [
+            "admin",
+            "credentials",
+            _,
+            "status" | "model-statuses" | "secret" | "usage",
+        ]
         | ["admin", "logs", _, "downstream" | "upstream"] => Some("GET,HEAD"),
         ["admin", "credentials", _, "rate-limit-reset-credit"]
         | ["admin", "providers", _, "routing-rules", "reset"] => Some("POST"),

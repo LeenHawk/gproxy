@@ -1,5 +1,5 @@
 //! Schema creation on connect. Hand-written `CREATE TABLE IF NOT EXISTS` for
-//! the 26 tables defined by the SeaORM entities (`db/entities/`), in SQLite
+//! the 27 tables defined by the SeaORM entities (`db/entities/`), in SQLite
 //! dialect. Ids are `INTEGER PRIMARY KEY` (autoincrement-by-default rowid);
 //! bools/timestamps are INTEGER; strings/decimals/JSON are TEXT; blobs BLOB.
 
@@ -51,6 +51,18 @@ const TABLES: &[&str] = &[
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL, \
         UNIQUE(credential_id, channel))",
+    "CREATE TABLE IF NOT EXISTS credential_model_statuses (\
+        id INTEGER PRIMARY KEY, \
+        credential_id INTEGER NOT NULL, \
+        channel TEXT NOT NULL, \
+        model_id TEXT NOT NULL, \
+        health_kind TEXT NOT NULL, \
+        health_json TEXT, \
+        checked_at INTEGER, \
+        last_error TEXT, \
+        created_at INTEGER NOT NULL, \
+        updated_at INTEGER NOT NULL, \
+        UNIQUE(credential_id, channel, model_id))",
     "CREATE TABLE IF NOT EXISTS provider_models (\
         id INTEGER PRIMARY KEY, \
         provider_id INTEGER NOT NULL, \

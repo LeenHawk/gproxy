@@ -152,7 +152,8 @@
     "recovered": "健康",
     "rate_limited": "限流冷卻",
     "auth_dead": "驗證失效",
-    "until": "至 {{time}}"
+    "until": "至 {{time}}",
+    "modelIssues": "{{count}} 個模型異常"
   },
   "usage": {
     "title": "上游用量",

@@ -140,6 +140,7 @@ pub async fn delete(client: &LibsqlClient, id: i64) -> anyhow::Result<bool> {
     // cascade: credentials (+ their statuses), models, routing rules, rule-set attachments.
     for cred in super::credentials::list(client, id).await? {
         super::credential_statuses::delete_by_credential(client, cred.id).await?;
+        super::credential_model_statuses::delete_by_credential(client, cred.id).await?;
     }
     super::credentials::delete_by_provider(client, id).await?;
     super::provider_models::delete_by_provider(client, id).await?;

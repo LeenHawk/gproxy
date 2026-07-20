@@ -100,6 +100,18 @@ async fn cascade_deletes() {
     })
     .await
     .unwrap();
+    db.upsert_credential_model_status(CredentialModelStatusInput {
+        id: None,
+        credential_id: c.id,
+        channel: "openai".to_owned(),
+        model_id: "gpt-x-final".to_owned(),
+        health_kind: "breaker".to_owned(),
+        health_json: Some(json!({"state": "open"})),
+        checked_at: Some(42),
+        last_error: Some("failed".to_owned()),
+    })
+    .await
+    .unwrap();
     db.upsert_provider_model(ProviderModelInput {
         id: None,
         provider_id: p.id,
@@ -111,9 +123,51 @@ async fn cascade_deletes() {
     .await
     .unwrap();
 
+    let directly_deleted = db
+        .upsert_credential(CredentialInput {
+            id: None,
+            provider_id: p.id,
+            name: Some("direct-delete".to_owned()),
+            kind: "api_key".to_owned(),
+            secret_json: json!({"key": "y"}),
+            weight: 1,
+            rpm_limit: None,
+            tpm_limit: None,
+            proxy_url: None,
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    db.upsert_credential_model_status(CredentialModelStatusInput {
+        id: None,
+        credential_id: directly_deleted.id,
+        channel: "openai".to_owned(),
+        model_id: "gpt-y-final".to_owned(),
+        health_kind: "breaker".to_owned(),
+        health_json: None,
+        checked_at: None,
+        last_error: None,
+    })
+    .await
+    .unwrap();
+    assert!(db.delete_credential(directly_deleted.id).await.unwrap());
+    assert!(
+        db.list_credential_model_statuses(directly_deleted.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
     db.delete_provider(p.id).await.unwrap();
     assert!(db.list_credentials(p.id).await.unwrap().is_empty());
     assert!(db.list_credential_statuses(c.id).await.unwrap().is_empty());
+    assert!(
+        db.list_credential_model_statuses(c.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert!(db.list_provider_models(p.id).await.unwrap().is_empty());
 
     // route → member + alias.
@@ -153,6 +207,55 @@ async fn cascade_deletes() {
     db.delete_route(r.id).await.unwrap();
     assert!(db.list_route_members(r.id).await.unwrap().is_empty());
     assert!(db.get_alias_by_name("a").await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn credential_model_status_crud_uses_composite_key() {
+    let db = mem().await;
+    let first = db
+        .upsert_credential_model_status(CredentialModelStatusInput {
+            id: None,
+            credential_id: 7,
+            channel: "openai".to_owned(),
+            model_id: "upstream/model-v1".to_owned(),
+            health_kind: "breaker".to_owned(),
+            health_json: Some(json!({"state": "open"})),
+            checked_at: Some(10),
+            last_error: Some("timeout".to_owned()),
+        })
+        .await
+        .expect("insert model status");
+    let updated = db
+        .upsert_credential_model_status(CredentialModelStatusInput {
+            id: None,
+            credential_id: 7,
+            channel: "openai".to_owned(),
+            model_id: "upstream/model-v1".to_owned(),
+            health_kind: "recovered".to_owned(),
+            health_json: Some(json!({"state": "closed"})),
+            checked_at: Some(11),
+            last_error: None,
+        })
+        .await
+        .expect("update by composite key");
+
+    assert_eq!(updated.id, first.id);
+    assert_eq!(updated.health_kind, "recovered");
+    assert_eq!(
+        db.list_credential_model_statuses(7).await.unwrap(),
+        vec![updated.clone()]
+    );
+    assert_eq!(
+        db.list_all_credential_model_statuses().await.unwrap(),
+        vec![updated]
+    );
+    assert!(db.delete_credential_model_status(first.id).await.unwrap());
+    assert!(
+        db.list_all_credential_model_statuses()
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
