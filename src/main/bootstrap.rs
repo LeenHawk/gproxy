@@ -29,7 +29,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
         .await;
     }
 
-    // MIGRATE-V1 (remove in 2.1): explicit migration subcommand — self-contained
+    // MIGRATE-V1 (temporary 2.x bridge): explicit migration subcommand — self-contained
     // and dispatched before the shared persistence is built (it manages its own
     // source/target db connections).
     #[cfg(feature = "migrate-v1")]
@@ -97,7 +97,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
     }
     let cipher = gproxy::crypto::cipher_from_master_key(master_key.as_deref())?;
 
-    // MIGRATE-V1 (remove in 2.1): on the serve path, if the configured SQLite db
+    // MIGRATE-V1 (temporary 2.x bridge): on the serve path, if the configured SQLite db
     // is a legacy v1 database, migrate it to v2 in place (backing the v1 file up)
     // BEFORE the v2 backend opens it. No-op on a fresh install or an existing v2.
     #[cfg(feature = "migrate-v1")]

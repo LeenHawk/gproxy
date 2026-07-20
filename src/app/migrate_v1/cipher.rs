@@ -1,4 +1,4 @@
-//! MIGRATE-V1 (remove in 2.1): decrypt secrets stored by the legacy v1 backend.
+//! MIGRATE-V1 (temporary 2.x bridge): decrypt legacy v1 secrets.
 //!
 //! v1 (`crates/gproxy-storage/src/seaorm/crypto.rs`) sealed `credentials.secret_json`
 //! and `user_keys.api_key_ciphertext` with XChaCha20-Poly1305 under an Argon2id

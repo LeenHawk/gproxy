@@ -1,4 +1,4 @@
-//! MIGRATE-V1 (remove in 2.1): read the legacy v1 SQLite database (read-only)
+//! MIGRATE-V1 (temporary 2.x bridge): read the legacy v1 SQLite database (read-only)
 //! into plain row structs. Only the control-plane config tables are read; usage,
 //! request logs, files and ephemeral health are intentionally skipped (§ design).
 

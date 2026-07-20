@@ -1,4 +1,4 @@
-//! MIGRATE-V1 (remove in 2.1): map v1 rows into a v2 `import::Bundle`.
+//! MIGRATE-V1 (temporary 2.x bridge): map v1 rows into a v2 `import::Bundle`.
 //!
 //! The bundle carries PLAINTEXT secrets (v1-decrypted); `import_bundle` re-seals
 //! them under the v2 master key. `routing_rules` are NOT mapped here — the v1
