@@ -37,6 +37,9 @@ env:
   # First upstream revision with win64/arm64 packing support. The released
   # 5.2.0 still reports that format as not implemented.
   UPX_WINDOWS_ARM64_REV: 9d384c7f79b9324feef82e870a6fc3f1cee651ff
+  # Enlarges the RISC-V AUIPC tracking table for large executable segments
+  # (upx/upx#18885); this fix is newer than the 5.2.0 release.
+  UPX_RISCV_REV: 11c2c5227508378d87ed920e9ba6ea8a6378a22b
 
 jobs:
   build-console:
@@ -289,6 +292,18 @@ jobs:
           sudo install -m 0755 \
             "$RUNNER_TEMP/upx-${UPX_VERSION}-${host}_linux/upx" \
             /usr/local/bin/upx
+          if [[ "${{ matrix.target }}" == riscv64gc-* ]]; then
+            src="$RUNNER_TEMP/upx-riscv-src"
+            build="$RUNNER_TEMP/upx-riscv-build"
+            git clone https://github.com/upx/upx.git "$src"
+            git -C "$src" checkout --detach "$UPX_RISCV_REV"
+            git -C "$src" submodule update --init --recursive --depth 1
+            cmake -S "$src" -B "$build" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DUPX_CONFIG_DISABLE_SELF_PACK_TEST=ON
+            cmake --build "$build" --parallel
+            sudo install -m 0755 "$build/upx" /usr/local/bin/upx
+          fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends zip
           upx --version
@@ -312,6 +327,10 @@ jobs:
 
       - name: Build UPX with Windows ARM64 support
         if: ${{ matrix.upx && matrix.target == 'aarch64-pc-windows-msvc' }}
+        env:
+          # VS 2026 warns on the pinned revision's doctest internals; upstream
+          # uses the same define on its Windows 2026 jobs.
+          CXXFLAGS: -DDOCTEST_CONFIG_DISABLE
         run: |
           set -euo pipefail
           src="$RUNNER_TEMP/upx-src"
