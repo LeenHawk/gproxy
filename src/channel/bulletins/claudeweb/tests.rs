@@ -180,6 +180,11 @@ async fn tool_result_resumes_parked_stream_and_synthesizes_usage() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::ClaudeMessages,
+            ),
+            stream: true,
             upstream_model_id: "claude-sonnet-5",
             method: http::Method::POST,
             path: "/v1/messages",
@@ -212,6 +217,11 @@ async fn tool_result_resumes_parked_stream_and_synthesizes_usage() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::ClaudeMessages,
+            ),
+            stream: true,
             upstream_model_id: "claude-sonnet-5",
             method: http::Method::POST,
             path: "/v1/messages",
@@ -278,6 +288,11 @@ async fn live_tool_result_round_trip() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::ClaudeMessages,
+            ),
+            stream: true,
             upstream_model_id: "claude-sonnet-5",
             method: http::Method::POST,
             path: "/v1/messages",
@@ -322,6 +337,11 @@ async fn live_tool_result_round_trip() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::ClaudeMessages,
+            ),
+            stream: true,
             upstream_model_id: "claude-sonnet-5",
             method: http::Method::POST,
             path: "/v1/messages",

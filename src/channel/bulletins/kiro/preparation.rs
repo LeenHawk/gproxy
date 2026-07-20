@@ -63,7 +63,15 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     let body = request::build_request_body(&ctx.body, ctx.upstream_model_id, &gen_uuid())?;
     let body = with_profile_arn(body, profile_arn.as_deref())?;
 
-    let uri = join_url(&base, "/", None)?;
+    let uri = match crate::channel::settings::endpoint_url(
+        ctx.provider_settings,
+        ctx.op,
+        ctx.stream,
+        ctx.upstream_model_id,
+    ) {
+        Some(url) => crate::channel::http_util::exact_url(&url, None)?,
+        None => join_url(&base, "/", None)?,
+    };
     let headers = allow_headers(ctx.headers, &[]);
     let mut req = build_request(ctx.method, uri, headers, Bytes::from(body))?;
     apply_headers(&mut req, &access_token, TARGET_GENERATE)?;

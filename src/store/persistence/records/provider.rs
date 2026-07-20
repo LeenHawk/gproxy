@@ -15,7 +15,8 @@ pub struct Provider {
     /// `ChannelRegistry`, e.g. `openai`, `claudeapi`, `aistudio`, `custom`.
     pub channel: String,
     pub label: Option<String>,
-    /// Free-form settings: `base_url`, channel scalar toggles, `circuit_breaker`,
+    /// Free-form settings: `base_url`, exact `endpoints`, channel toggles,
+    /// `circuit_breaker`,
     /// etc. (see §7.4 / §3.2).
     pub settings_json: Value,
     /// Credential pool strategy: `round_robin` | `sticky` (§3.3).

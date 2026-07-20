@@ -238,7 +238,7 @@ pub(super) fn base_url<'a>(settings: &'a Value, secret: &'a Value) -> &'a str {
         .get("base_url")
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|base| !base.is_empty())
         .or_else(|| secret_str(secret, "base_url"))
         .unwrap_or(DEFAULT_BASE_URL)
 }

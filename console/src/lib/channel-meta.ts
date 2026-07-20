@@ -1,6 +1,6 @@
 export type SecretFamily = "api_key" | "oauth_tokens" | "service_account" | "github_token";
 
-/** Default base_url per channel. Absent = channel has no public default (custom requires explicit input). */
+/** Default base_url per channel. Absent = no public configurable default. */
 export const DEFAULT_BASE_URL: Record<string, string> = {
   openai: "https://api.openai.com",
   claudeapi: "https://api.anthropic.com",
@@ -15,6 +15,40 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   chatgpt: "https://chatgpt.com",
   claudeweb: "https://claude.ai",
 };
+
+export const ENDPOINT_KINDS = [
+  "openai_list_models", "claude_list_models", "gemini_list_models",
+  "openai_get_model", "claude_get_model", "gemini_get_model",
+  "openai_count_tokens", "claude_count_tokens", "gemini_count_tokens",
+  "openai_chat_completions", "openai_responses", "claude_messages",
+  "gemini_generate_content", "gemini_stream_generate_content",
+  "openai_embeddings", "gemini_embeddings", "image_generations", "image_edits",
+  "openai_compact", "openai_conversations", "usage", "rate_limit_reset",
+] as const;
+export type EndpointKind = (typeof ENDPOINT_KINDS)[number];
+
+const CUSTOM_ENDPOINTS = ENDPOINT_KINDS.filter(
+  (kind) => !["openai_conversations", "usage", "rate_limit_reset"].includes(kind),
+);
+const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
+  openai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_embeddings", "image_generations", "image_edits", "openai_compact"],
+  openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
+  deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "claude_messages"],
+  groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
+  nvidia: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_embeddings"],
+  vercel: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
+  custom: CUSTOM_ENDPOINTS,
+  claudeapi: ["openai_list_models", "claude_list_models", "openai_get_model", "claude_get_model", "claude_count_tokens", "openai_chat_completions", "claude_messages"],
+  aistudio: ["openai_list_models", "gemini_list_models", "openai_get_model", "gemini_get_model", "gemini_count_tokens", "openai_chat_completions", "gemini_generate_content", "gemini_stream_generate_content", "gemini_embeddings"],
+  vertexexpress: ["gemini_count_tokens", "gemini_generate_content", "gemini_stream_generate_content", "gemini_embeddings"],
+  geminicli: ["usage"],
+  antigravity: ["usage"],
+  claudecode: ["claude_list_models", "claude_get_model", "claude_count_tokens", "claude_messages", "usage"],
+  claudeweb: ["usage"],
+  codex: ["openai_list_models", "openai_get_model", "openai_responses", "openai_compact", "usage", "rate_limit_reset"],
+  grokbuild: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_compact"],
+  kiro: ["openai_responses"],
+};
 export type LoginMode = "authcode" | "device" | "cookie";
 
 export interface ChannelMeta {
@@ -23,6 +57,8 @@ export interface ChannelMeta {
   loginModes: LoginMode[];
   /** GET /admin/credentials/{id}/usage supported */
   usage: boolean;
+  /** Exact upstream URLs that this channel resolves from settings_json.endpoints. */
+  endpointKinds: readonly EndpointKind[];
   /** Prefill for the manual secret editor */
   secretTemplate: Record<string, unknown>;
   /** providers:secret.* extra hint key, if any */
@@ -46,6 +82,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "api_key" as const,
     loginModes: [] as LoginMode[],
     usage: false,
+    endpointKinds: ENDPOINTS_BY_CHANNEL[id] ?? [],
     secretTemplate: { api_key: "" },
   })),
   {
@@ -53,6 +90,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "service_account",
     loginModes: [],
     usage: false,
+    endpointKinds: [],
     secretTemplate: { client_email: "", private_key: "", project_id: "" },
   },
   {
@@ -60,6 +98,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["authcode"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.geminicli ?? [],
     secretTemplate: { ...OAUTH_TOKENS, project_id: "" },
     hintKey: "geminiHint",
   },
@@ -68,6 +107,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["authcode"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.antigravity ?? [],
     secretTemplate: { ...OAUTH_TOKENS, project_id: "" },
     hintKey: "geminiHint",
   },
@@ -76,6 +116,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["authcode", "cookie"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.claudecode ?? [],
     secretTemplate: { ...OAUTH_TOKENS },
   },
   {
@@ -85,6 +126,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["cookie"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.claudeweb ?? [],
     secretTemplate: { cookie: "", account_uuid: "" },
   },
   {
@@ -92,6 +134,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["authcode", "device"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.codex ?? [],
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
   },
   {
@@ -99,6 +142,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["device"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.grokbuild ?? [],
     secretTemplate: { ...OAUTH_TOKENS },
   },
   {
@@ -106,6 +150,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["authcode", "device"],
     usage: true,
+    endpointKinds: ENDPOINTS_BY_CHANNEL.kiro ?? [],
     secretTemplate: { ...OAUTH_TOKENS },
   },
   {
@@ -113,6 +158,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "github_token",
     loginModes: ["device"],
     usage: true,
+    endpointKinds: [],
     secretTemplate: { github_token: "" },
   },
   {
@@ -123,6 +169,7 @@ export const CHANNELS: ChannelMeta[] = [
     family: "oauth_tokens",
     loginModes: ["cookie"],
     usage: false,
+    endpointKinds: [],
     secretTemplate: { access_token: "", cookie: "" },
   },
 ];

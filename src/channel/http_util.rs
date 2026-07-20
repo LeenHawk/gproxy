@@ -101,6 +101,37 @@ pub fn join_url(base_url: &str, path: &str, query: Option<&str>) -> Result<Uri, 
     Ok(uri)
 }
 
+/// Parse an exact absolute endpoint URL and merge runtime query parameters into
+/// any static query already configured on it. No path is appended.
+pub fn exact_url(url: &str, query: Option<&str>) -> Result<Uri, ChannelError> {
+    let mut uri: Uri = url
+        .trim()
+        .parse()
+        .map_err(|e| ChannelError::Build(format!("bad upstream endpoint {url:?}: {e}")))?;
+    if uri.scheme().is_none() || uri.authority().is_none() {
+        return Err(ChannelError::Build(format!(
+            "upstream endpoint not absolute: {url:?}"
+        )));
+    }
+    let Some(query) = query.filter(|query| !query.is_empty()) else {
+        return Ok(uri);
+    };
+
+    let path = uri.path();
+    let merged = match uri.query() {
+        Some(existing) if !existing.is_empty() => format!("{path}?{existing}&{query}"),
+        _ => format!("{path}?{query}"),
+    };
+    let path_and_query = merged
+        .parse()
+        .map_err(|e| ChannelError::Build(format!("bad upstream endpoint query: {e}")))?;
+    let mut parts = uri.into_parts();
+    parts.path_and_query = Some(path_and_query);
+    uri = Uri::from_parts(parts)
+        .map_err(|e| ChannelError::Build(format!("bad upstream endpoint parts: {e}")))?;
+    Ok(uri)
+}
+
 /// Build the upstream request: method + absolute URI + sanitized headers, with
 /// `body` moved in. Channel-specific auth headers are inserted by the caller
 /// AFTER this.
@@ -165,6 +196,19 @@ mod tests {
     fn join_appends_query() {
         let uri = join_url("http://h", "/v1/x", Some("a=1&b=2")).unwrap();
         assert_eq!(uri.to_string(), "http://h/v1/x?a=1&b=2");
+    }
+
+    #[test]
+    fn exact_endpoint_keeps_path_and_merges_query() {
+        let uri = exact_url(
+            "https://gateway.example/final?api-version=2026-07-01",
+            Some("stream=true"),
+        )
+        .unwrap();
+        assert_eq!(
+            uri.to_string(),
+            "https://gateway.example/final?api-version=2026-07-01&stream=true"
+        );
     }
 
     #[test]

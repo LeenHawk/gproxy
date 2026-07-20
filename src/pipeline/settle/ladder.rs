@@ -130,6 +130,8 @@ async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Option<u64>
         .prepare(crate::channel::PrepareCtx {
             secret,
             provider_settings: &ctx.provider.settings_json,
+            op: key,
+            stream: false,
             upstream_model_id: &ctx.model,
             method: target.method.into(),
             path: &target.path,
