@@ -2,7 +2,7 @@
 
 use super::DbPersistence;
 use crate::store::persistence::records::*;
-use crate::store::persistence::{LogQuery, UsageQuery};
+use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, UsageQuery};
 use serde_json::json;
 
 async fn mem() -> DbPersistence {

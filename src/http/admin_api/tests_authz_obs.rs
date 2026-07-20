@@ -38,6 +38,56 @@ async fn usage_empty_list_ok() {
 }
 
 #[tokio::test]
+async fn observability_page_mode_returns_common_envelope() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-page", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    for (path, page, page_size) in [
+        ("/admin/usage?page=1", 1, 50),
+        ("/admin/logs?page=2&page_size=10", 2, 10),
+        ("/admin/audit?page=1&page_size=100", 1, 100),
+    ] {
+        let p = parts("GET", path, Some(&cookie), None);
+        let resp = run(&state, &p, b"").await.expect("page response");
+        let value = parse_json(&resp);
+        assert!(value["items"].as_array().unwrap().is_empty(), "{path}");
+        assert_eq!(value["pagination"]["page"], page, "{path}");
+        assert_eq!(value["pagination"]["page_size"], page_size, "{path}");
+        assert_eq!(value["pagination"]["total_items"], 0, "{path}");
+        assert_eq!(value["pagination"]["total_pages"], 0, "{path}");
+    }
+
+    let p = parts(
+        "GET",
+        "/admin/usage?page_size=not-a-number",
+        Some(&cookie),
+        None,
+    );
+    let resp = run(&state, &p, b"").await.expect("legacy response");
+    assert!(parse_json(&resp).as_array().is_some());
+}
+
+#[tokio::test]
+async fn numeric_pagination_rejects_invalid_parameters() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-page-invalid", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    for path in [
+        "/admin/usage?page=0",
+        "/admin/usage?page=1&page_size=0",
+        "/admin/logs?page=1&page_size=101",
+        "/admin/audit?page=2&before_id=10",
+        "/admin/usage?page=18446744073709551615&page_size=100",
+    ] {
+        let p = parts("GET", path, Some(&cookie), None);
+        let err = run(&state, &p, b"").await.expect_err(path);
+        assert_eq!(err.status(), http::StatusCode::BAD_REQUEST, "{path}");
+    }
+}
+
+#[tokio::test]
 async fn usage_empty_summary_ok() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-obs-summary", true).await;
@@ -79,6 +129,52 @@ async fn audit_empty_list_ok() {
     assert_eq!(resp.status, http::StatusCode::OK);
     // Body is a JSON array (empty on a fresh store).
     assert!(parse_json(&resp).as_array().is_some());
+}
+
+#[tokio::test]
+async fn audit_page_filters_items_and_total() {
+    use crate::store::persistence::records::AuditLogInput;
+
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-audit-filter", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+    let matching = state
+        .persistence
+        .append_audit_log(AuditLogInput {
+            actor_id: Some(admin_id),
+            actor_name: Some("admin-audit-filter".into()),
+            action: "PATCH".into(),
+            target: "/admin/credentials/5".into(),
+            status: 204,
+            source_ip: Some("203.0.113.9".into()),
+        })
+        .await
+        .unwrap();
+    state
+        .persistence
+        .append_audit_log(AuditLogInput {
+            actor_id: Some(admin_id),
+            actor_name: Some("admin-audit-filter".into()),
+            action: "POST".into(),
+            target: "/admin/providers".into(),
+            status: 200,
+            source_ip: Some("198.51.100.4".into()),
+        })
+        .await
+        .unwrap();
+
+    let path = format!(
+        "/admin/audit?page=1&page_size=10&at_from={0}&at_to={0}&actor_id={1}\
+         &action=AT&target=credentials&status=204&source_ip=203.0.113.9",
+        matching.at, admin_id
+    );
+    let resp = run(&state, &parts("GET", &path, Some(&cookie), None), b"")
+        .await
+        .expect("filtered audit page");
+    let value = parse_json(&resp);
+    assert_eq!(value["pagination"]["total_items"], 1);
+    assert_eq!(value["items"].as_array().unwrap().len(), 1);
+    assert_eq!(value["items"][0]["id"], matching.id);
 }
 
 // ── GET /admin/route-permissions?scope=user&scope_id=1 → 200 empty ───────────

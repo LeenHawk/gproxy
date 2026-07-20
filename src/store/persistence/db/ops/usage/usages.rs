@@ -4,11 +4,11 @@ use sea_orm::ActiveValue::{NotSet, Set};
 use sea_orm::sea_query::Value;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Statement,
+    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Select, Statement,
 };
 
-use crate::store::persistence::UsageQuery;
 use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
+use crate::store::persistence::{PageQuery, PageResult, UsageQuery};
 
 use crate::store::persistence::db::entities::usage::usage;
 
@@ -102,6 +102,35 @@ pub async fn list(conn: &DatabaseConnection, limit: u64) -> anyhow::Result<Vec<U
 /// (gte/lte on `at`, eq on the dimensions, `id < before_id` cursor), ordered
 /// `id` DESC.
 pub async fn query(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
+    filtered(q, true)
+        .order_by_desc(usage::Column::Id)
+        .limit(q.limit)
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect()
+}
+
+pub async fn query_page(
+    conn: &DatabaseConnection,
+    q: &UsageQuery,
+    page: &PageQuery,
+) -> anyhow::Result<PageResult<Usage>> {
+    let total = filtered(q, false).count(conn).await?;
+    let items = filtered(q, false)
+        .order_by_desc(usage::Column::Id)
+        .offset(page.offset)
+        .limit(page.limit)
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(PageResult { items, total })
+}
+
+fn filtered(q: &UsageQuery, include_cursor: bool) -> Select<usage::Entity> {
     use usage::Column as C;
     let mut sel = usage::Entity::find();
     if let Some(v) = q.at_from {
@@ -122,16 +151,10 @@ pub async fn query(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Result<
     if let Some(ref v) = q.model {
         sel = sel.filter(C::Model.eq(v.clone()));
     }
-    if let Some(v) = q.before_id {
+    if include_cursor && let Some(v) = q.before_id {
         sel = sel.filter(C::Id.lt(v));
     }
-    sel.order_by_desc(C::Id)
-        .limit(q.limit)
-        .all(conn)
-        .await?
-        .into_iter()
-        .map(to_record)
-        .collect()
+    sel
 }
 
 fn push_summary_filter(

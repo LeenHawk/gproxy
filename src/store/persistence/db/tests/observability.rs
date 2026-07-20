@@ -125,6 +125,25 @@ async fn usage_summary_matches_filters_and_ignores_pagination() {
     assert_eq!(summary.cache_creation_30m_tokens, 46);
     assert_eq!(summary.cache_creation_1h_tokens, 48);
     assert_eq!(summary.cost, "0.003".parse().unwrap());
+
+    let page = db
+        .query_usages_page(
+            &UsageQuery {
+                provider_id: Some(1),
+                user_id: Some(7),
+                model: Some("model-a".into()),
+                ..Default::default()
+            },
+            &PageQuery {
+                offset: 1,
+                limit: 1,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(page.total, 2);
+    assert_eq!(page.items.len(), 1);
+    assert_eq!(page.items[0].request_id, "r1");
 }
 
 #[tokio::test]
@@ -186,21 +205,39 @@ async fn downstream_logs_filter_by_time_and_usage_dimensions() {
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].request_id, "match");
+
+    let page = db
+        .query_downstream_requests_page(
+            &LogQuery {
+                at_from: Some(100),
+                user_id: Some(7),
+                ..Default::default()
+            },
+            &PageQuery {
+                offset: 0,
+                limit: 10,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(page.total, 1);
+    assert_eq!(page.items[0].request_id, "match");
 }
 
 #[tokio::test]
 async fn audit_log_round_trip() {
     let db = mem().await;
-    db.append_audit_log(AuditLogInput {
-        actor_id: Some(7),
-        actor_name: Some("admin".into()),
-        action: "DELETE".into(),
-        target: "/admin/credentials/5".into(),
-        status: 204,
-        source_ip: Some("203.0.113.9".into()),
-    })
-    .await
-    .expect("append 1");
+    let delete = db
+        .append_audit_log(AuditLogInput {
+            actor_id: Some(7),
+            actor_name: Some("admin".into()),
+            action: "DELETE".into(),
+            target: "/admin/credentials/5".into(),
+            status: 204,
+            source_ip: Some("203.0.113.9".into()),
+        })
+        .await
+        .expect("append 1");
     db.append_audit_log(AuditLogInput {
         actor_id: None,
         actor_name: None,
@@ -225,4 +262,38 @@ async fn audit_log_round_trip() {
 
     // limit caps the result.
     assert_eq!(db.list_audit_logs(1).await.expect("list 1").len(), 1);
+    let page = db
+        .query_audit_logs_page(
+            &AuditLogQuery::default(),
+            &PageQuery {
+                offset: 1,
+                limit: 1,
+            },
+        )
+        .await
+        .expect("page");
+    assert_eq!(page.total, 2);
+    assert_eq!(page.items[0].action, "DELETE");
+
+    let filtered = db
+        .query_audit_logs_page(
+            &AuditLogQuery {
+                at_from: Some(delete.at),
+                at_to: Some(delete.at),
+                actor_id: Some(7),
+                action: Some("LET".into()),
+                target: Some("credentials".into()),
+                status: Some(204),
+                source_ip: Some("203.0.113.9".into()),
+            },
+            &PageQuery {
+                offset: 0,
+                limit: 10,
+            },
+        )
+        .await
+        .expect("filtered page");
+    assert_eq!(filtered.total, 1);
+    assert_eq!(filtered.items.len(), 1);
+    assert_eq!(filtered.items[0].id, delete.id);
 }

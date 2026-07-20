@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
-  usageInfiniteQuery,
+  usagePageQuery,
   usageSummaryQuery,
   type Usage,
   type UsageFilter,
 } from "@/api/usage";
 import { providersQuery } from "@/api/providers";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { Pagination } from "@/components/pagination";
 import { UsageFilters } from "@/components/observability/usage-filters";
 import { UsageSummaryBar } from "@/components/observability/usage-summary-bar";
 import {
@@ -40,6 +41,7 @@ function UsagePage() {
   const { t: tc } = useTranslation("common");
 
   const [filter, setFilter] = useState<ExplorerFilter>({});
+  const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRid, setSelectedRid] = useState<string | null>(null);
 
@@ -49,14 +51,11 @@ function UsagePage() {
     [providers],
   );
 
-  // useInfiniteQuery keys on `filter`, so changing it starts a fresh query
-  // (pages reset for free); fetchNextPage appends and survives refetches.
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending } =
-    useInfiniteQuery(usageInfiniteQuery(filter));
+  const { data, isFetching, isPending } = useQuery(usagePageQuery(filter, page));
   const { data: summary, isPending: summaryPending } = useQuery(
     usageSummaryQuery(filter),
   );
-  const rows = data?.pages.flat() ?? [];
+  const rows = data?.items ?? [];
   const ids = rows.map((r) => r.id);
 
   // Batch: usage is read-only — delete only.
@@ -65,6 +64,12 @@ function UsagePage() {
   function openRid(rid: string) {
     setSelectedRid(rid);
     setDrawerOpen(true);
+  }
+
+  function changeFilter(next: ExplorerFilter) {
+    batch.exit();
+    setPage(1);
+    setFilter(next);
   }
 
   const usageCols: DataColumn<Usage>[] = [
@@ -169,7 +174,7 @@ function UsagePage() {
 
         <TabsContent value="usage" className="mt-4 space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <UsageFilters value={filter} onChange={setFilter} />
+            <UsageFilters value={filter} onChange={changeFilter} />
             <Button variant="outline" size="sm" onClick={() => batch.mode ? batch.exit() : batch.setMode(true)}>
               {batch.mode ? tc("batch.cancel") : tc("batch.select")}
             </Button>
@@ -210,18 +215,12 @@ function UsagePage() {
             />
           )}
 
-          {hasNextPage && (
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void fetchNextPage()}
-                disabled={isFetchingNextPage}
-              >
-                {isFetchingNextPage ? "…" : t("usage.loadMore")}
-              </Button>
-            </div>
-          )}
+          <Pagination
+            page={page}
+            totalPages={data?.pagination.total_pages ?? 0}
+            onPageChange={setPage}
+            disabled={isFetching || batch.mode}
+          />
 
           {batch.mode && (
             <BatchToolbar

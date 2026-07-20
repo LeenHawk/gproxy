@@ -1,5 +1,6 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { api } from "./http";
+import { PAGE_SIZE, type PageResult } from "./pagination";
 import type { Usage, UsageRollup } from "./usage";
 import type { RoutePermission, RateLimit, Quota } from "./authz";
 import type { UserKeyView } from "./identity";
@@ -27,27 +28,23 @@ export const updateMyKey = (id: number, body: { label?: string | null; enabled: 
 export const deleteMyKey = (id: number) => api<void>(`/user/keys/${id}`, { method: "DELETE" });
 
 // usage — mirror api/usage.ts but /user/* and NO user_id
-const PAGE = 50;
-function myUsageQs(f: { at_from?: number; at_to?: number; route_name?: string; model?: string; before_id?: number; limit?: number }): string {
+function myUsageQs(f: MyUsageFilter, page: number): string {
   const p = new URLSearchParams();
-  if (f.limit != null) p.set("limit", String(f.limit));
-  if (f.before_id != null) p.set("before_id", String(f.before_id));
   if (f.at_from != null) p.set("at_from", String(f.at_from));
   if (f.at_to != null) p.set("at_to", String(f.at_to));
   if (f.route_name) p.set("route_name", f.route_name);
   if (f.model) p.set("model", f.model);
+  p.set("page", String(page));
+  p.set("page_size", String(PAGE_SIZE));
   const s = p.toString();
   return s ? `?${s}` : "";
 }
 export type MyUsageFilter = { at_from?: number; at_to?: number; route_name?: string; model?: string };
-export const myUsageInfiniteQuery = (f: MyUsageFilter) =>
-  infiniteQueryOptions({
-    queryKey: ["my-usage", "infinite", f],
-    queryFn: ({ pageParam }) =>
-      api<Usage[]>(`/user/usage${myUsageQs({ ...f, before_id: pageParam ?? undefined, limit: PAGE })}`),
-    initialPageParam: undefined as number | undefined,
-    getNextPageParam: (last: Usage[]) =>
-      last.length >= PAGE ? last[last.length - 1].id : undefined,
+export const myUsagePageQuery = (f: MyUsageFilter, page: number) =>
+  queryOptions({
+    queryKey: ["my-usage", "page", f, page],
+    queryFn: () => api<PageResult<Usage>>(`/user/usage${myUsageQs(f, page)}`),
+    placeholderData: keepPreviousData,
   });
 export const myRollupsQuery = (granularity: string, from: number, to: number) =>
   queryOptions({

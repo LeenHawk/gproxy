@@ -1,12 +1,12 @@
 //! Downstream-request log ops for the libSQL edge backend (append-only).
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
-use crate::store::persistence::LogQuery;
 use crate::store::persistence::libsql::row::{Row, col_i64, col_opt_json, col_opt_str, col_str};
 use crate::store::persistence::libsql::util::{
     arg_opt_text, exec, last_rowid, now_secs, query as run_query, query_one,
 };
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
+use crate::store::persistence::{LogQuery, PageQuery, PageResult};
 
 const COLS: &str = "id, request_id, at, method, path, query, status, headers_json, body, \
      created_at, updated_at, response_body";
@@ -111,9 +111,49 @@ pub async fn update_response_body(
 
 /// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
 pub async fn query(client: &LibsqlClient, q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>> {
-    let mut sql = format!("SELECT {COLS} FROM downstream_requests WHERE 1=1");
-    let mut args: Vec<serde_json::Value> = Vec::new();
-    if let Some(v) = q.before_id {
+    let (where_sql, mut args) = filters(q, true);
+    let mut sql = format!("SELECT {COLS} FROM downstream_requests{where_sql}");
+    sql.push_str(" ORDER BY id DESC LIMIT ?");
+    args.push(arg_integer(q.limit as i64));
+    run_query(client, &sql, &args)
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
+pub async fn query_page(
+    client: &LibsqlClient,
+    q: &LogQuery,
+    page: &PageQuery,
+) -> anyhow::Result<PageResult<DownstreamRequest>> {
+    let (where_sql, mut args) = filters(q, false);
+    let count = query_one(
+        client,
+        &format!("SELECT COUNT(*) FROM downstream_requests{where_sql}"),
+        &args,
+    )
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("downstream request count query returned no row"))?;
+    let total = u64::try_from(col_i64(&count, 0)?)?;
+
+    let sql = format!(
+        "SELECT {COLS} FROM downstream_requests{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?"
+    );
+    args.push(arg_integer(i64::try_from(page.limit)?));
+    args.push(arg_integer(i64::try_from(page.offset)?));
+    let items = run_query(client, &sql, &args)
+        .await?
+        .iter()
+        .map(decode)
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(PageResult { items, total })
+}
+
+fn filters(q: &LogQuery, include_cursor: bool) -> (String, Vec<serde_json::Value>) {
+    let mut sql = String::from(" WHERE 1=1");
+    let mut args = Vec::new();
+    if include_cursor && let Some(v) = q.before_id {
         sql.push_str(" AND id < ?");
         args.push(arg_integer(v));
     }
@@ -143,11 +183,25 @@ pub async fn query(client: &LibsqlClient, q: &LogQuery) -> anyhow::Result<Vec<Do
         }
         sql.push(')');
     }
-    sql.push_str(" ORDER BY id DESC LIMIT ?");
-    args.push(arg_integer(q.limit as i64));
-    run_query(client, &sql, &args)
-        .await?
-        .iter()
-        .map(decode)
-        .collect()
+    (sql, args)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_filters_reuse_usage_scope_without_cursor() {
+        let q = LogQuery {
+            at_from: Some(10),
+            user_id: Some(7),
+            before_id: Some(9),
+            ..Default::default()
+        };
+        let (sql, args) = filters(&q, false);
+        assert!(!sql.contains("id <"));
+        assert!(sql.contains("at >= ?"));
+        assert!(sql.contains("u.user_id = ?"));
+        assert_eq!(args.len(), 2);
+    }
 }
