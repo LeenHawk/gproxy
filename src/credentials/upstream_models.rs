@@ -4,6 +4,7 @@
 //! the upstream's native model list into `(id, display_name)` rows.
 //! Admin-triggered, infrequent — mirrors [`super::usage`].
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -72,9 +73,8 @@ pub async fn fetch_models(
         return Ok(parse_models(family, &body));
     }
 
-    // Walk enabled credentials — the pull authenticates to the upstream, and a
-    // stale/dead first credential must not prevent later healthy credentials
-    // from serving the admin request.
+    // Walk every enabled credential serially. Account-specific catalogues may
+    // differ, so successful results are unioned instead of returning the first.
     let credentials = crate::store::persistence::PersistenceBackend::list_credentials(
         state.persistence.as_ref(),
         provider_id,
@@ -93,6 +93,9 @@ pub async fn fetch_models(
     let now = unix_now();
     let mut last_err = None;
     let mut admitted = false;
+    let mut succeeded = false;
+    let mut models = Vec::new();
+    let mut model_indexes = HashMap::new();
     for credential in credentials {
         if state.health.admit_credential(credential.id, &cfg, now) == CredAdmit::No {
             last_err.get_or_insert(ModelsError::NoAvailableCredential);
@@ -107,10 +110,16 @@ pub async fn fetch_models(
             member_id: None,
         };
         match fetch_models_for_credential(state, &channel, family, &cand).await {
-            CredentialPull::Success(models) => return Ok(models),
+            CredentialPull::Success(pulled) => {
+                succeeded = true;
+                merge_models(&mut models, &mut model_indexes, pulled);
+            }
             CredentialPull::Next(err) => last_err = Some(err),
-            CredentialPull::Stop(err) => return Err(err),
         }
+    }
+
+    if succeeded {
+        return Ok(models);
     }
 
     Err(last_err.unwrap_or(if admitted {
@@ -123,7 +132,23 @@ pub async fn fetch_models(
 enum CredentialPull {
     Success(Vec<UpstreamModel>),
     Next(ModelsError),
-    Stop(ModelsError),
+}
+
+fn merge_models(
+    models: &mut Vec<UpstreamModel>,
+    indexes: &mut HashMap<String, usize>,
+    pulled: Vec<UpstreamModel>,
+) {
+    for model in pulled {
+        if let Some(index) = indexes.get(&model.id).copied() {
+            if models[index].display_name.is_none() && model.display_name.is_some() {
+                models[index].display_name = model.display_name;
+            }
+            continue;
+        }
+        indexes.insert(model.id.clone(), models.len());
+        models.push(model);
+    }
 }
 
 async fn fetch_models_for_credential(
@@ -229,11 +254,7 @@ fn finish_http_result(
         }) => {
             record_credential_attempt(state, cand, &disposition);
             let err = ModelsError::Status(status.as_u16());
-            if disposition.should_failover() {
-                CredentialPull::Next(err)
-            } else {
-                CredentialPull::Stop(err)
-            }
+            CredentialPull::Next(err)
         }
         Err(ModelsError::Channel(ChannelError::InvalidCredential(e))) => {
             record_credential_attempt(state, cand, &Disposition::AuthDead);

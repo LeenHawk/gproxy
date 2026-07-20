@@ -15,6 +15,39 @@ fn parse_openai_and_gemini() {
     assert_eq!(g[0].display_name.as_deref(), Some("Gemini 1.5 Pro"));
 }
 
+#[test]
+fn merge_models_keeps_first_order_and_fills_missing_display_name() {
+    let mut models = vec![UpstreamModel {
+        id: "shared".into(),
+        display_name: None,
+    }];
+    let mut indexes = std::collections::HashMap::from([("shared".to_string(), 0)]);
+
+    merge_models(
+        &mut models,
+        &mut indexes,
+        vec![
+            UpstreamModel {
+                id: "shared".into(),
+                display_name: Some("Shared model".into()),
+            },
+            UpstreamModel {
+                id: "new".into(),
+                display_name: Some("New model".into()),
+            },
+        ],
+    );
+
+    assert_eq!(
+        models
+            .iter()
+            .map(|model| model.id.as_str())
+            .collect::<Vec<_>>(),
+        ["shared", "new"]
+    );
+    assert_eq!(models[0].display_name.as_deref(), Some("Shared model"));
+}
+
 #[cfg(all(
     not(target_arch = "wasm32"),
     feature = "cache-memory",
@@ -50,7 +83,9 @@ mod fetch {
         { "id": 1, "provider_id": 1, "label": "bad",
           "secret_json": { "api_key": "bad-key" }, "enabled": true },
         { "id": 2, "provider_id": 1, "label": "good",
-          "secret_json": { "api_key": "good-key" }, "enabled": true }
+          "secret_json": { "api_key": "good-key" }, "enabled": true },
+        { "id": 3, "provider_id": 1, "label": "other",
+          "secret_json": { "api_key": "other-key" }, "enabled": true }
       ]
     }"#;
 
@@ -78,7 +113,7 @@ mod fetch {
                 .map(str::to_owned);
             self.seen.lock().unwrap().push(Seen {
                 uri: req.uri().to_string(),
-                authorization,
+                authorization: authorization.clone(),
             });
             let i = self.calls.fetch_add(1, Ordering::SeqCst);
             let status = self
@@ -87,10 +122,16 @@ mod fetch {
                 .or_else(|| self.statuses.last())
                 .copied()
                 .unwrap_or(StatusCode::OK);
-            let body = if status.is_success() {
-                Bytes::from_static(br#"{"object":"list","data":[{"id":"gpt-good"}]}"#)
-            } else {
+            let body = if !status.is_success() {
                 Bytes::from_static(br#"{"error":"bad credential"}"#)
+            } else if authorization.as_deref() == Some("Bearer good-key") {
+                Bytes::from_static(
+                    br#"{"object":"list","data":[{"id":"shared"},{"id":"gpt-good"}]}"#,
+                )
+            } else {
+                Bytes::from_static(
+                    br#"{"object":"list","data":[{"id":"shared"},{"id":"gpt-other"}]}"#,
+                )
             };
             Ok(http::Response::builder()
                 .status(status)
@@ -155,9 +196,10 @@ mod fetch {
     }
 
     #[tokio::test]
-    async fn fetch_models_tries_next_credential_after_auth_dead() {
+    async fn fetch_models_unions_all_successful_credentials_after_partial_failure() {
         let upstream = Arc::new(SequencedUpstream::new(vec![
             StatusCode::UNAUTHORIZED,
+            StatusCode::OK,
             StatusCode::OK,
         ]));
         let (state, _dir) = state_with(Arc::clone(&upstream)).await;
@@ -165,23 +207,43 @@ mod fetch {
         let models = fetch_models(&state, 1).await.expect("model pull");
         assert_eq!(
             models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
-            ["gpt-good"]
+            ["shared", "gpt-good", "gpt-other"]
         );
 
         let seen = upstream.seen.lock().unwrap();
-        assert_eq!(seen.len(), 2, "first auth-dead credential then next");
+        assert_eq!(seen.len(), 3, "all credentials are pulled serially");
         assert_eq!(seen[0].uri, "http://fake.local/v1/models");
         assert_eq!(
             seen.iter()
                 .map(|s| s.authorization.as_deref())
                 .collect::<Vec<_>>(),
-            [Some("Bearer bad-key"), Some("Bearer good-key")]
+            [
+                Some("Bearer bad-key"),
+                Some("Bearer good-key"),
+                Some("Bearer other-key")
+            ]
         );
         let now = crate::util::time::unix_now();
         assert_eq!(state.health.credential_available(1, now), CredAdmit::No);
         assert_eq!(
             state.health.credential_model_available(1, "any-model", now),
             CredAdmit::No
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_models_returns_error_when_every_credential_fails() {
+        let upstream = Arc::new(SequencedUpstream::new(vec![StatusCode::UNAUTHORIZED]));
+        let (state, _dir) = state_with(Arc::clone(&upstream)).await;
+
+        let err = fetch_models(&state, 1)
+            .await
+            .expect_err("all credentials fail");
+        assert!(matches!(err, ModelsError::Status(401)));
+        assert_eq!(
+            upstream.seen.lock().unwrap().len(),
+            3,
+            "each credential is attempted once"
         );
     }
 }

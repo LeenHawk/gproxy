@@ -35,7 +35,10 @@ variant stripping, and visibility.
 The console can pull a live upstream model list with
 `/admin/providers/{provider_id}/upstream-models`. Pulling models is an admin
 operation; it calls the provider or returns bundled models if the channel ships
-a static catalogue.
+a static catalogue. For credential-backed catalogues, every enabled and
+currently available credential is queried serially. Successful results are
+deduplicated by model id and returned as a union; one failed credential does not
+discard models returned by the others.
 
 ## Routes and Members
 
