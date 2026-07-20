@@ -140,7 +140,7 @@ client，以及 libSQL/Turso、REST 风格共享存储等平台友好的 persist
 | `§19` | Native self-update 生命周期。 |
 | `§19.2`、`§19.3`、`§19.4` | 签名 manifest、release channel、回滚保护和更新策略。 |
 | `§19.5`、`§19.6`、`§19.6.1`、`§19.6.2` | 下载/staging、binary swap、supervisor restart 和直接 re-exec。 |
-| `§19.7`、`§19.8`、`§19.10` | 数据兼容、回滚产物和 update admin/status 安全约束。 |
+| `§19.7`、`§19.8`、`§19.10` | 数据兼容、更新产物和 update admin/status 安全约束。 |
 
 ## 下一步
 
