@@ -152,7 +152,7 @@ specific document path refer to that external document instead.
 | `§19` | Native self-update lifecycle. |
 | `§19.2`, `§19.3`, `§19.4` | Signed manifests, release channels, rollback guards, and update policy. |
 | `§19.5`, `§19.6`, `§19.6.1`, `§19.6.2` | Download/staging, binary swap, supervisor restart, and direct re-exec. |
-| `§19.7`, `§19.8`, `§19.10` | Data compatibility, rollback artifacts, and update admin/status safety. |
+| `§19.7`, `§19.8`, `§19.10` | Data compatibility, update artifacts, and update admin/status safety. |
 
 ## Where To Go Next
 

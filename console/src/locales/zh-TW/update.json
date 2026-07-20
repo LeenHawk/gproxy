@@ -22,7 +22,7 @@
     "apkButton": "下載並安裝 APK",
     "confirm": {
       "title": "更新並重新啟動？",
-      "description": "此操作將下載新的二進位檔案，保留舊版本為 .prev 以供回復，並自動重新啟動 GPROXY。",
+      "description": "此操作將下載並安裝新的二進位檔案，然後自動重新啟動 GPROXY。",
       "confirmLabel": "更新並重新啟動"
     },
     "apkConfirm": {

@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+
+  - package-ecosystem: npm
+    directories:
+      - "/console"
+      - "/docs"
+      - "/deploy/cloudflare"
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch

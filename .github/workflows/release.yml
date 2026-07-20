@@ -33,6 +33,10 @@ env:
   # fixed `staging` tag on the commit-keyed `staging` channel.
   PUBLISH_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'staging' }}
   PUBLISH_CHANNEL: ${{ github.ref_type == 'tag' && 'releases' || 'staging' }}
+  UPX_VERSION: 5.2.0
+  # First upstream revision with win64/arm64 packing support. The released
+  # 5.2.0 still reports that format as not implemented.
+  UPX_WINDOWS_ARM64_REV: 9d384c7f79b9324feef82e870a6fc3f1cee651ff
 
 jobs:
   build-console:
@@ -109,8 +113,10 @@ jobs:
             cross: true
             artifact: gproxy-linux-riscv64
             ext: ""
-            run_check: false
-            upx: false
+            run_check: true
+            smoke_container: ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:0.2.5
+            smoke_prefix: /linux-runner riscv64
+            upx: true
             docker_bin: true
           - target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
@@ -136,8 +142,10 @@ jobs:
             cross: true
             artifact: gproxy-linux-riscv64-musl
             ext: ""
-            run_check: false
-            upx: false
+            run_check: true
+            smoke_container: ghcr.io/cross-rs/riscv64gc-unknown-linux-musl:main
+            smoke_prefix: /qemu-runner riscv64
+            upx: true
             docker_bin: true
           - target: x86_64-linux-android
             runner: ubuntu-latest
@@ -171,7 +179,7 @@ jobs:
             artifact: gproxy-windows-aarch64
             ext: ".exe"
             run_check: false
-            upx: false
+            upx: true
             docker_bin: false
           - target: x86_64-apple-darwin
             runner: macos-latest
@@ -179,6 +187,8 @@ jobs:
             artifact: gproxy-macos-x86_64
             ext: ""
             run_check: false
+            # UPX still disables macOS 13+ packed-runtime tests because the
+            # generated executable crashes (upx/upx#612).
             upx: false
             docker_bin: false
           - target: aarch64-apple-darwin
@@ -187,6 +197,8 @@ jobs:
             artifact: gproxy-macos-aarch64
             ext: ""
             run_check: true
+            # Compressing can succeed after removing the Mach-O signature, but
+            # the resulting executable is not supported on current macOS.
             upx: false
             docker_bin: false
     steps:
@@ -250,25 +262,69 @@ jobs:
           RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --bin gproxy --target ${{ matrix.target }}
 
-      - name: Smoke check (--help) before UPX — unix
-        if: ${{ matrix.run_check && matrix.os != 'windows' }}
-        run: ./target/${{ matrix.target }}/release/gproxy --help
-
-      - name: Smoke check (--help) before UPX — windows
-        if: ${{ matrix.run_check && matrix.os == 'windows' }}
-        shell: pwsh
-        run: |
-          & "target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}" --help
-
       - name: Install UPX + zip (linux)
-        if: ${{ matrix.upx && matrix.os != 'windows' }}
+        if: ${{ matrix.upx && (matrix.os == 'linux' || matrix.os == 'android') }}
         run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64)
+              host=amd64
+              checksum=3db5d3294707439db97866feab8d75d800f028f48481a40547411824da4288a1
+              ;;
+            aarch64)
+              host=arm64
+              checksum=55d48a61e8ffd17152db871c855376cba7f08e830b37799d0947a16dff8ec36c
+              ;;
+            *)
+              echo "unsupported UPX host architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          archive="$RUNNER_TEMP/upx.tar.xz"
+          curl -fsSL \
+            "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-${host}_linux.tar.xz" \
+            -o "$archive"
+          printf '%s  %s\n' "$checksum" "$archive" | sha256sum -c -
+          tar -xJf "$archive" -C "$RUNNER_TEMP"
+          sudo install -m 0755 \
+            "$RUNNER_TEMP/upx-${UPX_VERSION}-${host}_linux/upx" \
+            /usr/local/bin/upx
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends upx-ucl zip
-      - name: Install UPX (windows)
-        if: ${{ matrix.upx && matrix.os == 'windows' }}
+          sudo apt-get install -y --no-install-recommends zip
+          upx --version
+
+      - name: Install UPX (windows x86_64)
+        if: ${{ matrix.upx && matrix.os == 'windows' && matrix.target != 'aarch64-pc-windows-msvc' }}
         shell: pwsh
-        run: choco install upx -y
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "upx.zip"
+          $out = Join-Path $env:RUNNER_TEMP "upx"
+          Invoke-WebRequest `
+            "https://github.com/upx/upx/releases/download/v$env:UPX_VERSION/upx-$env:UPX_VERSION-win64.zip" `
+            -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          $expected = "b471ebf1b7f20f4a89150264ed9a008a2a5bfd247f3c6d1184a75bb59ca08f5d"
+          if ($actual -ne $expected) { throw "UPX checksum mismatch: $actual" }
+          Expand-Archive $archive -DestinationPath $out
+          $bin = Join-Path $out "upx-$env:UPX_VERSION-win64"
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Append
+          & "$bin/upx.exe" --version
+
+      - name: Build UPX with Windows ARM64 support
+        if: ${{ matrix.upx && matrix.target == 'aarch64-pc-windows-msvc' }}
+        run: |
+          set -euo pipefail
+          src="$RUNNER_TEMP/upx-src"
+          build="$RUNNER_TEMP/upx-build"
+          git clone https://github.com/upx/upx.git "$src"
+          git -C "$src" checkout --detach "$UPX_WINDOWS_ARM64_REV"
+          git -C "$src" submodule update --init --recursive --depth 1
+          cmake -S "$src" -B "$build" -A x64 \
+            -DUPX_CONFIG_DISABLE_SELF_PACK_TEST=ON
+          cmake --build "$build" --config Release --parallel
+          cp "$build/Release/upx.exe" "$RUNNER_TEMP/upx.exe"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/upx.exe" --version
 
       - name: Install WiX Toolset (windows)
         if: ${{ matrix.os == 'windows' }}
@@ -278,13 +334,45 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
 
+      - name: Smoke check (--help) before UPX — unix
+        if: ${{ matrix.run_check && matrix.os != 'windows' }}
+        run: |
+          if [ -n "${{ matrix.smoke_container }}" ]; then
+            docker run --rm -v "$PWD:/project" -w /project \
+              "${{ matrix.smoke_container }}" ${{ matrix.smoke_prefix }} \
+              ./target/${{ matrix.target }}/release/gproxy --help
+          else
+            ./target/${{ matrix.target }}/release/gproxy --help
+          fi
+
+      - name: Smoke check (--help) before UPX — windows
+        if: ${{ matrix.run_check && matrix.os == 'windows' }}
+        shell: pwsh
+        run: |
+          & "target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}" --help
+
       - name: Compress binary
         if: ${{ matrix.upx }}
-        run: upx --best --lzma target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
+        run: |
+          args=(--best --lzma)
+          if [ "${{ matrix.target }}" = "aarch64-pc-windows-msvc" ]; then
+            # The initial Windows ARM64 implementation supports NRV only.
+            args=(--best)
+          fi
+          binary=target/${{ matrix.target }}/release/gproxy${{ matrix.ext }}
+          upx "${args[@]}" "$binary"
+          upx -t "$binary"
 
       - name: Smoke check (--help) after UPX — unix
         if: ${{ matrix.run_check && matrix.upx && matrix.os != 'windows' }}
-        run: ./target/${{ matrix.target }}/release/gproxy --help
+        run: |
+          if [ -n "${{ matrix.smoke_container }}" ]; then
+            docker run --rm -v "$PWD:/project" -w /project \
+              "${{ matrix.smoke_container }}" ${{ matrix.smoke_prefix }} \
+              ./target/${{ matrix.target }}/release/gproxy --help
+          else
+            ./target/${{ matrix.target }}/release/gproxy --help
+          fi
       - name: Smoke check (--help) after UPX — windows
         if: ${{ matrix.run_check && matrix.upx && matrix.os == 'windows' }}
         shell: pwsh
@@ -353,9 +441,24 @@ jobs:
             ${{ matrix.artifact }}.deb.sha256
           retention-days: 1
 
+  smoke-windows-arm64:
+    name: Smoke Windows ARM64 package
+    needs: build-native
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-asset-aarch64-pc-windows-msvc
+          path: package
+      - name: Run packed binary (--help)
+        shell: pwsh
+        run: |
+          Expand-Archive package/gproxy-windows-aarch64.zip -DestinationPath smoke
+          & "smoke/gproxy.exe" --help
+
   prepare-release-assets:
     name: Prepare signed release assets
-    needs: build-native
+    needs: [build-native, smoke-windows-arm64]
     runs-on: ubuntu-latest
     steps:
       # checkout is needed only to read the migration list for

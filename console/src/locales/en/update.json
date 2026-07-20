@@ -22,7 +22,7 @@
     "apkButton": "Download & install APK",
     "confirm": {
       "title": "Update and restart?",
-      "description": "This downloads the new binary, keeps the previous version as .prev for rollback, and restarts GPROXY automatically.",
+      "description": "This downloads and installs the new binary, then restarts GPROXY automatically.",
       "confirmLabel": "Update & restart"
     },
     "apkConfirm": {
