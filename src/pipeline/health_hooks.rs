@@ -11,8 +11,10 @@ use crate::app::AppState;
 use crate::channel::Disposition;
 use crate::health::breaker::Transition;
 use crate::health::config::breaker_config;
+use crate::health::persist::CredentialModelTransition;
 use crate::health::persist::persist_credential_transition;
 use crate::pipeline::context::Candidate;
+use crate::store::persistence::records::{Credential, Provider};
 use crate::util::time::unix_now;
 
 /// Cooldown for a 429 without `Retry-After`.
@@ -20,8 +22,9 @@ const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(30);
 /// Cooldown for an auth-dead credential (refresh lands M7).
 const AUTH_DEAD_SECS: i64 = 600;
 
-/// Record one attempt's outcome. `send_ms` is the measured send latency
-/// (native only; `None` on wasm and on failures).
+/// Record one model-bound attempt. Credential health is keyed by the exact
+/// final upstream model; no result here is promoted to credential-wide health.
+/// `send_ms` is the measured send latency (native only; `None` on failures).
 pub fn record_attempt(
     state: &AppState,
     cand: &Candidate,
@@ -29,48 +32,94 @@ pub fn record_attempt(
     send_ms: Option<f64>,
 ) {
     let now = unix_now();
-    // The member breaker honours the route override (carried on the candidate);
-    // the credential breaker is provider-scoped (credentials are shared across
-    // routes), so it uses the plain provider config.
-    let member_cfg = &cand.breaker_cfg;
     let cred_cfg = breaker_config(&cand.provider.settings_json);
     let cred_id = cand.credential.id;
+    let model = &cand.upstream_model_id;
     match disposition {
         Disposition::Success => {
-            if let Some(mid) = cand.member_id {
-                state.health.record_member(mid, member_cfg, true, now);
-                if let Some(ms) = send_ms {
-                    state.health.record_latency(mid, ms);
-                }
+            if let Some(mid) = cand.member_id
+                && let Some(ms) = send_ms
+            {
+                state.health.record_latency(mid, ms);
             }
             let t = state
                 .health
-                .record_credential(cred_id, &cred_cfg, true, now);
-            persist_breaker_edge(state, cand, t);
+                .record_credential_model(cred_id, model, &cred_cfg, true, now);
+            persist_model_breaker_edge(state, cand, t);
         }
         Disposition::Transient => {
-            if let Some(mid) = cand.member_id {
-                state.health.record_member(mid, member_cfg, false, now);
-            }
             let t = state
                 .health
-                .record_credential(cred_id, &cred_cfg, false, now);
-            persist_breaker_edge(state, cand, t);
+                .record_credential_model(cred_id, model, &cred_cfg, false, now);
+            persist_model_breaker_edge(state, cand, t);
         }
-        // A rate-limited key says nothing about the member — member untouched.
         Disposition::RateLimited { retry_after } => {
             let until = now + retry_after.unwrap_or(RATE_LIMIT_DEFAULT).as_secs() as i64;
-            state.health.cool_credential(cred_id, until);
-            persist_cooldown(state, cand, "rate_limited", until, "429 rate limited");
+            state.health.cool_credential_model(cred_id, model, until);
+            persist_model_cooldown(state, cand, "rate_limited", until, "429 rate limited");
         }
         Disposition::AuthDead => {
             let until = now + AUTH_DEAD_SECS;
-            state.health.cool_credential(cred_id, until);
-            persist_cooldown(state, cand, "auth_dead", until, "auth dead (401/402/403)");
+            state.health.cool_credential_model(cred_id, model, until);
+            persist_model_cooldown(
+                state,
+                cand,
+                "auth_dead",
+                until,
+                "model authentication rejected (401/402/403)",
+            );
         }
         // Client error returned to the caller — no health impact.
         Disposition::Permanent => {}
     }
+}
+
+/// Record an operation that targets the credential itself rather than a model:
+/// refresh, model-list, usage, account/quota and similar endpoints.
+pub fn record_credential_attempt(
+    state: &AppState,
+    provider: &Provider,
+    credential: &Credential,
+    disposition: &Disposition,
+) {
+    let now = unix_now();
+    let cfg = breaker_config(&provider.settings_json);
+    let transition = match disposition {
+        Disposition::Success => state
+            .health
+            .record_credential(credential.id, &cfg, true, now),
+        Disposition::Transient => state
+            .health
+            .record_credential(credential.id, &cfg, false, now),
+        Disposition::RateLimited { retry_after } => {
+            let until = now + retry_after.unwrap_or(RATE_LIMIT_DEFAULT).as_secs() as i64;
+            state.health.cool_credential(credential.id, until);
+            persist_credential_cooldown(
+                state,
+                provider,
+                credential,
+                "rate_limited",
+                until,
+                "429 rate limited",
+            );
+            return;
+        }
+        Disposition::AuthDead => {
+            let until = now + AUTH_DEAD_SECS;
+            state.health.cool_credential(credential.id, until);
+            persist_credential_cooldown(
+                state,
+                provider,
+                credential,
+                "auth_dead",
+                until,
+                "credential authentication rejected",
+            );
+            return;
+        }
+        Disposition::Permanent => return,
+    };
+    persist_credential_breaker_edge(state, provider, credential, transition);
 }
 
 /// Transport (`send_once` Err) and prepare failures count as `Transient`.
@@ -80,9 +129,11 @@ pub fn record_failure(state: &AppState, cand: &Candidate) {
 
 /// §16.3: persist a credential breaker transition edge (Opened/Reopened →
 /// "breaker", Closed → "recovered"). No-op when no transition occurred.
-fn persist_breaker_edge(state: &AppState, cand: &Candidate, t: Option<Transition>) {
-    let Some(t) = t else { return };
-    let (kind, json, last_error) = match t {
+fn breaker_transition(
+    t: Option<Transition>,
+) -> Option<(&'static str, serde_json::Value, Option<String>)> {
+    let t = t?;
+    Some(match t {
         Transition::Opened {
             until,
             consecutive_failures,
@@ -110,27 +161,83 @@ fn persist_breaker_edge(state: &AppState, cand: &Candidate, t: Option<Transition
             json!({ "state": "closed", "reason": "probe succeeded; breaker closed" }),
             None,
         ),
+    })
+}
+
+fn persist_credential_breaker_edge(
+    state: &AppState,
+    provider: &Provider,
+    credential: &Credential,
+    transition: Option<Transition>,
+) {
+    let Some((kind, json, last_error)) = breaker_transition(transition) else {
+        return;
     };
     persist_credential_transition(
         Arc::clone(&state.persistence),
         state.config.instance_id,
-        cand.credential.id,
-        cand.provider.channel.clone(),
+        credential.id,
+        provider.channel.clone(),
         kind,
         json,
         last_error,
     );
 }
 
-/// §16.3: persist a rate-limited / auth-dead cooldown edge.
-fn persist_cooldown(state: &AppState, cand: &Candidate, kind: &'static str, until: i64, why: &str) {
+fn persist_credential_cooldown(
+    state: &AppState,
+    provider: &Provider,
+    credential: &Credential,
+    kind: &'static str,
+    until: i64,
+    why: &str,
+) {
     persist_credential_transition(
         Arc::clone(&state.persistence),
         state.config.instance_id,
-        cand.credential.id,
-        cand.provider.channel.clone(),
+        credential.id,
+        provider.channel.clone(),
         kind,
         json!({ "state": "cooldown", "open_until": until, "reason": why }),
         Some(why.to_string()),
+    );
+}
+
+fn persist_model_breaker_edge(state: &AppState, cand: &Candidate, transition: Option<Transition>) {
+    let Some((kind, json, last_error)) = breaker_transition(transition) else {
+        return;
+    };
+    crate::health::persist::persist_credential_model_transition(
+        Arc::clone(&state.persistence),
+        state.config.instance_id,
+        CredentialModelTransition {
+            credential_id: cand.credential.id,
+            channel: cand.provider.channel.clone(),
+            model_id: cand.upstream_model_id.clone(),
+            kind,
+            json,
+            last_error,
+        },
+    );
+}
+
+fn persist_model_cooldown(
+    state: &AppState,
+    cand: &Candidate,
+    kind: &'static str,
+    until: i64,
+    why: &str,
+) {
+    crate::health::persist::persist_credential_model_transition(
+        Arc::clone(&state.persistence),
+        state.config.instance_id,
+        CredentialModelTransition {
+            credential_id: cand.credential.id,
+            channel: cand.provider.channel.clone(),
+            model_id: cand.upstream_model_id.clone(),
+            kind,
+            json: json!({ "state": "cooldown", "open_until": until, "reason": why }),
+            last_error: Some(why.to_string()),
+        },
     );
 }

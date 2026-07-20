@@ -1,6 +1,6 @@
 //! Global HF-tokenizer registry (§6.3): bundled deepseek vocab, persisted
-//! vocabs through the [`PersistenceBackend`] (file backend = raw files under
-//! `data_dir/tokenizers/`, db backend = BLOB rows), and a fire-and-forget
+//! vocabs through the [`PersistenceBackend`] (the native database backend uses
+//! BLOB rows), and a fire-and-forget
 //! background hydrate/HF-download path through the shared [`UpstreamClient`].
 //! Native-only (`count-local` feature); tiktoken builtins are handled
 //! directly by [`super::count`] and never live here.
@@ -50,7 +50,7 @@ type LoadedMap = Arc<DashMap<String, Arc<Tokenizer>>>;
 
 /// Global tokenizer registry living on `AppState`.
 pub struct TokenizerRegistry {
-    /// Persisted vocab tier (file backend = raw files, db backend = BLOBs).
+    /// Persisted vocab tier (BLOBs in the native database backend).
     store: Arc<dyn TokenizerStore>,
     /// Mirrors `instance_settings.enable_tokenizer_download`.
     download_enabled: AtomicBool,

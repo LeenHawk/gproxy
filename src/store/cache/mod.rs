@@ -53,6 +53,17 @@ pub const INVALIDATE_CHANNEL: &str = "gproxy:invalidate";
 /// moves.
 pub const CONFIG_VERSION_KEY: &str = "gproxy:cfg-version";
 
+/// Announce a control-plane change to peer instances and edge isolates.
+pub async fn broadcast(cache: &dyn CacheBackend, payload: &[u8]) {
+    if cache.incr(CONFIG_VERSION_KEY, 1, None).await.is_err() {
+        tracing::warn!(
+            "config-version stamp bump failed; edge isolates may serve stale config \
+             until the next successful broadcast"
+        );
+    }
+    cache.publish(INVALIDATE_CHANNEL, payload).await;
+}
+
 /// Handler invoked for each message received on a subscribed channel.
 ///
 /// Boxed to keep [`CacheBackend`] object-safe. `Send + Sync` on native; unbounded

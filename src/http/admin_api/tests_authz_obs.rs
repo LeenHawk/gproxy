@@ -38,6 +38,56 @@ async fn usage_empty_list_ok() {
 }
 
 #[tokio::test]
+async fn observability_page_mode_returns_common_envelope() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-page", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    for (path, page, page_size) in [
+        ("/admin/usage?page=1", 1, 50),
+        ("/admin/logs?page=2&page_size=10", 2, 10),
+        ("/admin/audit?page=1&page_size=100", 1, 100),
+    ] {
+        let p = parts("GET", path, Some(&cookie), None);
+        let resp = run(&state, &p, b"").await.expect("page response");
+        let value = parse_json(&resp);
+        assert!(value["items"].as_array().unwrap().is_empty(), "{path}");
+        assert_eq!(value["pagination"]["page"], page, "{path}");
+        assert_eq!(value["pagination"]["page_size"], page_size, "{path}");
+        assert_eq!(value["pagination"]["total_items"], 0, "{path}");
+        assert_eq!(value["pagination"]["total_pages"], 0, "{path}");
+    }
+
+    let p = parts(
+        "GET",
+        "/admin/usage?page_size=not-a-number",
+        Some(&cookie),
+        None,
+    );
+    let resp = run(&state, &p, b"").await.expect("legacy response");
+    assert!(parse_json(&resp).as_array().is_some());
+}
+
+#[tokio::test]
+async fn numeric_pagination_rejects_invalid_parameters() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-page-invalid", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    for path in [
+        "/admin/usage?page=0",
+        "/admin/usage?page=1&page_size=0",
+        "/admin/logs?page=1&page_size=101",
+        "/admin/audit?page=2&before_id=10",
+        "/admin/usage?page=18446744073709551615&page_size=100",
+    ] {
+        let p = parts("GET", path, Some(&cookie), None);
+        let err = run(&state, &p, b"").await.expect_err(path);
+        assert_eq!(err.status(), http::StatusCode::BAD_REQUEST, "{path}");
+    }
+}
+
+#[tokio::test]
 async fn usage_empty_summary_ok() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-obs-summary", true).await;
@@ -79,6 +129,52 @@ async fn audit_empty_list_ok() {
     assert_eq!(resp.status, http::StatusCode::OK);
     // Body is a JSON array (empty on a fresh store).
     assert!(parse_json(&resp).as_array().is_some());
+}
+
+#[tokio::test]
+async fn audit_page_filters_items_and_total() {
+    use crate::store::persistence::records::AuditLogInput;
+
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-audit-filter", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+    let matching = state
+        .persistence
+        .append_audit_log(AuditLogInput {
+            actor_id: Some(admin_id),
+            actor_name: Some("admin-audit-filter".into()),
+            action: "PATCH".into(),
+            target: "/admin/credentials/5".into(),
+            status: 204,
+            source_ip: Some("203.0.113.9".into()),
+        })
+        .await
+        .unwrap();
+    state
+        .persistence
+        .append_audit_log(AuditLogInput {
+            actor_id: Some(admin_id),
+            actor_name: Some("admin-audit-filter".into()),
+            action: "POST".into(),
+            target: "/admin/providers".into(),
+            status: 200,
+            source_ip: Some("198.51.100.4".into()),
+        })
+        .await
+        .unwrap();
+
+    let path = format!(
+        "/admin/audit?page=1&page_size=10&at_from={0}&at_to={0}&actor_id={1}\
+         &action=AT&target=credentials&status=204&source_ip=203.0.113.9",
+        matching.at, admin_id
+    );
+    let resp = run(&state, &parts("GET", &path, Some(&cookie), None), b"")
+        .await
+        .expect("filtered audit page");
+    let value = parse_json(&resp);
+    assert_eq!(value["pagination"]["total_items"], 1);
+    assert_eq!(value["items"].as_array().unwrap().len(), 1);
+    assert_eq!(value["items"][0]["id"], matching.id);
 }
 
 // ── GET /admin/route-permissions?scope=user&scope_id=1 → 200 empty ───────────
@@ -161,10 +257,7 @@ async fn route_permissions_upsert_and_list() {
     assert_eq!(resp.status, http::StatusCode::OK);
     let list = parse_json(&resp);
     assert!(
-        list.as_array()
-            .unwrap()
-            .iter()
-            .any(|r| r["id"] == rp_id),
+        list.as_array().unwrap().iter().any(|r| r["id"] == rp_id),
         "inserted record should appear in scope list"
     );
 
@@ -196,4 +289,139 @@ async fn credential_statuses_empty_ok() {
     let resp = run(&state, &p, b"").await.expect("200");
     assert_eq!(resp.status, http::StatusCode::OK);
     assert!(parse_json(&resp).as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn credential_model_status_routes_are_separate_and_guarded() {
+    use crate::store::persistence::records::{
+        CredentialInput, CredentialModelStatusInput, CredentialStatusInput, ProviderInput,
+    };
+
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-model-status", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+    let provider = state
+        .persistence
+        .upsert_provider(ProviderInput {
+            id: None,
+            name: "model-status-provider".into(),
+            channel: "openai".into(),
+            label: None,
+            settings_json: serde_json::json!({}),
+            credential_strategy: "round-robin".into(),
+            proxy_url: None,
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    let credential = state
+        .persistence
+        .upsert_credential(CredentialInput {
+            id: None,
+            provider_id: provider.id,
+            name: Some("model-status-credential".into()),
+            kind: "api_key".into(),
+            secret_json: serde_json::json!({"api_key": "test"}),
+            weight: 1,
+            rpm_limit: None,
+            tpm_limit: None,
+            proxy_url: None,
+            tls_fingerprint: None,
+            enabled: true,
+        })
+        .await
+        .unwrap();
+    state
+        .persistence
+        .upsert_credential_status(CredentialStatusInput {
+            id: None,
+            credential_id: credential.id,
+            channel: "openai".into(),
+            health_kind: "recovered".into(),
+            health_json: None,
+            checked_at: Some(10),
+            last_error: None,
+        })
+        .await
+        .unwrap();
+    state
+        .persistence
+        .upsert_credential_model_status(CredentialModelStatusInput {
+            id: None,
+            credential_id: credential.id,
+            channel: "openai".into(),
+            model_id: "gpt-test".into(),
+            health_kind: "rate_limited".into(),
+            health_json: Some(serde_json::json!({"open_until": 20})),
+            checked_at: Some(10),
+            last_error: Some("limited".into()),
+        })
+        .await
+        .unwrap();
+
+    for path in [
+        "/admin/credential-model-statuses".to_string(),
+        format!("/admin/credentials/{}/model-statuses", credential.id),
+    ] {
+        let resp = run(&state, &parts("GET", &path, Some(&cookie), None), b"")
+            .await
+            .expect("model statuses");
+        let rows = parse_json(&resp);
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        assert_eq!(rows[0]["model_id"], "gpt-test");
+    }
+
+    for path in [
+        "/admin/credential-statuses".to_string(),
+        format!("/admin/credentials/{}/status", credential.id),
+    ] {
+        let global = run(&state, &parts("GET", &path, Some(&cookie), None), b"")
+            .await
+            .expect("global statuses");
+        let rows = parse_json(&global);
+        assert_eq!(rows.as_array().unwrap().len(), 1);
+        assert!(rows[0].get("model_id").is_none());
+    }
+
+    let error = run(
+        &state,
+        &parts("GET", "/admin/credential-model-statuses", None, None),
+        b"",
+    )
+    .await
+    .expect_err("admin guard");
+    assert_eq!(error.status(), http::StatusCode::UNAUTHORIZED);
+
+    let user_id = seed_user(&state, "model-status-user", false).await;
+    let user_cookie = cookie_for(&state, user_id).await;
+    let error = run(
+        &state,
+        &parts(
+            "GET",
+            "/admin/credential-model-statuses",
+            Some(&user_cookie),
+            None,
+        ),
+        b"",
+    )
+    .await
+    .expect_err("non-admin guard");
+    assert_eq!(error.status(), http::StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn credential_model_status_routes_advertise_read_only_methods() {
+    let (state, _dir) = state_with(vec![]).await;
+
+    for path in [
+        "/admin/credential-model-statuses",
+        "/admin/credentials/1/model-statuses",
+    ] {
+        let resp = run(&state, &parts("OPTIONS", path, None, None), b"")
+            .await
+            .expect("known route");
+        assert_eq!(resp.status, http::StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(resp.headers[http::header::ALLOW], "GET,HEAD");
+    }
 }

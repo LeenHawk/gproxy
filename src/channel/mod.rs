@@ -15,6 +15,7 @@ pub mod registry;
 pub mod resolve;
 pub mod responses_websocket;
 pub mod routes;
+pub mod settings;
 pub mod shaping;
 pub mod usage;
 
@@ -26,6 +27,7 @@ use serde_json::Value;
 
 use crate::http::client::UpstreamClient;
 
+pub use crate::http::client::ByteStreamDecoder as ChannelStreamDecoder;
 pub use disposition::Disposition;
 pub use login::{AuthCodeStart, ChannelLogin, DeviceInit, DevicePoll};
 pub use prepared::PreparedRequest;
@@ -37,20 +39,6 @@ pub use usage::{RateLimitResetCreditConsumeResponse, UsageCredits, UsageSnapshot
 pub enum TransportKind {
     Http,
     Ws,
-}
-
-/// A per-channel byte-stream decoder spliced BEFORE the M2 protocol transform.
-/// Used by envelope/binary channels (code-assist per-frame unwrap, kiro Smithy
-/// → SSE). Sync core, mirrors the protocol `SseTransformer`
-/// ([`crate::transform::stream_adapter::SseTransformer`]): `push` per upstream
-/// chunk, `finish` at EOF. The same decoder runs over wreq streams on native
-/// and Fetch `ReadableStream` chunks on edge.
-pub trait ChannelStreamDecoder: Send {
-    /// Feed one raw upstream chunk; return decoded bytes (possibly empty while a
-    /// frame is still buffering).
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8>;
-    /// Flush any trailing buffered state at end of stream.
-    fn finish(&mut self) -> Vec<u8>;
 }
 
 /// Per-call inputs the channel needs to build the upstream request.
@@ -82,19 +70,16 @@ pub struct PrepareCtx<'a> {
 /// channel to dispatch per-operation without coupling to the request/pipeline
 /// internals (v1 passed the whole request; v2 passes only this).
 #[derive(Debug, Clone, Copy)]
-pub struct ShapeCtx {
+pub struct ShapeCtx<'a> {
     /// The routed upstream (target) operation + protocol family.
     pub op: crate::protocol::OperationKey,
     /// Inbound client stream intent (response shaping only).
     pub stream: bool,
     /// Upstream status (response shaping only; `OK` for request shaping).
     pub status: StatusCode,
-    /// Provider `enable_magic_cache` setting — request shaping only; gates the
-    /// opt-in magic-string cache triggers on Claude-format bodies.
-    pub enable_magic_cache: bool,
-    /// Provider `enable_claude_fable_fallback` setting — request shaping only;
-    /// gates opt-in Claude Fable 5 -> Opus 4.8 fallback injection.
-    pub enable_claude_fable_fallback: bool,
+    /// Opaque provider settings. Channels deserialize only the settings they
+    /// own; the pipeline does not interpret channel policy.
+    pub settings: &'a Value,
 }
 
 /// Pure upstream access adapter (§6.3). Implementors provide `id`,

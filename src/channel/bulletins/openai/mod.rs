@@ -5,6 +5,7 @@ mod auth;
 use bytes::Bytes;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
+use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{self, openai_cache};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::Provider;
@@ -105,7 +106,8 @@ impl Channel for OpenAiChannel {
     }
 
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
-        let Some(kind) = ctx
+        let settings = RequestShapeSettings::from_value(ctx.settings);
+        let Some(kind) = settings
             .enable_magic_cache
             .then(|| openai_cache::kind_for_operation(ctx.op))
             .flatten()
@@ -141,6 +143,7 @@ mod tests {
     #[test]
     fn shapes_openai_magic_cache_breakpoint_when_enabled() {
         let mut headers = HeaderMap::new();
+        let settings = json!({ "enable_magic_cache": true });
         let body = Bytes::from_static(
             br#"{"model":"gpt-5.6","messages":[{"role":"system","content":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}"#,
         );
@@ -151,8 +154,7 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: true,
-            enable_claude_fable_fallback: false,
+            settings: &settings,
         };
         let shaped = OpenAiChannel.shape_request(body, &mut headers, &ctx);
         let value: Value = serde_json::from_slice(&shaped).unwrap();

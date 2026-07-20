@@ -1,7 +1,6 @@
 //! Usage ops for the libSQL edge backend (append-only, idempotent by `request_id`).
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
-use crate::store::persistence::UsageQuery;
 use crate::store::persistence::libsql::row::{
     Row, col_decimal, col_i64, col_opt_i64, col_opt_str, col_str,
 };
@@ -9,6 +8,7 @@ use crate::store::persistence::libsql::util::{
     arg_opt_i64, arg_opt_text, last_rowid, now_secs, query as run_query, query_one,
 };
 use crate::store::persistence::records::{Usage, UsageInput, UsageSummary};
+use crate::store::persistence::{PageQuery, PageResult, UsageQuery};
 use serde_json::Value;
 
 const COLS: &str = "id, request_id, at, route_name, provider_id, credential_id, org_id, team_id, \
@@ -128,8 +128,47 @@ pub async fn list(client: &LibsqlClient, limit: u64) -> anyhow::Result<Vec<Usage
 /// Filtered + keyset-paginated usage rows (B4). Builds a dynamic WHERE with
 /// bound args (only the supplied filters become predicates), ordered `id` DESC.
 pub async fn query(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
-    let mut sql = format!("SELECT {COLS} FROM usages WHERE 1=1");
-    let mut args: Vec<Value> = Vec::new();
+    let (where_sql, mut args) = filters(q, true);
+    let mut sql = format!("SELECT {COLS} FROM usages{where_sql}");
+    sql.push_str(" ORDER BY id DESC LIMIT ?");
+    args.push(arg_integer(q.limit as i64));
+
+    run_query(client, &sql, &args)
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
+pub async fn query_page(
+    client: &LibsqlClient,
+    q: &UsageQuery,
+    page: &PageQuery,
+) -> anyhow::Result<PageResult<Usage>> {
+    let (where_sql, mut args) = filters(q, false);
+    let count = query_one(
+        client,
+        &format!("SELECT COUNT(*) FROM usages{where_sql}"),
+        &args,
+    )
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("usage count query returned no row"))?;
+    let total = u64::try_from(col_i64(&count, 0)?)?;
+
+    let sql = format!("SELECT {COLS} FROM usages{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?");
+    args.push(arg_integer(i64::try_from(page.limit)?));
+    args.push(arg_integer(i64::try_from(page.offset)?));
+    let items = run_query(client, &sql, &args)
+        .await?
+        .iter()
+        .map(decode)
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(PageResult { items, total })
+}
+
+fn filters(q: &UsageQuery, include_cursor: bool) -> (String, Vec<Value>) {
+    let mut sql = String::from(" WHERE 1=1");
+    let mut args = Vec::new();
     if let Some(v) = q.at_from {
         sql.push_str(" AND at >= ?");
         args.push(arg_integer(v));
@@ -154,18 +193,30 @@ pub async fn query(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<Vec<
         sql.push_str(" AND model = ?");
         args.push(arg_opt_text(Some(v.as_str())));
     }
-    if let Some(v) = q.before_id {
+    if include_cursor && let Some(v) = q.before_id {
         sql.push_str(" AND id < ?");
         args.push(arg_integer(v));
     }
-    sql.push_str(" ORDER BY id DESC LIMIT ?");
-    args.push(arg_integer(q.limit as i64));
+    (sql, args)
+}
 
-    run_query(client, &sql, &args)
-        .await?
-        .iter()
-        .map(decode)
-        .collect()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_filters_exclude_cursor_but_keep_dimensions() {
+        let q = UsageQuery {
+            user_id: Some(7),
+            model: Some("m".into()),
+            before_id: Some(9),
+            ..Default::default()
+        };
+        let (page_sql, page_args) = filters(&q, false);
+        assert_eq!(page_sql, " WHERE 1=1 AND user_id = ? AND model = ?");
+        assert_eq!(page_args.len(), 2);
+        assert!(filters(&q, true).0.ends_with(" AND id < ?"));
+    }
 }
 
 /// Backend-side full-result aggregate for the edge usage explorer. Pagination

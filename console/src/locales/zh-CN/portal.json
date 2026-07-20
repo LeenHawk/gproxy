@@ -33,7 +33,6 @@
     "tokens": "Token 数",
     "cost": "费用",
     "latency": "延迟",
-    "loadMore": "加载更多",
     "route": "路由",
     "clearFilters": "清除筛选",
     "preset": {

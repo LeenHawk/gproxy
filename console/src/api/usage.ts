@@ -1,4 +1,5 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions } from "@tanstack/react-query";
+import { PAGE_SIZE, type PageResult } from "./pagination";
 import { api } from "./http";
 
 export interface Usage {
@@ -103,6 +104,12 @@ export interface CredentialStatus {
   health_json: { state?: string; open_until?: number; reason?: string } | null;
   checked_at: number | null;
   last_error: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CredentialModelStatus extends CredentialStatus {
+  model_id: string;
 }
 
 export interface UsageFilter {
@@ -116,7 +123,17 @@ export interface UsageFilter {
   limit?: number;
 }
 
-function usageQs(f: UsageFilter): string {
+export interface AuditFilter {
+  at_from?: number;
+  at_to?: number;
+  actor_id?: number;
+  action?: string;
+  target?: string;
+  status?: number;
+  source_ip?: string;
+}
+
+function usageQs(f: UsageFilter, page?: number): string {
   const p = new URLSearchParams();
   if (f.limit != null) p.set("limit", String(f.limit));
   if (f.before_id != null) p.set("before_id", String(f.before_id));
@@ -126,14 +143,39 @@ function usageQs(f: UsageFilter): string {
   if (f.user_id != null) p.set("user_id", String(f.user_id));
   if (f.route_name) p.set("route_name", f.route_name);
   if (f.model) p.set("model", f.model);
+  if (page != null) {
+    p.set("page", String(page));
+    p.set("page_size", String(PAGE_SIZE));
+  }
   const s = p.toString();
   return s ? `?${s}` : "";
+}
+
+function auditQs(f: AuditFilter, page: number): string {
+  const p = new URLSearchParams();
+  if (f.at_from != null) p.set("at_from", String(f.at_from));
+  if (f.at_to != null) p.set("at_to", String(f.at_to));
+  if (f.actor_id != null) p.set("actor_id", String(f.actor_id));
+  if (f.action) p.set("action", f.action);
+  if (f.target) p.set("target", f.target);
+  if (f.status != null) p.set("status", String(f.status));
+  if (f.source_ip) p.set("source_ip", f.source_ip);
+  p.set("page", String(page));
+  p.set("page_size", String(PAGE_SIZE));
+  return `?${p.toString()}`;
 }
 
 export const usageQuery = (f: UsageFilter) =>
   queryOptions({
     queryKey: ["usage", f],
     queryFn: () => api<Usage[]>(`/admin/usage${usageQs(f)}`),
+  });
+
+export const usagePageQuery = (f: Omit<UsageFilter, "before_id" | "limit">, page: number) =>
+  queryOptions({
+    queryKey: ["usage", "page", f, page],
+    queryFn: () => api<PageResult<Usage>>(`/admin/usage${usageQs(f, page)}`),
+    placeholderData: keepPreviousData,
   });
 
 export const usageSummaryQuery = (
@@ -145,32 +187,14 @@ export const usageSummaryQuery = (
       api<UsageSummary>(`/admin/usage-summary${usageQs(f)}`),
   });
 
-export const PAGE = 50;
-
-// Infinite (keyset) variant for the usage explorer.
-// Each page is Usage[] DESC by id; cursor = last row id; undefined when page underfills.
-export const usageInfiniteQuery = (f: Omit<UsageFilter, "before_id" | "limit">) =>
-  infiniteQueryOptions({
-    queryKey: ["usage", "infinite", f],
-    queryFn: ({ pageParam }) =>
-      api<Usage[]>(`/admin/usage${usageQs({ ...f, before_id: pageParam ?? undefined, limit: PAGE })}`),
-    initialPageParam: undefined as number | undefined,
-    getNextPageParam: (last: Usage[]) =>
-      last.length >= PAGE ? last[last.length - 1].id : undefined,
-  });
-
-/** Filtered downstream request logs (id desc, keyset-paginated). */
-export const logsInfiniteQuery = (f: Omit<UsageFilter, "before_id" | "limit" | "model">) =>
-  infiniteQueryOptions({
-    queryKey: ["logs", "infinite", f],
-    queryFn: ({ pageParam }) =>
-      api<DownstreamRequest[]>(
-        `/admin/logs${usageQs({ ...f, before_id: pageParam ?? undefined, limit: PAGE })}`,
-      ),
-    initialPageParam: undefined as number | undefined,
-    getNextPageParam: (last: DownstreamRequest[]) =>
-      last.length >= PAGE ? last[last.length - 1].id : undefined,
-  });
+export const logsPageQuery = (
+  f: Omit<UsageFilter, "before_id" | "limit" | "model">,
+  page: number,
+) => queryOptions({
+  queryKey: ["logs", "page", f, page],
+  queryFn: () => api<PageResult<DownstreamRequest>>(`/admin/logs${usageQs(f, page)}`),
+  placeholderData: keepPreviousData,
+});
 
 export const rollupsQuery = (granularity: string, from: number, to: number) =>
   queryOptions({
@@ -193,14 +217,21 @@ export const upstreamLogsQuery = (rid: string) =>
     queryFn: () => api<UpstreamRequest[]>(`/admin/logs/${rid}/upstream`),
   });
 
-export const auditQuery = (limit = 100) =>
+export const auditPageQuery = (f: AuditFilter, page: number) =>
   queryOptions({
-    queryKey: ["audit", limit],
-    queryFn: () => api<AuditLog[]>(`/admin/audit?limit=${limit}`),
+    queryKey: ["audit", "page", f, page],
+    queryFn: () => api<PageResult<AuditLog>>(`/admin/audit${auditQs(f, page)}`),
+    placeholderData: keepPreviousData,
   });
 
 export const credentialStatusesQuery = queryOptions({
   queryKey: ["credential-statuses"],
   queryFn: () => api<CredentialStatus[]>("/admin/credential-statuses"),
+  staleTime: 30_000,
+});
+
+export const credentialModelStatusesQuery = queryOptions({
+  queryKey: ["credential-model-statuses"],
+  queryFn: () => api<CredentialModelStatus[]>("/admin/credential-model-statuses"),
   staleTime: 30_000,
 });

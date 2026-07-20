@@ -1,8 +1,8 @@
 //! Trait-method implementations for the `db` backend (SeaORM ↔ records).
 //!
 //! Config-entity `upsert`s insert WITH an explicit id when a `Some(id)` row is
-//! missing (seeding an empty store from a pinned import bundle — matches the
-//! file backend). Caveat: on Postgres an explicit-PK insert does NOT advance
+//! missing when seeding an empty store from a pinned import bundle. Caveat: on
+//! Postgres an explicit-PK insert does NOT advance
 //! the identity sequence, so a LATER auto-id insert (admin API, M10) could
 //! collide. Import seeding is collision-free (a fully-pinned bundle into an
 //! EMPTY store → every insert is explicit); post-seed sequence sync on Postgres

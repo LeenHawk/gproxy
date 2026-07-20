@@ -110,5 +110,11 @@
     "deleteConfirm": "Delete {{count}} selected item(s)? This cannot be undone.",
     "done": "{{count}} item(s) processed",
     "partial": "{{ok}} succeeded, {{fail}} failed"
+  },
+  "pagination": {
+    "label": "Pagination",
+    "previous": "Previous page",
+    "next": "Next page",
+    "page": "Go to page {{page}}"
   }
 }

@@ -6,6 +6,7 @@ use crate::store::persistence::libsql::util::{
     arg_opt_i64, arg_opt_text, last_rowid, now_secs, query, query_one,
 };
 use crate::store::persistence::records::{AuditLog, AuditLogInput};
+use crate::store::persistence::{AuditLogQuery, PageQuery, PageResult};
 
 const COLS: &str = "id, at, actor_id, actor_name, action, target, status, source_ip, created_at";
 
@@ -66,4 +67,63 @@ pub async fn list(client: &LibsqlClient, limit: u64) -> anyhow::Result<Vec<Audit
     .iter()
     .map(decode)
     .collect()
+}
+
+pub async fn query_page(
+    client: &LibsqlClient,
+    q: &AuditLogQuery,
+    page: &PageQuery,
+) -> anyhow::Result<PageResult<AuditLog>> {
+    let (where_sql, mut args) = filters(q);
+    let count = query_one(
+        client,
+        &format!("SELECT COUNT(*) FROM audit_logs{where_sql}"),
+        &args,
+    )
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("audit log count query returned no row"))?;
+    let total = u64::try_from(col_i64(&count, 0)?)?;
+    let sql = format!("SELECT {COLS} FROM audit_logs{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?");
+    args.push(arg_integer(i64::try_from(page.limit)?));
+    args.push(arg_integer(i64::try_from(page.offset)?));
+    let items = query(client, &sql, &args)
+        .await?
+        .iter()
+        .map(decode)
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(PageResult { items, total })
+}
+
+fn filters(q: &AuditLogQuery) -> (String, Vec<serde_json::Value>) {
+    let mut sql = String::from(" WHERE 1=1");
+    let mut args = Vec::new();
+    if let Some(v) = q.at_from {
+        sql.push_str(" AND at >= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.at_to {
+        sql.push_str(" AND at <= ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.actor_id {
+        sql.push_str(" AND actor_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(ref v) = q.action {
+        sql.push_str(" AND action LIKE ?");
+        args.push(arg_text(&format!("%{v}%")));
+    }
+    if let Some(ref v) = q.target {
+        sql.push_str(" AND target LIKE ?");
+        args.push(arg_text(&format!("%{v}%")));
+    }
+    if let Some(v) = q.status {
+        sql.push_str(" AND status = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(ref v) = q.source_ip {
+        sql.push_str(" AND source_ip = ?");
+        args.push(arg_text(v));
+    }
+    (sql, args)
 }

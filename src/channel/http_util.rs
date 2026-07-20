@@ -77,23 +77,6 @@ pub fn allow_query(query: Option<&str>, allowed: &[&str]) -> Option<String> {
     }
 }
 
-/// Drop hop-by-hop headers — the fixed set plus any header a `Connection:`
-/// value nominates — from an upstream response before relaying to the client
-/// (egress). Keeps everything else (content-type, rate-limit headers, etc.) —
-/// an allow-list here would discard useful provider headers.
-pub fn sanitize_response_headers(src: &HeaderMap) -> HeaderMap {
-    let nominated = connection_nominated(src);
-    let mut out = HeaderMap::with_capacity(src.len());
-    for (name, value) in src.iter() {
-        let n = name.as_str();
-        if HOP_BY_HOP.contains(&n) || nominated.iter().any(|t| t == n) {
-            continue;
-        }
-        out.append(name.clone(), value.clone());
-    }
-    out
-}
-
 /// Compose an ABSOLUTE upstream URI from `base_url` + provider-relative `path`
 /// (+ optional `query`). Trims one trailing `/` off the base. Errors if the
 /// result is not absolute (missing scheme/authority).
@@ -261,23 +244,5 @@ mod tests {
         );
         assert_eq!(allow_query(Some("key=secret"), &["alt"]), None);
         assert_eq!(allow_query(None, &["alt"]), None);
-    }
-
-    /// Regression: only the fixed HOP_BY_HOP list was stripped — a header
-    /// nominated via `Connection: <token>` (RFC 7230 §6.1) leaked through.
-    #[test]
-    fn sanitize_strips_connection_nominated_headers() {
-        let mut h = HeaderMap::new();
-        h.insert(
-            http::header::CONNECTION,
-            "keep-alive, X-Strip-Me".parse().unwrap(),
-        );
-        h.insert("x-strip-me", "v".parse().unwrap());
-        h.insert("x-ratelimit-remaining", "9".parse().unwrap());
-
-        let out = sanitize_response_headers(&h);
-        assert!(out.get(http::header::CONNECTION).is_none());
-        assert!(out.get("x-strip-me").is_none(), "nominated token kept");
-        assert_eq!(out.get("x-ratelimit-remaining").unwrap(), "9");
     }
 }

@@ -370,8 +370,7 @@ mod tests {
             ),
             stream: false,
             status: http::StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: false,
+            settings: &Value::Null,
         };
         let mut headers = HeaderMap::new();
         let body = Bytes::from(
@@ -398,8 +397,7 @@ mod tests {
             ),
             stream: false,
             status: http::StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: false,
+            settings: &Value::Null,
         };
         // Code Assist envelope wrapping a Vertex-shaped citation block.
         let body = Bytes::from(

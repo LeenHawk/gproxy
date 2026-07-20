@@ -1,32 +1,30 @@
-//! `edge_crud!` macro + standard CRUD entities for the edge admin dispatcher.
+//! Standard shared admin CRUD entities.
 //!
-//! Mirrors the semantics of the native `crud_entity!` macro (in
-//! `server/admin/crud/entities.rs`) but targets the cross-target [`Resp`] /
-//! [`ApiError`] API instead of axum extractors.
+//! The macro targets the cross-target [`Resp`] / [`ApiError`] API rather than
+//! framework extractors.
 //!
-//! Entities covered here: orgs, providers, routes, aliases, rule-sets.
+//! Entities covered here: orgs, providers, routes, aliases, price-rules, rule-sets.
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 
 use crate::admin::guard::guard_admin;
 use crate::admin::invalidate;
 use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::store::persistence::records::{
-    Alias, AliasInput, Org, OrgInput, Provider, ProviderInput, Route, RouteInput, RuleSet,
-    RuleSetInput,
+    Alias, AliasInput, Org, OrgInput, PriceRule, PriceRuleInput, Provider, ProviderInput, Route,
+    RouteInput, RuleSet, RuleSetInput,
 };
 
-use super::{Resp, internal, json_body, parse_i64, segments};
+use super::{Request, Resp, internal, json_body, parse_i64, segments};
 
 /// `POST /admin/providers` — create/update a provider; on create, seed the
 /// channel's default routing rules. Channel is immutable after creation.
-/// Resolved by the edge dispatcher before the generic providers CRUD.
+/// Resolved before the generic providers CRUD.
 pub(super) async fn create_provider_seeded(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -67,7 +65,7 @@ pub(super) async fn create_provider_seeded(
 /// default routing rules and return the resulting set.
 pub(super) async fn reset_routing(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     pid: &str,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -116,7 +114,7 @@ macro_rules! edge_crud {
     ) => {
         async fn $fn_name(
             state: &AppState,
-            parts: &Parts,
+            parts: &Request,
             body: &Bytes,
         ) -> Option<Result<Resp, ApiError>> {
             let segs = segments(parts);
@@ -198,7 +196,7 @@ macro_rules! edge_crud {
     ) => {
         async fn $fn_name(
             state: &AppState,
-            parts: &Parts,
+            parts: &Request,
             body: &Bytes,
         ) -> Option<Result<Resp, ApiError>> {
             let segs = segments(parts);
@@ -315,6 +313,17 @@ edge_crud!(
 );
 
 edge_crud!(
+    fn   dispatch_price_rules,
+    seg  "price-rules",
+    rec  PriceRule,
+    inp  PriceRuleInput,
+    list list_price_rules,
+    get  find,
+    ups  upsert_price_rule,
+    del  delete_price_rule,
+);
+
+edge_crud!(
     fn   dispatch_rule_sets,
     seg  "rule-sets",
     rec  RuleSet,
@@ -330,7 +339,7 @@ edge_crud!(
 /// Try each standard CRUD entity in order; return the first `Some`.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     if let Some(r) = dispatch_orgs(state, parts, body).await {
@@ -343,6 +352,9 @@ pub(super) async fn dispatch(
         return Some(r);
     }
     if let Some(r) = dispatch_aliases(state, parts, body).await {
+        return Some(r);
+    }
+    if let Some(r) = dispatch_price_rules(state, parts, body).await {
         return Some(r);
     }
     dispatch_rule_sets(state, parts, body).await

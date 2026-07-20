@@ -23,8 +23,9 @@ pub use identity::{Org, OrgInput, Team, TeamInput, User, UserInput, UserKey, Use
 pub use logs::{DownstreamRequest, DownstreamRequestInput, UpstreamRequest, UpstreamRequestInput};
 pub use pricing::{PriceRule, PriceRuleInput};
 pub use provider::{
-    Credential, CredentialInput, CredentialStatus, CredentialStatusInput, Provider, ProviderInput,
-    ProviderModel, ProviderModelInput,
+    Credential, CredentialInput, CredentialModelStatus, CredentialModelStatusInput,
+    CredentialStatus, CredentialStatusInput, Provider, ProviderInput, ProviderModel,
+    ProviderModelInput,
 };
 pub use routing::{Alias, AliasInput, Route, RouteInput, RouteMember, RouteMemberInput};
 pub use settings::{InstanceSettings, InstanceSettingsInput};

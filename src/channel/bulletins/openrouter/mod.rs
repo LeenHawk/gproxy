@@ -6,6 +6,7 @@ mod shape;
 use bytes::Bytes;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
+use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
     self, claude_cache_control, claude_fallback, claude_magic_cache, openai_cache,
 };
@@ -103,8 +104,9 @@ impl Channel for OpenRouterChannel {
 
     /// Opt-in magic-string cache triggers for native Claude and OpenAI bodies.
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
-            if !ctx.enable_magic_cache {
+            if !settings.enable_magic_cache {
                 return body;
             }
             return shaping::with_json_body(body, |value| {
@@ -112,16 +114,16 @@ impl Channel for OpenRouterChannel {
             });
         }
         if !is_claude_messages(ctx.op)
-            || (!ctx.enable_magic_cache && !ctx.enable_claude_fable_fallback)
+            || (!settings.enable_magic_cache && !settings.enable_claude_fable_fallback)
         {
             return body;
         }
         shaping::with_json_body(body, |v| {
-            if ctx.enable_magic_cache {
+            if settings.enable_magic_cache {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
                 claude_cache_control::sanitize_claude_body(v);
             }
-            if ctx.enable_claude_fable_fallback && v.get("models").is_none() {
+            if settings.enable_claude_fable_fallback && v.get("models").is_none() {
                 claude_fallback::apply_fable_to_opus48_body_only(v);
             }
         })
@@ -150,7 +152,7 @@ mod tests {
 
     use crate::protocol::{Operation, OperationKey};
 
-    fn fallback_ctx() -> ShapeCtx {
+    fn fallback_ctx(settings: &Value) -> ShapeCtx<'_> {
         ShapeCtx {
             op: OperationKey::content_generation(
                 Operation::GenerateContent,
@@ -158,12 +160,11 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: true,
+            settings,
         }
     }
 
-    fn openai_magic_ctx() -> ShapeCtx {
+    fn openai_magic_ctx(settings: &Value) -> ShapeCtx<'_> {
         ShapeCtx {
             op: OperationKey::content_generation(
                 Operation::GenerateContent,
@@ -171,18 +172,19 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: true,
-            enable_claude_fable_fallback: false,
+            settings,
         }
     }
 
     #[test]
     fn shapes_openai_magic_cache_breakpoint() {
         let mut headers = HeaderMap::new();
+        let settings = json!({ "enable_magic_cache": true });
         let body = Bytes::from_static(
             br#"{"model":"openai/gpt-5.6","input":[{"role":"user","content":[{"type":"input_text","text":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}]}"#,
         );
-        let shaped = OpenRouterChannel.shape_request(body, &mut headers, &openai_magic_ctx());
+        let shaped =
+            OpenRouterChannel.shape_request(body, &mut headers, &openai_magic_ctx(&settings));
         let value: Value = serde_json::from_slice(&shaped).unwrap();
         assert_eq!(
             value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
@@ -193,9 +195,11 @@ mod tests {
     #[test]
     fn injects_openrouter_fable_fallback_without_anthropic_beta() {
         let mut headers = HeaderMap::new();
+        let shape_settings = json!({ "enable_claude_fable_fallback": true });
         let body =
             Bytes::from(r#"{"model":"anthropic/claude-fable-5","messages":[],"max_tokens":32}"#);
-        let shaped = OpenRouterChannel.shape_request(body, &mut headers, &fallback_ctx());
+        let shaped =
+            OpenRouterChannel.shape_request(body, &mut headers, &fallback_ctx(&shape_settings));
 
         let v: Value = serde_json::from_slice(&shaped).unwrap();
         assert_eq!(
@@ -225,10 +229,11 @@ mod tests {
     #[test]
     fn does_not_combine_fallbacks_with_openrouter_models() {
         let mut headers = HeaderMap::new();
+        let settings = json!({ "enable_claude_fable_fallback": true });
         let body = Bytes::from(
             r#"{"model":"anthropic/claude-fable-5","models":["anthropic/claude-fable-5","anthropic/claude-opus-4-8"],"messages":[],"max_tokens":32}"#,
         );
-        let shaped = OpenRouterChannel.shape_request(body, &mut headers, &fallback_ctx());
+        let shaped = OpenRouterChannel.shape_request(body, &mut headers, &fallback_ctx(&settings));
 
         let v: Value = serde_json::from_slice(&shaped).unwrap();
         assert!(v.get("fallbacks").is_none());

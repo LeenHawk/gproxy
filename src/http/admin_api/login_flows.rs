@@ -1,20 +1,17 @@
-//! Edge-safe login-flow dispatcher (`/admin/login-flows/*`).
+//! Shared login-flow dispatcher (`/admin/login-flows/*`).
 //!
-//! Replicates the native `src/http/server/admin/login.rs` handler logic,
-//! calling the same cross-target `crate::admin::login` cache state-machine and
+//! Calls the cross-target `crate::admin::login` cache state-machine and
 //! the same `ChannelLogin` trait methods through a provider/default resolved
-//! upstream client (FetchClient on edge). All four authcode/device flows are edge-safe. The cookie-login
-//! endpoint requires the native `upstream-wreq` browser-TLS client and is
-//! degraded to 501 on edge.
-//!
-//! Also serves the explicit 501 degradation arms for self-update endpoints.
+//! upstream client (FetchClient on edge). Authcode/device flows are edge-safe;
+//! cookie login uses the native browser-TLS client and returns 501 on edge.
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 
 use crate::admin::{guard::guard_admin, invalidate, login};
 use crate::api::error::ApiError;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::api::login::CookieLoginRequest;
 use crate::api::login::{
     DevicePollRequest, DeviceStartRequest, DeviceStartResponse, LoginCompleteRequest,
     LoginStartRequest, LoginStartResponse,
@@ -24,20 +21,19 @@ use crate::channel::DevicePoll;
 use crate::channel::oauth;
 use crate::store::persistence::records::CredentialInput;
 
-use super::{Resp, json_body, segments};
+use super::{Request, Resp, json_body, segments};
 
-/// Dispatch `/admin/login-flows/*` and the explicit 501 degradation arms for
-/// `/admin/update/*`.
+/// Dispatch `/admin/login-flows/*`.
 ///
 /// Returns `Some(result)` when the path is handled here; `None` to fall through.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
     match (&parts.method, segs.as_slice()) {
-        // ── edge-safe login-flows (guard_admin: native in protected router) ──
+        // Authcode and device flows are available on both targets.
         (&Method::POST, ["admin", "login-flows", "start"]) => Some(start(state, parts, body).await),
         (&Method::POST, ["admin", "login-flows", "complete"]) => {
             Some(complete(state, parts, body).await)
@@ -49,17 +45,9 @@ pub(super) async fn dispatch(
             Some(device_poll(state, parts, body).await)
         }
 
-        // ── 501 degradations ─────────────────────────────────────────────────
-
-        // cookie-login uses WreqClient::browser() (native upstream-wreq only).
-        (&Method::POST, ["admin", "login-flows", "cookie"]) => Some(Err(ApiError::NotImplemented(
-            "cookie login requires the native browser-TLS build; unavailable on edge".to_string(),
-        ))),
-
-        // self-update endpoints (selfupdate module, native-only).
-        (_, ["admin", "update", "check" | "status" | "apply"]) => Some(Err(
-            ApiError::NotImplemented("self-update is unavailable on edge".to_string()),
-        )),
+        (&Method::POST, ["admin", "login-flows", "cookie"]) => {
+            Some(cookie(state, parts, body).await)
+        }
 
         _ => None,
     }
@@ -70,7 +58,7 @@ pub(super) async fn dispatch(
 /// `POST /admin/login-flows/start`. Resolves the channel's authcode login,
 /// mints PKCE + CSRF state, stashes them in the cache, and returns the
 /// authorize URL the admin sends the user to.
-async fn start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn start(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let req: LoginStartRequest = json_body(body)?;
 
@@ -121,7 +109,7 @@ async fn start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, Ap
 /// `POST /admin/login-flows/complete`. Consumes the pending login, verifies the
 /// CSRF state, exchanges the callback code for a secret, and persists it as a
 /// sealed credential under `provider_id`.
-async fn complete(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let req: LoginCompleteRequest = json_body(body)?;
 
@@ -172,7 +160,8 @@ async fn complete(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp,
         .map_err(|_| bad())?;
 
     let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-    let cred = seal_create(state, provider_id, req.name, sealed)
+    let name = req.name.or_else(|| label_from_secret(&secret));
+    let cred = seal_create(state, provider_id, name, sealed)
         .await
         .map_err(|_| bad())?;
     Resp::json(200, &cred)
@@ -181,7 +170,7 @@ async fn complete(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp,
 /// `POST /admin/login-flows/device/start`. Asks the channel's device flow for a
 /// code, stashes the device_code server-side, and returns the user-facing code
 /// + verification URL the operator visits.
-async fn device_start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn device_start(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let req: DeviceStartRequest = json_body(body)?;
 
@@ -222,7 +211,7 @@ async fn device_start(state: &AppState, parts: &Parts, body: &Bytes) -> Result<R
 /// `POST /admin/login-flows/device/poll`. Polls the provider once with the
 /// stashed device_code: `pending` keeps the session; `ready` seals + creates
 /// the credential and clears the session; `denied`/error clears + 400s.
-async fn device_poll(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let req: DevicePollRequest = json_body(body)?;
 
@@ -243,7 +232,8 @@ async fn device_poll(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Re
         Ok(DevicePoll::Ready(secret)) => {
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
             let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-            let cred = seal_create(state, session.provider_id, session.name, sealed)
+            let name = session.name.or_else(|| label_from_secret(&secret));
+            let cred = seal_create(state, session.provider_id, name, sealed)
                 .await
                 .map_err(|_| bad())?;
             Resp::json(
@@ -264,6 +254,61 @@ fn authcode_provider_id(start_provider_id: Option<i64>, complete_provider_id: i6
         Some(_) => None,
         None => Some(complete_provider_id),
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    let req: CookieLoginRequest = json_body(body)?;
+    let request_channel = state
+        .channels
+        .get(&req.channel)
+        .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
+    let channel = state
+        .channels
+        .login_for(&req.channel)
+        .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
+    let cookie_client = state
+        .upstream_client_for_cookie_login(&request_channel, req.provider_id)
+        .map_err(|_| ApiError::BadRequest("cookie login client init failed".into()))?;
+    let secret = channel
+        .cookie_exchange(&cookie_client, &req.cookie)
+        .await
+        .map_err(|error| {
+            tracing::warn!(channel = %req.channel, %error, "cookie login exchange failed");
+            ApiError::BadRequest("cookie login failed".into())
+        })?;
+    let sealed = state
+        .cipher
+        .seal(&secret)
+        .map_err(|_| ApiError::BadRequest("cookie login failed".into()))?;
+    let name = req.name.or_else(|| label_from_secret(&secret));
+    let credential = seal_create(state, req.provider_id, name, sealed).await?;
+    Resp::json(200, &credential)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn cookie(_state: &AppState, _parts: &Request, _body: &Bytes) -> Result<Resp, ApiError> {
+    Err(ApiError::NotImplemented(
+        "cookie login requires the native browser-TLS build; unavailable on edge".into(),
+    ))
+}
+
+fn label_from_secret(secret: &serde_json::Value) -> Option<String> {
+    let email = secret
+        .get("user_email")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())?;
+    let tier = secret
+        .get("rate_limit_tier")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    Some(match tier {
+        Some(tier) => format!("{email} {tier}"),
+        None => email.to_string(),
+    })
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────

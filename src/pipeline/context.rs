@@ -7,7 +7,6 @@ use bytes::Bytes;
 use http::{HeaderMap, Method};
 
 use crate::app::snapshot::KeyIdentity;
-use crate::health::config::BreakerConfig;
 use crate::protocol::OperationKey;
 use crate::store::persistence::records::{Credential, Provider};
 
@@ -51,10 +50,6 @@ pub struct Candidate {
     /// Route member behind this attempt; `None` in scoped mode (no member —
     /// the member breaker is skipped).
     pub member_id: Option<i64>,
-    /// Effective breaker thresholds for this attempt's MEMBER breaker — the
-    /// route's `circuit_breaker` override merged over the provider's (§3.2).
-    /// Scoped mode (no route) carries the plain provider config.
-    pub breaker_cfg: BreakerConfig,
 }
 
 /// Output of [`classify`](crate::pipeline::classify::classify).

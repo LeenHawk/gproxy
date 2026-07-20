@@ -76,8 +76,9 @@ The script:
 2. Runs `wasm-bindgen --target deno --out-dir pkg`.
 3. Verifies that the generated glue exposes `gproxyFetch`; the distinct export
    name leaves Deno's global `fetch` available to the wasm loader.
-4. Creates `/tmp/gproxy-deno-upload` with root `main.ts` and `pkg/`.
-5. Deploys that compact upload root to `leenhawk20/gproxy-deno`.
+4. Stages the shared edge environment/init adapter as root `_shared.js`.
+5. Creates `/tmp/gproxy-deno-upload` with root `main.ts`, `_shared.js`, and `pkg/`.
+6. Deploys that compact upload root to `leenhawk20/gproxy-deno`.
 
 The compact upload root matters because the new Deno Deploy app stores build
 configuration. The verified shape has root `main.ts` importing `./pkg/gproxy.js`;

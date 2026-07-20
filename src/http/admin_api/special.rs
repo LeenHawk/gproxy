@@ -19,13 +19,11 @@
 //!   the edit form.
 //!   Reads and writes are scoped to a `provider_id` path parameter.
 //!
-//! Security contract: this file MUST replicate the native handlers
-//! (`src/http/server/admin/crud/{user_keys,users,credentials}.rs`) exactly.
-//! Any divergence in seal / hash / redact / ownership logic is a security bug.
+//! Security contract: seal / hash / redact / ownership logic lives only here;
+//! adapters must never duplicate it.
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 
 use crate::admin::credential_upsert::{CredentialUpsertPlan, plan_credential_upsert};
 use crate::admin::guard::guard_admin;
@@ -38,7 +36,7 @@ use crate::app::AppState;
 use crate::pipeline::auth::key_digest;
 use crate::store::persistence::records::{UserInput, UserKeyInput};
 
-use super::{Resp, internal, json_body, parse_i64, segments};
+use super::{Request, Resp, internal, json_body, parse_i64, segments};
 
 // ── user-keys ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +46,7 @@ use super::{Resp, internal, json_body, parse_i64, segments};
 /// Returns `Some(result)` on a path match, `None` to fall through.
 pub(super) async fn dispatch_user_keys(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -177,7 +175,7 @@ pub(super) async fn dispatch_user_keys(
 /// Returns `Some(result)` on a path match, `None` to fall through.
 pub(super) async fn dispatch_users(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -282,7 +280,7 @@ pub(super) async fn dispatch_users(
 /// Returns `Some(result)` on a path match, `None` to fall through.
 pub(super) async fn dispatch_credentials(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -418,7 +416,7 @@ pub(super) async fn dispatch_credentials(
 /// so the nested `users/{uid}/keys` arm is not confused with the 3-seg `users/{id}`.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     // user-keys first: the 4-seg arm `users/{uid}/keys` must be tested before

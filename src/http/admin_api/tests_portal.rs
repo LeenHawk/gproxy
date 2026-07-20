@@ -1,4 +1,4 @@
-// Integration tests for the portal /user/* edge dispatcher (B6.3 Task 3).
+// Integration tests for the shared portal /user/* dispatcher.
 //
 // Uses the SAME harness (state_with, seed_user, cookie_for, parts, run, parse_json)
 // from tests.rs. All tests use non-admin sessions except where noted.
@@ -150,6 +150,54 @@ async fn portal_usage_user_id_param_is_ignored() {
         v.as_array().unwrap().is_empty(),
         "session user has no usage; other user's data must not bleed through"
     );
+}
+
+#[tokio::test]
+async fn portal_usage_page_items_and_total_are_session_scoped() {
+    let (state, _dir) = state_with(vec![]).await;
+    let uid = seed_user(&state, "pu-page-user", false).await;
+    let other_id = seed_user(&state, "pu-page-other", false).await;
+    let cookie = cookie_for(&state, uid).await;
+
+    for (request_id, user_id) in [("mine-1", uid), ("other", other_id), ("mine-2", uid)] {
+        state
+            .persistence
+            .append_usage(crate::store::persistence::records::UsageInput {
+                request_id: request_id.into(),
+                at: 100,
+                route_name: Some("portal".into()),
+                provider_id: None,
+                credential_id: None,
+                org_id: None,
+                team_id: None,
+                user_id: Some(user_id),
+                user_key_id: None,
+                operation: "chat".into(),
+                kind: "openai".into(),
+                model: None,
+                input_tokens: 0,
+                output_tokens: 0,
+                cache_read_tokens: 0,
+                cache_creation_5m_tokens: 0,
+                cache_creation_30m_tokens: 0,
+                cache_creation_1h_tokens: 0,
+                cost: rust_decimal::Decimal::ZERO,
+                latency_ms: 0,
+                usage_source: "counted".into(),
+                ended: "complete".into(),
+            })
+            .await
+            .unwrap();
+    }
+
+    let path = format!("/user/usage?page=1&page_size=1&user_id={other_id}");
+    let p = parts("GET", &path, Some(&cookie), None);
+    let resp = run(&state, &p, b"").await.expect("page");
+    let value = parse_json(&resp);
+    assert_eq!(value["pagination"]["total_items"], 2);
+    assert_eq!(value["pagination"]["total_pages"], 2);
+    assert_eq!(value["items"].as_array().unwrap().len(), 1);
+    assert_eq!(value["items"][0]["user_id"], uid);
 }
 
 /// No cookie → 401 on `/user/usage`.

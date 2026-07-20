@@ -4,14 +4,13 @@
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{FromRequestParts, OptionalFromRequestParts, Request, State};
-use axum::http::header::{CONNECTION, CONTENT_TYPE, UPGRADE};
-use axum::http::{HeaderName, HeaderValue, StatusCode};
+use axum::http::StatusCode;
+use axum::http::header::{CONNECTION, UPGRADE};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt as _;
 use http::request::Parts;
 
 use crate::app::AppState;
-use crate::channel::http_util::sanitize_response_headers;
 use crate::config::MAX_BODY_BYTES;
 use crate::http::responses_ws::{ResponsesWsRequestBase, WsFrameError};
 use crate::http::server::extract::build_ctx;
@@ -191,28 +190,16 @@ async fn send_frame(socket: &mut WebSocket, message: String) -> Result<(), axum:
 /// headers + the buffered or (native) streamed body, plus the request id for
 /// correlation.
 fn egress(outcome: ExecOutcome, request_id: &str) -> Response {
-    #[cfg(not(target_arch = "wasm32"))]
-    let is_stream = matches!(&outcome.body, ResponseBody::Stream(_));
-    #[cfg(target_arch = "wasm32")]
-    let is_stream = false;
-    let mut builder = Response::builder().status(outcome.status);
-    if let Some(h) = builder.headers_mut() {
-        *h = sanitize_response_headers(&outcome.headers);
-        if outcome.status.is_success() && is_stream && !h.contains_key(CONTENT_TYPE) {
-            h.insert(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"));
-        }
-        if let Ok(v) = HeaderValue::from_str(request_id) {
-            h.insert(HeaderName::from_static("x-gproxy-request-id"), v);
-        }
-    }
+    let metadata = crate::http::egress::metadata(&outcome, request_id);
     let body = match outcome.body {
         ResponseBody::Full(b) => Body::from(b),
         #[cfg(not(target_arch = "wasm32"))]
         ResponseBody::Stream(s) => Body::from_stream(s),
     };
-    builder
-        .body(body)
-        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+    let mut response = Response::new(body);
+    *response.status_mut() = metadata.status;
+    *response.headers_mut() = metadata.headers;
+    response
 }
 
 pub struct OptionalWsUpgrade(WebSocketUpgrade);

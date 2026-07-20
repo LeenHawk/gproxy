@@ -4,7 +4,7 @@
 use super::*;
 use crate::health::CredAdmit;
 use crate::health::config::BreakerConfig;
-use crate::store::persistence::records::CredentialStatus;
+use crate::store::persistence::records::CredentialModelStatus;
 use crate::util::time::unix_now;
 
 /// BUNDLE with several top-level arrays replaced.
@@ -54,29 +54,32 @@ fn ok_body() -> Bytes {
     Bytes::from(serde_json::to_vec(&v).unwrap())
 }
 
-/// §16.3 persistence is fire-and-forget (`tokio::spawn`) — poll briefly.
-async fn wait_status(
+async fn wait_model_status(
     persistence: &dyn crate::store::persistence::PersistenceBackend,
     credential_id: i64,
+    model_id: &str,
     kind: &str,
-) -> CredentialStatus {
+) -> CredentialModelStatus {
     for _ in 0..100 {
         let rows = persistence
-            .list_credential_statuses(credential_id)
+            .list_credential_model_statuses(credential_id)
             .await
-            .expect("list statuses");
-        if let Some(r) = rows.into_iter().find(|r| r.health_kind == kind) {
-            return r;
+            .expect("list model statuses");
+        if let Some(row) = rows
+            .into_iter()
+            .find(|row| row.model_id == model_id && row.health_kind == kind)
+        {
+            return row;
         }
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
-    panic!("no `{kind}` status persisted for credential {credential_id}");
+    panic!("no `{kind}` status persisted for credential {credential_id}, model {model_id}");
 }
 
 /// Member 1 (provider `one`) 500s twice → its breaker (consecutive_failures: 2)
 /// opens; each request still succeeds by failing over to member 2. The next
-/// request skips the open member entirely, and the credential-breaker edge was
-/// persisted to `credential_statuses`.
+/// request skips the open credential-model pair, and the scoped breaker edge is
+/// persisted without poisoning credential-global health.
 #[tokio::test]
 async fn breaker_trips_and_fails_over() {
     let bundle = bundle_multi(&[
@@ -141,14 +144,17 @@ async fn breaker_trips_and_fails_over() {
         assert!(seen[4].uri.contains("two.local"), "uri: {}", seen[4].uri);
     }
 
-    // §16.3: credential 1's breaker-opened edge was persisted.
-    let row = wait_status(state.persistence.as_ref(), 1, "breaker").await;
+    let row = wait_model_status(state.persistence.as_ref(), 1, "gpt-a", "breaker").await;
     assert_eq!(row.channel, "openai");
     let j = row.health_json.expect("health_json");
     assert_eq!(j["state"], "open");
     assert_eq!(j["consecutive_failures"], 2);
     assert_eq!(j["instance_id"], 0);
     assert!(row.last_error.is_some());
+    assert_eq!(
+        state.health.credential_available(1, unix_now()),
+        CredAdmit::Yes
+    );
 }
 
 /// A 429 (no Retry-After) cools the credential for the default 30s — the next
@@ -210,11 +216,21 @@ async fn rate_limited_cools_credential() {
     assert_eq!(fake.seen.lock().unwrap().len(), 3, "cooled cred skipped");
 
     let now = unix_now();
-    let cfg = BreakerConfig::default();
-    assert_eq!(state.health.admit_credential(1, &cfg, now), CredAdmit::No);
-    assert_eq!(state.health.admit_credential(2, &cfg, now), CredAdmit::Yes);
+    assert_eq!(state.health.credential_available(1, now), CredAdmit::Yes);
+    assert_eq!(
+        state.health.credential_model_available(1, "gpt-a", now),
+        CredAdmit::No
+    );
+    assert_eq!(
+        state.health.credential_model_available(1, "gpt-b", now),
+        CredAdmit::Yes
+    );
+    assert_eq!(
+        state.health.credential_model_available(2, "gpt-a", now),
+        CredAdmit::Yes
+    );
 
-    let row = wait_status(state.persistence.as_ref(), 1, "rate_limited").await;
+    let row = wait_model_status(state.persistence.as_ref(), 1, "gpt-a", "rate_limited").await;
     let j = row.health_json.expect("health_json");
     assert_eq!(j["state"], "cooldown");
     let until = j["open_until"].as_i64().expect("open_until");

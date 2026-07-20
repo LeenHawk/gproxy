@@ -78,7 +78,7 @@ pub async fn upsert(
             }
             None => {
                 // Seeding an empty store from a pinned bundle: insert WITH the
-                // explicit id (matches the file backend's insert-with-id).
+                // Preserve explicit IDs supplied by bundle imports.
                 credential::ActiveModel {
                     id: Set(id),
                     provider_id: Set(input.provider_id),
@@ -145,6 +145,7 @@ pub async fn update_secret_if_current(
 
 pub async fn delete(conn: &DatabaseConnection, id: i64) -> anyhow::Result<bool> {
     super::credential_statuses::delete_by_credential(conn, id).await?;
+    super::credential_model_statuses::delete_by_credential(conn, id).await?;
     let res = credential::Entity::delete_by_id(id).exec(conn).await?;
     Ok(res.rows_affected > 0)
 }

@@ -9,7 +9,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use super::export_bundle;
 use crate::app::import::import_bundle;
 use crate::crypto::{NoopCipher, SecretCipher, cipher_from_master_key};
-use crate::store::persistence::FilePersistence;
+use crate::store::persistence::DbPersistence;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::Scope;
 
@@ -54,12 +54,12 @@ const BUNDLE: &str = r#"{
   ]
 }"#;
 
-async fn file_store() -> (Arc<dyn PersistenceBackend>, tempfile::TempDir) {
+async fn db_store() -> (Arc<dyn PersistenceBackend>, tempfile::TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
     let db: Arc<dyn PersistenceBackend> = Arc::new(
-        FilePersistence::open(dir.path().to_path_buf())
+        DbPersistence::connect("sqlite::memory:")
             .await
-            .expect("file persistence"),
+            .expect("db persistence"),
     );
     (db, dir)
 }
@@ -112,7 +112,7 @@ async fn export_roundtrips_import() {
     let cipher = envelope_cipher();
 
     // import the bundle into store A through a real envelope cipher.
-    let (a, _da) = file_store().await;
+    let (a, _da) = db_store().await;
     import_bundle(a.as_ref(), cipher.as_ref(), BUNDLE)
         .await
         .unwrap();
@@ -120,7 +120,7 @@ async fn export_roundtrips_import() {
     // export A → re-serialize (must succeed) → re-import into a fresh store B.
     let bundle = export_bundle(a.as_ref(), cipher.as_ref()).await.unwrap();
     let json = serde_json::to_string(&bundle).unwrap();
-    let (b, _db) = file_store().await;
+    let (b, _db) = db_store().await;
     import_bundle(b.as_ref(), cipher.as_ref(), &json)
         .await
         .unwrap();
@@ -147,7 +147,7 @@ async fn export_roundtrips_import() {
 #[tokio::test]
 async fn export_keyless_plaintext() {
     // keyless: import stores plaintext at rest; export emits it unchanged.
-    let (a, _da) = file_store().await;
+    let (a, _da) = db_store().await;
     import_bundle(a.as_ref(), &NoopCipher, BUNDLE)
         .await
         .unwrap();

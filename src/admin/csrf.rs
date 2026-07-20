@@ -1,9 +1,7 @@
 //! Same-origin (CSRF) guard — cross-target (native + edge wasm).
 //!
-//! Extracted from `http::server::admin::middleware` so the edge dispatcher can
-//! reuse the same logic without pulling in axum. The function signature accepts
-//! `http::Method` and `http::HeaderMap` directly, matching what both axum
-//! (`req.method()`, `req.headers()`) and the edge `http::request::Parts` expose.
+//! The function accepts `http::Method` and `http::HeaderMap` directly so the
+//! shared admin dispatcher remains independent of axum and `web_sys`.
 
 use http::Method;
 use http::header::{COOKIE, HOST, ORIGIN, REFERER};

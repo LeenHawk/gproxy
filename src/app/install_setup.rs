@@ -133,14 +133,11 @@ mod tests {
     use super::*;
     use crate::crypto::NoopCipher;
 
-    async fn store() -> (
-        tempfile::TempDir,
-        crate::store::persistence::FilePersistence,
-    ) {
+    async fn store() -> (tempfile::TempDir, crate::store::persistence::DbPersistence) {
         let dir = tempfile::tempdir().expect("tempdir");
-        let store = crate::store::persistence::FilePersistence::open(dir.path().to_path_buf())
+        let store = crate::store::persistence::DbPersistence::connect("sqlite::memory:")
             .await
-            .expect("open");
+            .expect("connect");
         (dir, store)
     }
 

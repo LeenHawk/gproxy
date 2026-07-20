@@ -3,24 +3,18 @@ title: Database Backends
 description: Native and edge persistence backends, schema behavior, secret storage, and operational tradeoffs.
 ---
 
-GPROXY v2 has one persistence trait with multiple backends. Native deployments
-can use the file backend or the SeaORM database backend. Edge deployments use a
-libSQL/Turso-oriented backend in the wasm bundle.
+GPROXY v2 has one persistence trait with native SeaORM and edge libSQL/Turso
+implementations.
 
 Persistence stores control-plane data, authz data, logs, usage, rollups,
 settings, tokenizers, transform rules, and provider credentials. The selected
 cache backend is separate from persistence.
 
-## Native backends
+## Native backend
 
-| Backend | Select with | Notes |
-| --- | --- | --- |
-| SeaORM database | `GPROXY_PERSISTENCE=db` | Default native backend. Supports SQLite, PostgreSQL, and MySQL through SeaORM features. If `GPROXY_DSN` is omitted, GPROXY derives `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`. |
-| File backend | `GPROXY_PERSISTENCE=file` | Stores one JSON file per logical table under `GPROXY_DATA_DIR`. It is single-instance only and takes an exclusive advisory lock on `.gproxy.lock`. |
-
-Native `db` is the recommended backend for multi-instance deployments. Redis
-cache plus file persistence is not a safe multi-node configuration; the server
-warns because each process would have divergent file state.
+The native backend uses SeaORM and supports SQLite, PostgreSQL, and MySQL. Select
+it with `GPROXY_PERSISTENCE=db`. If `GPROXY_DSN` is omitted, GPROXY derives
+`sqlite://<absolute data_dir>/gproxy.db?mode=rwc`.
 
 ## Edge backend
 
@@ -44,18 +38,11 @@ For local development, the default `db` mode creates a SQLite file under
 ./gproxy
 ```
 
-For explicit file persistence:
-
-```bash
-GPROXY_PERSISTENCE=file GPROXY_DATA_DIR=./data-file ./gproxy
-```
-
 ## Schema creation and migrations
 
 The native database backend creates tables on connect from the SeaORM entity
 definitions and then runs the built-in migration tracker. The libSQL backend
-uses matching `CREATE TABLE IF NOT EXISTS` SQL. The file backend is schemaless
-JSON but writes a `schema_version.json` stamp for symmetry.
+uses matching `CREATE TABLE IF NOT EXISTS` SQL.
 
 Important schema characteristics:
 
@@ -75,7 +62,7 @@ that cannot complete.
 
 | Group | Tables |
 | --- | --- |
-| Providers | `providers`, `credentials`, `credential_statuses`, `provider_models` |
+| Providers | `providers`, `credentials`, `credential_statuses`, `credential_model_statuses`, `provider_models` |
 | Routing | `routes`, `route_members`, `aliases` |
 | Transform | `routing_rules`, `rule_sets`, `rules`, `provider_rule_sets` |
 | Identity and authz | `orgs`, `teams`, `users`, `user_keys`, `route_permissions`, `rate_limits`, `quotas` |

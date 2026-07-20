@@ -113,6 +113,47 @@ backends such as libSQL/Turso and REST-style shared stores.
 | Console | React SPA in `console/`; build output is synced to `assets/console/` for native embedding. |
 | Documentation | Starlight site in `docs/`; development/reference source notes live in `dev-docs/`. |
 
+## Stable Code Reference Index
+
+Some source comments use unqualified `§` labels inherited from the original v2
+design notes. Those labels are stable identifiers, not the ordinal positions of
+headings on this page. Use this index to resolve them; do not renumber them when
+this page is reorganized. Qualified references such as `RFC 7230 §6.1` or a
+specific document path refer to that external document instead.
+
+| Stable label | Named architecture topic |
+| --- | --- |
+| `§3.2` | Passive health and circuit breakers. |
+| `§3.3` | Per-credential RPM/TPM admission budgets. |
+| `§4` | Shared admin API contracts and DTOs. |
+| `§5` | End-to-end request lifecycle and pipeline boundaries. |
+| `§6`, `§6.1` | Operation-first transforms and provider rule processing. |
+| `§6.3` | Channel registry, local operations, and request orchestration. |
+| `§6.4` | Upstream disposition and bounded failover. |
+| `§7.2` | Control-plane snapshots, hot reload, and invalidation. |
+| `§7.4` | Effective upstream proxy, TLS fingerprint, and HTTP transport. |
+| `§8` | Control-plane persistence and instance settings. |
+| `§8-A` | Routes, route members, aliases, and exposed provider models. |
+| `§8-B` | Providers, credentials, model variants, and transform dispatch. |
+| `§8-B2` | Routing rules and provider rule sets. |
+| `§8-C` | Identity-scoped permissions, rate limits, and quotas. |
+| `§8-D` | Usage records, wire logs, capture, and retention. |
+| `§8-E` | Runtime settings and usage/log feature toggles. |
+| `§9` | Console build, embedding, and edge asset packaging. |
+| `§13` | Cache behavior, invalidation, and edge configuration refresh. |
+| `§14.1` | Secret envelope encryption and decrypt-at-use. |
+| `§14.2` | First-boot admin, password hashing, and sessions. |
+| `§14.3` | Secret redaction and security-sensitive runtime settings. |
+| `§14.5` | OAuth login, refresh, and credential usage lifecycle. |
+| `§15`, `§15.1`, `§15.2`, `§15.3` | Observability: request IDs, tracing, metrics, and latency. |
+| `§16.1`, `§16.2`, `§16.3` | Runtime hardening: graceful drain, overload/timeout bounds, and health-edge persistence. |
+| `§17` | Normalized usage, billing, quota admission, and settlement. |
+| `§18` | Control-plane import and export. |
+| `§19` | Native self-update lifecycle. |
+| `§19.2`, `§19.3`, `§19.4` | Signed manifests, release channels, rollback guards, and update policy. |
+| `§19.5`, `§19.6`, `§19.6.1`, `§19.6.2` | Download/staging, binary swap, supervisor restart, and direct re-exec. |
+| `§19.7`, `§19.8`, `§19.10` | Data compatibility, rollback artifacts, and update admin/status safety. |
+
 ## Where To Go Next
 
 - Configure upstreams in [Providers & Channels](/guides/providers/).

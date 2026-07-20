@@ -1,8 +1,6 @@
-//! Edge-dispatcher login / logout handlers.
+//! Shared admin login / logout handlers.
 //!
-//! Replicates `src/http/server/admin/auth.rs` (login:31, logout:170) without
-//! axum machinery: pure `(AppState, &Parts, &Bytes) → Result<Resp, ApiError>`,
-//! testable on native and wasm.
+//! Uses only target-independent request metadata and response bytes.
 //!
 //! Key security properties:
 //! - Throttle BEFORE the (slow) argon2 verify when the counter backend is usable.
@@ -14,7 +12,6 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use http::request::Parts;
 use http::{HeaderMap, HeaderValue};
 
 use crate::admin::session;
@@ -24,11 +21,9 @@ use crate::app::AppState;
 use crate::store::cache::CacheBackend;
 use crate::store::persistence::records::AuditLogInput;
 
-use super::{Resp, internal, json_body};
+use super::{Request, Resp, internal, json_body};
 
 /// Max consecutive failed logins per account / per source IP before lockout.
-/// Same values as `src/http/server/admin/auth.rs` — redefined here because
-/// that module is native-only (axum). Keep in sync if auth.rs changes.
 const MAX_LOGIN_FAILS: i64 = 5;
 /// Sliding window the failure count (and lockout) lives in.
 const LOGIN_WINDOW: Duration = Duration::from_secs(60);
@@ -37,8 +32,12 @@ const LOGIN_WINDOW: Duration = Duration::from_secs(60);
 
 /// `POST /admin/login` — public (no guard). Verifies credentials, issues a
 /// session cookie. Brute-force throttled per account and per source IP.
-pub(crate) async fn login(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
-    let source_ip = edge_client_ip(&parts.headers);
+pub(crate) async fn login(
+    state: &AppState,
+    parts: &Request,
+    body: &Bytes,
+) -> Result<Resp, ApiError> {
+    let source_ip = parts.source_ip();
     let req: LoginRequest = json_body(body)?;
 
     let cache = state.cache.as_ref();
@@ -75,23 +74,25 @@ pub(crate) async fn login(state: &AppState, parts: &Parts, body: &Bytes) -> Resu
             .await;
             let cookie = session::set_cookie(&token, !state.config.cors_origins.is_empty());
             let cookie_val = HeaderValue::from_str(&cookie).map_err(internal)?;
-            let body = serde_json::to_vec(&LoginResponse {
-                user: MeResponse {
-                    id: user.id,
-                    name: user.name,
-                    is_admin: user.is_admin,
-                },
-            })
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+            let body = Bytes::from(
+                serde_json::to_vec(&LoginResponse {
+                    user: MeResponse {
+                        id: user.id,
+                        name: user.name,
+                        is_admin: user.is_admin,
+                    },
+                })
+                .map_err(|e| ApiError::Internal(e.to_string()))?,
+            );
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                http::header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            headers.append(http::header::SET_COOKIE, cookie_val);
             Ok(Resp {
                 status: http::StatusCode::OK,
-                headers: vec![
-                    (
-                        http::header::CONTENT_TYPE,
-                        HeaderValue::from_static("application/json"),
-                    ),
-                    (http::header::SET_COOKIE, cookie_val),
-                ],
+                headers,
                 body,
             })
         }
@@ -120,7 +121,7 @@ pub(crate) async fn login(state: &AppState, parts: &Parts, body: &Bytes) -> Resu
 
 /// `POST /admin/logout` — public (no guard). Revokes the session (if any) and
 /// clears the cookie. Always 204; idempotent.
-pub(crate) async fn logout(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+pub(crate) async fn logout(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let cache = state.cache.as_ref();
     if let Some(tok) = parts
         .headers
@@ -132,10 +133,12 @@ pub(crate) async fn logout(state: &AppState, parts: &Parts) -> Result<Resp, ApiE
     }
     let cookie = session::clear_cookie(!state.config.cors_origins.is_empty());
     let cookie_val = HeaderValue::from_str(&cookie).map_err(internal)?;
+    let mut headers = HeaderMap::new();
+    headers.append(http::header::SET_COOKIE, cookie_val);
     Ok(Resp {
         status: http::StatusCode::NO_CONTENT,
-        headers: vec![(http::header::SET_COOKIE, cookie_val)],
-        body: vec![],
+        headers,
+        body: Bytes::new(),
     })
 }
 
@@ -165,7 +168,11 @@ async fn over_limit(cache: &dyn CacheBackend, key: &str) -> bool {
     match cache.incr(key, 0, Some(LOGIN_WINDOW)).await {
         Ok(n) => n >= MAX_LOGIN_FAILS,
         Err(_) => {
+            #[cfg(not(target_arch = "wasm32"))]
+            return true;
+            #[cfg(target_arch = "wasm32")]
             tracing::warn!("edge login throttle counter unavailable; allowing credential check");
+            #[cfg(target_arch = "wasm32")]
             false
         }
     }

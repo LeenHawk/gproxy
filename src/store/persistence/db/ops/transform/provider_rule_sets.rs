@@ -51,7 +51,7 @@ pub async fn upsert(
             }
             None => {
                 // Seeding an empty store from a pinned bundle: insert WITH the
-                // explicit id (matches the file backend's insert-with-id).
+                // Preserve explicit IDs supplied by bundle imports.
                 provider_rule_set::ActiveModel {
                     id: Set(id),
                     provider_id: Set(input.provider_id),

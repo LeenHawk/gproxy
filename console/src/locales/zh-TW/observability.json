@@ -39,7 +39,6 @@
       "source": "來源",
       "ended": "結束狀態"
     },
-    "loadMore": "載入更多",
     "empty": "目前篩選條件下尚無用量記錄。",
     "summary": "用量彙總",
     "presets": {
@@ -67,6 +66,14 @@
   },
   "audit": {
     "title": "稽核日誌",
+    "filters": {
+      "actor": "操作者",
+      "action": "操作",
+      "target": "目標",
+      "status": "狀態碼",
+      "sourceIp": "來源 IP",
+      "reset": "重設篩選"
+    },
     "columns": {
       "at": "時間",
       "actor": "操作者",
@@ -75,19 +82,21 @@
       "status": "狀態",
       "sourceIp": "來源 IP"
     },
-    "limit": {
-      "100": "100",
-      "500": "500",
-      "1000": "1000",
-      "label": "筆數"
-    },
     "empty": "尚無稽核記錄。"
   },
   "health": {
     "loadError": "載入健康狀態失敗",
     "title": "憑證健康",
-    "allHealthy": "所有憑證狀態正常",
-    "noEvents": "暫無健康事件",
+    "globalScope": "憑證全域健康",
+    "globalDescription": "影響該憑證所有模型的故障。",
+    "globalAllHealthy": "目前無憑證全域異常",
+    "globalNoEvents": "尚無憑證全域健康事件",
+    "globalIssues": "憑證全域異常",
+    "modelScope": "模型局部健康",
+    "modelDescription": "僅影響某個最終上游模型的故障。",
+    "modelAllHealthy": "目前無模型局部異常",
+    "modelNoEvents": "尚無模型局部健康事件",
+    "modelIssues": "模型局部異常",
     "breaker": "熔斷器開啟",
     "recovered": "已恢復",
     "rate_limited": "被限速",

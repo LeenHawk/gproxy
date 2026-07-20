@@ -6,14 +6,13 @@
 pub mod client;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod cors;
+pub(crate) mod egress;
+pub(crate) mod ops;
 pub(crate) mod responses_ws;
 pub mod server;
 
-// Cross-target admin/portal dispatcher: compiled into the wasm edge worker (it
-// is called from `edge/mod.rs::fetch`) and into native test builds (so the
-// dispatcher can be driven by native integration tests). Skipped in native
-// release — the native server has its own axum router.
-#[cfg(any(target_arch = "wasm32", test))]
+// Cross-target admin/portal business implementation and route dispatcher.
+// Native axum and the wasm edge entry are both framework adapters around it.
 pub mod admin_api;
 
 // The edge entry wires all edge backends together (runtime-selected), so it

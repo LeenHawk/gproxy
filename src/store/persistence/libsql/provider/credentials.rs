@@ -153,6 +153,7 @@ pub async fn update_secret_if_current(
 
 pub async fn delete(client: &LibsqlClient, id: i64) -> anyhow::Result<bool> {
     super::credential_statuses::delete_by_credential(client, id).await?;
+    super::credential_model_statuses::delete_by_credential(client, id).await?;
     let n = exec(
         client,
         "DELETE FROM credentials WHERE id = ?",

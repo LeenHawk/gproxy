@@ -141,6 +141,35 @@ pub struct CredentialStatusInput {
     pub last_error: Option<String>,
 }
 
+/// Audit snapshot of a credential's health for one final upstream model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialModelStatus {
+    pub id: i64,
+    pub credential_id: i64,
+    pub channel: String,
+    pub model_id: String,
+    pub health_kind: String,
+    pub health_json: Option<Value>,
+    pub checked_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Upsert input unique per `(credential_id, channel, model_id)`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CredentialModelStatusInput {
+    pub id: Option<i64>,
+    pub credential_id: i64,
+    pub channel: String,
+    /// Final upstream model id after aliases and provider mapping.
+    pub model_id: String,
+    pub health_kind: String,
+    pub health_json: Option<Value>,
+    pub checked_at: Option<i64>,
+    pub last_error: Option<String>,
+}
+
 /// A model exposed by a provider (§8-A).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProviderModel {

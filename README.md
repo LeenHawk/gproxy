@@ -112,8 +112,8 @@ through `/console`.
 | Variable | Default | Purpose |
 |---|---|---|
 | `GPROXY_HOST` / `GPROXY_PORT` | `127.0.0.1` / `8787` | bind address |
-| `GPROXY_PERSISTENCE` | binary: `db`; Docker: `file` | `db` uses SQLite/PostgreSQL/MySQL; `file` stores JSON files and is single-instance only |
-| `GPROXY_DSN` | generated SQLite DSN | Optional PostgreSQL/MySQL/SQLite DSN when `persistence=db` |
+| `GPROXY_PERSISTENCE` | `db` | SeaORM database persistence using SQLite/PostgreSQL/MySQL |
+| `GPROXY_DSN` | generated SQLite DSN | Optional PostgreSQL/MySQL/SQLite DSN |
 | `GPROXY_MASTER_KEY` | — | unseal stored secrets (absent = plaintext) |
 | `GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` | `admin` / random | first-boot admin |
 

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { myRollupsQuery, myUsageInfiniteQuery, type MyUsageFilter } from "@/api/portal";
+import { myRollupsQuery, myUsagePageQuery, type MyUsageFilter } from "@/api/portal";
 import type { Usage } from "@/api/usage";
 import { UsageChart, type Metric } from "@/components/observability/usage-chart";
 import {
@@ -11,8 +11,8 @@ import {
 } from "@/components/observability/usage-mobile-card";
 import { MyUsageFilters } from "@/components/portal/my-usage-filters";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { Pagination } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { aggregateRollups } from "@/lib/rollups";
@@ -40,6 +40,7 @@ function MyUsagePage() {
   const [range, setRange] = useState<RangeKey>("7d");
   const [metric, setMetric] = useState<Metric>("requests");
   const [filter, setFilter] = useState<MyUsageFilter>({});
+  const [page, setPage] = useState(1);
 
   // Stable from/to snapshot — avoids re-querying on every render (Dashboard pattern)
   const rangeSecs = RANGES.find((r) => r.key === range)?.secs ?? 7 * 86_400;
@@ -53,9 +54,13 @@ function MyUsagePage() {
   );
   const points = rollupRows ? aggregateRollups(rollupRows) : [];
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending } =
-    useInfiniteQuery(myUsageInfiniteQuery(filter));
-  const rows: Usage[] = data?.pages.flat() ?? [];
+  const { data, isFetching, isPending } = useQuery(myUsagePageQuery(filter, page));
+  const rows: Usage[] = data?.items ?? [];
+
+  function changeFilter(next: MyUsageFilter) {
+    setPage(1);
+    setFilter(next);
+  }
 
   // Columns — reuse observability keys for shared labels; portal keys for page-specific text
   const usageCols: DataColumn<Usage>[] = [
@@ -184,7 +189,7 @@ function MyUsagePage() {
       </Card>
 
       {/* Filters */}
-      <MyUsageFilters value={filter} onChange={setFilter} />
+      <MyUsageFilters value={filter} onChange={changeFilter} />
 
       {/* Usage table — rows NOT clickable (no /user/logs endpoint) */}
       {isPending ? (
@@ -203,18 +208,12 @@ function MyUsagePage() {
         />
       )}
 
-      {hasNextPage && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void fetchNextPage()}
-            disabled={isFetchingNextPage}
-          >
-            {isFetchingNextPage ? "…" : t("usage.loadMore")}
-          </Button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={data?.pagination.total_pages ?? 0}
+        onPageChange={setPage}
+        disabled={isFetching}
+      />
     </div>
   );
 }
