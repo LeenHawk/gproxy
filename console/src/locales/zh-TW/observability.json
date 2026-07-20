@@ -39,7 +39,6 @@
       "source": "來源",
       "ended": "結束狀態"
     },
-    "loadMore": "載入更多",
     "empty": "目前篩選條件下尚無用量記錄。",
     "summary": "用量彙總",
     "presets": {
@@ -67,6 +66,14 @@
   },
   "audit": {
     "title": "稽核日誌",
+    "filters": {
+      "actor": "操作者",
+      "action": "操作",
+      "target": "目標",
+      "status": "狀態碼",
+      "sourceIp": "來源 IP",
+      "reset": "重設篩選"
+    },
     "columns": {
       "at": "時間",
       "actor": "操作者",
@@ -74,12 +81,6 @@
       "target": "目標",
       "status": "狀態",
       "sourceIp": "來源 IP"
-    },
-    "limit": {
-      "100": "100",
-      "500": "500",
-      "1000": "1000",
-      "label": "筆數"
     },
     "empty": "尚無稽核記錄。"
   },

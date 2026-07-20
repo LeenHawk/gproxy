@@ -63,6 +63,32 @@ pub struct LogQuery {
     pub limit: u64,
 }
 
+/// Filters for the admin audit-log explorer.
+#[derive(Debug, Default, Clone)]
+pub struct AuditLogQuery {
+    pub at_from: Option<i64>,
+    pub at_to: Option<i64>,
+    pub actor_id: Option<i64>,
+    pub action: Option<String>,
+    pub target: Option<String>,
+    pub status: Option<i64>,
+    pub source_ip: Option<String>,
+}
+
+/// Offset/limit pagination passed to persistence backends after HTTP validation.
+#[derive(Debug, Clone, Copy)]
+pub struct PageQuery {
+    pub offset: u64,
+    pub limit: u64,
+}
+
+/// A page of records plus the total number matching the same filters.
+#[derive(Debug)]
+pub struct PageResult<T> {
+    pub items: Vec<T>,
+    pub total: u64,
+}
+
 #[cfg(all(not(target_arch = "wasm32"), feature = "persist-db"))]
 pub use db::DbPersistence;
 #[cfg(all(target_arch = "wasm32", feature = "persist-libsql"))]

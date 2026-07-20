@@ -2,12 +2,12 @@
 
 use sea_orm::ActiveValue::{NotSet, Set};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, QueryTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, QueryTrait, Select,
 };
 
-use crate::store::persistence::LogQuery;
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
+use crate::store::persistence::{LogQuery, PageQuery, PageResult};
 
 use crate::store::persistence::db::entities::logs::downstream_request;
 use crate::store::persistence::db::entities::usage::usage;
@@ -80,6 +80,35 @@ pub async fn query(
     conn: &DatabaseConnection,
     q: &LogQuery,
 ) -> anyhow::Result<Vec<DownstreamRequest>> {
+    filtered(q, true)
+        .order_by_desc(downstream_request::Column::Id)
+        .limit(q.limit)
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect()
+}
+
+pub async fn query_page(
+    conn: &DatabaseConnection,
+    q: &LogQuery,
+    page: &PageQuery,
+) -> anyhow::Result<PageResult<DownstreamRequest>> {
+    let total = filtered(q, false).count(conn).await?;
+    let items = filtered(q, false)
+        .order_by_desc(downstream_request::Column::Id)
+        .offset(page.offset)
+        .limit(page.limit)
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(PageResult { items, total })
+}
+
+fn filtered(q: &LogQuery, include_cursor: bool) -> Select<downstream_request::Entity> {
     use downstream_request::Column as D;
     use usage::Column as U;
 
@@ -90,7 +119,7 @@ pub async fn query(
     if let Some(v) = q.at_to {
         sel = sel.filter(D::At.lte(v));
     }
-    if let Some(v) = q.before_id {
+    if include_cursor && let Some(v) = q.before_id {
         sel = sel.filter(D::Id.lt(v));
     }
 
@@ -108,13 +137,7 @@ pub async fn query(
         sel = sel.filter(D::RequestId.in_subquery(usages.into_query()));
     }
 
-    sel.order_by_desc(D::Id)
-        .limit(q.limit)
-        .all(conn)
-        .await?
-        .into_iter()
-        .map(to_record)
-        .collect()
+    sel
 }
 
 /// Backfill `response_body` (and `updated_at`) on rows matching `request_id`.

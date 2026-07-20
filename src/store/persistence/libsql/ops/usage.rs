@@ -6,7 +6,7 @@ use crate::store::persistence::records::{
     UpstreamRequestInput, Usage, UsageInput, UsageRollup, UsageRollupInput, UsageSummary,
 };
 use crate::store::persistence::traits::UsagePersistence;
-use crate::store::persistence::{LogQuery, UsageQuery};
+use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, PageResult, UsageQuery};
 
 use super::super::{LibsqlPersistence, batch, logs, metrics, usage, util};
 
@@ -20,6 +20,13 @@ impl UsagePersistence for LibsqlPersistence {
     }
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
         usage::usages::query(&self.client, q).await
+    }
+    async fn query_usages_page(
+        &self,
+        q: &UsageQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<Usage>> {
+        usage::usages::query_page(&self.client, q, page).await
     }
     async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
         usage::usages::summarize(&self.client, q).await
@@ -57,6 +64,13 @@ impl UsagePersistence for LibsqlPersistence {
         q: &LogQuery,
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
         logs::downstream_requests::query(&self.client, q).await
+    }
+    async fn query_downstream_requests_page(
+        &self,
+        q: &LogQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<DownstreamRequest>> {
+        logs::downstream_requests::query_page(&self.client, q, page).await
     }
     async fn update_downstream_response(
         &self,
@@ -114,5 +128,12 @@ impl UsagePersistence for LibsqlPersistence {
     }
     async fn list_audit_logs(&self, limit: u64) -> anyhow::Result<Vec<AuditLog>> {
         logs::audit_logs::list(&self.client, limit).await
+    }
+    async fn query_audit_logs_page(
+        &self,
+        q: &AuditLogQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<AuditLog>> {
+        logs::audit_logs::query_page(&self.client, q, page).await
     }
 }

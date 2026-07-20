@@ -21,10 +21,9 @@ use crate::api::error::ApiError;
 use crate::api::user_keys::UserKeyView;
 use crate::app::AppState;
 use crate::pipeline::auth::key_digest;
-use crate::store::persistence::UsageQuery as StoreUsageQuery;
 use crate::store::persistence::records::{Scope, UserInput, UserKeyInput};
 
-use super::{Request, Resp, internal, json_body, parse_i64, query, segments};
+use super::{Request, Resp, internal, json_body, parse_i64, segments};
 
 // ── /user/keys ────────────────────────────────────────────────────────────────
 
@@ -43,30 +42,6 @@ struct CreateKeyBody {
 struct UpdateKeyBody {
     pub label: Option<String>,
     pub enabled: bool,
-}
-
-// ── /user/usage ───────────────────────────────────────────────────────────────
-
-/// Query parameters for `GET /user/usage`.
-///
-/// Deliberately omits `user_id` — it is forced from the session, so a caller
-/// passing `?user_id=X` has the extra field silently dropped by serde.
-#[derive(Debug, Deserialize)]
-struct MyUsageQuery {
-    pub at_from: Option<i64>,
-    pub at_to: Option<i64>,
-    pub route_name: Option<String>,
-    pub model: Option<String>,
-    pub before_id: Option<i64>,
-    pub limit: Option<u64>,
-}
-
-/// Query parameters for `GET /user/usage-rollups`.
-#[derive(Debug, Deserialize)]
-struct MyRollupQuery {
-    pub granularity: String,
-    pub from: i64,
-    pub to: i64,
 }
 
 // ── /user/quota|rate-limits|route-permissions ─────────────────────────────────
@@ -108,8 +83,10 @@ pub(super) async fn dispatch(
         (&Method::DELETE, ["user", "keys", id]) => delete_key(state, parts, id).await,
 
         // ── usage ─────────────────────────────────────────────────────────────
-        (&Method::GET, ["user", "usage"]) => user_usage(state, parts).await,
-        (&Method::GET, ["user", "usage-rollups"]) => user_usage_rollups(state, parts).await,
+        (&Method::GET, ["user", "usage"]) => super::portal_usage::user_usage(state, parts).await,
+        (&Method::GET, ["user", "usage-rollups"]) => {
+            super::portal_usage::user_usage_rollups(state, parts).await
+        }
 
         // ── effective authz ───────────────────────────────────────────────────
         (&Method::GET, ["user", "quota"]) => user_quota(state, parts).await,
@@ -249,53 +226,6 @@ async fn delete_key(state: &AppState, parts: &Request, id: &str) -> Result<Resp,
     invalidate(state).await;
 
     Ok(Resp::no_content())
-}
-
-// ── /user/usage handlers ──────────────────────────────────────────────────────
-
-const DEFAULT_LIMIT: u64 = 100;
-const MAX_LIMIT: u64 = 1000;
-
-/// `GET /user/usage` — session-scoped; `user_id` forced from session (param absent
-/// from `MyUsageQuery` → structurally un-smuggleable via `?user_id=`).
-async fn user_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
-    let u = guard_session(state, parts).await?;
-    let q: MyUsageQuery = query(parts)?;
-    let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
-    let store_q = StoreUsageQuery {
-        user_id: Some(u.id), // forced from session — never from request
-        at_from: q.at_from,
-        at_to: q.at_to,
-        route_name: q.route_name,
-        model: q.model,
-        before_id: q.before_id,
-        limit,
-        ..Default::default() // provider_id stays None
-    };
-    let rows = state
-        .persistence
-        .query_usages(&store_q)
-        .await
-        .map_err(internal)?;
-    Resp::json(200, &rows)
-}
-
-/// `GET /user/usage-rollups?granularity=hour|day|week|month&from=&to=`
-/// Returns rollup buckets scoped to the authenticated user only.
-async fn user_usage_rollups(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
-    let u = guard_session(state, parts).await?;
-    let q: MyRollupQuery = query(parts)?;
-    if !matches!(q.granularity.as_str(), "hour" | "day" | "week" | "month") {
-        return Err(ApiError::BadRequest(
-            "granularity must be one of hour|day|week|month".into(),
-        ));
-    }
-    let rows = state
-        .persistence
-        .list_usage_rollups(&q.granularity, q.from, q.to, Some(u.id))
-        .await
-        .map_err(internal)?;
-    Resp::json(200, &rows)
 }
 
 // ── /user/quota|rate-limits|route-permissions handlers ───────────────────────

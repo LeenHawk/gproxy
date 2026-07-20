@@ -39,7 +39,6 @@
       "source": "Source",
       "ended": "Ended"
     },
-    "loadMore": "Load more",
     "empty": "No usage records match the current filters.",
     "summary": "Usage summary",
     "presets": {
@@ -67,6 +66,14 @@
   },
   "audit": {
     "title": "Audit log",
+    "filters": {
+      "actor": "Actor",
+      "action": "Action",
+      "target": "Target",
+      "status": "Status",
+      "sourceIp": "Source IP",
+      "reset": "Reset filters"
+    },
     "columns": {
       "at": "Time",
       "actor": "Actor",
@@ -74,12 +81,6 @@
       "target": "Target",
       "status": "Status",
       "sourceIp": "Source IP"
-    },
-    "limit": {
-      "100": "100",
-      "500": "500",
-      "1000": "1000",
-      "label": "Limit"
     },
     "empty": "No audit records."
   },

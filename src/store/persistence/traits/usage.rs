@@ -4,7 +4,7 @@ use crate::store::persistence::records::{
     AuditLog, AuditLogInput, DownstreamRequest, DownstreamRequestInput, UpstreamRequest,
     UpstreamRequestInput, Usage, UsageInput, UsageRollup, UsageRollupInput, UsageSummary,
 };
-use crate::store::persistence::{LogQuery, UsageQuery};
+use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, PageResult, UsageQuery};
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -12,6 +12,11 @@ pub trait UsagePersistence {
     async fn append_usage(&self, input: UsageInput) -> anyhow::Result<Option<Usage>>;
     async fn list_usages(&self, limit: u64) -> anyhow::Result<Vec<Usage>>;
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>>;
+    async fn query_usages_page(
+        &self,
+        q: &UsageQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<Usage>>;
     async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary>;
     async fn add_usage_rollup(&self, input: UsageRollupInput) -> anyhow::Result<UsageRollup>;
     async fn list_usage_rollups(
@@ -35,6 +40,11 @@ pub trait UsagePersistence {
         &self,
         q: &LogQuery,
     ) -> anyhow::Result<Vec<DownstreamRequest>>;
+    async fn query_downstream_requests_page(
+        &self,
+        q: &LogQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<DownstreamRequest>>;
     async fn update_downstream_response(
         &self,
         request_id: &str,
@@ -64,6 +74,11 @@ pub trait UsagePersistence {
     async fn purge_before(&self, cutoff_ts: i64) -> anyhow::Result<u64>;
     async fn append_audit_log(&self, input: AuditLogInput) -> anyhow::Result<AuditLog>;
     async fn list_audit_logs(&self, limit: u64) -> anyhow::Result<Vec<AuditLog>>;
+    async fn query_audit_logs_page(
+        &self,
+        q: &AuditLogQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<AuditLog>>;
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -77,6 +92,13 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn query_usages(&self, q: &UsageQuery) -> anyhow::Result<Vec<Usage>> {
         super::PersistenceBackend::query_usages(self, q).await
+    }
+    async fn query_usages_page(
+        &self,
+        q: &UsageQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<Usage>> {
+        super::PersistenceBackend::query_usages_page(self, q, page).await
     }
     async fn summarize_usages(&self, q: &UsageQuery) -> anyhow::Result<UsageSummary> {
         super::PersistenceBackend::summarize_usages(self, q).await
@@ -113,6 +135,13 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
         q: &LogQuery,
     ) -> anyhow::Result<Vec<DownstreamRequest>> {
         super::PersistenceBackend::query_downstream_requests(self, q).await
+    }
+    async fn query_downstream_requests_page(
+        &self,
+        q: &LogQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<DownstreamRequest>> {
+        super::PersistenceBackend::query_downstream_requests_page(self, q, page).await
     }
     async fn update_downstream_response(
         &self,
@@ -159,5 +188,12 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn list_audit_logs(&self, limit: u64) -> anyhow::Result<Vec<AuditLog>> {
         super::PersistenceBackend::list_audit_logs(self, limit).await
+    }
+    async fn query_audit_logs_page(
+        &self,
+        q: &AuditLogQuery,
+        page: &PageQuery,
+    ) -> anyhow::Result<PageResult<AuditLog>> {
+        super::PersistenceBackend::query_audit_logs_page(self, q, page).await
     }
 }

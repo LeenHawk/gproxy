@@ -17,7 +17,7 @@ pub use usage::UsagePersistence;
 use crate::store::persistence::batch::AdminEntity;
 use crate::store::persistence::metrics::MetricsAggregate;
 use crate::store::persistence::records::*;
-use crate::store::persistence::{LogQuery, UsageQuery};
+use crate::store::persistence::{AuditLogQuery, LogQuery, PageQuery, PageResult, UsageQuery};
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
@@ -194,6 +194,7 @@ persistence_backend! {
     UsagePersistence::append_usage => append_usage(input: UsageInput) -> anyhow::Result<Option<Usage>>;
     UsagePersistence::list_usages => list_usages(limit: u64) -> anyhow::Result<Vec<Usage>>;
     UsagePersistence::query_usages => query_usages(q: &UsageQuery) -> anyhow::Result<Vec<Usage>>;
+    UsagePersistence::query_usages_page => query_usages_page(q: &UsageQuery, page: &PageQuery) -> anyhow::Result<PageResult<Usage>>;
     UsagePersistence::summarize_usages => summarize_usages(q: &UsageQuery) -> anyhow::Result<UsageSummary>;
     UsagePersistence::add_usage_rollup => add_usage_rollup(input: UsageRollupInput) -> anyhow::Result<UsageRollup>;
     UsagePersistence::list_usage_rollups => list_usage_rollups(granularity: &str, from: i64, to: i64, user_id: Option<i64>) -> anyhow::Result<Vec<UsageRollup>>;
@@ -201,6 +202,7 @@ persistence_backend! {
     UsagePersistence::append_downstream_request => append_downstream_request(input: DownstreamRequestInput) -> anyhow::Result<DownstreamRequest>;
     UsagePersistence::list_downstream_requests => list_downstream_requests(request_id: &str) -> anyhow::Result<Vec<DownstreamRequest>>;
     UsagePersistence::query_downstream_requests => query_downstream_requests(q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>>;
+    UsagePersistence::query_downstream_requests_page => query_downstream_requests_page(q: &LogQuery, page: &PageQuery) -> anyhow::Result<PageResult<DownstreamRequest>>;
     UsagePersistence::update_downstream_response => update_downstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
     UsagePersistence::append_upstream_request => append_upstream_request(input: UpstreamRequestInput) -> anyhow::Result<UpstreamRequest>;
     UsagePersistence::list_upstream_requests => list_upstream_requests(request_id: &str) -> anyhow::Result<Vec<UpstreamRequest>>;
@@ -210,6 +212,7 @@ persistence_backend! {
     UsagePersistence::purge_before => purge_before(cutoff_ts: i64) -> anyhow::Result<u64>;
     UsagePersistence::append_audit_log => append_audit_log(input: AuditLogInput) -> anyhow::Result<AuditLog>;
     UsagePersistence::list_audit_logs => list_audit_logs(limit: u64) -> anyhow::Result<Vec<AuditLog>>;
+    UsagePersistence::query_audit_logs_page => query_audit_logs_page(q: &AuditLogQuery, page: &PageQuery) -> anyhow::Result<PageResult<AuditLog>>;
 
     SettingsPersistence::list_instance_settings => list_instance_settings() -> anyhow::Result<Vec<InstanceSettings>>;
     SettingsPersistence::get_instance_settings => get_instance_settings(instance_name: &str) -> anyhow::Result<Option<InstanceSettings>>;

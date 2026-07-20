@@ -49,6 +49,11 @@ Admin and portal mutation paths emit audit rows with actor id/name, action,
 target, status, and source IP. Use these to answer "who changed the control
 plane" rather than to debug LLM payloads.
 
+The Console paginates usage, request logs, and audit rows with direct page
+navigation. Usage and request-log pages support their existing time and routing
+filters; audit pages can filter by time, actor, action, target, status, and
+source IP.
+
 ## Credential Health
 
 Credential-wide status rows track each credential/channel pair. Model-specific

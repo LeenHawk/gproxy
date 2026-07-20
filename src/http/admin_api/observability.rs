@@ -12,8 +12,11 @@ use serde::Deserialize;
 use crate::admin::guard::guard_admin;
 use crate::api::error::ApiError;
 use crate::app::AppState;
-use crate::store::persistence::{LogQuery as StoreLogQuery, UsageQuery as StoreUsageQuery};
+use crate::store::persistence::{
+    AuditLogQuery as StoreAuditLogQuery, LogQuery as StoreLogQuery, UsageQuery as StoreUsageQuery,
+};
 
+use super::pagination;
 use super::{Request, Resp, internal, parse_i64, query, segments};
 
 const DEFAULT_LIMIT: u64 = 100;
@@ -30,6 +33,8 @@ pub(crate) struct UsageFilterQuery {
     pub model: Option<String>,
     pub before_id: Option<i64>,
     pub limit: Option<u64>,
+    pub page: Option<String>,
+    pub page_size: Option<String>,
 }
 
 /// `?granularity=hour|day|week|month&from=&to=`.
@@ -41,9 +46,19 @@ pub(crate) struct RollupQuery {
 }
 
 /// `?limit=N` for audit listing.
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub(crate) struct AuditQuery {
+    pub at_from: Option<i64>,
+    pub at_to: Option<i64>,
+    pub actor_id: Option<i64>,
+    pub action: Option<String>,
+    pub target: Option<String>,
+    pub status: Option<i64>,
+    pub source_ip: Option<String>,
     pub limit: Option<u64>,
+    pub before_id: Option<String>,
+    pub page: Option<String>,
+    pub page_size: Option<String>,
 }
 
 /// Filters plus `?before_id=&limit=` for the logs listing.
@@ -56,6 +71,8 @@ pub(crate) struct LogsQuery {
     pub route_name: Option<String>,
     pub before_id: Option<i64>,
     pub limit: Option<u64>,
+    pub page: Option<String>,
+    pub page_size: Option<String>,
 }
 
 /// Route a read-only observability request to its handler.
@@ -110,6 +127,11 @@ pub(super) async fn dispatch(
 async fn list_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: UsageFilterQuery = query(parts)?;
+    let page = pagination::parse(
+        q.page.as_deref(),
+        q.page_size.as_deref(),
+        q.before_id.is_some(),
+    )?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
     let store_q = StoreUsageQuery {
         at_from: q.at_from,
@@ -121,12 +143,21 @@ async fn list_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError>
         before_id: q.before_id,
         limit,
     };
-    let rows = state
-        .persistence
-        .query_usages(&store_q)
-        .await
-        .map_err(internal)?;
-    Resp::json(200, &rows)
+    if let Some(page) = page {
+        let result = state
+            .persistence
+            .query_usages_page(&store_q, &page.store)
+            .await
+            .map_err(internal)?;
+        Resp::json(200, &page.response(result))
+    } else {
+        let rows = state
+            .persistence
+            .query_usages(&store_q)
+            .await
+            .map_err(internal)?;
+        Resp::json(200, &rows)
+    }
 }
 
 async fn usage_summary(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
@@ -169,6 +200,28 @@ async fn list_usage_rollups(state: &AppState, parts: &Request) -> Result<Resp, A
 async fn list_audit(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: AuditQuery = query(parts)?;
+    let page = pagination::parse(
+        q.page.as_deref(),
+        q.page_size.as_deref(),
+        q.before_id.is_some(),
+    )?;
+    let store_q = StoreAuditLogQuery {
+        at_from: q.at_from,
+        at_to: q.at_to,
+        actor_id: q.actor_id,
+        action: q.action,
+        target: q.target,
+        status: q.status,
+        source_ip: q.source_ip,
+    };
+    if let Some(page) = page {
+        let result = state
+            .persistence
+            .query_audit_logs_page(&store_q, &page.store)
+            .await
+            .map_err(internal)?;
+        return Resp::json(200, &page.response(result));
+    }
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
     let rows = state
         .persistence
@@ -227,6 +280,11 @@ async fn credential_model_status(
 async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: LogsQuery = query(parts)?;
+    let page = pagination::parse(
+        q.page.as_deref(),
+        q.page_size.as_deref(),
+        q.before_id.is_some(),
+    )?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
     let store_q = StoreLogQuery {
         at_from: q.at_from,
@@ -237,12 +295,21 @@ async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> 
         before_id: q.before_id,
         limit,
     };
-    let rows = state
-        .persistence
-        .query_downstream_requests(&store_q)
-        .await
-        .map_err(internal)?;
-    Resp::json(200, &rows)
+    if let Some(page) = page {
+        let result = state
+            .persistence
+            .query_downstream_requests_page(&store_q, &page.store)
+            .await
+            .map_err(internal)?;
+        Resp::json(200, &page.response(result))
+    } else {
+        let rows = state
+            .persistence
+            .query_downstream_requests(&store_q)
+            .await
+            .map_err(internal)?;
+        Resp::json(200, &rows)
+    }
 }
 
 async fn downstream_logs(
