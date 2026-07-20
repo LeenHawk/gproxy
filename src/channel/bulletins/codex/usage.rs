@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use super::{headers, model_metadata, token};
 use crate::channel::ChannelError;
-use crate::channel::http_util::{build_request, join_url};
+use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{
     RateLimitResetCreditConsumeOutcome, RateLimitResetCreditConsumeResponse, RateLimitResetCredits,
     UsageCredits, UsageSnapshot, UsageWindow,
@@ -25,8 +25,10 @@ pub(super) fn request(
     settings: &Value,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
     let access_token = token::access_token(secret)?;
-    let base = usage_base(settings);
-    let uri = join_url(&base, "/wham/usage", None)?;
+    let uri = match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
+        Some(url) => exact_url(&url, None)?,
+        None => join_url(&usage_base(settings), "/wham/usage", None)?,
+    };
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
     apply_headers(&mut req, access_token, secret)?;
     Ok(Some(req))
@@ -38,8 +40,14 @@ pub(super) fn reset_credit_request(
     idempotency_key: &str,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
     let access_token = token::access_token(secret)?;
-    let base = usage_base(settings);
-    let uri = join_url(&base, "/wham/rate-limit-reset-credits/consume", None)?;
+    let uri = match crate::channel::settings::endpoint_by_key(settings, "rate_limit_reset", "") {
+        Some(url) => exact_url(&url, None)?,
+        None => join_url(
+            &usage_base(settings),
+            "/wham/rate-limit-reset-credits/consume",
+            None,
+        )?,
+    };
     let body = serde_json::to_vec(&ConsumeRateLimitResetCreditRequest {
         redeem_request_id: idempotency_key,
     })
@@ -115,12 +123,12 @@ fn usage_base(settings: &Value) -> String {
         .get("base_url")
         .and_then(Value::as_str)
         .map(str::trim)
-        .filter(|s| !s.is_empty())
+        .filter(|base| !base.is_empty())
         .unwrap_or(model_metadata::DEFAULT_BASE_URL);
     base.trim_end_matches('/')
         .strip_suffix("/codex")
         .unwrap_or_else(|| base.trim_end_matches('/'))
-        .to_string()
+        .to_owned()
 }
 
 fn apply_headers(

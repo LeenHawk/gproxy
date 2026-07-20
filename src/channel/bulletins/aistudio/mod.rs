@@ -4,7 +4,7 @@
 mod auth;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::http_util::{allow_headers, allow_query, build_request, join_url};
+use crate::channel::http_util::{allow_headers, allow_query, build_request};
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
 use crate::protocol::Provider;
 
@@ -100,10 +100,9 @@ impl Channel for AiStudioChannel {
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-        let base_url = common::resolve_base_url(&ctx, &DEFAULTS)?;
         let api_key = common::resolve_api_key(&ctx)?;
         let query = auth::apply_query(allow_query(ctx.query, DEFAULTS.forward_query), &api_key);
-        let uri = join_url(&base_url, ctx.path, query.as_deref())?;
+        let uri = common::resolve_uri(&ctx, &DEFAULTS, ctx.path, query.as_deref())?;
         let headers = allow_headers(ctx.headers, DEFAULTS.forward_headers);
         let req = build_request(ctx.method, uri, headers, ctx.body)?;
         Ok(PreparedRequest::new(req))

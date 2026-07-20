@@ -291,11 +291,8 @@ async fn fetch_models_with(
     settings: &Value,
     client: &Arc<dyn UpstreamClient>,
 ) -> Result<ModelPullResult, ModelsError> {
-    let target = crate::protocol::request_target(
-        OperationKey::provider(Operation::ListModels, family),
-        "",
-        false,
-    );
+    let op = OperationKey::provider(Operation::ListModels, family);
+    let target = crate::protocol::request_target(op, "", false);
     let headers = http::HeaderMap::new();
 
     let mut attempt = 0;
@@ -305,6 +302,8 @@ async fn fetch_models_with(
         let prepared = channel.prepare(PrepareCtx {
             secret,
             provider_settings: settings,
+            op,
+            stream: false,
             upstream_model_id: "",
             method: http::Method::GET,
             path: &target.path,

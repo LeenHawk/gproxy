@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 use super::{ClaudeCodeChannel, auth, request};
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, ShapeCtx};
 use crate::http::client::{ClientError, UpstreamClient};
-use crate::protocol::{ContentGenerationKind, Provider};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKey, Provider};
 
 struct MockUpstream;
 
@@ -48,6 +48,11 @@ fn prepare_injects_oauth_and_stainless() {
     let ctx = PrepareCtx {
         secret: &secret,
         provider_settings: &settings,
+        op: OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        ),
+        stream: false,
         upstream_model_id: "claude-sonnet-4",
         method: Method::POST,
         path: "/v1/messages",
@@ -116,6 +121,11 @@ fn anthropic_beta_oauth_first_then_client_deduped() {
     let ctx = PrepareCtx {
         secret: &secret,
         provider_settings: &settings,
+        op: OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::ClaudeMessages,
+        ),
+        stream: false,
         upstream_model_id: "claude-sonnet-4",
         method: Method::POST,
         path: "/v1/messages",
@@ -141,6 +151,11 @@ fn count_tokens_skips_cch_metadata_injection() {
             .prepare(PrepareCtx {
                 secret: &secret,
                 provider_settings: &settings,
+                op: OperationKey::content_generation(
+                    Operation::GenerateContent,
+                    ContentGenerationKind::ClaudeMessages,
+                ),
+                stream: false,
                 upstream_model_id: "claude-haiku-4-5",
                 method: Method::POST,
                 path,

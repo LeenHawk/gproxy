@@ -267,6 +267,11 @@ mod tests {
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::OpenAiChatCompletions,
+            ),
+            stream: false,
             upstream_model_id: "gpt-4o",
             method: Method::POST,
             path: "/v1/chat/completions",
@@ -312,6 +317,11 @@ mod tests {
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::provider(
+                crate::protocol::Operation::ListModels,
+                crate::protocol::Provider::OpenAi,
+            ),
+            stream: false,
             upstream_model_id: "",
             method: Method::GET,
             path: "/v1/models",

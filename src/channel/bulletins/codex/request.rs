@@ -1,21 +1,12 @@
 //! Upstream URL, forwarded-header allow-list, and request preparation.
 
-use serde_json::Value;
-
-use crate::channel::http_util::{allow_headers, build_request, join_url};
+use crate::channel::http_util::{allow_headers, build_request, exact_url, join_url};
+use crate::channel::settings::endpoint_url;
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest};
 
 pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let access_token = super::token::access_token(ctx.secret)?.to_string();
     let account_id = super::token::account_id(ctx.secret).map(str::to_owned);
-    let base = ctx
-        .provider_settings
-        .get("base_url")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(super::model_metadata::DEFAULT_BASE_URL);
-
     let websocket = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
     let path = ctx.path.strip_prefix("/v1").unwrap_or(ctx.path);
     let models_query =
@@ -26,7 +17,25 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             ),
             _ => format!("client_version={}", super::model_metadata::CODEX_VERSION),
         });
-    let uri = join_url(base, path, models_query.as_deref().or(ctx.query))?;
+    let query = models_query.as_deref().or(ctx.query);
+    let uri = match endpoint_url(
+        ctx.provider_settings,
+        ctx.op,
+        ctx.stream,
+        ctx.upstream_model_id,
+    ) {
+        Some(url) => exact_url(&url, query)?,
+        None => {
+            let base = ctx
+                .provider_settings
+                .get("base_url")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|base| !base.is_empty())
+                .unwrap_or(super::model_metadata::DEFAULT_BASE_URL);
+            join_url(base, path, query)?
+        }
+    };
     let headers = allow_headers(
         ctx.headers,
         &[

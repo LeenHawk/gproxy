@@ -1,5 +1,6 @@
 //! Custom (universal) channel — a generic passthrough to any OpenAI / Claude /
-//! Gemini-compatible endpoint. `base_url` is REQUIRED (no baked default); the
+//! Gemini-compatible endpoint. `base_url` or a matching exact endpoint is
+//! required because this channel has no baked default; the
 //! auth header is chosen by the inbound protocol (see [`auth`]).
 
 mod auth;
@@ -9,7 +10,7 @@ use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
 use crate::protocol::Provider;
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
-    default_base_url: None, // base_url must be supplied in settings_json
+    default_base_url: None,
     forward_headers: &[],
     forward_query: &[],
 };

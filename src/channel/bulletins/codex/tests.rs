@@ -10,7 +10,9 @@ use super::{CodexChannel, model_metadata, usage};
 use crate::channel::usage::RateLimitResetCreditConsumeOutcome;
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::http::client::UpstreamClient;
-use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind, Provider};
+use crate::protocol::{
+    ContentGenerationKind as Kind, Operation, OperationKey, OperationKind, Provider,
+};
 use crate::transform::routing::RoutingDecision;
 
 struct NoopUpstream;
@@ -125,6 +127,11 @@ fn magic_cache_breakpoint_survives_codex_normalization() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &provider_settings,
+            op: OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponses,
+            ),
+            stream: true,
             upstream_model_id: "gpt-5.6",
             method: Method::POST,
             path: "/v1/responses",
@@ -211,6 +218,11 @@ fn prepare_responses_websocket_returns_custom_stream() {
     let context = PrepareCtx {
         secret: &secret,
         provider_settings: &settings,
+        op: OperationKey::content_generation(
+            Operation::StreamGenerateContent,
+            Kind::OpenAiResponsesWebSocket,
+        ),
+        stream: true,
         upstream_model_id: "gpt-5.4",
         method: Method::GET,
         path: "/v1/responses",
@@ -263,6 +275,11 @@ fn prepare_url_body_and_headers() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponses,
+            ),
+            stream: true,
             upstream_model_id: "gpt-5.4",
             method: Method::POST,
             path: "/v1/responses",
@@ -295,6 +312,8 @@ fn model_list_request_carries_client_version() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: OperationKey::provider(Operation::ListModels, Provider::OpenAi),
+            stream: false,
             upstream_model_id: "",
             method: Method::GET,
             path: "/v1/models",
@@ -332,6 +351,11 @@ fn forwards_codex_client_headers() {
         .prepare(PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponses,
+            ),
+            stream: true,
             upstream_model_id: "gpt-5.4",
             method: Method::POST,
             path: "/v1/responses",

@@ -231,6 +231,11 @@ mod tests {
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                Kind::OpenAiResponsesWebSocket,
+            ),
+            stream: true,
             upstream_model_id: "gpt-test",
             method: Method::GET,
             path: "/v1/responses",

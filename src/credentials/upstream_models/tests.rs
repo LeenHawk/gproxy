@@ -75,7 +75,7 @@ mod fetch {
       "schema_version": 1,
       "providers": [
         { "id": 1, "name": "oai", "channel": "openai", "label": null,
-          "settings_json": { "base_url": "http://fake.local" },
+          "settings_json": { "endpoints": { "openai_list_models": "http://fake.local/v1/models" } },
           "credential_strategy": "round_robin", "proxy_url": null,
           "tls_fingerprint": null, "enabled": true }
       ],

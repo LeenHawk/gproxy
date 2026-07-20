@@ -70,7 +70,7 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 | --- | --- |
 | `name` | 唯一 provider 名称；scoped 路由会在 URL 中使用它。 |
 | `channel` | Channel registry id，例如 `openai` 或 `claudeapi`。 |
-| `settings_json` | 自由 JSON 设置，常见字段包括 `base_url` 和 channel 开关。 |
+| `settings_json` | 自由 JSON 设置，常见字段包括 `base_url`、`endpoints` 和 channel 开关。 |
 | `credential_strategy` | 凭据池策略，目前是 `round_robin` 或 `sticky`。 |
 | `proxy_url` | native 出站代理；edge 会忽略 native 代理设置。 |
 | `tls_fingerprint` | provider 级 TLS/HTTP2 模拟配置；credential 可以覆盖。 |
@@ -80,7 +80,8 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 
 | 设置 | 用途 |
 | --- | --- |
-| `base_url` | 覆盖 Channel 的默认上游地址。 |
+| `base_url` | Channel 级回退前缀；未配置精确 endpoint 时会追加标准接口路径。 |
+| `endpoints` | 可选的最终 URL 覆盖，例如 `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`；优先于 `base_url`，且不会追加路径。动态模型路径可以使用 `{model}`。 |
 | `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
 | `enable_claude_fable_fallback` | 在支持 Claude 的 Channel 上启用 Fable 到 Opus 的回退行为。 |
 

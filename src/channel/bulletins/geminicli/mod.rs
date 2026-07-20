@@ -80,14 +80,21 @@ impl Channel for GeminiCliChannel {
     ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
         let access_token = auth::access_token(secret)?;
         let project_id = auth::project_id(secret)?;
-        let base = settings
-            .get("base_url")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or(auth::BASE_URL);
         let user_agent = auth::user_agent("gemini-2.5-pro");
-        envelope::user_quota_request(base, access_token, project_id, &user_agent)
+        match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
+            Some(url) => {
+                envelope::user_quota_request_at(&url, access_token, project_id, &user_agent)
+            }
+            None => {
+                let base = settings
+                    .get("base_url")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|base| !base.is_empty())
+                    .unwrap_or(auth::BASE_URL);
+                envelope::user_quota_request(base, access_token, project_id, &user_agent)
+            }
+        }
     }
 
     fn parse_usage(

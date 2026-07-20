@@ -16,7 +16,7 @@ use std::collections::HashSet;
 
 use super::auth;
 use crate::channel::ChannelError;
-use crate::channel::http_util::{build_request, join_url};
+use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{UsageCredits, UsageSnapshot, UsageWindow};
 
 /// Build `GET {base}/api/oauth/usage` with the CLI fingerprint headers.
@@ -25,14 +25,18 @@ pub(super) fn request(
     settings: &Value,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
     let access_token = auth::access_token(secret)?;
-    let base = settings
-        .get("base_url")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or(auth::DEFAULT_BASE_URL);
-
-    let uri = join_url(base, "/api/oauth/usage", None)?;
+    let uri = match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
+        Some(url) => exact_url(&url, None)?,
+        None => {
+            let base = settings
+                .get("base_url")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|base| !base.is_empty())
+                .unwrap_or(auth::DEFAULT_BASE_URL);
+            join_url(base, "/api/oauth/usage", None)?
+        }
+    };
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
     let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
         .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;

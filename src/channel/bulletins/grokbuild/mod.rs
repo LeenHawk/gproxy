@@ -118,7 +118,15 @@ impl Channel for GrokBuildChannel {
         let base = auth::base_url(ctx.provider_settings, ctx.secret);
         let path = auth::upstream_path(base, ctx.path);
         let websocket = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
-        let uri = join_url(base, &path, ctx.query)?;
+        let uri = match crate::channel::settings::endpoint_url(
+            ctx.provider_settings,
+            ctx.op,
+            ctx.stream,
+            ctx.upstream_model_id,
+        ) {
+            Some(url) => crate::channel::http_util::exact_url(&url, ctx.query)?,
+            None => join_url(base, &path, ctx.query)?,
+        };
         let headers = allow_headers(ctx.headers, &[]);
         let session_id = auth::session_id_from_body(&ctx.body);
         let accept_event_stream = !websocket

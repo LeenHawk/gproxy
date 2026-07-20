@@ -7,6 +7,7 @@ use serde_json::json;
 
 use super::{aistudio, claudeapi, codex, custom, openai};
 use crate::channel::{Channel, ChannelError, PrepareCtx};
+use crate::protocol::{ContentGenerationKind, Operation, OperationKey};
 
 fn prep<'a>(
     settings: &'a Value,
@@ -15,9 +16,20 @@ fn prep<'a>(
     method: Method,
     path: &'a str,
 ) -> PrepareCtx<'a> {
+    let kind = if path.contains("chat/completions") {
+        ContentGenerationKind::OpenAiChatCompletions
+    } else if path.contains("responses") {
+        ContentGenerationKind::OpenAiResponses
+    } else if path.contains("messages") {
+        ContentGenerationKind::ClaudeMessages
+    } else {
+        ContentGenerationKind::GeminiGenerateContent
+    };
     PrepareCtx {
         secret,
         provider_settings: settings,
+        op: OperationKey::content_generation(Operation::GenerateContent, kind),
+        stream: false,
         upstream_model_id: "m",
         method,
         path,
@@ -28,8 +40,8 @@ fn prep<'a>(
 }
 
 #[test]
-fn openai_bearer_and_default_base_url() {
-    let settings = json!({}); // no base_url → baked default
+fn openai_bearer_and_default_endpoint() {
+    let settings = json!({});
     let secret = json!({ "api_key": "sk-x" });
     let h = HeaderMap::new();
     let req = openai::OpenAiChannel
@@ -50,8 +62,13 @@ fn openai_bearer_and_default_base_url() {
 }
 
 #[test]
-fn settings_base_url_overrides_default() {
-    let settings = json!({ "base_url": "http://127.0.0.1:9009" });
+fn exact_endpoint_overrides_default_without_appending_path() {
+    let settings = json!({
+        "base_url": "https://fallback.example",
+        "endpoints": {
+            "openai_chat_completions": "https://api-gateway.merge.dev/v1/openai"
+        }
+    });
     let secret = json!({ "api_key": "sk-x" });
     let h = HeaderMap::new();
     let req = openai::OpenAiChannel
@@ -64,7 +81,31 @@ fn settings_base_url_overrides_default() {
         ))
         .unwrap()
         .into_http();
-    assert_eq!(req.uri().host(), Some("127.0.0.1"));
+    assert_eq!(
+        req.uri().to_string(),
+        "https://api-gateway.merge.dev/v1/openai"
+    );
+}
+
+#[test]
+fn settings_base_url_is_used_without_endpoint_override() {
+    let settings = json!({ "base_url": "http://127.0.0.1:9009" });
+    let secret = json!({ "api_key": "sk-x" });
+    let headers = HeaderMap::new();
+    let req = openai::OpenAiChannel
+        .prepare(prep(
+            &settings,
+            &secret,
+            &headers,
+            Method::POST,
+            "/v1/chat/completions",
+        ))
+        .unwrap()
+        .into_http();
+    assert_eq!(
+        req.uri().to_string(),
+        "http://127.0.0.1:9009/v1/chat/completions"
+    );
 }
 
 #[test]
@@ -105,7 +146,13 @@ fn aistudio_key_in_query() {
 
 #[test]
 fn custom_protocol_driven_auth() {
-    let settings = json!({ "base_url": "https://up.example" });
+    let settings = json!({
+        "endpoints": {
+            "claude_messages": "https://up.example/claude",
+            "openai_chat_completions": "https://up.example/chat",
+            "gemini_generate_content": "https://up.example/gemini"
+        }
+    });
     let secret = json!({ "api_key": "k" });
     let h = HeaderMap::new();
 
@@ -141,7 +188,7 @@ fn custom_protocol_driven_auth() {
 }
 
 #[test]
-fn custom_requires_base_url() {
+fn custom_requires_base_or_matching_endpoint() {
     let settings = json!({});
     let secret = json!({ "api_key": "k" });
     let h = HeaderMap::new();

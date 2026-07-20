@@ -251,6 +251,11 @@ mod tests {
             .prepare(PrepareCtx {
                 secret: &secret,
                 provider_settings: &settings,
+                op: crate::protocol::OperationKey::content_generation(
+                    crate::protocol::Operation::GenerateContent,
+                    crate::protocol::ContentGenerationKind::ClaudeMessages,
+                ),
+                stream: false,
                 upstream_model_id: "anthropic/claude-fable-5",
                 method: http::Method::POST,
                 path: "/v1/messages",

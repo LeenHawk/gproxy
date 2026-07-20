@@ -90,11 +90,15 @@ async fn breaker_trips_and_fails_over() {
                     1,
                     "one",
                     json!({
-                        "base_url": "http://one.local",
+                        "endpoints": { "openai_chat_completions": "http://one.local/v1/chat/completions" },
                         "circuit_breaker": { "consecutive_failures": 2, "cooldown_secs": 30 }
                     })
                 ),
-                provider(2, "two", json!({ "base_url": "http://two.local" })),
+                provider(
+                    2,
+                    "two",
+                    json!({ "endpoints": { "openai_chat_completions": "http://two.local/v1/chat/completions" } })
+                ),
             ]),
         ),
         (
@@ -168,7 +172,7 @@ async fn rate_limited_cools_credential() {
             json!([provider(
                 1,
                 "one",
-                json!({ "base_url": "http://one.local" })
+                json!({ "endpoints": { "openai_chat_completions": "http://one.local/v1/chat/completions" } })
             )]),
         ),
         (
@@ -250,7 +254,7 @@ async fn rpm_budget_exhausted_skips_credential() {
             json!([provider(
                 1,
                 "one",
-                json!({ "base_url": "http://one.local" })
+                json!({ "endpoints": { "openai_chat_completions": "http://one.local/v1/chat/completions" } })
             )]),
         ),
         (

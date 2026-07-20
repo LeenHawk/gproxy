@@ -48,8 +48,12 @@ pub enum TransportKind {
 pub struct PrepareCtx<'a> {
     /// Decrypted secret material (M1: plaintext; envelope decryption in M6).
     pub secret: &'a Value,
-    /// Provider settings (`base_url`, channel toggles, …).
+    /// Provider settings (`base_url`, `endpoints`, channel toggles, …).
     pub provider_settings: &'a Value,
+    /// Routed upstream operation used to select an exact configured endpoint.
+    pub op: crate::protocol::OperationKey,
+    /// Effective upstream stream mode (Gemini has distinct stream endpoints).
+    pub stream: bool,
     /// Member rewrite target. PATH construction only (path-templated
     /// providers); body model rewrite happens in the pipeline transform
     /// step before prepare.

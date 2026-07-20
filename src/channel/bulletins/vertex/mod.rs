@@ -373,6 +373,11 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::content_generation(
+                crate::protocol::Operation::GenerateContent,
+                crate::protocol::ContentGenerationKind::GeminiGenerateContent,
+            ),
+            stream: false,
             upstream_model_id: "gemini-2.5-pro",
             method: Method::POST,
             path: "/v1beta/models/gemini-2.5-pro:generateContent",
@@ -407,6 +412,11 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
         let ctx = PrepareCtx {
             secret: &secret,
             provider_settings: &settings,
+            op: crate::protocol::OperationKey::provider(
+                crate::protocol::Operation::ListModels,
+                crate::protocol::Provider::Gemini,
+            ),
+            stream: false,
             upstream_model_id: "",
             method: Method::GET,
             path: "/v1beta/models",
