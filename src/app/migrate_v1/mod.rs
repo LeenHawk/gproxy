@@ -1,4 +1,4 @@
-//! MIGRATE-V1 (remove in 2.1): one-shot legacy v1 → v2 data migration.
+//! MIGRATE-V1 (temporary 2.x bridge): one-shot legacy v1 → v2 data migration.
 //!
 //! Two entry points, one core:
 //! - [`maybe_migrate_on_boot`] runs on startup *before* the persistence backend

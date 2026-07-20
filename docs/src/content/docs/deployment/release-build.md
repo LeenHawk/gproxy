@@ -103,8 +103,8 @@ shasum -a 256 gproxy-local.zip > gproxy-local.zip.sha256
 The release workflow may UPX-compress selected Linux, Android, and Windows
 artifacts before packaging. It signs macOS artifacts ad hoc with
 `codesign --sign -`. Android APKs are signed with the configured release
-keystore when `ANDROID_SIGNING_KEYSTORE_B64` is available to CI; otherwise the
-workflow falls back to an ephemeral debug key.
+keystore. Tagged release builds require the configured signing secrets; local
+or non-release packaging may fall back to an ephemeral debug key.
 
 ## First Run
 
