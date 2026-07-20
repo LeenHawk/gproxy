@@ -114,7 +114,8 @@ jobs:
             artifact: gproxy-linux-riscv64
             ext: ""
             run_check: true
-            smoke_prefix: qemu-riscv64 -L /usr/riscv64-linux-gnu
+            smoke_container: ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:0.2.5
+            smoke_prefix: /linux-runner riscv64
             upx: true
             docker_bin: true
           - target: x86_64-unknown-linux-musl
@@ -142,7 +143,8 @@ jobs:
             artifact: gproxy-linux-riscv64-musl
             ext: ""
             run_check: true
-            smoke_prefix: qemu-riscv64
+            smoke_container: ghcr.io/cross-rs/riscv64gc-unknown-linux-musl:main
+            smoke_prefix: /qemu-runner riscv64
             upx: true
             docker_bin: true
           - target: x86_64-linux-android
@@ -172,11 +174,11 @@ jobs:
             upx: true
             docker_bin: false
           - target: aarch64-pc-windows-msvc
-            runner: windows-11-arm
+            runner: windows-latest
             os: windows
             artifact: gproxy-windows-aarch64
             ext: ".exe"
-            run_check: true
+            run_check: false
             upx: true
             docker_bin: false
           - target: x86_64-apple-darwin
@@ -260,7 +262,7 @@ jobs:
           RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --bin gproxy --target ${{ matrix.target }}
 
-      - name: Install UPX + smoke dependencies (linux)
+      - name: Install UPX + zip (linux)
         if: ${{ matrix.upx && (matrix.os == 'linux' || matrix.os == 'android') }}
         run: |
           set -euo pipefail
@@ -288,14 +290,7 @@ jobs:
             "$RUNNER_TEMP/upx-${UPX_VERSION}-${host}_linux/upx" \
             /usr/local/bin/upx
           sudo apt-get update
-          packages=(zip)
-          if [[ "${{ matrix.target }}" == riscv64gc-* ]]; then
-            packages+=(qemu-user)
-          fi
-          if [ "${{ matrix.target }}" = "riscv64gc-unknown-linux-gnu" ]; then
-            packages+=(libc6-riscv64-cross)
-          fi
-          sudo apt-get install -y --no-install-recommends "${packages[@]}"
+          sudo apt-get install -y --no-install-recommends zip
           upx --version
 
       - name: Install UPX (windows x86_64)
@@ -324,7 +319,7 @@ jobs:
           git clone https://github.com/upx/upx.git "$src"
           git -C "$src" checkout --detach "$UPX_WINDOWS_ARM64_REV"
           git -C "$src" submodule update --init --recursive --depth 1
-          cmake -S "$src" -B "$build" -A ARM64 \
+          cmake -S "$src" -B "$build" -A x64 \
             -DUPX_CONFIG_DISABLE_SELF_PACK_TEST=ON
           cmake --build "$build" --config Release --parallel
           cp "$build/Release/upx.exe" "$RUNNER_TEMP/upx.exe"
@@ -341,7 +336,14 @@ jobs:
 
       - name: Smoke check (--help) before UPX — unix
         if: ${{ matrix.run_check && matrix.os != 'windows' }}
-        run: ${{ matrix.smoke_prefix }} ./target/${{ matrix.target }}/release/gproxy --help
+        run: |
+          if [ -n "${{ matrix.smoke_container }}" ]; then
+            docker run --rm -v "$PWD:/project" -w /project \
+              "${{ matrix.smoke_container }}" ${{ matrix.smoke_prefix }} \
+              ./target/${{ matrix.target }}/release/gproxy --help
+          else
+            ./target/${{ matrix.target }}/release/gproxy --help
+          fi
 
       - name: Smoke check (--help) before UPX — windows
         if: ${{ matrix.run_check && matrix.os == 'windows' }}
@@ -363,7 +365,14 @@ jobs:
 
       - name: Smoke check (--help) after UPX — unix
         if: ${{ matrix.run_check && matrix.upx && matrix.os != 'windows' }}
-        run: ${{ matrix.smoke_prefix }} ./target/${{ matrix.target }}/release/gproxy --help
+        run: |
+          if [ -n "${{ matrix.smoke_container }}" ]; then
+            docker run --rm -v "$PWD:/project" -w /project \
+              "${{ matrix.smoke_container }}" ${{ matrix.smoke_prefix }} \
+              ./target/${{ matrix.target }}/release/gproxy --help
+          else
+            ./target/${{ matrix.target }}/release/gproxy --help
+          fi
       - name: Smoke check (--help) after UPX — windows
         if: ${{ matrix.run_check && matrix.upx && matrix.os == 'windows' }}
         shell: pwsh
@@ -432,9 +441,24 @@ jobs:
             ${{ matrix.artifact }}.deb.sha256
           retention-days: 1
 
+  smoke-windows-arm64:
+    name: Smoke Windows ARM64 package
+    needs: build-native
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-asset-aarch64-pc-windows-msvc
+          path: package
+      - name: Run packed binary (--help)
+        shell: pwsh
+        run: |
+          Expand-Archive package/gproxy-windows-aarch64.zip -DestinationPath smoke
+          & "smoke/gproxy.exe" --help
+
   prepare-release-assets:
     name: Prepare signed release assets
-    needs: build-native
+    needs: [build-native, smoke-windows-arm64]
     runs-on: ubuntu-latest
     steps:
       # checkout is needed only to read the migration list for
