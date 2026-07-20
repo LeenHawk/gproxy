@@ -115,8 +115,7 @@ docker run --rm -p 8787:8787 \
 
 The Docker image already contains a prebuilt native binary with the embedded
 console. The image defaults to `GPROXY_HOST=0.0.0.0`,
-`GPROXY_PORT=8787`, `GPROXY_PERSISTENCE=file`, and
-`GPROXY_DATA_DIR=/app/data`.
+`GPROXY_PORT=8787`, `GPROXY_PERSISTENCE=db`, and `GPROXY_DATA_DIR=/app/data`.
 
 See [Docker](/deployment/docker/) for persistent volumes, PostgreSQL/MySQL DSNs,
 and tag selection.

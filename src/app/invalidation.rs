@@ -4,21 +4,10 @@
 //! (redis + tokio::spawn). Edge has no listener — its `subscribe` is a no-op —
 //! so it polls the version stamp instead (`http::edge::refresh_snapshot_if_stale`).
 
-use crate::store::cache::{CONFIG_VERSION_KEY, CacheBackend, INVALIDATE_CHANNEL};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::store::cache::INVALIDATE_CHANNEL;
 
-/// Announce a control-plane change to every other instance (§7.2): bump the
-/// shared config-version stamp (edge isolates poll it), then fire the pub/sub
-/// channel (native listeners reload at once; no-op on the REST cache
-/// backends). `payload` is the usual hint (`config` / `cred:{id}`).
-pub async fn broadcast(cache: &dyn CacheBackend, payload: &[u8]) {
-    if cache.incr(CONFIG_VERSION_KEY, 1, None).await.is_err() {
-        tracing::warn!(
-            "config-version stamp bump failed; edge isolates may serve stale config \
-             until the next successful broadcast"
-        );
-    }
-    cache.publish(INVALIDATE_CHANNEL, payload).await;
-}
+pub use crate::store::cache::broadcast;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn spawn_invalidation_listener(state: crate::app::AppState) {
@@ -57,7 +46,7 @@ mod tests {
     use crate::app::snapshot::ControlPlaneSnapshot;
     use crate::config::{CacheConfig, PersistenceConfig, RuntimeConfig, UpstreamConfig};
     use crate::store::cache::{CacheBackend, MemoryCache};
-    use crate::store::persistence::{FilePersistence, PersistenceBackend};
+    use crate::store::persistence::{DbPersistence, PersistenceBackend};
 
     /// §7.2: every broadcast must bump the shared config-version stamp the
     /// edge isolates poll (incr-by-0 reads the counter).
@@ -81,16 +70,16 @@ mod tests {
     async fn spawn_listener_memory_is_noop_and_healthy() {
         let dir = tempfile::tempdir().expect("tempdir");
         let persistence: Arc<dyn PersistenceBackend> = Arc::new(
-            FilePersistence::open(dir.path().to_path_buf())
+            DbPersistence::connect("sqlite::memory:")
                 .await
-                .expect("file persistence"),
+                .expect("db persistence"),
         );
         let config = Arc::new(RuntimeConfig {
             host: "127.0.0.1".into(),
             port: 0,
             cache: CacheConfig::Memory,
-            persistence: PersistenceConfig::File {
-                data_dir: dir.path().to_path_buf(),
+            persistence: PersistenceConfig::Db {
+                dsn: "sqlite::memory:".to_string(),
             },
             upstream: UpstreamConfig::from_proxy_url(None),
             instance_id: 0,

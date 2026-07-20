@@ -1,16 +1,15 @@
-//! Live provider operations for the cross-target edge admin dispatcher.
+//! Shared live provider operations.
 
 use http::Method;
-use http::request::Parts;
 
 use crate::admin::guard::guard_admin;
 use crate::api::error::ApiError;
 use crate::app::AppState;
 
-use super::{Resp, parse_i64, segments};
+use super::{Request, Resp, parse_i64, segments};
 
 /// Handle `GET /admin/providers/{id}/upstream-models`.
-pub(super) async fn dispatch(state: &AppState, parts: &Parts) -> Option<Result<Resp, ApiError>> {
+pub(super) async fn dispatch(state: &AppState, parts: &Request) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
     let (&Method::GET, ["admin", "providers", provider_id, "upstream-models"]) =
         (&parts.method, segs.as_slice())

@@ -1,4 +1,4 @@
-// Integration tests for the portal /user/* edge dispatcher (B6.3 Task 3).
+// Integration tests for the shared portal /user/* dispatcher.
 //
 // Uses the SAME harness (state_with, seed_user, cookie_for, parts, run, parse_json)
 // from tests.rs. All tests use non-admin sessions except where noted.

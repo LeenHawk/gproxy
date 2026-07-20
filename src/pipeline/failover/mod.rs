@@ -127,15 +127,7 @@ pub async fn run_failover(
         // opened secret is stale; otherwise returns it unchanged. A refresh
         // failure is treated like an unreadable secret — cool + audit + skip.
         let mut secret = match state
-            .refresh
-            .ensure_fresh(
-                state,
-                &channel,
-                &cand.credential,
-                &cand.provider,
-                opened,
-                false,
-            )
+            .ensure_fresh_credential(&channel, &cand.credential, &cand.provider, opened, false)
             .await
         {
             Ok(v) => v,
@@ -176,9 +168,7 @@ pub async fn run_failover(
             && refreshed_creds.insert(cand.credential.id)
         {
             match state
-                .refresh
-                .ensure_fresh(
-                    state,
+                .ensure_fresh_credential(
                     &channel,
                     &cand.credential,
                     &cand.provider,
@@ -299,6 +289,7 @@ pub async fn run_failover(
                 &plan,
                 ctx,
                 status,
+                &cand.provider.settings_json,
                 response_rules,
                 up_cap,
                 settle_ctx,

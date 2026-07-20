@@ -6,15 +6,8 @@
 // inbound request through the wasm `fetch` export (the SAME http::server::router
 // native uses).
 //
-// Credentials are read from Deno Deploy env vars at module load — NEVER hard-
-// coded here:
-//   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso persistence)
-//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
-//                                  (required — first admin login)
-//   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash Redis cache; falls
-//                                    back to the libSQL kv table when absent)
-//   GPROXY_MASTER_KEY               (optional — unseals encrypted stored
-//                                    secrets; absent → plaintext mode)
+// Required and optional variables are defined once in deploy/edge-runtime.js,
+// copied beside this entry by build.sh, and documented in deploy/README.md.
 //
 // Build recipe (run from the crate root before deploying; pkg/ is gitignored):
 //   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
@@ -29,38 +22,13 @@
 // The Rust export deliberately uses a distinct JS name so wasm-bindgen's
 // loader can call the runtime's global `fetch` while initialising the module.
 import { gproxyFetch as wasmFetch, init } from "../../pkg/gproxy.js";
-
-function reqEnv(name: string): string {
-  const v = Deno.env.get(name);
-  if (!v) {
-    throw new Error(`missing required env var: ${name}`);
-  }
-  return v;
-}
-
-function optEnv(name: string): string | undefined {
-  const v = Deno.env.get(name);
-  return v && v.length > 0 ? v : undefined;
-}
+import { createInitOnce, initGproxy } from "./_shared.js";
 
 // Build the shared AppState lazily so Console static assets can still be served
 // before the first API/gateway request initialises the wasm router.
-let initialised: Promise<void> | undefined;
-
-function ensureInit(): Promise<void> {
-  if (!initialised) {
-    initialised = init(
-      reqEnv("TURSO_URL"),
-      reqEnv("TURSO_TOKEN"),
-      optEnv("UPSTASH_URL"),
-      optEnv("UPSTASH_TOKEN"),
-      optEnv("GPROXY_MASTER_KEY"),
-      reqEnv("GPROXY_ADMIN_USER"),
-      reqEnv("GPROXY_ADMIN_PASSWORD"),
-    );
-  }
-  return initialised;
-}
+const ensureInit = createInitOnce(() =>
+  initGproxy(init, (name: string) => Deno.env.get(name)),
+);
 
 const CONSOLE_DIR = new URL("./console/", import.meta.url);
 const ROOT_ASSET_PATHS = new Set([

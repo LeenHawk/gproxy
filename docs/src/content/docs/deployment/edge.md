@@ -86,6 +86,11 @@ bash deploy/cloudflare/build.sh
 bash deploy/netlify/build.sh
 ```
 
+The three entries share one environment/init contract from
+`deploy/edge-runtime.js`. Build and release scripts copy it to a platform-local
+`_shared.js`, so every packaged platform directory remains self-contained and
+never imports runtime code from a sibling directory.
+
 `deploy/deno/build.sh` is different: it builds and deploys through Deno's Deploy
 CLI module, so the release workflow generates the Deno bundle inline instead of
 calling that script.
@@ -94,9 +99,9 @@ calling that script.
 
 | Platform group | Bundle shape |
 | --- | --- |
-| Cloudflare Workers | `wasm-bindgen --target web`; `.wasm` packaged as a static `WebAssembly.Module`. |
-| Netlify | `wasm-bindgen --target deno`; wasm base64-inlined for runtime instantiate. |
-| Deno Deploy | `main.ts` plus generated `pkg/` directory. |
+| Cloudflare Workers | Worker entry plus local `_shared.js`; `wasm-bindgen --target web`; `.wasm` packaged as a static `WebAssembly.Module`. |
+| Netlify | Edge Function plus local `_shared.js`; `wasm-bindgen --target deno`; wasm base64-inlined for runtime instantiate. |
+| Deno Deploy | `main.ts`, local `_shared.js`, and generated `pkg/` directory. |
 
 Cloudflare does not allow arbitrary runtime wasm compilation from byte buffers,
 so it uses the static module path. The Deno-family targets can instantiate from

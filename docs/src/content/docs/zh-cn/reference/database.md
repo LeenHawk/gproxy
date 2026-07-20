@@ -3,9 +3,8 @@ title: 数据库后端
 description: native 与 edge 持久化后端、schema 行为、secret 存储和运维取舍。
 ---
 
-GPROXY v2 有一个 persistence trait 和多个后端。native 部署可以使用 file
-后端或 SeaORM database 后端。edge 部署在 wasm bundle 中使用面向
-libSQL/Turso 的后端。
+GPROXY v2 有一个 persistence trait，以及 native SeaORM 和 edge
+libSQL/Turso 两种实现。
 
 持久化层存储 control-plane 数据、authz 数据、日志、usage、rollup、
 settings、tokenizer、transform rule 和 provider credential。cache 后端与
@@ -13,12 +12,9 @@ persistence 是两层。
 
 ## Native 后端
 
-| 后端 | 选择方式 | 说明 |
-| --- | --- | --- |
-| SeaORM database | `GPROXY_PERSISTENCE=db` | native 默认后端。通过 SeaORM feature 支持 SQLite、PostgreSQL 和 MySQL。未设置 `GPROXY_DSN` 时，会派生 `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`。 |
-| File backend | `GPROXY_PERSISTENCE=file` | 在 `GPROXY_DATA_DIR` 下每张逻辑表一个 JSON 文件。只适合单实例，会对 `.gproxy.lock` 取排他 advisory lock。 |
-
-多实例部署建议使用 native `db`。Redis cache 加 file persistence 不是安全的多节点配置；服务会警告，因为每个进程会拥有发散的文件状态。
+native 后端使用 SeaORM，通过 feature 支持 SQLite、PostgreSQL 和 MySQL。使用
+`GPROXY_PERSISTENCE=db` 选择该后端。未设置 `GPROXY_DSN` 时，会派生
+`sqlite://<absolute data_dir>/gproxy.db?mode=rwc`。
 
 ## Edge 后端
 
@@ -40,17 +36,10 @@ mysql://gproxy:secret@127.0.0.1:3306/gproxy
 ./gproxy
 ```
 
-显式使用 file persistence：
-
-```bash
-GPROXY_PERSISTENCE=file GPROXY_DATA_DIR=./data-file ./gproxy
-```
-
 ## Schema 创建与迁移
 
 native database 后端连接时会根据 SeaORM entity 创建表，然后运行内置
-migration tracker。libSQL 后端使用匹配的 `CREATE TABLE IF NOT EXISTS`
-SQL。file 后端是 schemaless JSON，但会写入 `schema_version.json` 以保持对称。
+migration tracker。libSQL 后端使用匹配的 `CREATE TABLE IF NOT EXISTS` SQL。
 
 重要 schema 特性：
 

@@ -19,13 +19,8 @@
 // set with `wrangler secret put` and `[vars]` from wrangler.toml both land
 // there. So `ensureReady` reads creds from `env`, NOT a global.
 //
-// Credentials (set with `echo -n "$VALUE" | wrangler secret put NAME`):
-//   TURSO_URL, TURSO_TOKEN          (required — libSQL/Turso persistence)
-//   GPROXY_ADMIN_USER, GPROXY_ADMIN_PASSWORD
-//                                  (required — first admin login)
-//   UPSTASH_URL, UPSTASH_TOKEN      (optional — Upstash Redis cache)
-//   GPROXY_MASTER_KEY               (optional — unseals encrypted stored
-//                                    secrets; absent → plaintext mode)
+// Required and optional bindings are defined once in deploy/edge-runtime.js,
+// copied beside this entry by build.sh, and documented in deploy/README.md.
 //
 // The generated glue (_lib/gproxy.js + gproxy_bg.wasm + *.d.ts) is gitignored;
 // only this file + wrangler.toml + build.sh are hand-written source. Build
@@ -34,49 +29,22 @@
 //   bash deploy/cloudflare/build.sh
 
 import wasmModule from "./_lib/gproxy_bg.wasm";
+import { createInitOnce, initGproxy } from "./_shared.js";
 import initWasm, {
   gproxyFetch as wasmFetch,
   init as gproxyInit,
   responses_websocket_frame as wasmResponsesWebSocketFrame,
 } from "./_lib/gproxy.js";
 
-function reqEnv(env, name) {
-  const v = env[name];
-  if (!v) {
-    throw new Error(`missing required env var: ${name}`);
-  }
-  return v;
-}
-
-function optEnv(env, name) {
-  const v = env[name];
-  return v && v.length > 0 ? v : undefined;
-}
-
 // Instantiate the wasm Module + build the shared AppState exactly once, LAZILY
 // on the first request — the worker bindings (`env`) are only populated at
 // request time, and the Rust `init` is itself idempotent (first AppState wins).
-let ready;
-
-function ensureReady(env) {
-  if (!ready) {
-    ready = (async () => {
-      // Pass the bundled WebAssembly.Module — the web-target loader sends it to
-      // WebAssembly.instantiate(module, imports) (no byte compile, no URL fetch).
-      await initWasm({ module_or_path: wasmModule });
-      await gproxyInit(
-        reqEnv(env, "TURSO_URL"),
-        reqEnv(env, "TURSO_TOKEN"),
-        optEnv(env, "UPSTASH_URL"),
-        optEnv(env, "UPSTASH_TOKEN"),
-        optEnv(env, "GPROXY_MASTER_KEY"),
-        reqEnv(env, "GPROXY_ADMIN_USER"),
-        reqEnv(env, "GPROXY_ADMIN_PASSWORD"),
-      );
-    })();
-  }
-  return ready;
-}
+const ensureReady = createInitOnce(async (env) => {
+  // Pass the bundled WebAssembly.Module — the web-target loader sends it to
+  // WebAssembly.instantiate(module, imports) (no byte compile, no URL fetch).
+  await initWasm({ module_or_path: wasmModule });
+  await initGproxy(gproxyInit, (name) => env[name]);
+});
 
 const ROOT_ASSET_PATHS = new Set([
   "/favicon.ico",
@@ -143,7 +111,9 @@ async function serveResponsesWebSocket(request) {
     chain = chain
       .then(async () => {
         const frame =
-          typeof event.data === "string" ? event.data : decoder.decode(event.data);
+          typeof event.data === "string"
+            ? event.data
+            : decoder.decode(event.data);
         const messages = await wasmResponsesWebSocketFrame(request, frame);
         for (const message of messages) {
           server.send(message);

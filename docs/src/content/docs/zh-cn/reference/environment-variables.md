@@ -26,8 +26,8 @@ route、alias、权限、quota、pricing、转换规则和实例设置都存放�
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `GPROXY_PERSISTENCE` | `db` | native 持久化后端：`db` 或 `file`。`db` 使用 SeaORM；未提供 DSN 时默认 SQLite 文件。`file` 每张表一个 JSON 文件，只适合单实例。 |
-| `GPROXY_DATA_DIR` | `./data` | 数据目录。file 后端、默认 SQLite DSN、v1 迁移备份/临时文件和自更新 staging 都会用到。 |
+| `GPROXY_PERSISTENCE` | `db` | native 持久化后端。唯一可用值是 `db`，使用 SeaORM；未提供 DSN 时默认 SQLite 文件。 |
+| `GPROXY_DATA_DIR` | `./data` | 数据目录。默认 SQLite DSN、v1 迁移备份/临时文件和自更新 staging 都会用到。 |
 | `GPROXY_DSN` | 自动生成 | `GPROXY_PERSISTENCE=db` 的数据库 DSN。未设置时使用 `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`。 |
 | `GPROXY_REDIS_URL` | 空 | Redis cache URL。只有启用 `cache-redis` feature 的 native 二进制会使用；未设置时 native 默认使用进程内 memory cache。 |
 | `GPROXY_MASTER_KEY` | 空 | 标准 base64 编码的 32 字节密钥，用于打开和密封存储的 secret。缺失时进入明文 secret 模式并打印警告。该项只读环境变量，没有 CLI 参数。 |

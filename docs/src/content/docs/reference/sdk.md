@@ -40,11 +40,10 @@ The package-level feature flags are backend-oriented:
 
 | Feature | Purpose |
 | --- | --- |
-| `default` | Native default: memory cache, db and file persistence, wreq upstream client, local counting, and v1 migration. |
+| `default` | Native default: memory cache, db persistence, wreq upstream client, local counting, and v1 migration. |
 | `full` | Native convenience feature enabling all native backends. |
 | `cache-memory` | In-process cache backend. |
 | `cache-redis` | Redis cache backend for multi-instance cache/invalidation. |
-| `persist-file` | Local JSON-file persistence backend. |
 | `persist-db` | SeaORM database persistence backend. |
 | `migrate-v1` | Legacy v1 SQLite migration reader and serve-path auto-migration hook. |
 | `upstream-wreq` | Native HTTP upstream client. |

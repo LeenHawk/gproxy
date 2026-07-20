@@ -4,7 +4,7 @@
 # sibling .wasm to fetch at runtime). Netlify Edge Functions run on Deno Deploy
 # infra, so this uses a self-contained inline approach.
 #
-# Build-only (no deploy/secrets). Run from the crate root (/home/linhuan/gproxy/v2):
+# Build-only (no deploy/secrets). Run from the crate root:
 #   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 #   bash deploy/netlify/build.sh
 set -euo pipefail
@@ -21,6 +21,7 @@ PUBLIC_CONSOLE="$PUBLIC/console"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 wasm-bindgen --target deno --out-dir "$OUT" "$WASM"
+bash "$CRATE_ROOT/deploy/stage-edge-runtime.sh" netlify
 
 # Emit the base64-inlined wasm beside the glue.
 INLINE="$OUT/gproxy_wasm_inline.ts"

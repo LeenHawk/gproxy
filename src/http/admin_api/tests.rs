@@ -8,14 +8,13 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use http::header;
-use http::request::Parts;
 
-use super::dispatch;
+use super::dispatch_result;
 use crate::app::AppState;
 use crate::app::snapshot::ControlPlaneSnapshot;
 use crate::config::{CacheConfig, PersistenceConfig, RuntimeConfig, UpstreamConfig};
 use crate::http::client::{ClientError, RespStream, UpstreamClient};
-use crate::store::persistence::FilePersistence;
+use crate::store::persistence::DbPersistence;
 use crate::store::persistence::records::{OrgInput, UserInput};
 
 struct NoUpstream;
@@ -32,12 +31,12 @@ impl UpstreamClient for NoUpstream {
     }
 }
 
-/// Build an AppState on a tempdir file store. `cors_origins` is supplied so the
+/// Build an AppState on an in-memory SQLite store. `cors_origins` is supplied so the
 /// CSRF test can assert a cross-origin `Origin` is refused.
 async fn state_with(cors_origins: Vec<String>) -> (AppState, tempfile::TempDir) {
     let dir = tempfile::tempdir().expect("tempdir");
     let persistence: Arc<dyn crate::store::persistence::PersistenceBackend> = Arc::new(
-        FilePersistence::open(dir.path().to_path_buf())
+        DbPersistence::connect("sqlite::memory:")
             .await
             .expect("open"),
     );
@@ -48,8 +47,8 @@ async fn state_with(cors_origins: Vec<String>) -> (AppState, tempfile::TempDir) 
         host: "127.0.0.1".into(),
         port: 0,
         cache: CacheConfig::Memory,
-        persistence: PersistenceConfig::File {
-            data_dir: dir.path().to_path_buf(),
+        persistence: PersistenceConfig::Db {
+            dsn: "sqlite::memory:".to_string(),
         },
         upstream: UpstreamConfig::from_proxy_url(None),
         instance_id: 0,
@@ -112,8 +111,8 @@ async fn cookie_for(state: &AppState, user_id: i64) -> String {
     format!("{}={token}", crate::admin::session::cookie_name())
 }
 
-/// Build a `Parts` for a request, optionally with a session cookie and Origin.
-fn parts(method: &str, uri: &str, cookie: Option<&str>, origin: Option<&str>) -> Parts {
+/// Build dispatcher metadata for a request, optionally with a session cookie and Origin.
+fn parts(method: &str, uri: &str, cookie: Option<&str>, origin: Option<&str>) -> super::Request {
     let mut b = http::Request::builder().method(method).uri(uri);
     if let Some(c) = cookie {
         b = b.header(header::COOKIE, c);
@@ -121,16 +120,17 @@ fn parts(method: &str, uri: &str, cookie: Option<&str>, origin: Option<&str>) ->
     if let Some(o) = origin {
         b = b.header(header::ORIGIN, o);
     }
-    b.body(()).unwrap().into_parts().0
+    let parts = b.body(()).unwrap().into_parts().0;
+    super::Request::new(parts.method, parts.uri, parts.headers)
 }
 
 /// Run the dispatcher and unwrap the `Some` (the path must be one we handle).
 async fn run(
     state: &AppState,
-    p: &Parts,
+    p: &super::Request,
     body: &[u8],
 ) -> Result<super::Resp, crate::api::error::ApiError> {
-    dispatch(state, p, &Bytes::copy_from_slice(body))
+    dispatch_result(state, p, &Bytes::copy_from_slice(body))
         .await
         .expect("dispatcher handles this path")
 }
@@ -266,7 +266,7 @@ async fn unknown_admin_path_falls_through() {
     let (state, _dir) = state_with(vec![]).await;
     // A path under /admin/ we don't handle → dispatcher returns None.
     let p = parts("GET", "/admin/nope", None, None);
-    assert!(dispatch(&state, &p, &Bytes::new()).await.is_none());
+    assert!(dispatch_result(&state, &p, &Bytes::new()).await.is_none());
 }
 
 // ── providers CRUD (edge_crud! exercise) ─────────────────────────────────────
@@ -373,6 +373,41 @@ async fn providers_bad_id_is_400() {
     assert_eq!(err.status(), http::StatusCode::BAD_REQUEST);
 }
 
+#[tokio::test]
+async fn price_rules_route_gap_is_covered_by_shared_crud() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-price", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+    let body = serde_json::json!({
+        "id": null,
+        "provider_id": null,
+        "match_type": "exact",
+        "model_match": "priced-model",
+        "input_price": "1",
+        "output_price": "2",
+        "cache_read_price": "0",
+        "cache_creation_5m_price": "0",
+        "cache_creation_30m_price": "0",
+        "cache_creation_1h_price": "0",
+        "image_price": "0",
+        "enabled": true
+    })
+    .to_string();
+    let request = parts("POST", "/admin/price-rules", Some(&cookie), None);
+    let response = run(&state, &request, body.as_bytes())
+        .await
+        .expect("create price rule");
+    let id = parse_json(&response)["id"].as_i64().unwrap();
+    let request = parts(
+        "GET",
+        &format!("/admin/price-rules/{id}"),
+        Some(&cookie),
+        None,
+    );
+    let response = run(&state, &request, b"").await.expect("get price rule");
+    assert_eq!(parse_json(&response)["model_match"], "priced-model");
+}
+
 // Nested CRUD tests + instance_settings tests live in a separate file to stay
 // under the 500-line cap. `include!` keeps them in the same test module so
 // they share all helpers defined above.
@@ -386,11 +421,12 @@ include!("tests_auth.rs");
 
 // Special admin CRUD (user-keys / users / credentials) integration tests (B6.3 Task 2).
 include!("tests_special.rs");
+include!("tests_credentials.rs");
 
 // Portal /user/* (session-scoped) integration tests (B6.3 Task 3).
 include!("tests_portal.rs");
 
-// Login-flows (edge-safe) + explicit 501 degradations (B6.3 Task 4).
+// Login flows and target-local host operations.
 include!("tests_login_flows.rs");
 
 // Edge mutation-audit parity (B6.4).

@@ -3,6 +3,19 @@
 
 use bytes::Bytes;
 
+/// Synchronous decoder for a chunked upstream byte stream.
+///
+/// A decoder may buffer partial frames in [`push`](Self::push) and flush any
+/// trailing state from [`finish`](Self::finish). The same interface is driven
+/// by native and edge response streams.
+pub trait ByteStreamDecoder: Send {
+    /// Feed one raw upstream chunk and return any decoded bytes.
+    fn push(&mut self, chunk: &[u8]) -> Vec<u8>;
+
+    /// Flush trailing buffered state at end of stream.
+    fn finish(&mut self) -> Vec<u8>;
+}
+
 /// Transport-level error from the upstream client.
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {

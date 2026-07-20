@@ -20,6 +20,7 @@ UPLOAD_ROOT="${TMPDIR:-/tmp}/gproxy-deno-upload"
 cd "$CRATE_ROOT"
 
 cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
+bash deploy/stage-edge-runtime.sh deno
 
 rm -rf pkg
 wasm-bindgen --target deno --out-dir pkg \
@@ -31,6 +32,7 @@ grep -q "export function gproxyFetch" pkg/gproxy.js \
 rm -rf "$UPLOAD_ROOT"
 mkdir -p "$UPLOAD_ROOT/pkg" "$UPLOAD_ROOT/console"
 cp -R pkg/. "$UPLOAD_ROOT/pkg/"
+cp deploy/deno/_shared.js "$UPLOAD_ROOT/_shared.js"
 sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts \
   > "$UPLOAD_ROOT/main.ts"
 if [ -f assets/console/index.html ]; then
@@ -43,7 +45,7 @@ cat > "$UPLOAD_ROOT/deno.json" <<JSON
   "deploy": {
     "org": "$DENO_DEPLOY_ORG",
     "app": "$DENO_DEPLOY_PROJECT",
-    "include": ["deno.json", "main.ts", "pkg/**", "console/**"]
+    "include": ["deno.json", "main.ts", "_shared.js", "pkg/**", "console/**"]
   }
 }
 JSON

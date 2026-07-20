@@ -128,14 +128,11 @@ mod tests {
     use super::*;
     use argon2::password_hash::PasswordHash;
 
-    async fn store() -> (
-        tempfile::TempDir,
-        crate::store::persistence::FilePersistence,
-    ) {
+    async fn store() -> (tempfile::TempDir, crate::store::persistence::DbPersistence) {
         let dir = tempfile::tempdir().expect("tempdir");
-        let fp = crate::store::persistence::FilePersistence::open(dir.path().to_path_buf())
+        let fp = crate::store::persistence::DbPersistence::connect("sqlite::memory:")
             .await
-            .expect("open");
+            .expect("connect");
         (dir, fp)
     }
 

@@ -454,6 +454,7 @@ jobs:
           bash deploy/netlify/build.sh
           # deno: deploy/deno/build.sh also *deploys* (needs a token), so generate
           # the deno-target glue inline here for a build-only bundle.
+          bash deploy/stage-edge-runtime.sh deno
           wasm-bindgen --target deno --out-dir deploy/deno/pkg target/wasm32-unknown-unknown/release/gproxy.wasm
           grep -q "export function gproxyFetch" deploy/deno/pkg/gproxy.js
 
@@ -466,6 +467,7 @@ jobs:
           # deno: compact upload root (main.ts path-fixed to ./pkg + the glue)
           rm -rf deploy/deno/bundle && mkdir -p deploy/deno/bundle/pkg deploy/deno/bundle/console
           cp -R deploy/deno/pkg/. deploy/deno/bundle/pkg/
+          cp deploy/deno/_shared.js deploy/deno/bundle/_shared.js
           sed 's#../../pkg/gproxy.js#./pkg/gproxy.js#' deploy/deno/main.ts > deploy/deno/bundle/main.ts
           cp -R assets/console/. deploy/deno/bundle/console/
           (cd deploy/deno/bundle && zip -9 -r ../../../edge-dist/gproxy-edge-deno.zip .)
@@ -504,7 +506,7 @@ jobs:
             echo "Prebuilt, ready-to-deploy edge bundles. **No source** — wasm + glue +"
             echo "each platform's entry + config. The main README's one-click buttons point"
             echo "here. Regenerated from \`${GITHUB_SHA}\` on every release workflow run."
-            echo "See the main branch \`deploy/\` + \`docs/edge-deploy.md\` for how each deploys."
+            echo "See the main branch \`deploy/\` and \`docs/src/content/docs/deployment/edge.md\` for build details."
           } > "$stage/README.md"
           cd "$stage"
           git init -q

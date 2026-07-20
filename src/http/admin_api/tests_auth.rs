@@ -1,4 +1,4 @@
-// Integration tests for edge dispatcher login / logout (B6.3 Task 1).
+// Shared dispatcher login / logout integration tests.
 //
 // Uses the SAME harness (state_with, seed_user, cookie_for, parts, run)
 // from tests.rs. Exercises the REAL login path (password::verify + session),

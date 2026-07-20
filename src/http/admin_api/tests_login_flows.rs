@@ -1,23 +1,21 @@
-// Integration tests for login-flows edge dispatcher + explicit 501 degradations
-// (B6.3 Task 4).
+// Integration tests for shared login-flow and host-operation dispatch.
 //
 // Uses the same harness (state_with, seed_user, cookie_for, parts, run,
 // parse_json) from tests.rs.
 //
 // Coverage:
-//   - /admin/login-flows/cookie → 501 (NotImplemented, type "not_implemented")
-//   - /admin/update/check|status|apply → 501
+//   - native cookie login reaches the real flow rather than a platform stub
+//   - native update status reaches the shared host implementation
 //   - live credential usage/reset-credit routes are edge-wired (missing id → 404)
 //   - /admin/login-flows/start without admin cookie → 401 (guard_admin runs first)
 //   - /admin/login-flows/start with valid admin cookie + body → NOT 401/404; the
 //     route is wired and guarded (codex channel authcode_start is client-free so
 //     NoUpstream doesn't panic; we get 200 with a login_session_id).
 
-// ── 501 degradations ─────────────────────────────────────────────────────────
-
-/// `POST /admin/login-flows/cookie` → 501 with type "not_implemented".
+/// Cookie login reaches the native implementation; the absent provider is a
+/// normal request error rather than the old target-level 501 degradation.
 #[tokio::test]
-async fn login_flows_cookie_is_501() {
+async fn login_flows_cookie_reaches_native_implementation() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "lf-cookie-admin", true).await;
     let cookie = cookie_for(&state, admin_id).await;
@@ -25,30 +23,21 @@ async fn login_flows_cookie_is_501() {
     let p = parts("POST", "/admin/login-flows/cookie", Some(&cookie), None);
     let err = run(&state, &p, br#"{"channel":"codex","cookie":"tok","provider_id":1}"#)
         .await
-        .expect_err("501");
-    assert_eq!(err.status(), http::StatusCode::NOT_IMPLEMENTED);
-    assert_eq!(err.type_str(), "not_implemented");
+        .expect_err("provider is absent");
+    assert_eq!(err.status(), http::StatusCode::BAD_REQUEST);
 }
 
-/// `POST /admin/update/check` → 501.
+/// The status endpoint is target-local and does not contact the update server.
 #[tokio::test]
-async fn update_check_is_501() {
+async fn update_status_reaches_native_implementation() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "lf-upd-admin", true).await;
     let cookie = cookie_for(&state, admin_id).await;
 
-    for endpoint in &["/admin/update/check", "/admin/update/status", "/admin/update/apply"] {
-        let p = parts("POST", endpoint, Some(&cookie), None);
-        let err = run(&state, &p, b"{}")
-            .await
-            .expect_err("501");
-        assert_eq!(
-            err.status(),
-            http::StatusCode::NOT_IMPLEMENTED,
-            "expected 501 for {endpoint}"
-        );
-        assert_eq!(err.type_str(), "not_implemented");
-    }
+    let p = parts("GET", "/admin/update/status", Some(&cookie), None);
+    let response = run(&state, &p, b"").await.expect("native status");
+    assert_eq!(response.status, http::StatusCode::OK);
+    assert_eq!(parse_json(&response), serde_json::json!({ "state": "idle" }));
 }
 
 /// Live usage is routed on edge; a missing credential is a normal 404 rather

@@ -13,7 +13,7 @@ fn secret() -> Value {
     })
 }
 
-fn shape_ctx(op: Operation, kind: OperationKind, stream: bool) -> ShapeCtx {
+fn shape_ctx(op: Operation, kind: OperationKind, stream: bool) -> ShapeCtx<'static> {
     ShapeCtx {
         op: OperationKey {
             operation: op,
@@ -21,8 +21,7 @@ fn shape_ctx(op: Operation, kind: OperationKind, stream: bool) -> ShapeCtx {
         },
         stream,
         status: StatusCode::OK,
-        enable_magic_cache: false,
-        enable_claude_fable_fallback: false,
+        settings: &Value::Null,
     }
 }
 

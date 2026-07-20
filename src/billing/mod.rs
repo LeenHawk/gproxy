@@ -129,17 +129,16 @@ pub async fn record_failure(
     .await
 }
 
-#[cfg(all(test, feature = "persist-file", not(target_arch = "wasm32")))]
+#[cfg(all(test, feature = "persist-db", not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
-    use crate::store::persistence::FilePersistence;
+    use crate::store::persistence::DbPersistence;
 
     #[tokio::test]
     async fn record_success_is_idempotent_by_request_id() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let db = FilePersistence::open(dir.path().to_path_buf())
+        let db = DbPersistence::connect("sqlite::memory:")
             .await
-            .expect("open");
+            .expect("connect");
 
         let usage = NormalizedUsage {
             input: 1500,

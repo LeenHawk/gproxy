@@ -1,30 +1,29 @@
 //! Codex channel — OpenAI ChatGPT-backend Responses API over OAuth2
 //! (`refresh_token` grant) plus the `codex_exec` impersonation header set.
 //!
-//! the upstream natively speaks the OpenAI Responses SSE event ladder, but its
-//! terminal `response.completed.response.output` may be empty. The channel's
-//! stream decoder normalizes that provider-native variation by accumulating
-//! output items and backfilling the terminal response. This channel also SHAPES
-//! the request body in [`prepare`](CodexChannel::prepare)
-//! (documented body mutation) — forcing `stream`/`store`, stripping sampling
-//! fields, and lifting system messages into `instructions` — via
-//! [`auth::normalize_responses_body`]. [`auth`] owns the OAuth refresh + the
-//! fingerprint headers. The inbound `/v1/responses` path is rewritten to the
-//! backend `/responses`.
+//! Its stream decoder backfills an empty terminal `response.completed` output
+//! from preceding items. Request shaping forces `stream`/`store`, strips
+//! sampling fields, and lifts system messages into `instructions`. The inbound
+//! `/v1/responses` path is rewritten to the backend `/responses`.
 
 mod auth;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 mod fingerprint;
-mod shape;
+mod headers;
+mod model_metadata;
+mod request;
+mod request_shape;
+mod token;
 mod usage;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;
 
 use std::sync::Arc;
 
 use bytes::Bytes;
 use serde_json::Value;
 
-use crate::channel::http_util::{allow_headers, build_request, join_url};
-use crate::channel::shaping::{self, openai_cache};
 use crate::channel::{
     AuthCodeStart, Channel, ChannelError, ChannelLogin, ChannelStreamDecoder, DeviceInit,
     DevicePoll, PrepareCtx, PreparedRequest, ShapeCtx,
@@ -132,69 +131,11 @@ impl Channel for CodexChannel {
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-        let access_token = auth::access_token(ctx.secret)?.to_string();
-        let account_id = auth::account_id(ctx.secret).map(str::to_owned);
-        let base = ctx
-            .provider_settings
-            .get("base_url")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .unwrap_or(auth::DEFAULT_BASE_URL);
-
-        // The inbound OpenAiResponses path is provider-relative `/v1/responses`
-        // (`/v1/responses/compact` for the compact op); the codex backend drops
-        // the `/v1` segment — base already ends in `/backend-api/codex`.
-        let websocket = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
-        let path = ctx.path.strip_prefix("/v1").unwrap_or(ctx.path);
-        // The model-list / model-get endpoint (`/models[/{id}]`) expects a
-        // `client_version` query (v1 parity); content ops keep their own query.
-        let models_query =
-            (path == "/models" || path.starts_with("/models/")).then(|| match ctx.query {
-                Some(q) if !q.is_empty() => format!("{q}&client_version={}", auth::CODEX_VERSION),
-                _ => format!("client_version={}", auth::CODEX_VERSION),
-            });
-        let uri = join_url(base, path, models_query.as_deref().or(ctx.query))?;
-
-        // Shape the Responses body for the ChatGPT backend (force stream/store,
-        // strip sampling fields, lift system messages → instructions).
-        let body = auth::normalize_responses_body(&ctx.body);
-
-        // Impersonation channel: it injects its own auth + fingerprint headers
-        // and forwards the codex protocol headers a client may set (base
-        // allow-list adds content-type / accept).
-        let headers = allow_headers(
-            ctx.headers,
-            &[
-                "x-codex-beta-features",
-                "x-codex-turn-metadata",
-                "x-codex-window-id",
-                "thread-id",
-                "session-id",
-                "x-client-request-id",
-            ],
-        );
-        let mut req = build_request(ctx.method, uri, headers, body)?;
-        auth::apply(&mut req, &access_token, account_id.as_deref())?;
-        if websocket {
-            crate::channel::responses_websocket::apply_beta(req.headers_mut());
-            *req.uri_mut() = crate::channel::responses_websocket::websocket_uri(req.uri())?;
-            return crate::channel::responses_websocket::prepare(req);
-        }
-        Ok(PreparedRequest::new(req))
+        request::prepare(ctx)
     }
 
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
-        let Some(kind) = ctx
-            .enable_magic_cache
-            .then(|| openai_cache::kind_for_operation(ctx.op))
-            .flatten()
-        else {
-            return body;
-        };
-        shaping::with_json_body(body, |value| {
-            openai_cache::apply_magic_string_cache_breakpoints(value, kind)
-        })
+        request_shape::shape(body, ctx)
     }
 
     fn stream_decoder(&self) -> Option<Box<dyn ChannelStreamDecoder>> {
@@ -202,7 +143,7 @@ impl Channel for CodexChannel {
     }
 
     fn needs_refresh(&self, secret: &Value) -> bool {
-        auth::needs_refresh(secret)
+        token::needs_refresh(secret)
     }
 
     async fn refresh(
@@ -210,7 +151,7 @@ impl Channel for CodexChannel {
         client: &Arc<dyn UpstreamClient>,
         secret: &Value,
     ) -> Result<Value, ChannelError> {
-        auth::refresh(client, secret).await
+        token::refresh(client, secret).await
     }
 
     fn prepare_usage_request(
@@ -253,8 +194,8 @@ impl Channel for CodexChannel {
     /// backend already speaks OpenAI Responses, so there is nothing to reproject.
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
         match ctx.op.operation {
-            Operation::ListModels => shape::shape_model_list(body),
-            Operation::GetModel => shape::shape_model_get(body),
+            Operation::ListModels => model_metadata::shape_model_list(body),
+            Operation::GetModel => model_metadata::shape_model_get(body),
             _ => body,
         }
     }
@@ -320,400 +261,5 @@ impl ChannelLogin for CodexChannel {
         device_code: &str,
     ) -> Result<DevicePoll, ChannelError> {
         auth::device_poll(client, device_code).await
-    }
-}
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod tests {
-    use super::*;
-    use bytes::Bytes;
-    use http::{HeaderMap, Method, StatusCode};
-    use serde_json::json;
-
-    use crate::protocol::{ContentGenerationKind as Kind, Operation, OperationKind, Provider};
-    use crate::transform::routing::RoutingDecision;
-
-    /// Social `authcode_start` ignores the client; this never sends.
-    struct NoopUpstream;
-    #[async_trait::async_trait]
-    impl UpstreamClient for NoopUpstream {
-        async fn send(
-            &self,
-            _req: http::Request<Bytes>,
-        ) -> Result<http::Response<Bytes>, crate::http::client::ClientError> {
-            Err(crate::http::client::ClientError::Transport("noop".into()))
-        }
-    }
-
-    fn prepared_body(body: &'static [u8]) -> Value {
-        let secret = json!({ "access_token": "tok-abc" });
-        let settings = json!({});
-        let headers = HeaderMap::new();
-        let ctx = PrepareCtx {
-            secret: &secret,
-            provider_settings: &settings,
-            upstream_model_id: "gpt-5.4",
-            method: Method::POST,
-            path: "/v1/responses",
-            query: None,
-            headers: &headers,
-            body: Bytes::from_static(body),
-        };
-        let req = CodexChannel.prepare(ctx).unwrap().into_http();
-        serde_json::from_slice(req.body()).unwrap()
-    }
-
-    fn route(operation: Operation, kind: Kind) -> RoutingDecision {
-        CodexChannel
-            .routing_table()
-            .into_iter()
-            .find(|(source, _)| {
-                source.operation == operation && source.kind == crate::channel::routes::cg(kind)
-            })
-            .map(|(_, decision)| decision)
-            .expect("missing route")
-    }
-
-    fn provider_route(operation: Operation, provider: Provider) -> RoutingDecision {
-        CodexChannel
-            .routing_table()
-            .into_iter()
-            .find(|(source, _)| {
-                source.operation == operation && source.kind == crate::channel::routes::pv(provider)
-            })
-            .map(|(_, decision)| decision)
-            .expect("missing route")
-    }
-
-    #[test]
-    fn stream_decoder_backfills_function_call_in_completed_output() {
-        let item = json!({
-            "type": "response.output_item.done",
-            "output_index": 0,
-            "item": {
-                "id": "fc_1",
-                "type": "function_call",
-                "status": "completed",
-                "call_id": "call_1",
-                "name": "get_me_mcp_github",
-                "arguments": "{}"
-            }
-        });
-        let completed = json!({
-            "type": "response.completed",
-            "response": {
-                "id": "resp_1",
-                "object": "response",
-                "status": "completed",
-                "output": []
-            }
-        });
-        let upstream = format!(
-            "event: response.output_item.done\ndata: {item}\n\n\
-             event: response.completed\ndata: {completed}\n\n"
-        );
-
-        let mut decoder = CodexChannel.stream_decoder().expect("codex normalizer");
-        let mut normalized = decoder.push(upstream.as_bytes());
-        normalized.extend(decoder.finish());
-
-        let mut sse = crate::transform::common::sse::SseDecoder::new();
-        let frames = sse.push(&normalized);
-        let completed: Value = frames
-            .into_iter()
-            .find(|frame| frame.event.as_deref() == Some("response.completed"))
-            .map(|frame| serde_json::from_str(&frame.data).unwrap())
-            .expect("completed event");
-        assert_eq!(
-            completed["response"]["output"][0], item["item"],
-            "Codex output_item.done must be reflected in the terminal response"
-        );
-    }
-
-    #[test]
-    fn magic_cache_breakpoint_survives_codex_normalization() {
-        let mut headers = HeaderMap::new();
-        let shape = ShapeCtx {
-            op: crate::protocol::OperationKey::content_generation(
-                Operation::StreamGenerateContent,
-                Kind::OpenAiResponses,
-            ),
-            stream: true,
-            status: StatusCode::OK,
-            enable_magic_cache: true,
-            enable_claude_fable_fallback: false,
-        };
-        let shaped = CodexChannel.shape_request(
-            Bytes::from_static(
-                br#"{"model":"gpt-5.6","instructions":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH","input":"hello"}"#,
-            ),
-            &mut headers,
-            &shape,
-        );
-        let secret = json!({ "access_token": "tok-abc" });
-        let settings = json!({});
-        let prepared = CodexChannel
-            .prepare(PrepareCtx {
-                secret: &secret,
-                provider_settings: &settings,
-                upstream_model_id: "gpt-5.6",
-                method: Method::POST,
-                path: "/v1/responses",
-                query: None,
-                headers: &headers,
-                body: shaped,
-            })
-            .unwrap()
-            .into_http();
-        let value: Value = serde_json::from_slice(prepared.body()).unwrap();
-        assert_eq!(
-            value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
-            "explicit"
-        );
-        assert_eq!(value["input"][0]["role"], "developer");
-    }
-
-    #[test]
-    fn content_defaults_target_streaming_responses_except_websocket_source() {
-        for (operation, kind) in [
-            (Operation::GenerateContent, Kind::OpenAiResponses),
-            (Operation::GenerateContent, Kind::OpenAiChatCompletions),
-            (Operation::GenerateContent, Kind::ClaudeMessages),
-            (Operation::GenerateContent, Kind::GeminiGenerateContent),
-            (
-                Operation::StreamGenerateContent,
-                Kind::OpenAiChatCompletions,
-            ),
-            (Operation::StreamGenerateContent, Kind::ClaudeMessages),
-            (
-                Operation::StreamGenerateContent,
-                Kind::GeminiGenerateContent,
-            ),
-        ] {
-            let RoutingDecision::TransformTo(target) = route(operation, kind) else {
-                panic!("route should transform to streaming responses");
-            };
-            assert_eq!(target.operation, Operation::StreamGenerateContent);
-            assert_eq!(
-                target.kind,
-                OperationKind::ContentGeneration(Kind::OpenAiResponses)
-            );
-        }
-
-        assert_eq!(
-            route(Operation::StreamGenerateContent, Kind::OpenAiResponses),
-            RoutingDecision::Passthrough
-        );
-
-        assert_eq!(
-            route(
-                Operation::StreamGenerateContent,
-                Kind::OpenAiResponsesWebSocket
-            ),
-            RoutingDecision::Passthrough
-        );
-
-        let RoutingDecision::TransformTo(target) =
-            route(Operation::GenerateContent, Kind::OpenAiResponsesWebSocket)
-        else {
-            panic!("websocket source should transform to streaming websocket");
-        };
-        assert_eq!(target.operation, Operation::StreamGenerateContent);
-        assert_eq!(
-            target.kind,
-            OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
-        );
-    }
-
-    #[test]
-    fn embeddings_default_to_unsupported() {
-        assert_eq!(
-            provider_route(Operation::CreateEmbedding, Provider::OpenAi),
-            RoutingDecision::Unsupported
-        );
-        assert_eq!(
-            provider_route(Operation::CreateEmbedding, Provider::Gemini),
-            RoutingDecision::Unsupported
-        );
-    }
-
-    #[test]
-    fn prepare_responses_websocket_returns_custom_stream() {
-        let secret = json!({ "access_token": "tok-abc" });
-        let settings = json!({});
-        let headers = HeaderMap::new();
-        let ctx = PrepareCtx {
-            secret: &secret,
-            provider_settings: &settings,
-            upstream_model_id: "gpt-5.4",
-            method: Method::GET,
-            path: "/v1/responses",
-            query: None,
-            headers: &headers,
-            body: Bytes::from_static(
-                br#"{"type":"response.create","model":"gpt-5.4","input":"hi","stream":true}"#,
-            ),
-        };
-
-        assert!(matches!(
-            CodexChannel.prepare(ctx).unwrap(),
-            PreparedRequest::CustomStream(_)
-        ));
-    }
-
-    #[test]
-    fn normalizes_responses_body() {
-        // String input → forced stream/store, sampling fields dropped, input
-        // wrapped as a single user message.
-        let v = prepared_body(
-            br#"{"model":"gpt-5.4","input":"hi","temperature":0.7,"max_output_tokens":100,"stream":false}"#,
-        );
-        assert_eq!(v["stream"], json!(true));
-        assert_eq!(v["store"], json!(false));
-        assert!(v.get("temperature").is_none());
-        assert!(v.get("max_output_tokens").is_none());
-        assert_eq!(
-            v["input"],
-            json!([{ "type": "message", "role": "user", "content": "hi" }])
-        );
-
-        // System message lifted into instructions; only the user message kept.
-        let v = prepared_body(
-            br#"{"model":"gpt-5.4","input":[{"role":"system","content":"S"},{"role":"user","content":"U"}]}"#,
-        );
-        assert_eq!(v["instructions"], json!("S"));
-        let roles: Vec<&str> = v["input"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|m| m["role"].as_str().unwrap())
-            .collect();
-        assert_eq!(roles, vec!["user"]);
-    }
-
-    #[test]
-    fn prepare_url_and_headers() {
-        let secret = json!({ "access_token": "tok-abc", "account_id": "acct-9" });
-        let settings = json!({});
-        let headers = HeaderMap::new();
-        let ctx = PrepareCtx {
-            secret: &secret,
-            provider_settings: &settings,
-            upstream_model_id: "gpt-5.4",
-            method: Method::POST,
-            path: "/v1/responses",
-            query: None,
-            headers: &headers,
-            body: Bytes::from_static(br#"{"model":"gpt-5.4","input":"hi"}"#),
-        };
-        let req = CodexChannel.prepare(ctx).unwrap().into_http();
-
-        assert_eq!(
-            req.uri().to_string(),
-            "https://chatgpt.com/backend-api/codex/responses"
-        );
-        assert_eq!(
-            req.headers().get("authorization").unwrap(),
-            "Bearer tok-abc"
-        );
-        assert_eq!(req.headers().get("originator").unwrap(), "codex_exec");
-        assert_eq!(req.headers().get("chatgpt-account-id").unwrap(), "acct-9");
-        // session-id and x-client-request-id share the same generated value.
-        assert_eq!(
-            req.headers().get("session-id").unwrap(),
-            req.headers().get("x-client-request-id").unwrap()
-        );
-    }
-
-    #[test]
-    fn model_list_request_carries_client_version() {
-        let secret = json!({ "access_token": "tok-abc" });
-        let settings = json!({});
-        let headers = HeaderMap::new();
-        // The admin model-pull sends a GET `/v1/models` (no query).
-        let ctx = PrepareCtx {
-            secret: &secret,
-            provider_settings: &settings,
-            upstream_model_id: "",
-            method: Method::GET,
-            path: "/v1/models",
-            query: None,
-            headers: &headers,
-            body: Bytes::new(),
-        };
-        let req = CodexChannel.prepare(ctx).unwrap().into_http();
-        assert_eq!(
-            req.uri().to_string(),
-            format!(
-                "https://chatgpt.com/backend-api/codex/models?client_version={}",
-                auth::CODEX_VERSION
-            ),
-        );
-        // GET with an empty body stays empty (normalize_responses_body no-ops).
-        assert!(req.body().is_empty());
-    }
-
-    #[test]
-    fn forwards_codex_client_headers() {
-        let secret = json!({ "access_token": "tok-abc" });
-        let settings = json!({});
-        let id = "019ebb45-a25d-7520-a8e3-fda4ebc99692";
-        let mut headers = HeaderMap::new();
-        headers.insert("session-id", id.parse().unwrap());
-        headers.insert("thread-id", id.parse().unwrap());
-        headers.insert("x-client-request-id", id.parse().unwrap());
-        headers.insert("x-codex-window-id", format!("{id}:0").parse().unwrap());
-        headers.insert(
-            "x-codex-beta-features",
-            "terminal_resize_reflow,memories".parse().unwrap(),
-        );
-        let ctx = PrepareCtx {
-            secret: &secret,
-            provider_settings: &settings,
-            upstream_model_id: "gpt-5.4",
-            method: Method::POST,
-            path: "/v1/responses",
-            query: None,
-            headers: &headers,
-            body: Bytes::from_static(br#"{"input":"hi"}"#),
-        };
-        let req = CodexChannel.prepare(ctx).unwrap().into_http();
-        // A codex-aware client's protocol headers pass through verbatim — GPROXY
-        // does NOT regenerate them (so they stay consistent with turn-metadata).
-        assert_eq!(req.headers().get("session-id").unwrap(), id);
-        assert_eq!(req.headers().get("thread-id").unwrap(), id);
-        assert_eq!(req.headers().get("x-client-request-id").unwrap(), id);
-        assert_eq!(
-            req.headers().get("x-codex-window-id").unwrap(),
-            &format!("{id}:0")
-        );
-        assert_eq!(
-            req.headers().get("x-codex-beta-features").unwrap(),
-            "terminal_resize_reflow,memories"
-        );
-        // GPROXY still owns auth/originator/UA.
-        assert_eq!(req.headers().get("originator").unwrap(), "codex_exec");
-    }
-
-    #[tokio::test]
-    async fn codex_authcode_start_url() {
-        // Empty redirect_uri → codex default; URL carries the PKCE + state set.
-        let client: Arc<dyn UpstreamClient> = Arc::new(NoopUpstream);
-        let start = CodexChannel
-            .authcode_start(&client, &json!({}), "", "STATE", "CHAL")
-            .await
-            .expect("authcode_start ok")
-            .expect("codex supports authcode");
-        let url = &start.authorize_url;
-        assert!(url.starts_with("https://auth.openai.com/oauth/authorize?"));
-        assert!(
-            url.contains("client_id=app_EMoamEEZ73f0CkXaXp7hrann"),
-            "{url}"
-        );
-        assert!(url.contains("code_challenge=CHAL"), "{url}");
-        assert!(url.contains("state=STATE"), "{url}");
-        assert!(url.contains("code_challenge_method=S256"), "{url}");
-        assert!(url.contains("redirect_uri="), "{url}");
-        assert_eq!(start.redirect_uri, "http://localhost:1455/auth/callback");
     }
 }
