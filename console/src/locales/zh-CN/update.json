@@ -22,7 +22,7 @@
     "apkButton": "下载并安装 APK",
     "confirm": {
       "title": "更新并重启？",
-      "description": "此操作将下载新的二进制文件，保留旧版本为 .prev 以便回滚，并自动重启 GPROXY。",
+      "description": "此操作将下载并安装新的二进制文件，然后自动重启 GPROXY。",
       "confirmLabel": "更新并重启"
     },
     "apkConfirm": {
