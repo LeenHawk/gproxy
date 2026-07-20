@@ -4,16 +4,10 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 /// CLI input type only — used by `clap` for `--persistence`.
-///
-/// The `clap::ValueEnum` derive is native-only (clap is not a wasm dep); the
-/// enum itself stays shared so `PersistenceConfig::from_parts` compiles on both
-/// targets.
 #[cfg_attr(not(target_arch = "wasm32"), derive(clap::ValueEnum))]
 #[cfg_attr(not(target_arch = "wasm32"), value(rename_all = "lowercase"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PersistenceKind {
-    /// Local disk — single-instance only.
-    File,
     /// SeaORM-backed database — supports multi-instance.
     Db,
 }
@@ -51,16 +45,12 @@ impl CacheConfig {
 /// Validated persistence configuration. `Db` variant always carries a DSN.
 #[derive(Clone)]
 pub enum PersistenceConfig {
-    File { data_dir: PathBuf },
     Db { dsn: String },
 }
 
 impl std::fmt::Debug for PersistenceConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PersistenceConfig::File { data_dir } => {
-                write!(f, "File {{ data_dir: {data_dir:?} }}")
-            }
             PersistenceConfig::Db { .. } => write!(f, "Db {{ dsn: <redacted> }}"),
         }
     }
@@ -73,7 +63,6 @@ impl PersistenceConfig {
         dsn: Option<String>,
     ) -> anyhow::Result<Self> {
         match kind {
-            PersistenceKind::File => Ok(Self::File { data_dir }),
             PersistenceKind::Db => Ok(Self::Db {
                 dsn: match dsn {
                     Some(d) => d,
@@ -212,13 +201,13 @@ impl RuntimeConfig {
 mod tests {
     use super::*;
 
-    fn file_cfg() -> RuntimeConfig {
+    fn runtime_cfg() -> RuntimeConfig {
         RuntimeConfig {
             host: "127.0.0.1".to_string(),
             port: 8787,
             cache: CacheConfig::Memory,
-            persistence: PersistenceConfig::File {
-                data_dir: PathBuf::from("./data"),
+            persistence: PersistenceConfig::Db {
+                dsn: "sqlite::memory:".to_string(),
             },
             upstream: UpstreamConfig::from_proxy_url(None),
             instance_id: 0,
@@ -233,7 +222,7 @@ mod tests {
 
     #[test]
     fn bind_addr_parses() {
-        let addr = file_cfg().bind_addr().unwrap();
+        let addr = runtime_cfg().bind_addr().unwrap();
         assert_eq!(addr.to_string(), "127.0.0.1:8787");
     }
 
@@ -249,7 +238,6 @@ mod tests {
                 assert!(dsn.contains("gproxy.db"), "got {dsn}");
                 assert!(dsn.contains("mode=rwc"), "got {dsn}");
             }
-            other => panic!("expected Db, got {other:?}"),
         }
     }
 
@@ -261,12 +249,6 @@ mod tests {
             Some("sqlite://test.db".to_string()),
         )
         .unwrap();
-    }
-
-    #[test]
-    fn persistence_file_is_ok() {
-        PersistenceConfig::from_parts(PersistenceKind::File, PathBuf::from("./data"), None)
-            .unwrap();
     }
 
     #[test]

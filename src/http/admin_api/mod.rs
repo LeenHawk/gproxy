@@ -1,11 +1,8 @@
 //! Cross-target admin/portal HTTP dispatcher.
 //!
-//! This module is the architecture-proving core for serving `/admin/*` and
-//! `/user/*` on the edge (wasm) worker. It is gated `cfg(any(wasm32, test))`:
-//! it compiles into the wasm edge build (which calls [`dispatch`] from
-//! `edge/mod.rs::fetch`) AND into native **test** builds (so the dispatcher can
-//! be driven by native integration tests), but is skipped in native release
-//! builds to avoid dead code there — the native server has its own axum router.
+//! This is the sole business implementation for `/admin/*` and `/user/*` on
+//! both native axum and wasm edge hosts. Host adapters only translate framework
+//! request/response types.
 //!
 //! Every handler returns PURE DATA ([`Resp`], no `web_sys`), so a native test
 //! can assert on `(status, body)` directly. The wasm `edge/mod.rs` converts the
@@ -16,6 +13,7 @@ pub(crate) mod authz;
 pub(crate) mod batch;
 pub(crate) mod credential_ops;
 pub mod crud;
+mod host;
 pub(crate) mod login_flows;
 pub(crate) mod nested;
 pub(crate) mod observability;
@@ -23,36 +21,80 @@ pub(crate) mod portal;
 pub(crate) mod provider_ops;
 pub(crate) mod settings;
 pub(crate) mod special;
+mod update;
 
 use bytes::Bytes;
-use http::request::Parts;
-use http::{HeaderName, HeaderValue, Method, StatusCode};
+use http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use serde::de::DeserializeOwned;
 
-use crate::admin::guard::{guard_admin, guard_session};
+use crate::admin::guard::{RequestMetadata, guard_admin, guard_session};
 use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::store::persistence::records::AuditLogInput;
 
-/// Pure HTTP response data (no `web_sys`) so the dispatcher is natively
-/// testable. The wasm edge converts this into a `web_sys::Response`.
+/// Target-independent dispatcher request metadata. The raw body remains a
+/// separate [`Bytes`] argument so adapters can pass it without another copy.
+#[derive(Clone)]
+pub struct Request {
+    pub method: Method,
+    pub uri: Uri,
+    pub headers: HeaderMap,
+    source_ip: Option<String>,
+}
+
+impl Request {
+    pub fn new(method: Method, uri: Uri, headers: HeaderMap) -> Self {
+        Self {
+            method,
+            uri,
+            headers,
+            source_ip: None,
+        }
+    }
+
+    pub fn with_source_ip(mut self, source_ip: Option<String>) -> Self {
+        self.source_ip = source_ip;
+        self
+    }
+
+    fn source_ip(&self) -> Option<String> {
+        self.source_ip
+            .clone()
+            .or_else(|| auth::edge_client_ip(&self.headers))
+    }
+}
+
+impl RequestMetadata for Request {
+    fn method(&self) -> &Method {
+        &self.method
+    }
+
+    fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+}
+
+/// Pure HTTP response data converted by native axum or wasm `web_sys` adapters.
 #[derive(Debug)]
 pub struct Resp {
     pub status: StatusCode,
-    pub headers: Vec<(HeaderName, HeaderValue)>,
-    pub body: Vec<u8>,
+    pub headers: HeaderMap,
+    pub body: Bytes,
 }
 
 impl Resp {
     /// JSON response with the given status and `content-type: application/json`.
     pub(crate) fn json(status: u16, value: &impl serde::Serialize) -> Result<Resp, ApiError> {
-        let body = serde_json::to_vec(value).map_err(|e| ApiError::Internal(e.to_string()))?;
+        let body =
+            Bytes::from(serde_json::to_vec(value).map_err(|e| ApiError::Internal(e.to_string()))?);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
         Ok(Resp {
             status: StatusCode::from_u16(status).expect("caller passes a valid status"),
-            headers: vec![(
-                http::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json"),
-            )],
+            headers,
             body,
         })
     }
@@ -61,8 +103,36 @@ impl Resp {
     pub(crate) fn no_content() -> Resp {
         Resp {
             status: StatusCode::NO_CONTENT,
-            headers: vec![],
-            body: vec![],
+            headers: HeaderMap::new(),
+            body: Bytes::new(),
+        }
+    }
+
+    fn method_not_allowed(allow: &'static str) -> Resp {
+        let mut headers = HeaderMap::new();
+        headers.insert(http::header::ALLOW, HeaderValue::from_static(allow));
+        Resp {
+            status: StatusCode::METHOD_NOT_ALLOWED,
+            headers,
+            body: Bytes::new(),
+        }
+    }
+
+    fn from_error(error: ApiError) -> Resp {
+        let extra = error.extra_headers();
+        let (status, body) = error.to_parts();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        for (name, value) in extra {
+            headers.append(name, value);
+        }
+        Resp {
+            status,
+            headers,
+            body: Bytes::from(body),
         }
     }
 }
@@ -70,7 +140,7 @@ impl Resp {
 // ── Pure parse helpers (cross-target; the web_sys builders live in edge/http) ──
 
 /// Split a URI path into non-empty segments: `/a/b/c` → `["a", "b", "c"]`.
-pub(crate) fn segments(parts: &Parts) -> Vec<&str> {
+pub(crate) fn segments(parts: &Request) -> Vec<&str> {
     parts
         .uri
         .path()
@@ -92,11 +162,8 @@ pub(crate) fn json_body<T: DeserializeOwned>(body: &Bytes) -> Result<T, ApiError
 }
 
 /// Deserialize URL-encoded query params from `parts.uri.query()`. An absent
-/// query is treated as empty. Now cross-target: `serde_urlencoded` is in the
-/// top-level `[dependencies]` (not wasm-gated), enabling this helper in both
-/// edge and native test builds.
-#[allow(dead_code)]
-pub(crate) fn query<T: DeserializeOwned>(parts: &Parts) -> Result<T, ApiError> {
+/// query is treated as empty.
+pub(crate) fn query<T: DeserializeOwned>(parts: &Request) -> Result<T, ApiError> {
     serde_urlencoded::from_str(parts.uri.query().unwrap_or(""))
         .map_err(|e| ApiError::BadRequest(format!("invalid query: {e}")))
 }
@@ -106,9 +173,8 @@ pub(crate) fn internal<E: std::fmt::Display>(e: E) -> ApiError {
     ApiError::Internal(e.to_string())
 }
 
-/// Write an audit log entry. Direct `await` (no `tokio::spawn`) so this works
-/// on edge (wasm) where spawning is unavailable. Native login/logout go through
-/// their own `record_audit` (spawn-based); this helper is edge/test only.
+/// Write an audit log entry. Direct `await` keeps the behavior available on
+/// edge runtimes where spawning is unavailable.
 pub(crate) async fn audit(state: &AppState, input: AuditLogInput) {
     let _ = state.persistence.append_audit_log(input).await;
 }
@@ -116,13 +182,27 @@ pub(crate) async fn audit(state: &AppState, input: AuditLogInput) {
 // ── Dispatcher ────────────────────────────────────────────────────────────────
 
 /// Route an `/admin/*` or `/user/*` request to its handler, then audit the
-/// request when it is a mutation (non-GET) performed by an authenticated user —
-/// mirroring the native audit middleware, which records every non-GET admin
-/// request. `login`/`logout` self-audit (login.success/fail), so they're skipped
-/// here. Returns `Some(result)` when handled, `None` to fall through (404).
-pub async fn dispatch(
+/// request when it is a mutation (non-GET) performed by an authenticated user.
+/// `login`/`logout` self-audit (login.success/fail), so they're skipped here.
+/// Returns `Some(result)` when handled, `None` to fall through (404).
+pub async fn dispatch(state: &AppState, parts: &Request, body: &Bytes) -> Option<Resp> {
+    if parts.method == Method::HEAD {
+        let mut get = parts.clone();
+        get.method = Method::GET;
+        return dispatch_result(state, &get, body).await.map(|result| {
+            let mut response = result.unwrap_or_else(Resp::from_error);
+            response.body = Bytes::new();
+            response
+        });
+    }
+    dispatch_result(state, parts, body)
+        .await
+        .map(|result| result.unwrap_or_else(Resp::from_error))
+}
+
+async fn dispatch_result(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let result = route(state, parts, body).await?;
@@ -130,11 +210,10 @@ pub async fn dispatch(
     Some(result)
 }
 
-/// Audit a mutating edge request (parity with the native `audit` middleware,
-/// which is inner to `require_admin`/`require_session` — so only authenticated
-/// requests are recorded; a 401/403 from the guard is not). Logs method + path +
-/// response status + actor, never the body. `login`/`logout` self-audit.
-async fn audit_mutation(state: &AppState, parts: &Parts, result: &Result<Resp, ApiError>) {
+/// Audit a mutating request only when its guard authenticated an actor. Logs
+/// method + path + response status + actor, never the body. `login`/`logout`
+/// self-audit.
+async fn audit_mutation(state: &AppState, parts: &Request, result: &Result<Resp, ApiError>) {
     if parts.method == Method::GET {
         return;
     }
@@ -168,7 +247,7 @@ async fn audit_mutation(state: &AppState, parts: &Parts, result: &Result<Resp, A
             action: parts.method.as_str().to_owned(),
             target: parts.uri.path().to_owned(),
             status,
-            source_ip: auth::edge_client_ip(&parts.headers),
+            source_ip: parts.source_ip(),
         },
     )
     .await;
@@ -179,7 +258,7 @@ async fn audit_mutation(state: &AppState, parts: &Parts, result: &Result<Resp, A
 /// Returns `Some(result)` when the path is a route we handle; `None` to fall
 /// through (caller renders 404). Each handler runs its auth guard first, then
 /// the logic, returning `Result<Resp, ApiError>` as pure data.
-async fn route(state: &AppState, parts: &Parts, body: &Bytes) -> Option<Result<Resp, ApiError>> {
+async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result<Resp, ApiError>> {
     // 0. Public auth endpoints (login/logout): no guard, no CSRF required.
     //    Must come BEFORE the guarded arms so a cookie-less login POST is not
     //    refused by guard_admin.
@@ -269,19 +348,96 @@ async fn route(state: &AppState, parts: &Parts, body: &Bytes) -> Option<Result<R
         return Some(r);
     }
 
+    if let Some(r) = host::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
+    if let Some(r) = update::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
     // 9. Identity endpoints.
     let r = match (&parts.method, segs.as_slice()) {
         (&Method::GET, ["admin", "me"]) => admin_me(state, parts).await,
         (&Method::GET, ["user", "me"]) => user_me(state, parts).await,
-        _ => return None,
+        _ => {
+            return allowed_methods(segs.as_slice())
+                .map(|allow| Ok(Resp::method_not_allowed(allow)));
+        }
     };
     Some(r)
+}
+
+fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
+    match segments {
+        ["admin", "login" | "logout"] => Some("POST"),
+        ["admin", "me"] => Some("GET,HEAD"),
+        ["admin", "autostart"] => Some("GET,HEAD,PUT"),
+        [
+            "admin",
+            "orgs" | "providers" | "routes" | "aliases" | "price-rules" | "rule-sets"
+            | "instance-settings" | "users",
+        ] => Some("GET,HEAD,POST"),
+        [
+            "admin",
+            "usage"
+            | "usage-summary"
+            | "usage-rollups"
+            | "credential-statuses"
+            | "logs"
+            | "audit"
+            | "tls-presets",
+        ] => Some("GET,HEAD"),
+        ["admin", "batch", _] => Some("POST"),
+        [
+            "admin",
+            "orgs" | "providers" | "routes" | "aliases" | "price-rules" | "rule-sets" | "users",
+            _,
+        ] => Some("GET,HEAD,DELETE"),
+        [
+            "admin",
+            "credentials" | "user-keys" | "teams" | "provider-models" | "route-members" | "rules"
+            | "routing-rules" | "provider-rule-sets" | "route-permissions" | "rate-limits"
+            | "quotas",
+            _,
+        ] => Some("DELETE"),
+        ["admin", "route-permissions" | "rate-limits" | "quotas"] => Some("GET,HEAD,POST"),
+        ["admin", "login-flows", "start" | "complete" | "cookie"] => Some("POST"),
+        ["admin", "login-flows", "device", "start" | "poll"] => Some("POST"),
+        ["admin", "update", "check" | "status"] => Some("GET,HEAD"),
+        ["admin", "update", "apply"] => Some("POST"),
+        ["admin", "connectivity", "test"] => Some("POST"),
+        ["admin", "orgs", _, "teams"]
+        | [
+            "admin",
+            "providers",
+            _,
+            "models" | "credentials" | "routing-rules" | "rule-sets",
+        ]
+        | ["admin", "routes", _, "members"]
+        | ["admin", "rule-sets", _, "rules"]
+        | ["admin", "users", _, "keys"] => Some("GET,HEAD,POST"),
+        ["admin", "providers", _, "upstream-models"]
+        | ["admin", "credentials", _, "status" | "secret" | "usage"]
+        | ["admin", "logs", _, "downstream" | "upstream"] => Some("GET,HEAD"),
+        ["admin", "credentials", _, "rate-limit-reset-credit"]
+        | ["admin", "providers", _, "routing-rules", "reset"] => Some("POST"),
+        ["admin", "providers", _, "credentials", _] => Some("GET,HEAD"),
+        [
+            "user",
+            "me" | "usage" | "usage-rollups" | "quota" | "rate-limits" | "route-permissions",
+        ] => Some("GET,HEAD"),
+        ["user", "keys"] => Some("GET,HEAD,POST"),
+        ["user", "keys", _] => Some("PATCH,DELETE"),
+        ["user", "change-password"] => Some("POST"),
+        _ => None,
+    }
 }
 
 // ── Handlers (auth guard first, then logic) ───────────────────────────────────
 
 /// `GET /admin/me` — the authenticated admin identity.
-async fn admin_me(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn admin_me(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_admin(state, parts).await?;
     Resp::json(
         200,
@@ -292,7 +448,7 @@ async fn admin_me(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
 /// `GET /user/me` — the portal session identity (admits any enabled user).
 /// Org/team ids are resolved to human names for the portal (parity with the
 /// native `user::me::me` handler).
-async fn user_me(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn user_me(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let org_name = state
         .persistence

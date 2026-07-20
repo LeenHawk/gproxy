@@ -33,7 +33,6 @@ Automatic migration does not run for:
 | --- | --- |
 | Fresh install with no `gproxy.db` | Creates a normal v2 database. |
 | Existing v2 database | Skips migration. |
-| `--persistence=file` | No v1 SQLite migration. |
 | PostgreSQL or MySQL target | Use explicit `migrate-v1 --to <dsn>`. |
 | `sqlite::memory:` | No file exists to take over. |
 

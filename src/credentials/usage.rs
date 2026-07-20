@@ -62,8 +62,7 @@ pub async fn fetch_usage(
         .open(&credential.secret_json)
         .map_err(|e| UsageError::Decrypt(e.to_string()))?;
     let secret = state
-        .refresh
-        .ensure_fresh(state, &channel, &credential, &provider, opened, false)
+        .ensure_fresh_credential(&channel, &credential, &provider, opened, false)
         .await?;
 
     // None → the channel has no usage endpoint (api-key / vertex channels).
@@ -105,8 +104,7 @@ pub async fn consume_rate_limit_reset_credit(
         .open(&credential.secret_json)
         .map_err(|e| UsageError::Decrypt(e.to_string()))?;
     let secret = state
-        .refresh
-        .ensure_fresh(state, &channel, &credential, &provider, opened, false)
+        .ensure_fresh_credential(&channel, &credential, &provider, opened, false)
         .await?;
 
     let client = resolve_client(state, &channel, &credential, &provider)?;

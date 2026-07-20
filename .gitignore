@@ -14,6 +14,7 @@ __pycache__/
 # ── Deno Deploy ──
 .deno_cache
 deploy/deno/bundle/
+deploy/deno/_shared.js
 
 # ── wasm-bindgen build output (regenerated; never commit) ──
 pkg/
@@ -45,6 +46,7 @@ deploy/netlify/public/console/*
 # ── Cloudflare Workers build output (regenerated from the crate; never commit —
 #    only src/worker.js + wrangler.toml + build.sh are hand-written source) ──
 deploy/cloudflare/src/_lib/
+deploy/cloudflare/src/_shared.js
 deploy/cloudflare/public/*
 !deploy/cloudflare/public/.gitkeep
 !deploy/cloudflare/public/console/

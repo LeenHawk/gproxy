@@ -66,7 +66,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: UserInput) -> anyhow::Resu
             }
             None => {
                 // Seeding an empty store from a pinned bundle: insert WITH the
-                // explicit id (matches the file backend's insert-with-id).
+                // Preserve explicit IDs supplied by bundle imports.
                 user::ActiveModel {
                     id: Set(id),
                     name: Set(input.name),

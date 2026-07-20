@@ -7,7 +7,10 @@
 - 仅对真正棘手的逻辑、真实 bug 的回归点写**精简**测试。
 
 ## 代码组织
-- 单文件理想 **≤200 行**,**绝对不超过 500 行**;确需超过先经人工审批。
+- 业务逻辑单文件理想 **≤200 行**,**绝对不超过 500 行**;确需超过先经人工审批。
+- 声明型协议 schema 若拆分会破坏公开 enum variant API,可经人工审批登记例外;不得用
+  `include!`、代码生成宏或压缩格式单纯规避行数限制。当前唯一例外是
+  `crates/gproxy-protocol/src/protocol/openai/generate_content/stream.rs`。
 - 按职责结构化拆分模块;文件变大即视为"做了太多事"的信号。
 
 ## 写代码前
@@ -36,4 +39,7 @@
   与 squash 提交承载,保持分支列表干净。
 
 ## 架构
-- v2 架构设计见 `docs/architecture-design.md`。
+- v2 架构设计见英文页
+  `docs/src/content/docs/introduction/architecture.md` 与中文页
+  `docs/src/content/docs/zh-cn/introduction/architecture.md`。
+- 源码中未带文档名的 `§数字` 引用按上述页面的“稳定代码引用索引”解析。

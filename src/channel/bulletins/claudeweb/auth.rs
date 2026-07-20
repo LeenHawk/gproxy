@@ -1,18 +1,17 @@
 //! Claude Web session-cookie authentication and account bootstrap.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use http::{Request, StatusCode, header};
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use crate::channel::ChannelError;
 use crate::http::client::UpstreamClient;
 
 pub(super) const DEFAULT_BASE_URL: &str = "https://claude.ai";
 const BOOTSTRAP_ATTEMPTS: u32 = 5;
-const VALIDATION_INTERVAL_MS: i64 = 12 * 60 * 60 * 1000;
+pub(super) const VALIDATION_INTERVAL_MS: i64 = 12 * 60 * 60 * 1000;
 const COOKIE_ESTIMATED_LIFETIME_MS: i64 = 28 * 24 * 60 * 60 * 1000;
 const COOKIE_WARNING_AGE_MS: i64 = 21 * 24 * 60 * 60 * 1000;
 
@@ -219,11 +218,6 @@ pub(super) async fn refresh(
     Ok(Value::Object(merged))
 }
 
-pub(super) fn models(secret: &Value) -> Option<Bytes> {
-    let catalog = secret.get("model_catalog")?;
-    serde_json::to_vec(catalog).ok().map(Bytes::from)
-}
-
 async fn validate(client: &Arc<dyn UpstreamClient>, key: &str) -> Result<Value, ChannelError> {
     let (status, body) = bootstrap(client, key).await?;
     if !status.is_success() {
@@ -287,97 +281,15 @@ async fn validate(client: &Arc<dyn UpstreamClient>, key: &str) -> Result<Value, 
         .filter(|value| !value.is_null())
     {
         secret["claude_ai_bootstrap_models_config"] = config.clone();
-        if let Some(catalog) = model_catalog(config) {
+        if let Some(catalog) = super::models::catalog(config) {
             secret["model_catalog"] = catalog;
         }
     }
     Ok(secret)
 }
 
-fn now_ms() -> i64 {
+pub(super) fn now_ms() -> i64 {
     crate::util::time::unix_now().saturating_mul(1000)
-}
-
-fn model_catalog(config: &Value) -> Option<Value> {
-    let mut models = BTreeMap::<String, Option<String>>::new();
-    collect_models(config, &mut models);
-    if models.is_empty() {
-        return None;
-    }
-    let data = models
-        .into_iter()
-        .map(|(id, display_name)| {
-            let mut model = Map::from_iter([("id".into(), Value::String(id))]);
-            if let Some(display_name) = display_name {
-                model.insert("display_name".into(), Value::String(display_name));
-            }
-            Value::Object(model)
-        })
-        .collect::<Vec<_>>();
-    let first_id = data.first().and_then(|m| m.get("id")).cloned();
-    let last_id = data.last().and_then(|m| m.get("id")).cloned();
-    Some(json!({
-        "data": data,
-        "first_id": first_id,
-        "last_id": last_id,
-        "has_more": false,
-    }))
-}
-
-fn collect_models(value: &Value, models: &mut BTreeMap<String, Option<String>>) {
-    match value {
-        Value::Array(items) => {
-            for item in items {
-                collect_models(item, models);
-            }
-        }
-        Value::Object(object) => {
-            let id = ["id", "model", "model_id", "value"]
-                .into_iter()
-                .find_map(|key| object.get(key).and_then(Value::as_str))
-                .filter(|id| is_claude_model_id(id));
-            let display_name = ["display_name", "displayName", "label", "name"]
-                .into_iter()
-                .find_map(|key| object.get(key).and_then(Value::as_str))
-                .filter(|name| !is_claude_model_id(name))
-                .map(str::to_owned);
-            if let Some(id) = id {
-                models
-                    .entry(id.to_owned())
-                    .and_modify(|current| {
-                        if current.is_none() {
-                            *current = display_name.clone();
-                        }
-                    })
-                    .or_insert(display_name);
-            }
-            for (key, child) in object {
-                if is_claude_model_id(key) {
-                    let display = child
-                        .as_object()
-                        .and_then(|o| {
-                            ["display_name", "displayName", "label", "name"]
-                                .into_iter()
-                                .find_map(|field| o.get(field).and_then(Value::as_str))
-                        })
-                        .filter(|name| !is_claude_model_id(name))
-                        .map(str::to_owned);
-                    models.entry(key.clone()).or_insert(display);
-                }
-                collect_models(child, models);
-            }
-        }
-        Value::String(text) => {
-            if let Ok(nested) = serde_json::from_str::<Value>(text) {
-                collect_models(&nested, models);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn is_claude_model_id(value: &str) -> bool {
-    value.starts_with("claude-") && value.len() > "claude-".len()
 }
 
 async fn bootstrap(
@@ -492,7 +404,7 @@ pub(super) fn normalize_session_key(input: &str) -> Option<String> {
 /// Preserve the complete browser Cookie header when one is pasted. Claude's
 /// `sessionKey` authenticates the account, but Cloudflare may additionally
 /// require browser-issued cookies such as `cf_clearance` and `__cf_bm`.
-fn normalize_cookie(input: &str) -> Option<String> {
+pub(super) fn normalize_cookie(input: &str) -> Option<String> {
     let mut text = input.trim();
     if let Some((name, value)) = text.split_once(':')
         && name.trim().eq_ignore_ascii_case("cookie")
@@ -511,80 +423,9 @@ fn normalize_cookie(input: &str) -> Option<String> {
     (!pairs.is_empty()).then(|| pairs.join("; "))
 }
 
-fn cookie_value<'a>(cookie: &'a str, name: &str) -> Option<&'a str> {
+pub(super) fn cookie_value<'a>(cookie: &'a str, name: &str) -> Option<&'a str> {
     cookie.split(';').find_map(|part| {
         let (key, value) = part.trim().split_once('=')?;
         key.eq_ignore_ascii_case(name).then_some(value.trim())
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn normalizes_cookie_header_and_bare_value() {
-        assert_eq!(
-            normalize_session_key("foo=bar; sessionKey=sk-ant-sid01-example; x=y").as_deref(),
-            Some("sk-ant-sid01-example")
-        );
-        assert_eq!(
-            normalize_session_key("sk-ant-sid02-example").as_deref(),
-            Some("sk-ant-sid02-example")
-        );
-    }
-
-    #[test]
-    fn preserves_full_browser_cookie_and_device_id() {
-        let cookie = normalize_cookie(
-            "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-example; anthropic-device-id=device-1",
-        )
-        .unwrap();
-        assert_eq!(
-            cookie,
-            "cf_clearance=clear; sessionKey=sk-ant-sid01-example; anthropic-device-id=device-1"
-        );
-        assert_eq!(
-            cookie_value(&cookie, "anthropic-device-id"),
-            Some("device-1")
-        );
-        assert_eq!(
-            normalize_cookie("sk-ant-sid02-example").as_deref(),
-            Some("sk-ant-sid02-example")
-        );
-    }
-
-    #[test]
-    fn refreshes_missing_or_stale_validation_only() {
-        let now = now_ms();
-        assert!(needs_refresh(&json!({"cookie": "sk-ant-sid-example"})));
-        assert!(!needs_refresh(&json!({
-            "validated_at_ms": now - VALIDATION_INTERVAL_MS + 1_000
-        })));
-        assert!(needs_refresh(&json!({
-            "validated_at_ms": now - VALIDATION_INTERVAL_MS - 1_000
-        })));
-    }
-
-    #[test]
-    fn extracts_models_from_array_and_keyed_configs() {
-        let catalog = model_catalog(&json!({
-            "models": [
-                {"model": "claude-sonnet-5", "display_name": "Claude Sonnet 5"},
-                {"id": "claude-fable-5", "label": "Claude Fable 5"}
-            ],
-            "claude-opus-4-8": {"name": "Claude Opus 4.8"},
-            "unrelated": {"id": "not-a-claude-model"}
-        }))
-        .unwrap();
-        let data = catalog["data"].as_array().unwrap();
-        assert_eq!(data.len(), 3);
-        assert!(data.iter().any(|model| {
-            model["id"] == "claude-sonnet-5" && model["display_name"] == "Claude Sonnet 5"
-        }));
-        assert!(data.iter().any(|model| {
-            model["id"] == "claude-opus-4-8" && model["display_name"] == "Claude Opus 4.8"
-        }));
-    }
 }

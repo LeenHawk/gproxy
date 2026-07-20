@@ -15,7 +15,7 @@
 # replace it with a throw so wrangler never tries to resolve the .wasm via a URL
 # (which would fail in the Workers module sandbox).
 #
-# Run from the crate root (/home/linhuan/gproxy/v2):
+# Run from the crate root:
 #   cargo rustc --lib --crate-type cdylib --target wasm32-unknown-unknown --release --no-default-features --features edge
 #   bash deploy/cloudflare/build.sh
 set -euo pipefail
@@ -28,6 +28,8 @@ PUBLIC="$CRATE_ROOT/deploy/cloudflare/public"
 PUBLIC_CONSOLE="$PUBLIC/console"
 
 [ -f "$WASM" ] || { echo "missing $WASM — run cargo build first" >&2; exit 1; }
+
+bash "$CRATE_ROOT/deploy/stage-edge-runtime.sh" cloudflare
 
 rm -rf "$OUT"
 wasm-bindgen --target web --out-dir "$OUT" "$WASM"

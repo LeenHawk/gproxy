@@ -79,15 +79,15 @@ pub fn router(state: AppState) -> Router {
         }
         router = router.merge(gateway);
         // /healthz, /version and /metrics sit behind the SAME admin gate as
-        // /admin/* (session cookie or an admin user's API key, via
-        // require_admin) — no ops endpoint is public.
+        // /admin/* (session cookie or an admin user's API key) — no ops endpoint
+        // is public. This gate stays outside the Admin API dispatcher.
         let ops = Router::new()
             .route("/healthz", get(health::healthz))
             .route("/version", get(health::version))
             .route("/metrics", get(metrics::metrics))
             .route_layer(axum::middleware::from_fn_with_state(
                 state.clone(),
-                admin::middleware::require_admin,
+                require_ops_admin,
             ));
         router = router.merge(ops);
         router = router.merge(admin::admin_router(state.clone()));
@@ -97,6 +97,32 @@ pub fn router(state: AppState) -> Router {
     }
 
     router.with_state(state)
+}
+
+/// Convert target-independent ops response data to axum's body type.
+fn ops_response(response: crate::http::ops::OpsResponse) -> axum::response::Response {
+    let mut out = axum::response::Response::new(axum::body::Body::from(response.body));
+    *out.status_mut() = response.status;
+    *out.headers_mut() = response.headers;
+    out
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn require_ops_admin(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse as _;
+
+    if crate::admin::authenticate_admin(&state, request.headers())
+        .await
+        .is_some()
+    {
+        next.run(request).await
+    } else {
+        crate::api::error::ApiError::Unauthorized.into_response()
+    }
 }
 
 /// Map a shed (overloaded) gateway request to a 503; any other middleware error
@@ -117,13 +143,15 @@ mod tests {
 
     use axum::body::Body;
     use axum::http::{HeaderValue, Request, StatusCode, header};
+    use http_body_util::BodyExt as _;
     use tower::ServiceExt as _;
 
     use crate::app::AppState;
     use crate::app::snapshot::ControlPlaneSnapshot;
     use crate::config::{CacheConfig, PersistenceConfig, RuntimeConfig, UpstreamConfig};
     use crate::http::client::{ClientError, RespStream, UpstreamClient};
-    use crate::store::persistence::FilePersistence;
+    use crate::store::persistence::DbPersistence;
+    use crate::store::persistence::records::{OrgInput, UserInput};
 
     struct NoUpstream;
 
@@ -147,9 +175,9 @@ mod tests {
     async fn state_with_cors(cors_origins: Vec<String>) -> (AppState, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
         let persistence: Arc<dyn crate::store::persistence::PersistenceBackend> = Arc::new(
-            FilePersistence::open(dir.path().to_path_buf())
+            DbPersistence::connect("sqlite::memory:")
                 .await
-                .expect("file persistence"),
+                .expect("db persistence"),
         );
         let snapshot = ControlPlaneSnapshot::build(persistence.as_ref(), 1)
             .await
@@ -158,8 +186,8 @@ mod tests {
             host: "127.0.0.1".into(),
             port: 0,
             cache: CacheConfig::Memory,
-            persistence: PersistenceConfig::File {
-                data_dir: dir.path().to_path_buf(),
+            persistence: PersistenceConfig::Db {
+                dsn: "sqlite::memory:".to_string(),
             },
             upstream: UpstreamConfig::from_proxy_url(None),
             instance_id: 0,
@@ -227,5 +255,71 @@ mod tests {
                 "authorization,content-type,x-goog-api-key"
             ))
         );
+    }
+
+    #[tokio::test]
+    async fn native_admin_adapter_preserves_login_cookie_and_raw_json() {
+        let (state, _dir) = state_with_cors(vec![]).await;
+        let org = state
+            .persistence
+            .upsert_org(OrgInput {
+                id: None,
+                name: "adapter-org".into(),
+                enabled: true,
+                description: None,
+            })
+            .await
+            .unwrap();
+        state
+            .persistence
+            .upsert_user(UserInput {
+                id: None,
+                name: "adapter-admin".into(),
+                org_id: org.id,
+                team_id: None,
+                password: Some(crate::crypto::password::hash("secret").unwrap()),
+                enabled: true,
+                is_admin: true,
+            })
+            .await
+            .unwrap();
+        let app = super::router(state);
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/admin/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"username":"adapter-admin","password":"secret"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let cookie = response
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string();
+        let response = app
+            .oneshot(
+                Request::get("/admin/me")
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["name"], "adapter-admin");
+        assert_eq!(value["is_admin"], true);
     }
 }

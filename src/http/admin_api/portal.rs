@@ -1,7 +1,6 @@
-//! Portal `/user/*` dispatcher (session-scoped) for the edge worker.
+//! Shared portal `/user/*` dispatcher (session-scoped).
 //!
-//! This module mirrors the native handlers in `src/http/server/admin/user/`
-//! exactly. Every handler obtains the user identity from `guard_session` and
+//! Every handler obtains the user identity from `guard_session` and
 //! uses `SessionUser.id` as the sole source of `user_id` — the request body,
 //! query string, and path parameters are NEVER trusted for ownership decisions.
 //!
@@ -14,7 +13,6 @@
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 use serde::Deserialize;
 
 use crate::admin::guard::guard_session;
@@ -26,7 +24,7 @@ use crate::pipeline::auth::key_digest;
 use crate::store::persistence::UsageQuery as StoreUsageQuery;
 use crate::store::persistence::records::{Scope, UserInput, UserKeyInput};
 
-use super::{Resp, internal, json_body, parse_i64, query, segments};
+use super::{Request, Resp, internal, json_body, parse_i64, query, segments};
 
 // ── /user/keys ────────────────────────────────────────────────────────────────
 
@@ -76,7 +74,6 @@ struct MyRollupQuery {
 /// A rule wrapper that tags each record with its effective source layer.
 ///
 /// Serialises as `{ "source": "<layer>", <...rule fields flattened> }`.
-/// Mirrors the native `Effective<T>` in `server/admin/user/authz.rs`.
 #[derive(serde::Serialize)]
 struct Effective<T: serde::Serialize> {
     pub source: &'static str,
@@ -99,7 +96,7 @@ struct ChangePassword {
 /// Returns `Some(result)` on a path match, `None` to fall through.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -131,7 +128,7 @@ pub(super) async fn dispatch(
 
 /// `GET /user/keys` — list all keys belonging to the session user, including
 /// each complete API key.
-async fn list_keys(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_keys(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let keys = state
         .persistence
@@ -148,7 +145,7 @@ async fn list_keys(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
 
 /// `POST /user/keys` — create a key for the session user and return the bare key.
 /// Caller-supplied `api_key` is rejected (400). `user_id` from session only.
-async fn create_key(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn create_key(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let b: CreateKeyBody = json_body(body)?;
 
@@ -193,7 +190,7 @@ async fn create_key(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Res
 /// Key material (digest + ciphertext) is immutable — rotate by create + delete.
 async fn update_key(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
     id: &str,
 ) -> Result<Resp, ApiError> {
@@ -231,7 +228,7 @@ async fn update_key(
 /// `DELETE /user/keys/{id}` — delete a key the session user owns.
 ///
 /// Ownership is checked before deletion; cross-user access returns 404.
-async fn delete_key(state: &AppState, parts: &Parts, id: &str) -> Result<Resp, ApiError> {
+async fn delete_key(state: &AppState, parts: &Request, id: &str) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let id = parse_i64(id)?;
 
@@ -261,7 +258,7 @@ const MAX_LIMIT: u64 = 1000;
 
 /// `GET /user/usage` — session-scoped; `user_id` forced from session (param absent
 /// from `MyUsageQuery` → structurally un-smuggleable via `?user_id=`).
-async fn user_usage(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn user_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let q: MyUsageQuery = query(parts)?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
@@ -285,7 +282,7 @@ async fn user_usage(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
 
 /// `GET /user/usage-rollups?granularity=hour|day|week|month&from=&to=`
 /// Returns rollup buckets scoped to the authenticated user only.
-async fn user_usage_rollups(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn user_usage_rollups(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let q: MyRollupQuery = query(parts)?;
     if !matches!(q.granularity.as_str(), "hour" | "day" | "week" | "month") {
@@ -304,7 +301,7 @@ async fn user_usage_rollups(state: &AppState, parts: &Parts) -> Result<Resp, Api
 // ── /user/quota|rate-limits|route-permissions handlers ───────────────────────
 
 /// `GET /user/quota` — effective quota at user → team → org (scope_ids from session).
-async fn user_quota(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn user_quota(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let mut out: Vec<Effective<crate::store::persistence::records::Quota>> = Vec::new();
 
@@ -346,7 +343,7 @@ async fn user_quota(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
 }
 
 /// `GET /user/rate-limits` — effective rate limits at user → team → org layers.
-async fn user_rate_limits(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn user_rate_limits(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let mut out: Vec<Effective<crate::store::persistence::records::RateLimit>> = Vec::new();
 
@@ -389,7 +386,7 @@ async fn user_rate_limits(state: &AppState, parts: &Parts) -> Result<Resp, ApiEr
 }
 
 /// `GET /user/route-permissions` — effective route permissions at user → team → org layers.
-async fn user_route_permissions(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn user_route_permissions(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let mut out: Vec<Effective<crate::store::persistence::records::RoutePermission>> = Vec::new();
 
@@ -434,7 +431,11 @@ async fn user_route_permissions(state: &AppState, parts: &Parts) -> Result<Resp,
 // ── /user/change-password handler ────────────────────────────────────────────
 
 /// `POST /user/change-password` — verify+validate+hash; returns 204. Session kept.
-async fn change_password(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn change_password(
+    state: &AppState,
+    parts: &Request,
+    body: &Bytes,
+) -> Result<Resp, ApiError> {
     let u = guard_session(state, parts).await?;
     let b: ChangePassword = json_body(body)?;
 

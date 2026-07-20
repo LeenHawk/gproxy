@@ -131,14 +131,12 @@ pub async fn run_batch_set_enabled(
 mod tests {
     use super::*;
     use crate::store::persistence::records::OrgInput;
-    use crate::store::persistence::{FilePersistence, PersistenceBackend};
+    use crate::store::persistence::{DbPersistence, PersistenceBackend};
 
-    async fn be() -> (FilePersistence, tempfile::TempDir) {
+    async fn be() -> (DbPersistence, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         (
-            FilePersistence::open(dir.path().to_path_buf())
-                .await
-                .unwrap(),
+            DbPersistence::connect("sqlite::memory:").await.unwrap(),
             dir,
         )
     }

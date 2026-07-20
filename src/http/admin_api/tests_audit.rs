@@ -1,4 +1,4 @@
-// Edge mutation-audit parity tests (B6.3 B6.4): the edge dispatcher audits
+// Shared mutation-audit tests: the dispatcher audits
 // non-GET admin/user mutations (method + path + actor + status), mirroring the
 // native audit middleware. GETs and unauthenticated requests are NOT audited.
 

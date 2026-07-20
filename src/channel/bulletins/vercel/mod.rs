@@ -7,6 +7,7 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
+use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
     self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling, openai_cache,
 };
@@ -110,8 +111,9 @@ impl Channel for VercelChannel {
 
     /// Provider-native cache shaping plus Claude endpoint hygiene.
     fn shape_request(&self, body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
-            if !ctx.enable_magic_cache {
+            if !settings.enable_magic_cache {
                 return body;
             }
             return shaping::with_json_body(body, |value| {
@@ -122,12 +124,12 @@ impl Channel for VercelChannel {
             return body;
         }
         let body = shaping::with_json_body(body, |v| {
-            if ctx.enable_magic_cache {
+            if settings.enable_magic_cache {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
-            if ctx.enable_claude_fable_fallback {
+            if settings.enable_claude_fable_fallback {
                 claude_fallback::apply_fable_to_opus48(v, headers);
             }
         });
@@ -144,7 +146,7 @@ mod tests {
 
     use crate::protocol::{Operation, OperationKey};
 
-    fn messages_ctx() -> ShapeCtx {
+    fn messages_ctx() -> ShapeCtx<'static> {
         ShapeCtx {
             op: OperationKey::content_generation(
                 Operation::StreamGenerateContent,
@@ -152,19 +154,18 @@ mod tests {
             ),
             stream: true,
             status: StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: false,
+            settings: &Value::Null,
         }
     }
 
-    fn fallback_ctx() -> ShapeCtx {
+    fn fallback_ctx(settings: &Value) -> ShapeCtx<'_> {
         ShapeCtx {
-            enable_claude_fable_fallback: true,
+            settings,
             ..messages_ctx()
         }
     }
 
-    fn openai_magic_ctx() -> ShapeCtx {
+    fn openai_magic_ctx(settings: &Value) -> ShapeCtx<'_> {
         ShapeCtx {
             op: OperationKey::content_generation(
                 Operation::GenerateContent,
@@ -172,18 +173,18 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: true,
-            enable_claude_fable_fallback: false,
+            settings,
         }
     }
 
     #[test]
     fn shapes_openai_magic_cache_breakpoint() {
         let mut headers = HeaderMap::new();
+        let settings = serde_json::json!({ "enable_magic_cache": true });
         let body = Bytes::from_static(
             br#"{"model":"openai/gpt-5.6","input":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}"#,
         );
-        let shaped = VercelChannel.shape_request(body, &mut headers, &openai_magic_ctx());
+        let shaped = VercelChannel.shape_request(body, &mut headers, &openai_magic_ctx(&settings));
         let value: Value = serde_json::from_slice(&shaped).unwrap();
         assert_eq!(
             value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
@@ -223,8 +224,7 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: false,
+            settings: &Value::Null,
         };
         let out = VercelChannel.shape_request(body.clone(), &mut headers, &ctx);
         assert_eq!(out, body);
@@ -233,9 +233,11 @@ mod tests {
     #[test]
     fn injects_and_forwards_fable_fallback_beta() {
         let mut headers = HeaderMap::new();
+        let shape_settings = serde_json::json!({ "enable_claude_fable_fallback": true });
         let body =
             Bytes::from(r#"{"model":"anthropic/claude-fable-5","messages":[],"max_tokens":32}"#);
-        let shaped = VercelChannel.shape_request(body, &mut headers, &fallback_ctx());
+        let shaped =
+            VercelChannel.shape_request(body, &mut headers, &fallback_ctx(&shape_settings));
 
         let v: Value = serde_json::from_slice(&shaped).unwrap();
         assert_eq!(

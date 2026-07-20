@@ -148,6 +148,33 @@ impl AppState {
         self.snapshot.load()
     }
 
+    /// Wire application services into the credential refresh orchestrator
+    /// without making the credentials layer depend on [`AppState`].
+    pub async fn ensure_fresh_credential(
+        &self,
+        channel: &Arc<dyn crate::channel::Channel>,
+        credential: &Credential,
+        provider: &Provider,
+        opened: serde_json::Value,
+        force: bool,
+    ) -> Result<serde_json::Value, crate::channel::ChannelError> {
+        let resolve_client = || self.upstream_client_for_credential(channel, credential, provider);
+        self.refresh
+            .ensure_fresh(
+                crate::credentials::refresh::RefreshDeps {
+                    persistence: self.persistence.as_ref(),
+                    cache: self.cache.as_ref(),
+                    cipher: self.cipher.as_ref(),
+                    resolve_client: &resolve_client,
+                },
+                channel,
+                credential,
+                opened,
+                force,
+            )
+            .await
+    }
+
     /// Effective default upstream proxy: the Console-set `instance_settings.proxy`
     /// (snapshot-resident), falling back to the CLI/env `--upstream-proxy-url`.
     /// Per-credential and per-provider proxies still override this — see

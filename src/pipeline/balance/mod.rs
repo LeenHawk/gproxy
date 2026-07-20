@@ -5,6 +5,7 @@
 
 mod strategy;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,34 +15,122 @@ use crate::health::{CredAdmit, HealthState};
 use crate::pipeline::context::Candidate;
 use crate::pipeline::error::PipelineError;
 use crate::store::cache::CacheBackend;
-use crate::store::persistence::records::{Credential, Provider};
+use crate::store::persistence::records::{Credential, Provider, Route, RouteMember};
 use crate::util::time::unix_now;
 
 /// Sticky-affinity pin TTL — rolling: refreshed on every pick.
 const AFFINITY_TTL: Duration = Duration::from_secs(3600);
 
+/// Snapshot-owned input for route balancing. Only providers and credential
+/// pools referenced by this route are retained.
+pub(crate) struct PreparedRoute {
+    route: Route,
+    members: Vec<RouteMember>,
+    providers: HashMap<i64, Arc<Provider>>,
+    credentials: HashMap<i64, Vec<Arc<Credential>>>,
+}
+
+pub(crate) struct PreparedProvider {
+    provider: Arc<Provider>,
+    credentials: Vec<Arc<Credential>>,
+    upstream_model_id: String,
+}
+
+pub(crate) fn prepare(cp: &ControlPlaneSnapshot, resolved: &ResolvedRoute) -> PreparedRoute {
+    let mut providers = HashMap::new();
+    let mut credentials = HashMap::new();
+    for member in &resolved.members {
+        if let Some(provider) = cp.providers_by_id.get(&member.provider_id) {
+            providers.insert(member.provider_id, Arc::clone(provider));
+        }
+        if let Some(pool) = cp.credentials_by_provider.get(&member.provider_id) {
+            credentials.insert(member.provider_id, pool.clone());
+        }
+    }
+    PreparedRoute {
+        route: resolved.route.clone(),
+        members: resolved.members.clone(),
+        providers,
+        credentials,
+    }
+}
+
+impl PreparedRoute {
+    pub(crate) fn provider_models(&self) -> impl Iterator<Item = (i64, &str)> {
+        self.members
+            .iter()
+            .map(|member| (member.provider_id, member.upstream_model_id.as_str()))
+    }
+}
+
+pub(crate) fn prepare_provider(
+    cp: &ControlPlaneSnapshot,
+    provider: &Arc<Provider>,
+    requested: String,
+) -> PreparedProvider {
+    let upstream_model_id = cp
+        .variant_base_by_provider
+        .get(&provider.id)
+        .and_then(|index| index.get(&requested))
+        .cloned()
+        .unwrap_or(requested);
+    PreparedProvider {
+        provider: Arc::clone(provider),
+        credentials: cp
+            .credentials_by_provider
+            .get(&provider.id)
+            .cloned()
+            .unwrap_or_default(),
+        upstream_model_id,
+    }
+}
+
+impl PreparedProvider {
+    pub(crate) fn provider_model(&self) -> (i64, &str) {
+        (self.provider.id, &self.upstream_model_id)
+    }
+
+    pub(crate) fn candidates(&self) -> Result<Vec<Candidate>, PipelineError> {
+        if self.credentials.is_empty() {
+            return Err(PipelineError::NoCredentials);
+        }
+        let breaker_cfg = breaker_config(&self.provider.settings_json);
+        Ok(self
+            .credentials
+            .iter()
+            .map(|credential| Candidate {
+                provider: Arc::clone(&self.provider),
+                credential: Arc::clone(credential),
+                upstream_model_id: self.upstream_model_id.clone(),
+                member_id: None,
+                breaker_cfg: breaker_cfg.clone(),
+            })
+            .collect())
+    }
+}
+
 /// Build the ordered candidate list for failover: healthy members per the
 /// route strategy, each expanded across its provider's filtered + ordered
 /// credential pool. `user_key_id` keys sticky credential affinity.
-pub async fn candidates(
-    cp: &ControlPlaneSnapshot,
-    route: &ResolvedRoute,
+pub(crate) async fn candidates(
+    prepared: &PreparedRoute,
     health: &HealthState,
     cache: &dyn CacheBackend,
     user_key_id: Option<i64>,
 ) -> Result<Vec<Candidate>, PipelineError> {
     let now = unix_now();
     let ordered = strategy::order_members(
-        &route.route.strategy,
-        &route.members,
+        &prepared.route.strategy,
+        &prepared.members,
         |m| {
-            cp.providers_by_id
+            prepared
+                .providers
                 .get(&m.provider_id)
                 .filter(|p| p.enabled)
                 .map(|p| breaker_config(&p.settings_json))
         },
         health,
-        || health.next_route_rotation(route.route.id),
+        || health.next_route_rotation(prepared.route.id),
         now,
     );
     if ordered.is_empty() {
@@ -50,14 +139,21 @@ pub async fn candidates(
 
     let mut out = Vec::new();
     for member in ordered {
-        let provider = cp
-            .providers_by_id
+        let provider = prepared
+            .providers
             .get(&member.provider_id)
             .expect("member admitted only with a live provider");
         // Member breaker thresholds: route override merged over the provider.
-        let breaker_cfg =
-            breaker_config_merged(route.route.settings_json.as_ref(), &provider.settings_json);
-        for cred in credential_pool(cp, provider, health, cache, user_key_id, now).await {
+        let breaker_cfg = breaker_config_merged(
+            prepared.route.settings_json.as_ref(),
+            &provider.settings_json,
+        );
+        let pool = prepared
+            .credentials
+            .get(&provider.id)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        for cred in credential_pool(pool, provider, health, cache, user_key_id, now).await {
             out.push(Candidate {
                 provider: Arc::clone(provider),
                 credential: cred,
@@ -79,16 +175,13 @@ pub async fn candidates(
 /// `aff:{provider_id}:{user_key_id}` with the pin (re-)set to the front
 /// credential on every pick (rolling TTL).
 async fn credential_pool(
-    cp: &ControlPlaneSnapshot,
+    pool: &[Arc<Credential>],
     provider: &Arc<Provider>,
     health: &HealthState,
     cache: &dyn CacheBackend,
     user_key_id: Option<i64>,
     now: i64,
 ) -> Vec<Arc<Credential>> {
-    let Some(pool) = cp.credentials_by_provider.get(&provider.id) else {
-        return Vec::new();
-    };
     let cfg = breaker_config(&provider.settings_json);
     let filtered: Vec<Arc<Credential>> = pool
         .iter()

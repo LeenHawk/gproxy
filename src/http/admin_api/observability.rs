@@ -1,15 +1,12 @@
-//! Edge admin dispatcher: read-only observability endpoints (B6.2).
+//! Shared read-only admin observability endpoints.
 //!
 //! Covers usage, usage-rollups, audit, credential-statuses, and request logs.
-//! All handlers are GET (read-only, no invalidate). The query structs are
-//! re-defined cross-target (field-aligned with the native structs in
-//! `server/admin/usage.rs`) so they compile on wasm32. Mounted behind
-//! `guard_admin`.
+//! All handlers are GET (read-only, no invalidate), target-independent, and
+//! mounted behind `guard_admin`.
 //!
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 use serde::Deserialize;
 
 use crate::admin::guard::guard_admin;
@@ -17,13 +14,12 @@ use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::store::persistence::{LogQuery as StoreLogQuery, UsageQuery as StoreUsageQuery};
 
-use super::{Resp, internal, parse_i64, query, segments};
+use super::{Request, Resp, internal, parse_i64, query, segments};
 
 const DEFAULT_LIMIT: u64 = 100;
 const MAX_LIMIT: u64 = 1000;
 
-/// Usage explorer filter + keyset-cursor query (re-defined cross-target;
-/// field-aligned with `UsageFilterQuery` in `server/admin/usage.rs`).
+/// Usage explorer filter + keyset-cursor query.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct UsageFilterQuery {
     pub at_from: Option<i64>,
@@ -36,8 +32,7 @@ pub(crate) struct UsageFilterQuery {
     pub limit: Option<u64>,
 }
 
-/// `?granularity=hour|day|week|month&from=&to=` (re-defined cross-target;
-/// field-aligned with `RollupQuery` in `server/admin/usage.rs`).
+/// `?granularity=hour|day|week|month&from=&to=`.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct RollupQuery {
     pub granularity: String,
@@ -45,15 +40,13 @@ pub(crate) struct RollupQuery {
     pub to: i64,
 }
 
-/// `?limit=N` for audit listing (re-defined cross-target; field-aligned with
-/// the anonymous `UsageQuery { limit }` struct in `server/admin/usage.rs`).
+/// `?limit=N` for audit listing.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub(crate) struct AuditQuery {
     pub limit: Option<u64>,
 }
 
-/// Filters plus `?before_id=&limit=` for the logs listing (field-aligned with
-/// `LogsQuery` in `server/admin/usage.rs`).
+/// Filters plus `?before_id=&limit=` for the logs listing.
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct LogsQuery {
     pub at_from: Option<i64>,
@@ -70,7 +63,7 @@ pub(crate) struct LogsQuery {
 /// Returns `Some(result)` when the path matches; `None` to fall through.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     _body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -108,7 +101,7 @@ pub(super) async fn dispatch(
 
 // ── handlers ──────────────────────────────────────────────────────────────────
 
-async fn list_usage(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: UsageFilterQuery = query(parts)?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
@@ -130,7 +123,7 @@ async fn list_usage(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
     Resp::json(200, &rows)
 }
 
-async fn usage_summary(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn usage_summary(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: UsageFilterQuery = query(parts)?;
     let store_q = StoreUsageQuery {
@@ -151,7 +144,7 @@ async fn usage_summary(state: &AppState, parts: &Parts) -> Result<Resp, ApiError
     Resp::json(200, &summary)
 }
 
-async fn list_usage_rollups(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_usage_rollups(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: RollupQuery = query(parts)?;
     if !matches!(q.granularity.as_str(), "hour" | "day" | "week" | "month") {
@@ -167,7 +160,7 @@ async fn list_usage_rollups(state: &AppState, parts: &Parts) -> Result<Resp, Api
     Resp::json(200, &rows)
 }
 
-async fn list_audit(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_audit(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: AuditQuery = query(parts)?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
@@ -179,7 +172,7 @@ async fn list_audit(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
     Resp::json(200, &rows)
 }
 
-async fn credential_statuses(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn credential_statuses(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let rows = state
         .persistence
@@ -189,7 +182,7 @@ async fn credential_statuses(state: &AppState, parts: &Parts) -> Result<Resp, Ap
     Resp::json(200, &rows)
 }
 
-async fn credential_status(state: &AppState, parts: &Parts, id: &str) -> Result<Resp, ApiError> {
+async fn credential_status(state: &AppState, parts: &Request, id: &str) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let id = parse_i64(id)?;
     let rows = state
@@ -200,7 +193,7 @@ async fn credential_status(state: &AppState, parts: &Parts, id: &str) -> Result<
     Resp::json(200, &rows)
 }
 
-async fn list_logs(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: LogsQuery = query(parts)?;
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
@@ -223,7 +216,7 @@ async fn list_logs(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
 
 async fn downstream_logs(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     request_id: &str,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -237,7 +230,7 @@ async fn downstream_logs(
 
 async fn upstream_logs(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     request_id: &str,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -249,7 +242,7 @@ async fn upstream_logs(
     Resp::json(200, &rows)
 }
 
-async fn tls_presets(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn tls_presets(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     Resp::json(200, &crate::api::tls_presets::tls_presets())
 }

@@ -68,7 +68,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: RuleInput) -> anyhow::Resu
             }
             None => {
                 // Seeding an empty store from a pinned bundle: insert WITH the
-                // explicit id (matches the file backend's insert-with-id).
+                // Preserve explicit IDs supplied by bundle imports.
                 rule::ActiveModel {
                     id: Set(id),
                     rule_set_id: Set(input.rule_set_id),

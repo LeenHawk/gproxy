@@ -13,14 +13,14 @@ FROM ${RUNTIME_BASE}
 WORKDIR /app
 
 COPY dist/gproxy /usr/local/bin/gproxy
-# Ships an empty data dir so file-persistence has a writable home on first boot
+# Ships an empty data dir so SQLite has a writable parent on first boot
 # (distroless has no shell to mkdir it).
 COPY dist/data /app/data
 
-# Bind on all interfaces inside the container; file persistence under /app/data.
+# Bind on all interfaces inside the container; SQLite data under /app/data.
 ENV GPROXY_HOST=0.0.0.0 \
     GPROXY_PORT=8787 \
-    GPROXY_PERSISTENCE=file \
+    GPROXY_PERSISTENCE=db \
     GPROXY_DATA_DIR=/app/data \
     GPROXY_AUTOSTART=off
 

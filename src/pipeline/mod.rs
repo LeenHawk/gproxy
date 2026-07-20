@@ -4,6 +4,7 @@
 pub mod auth;
 pub mod authz;
 pub mod balance;
+pub(crate) mod candidate;
 pub mod capture;
 pub mod classify;
 pub mod context;
@@ -22,7 +23,7 @@ pub mod stream;
 #[cfg(all(
     test,
     not(target_arch = "wasm32"),
-    feature = "persist-file",
+    feature = "persist-db",
     feature = "cache-memory"
 ))]
 mod tests;

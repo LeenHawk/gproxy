@@ -11,7 +11,7 @@ use http::{HeaderMap, Method, Request, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::auth;
+use super::{headers, model_metadata, token};
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, join_url};
 use crate::channel::usage::{
@@ -24,7 +24,7 @@ pub(super) fn request(
     secret: &Value,
     settings: &Value,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
-    let access_token = auth::access_token(secret)?;
+    let access_token = token::access_token(secret)?;
     let base = usage_base(settings);
     let uri = join_url(&base, "/wham/usage", None)?;
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
@@ -37,7 +37,7 @@ pub(super) fn reset_credit_request(
     settings: &Value,
     idempotency_key: &str,
 ) -> Result<Option<Request<Bytes>>, ChannelError> {
-    let access_token = auth::access_token(secret)?;
+    let access_token = token::access_token(secret)?;
     let base = usage_base(settings);
     let uri = join_url(&base, "/wham/rate-limit-reset-credits/consume", None)?;
     let body = serde_json::to_vec(&ConsumeRateLimitResetCreditRequest {
@@ -116,7 +116,7 @@ fn usage_base(settings: &Value) -> String {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|s| !s.is_empty())
-        .unwrap_or(auth::DEFAULT_BASE_URL);
+        .unwrap_or(model_metadata::DEFAULT_BASE_URL);
     base.trim_end_matches('/')
         .strip_suffix("/codex")
         .unwrap_or_else(|| base.trim_end_matches('/'))
@@ -134,12 +134,15 @@ fn apply_headers(
     h.insert(AUTHORIZATION, bearer);
     h.insert(ACCEPT, HeaderValue::from_static("application/json"));
     h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    h.insert(USER_AGENT, HeaderValue::from_static(auth::USER_AGENT_VALUE));
+    h.insert(
+        USER_AGENT,
+        HeaderValue::from_static(headers::USER_AGENT_VALUE),
+    );
     h.insert(
         HeaderName::from_static("originator"),
-        HeaderValue::from_static(auth::ORIGINATOR),
+        HeaderValue::from_static(headers::ORIGINATOR),
     );
-    if let Some(acct) = auth::account_id(secret) {
+    if let Some(acct) = token::account_id(secret) {
         let acct = HeaderValue::from_str(acct)
             .map_err(|e| ChannelError::InvalidCredential(format!("bad account_id: {e}")))?;
         h.insert(HeaderName::from_static("chatgpt-account-id"), acct);
@@ -276,68 +279,5 @@ impl From<ConsumeRateLimitResetCreditCode> for RateLimitResetCreditConsumeOutcom
             ConsumeRateLimitResetCreditCode::NoCredit => Self::NoCredit,
             ConsumeRateLimitResetCreditCode::AlreadyRedeemed => Self::AlreadyRedeemed,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_rate_limit_payload() {
-        let body = Bytes::from_static(
-            br#"{
-              "plan_type": "pro",
-              "rate_limit": {
-                "allowed": true, "limit_reached": false,
-                "primary_window": {"used_percent": 42, "limit_window_seconds": 300, "reset_at": 1704069000},
-                "secondary_window": {"used_percent": 84, "limit_window_seconds": 604800, "reset_at": 1704074400}
-              },
-              "additional_rate_limits": [{
-                "limit_name": "GPT-5.3-Codex-Spark",
-                "metered_feature": "codex_bengalfox",
-                "rate_limit": {
-                  "allowed": true,
-                  "limit_reached": false,
-                  "primary_window": {"used_percent": 0, "limit_window_seconds": 18000, "reset_at": 1783156510},
-                  "secondary_window": {"used_percent": 9, "limit_window_seconds": 604800, "reset_at": 1783650621}
-                }
-              }],
-              "credits": {"has_credits": true, "unlimited": false, "balance": "9.99"},
-              "rate_limit_reset_credits": {"available_count": 2}
-            }"#,
-        );
-        let snap = parse(StatusCode::OK, &body).expect("snapshot");
-        assert_eq!(snap.plan.as_deref(), Some("pro"));
-        assert_eq!(snap.windows.len(), 4);
-        assert_eq!(snap.windows[0].name, "primary");
-        assert_eq!(snap.windows[0].used_percent, Some(42.0));
-        assert_eq!(snap.windows[0].window_seconds, Some(300));
-        assert_eq!(snap.windows[0].resets_at_unix, Some(1704069000));
-        assert_eq!(snap.windows[2].name, "additional_primary:codex_bengalfox");
-        assert_eq!(
-            snap.windows[2].label.as_deref(),
-            Some("GPT-5.3-Codex-Spark")
-        );
-        assert_eq!(snap.windows[2].used_percent, Some(0.0));
-        assert_eq!(snap.windows[3].name, "additional_secondary:codex_bengalfox");
-        assert_eq!(snap.windows[3].used_percent, Some(9.0));
-        let credits = snap.credits.expect("credits");
-        assert_eq!(credits.has_credits, Some(true));
-        assert_eq!(credits.balance.as_deref(), Some("9.99"));
-        assert_eq!(
-            snap.rate_limit_reset_credits
-                .expect("reset credits")
-                .available_count,
-            2
-        );
-    }
-
-    #[test]
-    fn parses_reset_credit_response() {
-        let body = Bytes::from_static(br#"{"code":"reset","windows_reset":1}"#);
-        let out = parse_reset_credit(StatusCode::OK, &body).expect("reset response");
-        assert_eq!(out.outcome, RateLimitResetCreditConsumeOutcome::Reset);
-        assert_eq!(out.windows_reset, Some(1));
     }
 }

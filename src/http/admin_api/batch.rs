@@ -1,7 +1,6 @@
-//! `POST /admin/batch/{entity}` — 批量启用/禁用/删除(edge dispatcher)。
+//! Shared `POST /admin/batch/{entity}` dispatcher.
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 
 use crate::admin::guard::guard_admin;
 use crate::admin::invalidate;
@@ -10,11 +9,11 @@ use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::store::persistence::batch::AdminEntity;
 
-use super::{Resp, json_body, segments};
+use super::{Request, Resp, json_body, segments};
 
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);

@@ -1,14 +1,11 @@
-//! Edge admin dispatcher: authz-scoped entities (§8-C, B6.2).
+//! Shared admin authz-scoped entities (§8-C, B6.2).
 //!
 //! Covers `route-permissions`, `rate-limits`, and `quotas`, each keyed by
-//! `(scope, scope_id)`. The query struct and dispatch logic mirror the native
-//! `server/admin/crud/authz.rs` handlers, but target the cross-target [`Resp`]
-//! / [`ApiError`] API (no axum extractors). This file is compiled for both the
-//! wasm edge worker and native `cfg(test)` builds.
+//! `(scope, scope_id)`. The implementation targets the cross-target [`Resp`] /
+//! [`ApiError`] API without framework extractors.
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 use serde::Deserialize;
 
 use crate::admin::guard::guard_admin;
@@ -19,10 +16,9 @@ use crate::store::persistence::records::{
     QuotaInput, RateLimit, RateLimitInput, RoutePermission, RoutePermissionInput, Scope,
 };
 
-use super::{Resp, internal, json_body, parse_i64, query, segments};
+use super::{Request, Resp, internal, json_body, parse_i64, query, segments};
 
-/// `?scope=org&scope_id=1` query params (re-defined cross-target; field-aligned
-/// with the native `ScopeQuery` in `server/admin/crud/authz.rs`).
+/// `?scope=org&scope_id=1` query params.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub(crate) struct ScopeQuery {
     pub scope: Scope,
@@ -35,7 +31,7 @@ pub(crate) struct ScopeQuery {
 /// `None` to fall through to the next sub-dispatcher.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -70,7 +66,7 @@ pub(super) async fn dispatch(
 
 // ── route-permissions ─────────────────────────────────────────────────────────
 
-async fn list_route_permissions(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_route_permissions(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: ScopeQuery = query(parts)?;
     let recs: Vec<RoutePermission> = state
@@ -83,7 +79,7 @@ async fn list_route_permissions(state: &AppState, parts: &Parts) -> Result<Resp,
 
 async fn upsert_route_permission(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -99,7 +95,7 @@ async fn upsert_route_permission(
 
 async fn delete_route_permission(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     id: &str,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -119,7 +115,7 @@ async fn delete_route_permission(
 
 // ── rate-limits ───────────────────────────────────────────────────────────────
 
-async fn list_rate_limits(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn list_rate_limits(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: ScopeQuery = query(parts)?;
     let recs: Vec<RateLimit> = state
@@ -132,7 +128,7 @@ async fn list_rate_limits(state: &AppState, parts: &Parts) -> Result<Resp, ApiEr
 
 async fn upsert_rate_limit(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
@@ -146,7 +142,7 @@ async fn upsert_rate_limit(
     Resp::json(200, &rec)
 }
 
-async fn delete_rate_limit(state: &AppState, parts: &Parts, id: &str) -> Result<Resp, ApiError> {
+async fn delete_rate_limit(state: &AppState, parts: &Request, id: &str) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let id = parse_i64(id)?;
     if state
@@ -164,7 +160,7 @@ async fn delete_rate_limit(state: &AppState, parts: &Parts, id: &str) -> Result<
 
 // ── quotas ────────────────────────────────────────────────────────────────────
 
-async fn get_quota(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
+async fn get_quota(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let q: ScopeQuery = query(parts)?;
     match state
@@ -178,7 +174,7 @@ async fn get_quota(state: &AppState, parts: &Parts) -> Result<Resp, ApiError> {
     }
 }
 
-async fn upsert_quota(state: &AppState, parts: &Parts, body: &Bytes) -> Result<Resp, ApiError> {
+async fn upsert_quota(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let input: QuotaInput = json_body(body)?;
     let rec = state
@@ -190,7 +186,7 @@ async fn upsert_quota(state: &AppState, parts: &Parts, body: &Bytes) -> Result<R
     Resp::json(200, &rec)
 }
 
-async fn delete_quota(state: &AppState, parts: &Parts, id: &str) -> Result<Resp, ApiError> {
+async fn delete_quota(state: &AppState, parts: &Request, id: &str) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let id = parse_i64(id)?;
     if state.persistence.delete_quota(id).await.map_err(internal)? {

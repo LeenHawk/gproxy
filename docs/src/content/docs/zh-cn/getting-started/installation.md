@@ -102,7 +102,7 @@ docker run --rm -p 8787:8787 \
 ```
 
 镜像里已经包含带内嵌 Console 的 native 二进制。镜像默认设置
-`GPROXY_HOST=0.0.0.0`、`GPROXY_PORT=8787`、`GPROXY_PERSISTENCE=file`、
+`GPROXY_HOST=0.0.0.0`、`GPROXY_PORT=8787`、`GPROXY_PERSISTENCE=db`、
 `GPROXY_DATA_DIR=/app/data`。
 
 持久化 volume、PostgreSQL/MySQL DSN 和 tag 选择见 [Docker](/zh-cn/deployment/docker/)。

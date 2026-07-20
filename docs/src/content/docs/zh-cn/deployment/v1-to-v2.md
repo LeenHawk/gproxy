@@ -29,7 +29,6 @@ native v2 默认值匹配常见 v1 路径：`GPROXY_PERSISTENCE=db`，未设置 
 | --- | --- |
 | 新安装，没有 `gproxy.db` | 创建普通 v2 数据库。 |
 | 已经是 v2 数据库 | 跳过迁移。 |
-| `--persistence=file` | 不执行 v1 SQLite 迁移。 |
 | PostgreSQL 或 MySQL 目标 | 使用显式 `migrate-v1 --to <dsn>`。 |
 | `sqlite::memory:` | 没有可接管文件。 |
 

@@ -43,10 +43,10 @@ docker run --rm \
 | --- | --- |
 | `GPROXY_HOST` | `0.0.0.0` |
 | `GPROXY_PORT` | `8787` |
-| `GPROXY_PERSISTENCE` | `file` |
+| `GPROXY_PERSISTENCE` | `db` |
 | `GPROXY_DATA_DIR` | `/app/data` |
 
-`file` persistence 是本地磁盘 JSON 存储，适合单容器。需要容器替换后保留数据时，挂载
+默认数据库是 `/app/data/gproxy.db` 中的 SQLite。需要容器替换后保留数据时，挂载
 `/app/data`。
 
 :::caution[生产环境 HTTPS]
@@ -91,8 +91,7 @@ import 文件只在 store 为空时使用。已有 users 或 providers 后，后
 
 ## SQLite、PostgreSQL 或 MySQL
 
-native 二进制默认 `db` persistence，但 Docker 镜像默认 `file`。需要数据库 backend 时，
-显式设置 `GPROXY_PERSISTENCE=db`。
+native 二进制和 Docker 镜像都使用 `db` persistence。
 
 挂载 data 目录中的 SQLite：
 
@@ -101,13 +100,12 @@ docker run -d \
   --name gproxy \
   -p 8787:8787 \
   -v gproxy-data:/app/data \
-  -e GPROXY_PERSISTENCE=db \
   -e GPROXY_DATA_DIR=/app/data \
   -e GPROXY_ADMIN_PASSWORD=change-me-please \
   ghcr.io/leenhawk/gproxy:latest
 ```
 
-`db` persistence 且未设置 `GPROXY_DSN` 时，v2 会派生
+未设置 `GPROXY_DSN` 时，v2 会派生
 `sqlite://<data-dir>/gproxy.db?mode=rwc`。
 
 PostgreSQL 示例：
@@ -116,7 +114,6 @@ PostgreSQL 示例：
 docker run -d \
   --name gproxy \
   -p 8787:8787 \
-  -e GPROXY_PERSISTENCE=db \
   -e GPROXY_DSN='postgres://gproxy:secret@postgres.internal:5432/gproxy' \
   -e GPROXY_MASTER_KEY="$GPROXY_MASTER_KEY" \
   -e GPROXY_ADMIN_PASSWORD=change-me-please \
