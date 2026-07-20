@@ -28,7 +28,7 @@ Scoped provider 流量会跳过 route 查找，因为 provider 已经来自 URL�
 | `variants_json` | 可选 suffix variant 暴露配置。 |
 | `enabled` | 禁用模型不会暴露。 |
 
-Console 可以通过 `/admin/providers/{provider_id}/upstream-models` 拉取实时上游模型列表。这个操作会调用 provider，或者在 channel 带静态目录时直接返回 bundled models。
+Console 可以通过 `/admin/providers/{provider_id}/upstream-models` 拉取实时上游模型列表。这个操作会调用 provider，或者在 channel 带静态目录时直接返回 bundled models。对于依赖凭证的目录，系统会串行请求每个已启用且当前可用的凭证，并按模型 ID 去重后返回并集；单个凭证失败不会丢弃其他凭证返回的模型。
 
 ## Routes 与 Members
 

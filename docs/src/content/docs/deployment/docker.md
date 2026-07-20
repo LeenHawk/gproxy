@@ -45,11 +45,11 @@ The image sets:
 | --- | --- |
 | `GPROXY_HOST` | `0.0.0.0` |
 | `GPROXY_PORT` | `8787` |
-| `GPROXY_PERSISTENCE` | `file` |
+| `GPROXY_PERSISTENCE` | `db` |
 | `GPROXY_DATA_DIR` | `/app/data` |
 
-`file` persistence is local-disk JSON storage, suitable for a single container.
-Mount `/app/data` if you want data to survive container replacement.
+The default database is SQLite at `/app/data/gproxy.db`. Mount `/app/data` if
+you want data to survive container replacement.
 
 :::caution[Production HTTPS]
 The image serves plain HTTP. Same-origin Console sessions work over plain HTTP,
@@ -97,8 +97,7 @@ boots once users or providers exist.
 
 ## SQLite, PostgreSQL, Or MySQL
 
-The native binary defaults to `db` persistence, but the Docker image defaults to
-`file`. Set `GPROXY_PERSISTENCE=db` when you want a database backend.
+The native binary and Docker image both use `db` persistence.
 
 SQLite inside the mounted data directory:
 
@@ -107,13 +106,12 @@ docker run -d \
   --name gproxy \
   -p 8787:8787 \
   -v gproxy-data:/app/data \
-  -e GPROXY_PERSISTENCE=db \
   -e GPROXY_DATA_DIR=/app/data \
   -e GPROXY_ADMIN_PASSWORD=change-me-please \
   ghcr.io/leenhawk/gproxy:latest
 ```
 
-With `db` persistence and no `GPROXY_DSN`, v2 derives
+With no `GPROXY_DSN`, v2 derives
 `sqlite://<data-dir>/gproxy.db?mode=rwc`.
 
 PostgreSQL example:
@@ -122,7 +120,6 @@ PostgreSQL example:
 docker run -d \
   --name gproxy \
   -p 8787:8787 \
-  -e GPROXY_PERSISTENCE=db \
   -e GPROXY_DSN='postgres://gproxy:secret@postgres.internal:5432/gproxy' \
   -e GPROXY_MASTER_KEY="$GPROXY_MASTER_KEY" \
   -e GPROXY_ADMIN_PASSWORD=change-me-please \

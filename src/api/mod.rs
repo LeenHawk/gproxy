@@ -9,6 +9,7 @@ pub mod batch;
 pub mod credentials;
 pub mod error;
 pub mod login;
+pub mod pagination;
 pub mod routing;
 pub mod tls_presets;
 pub mod user_keys;

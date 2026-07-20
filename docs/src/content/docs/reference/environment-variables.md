@@ -28,8 +28,8 @@ console, admin API, or JSON import/export.
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `GPROXY_PERSISTENCE` | `db` | Native persistence backend: `db` or `file`. `db` uses SeaORM and defaults to a SQLite file if no DSN is supplied. `file` stores one JSON file per table and is single-instance only. |
-| `GPROXY_DATA_DIR` | `./data` | Data directory. Used by the file backend, the default SQLite DSN, v1 migration backup/temp files, and self-update staging. |
+| `GPROXY_PERSISTENCE` | `db` | Native persistence backend. The only accepted value is `db`, which uses SeaORM and defaults to SQLite if no DSN is supplied. |
+| `GPROXY_DATA_DIR` | `./data` | Data directory. Used by the default SQLite DSN, v1 migration backup/temp files, and self-update staging. |
 | `GPROXY_DSN` | Generated | Database DSN for `GPROXY_PERSISTENCE=db`. If omitted, GPROXY uses `sqlite://<absolute data_dir>/gproxy.db?mode=rwc`. |
 | `GPROXY_REDIS_URL` | Empty | Redis URL for the shared cache backend when the binary is built with the `cache-redis` feature. If omitted, the native default is in-process memory cache. |
 | `GPROXY_MASTER_KEY` | Empty | Standard base64-encoded 32-byte key used to open and seal stored secrets. If absent, GPROXY runs in plaintext-secret mode and logs a warning. This variable is env-only; there is no CLI flag. |

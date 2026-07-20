@@ -7,10 +7,10 @@ export interface DatedCredentialHealthLike extends CredentialHealthLike {
   updated_at: number;
 }
 
-function isExpiredRateLimit(status: CredentialHealthLike, nowSecs: number): boolean {
+function isExpiredCooldown(status: CredentialHealthLike, nowSecs: number): boolean {
   const until = status.health_json?.open_until;
   return (
-    status.health_kind === "rate_limited" &&
+    (status.health_kind === "rate_limited" || status.health_kind === "auth_dead") &&
     typeof until === "number" &&
     Number.isFinite(until) &&
     until <= nowSecs
@@ -18,7 +18,18 @@ function isExpiredRateLimit(status: CredentialHealthLike, nowSecs: number): bool
 }
 
 export function isCurrentCredentialStatus(status: CredentialHealthLike, nowSecs: number): boolean {
-  return !isExpiredRateLimit(status, nowSecs);
+  return !isExpiredCooldown(status, nowSecs);
+}
+
+export function countCurrentUnhealthyModels<T extends CredentialHealthLike & { model_id: string }>(
+  rows: T[],
+  nowSecs: number,
+): number {
+  return new Set(
+    currentCredentialStatuses(rows, nowSecs)
+      .filter((row) => row.health_kind !== "recovered")
+      .map((row) => row.model_id),
+  ).size;
 }
 
 export function currentCredentialStatuses<T extends CredentialHealthLike>(

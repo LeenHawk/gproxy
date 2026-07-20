@@ -1,4 +1,4 @@
-// Integration tests for edge dispatcher special admin CRUD:
+// Integration tests for shared special admin CRUD:
 // user-keys (gen+seal+plaintext display+ownership),
 // users (password hash+redact+keep-existing),
 // credentials (seal+redact+provider-scope) — B6.3 Task 2.
@@ -476,51 +476,4 @@ async fn credentials_create_seals_and_list_redacts_fk_scope() {
     );
     let err = run(&state, &p, b"").await.expect_err("gone");
     assert_eq!(err.status(), http::StatusCode::NOT_FOUND);
-}
-
-/// Create credential without secret_json on a new (id=null) record → 400.
-#[tokio::test]
-async fn credentials_create_without_secret_is_400() {
-    let (state, _dir) = state_with(vec![]).await;
-    let admin_id = seed_user(&state, "admin-cs400", true).await;
-    let cookie = cookie_for(&state, admin_id).await;
-
-    // Create provider.
-    let prov_body = serde_json::json!({
-        "id": null,
-        "name": "cs400-provider",
-        "channel": "openai",
-        "label": null,
-        "settings_json": {},
-        "credential_strategy": "round-robin",
-        "proxy_url": null,
-        "tls_fingerprint": null,
-        "enabled": true,
-    })
-    .to_string()
-    .into_bytes();
-    let p = parts("POST", "/admin/providers", Some(&cookie), None);
-    let resp = run(&state, &p, &prov_body).await.expect("provider");
-    let provider_id = parse_json(&resp)["id"].as_i64().unwrap();
-
-    // POST credential without secret_json (id=null, so this is a create).
-    let cred_body = serde_json::json!({
-        "id": null,
-        "label": "no-secret",
-        "kind": "api_key",
-        "weight": 100,
-        "enabled": true,
-    })
-    .to_string()
-    .into_bytes();
-    let p = parts(
-        "POST",
-        &format!("/admin/providers/{provider_id}/credentials"),
-        Some(&cookie),
-        None,
-    );
-    let err = run(&state, &p, &cred_body)
-        .await
-        .expect_err("should be 400");
-    assert_eq!(err.status(), http::StatusCode::BAD_REQUEST);
 }

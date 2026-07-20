@@ -77,7 +77,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: RouteInput) -> anyhow::Res
             }
             None => {
                 // Seeding an empty store from a pinned bundle: insert WITH the
-                // explicit id (matches the file backend's insert-with-id).
+                // Preserve explicit IDs supplied by bundle imports.
                 route::ActiveModel {
                     id: Set(id),
                     name: Set(input.name),

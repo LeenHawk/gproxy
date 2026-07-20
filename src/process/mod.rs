@@ -16,7 +16,7 @@ use bytes::Bytes;
 use http::HeaderMap;
 use serde_json::Value;
 
-use crate::channel::ChannelStreamDecoder;
+use crate::http::client::ByteStreamDecoder;
 use crate::protocol::{ContentGenerationKind, OperationKey};
 use crate::transform::common::sse::{SseDecoder, SseFrame};
 
@@ -159,7 +159,7 @@ pub fn response_stream_decoder(
     op: OperationKey,
     kind: Option<ContentGenerationKind>,
     model: &str,
-) -> Option<Box<dyn ChannelStreamDecoder>> {
+) -> Option<Box<dyn ByteStreamDecoder>> {
     let rules: Vec<CompiledRule> = rules
         .iter()
         .filter(|rule| {
@@ -188,7 +188,7 @@ struct ResponseRuleStreamDecoder {
     model: String,
 }
 
-impl ChannelStreamDecoder for ResponseRuleStreamDecoder {
+impl ByteStreamDecoder for ResponseRuleStreamDecoder {
     fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
         let mut out = Vec::new();
         for frame in self.decoder.push(chunk) {

@@ -1,4 +1,4 @@
-//! Envelope encryption for stored secrets (architecture-design §14.1).
+//! Envelope encryption for stored secrets (Architecture: §14.1 Secret sealing).
 //!
 //! Secrets (`credentials.secret_json`, `user_keys.api_key_ciphertext`) are
 //! stored as envelopes: a per-secret random DEK encrypts the plaintext with

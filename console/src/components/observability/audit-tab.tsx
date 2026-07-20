@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { auditQuery, type AuditLog } from "@/api/usage";
+import {
+  auditPageQuery,
+  type AuditFilter,
+  type AuditLog,
+} from "@/api/usage";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { AuditFilters } from "@/components/observability/audit-filters";
+import { Pagination } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -18,8 +24,16 @@ function fmtAt(unixSecs: number): string {
 
 export function AuditTab() {
   const { t } = useTranslation("observability");
-  const [auditLimit, setAuditLimit] = useState(100);
-  const { data: auditRows, isPending: auditPending } = useQuery(auditQuery(auditLimit));
+  const [filter, setFilter] = useState<AuditFilter>({});
+  const [page, setPage] = useState(1);
+  const { data, isFetching, isPending } = useQuery(
+    auditPageQuery(filter, page),
+  );
+
+  function changeFilter(next: AuditFilter) {
+    setFilter(next);
+    setPage(1);
+  }
 
   const auditCols: DataColumn<AuditLog>[] = [
     {
@@ -44,25 +58,8 @@ export function AuditTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">{t("audit.limit.label")}</span>
-        {(["100", "500", "1000"] as const).map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setAuditLimit(Number(n))}
-            className={
-              auditLimit === Number(n)
-                ? "rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
-                : "rounded-md border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            }
-          >
-            {t(`audit.limit.${n}`)}
-          </button>
-        ))}
-      </div>
-
-      {auditPending ? (
+      <AuditFilters value={filter} onChange={changeFilter} />
+      {isPending ? (
         <div className="space-y-2" aria-busy="true">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-10" />
@@ -71,7 +68,7 @@ export function AuditTab() {
       ) : (
         <DataTable
           columns={auditCols}
-          rows={auditRows ?? []}
+          rows={data?.items ?? []}
           rowKey={(r) => r.id}
           empty={t("audit.empty")}
           renderCard={(r) => (
@@ -90,6 +87,12 @@ export function AuditTab() {
           )}
         />
       )}
+      <Pagination
+        page={page}
+        totalPages={data?.pagination.total_pages ?? 0}
+        onPageChange={setPage}
+        disabled={isFetching}
+      />
     </div>
   );
 }

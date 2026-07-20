@@ -114,13 +114,12 @@ http-body-util = "0.1"
 # Production builds compile only the backends they use; dev builds use
 # `--all-features` (or `full`). default = native zero-extra-dep baseline.
 [features]
-default = ["cache-memory", "persist-db", "persist-file", "upstream-wreq", "count-local", "migrate-v1", "channels"]
+default = ["cache-memory", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels"]
 
 # cache backends (native)
 cache-memory = []
 cache-redis = ["dep:redis"]
-# persistence backends (native)
-persist-file = []
+# persistence backend (native)
 persist-db = ["dep:sea-orm"]
 # MIGRATE-V1 (remove in 2.1): one-shot v1→v2 startup data migration. Pulls the
 # read-only sqlx sqlite reader; the write path reuses `persist-db`. Shipped in the
@@ -185,7 +184,7 @@ channel-vertex = []
 channel-vertexexpress = []
 
 # dev convenience: all native backends
-full = ["cache-memory", "cache-redis", "persist-file", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels"]
+full = ["cache-memory", "cache-redis", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels"]
 
 
 [profile.release]

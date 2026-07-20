@@ -168,18 +168,18 @@ pub fn clear_cookie(cross_origin: bool) -> String {
 mod tests {
     use super::*;
     use crate::store::cache::MemoryCache;
-    use crate::store::persistence::FilePersistence;
+    use crate::store::persistence::DbPersistence;
     use crate::store::persistence::records::{OrgInput, UserInput};
 
-    async fn store() -> (tempfile::TempDir, FilePersistence) {
+    async fn store() -> (tempfile::TempDir, DbPersistence) {
         let dir = tempfile::tempdir().expect("tempdir");
-        let fp = FilePersistence::open(dir.path().to_path_buf())
+        let fp = DbPersistence::connect("sqlite::memory:")
             .await
-            .expect("open");
+            .expect("connect");
         (dir, fp)
     }
 
-    async fn seed_user(db: &FilePersistence, enabled: bool, is_admin: bool) -> i64 {
+    async fn seed_user(db: &DbPersistence, enabled: bool, is_admin: bool) -> i64 {
         let org = db
             .upsert_org(OrgInput {
                 id: None,

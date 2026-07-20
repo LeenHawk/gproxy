@@ -103,6 +103,45 @@ client，以及 libSQL/Turso、REST 风格共享存储等平台友好的 persist
 | Console | `console/` 中的 React SPA；构建产物同步到 `assets/console/` 给 native embedding。 |
 | Documentation | `docs/` 中的 Starlight 站点；开发/source 笔记放在 `dev-docs/`。 |
 
+## 稳定代码引用索引
+
+部分源码注释沿用了最初 v2 设计笔记中未限定文档名的 `§` 标识。这些标识是稳定 ID，
+不是本页标题的排列序号。本页调整结构时不要重新编号；应通过下表解析这些引用。
+`RFC 7230 §6.1` 或带具体文档路径的引用仍指向对应的外部文档。
+
+| 稳定标识 | 具名架构主题 |
+| --- | --- |
+| `§3.2` | 被动健康状态和熔断器。 |
+| `§3.3` | 单 credential RPM/TPM 准入预算。 |
+| `§4` | 共享 admin API contract 和 DTO。 |
+| `§5` | 端到端请求生命周期和 pipeline 边界。 |
+| `§6`、`§6.1` | Operation-first transform 和 provider rule processing。 |
+| `§6.3` | Channel registry、本地 operation 和请求编排。 |
+| `§6.4` | 上游 disposition 和有界 failover。 |
+| `§7.2` | 控制面 snapshot、热重载和 invalidation。 |
+| `§7.4` | 生效的上游 proxy、TLS fingerprint 和 HTTP transport。 |
+| `§8` | 控制面 persistence 和 instance settings。 |
+| `§8-A` | Route、route member、alias 和暴露的 provider model。 |
+| `§8-B` | Provider、credential、model variant 和 transform dispatch。 |
+| `§8-B2` | Routing rule 和 provider rule set。 |
+| `§8-C` | Identity scope 下的 permission、rate limit 和 quota。 |
+| `§8-D` | Usage record、wire log、capture 和 retention。 |
+| `§8-E` | Runtime settings 以及 usage/log feature toggle。 |
+| `§9` | Console build、内嵌和 edge asset 打包。 |
+| `§13` | Cache 行为、invalidation 和 edge 配置刷新。 |
+| `§14.1` | Secret envelope encryption 和使用时解密。 |
+| `§14.2` | 首启 admin、密码 hash 和 session。 |
+| `§14.3` | Secret redaction 和安全敏感的 runtime settings。 |
+| `§14.5` | OAuth 登录、刷新和 credential usage 生命周期。 |
+| `§15`、`§15.1`、`§15.2`、`§15.3` | 可观测性：request ID、tracing、metrics 和 latency。 |
+| `§16.1`、`§16.2`、`§16.3` | Runtime 加固：优雅排空、过载/超时边界和健康状态持久化。 |
+| `§17` | 标准化 usage、billing、quota 准入和 settlement。 |
+| `§18` | 控制面 import 和 export。 |
+| `§19` | Native self-update 生命周期。 |
+| `§19.2`、`§19.3`、`§19.4` | 签名 manifest、release channel、回滚保护和更新策略。 |
+| `§19.5`、`§19.6`、`§19.6.1`、`§19.6.2` | 下载/staging、binary swap、supervisor restart 和直接 re-exec。 |
+| `§19.7`、`§19.8`、`§19.10` | 数据兼容、回滚产物和 update admin/status 安全约束。 |
+
 ## 下一步
 
 - 在[供应商与通道](/zh-cn/guides/providers/)中配置上游。

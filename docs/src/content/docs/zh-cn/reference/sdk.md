@@ -37,11 +37,10 @@ package 级 feature flags 以 backend 为主：
 
 | Feature | 用途 |
 | --- | --- |
-| `default` | native 默认：memory cache、db 和 file persistence、wreq upstream client、本地计数、v1 migration。 |
+| `default` | native 默认：memory cache、db persistence、wreq upstream client、本地计数、v1 migration。 |
 | `full` | native 便利 feature，启用所有 native backend。 |
 | `cache-memory` | 进程内 cache backend。 |
 | `cache-redis` | Redis cache backend，用于多实例 cache/invalidation。 |
-| `persist-file` | 本地 JSON-file persistence backend。 |
 | `persist-db` | SeaORM database persistence backend。 |
 | `migrate-v1` | legacy v1 SQLite migration reader 和 serve-path auto-migration hook。 |
 | `upstream-wreq` | native HTTP upstream client。 |

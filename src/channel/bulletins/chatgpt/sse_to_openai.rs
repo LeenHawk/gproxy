@@ -29,10 +29,14 @@
 //! path-elision handling are the v2 enhancements (v1 dropped both). Id/clock are
 //! sourced from `crate::util::rand` / `crate::util::time` for wasm-portability.
 
-use serde::Serialize;
 use serde_json::{Value, json};
 
 use super::sse::{Delta, Event, InitialAddValue, PatchKind};
+
+mod encoding;
+
+pub use encoding::{OpenAiChunk, OpenAiChunkChoice};
+use encoding::{reasoning_text, thoughts_array_text};
 
 /// State machine that consumes SSE v1 events and emits OpenAI chat chunks.
 #[derive(Debug, Default)]
@@ -59,24 +63,6 @@ pub struct SseToOpenAi {
     /// Inside a web-search citation marker run (`U+E200 … U+E201`) — tracked
     /// across deltas because a marker can split across chunks.
     in_citation: bool,
-}
-
-/// One OpenAI `chat.completion.chunk` value.
-#[derive(Debug, Clone, Serialize)]
-pub struct OpenAiChunk {
-    pub id: String,
-    pub object: &'static str,
-    pub created: u64,
-    pub model: String,
-    pub choices: Vec<OpenAiChunkChoice>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct OpenAiChunkChoice {
-    pub index: u32,
-    pub delta: serde_json::Map<String, Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub finish_reason: Option<String>,
 }
 
 impl SseToOpenAi {
@@ -419,53 +405,6 @@ impl SseToOpenAi {
     }
 }
 
-/// Extract a reasoning text string from a `/message/content/...` patch value.
-/// Reasoning parts may be plain strings, or `{summary|content|text}` objects
-/// (a `thoughts` array element). We pull the first present, preferring the
-/// human-readable `content`/`text` over the short `summary` header.
-fn reasoning_text(value: &Value) -> Option<String> {
-    if let Some(s) = value.as_str() {
-        return Some(s.to_string());
-    }
-    if let Some(obj) = value.as_object() {
-        for key in ["content", "text", "summary"] {
-            if let Some(s) = obj
-                .get(key)
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-            {
-                return Some(s.to_string());
-            }
-        }
-    }
-    None
-}
-
-/// Flatten a pre-populated `thoughts` array (`content.thoughts`) into reasoning
-/// text. Each element is `{summary?, content?}`; emit `summary` then `content`
-/// per thought, blank-line separated. Returns `None` if the array is absent or
-/// empty (the standard-thinking "CoT withheld" case).
-fn thoughts_array_text(content: Option<&Value>) -> Option<String> {
-    let arr = content?.get("thoughts")?.as_array()?;
-    let mut out = String::new();
-    for thought in arr {
-        for key in ["summary", "content"] {
-            if let Some(s) = thought
-                .get(key)
-                .and_then(|v| v.as_str())
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-            {
-                if !out.is_empty() {
-                    out.push_str("\n\n");
-                }
-                out.push_str(s);
-            }
-        }
-    }
-    if out.is_empty() { None } else { Some(out) }
-}
-
 /// Convenience: buffer an entire SSE response and collect all emitted
 /// OpenAI chunks in order. Used by tests and non-streaming callers.
 #[cfg(test)]
@@ -488,154 +427,4 @@ pub fn collect_all(model: &str, body: &[u8]) -> Vec<OpenAiChunk> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ignores_system_and_user_channels() {
-        let body = br#"event: delta_encoding
-data: "v1"
-
-event: delta
-data: {"p":"","o":"add","v":{"message":{"id":"sys","author":{"role":"system"},"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","metadata":{"is_visually_hidden_from_conversation":true}},"conversation_id":"c1"},"c":0}
-
-event: delta
-data: {"p":"","o":"add","v":{"message":{"id":"user","author":{"role":"user"},"content":{"content_type":"text","parts":["hi"]},"status":"finished_successfully"},"conversation_id":"c1"},"c":1}
-
-event: delta
-data: {"p":"","o":"add","v":{"message":{"id":"asst","author":{"role":"assistant"},"content":{"content_type":"text","parts":[""]},"status":"in_progress","metadata":{"model_slug":"gpt-5"}},"conversation_id":"c1"},"c":2}
-
-event: delta
-data: {"v":[{"p":"/message/content/parts/0","o":"append","v":"hello"}]}
-
-event: delta
-data: {"v":[{"p":"/message/content/parts/0","o":"append","v":" world"},{"p":"/message/status","o":"replace","v":"finished_successfully"}]}
-
-"#;
-        let chunks = collect_all("gpt-5", body);
-        let text: String = chunks
-            .iter()
-            .flat_map(|c| c.choices.iter())
-            .filter_map(|ch| ch.delta.get("content").and_then(|v| v.as_str()))
-            .collect();
-        assert_eq!(text, "hello world");
-        assert!(chunks.last().unwrap().choices[0].finish_reason.as_deref() == Some("stop"));
-    }
-
-    #[test]
-    fn surfaces_reasoning_channel_as_reasoning_content() {
-        // Synthetic stream: a `thoughts` assistant channel (reasoning) then the
-        // `text` assistant channel (final answer). Reasoning patches must emit
-        // `reasoning_content`; final patches emit `content`.
-        let body = br#"event: delta_encoding
-data: "v1"
-
-event: delta
-data: {"p":"","o":"add","v":{"message":{"id":"think","author":{"role":"assistant"},"content":{"content_type":"thoughts","parts":[""]},"status":"in_progress"},"conversation_id":"c1"},"c":0}
-
-event: delta
-data: {"v":[{"p":"/message/content/parts/0","o":"append","v":"let me think"}]}
-
-event: delta
-data: {"p":"","o":"add","v":{"message":{"id":"asst","author":{"role":"assistant"},"content":{"content_type":"text","parts":[""]},"status":"in_progress","metadata":{"model_slug":"gpt-5"}},"conversation_id":"c1"},"c":1}
-
-event: delta
-data: {"v":[{"p":"/message/content/parts/0","o":"append","v":"answer"},{"p":"/message/status","o":"replace","v":"finished_successfully"}]}
-
-"#;
-        let chunks = collect_all("gpt-5", body);
-        let reasoning: String = chunks
-            .iter()
-            .flat_map(|c| c.choices.iter())
-            .filter_map(|ch| ch.delta.get("reasoning_content").and_then(|v| v.as_str()))
-            .collect();
-        let content: String = chunks
-            .iter()
-            .flat_map(|c| c.choices.iter())
-            .filter_map(|ch| ch.delta.get("content").and_then(|v| v.as_str()))
-            .collect();
-        assert_eq!(reasoning, "let me think");
-        assert_eq!(content, "answer");
-        assert!(chunks.last().unwrap().choices[0].finish_reason.as_deref() == Some("stop"));
-    }
-
-    #[test]
-    fn real_stream_path_elision_and_reasoning_recap() {
-        // Trimmed from a live chatgpt.com gpt-5-5-thinking capture (June 2026):
-        // a `reasoning_recap` add carrying its label inline, then the final-text
-        // channel whose continuations are PATH-ELIDED bare `{"v": …}` appends.
-        // Regression: the bare appends must not be dropped (they carry the bulk
-        // of the answer) and the recap must surface as reasoning_content.
-        let body = r#"event: delta_encoding
-data: "v1"
-
-event: delta
-data: {"o":"add","v":{"message":{"id":"r1","author":{"role":"assistant"},"content":{"content_type":"reasoning_recap","content":"已思考 5s"},"status":"finished_successfully"},"conversation_id":"c1"},"c":6}
-
-event: delta
-data: {"v":{"message":{"id":"a1","author":{"role":"assistant"},"content":{"content_type":"text","parts":[""]},"status":"in_progress","metadata":{"model_slug":"gpt-5-5-thinking"}},"conversation_id":"c1"},"c":7}
-
-event: delta
-data: {"p":"/message/content/parts/0","o":"append","v":"我不能展示"}
-
-event: delta
-data: {"v":"内部逐字思考过程"}
-
-event: delta
-data: {"v":"，但可以给出推导。"}
-
-event: delta
-data: {"v":[{"p":"/message/status","o":"replace","v":"finished_successfully"}]}
-
-data: [DONE]
-"#
-        .as_bytes();
-        let chunks = collect_all("gpt-5-5-thinking", body);
-        let reasoning: String = chunks
-            .iter()
-            .flat_map(|c| c.choices.iter())
-            .filter_map(|ch| ch.delta.get("reasoning_content").and_then(|v| v.as_str()))
-            .collect();
-        let content: String = chunks
-            .iter()
-            .flat_map(|c| c.choices.iter())
-            .filter_map(|ch| ch.delta.get("content").and_then(|v| v.as_str()))
-            .collect();
-        assert_eq!(reasoning, "已思考 5s");
-        // All three fragments present — bare appends NOT dropped.
-        assert_eq!(content, "我不能展示内部逐字思考过程，但可以给出推导。");
-        assert_eq!(
-            chunks.last().unwrap().choices[0].finish_reason.as_deref(),
-            Some("stop")
-        );
-    }
-
-    #[test]
-    fn strips_web_search_citation_markers() {
-        // Real web-search shape: text carries `U+E200 cite U+E202 turn0search0
-        // U+E202 turn0search9 U+E201` citation runs; the visible answer + the
-        // model's own "出处" list survive, the PUA markers are stripped. The
-        // marker is also split across two delta chunks to exercise the carry.
-        let body = "event: delta_encoding\ndata: \"v1\"\n\n\
-event: delta\n\
-data: {\"v\":{\"message\":{\"author\":{\"role\":\"assistant\"},\"content\":{\"content_type\":\"text\",\"parts\":[\"\"]},\"status\":\"in_progress\",\"metadata\":{\"model_slug\":\"gpt-5\"}}},\"c\":2}\n\n\
-event: delta\n\
-data: {\"p\":\"/message/content/parts/0\",\"o\":\"append\",\"v\":\"Rust 1.89 于 2025-08-07 发布。\u{e200}cite\u{e202}turn0search0\"}\n\n\
-event: delta\n\
-data: {\"v\":\"\u{e202}turn0search9\u{e201} 出处：blog.rust-lang.org\"}\n\n\
-event: delta\n\
-data: {\"v\":[{\"p\":\"/message/status\",\"o\":\"replace\",\"v\":\"finished_successfully\"}]}\n\n\
-data: [DONE]\n\n";
-        let chunks = collect_all("gpt-5", body.as_bytes());
-        let content: String = chunks
-            .iter()
-            .flat_map(|c| c.choices.iter())
-            .filter_map(|ch| ch.delta.get("content").and_then(|v| v.as_str()))
-            .collect();
-        assert_eq!(
-            content,
-            "Rust 1.89 于 2025-08-07 发布。 出处：blog.rust-lang.org"
-        );
-        assert!(!content.contains('\u{e200}') && !content.contains('\u{e202}'));
-    }
-}
+mod tests;

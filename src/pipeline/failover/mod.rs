@@ -21,6 +21,8 @@ use std::time::Duration;
 
 use crate::app::AppState;
 use crate::channel::Disposition;
+use crate::health::CredAdmit;
+use crate::health::config::breaker_config;
 use crate::pipeline::capture;
 use crate::pipeline::context::{Candidate, RequestCtx};
 use crate::pipeline::error::PipelineError;
@@ -104,6 +106,20 @@ pub async fn run_failover(
             continue;
         }
 
+        // Candidate planning only peeks at health. Acquire the exact
+        // credential-model admission immediately before doing credential work,
+        // so a failure earlier in this same failover loop takes effect now.
+        let cred_cfg = breaker_config(&cand.provider.settings_json);
+        if state.health.admit_credential_model(
+            cand.credential.id,
+            &cand.upstream_model_id,
+            &cred_cfg,
+            crate::util::time::unix_now(),
+        ) == CredAdmit::No
+        {
+            continue;
+        }
+
         // §14.1 decrypt-at-use: the snapshot carries sealed secrets; open per
         // attempt (µs-scale). Unreadable secret → skip candidate, not 500.
         let opened = match state.cipher.open(&cand.credential.secret_json) {
@@ -127,15 +143,7 @@ pub async fn run_failover(
         // opened secret is stale; otherwise returns it unchanged. A refresh
         // failure is treated like an unreadable secret — cool + audit + skip.
         let mut secret = match state
-            .refresh
-            .ensure_fresh(
-                state,
-                &channel,
-                &cand.credential,
-                &cand.provider,
-                opened,
-                false,
-            )
+            .ensure_fresh_credential(&channel, &cand.credential, &cand.provider, opened, false)
             .await
         {
             Ok(v) => v,
@@ -173,12 +181,11 @@ pub async fn run_failover(
         // refresh ONCE per credential and replay the SAME candidate. The retry
         // does NOT consume the retry budget (same logical candidate).
         let outcome = if outcome.disposition == Disposition::AuthDead
+            && cand.credential.kind != "api_key"
             && refreshed_creds.insert(cand.credential.id)
         {
             match state
-                .refresh
-                .ensure_fresh(
-                    state,
+                .ensure_fresh_credential(
                     &channel,
                     &cand.credential,
                     &cand.provider,
@@ -210,15 +217,18 @@ pub async fn run_failover(
                         }
                     }
                 }
-                // Forced refresh failed: cool + audit + next candidate. The
-                // original AuthDead outcome's health is recorded below.
+                // Refresh is a credential-wide operation. Its failure blocks
+                // the credential globally; do not additionally infer a
+                // credential-model failure from the original response.
                 Err(e) => {
                     tracing::warn!(
                         credential_id = cand.credential.id,
                         error = %e,
                         "forced refresh after AuthDead failed; cooling credential"
                     );
-                    outcome
+                    refresh_failed(state, ctx, cand, &e);
+                    last_err = Some(PipelineError::Channel(e));
+                    continue;
                 }
             }
         } else {
@@ -299,6 +309,7 @@ pub async fn run_failover(
                 &plan,
                 ctx,
                 status,
+                &cand.provider.settings_json,
                 response_rules,
                 up_cap,
                 settle_ctx,

@@ -7,6 +7,7 @@ use bytes::Bytes;
 use http::HeaderMap;
 
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
+use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
     self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
 };
@@ -107,13 +108,14 @@ impl Channel for ClaudeApiChannel {
         if !is_claude_messages(ctx.op) {
             return body;
         }
+        let settings = RequestShapeSettings::from_value(ctx.settings);
         let body = shaping::with_json_body(body, |v| {
-            if ctx.enable_magic_cache {
+            if settings.enable_magic_cache {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
-            if ctx.enable_claude_fable_fallback {
+            if settings.enable_claude_fable_fallback {
                 claude_fallback::apply_fable_to_opus48(v, headers);
             }
         });
@@ -131,7 +133,7 @@ mod tests {
     use crate::protocol::{Operation, OperationKey, OperationKind};
     use crate::transform::routing::RoutingDecision;
 
-    fn messages_ctx() -> ShapeCtx {
+    fn messages_ctx() -> ShapeCtx<'static> {
         ShapeCtx {
             op: OperationKey::content_generation(
                 Operation::GenerateContent,
@@ -139,14 +141,13 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: false,
+            settings: &Value::Null,
         }
     }
 
-    fn fallback_ctx() -> ShapeCtx {
+    fn fallback_ctx(settings: &Value) -> ShapeCtx<'_> {
         ShapeCtx {
-            enable_claude_fable_fallback: true,
+            settings,
             ..messages_ctx()
         }
     }
@@ -214,8 +215,7 @@ mod tests {
             ),
             stream: false,
             status: StatusCode::OK,
-            enable_magic_cache: false,
-            enable_claude_fable_fallback: false,
+            settings: &Value::Null,
         };
         let out = ClaudeApiChannel.shape_request(body.clone(), &mut headers, &ctx);
         assert_eq!(out, body);
@@ -229,10 +229,11 @@ mod tests {
     #[test]
     fn injects_fable_server_side_fallback() {
         let mut headers = HeaderMap::new();
+        let settings = serde_json::json!({ "enable_claude_fable_fallback": true });
         let body = Bytes::from(
             r#"{"model":"claude-fable-5","messages":[],"max_tokens":32,"temperature":0.7}"#,
         );
-        let out = ClaudeApiChannel.shape_request(body, &mut headers, &fallback_ctx());
+        let out = ClaudeApiChannel.shape_request(body, &mut headers, &fallback_ctx(&settings));
 
         let v: Value = serde_json::from_slice(&out).unwrap();
         assert_eq!(

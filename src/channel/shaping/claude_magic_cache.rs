@@ -42,11 +42,7 @@ impl MagicTtl {
 /// `enable_magic_cache` setting is true. Runs the strip+stamp pass, then
 /// `sanitize_claude_body` to migrate any marker off a now-empty block. Returns
 /// the body unchanged when disabled or unparseable.
-pub fn apply_if_enabled(body: Bytes, settings: &Value) -> Bytes {
-    let enabled = settings
-        .get("enable_magic_cache")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+pub fn apply_if_enabled(body: Bytes, enabled: bool) -> Bytes {
     if !enabled {
         return body;
     }
@@ -190,7 +186,7 @@ mod tests {
         let body = Bytes::from_static(
             br#"{"system":[{"type":"text","text":"GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}"#,
         );
-        let out = apply_if_enabled(body.clone(), &json!({}));
+        let out = apply_if_enabled(body.clone(), false);
         assert_eq!(out, body); // unchanged when setting absent
     }
 }

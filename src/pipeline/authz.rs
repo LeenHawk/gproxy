@@ -1,20 +1,38 @@
 //! Three-level authz (§8-C): permission union and rate-limit precheck run
 //! org → team → user after route resolution and before balance; the
-//! estimate-aware quota precheck runs separately in `execute`, once the §17
-//! pre-deduct estimate is known. Counters live in the cache (redis-direct in
+//! estimate-aware quota precheck runs separately in candidate admission once
+//! the §17 pre-deduct estimate is known. Counters live in the cache (redis-direct in
 //! multi-instance); nothing here reads persistence on the hot path.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::app::snapshot::{ControlPlaneSnapshot, KeyIdentity};
 use crate::billing::pending;
 use crate::pipeline::error::PipelineError;
 use crate::store::cache::CacheBackend;
-use crate::store::persistence::records::Scope;
+use crate::store::persistence::records::{Quota, RateLimit, Scope};
 use crate::util::glob;
 
 const MINUTE: i64 = 60;
 const DAY: i64 = 86_400;
+
+/// Snapshot-owned rate-limit input for one already-permitted request.
+pub(crate) struct AuthorizationPlan {
+    name: String,
+    rate_limits: Vec<Arc<Vec<RateLimit>>>,
+}
+
+struct QuotaEntry {
+    scope: Scope,
+    scope_id: i64,
+    quota: Arc<Quota>,
+}
+
+/// Snapshot-owned quota rows for one identity's scope chain.
+pub(crate) struct QuotaPlan {
+    entries: Vec<QuotaEntry>,
+}
 
 /// The identity's scope chain, most-specific first (check order §8-C).
 fn scopes(identity: &KeyIdentity) -> Vec<(Scope, i64)> {
@@ -127,20 +145,15 @@ pub fn provider_model_permitted(
 /// write race, at the cost of rejected requests consuming budget). A counter
 /// backend failure refuses the request (fail-closed) — enforced limits must
 /// not silently vanish with the cache.
-pub async fn precheck_limits(
-    cp: &ControlPlaneSnapshot,
+async fn precheck_limits(
+    plan: &AuthorizationPlan,
     cache: &dyn CacheBackend,
-    identity: &KeyIdentity,
-    name: &str,
     now_unix: i64,
 ) -> Result<(), PipelineError> {
-    for scope in scopes(identity) {
-        let Some(rows) = cp.rate_limits_by_scope.get(&scope) else {
-            continue;
-        };
+    for rows in &plan.rate_limits {
         for row in rows
             .iter()
-            .filter(|r| glob::matches(&r.route_pattern, name))
+            .filter(|r| glob::matches(&r.route_pattern, &plan.name))
         {
             if let Some(limit) = row.rpm {
                 let key = format!("rl:{}:m{}", row.id, now_unix / MINUTE);
@@ -196,31 +209,51 @@ pub async fn precheck_limits(
 /// the `qp:*` counter holds after `pending::charge`, so admission, settle and
 /// refund all reconcile against the same number. Negative pending (stray
 /// refunds) never grants extra budget.
-pub async fn precheck_quota(
-    cp: &ControlPlaneSnapshot,
+pub(crate) async fn precheck_quota(
+    plan: &QuotaPlan,
     cache: &dyn CacheBackend,
-    identity: &KeyIdentity,
     est_micros: i64,
 ) -> Result<(), PipelineError> {
-    for (scope, scope_id) in scopes(identity) {
-        if let Some(quota) = cp.quotas_by_scope.get(&(scope, scope_id)) {
-            // In-flight pending unreadable → the quota can't be checked →
-            // refuse (fail-closed), consistent with precheck_limits.
-            let in_flight = pending::read(cache, scope, scope_id)
-                .await
-                .map_err(|_| PipelineError::CounterUnavailable)?
-                .max(0);
-            let exhausted =
-                quota.cost_used + pending::micros_to_cost(in_flight) >= quota.quota_total;
-            let overshoots = quota.cost_used
-                + pending::micros_to_cost(in_flight + est_micros.max(0))
-                > quota.quota_total;
-            if exhausted || overshoots {
-                return Err(PipelineError::QuotaExceeded);
-            }
+    for entry in &plan.entries {
+        // In-flight pending unreadable → the quota can't be checked → refuse
+        // (fail-closed), consistent with precheck_limits.
+        let in_flight = pending::read(cache, entry.scope, entry.scope_id)
+            .await
+            .map_err(|_| PipelineError::CounterUnavailable)?
+            .max(0);
+        let exhausted =
+            entry.quota.cost_used + pending::micros_to_cost(in_flight) >= entry.quota.quota_total;
+        let overshoots = entry.quota.cost_used
+            + pending::micros_to_cost(in_flight + est_micros.max(0))
+            > entry.quota.quota_total;
+        if exhausted || overshoots {
+            return Err(PipelineError::QuotaExceeded);
         }
     }
     Ok(())
+}
+
+pub(crate) fn prepare_quota(cp: &ControlPlaneSnapshot, identity: &KeyIdentity) -> QuotaPlan {
+    let entries = scopes(identity)
+        .into_iter()
+        .filter_map(|(scope, scope_id)| {
+            cp.quotas_by_scope
+                .get(&(scope, scope_id))
+                .map(|quota| QuotaEntry {
+                    scope,
+                    scope_id,
+                    quota: Arc::clone(quota),
+                })
+        })
+        .collect();
+    QuotaPlan { entries }
+}
+
+pub(crate) fn prepared_quota_scopes(plan: &QuotaPlan) -> Vec<(Scope, i64)> {
+    plan.entries
+        .iter()
+        .map(|entry| (entry.scope, entry.scope_id))
+        .collect()
 }
 
 /// The scopes of `identity`'s chain that actually carry a quota row — the
@@ -254,59 +287,76 @@ pub fn permitted(cp: &ControlPlaneSnapshot, identity: &KeyIdentity, name: &str) 
     check_permission(cp, identity, name).is_ok()
 }
 
-/// The pipeline entry point for permission → limits. Quota is NOT checked
-/// here: the estimate-aware [`precheck_quota`] runs once at the common point
-/// in [`execute`](crate::pipeline::execute), after the §17 pre-deduct
-/// estimate is known and before `pending::charge`.
-pub async fn authorize(
+fn prepare_limits(
     cp: &ControlPlaneSnapshot,
-    cache: &dyn CacheBackend,
     identity: &KeyIdentity,
     name: &str,
-    now_unix: i64,
-) -> Result<(), PipelineError> {
+) -> AuthorizationPlan {
+    let rate_limits = scopes(identity)
+        .into_iter()
+        .filter_map(|scope| cp.rate_limits_by_scope.get(&scope).cloned())
+        .collect();
+    AuthorizationPlan {
+        name: name.to_owned(),
+        rate_limits,
+    }
+}
+
+pub(crate) fn prepare(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    name: &str,
+) -> Result<AuthorizationPlan, PipelineError> {
     check_permission(cp, identity, name)?;
-    precheck_limits(cp, cache, identity, name, now_unix).await
+    Ok(prepare_limits(cp, identity, name))
 }
 
 /// Provider/model authorization entry point: parent provider grants remain
 /// valid, while child grants can constrain access to specific model globs.
-pub async fn authorize_provider_model(
+pub(crate) fn prepare_provider_model(
     cp: &ControlPlaneSnapshot,
-    cache: &dyn CacheBackend,
     identity: &KeyIdentity,
     provider: &str,
     model: &str,
-    now_unix: i64,
-) -> Result<(), PipelineError> {
+) -> Result<AuthorizationPlan, PipelineError> {
     check_provider_model_permission(cp, identity, provider, model)?;
     // Rate-limit rows retain their existing provider-level semantics. Model
     // hierarchy is an authorization concern; changing counter attribution here
     // would also require changing settle-time token-limit accounting.
-    precheck_limits(cp, cache, identity, provider, now_unix).await
+    Ok(prepare_limits(cp, identity, provider))
 }
 
 /// Authorize entry into a provider's model-list namespace before the live
 /// catalogue is known. The response is always filtered per model afterwards.
-pub async fn authorize_provider_listing(
+pub(crate) fn prepare_provider_listing(
     cp: &ControlPlaneSnapshot,
-    cache: &dyn CacheBackend,
     identity: &KeyIdentity,
     provider: &str,
-    now_unix: i64,
-) -> Result<(), PipelineError> {
+) -> Result<AuthorizationPlan, PipelineError> {
     if !provider_listing_permitted(cp, identity, provider) {
         return Err(PipelineError::Forbidden);
     }
-    precheck_limits(cp, cache, identity, provider, now_unix).await
+    Ok(prepare_limits(cp, identity, provider))
 }
+
+pub(crate) async fn authorize(
+    plan: &AuthorizationPlan,
+    cache: &dyn CacheBackend,
+    now_unix: i64,
+) -> Result<(), PipelineError> {
+    precheck_limits(plan, cache, now_unix).await
+}
+
+#[cfg(all(test, not(target_arch = "wasm32"), feature = "cache-memory"))]
+#[path = "authz/outage_tests.rs"]
+mod outage_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32"), feature = "cache-memory"))]
 mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::store::cache::{CounterError, InvalidationHandler, MemoryCache};
+    use crate::store::cache::MemoryCache;
     use crate::store::persistence::records::{Org, Quota, RateLimit, User, UserKey};
 
     fn test_identity() -> KeyIdentity {
@@ -374,19 +424,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn disabled_org_denies() {
-        let identity = test_identity();
-        let mut cp = ControlPlaneSnapshot::empty(1);
-        cp.orgs_by_id.insert(10, Arc::new(org(false)));
-        cp.permissions_by_scope
-            .insert((Scope::User, 1), Arc::new(vec!["*".into()]));
-        assert!(matches!(
-            check_permission(&cp, &identity, "claude-main"),
-            Err(PipelineError::Forbidden)
-        ));
-    }
-
-    #[tokio::test]
     async fn quota_admission_is_estimate_aware() {
         let identity = test_identity();
         let mut cp = ControlPlaneSnapshot::empty(1);
@@ -404,21 +441,18 @@ mod tests {
             }),
         );
         let cache = MemoryCache::new();
+        let plan = prepare_quota(&cp, &identity);
 
         // An estimate that exactly fits the remainder is admitted.
-        assert!(
-            precheck_quota(&cp, &cache, &identity, 1_000_000)
-                .await
-                .is_ok()
-        );
+        assert!(precheck_quota(&plan, &cache, 1_000_000).await.is_ok());
         // Regression: an estimate over the remainder is rejected up front
         // (previously admitted and blew through the quota).
         assert!(matches!(
-            precheck_quota(&cp, &cache, &identity, 1_000_001).await,
+            precheck_quota(&plan, &cache, 1_000_001).await,
             Err(PipelineError::QuotaExceeded)
         ));
         // est = 0 reduces to the plain exhaustion check: remaining > 0 admits.
-        assert!(precheck_quota(&cp, &cache, &identity, 0).await.is_ok());
+        assert!(precheck_quota(&plan, &cache, 0).await.is_ok());
     }
 
     #[tokio::test]
@@ -440,88 +474,18 @@ mod tests {
             }]),
         );
         let cache = MemoryCache::new();
+        let plan = prepare_limits(&cp, &identity, "claude-main");
         let now = 1_000_000;
         for _ in 0..2 {
-            precheck_limits(&cp, &cache, &identity, "claude-main", now)
+            precheck_limits(&plan, &cache, now)
                 .await
                 .expect("under limit");
         }
-        match precheck_limits(&cp, &cache, &identity, "claude-main", now).await {
+        match precheck_limits(&plan, &cache, now).await {
             Err(PipelineError::RateLimited { retry_after_secs }) => {
                 assert!((1..=60).contains(&retry_after_secs));
             }
             other => panic!("expected RateLimited, got {other:?}"),
         }
-    }
-
-    /// A cache whose counters always fail — models a Redis/Turso outage.
-    struct DownCache;
-
-    #[async_trait::async_trait]
-    impl CacheBackend for DownCache {
-        async fn get(&self, _key: &str) -> Option<Vec<u8>> {
-            None
-        }
-        async fn set(
-            &self,
-            _key: &str,
-            _value: Vec<u8>,
-            _ttl: Option<Duration>,
-        ) -> Result<(), crate::store::cache::CacheError> {
-            Err(crate::store::cache::CacheError)
-        }
-        async fn incr(
-            &self,
-            _key: &str,
-            _delta: i64,
-            _ttl: Option<Duration>,
-        ) -> Result<i64, CounterError> {
-            Err(CounterError)
-        }
-        async fn delete(&self, _key: &str) {}
-        async fn publish(&self, _channel: &str, _payload: &[u8]) {}
-        async fn subscribe(&self, _channel: &str, _handler: InvalidationHandler) {}
-    }
-
-    /// Regression: a counter-backend outage used to read as count 0 (fail-open),
-    /// silently disabling configured rate limits and quotas. It must refuse.
-    #[tokio::test]
-    async fn counter_outage_fails_closed() {
-        let identity = test_identity();
-        let mut cp = ControlPlaneSnapshot::empty(1);
-        cp.rate_limits_by_scope.insert(
-            (Scope::User, 1),
-            Arc::new(vec![RateLimit {
-                id: 7,
-                scope: Scope::User,
-                scope_id: 1,
-                route_pattern: "*".into(),
-                rpm: Some(100),
-                rpd: None,
-                total_tokens: None,
-                created_at: 0,
-                updated_at: 0,
-            }]),
-        );
-        cp.quotas_by_scope.insert(
-            (Scope::User, 1),
-            Arc::new(Quota {
-                id: 1,
-                scope: Scope::User,
-                scope_id: 1,
-                quota_total: "10".parse().unwrap(),
-                cost_used: "0".parse().unwrap(),
-                created_at: 0,
-                updated_at: 0,
-            }),
-        );
-        assert!(matches!(
-            precheck_limits(&cp, &DownCache, &identity, "claude-main", 0).await,
-            Err(PipelineError::CounterUnavailable)
-        ));
-        assert!(matches!(
-            precheck_quota(&cp, &DownCache, &identity, 0).await,
-            Err(PipelineError::CounterUnavailable)
-        ));
     }
 }

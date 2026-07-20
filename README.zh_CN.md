@@ -99,8 +99,8 @@ Android APK、Windows MSI、macOS DMG、Linux DEB 和便携 ZIP。Linux GNU 与 
 | 变量 | 默认 | 用途 |
 |---|---|---|
 | `GPROXY_HOST` / `GPROXY_PORT` | `127.0.0.1` / `8787` | 监听地址 |
-| `GPROXY_PERSISTENCE` | 二进制：`db`；Docker：`file` | `db` 使用 SQLite/PostgreSQL/MySQL；`file` 按表保存 JSON，仅适合单实例 |
-| `GPROXY_DSN` | 自动生成 SQLite DSN | `persistence=db` 时可选的 PostgreSQL/MySQL/SQLite DSN |
+| `GPROXY_PERSISTENCE` | `db` | SeaORM 数据库持久化，支持 SQLite/PostgreSQL/MySQL |
+| `GPROXY_DSN` | 自动生成 SQLite DSN | 可选的 PostgreSQL/MySQL/SQLite DSN |
 | `GPROXY_MASTER_KEY` | — | 解封存储的密文（缺省时明文存储） |
 | `GPROXY_ADMIN_USER` / `GPROXY_ADMIN_PASSWORD` | `admin` / 随机 | 首启动管理员 |
 

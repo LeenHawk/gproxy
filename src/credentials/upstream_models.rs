@@ -4,12 +4,17 @@
 //! the upstream's native model list into `(id, display_name)` rows.
 //! Admin-triggered, infrequent — mirrors [`super::usage`].
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use http::StatusCode;
-use serde::Serialize;
 use serde_json::Value;
+
+mod parse;
+
+pub use parse::UpstreamModel;
+use parse::parse_models;
 
 use crate::app::AppState;
 use crate::channel::{Channel, ChannelError, Disposition, PrepareCtx};
@@ -20,13 +25,6 @@ use crate::pipeline::context::Candidate;
 use crate::pipeline::health_hooks;
 use crate::protocol::{Operation, OperationKey, Provider};
 use crate::util::time::unix_now;
-
-/// One model offered by the upstream.
-#[derive(Debug, Clone, Serialize)]
-pub struct UpstreamModel {
-    pub id: String,
-    pub display_name: Option<String>,
-}
 
 /// Why a model pull could not produce a list.
 #[derive(Debug, thiserror::Error)]
@@ -56,12 +54,13 @@ pub async fn fetch_models(
     state: &AppState,
     provider_id: i64,
 ) -> Result<Vec<UpstreamModel>, ModelsError> {
-    let provider = state
-        .persistence
-        .get_provider(provider_id)
-        .await
-        .map_err(|e| ModelsError::Internal(e.to_string()))?
-        .ok_or(ModelsError::ProviderNotFound)?;
+    let provider = crate::store::persistence::PersistenceBackend::get_provider(
+        state.persistence.as_ref(),
+        provider_id,
+    )
+    .await
+    .map_err(|e| ModelsError::Internal(e.to_string()))?
+    .ok_or(ModelsError::ProviderNotFound)?;
     let channel = state
         .channels
         .get(&provider.channel)
@@ -74,17 +73,17 @@ pub async fn fetch_models(
         return Ok(parse_models(family, &body));
     }
 
-    // Walk enabled credentials — the pull authenticates to the upstream, and a
-    // stale/dead first credential must not prevent later healthy credentials
-    // from serving the admin request.
-    let credentials = state
-        .persistence
-        .list_credentials(provider_id)
-        .await
-        .map_err(|e| ModelsError::Internal(e.to_string()))?
-        .into_iter()
-        .filter(|c| c.enabled)
-        .collect::<Vec<_>>();
+    // Walk every enabled credential serially. Account-specific catalogues may
+    // differ, so successful results are unioned instead of returning the first.
+    let credentials = crate::store::persistence::PersistenceBackend::list_credentials(
+        state.persistence.as_ref(),
+        provider_id,
+    )
+    .await
+    .map_err(|e| ModelsError::Internal(e.to_string()))?
+    .into_iter()
+    .filter(|c| c.enabled)
+    .collect::<Vec<_>>();
     if credentials.is_empty() {
         return Err(ModelsError::NoCredential);
     }
@@ -94,6 +93,9 @@ pub async fn fetch_models(
     let now = unix_now();
     let mut last_err = None;
     let mut admitted = false;
+    let mut succeeded = false;
+    let mut models = Vec::new();
+    let mut model_indexes = HashMap::new();
     for credential in credentials {
         if state.health.admit_credential(credential.id, &cfg, now) == CredAdmit::No {
             last_err.get_or_insert(ModelsError::NoAvailableCredential);
@@ -106,13 +108,18 @@ pub async fn fetch_models(
             credential: Arc::clone(&credential),
             upstream_model_id: String::new(),
             member_id: None,
-            breaker_cfg: cfg.clone(),
         };
         match fetch_models_for_credential(state, &channel, family, &cand).await {
-            CredentialPull::Success(models) => return Ok(models),
+            CredentialPull::Success(pulled) => {
+                succeeded = true;
+                merge_models(&mut models, &mut model_indexes, pulled);
+            }
             CredentialPull::Next(err) => last_err = Some(err),
-            CredentialPull::Stop(err) => return Err(err),
         }
+    }
+
+    if succeeded {
+        return Ok(models);
     }
 
     Err(last_err.unwrap_or(if admitted {
@@ -125,7 +132,23 @@ pub async fn fetch_models(
 enum CredentialPull {
     Success(Vec<UpstreamModel>),
     Next(ModelsError),
-    Stop(ModelsError),
+}
+
+fn merge_models(
+    models: &mut Vec<UpstreamModel>,
+    indexes: &mut HashMap<String, usize>,
+    pulled: Vec<UpstreamModel>,
+) {
+    for model in pulled {
+        if let Some(index) = indexes.get(&model.id).copied() {
+            if models[index].display_name.is_none() && model.display_name.is_some() {
+                models[index].display_name = model.display_name;
+            }
+            continue;
+        }
+        indexes.insert(model.id.clone(), models.len());
+        models.push(model);
+    }
 }
 
 async fn fetch_models_for_credential(
@@ -139,25 +162,17 @@ async fn fetch_models_for_credential(
         Err(e) => return CredentialPull::Next(ModelsError::Decrypt(e.to_string())),
     };
     let mut secret = match state
-        .refresh
-        .ensure_fresh(
-            state,
-            channel,
-            &cand.credential,
-            &cand.provider,
-            opened,
-            false,
-        )
+        .ensure_fresh_credential(channel, &cand.credential, &cand.provider, opened, false)
         .await
     {
         Ok(v) => v,
         Err(e) => {
-            health_hooks::record_attempt(state, cand, &Disposition::AuthDead, None);
+            record_credential_attempt(state, cand, &Disposition::AuthDead);
             return CredentialPull::Next(ModelsError::Channel(e));
         }
     };
     if let Some(body) = channel.credential_models(&secret) {
-        health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+        record_credential_attempt(state, cand, &Disposition::Success);
         return CredentialPull::Success(parse_models(family, &body));
     }
     let client =
@@ -176,7 +191,7 @@ async fn fetch_models_for_credential(
     .await
     {
         Ok(ModelPullResult::Success(models)) => {
-            health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+            record_credential_attempt(state, cand, &Disposition::Success);
             CredentialPull::Success(models)
         }
         Ok(ModelPullResult::Failure {
@@ -184,9 +199,7 @@ async fn fetch_models_for_credential(
             disposition: Disposition::AuthDead,
         }) => {
             match state
-                .refresh
-                .ensure_fresh(
-                    state,
+                .ensure_fresh_credential(
                     channel,
                     &cand.credential,
                     &cand.provider,
@@ -216,7 +229,7 @@ async fn fetch_models_for_credential(
                         error = %e,
                         "forced refresh after model-list AuthDead failed; skipping credential"
                     );
-                    health_hooks::record_attempt(state, cand, &Disposition::AuthDead, None);
+                    record_credential_attempt(state, cand, &Disposition::AuthDead);
                     CredentialPull::Next(ModelsError::Status(status.as_u16()))
                 }
             }
@@ -232,31 +245,31 @@ fn finish_http_result(
 ) -> CredentialPull {
     match result {
         Ok(ModelPullResult::Success(models)) => {
-            health_hooks::record_attempt(state, cand, &Disposition::Success, None);
+            record_credential_attempt(state, cand, &Disposition::Success);
             CredentialPull::Success(models)
         }
         Ok(ModelPullResult::Failure {
             status,
             disposition,
         }) => {
-            health_hooks::record_attempt(state, cand, &disposition, None);
+            record_credential_attempt(state, cand, &disposition);
             let err = ModelsError::Status(status.as_u16());
-            if disposition.should_failover() {
-                CredentialPull::Next(err)
-            } else {
-                CredentialPull::Stop(err)
-            }
+            CredentialPull::Next(err)
         }
         Err(ModelsError::Channel(ChannelError::InvalidCredential(e))) => {
-            health_hooks::record_attempt(state, cand, &Disposition::AuthDead, None);
+            record_credential_attempt(state, cand, &Disposition::AuthDead);
             CredentialPull::Next(ModelsError::Channel(ChannelError::InvalidCredential(e)))
         }
         Err(err @ (ModelsError::Upstream(_) | ModelsError::Decrypt(_))) => {
-            health_hooks::record_attempt(state, cand, &Disposition::Transient, None);
+            record_credential_attempt(state, cand, &Disposition::Transient);
             CredentialPull::Next(err)
         }
         Err(err) => CredentialPull::Next(err),
     }
+}
+
+fn record_credential_attempt(state: &AppState, cand: &Candidate, disposition: &Disposition) {
+    health_hooks::record_credential_attempt(state, &cand.provider, &cand.credential, disposition);
 }
 
 enum ModelPullResult {
@@ -320,8 +333,7 @@ async fn fetch_models_with(
                     op,
                     stream: false,
                     status,
-                    enable_magic_cache: false,
-                    enable_claude_fable_fallback: false,
+                    settings,
                 },
             );
             return Ok(ModelPullResult::Success(parse_models(family, &body)));
@@ -355,224 +367,5 @@ async fn pull_backoff(attempt: u32) {
 #[cfg(target_arch = "wasm32")]
 async fn pull_backoff(_attempt: u32) {}
 
-/// Parse an upstream native model-list response into `(id, display_name)` rows.
-/// openai/claude → `data[]` (`id`); gemini → `models[]` (`name`, `models/` stripped).
-fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> {
-    let Ok(v) = serde_json::from_slice::<Value>(body) else {
-        return Vec::new();
-    };
-    let key = match family {
-        Provider::Gemini => "models",
-        _ => "data",
-    };
-    let Some(arr) = v.get(key).and_then(Value::as_array) else {
-        return Vec::new();
-    };
-    arr.iter()
-        .filter_map(|m| {
-            let id = match family {
-                Provider::Gemini => m
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map(|s| s.strip_prefix("models/").unwrap_or(s).to_owned()),
-                _ => m.get("id").and_then(Value::as_str).map(str::to_owned),
-            }?;
-            let display_name = match family {
-                Provider::Gemini => m.get("displayName"),
-                Provider::Claude => m.get("display_name"),
-                Provider::OpenAi => None,
-            }
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-            Some(UpstreamModel { id, display_name })
-        })
-        .collect()
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_openai_and_gemini() {
-        let oa = br#"{"object":"list","data":[{"id":"gpt-4o"},{"id":"gpt-4o-mini"}]}"#;
-        let ids: Vec<_> = parse_models(Provider::OpenAi, oa)
-            .into_iter()
-            .map(|m| m.id)
-            .collect();
-        assert_eq!(ids, ["gpt-4o", "gpt-4o-mini"]);
-
-        let gm = br#"{"models":[{"name":"models/gemini-1.5-pro","displayName":"Gemini 1.5 Pro"}]}"#;
-        let g = parse_models(Provider::Gemini, gm);
-        assert_eq!(g[0].id, "gemini-1.5-pro");
-        assert_eq!(g[0].display_name.as_deref(), Some("Gemini 1.5 Pro"));
-    }
-
-    #[cfg(all(
-        not(target_arch = "wasm32"),
-        feature = "cache-memory",
-        feature = "persist-file",
-        feature = "channel-openai"
-    ))]
-    mod fetch {
-        use super::*;
-
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::sync::{Arc, Mutex};
-
-        use http::header::AUTHORIZATION;
-
-        use crate::app::AppState;
-        use crate::app::snapshot::ControlPlaneSnapshot;
-        use crate::config::{
-            CacheConfig, DEFAULT_MAX_ATTEMPTS, DEFAULT_MAX_IN_FLIGHT, PersistenceConfig,
-            RuntimeConfig, UpstreamConfig,
-        };
-        use crate::http::client::ClientError;
-
-        const BUNDLE: &str = r#"{
-          "schema_version": 1,
-          "providers": [
-            { "id": 1, "name": "oai", "channel": "openai", "label": null,
-              "settings_json": { "base_url": "http://fake.local" },
-              "credential_strategy": "round_robin", "proxy_url": null,
-              "tls_fingerprint": null, "enabled": true }
-          ],
-          "credentials": [
-            { "id": 1, "provider_id": 1, "label": "bad",
-              "secret_json": { "api_key": "bad-key" }, "enabled": true },
-            { "id": 2, "provider_id": 1, "label": "good",
-              "secret_json": { "api_key": "good-key" }, "enabled": true }
-          ]
-        }"#;
-
-        struct Seen {
-            uri: String,
-            authorization: Option<String>,
-        }
-
-        struct SequencedUpstream {
-            statuses: Vec<StatusCode>,
-            seen: Mutex<Vec<Seen>>,
-            calls: AtomicUsize,
-        }
-
-        #[async_trait::async_trait]
-        impl UpstreamClient for SequencedUpstream {
-            async fn send(
-                &self,
-                req: http::Request<Bytes>,
-            ) -> Result<http::Response<Bytes>, ClientError> {
-                let authorization = req
-                    .headers()
-                    .get(AUTHORIZATION)
-                    .and_then(|v| v.to_str().ok())
-                    .map(str::to_owned);
-                self.seen.lock().unwrap().push(Seen {
-                    uri: req.uri().to_string(),
-                    authorization,
-                });
-                let i = self.calls.fetch_add(1, Ordering::SeqCst);
-                let status = self
-                    .statuses
-                    .get(i)
-                    .or_else(|| self.statuses.last())
-                    .copied()
-                    .unwrap_or(StatusCode::OK);
-                let body = if status.is_success() {
-                    Bytes::from_static(br#"{"object":"list","data":[{"id":"gpt-good"}]}"#)
-                } else {
-                    Bytes::from_static(br#"{"error":"bad credential"}"#)
-                };
-                Ok(http::Response::builder()
-                    .status(status)
-                    .header("content-type", "application/json")
-                    .body(body)
-                    .expect("response"))
-            }
-        }
-
-        impl SequencedUpstream {
-            fn new(statuses: Vec<StatusCode>) -> Self {
-                Self {
-                    statuses,
-                    seen: Mutex::new(Vec::new()),
-                    calls: AtomicUsize::new(0),
-                }
-            }
-        }
-
-        async fn state_with(upstream: Arc<SequencedUpstream>) -> (AppState, tempfile::TempDir) {
-            let dir = tempfile::tempdir().expect("tempdir");
-            let persistence: Arc<dyn crate::store::persistence::PersistenceBackend> = Arc::new(
-                crate::store::persistence::FilePersistence::open(dir.path().to_path_buf())
-                    .await
-                    .expect("file persistence"),
-            );
-            crate::app::import::import_bundle(
-                persistence.as_ref(),
-                &crate::crypto::NoopCipher,
-                BUNDLE,
-            )
-            .await
-            .expect("import");
-            let snapshot = ControlPlaneSnapshot::build(persistence.as_ref(), 1)
-                .await
-                .expect("snapshot");
-            let config = Arc::new(RuntimeConfig {
-                host: "127.0.0.1".into(),
-                port: 0,
-                cache: CacheConfig::Memory,
-                persistence: PersistenceConfig::File {
-                    data_dir: dir.path().to_path_buf(),
-                },
-                upstream: UpstreamConfig::from_proxy_url(None),
-                instance_id: 0,
-                max_attempts: DEFAULT_MAX_ATTEMPTS,
-                max_in_flight: DEFAULT_MAX_IN_FLIGHT,
-                trusted_proxies: Vec::new(),
-                update_channel: "releases".to_string(),
-                update_data_dir: dir.path().to_path_buf(),
-                cors_origins: Vec::new(),
-            });
-            let cache: Arc<dyn crate::store::cache::CacheBackend> =
-                Arc::new(crate::store::cache::MemoryCache::new());
-            let upstream_client: Arc<dyn UpstreamClient> = upstream;
-            let state = AppState::new(
-                config,
-                cache,
-                persistence,
-                upstream_client,
-                Arc::new(arc_swap::ArcSwap::from_pointee(snapshot)),
-                Arc::new(crate::channel::registry::ChannelRegistry::with_builtin()),
-                Arc::new(crate::crypto::NoopCipher),
-            );
-            (state, dir)
-        }
-
-        #[tokio::test]
-        async fn fetch_models_tries_next_credential_after_auth_dead() {
-            let upstream = Arc::new(SequencedUpstream::new(vec![
-                StatusCode::UNAUTHORIZED,
-                StatusCode::OK,
-            ]));
-            let (state, _dir) = state_with(Arc::clone(&upstream)).await;
-
-            let models = fetch_models(&state, 1).await.expect("model pull");
-            assert_eq!(
-                models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
-                ["gpt-good"]
-            );
-
-            let seen = upstream.seen.lock().unwrap();
-            assert_eq!(seen.len(), 2, "first auth-dead credential then next");
-            assert_eq!(seen[0].uri, "http://fake.local/v1/models");
-            assert_eq!(
-                seen.iter()
-                    .map(|s| s.authorization.as_deref())
-                    .collect::<Vec<_>>(),
-                [Some("Bearer bad-key"), Some("Bearer good-key")]
-            );
-        }
-    }
-}
+mod tests;

@@ -64,7 +64,7 @@ pub async fn upsert(conn: &DatabaseConnection, input: AliasInput) -> anyhow::Res
             }
             None => {
                 // Seeding an empty store from a pinned bundle: insert WITH the
-                // explicit id (matches the file backend's insert-with-id).
+                // Preserve explicit IDs supplied by bundle imports.
                 alias::ActiveModel {
                     id: Set(id),
                     provider: Set(provider),

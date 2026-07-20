@@ -1,8 +1,7 @@
 //! Streaming response tail (§6.4, D4): body-side conversion invoked by
 //! `failover`; it does not iterate candidates or call `classify`.
 
-use crate::channel::ChannelStreamDecoder;
-use crate::http::client::RespStream;
+use crate::http::client::{ByteStreamDecoder, RespStream};
 use crate::pipeline::outcome::ByteStream;
 use crate::pipeline::settle::StreamGuard;
 use crate::transform::stream_adapter::SseTransformer;
@@ -219,18 +218,18 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
 
 /// Wrap a streaming attempt with a per-channel byte decoder, spliced BEFORE any
 /// protocol transform (envelope unwrap / binary → SSE). Drives a
-/// [`ChannelStreamDecoder`] exactly like [`transform_byte_stream`] drives an
+/// [`ByteStreamDecoder`] exactly like [`transform_byte_stream`] drives an
 /// `SseTransformer`: `push` per upstream chunk, `finish` at EOF; upstream errors
 /// are forwarded once and end the stream. Its `ByteStream` output is then fed to
 /// either the M2 transform ([`transform_byte_stream`]) or straight to the client
 /// ([`into_byte_stream`]) by the caller.
-pub fn channel_decode_stream(s: RespStream, decoder: Box<dyn ChannelStreamDecoder>) -> ByteStream {
+pub fn channel_decode_stream(s: RespStream, decoder: Box<dyn ByteStreamDecoder>) -> ByteStream {
     use bytes::Bytes;
     use futures_util::StreamExt;
 
     struct State {
         inner: Option<RespStream>,
-        decoder: Box<dyn ChannelStreamDecoder>,
+        decoder: Box<dyn ByteStreamDecoder>,
     }
 
     Box::pin(futures_util::stream::unfold(
@@ -458,7 +457,7 @@ mod tests {
     /// runs the channel decoder over the raw upstream bytes (before any
     /// protocol transform).
     struct Upper;
-    impl ChannelStreamDecoder for Upper {
+    impl ByteStreamDecoder for Upper {
         fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
             chunk.to_ascii_uppercase()
         }

@@ -6,7 +6,6 @@
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 use serde::Deserialize;
 
 use crate::admin::guard::guard_admin;
@@ -14,7 +13,7 @@ use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::credentials::usage::UsageError;
 
-use super::{Resp, json_body, parse_i64, segments};
+use super::{Request, Resp, json_body, parse_i64, segments};
 
 #[derive(Debug, Clone, Deserialize)]
 struct RateLimitResetCreditBody {
@@ -24,7 +23,7 @@ struct RateLimitResetCreditBody {
 /// Route live credential reads/actions that contact the credential's upstream.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     let segs = segments(parts);
@@ -40,7 +39,7 @@ pub(super) async fn dispatch(
     Some(r)
 }
 
-async fn credential_usage(state: &AppState, parts: &Parts, id: &str) -> Result<Resp, ApiError> {
+async fn credential_usage(state: &AppState, parts: &Request, id: &str) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let id = parse_i64(id)?;
     let usage = crate::credentials::usage::fetch_usage(state, id)
@@ -51,7 +50,7 @@ async fn credential_usage(state: &AppState, parts: &Parts, id: &str) -> Result<R
 
 async fn consume_rate_limit_reset_credit(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     id: &str,
     body: &Bytes,
 ) -> Result<Resp, ApiError> {

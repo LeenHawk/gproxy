@@ -1,11 +1,11 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { logsInfiniteQuery, type DownstreamRequest, type UsageFilter } from "@/api/usage";
+import { logsPageQuery, type DownstreamRequest, type UsageFilter } from "@/api/usage";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { UsageFilters } from "@/components/observability/usage-filters";
+import { Pagination } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function fmtAt(unixSecs: number): string {
@@ -19,9 +19,14 @@ function fmtAt(unixSecs: number): string {
 export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void }) {
   const { t } = useTranslation("observability");
   const [filter, setFilter] = useState<Omit<UsageFilter, "before_id" | "limit">>({});
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending } =
-    useInfiniteQuery(logsInfiniteQuery(filter));
-  const rows = data?.pages.flat() ?? [];
+  const [page, setPage] = useState(1);
+  const { data, isFetching, isPending } = useQuery(logsPageQuery(filter, page));
+  const rows = data?.items ?? [];
+
+  function changeFilter(next: Omit<UsageFilter, "before_id" | "limit">) {
+    setPage(1);
+    setFilter(next);
+  }
 
   const cols: DataColumn<DownstreamRequest>[] = [
     {
@@ -54,7 +59,7 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
     <div className="space-y-4">
       <UsageFilters
         value={filter}
-        onChange={setFilter}
+        onChange={changeFilter}
         showModel={false}
         routeListId="logs-route-datalist"
       />
@@ -76,13 +81,12 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
           </div>
         )}
       />
-      {hasNextPage && (
-        <div className="flex justify-center pt-2">
-          <Button variant="outline" size="sm" onClick={() => void fetchNextPage()} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? "…" : t("usage.loadMore")}
-          </Button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={data?.pagination.total_pages ?? 0}
+        onPageChange={setPage}
+        disabled={isFetching}
+      />
     </div>
   );
 }

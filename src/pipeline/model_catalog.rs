@@ -20,9 +20,13 @@ use wasm_bindgen_futures::JsFuture;
 use crate::app::AppState;
 use crate::app::snapshot::{ControlPlaneSnapshot, KeyIdentity};
 use crate::pipeline::authz;
+use crate::pipeline::classify;
+use crate::pipeline::context::RequestCtx;
+use crate::pipeline::error::PipelineError;
 use crate::pipeline::local_ops::{self, ModelEntry};
 use crate::pipeline::outcome::ExecOutcome;
-use crate::protocol::OperationKey;
+use crate::pipeline::preprocess;
+use crate::protocol::{Operation, OperationKey};
 use crate::store::persistence::records::{Provider, ProviderModelInput};
 use crate::transform::routing::{self, RoutingDecision};
 
@@ -254,4 +258,137 @@ pub async fn models_for_request(
         }
         None => manual_entries(&state.cp(), provider.id),
     }
+}
+
+/// Serve aggregated ListModels/GetModel. Eligible provider catalogues refresh
+/// concurrently before aliases, routes, and provider models are merged.
+pub(crate) async fn serve_aggregated(
+    state: &AppState,
+    ctx: &RequestCtx,
+) -> Result<ExecOutcome, PipelineError> {
+    let op = ctx.op.expect("classified");
+    let family = op.provider_family();
+    let identity = ctx.identity.as_ref().expect("auth ran first");
+
+    let body = match op.operation {
+        Operation::ListModels => {
+            let providers: Vec<Arc<Provider>> = {
+                let cp = state.cp();
+                cp.providers_by_name
+                    .values()
+                    .filter(|provider| {
+                        provider.enabled
+                            && authz::provider_listing_permitted(&cp, identity, &provider.name)
+                    })
+                    .cloned()
+                    .collect()
+            };
+            let catalogues = futures_util::future::join_all(
+                providers
+                    .iter()
+                    .map(|provider| models_for_request(state, provider, op)),
+            )
+            .await;
+
+            let cp = state.cp();
+            let mut ids: Vec<String> = cp
+                .routes_by_name
+                .keys()
+                .filter(|id| authz::permitted(&cp, identity, id))
+                .cloned()
+                .collect();
+            if let Some(global_aliases) = cp.aliases_by_provider.get("*") {
+                ids.extend(
+                    global_aliases
+                        .iter()
+                        .filter(|alias| target_permitted(&cp, identity, &alias.target))
+                        .map(|alias| alias.alias.clone()),
+                );
+            }
+            for (provider, mut provider_models) in providers.iter().zip(catalogues) {
+                if let Some(models) = cp.exposed_models_by_provider.get(&provider.id) {
+                    provider_models.extend(local_ops::entries_from(models));
+                }
+                ids.extend(provider_models.into_iter().filter_map(|model| {
+                    authz::provider_model_permitted(&cp, identity, &provider.name, &model.id)
+                        .then(|| format!("{}/{}", provider.name, model.id))
+                }));
+                if let Some(aliases) = cp.aliases_by_provider.get(&provider.name) {
+                    ids.extend(
+                        aliases
+                            .iter()
+                            .filter(|alias| {
+                                let target = preprocess::apply_provider_alias(
+                                    &cp,
+                                    &provider.name,
+                                    &alias.alias,
+                                );
+                                authz::provider_model_permitted(
+                                    &cp,
+                                    identity,
+                                    &provider.name,
+                                    &target,
+                                )
+                            })
+                            .map(|alias| format!("{}/{}", provider.name, alias.alias)),
+                    );
+                }
+            }
+            ids.sort();
+            ids.dedup();
+            let entries: Vec<ModelEntry> = ids
+                .into_iter()
+                .map(|id| ModelEntry {
+                    id,
+                    display_name: None,
+                })
+                .collect();
+            local_ops::render_model_list(family, &entries)
+        }
+        _ => {
+            let cp = state.cp();
+            let id = classify::path_model_id(&ctx.path).ok_or(PipelineError::UnsupportedPath)?;
+            if !resolved_target_permitted(&cp, identity, &id) {
+                return Err(PipelineError::UnknownRoute(id));
+            }
+            local_ops::render_model(
+                family,
+                &ModelEntry {
+                    id,
+                    display_name: None,
+                },
+            )
+        }
+    };
+    Ok(local_ops::json_outcome(http::StatusCode::OK, body))
+}
+
+fn target_permitted(cp: &ControlPlaneSnapshot, identity: &KeyIdentity, target: &str) -> bool {
+    if cp.routes_by_name.contains_key(target) {
+        return authz::permitted(cp, identity, target);
+    }
+    preprocess::split_provider_model(target)
+        .and_then(|(provider_name, model)| {
+            let provider = cp
+                .providers_by_name
+                .get(provider_name)
+                .filter(|provider| provider.enabled)?;
+            let model = preprocess::apply_provider_alias(cp, provider_name, model);
+            Some(authz::provider_model_permitted(
+                cp,
+                identity,
+                &provider.name,
+                &model,
+            ))
+        })
+        .unwrap_or(false)
+}
+
+fn resolved_target_permitted(
+    cp: &ControlPlaneSnapshot,
+    identity: &KeyIdentity,
+    model: &str,
+) -> bool {
+    let target = preprocess::apply_global_alias(cp, model);
+    target_permitted(cp, identity, &target)
 }

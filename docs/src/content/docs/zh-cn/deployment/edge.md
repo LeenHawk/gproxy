@@ -77,6 +77,10 @@ bash deploy/cloudflare/build.sh
 bash deploy/netlify/build.sh
 ```
 
+三个入口共用 `deploy/edge-runtime.js` 中的一份环境变量/init contract。build 和 release
+脚本会把它复制为平台本地的 `_shared.js`，因此每个打包后的平台目录仍然自包含，运行时不会
+从相邻平台目录 import 代码。
+
 `deploy/deno/build.sh` 不同：它会通过 Deno Deploy CLI module 构建并部署，所以 release
 workflow 不直接调用该脚本，而是内联生成 Deno bundle。
 
@@ -84,9 +88,9 @@ workflow 不直接调用该脚本，而是内联生成 Deno bundle。
 
 | 平台组 | Bundle 形态 |
 | --- | --- |
-| Cloudflare Workers | `wasm-bindgen --target web`；`.wasm` 作为静态 `WebAssembly.Module` 打包。 |
-| Netlify | `wasm-bindgen --target deno`；wasm base64 内联，运行时 instantiate。 |
-| Deno Deploy | `main.ts` 加生成的 `pkg/` 目录。 |
+| Cloudflare Workers | Worker 入口加本地 `_shared.js`；`wasm-bindgen --target web`；`.wasm` 作为静态 `WebAssembly.Module` 打包。 |
+| Netlify | Edge Function 加本地 `_shared.js`；`wasm-bindgen --target deno`；wasm base64 内联，运行时 instantiate。 |
+| Deno Deploy | `main.ts`、本地 `_shared.js` 和生成的 `pkg/` 目录。 |
 
 Cloudflare 不允许从 byte buffer 做任意 runtime wasm compilation，因此走 static module
 路径。Deno-family 目标可从 bytes instantiate，使用自包含 bundle 可以避免平台打包时丢失

@@ -1,9 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { credentialStatusQuery, type CredentialStatus } from "@/api/credentials";
+import {
+  credentialModelStatusesQuery,
+  credentialStatusQuery,
+  type CredentialStatus,
+} from "@/api/credentials";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { latestCurrentCredentialStatus, unixNow } from "@/lib/credential-health";
+import {
+  countCurrentUnhealthyModels,
+  latestCurrentCredentialStatus,
+  unixNow,
+} from "@/lib/credential-health";
 
 function fmtTime(unixSecs: number): string {
   return new Date(unixSecs * 1000).toLocaleString();
@@ -19,25 +27,36 @@ const KIND_STYLE: Record<string, string> = {
 export function HealthBadge({ credentialId }: { credentialId: number }) {
   const { t } = useTranslation("providers");
   const { data } = useQuery(credentialStatusQuery(credentialId));
-  const status = data ? latestCurrentCredentialStatus<CredentialStatus>(data, unixNow()) : undefined;
-
-  if (!status) {
-    return <Badge variant="outline" className="text-muted-foreground">{t("health.unknown")}</Badge>;
-  }
-  const until = status.health_json?.open_until;
-  const label = t(`health.${status.health_kind}`, { defaultValue: status.health_kind });
+  const { data: modelData } = useQuery(credentialModelStatusesQuery(credentialId));
+  const now = unixNow();
+  const status = data ? latestCurrentCredentialStatus<CredentialStatus>(data, now) : undefined;
+  const modelIssueCount = countCurrentUnhealthyModels(modelData ?? [], now);
+  const until = status?.health_json?.open_until;
+  const label = status
+    ? t(`health.${status.health_kind}`, { defaultValue: status.health_kind })
+    : t("health.unknown");
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="outline" className={KIND_STYLE[status.health_kind] ?? ""}>
-          {label}
-          {until ? ` · ${t("health.until", { time: fmtTime(until) })}` : ""}
+    <span className="flex flex-wrap items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            className={status ? KIND_STYLE[status.health_kind] ?? "" : "text-muted-foreground"}
+          >
+            {label}
+            {until ? ` · ${t("health.until", { time: fmtTime(until) })}` : ""}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{status?.last_error ?? status?.health_json?.reason ?? label}</p>
+          {status?.checked_at && <p>{t("health.asOf", { time: fmtTime(status.checked_at) })}</p>}
+        </TooltipContent>
+      </Tooltip>
+      {modelIssueCount > 0 && (
+        <Badge variant="outline" className="bg-amber-500/15 text-amber-800 dark:text-amber-200">
+          {t("health.modelIssues", { count: modelIssueCount })}
         </Badge>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{status.last_error ?? status.health_json?.reason ?? label}</p>
-        {status.checked_at && <p>{t("health.asOf", { time: fmtTime(status.checked_at) })}</p>}
-      </TooltipContent>
-    </Tooltip>
+      )}
+    </span>
   );
 }

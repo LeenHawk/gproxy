@@ -96,6 +96,21 @@ impl Breaker {
         Self { state: closed(0) }
     }
 
+    /// Inspect admission without consuming a half-open probe slot. Candidate
+    /// planning uses this; only the attempt that is about to run calls
+    /// [`admit`](Self::admit).
+    pub fn availability(&self, now: i64) -> Admit {
+        match &self.state {
+            State::Closed { .. } => Admit::Yes,
+            State::Open { until, .. } if now >= *until => Admit::Probe,
+            State::Open { until, .. } => Admit::No { until: *until },
+            State::HalfOpen { probe_deadline, .. } if now >= *probe_deadline => Admit::Probe,
+            State::HalfOpen { probe_deadline, .. } => Admit::No {
+                until: *probe_deadline,
+            },
+        }
+    }
+
     /// Open + expired → flip to HalfOpen and return `Probe`. While a probe is
     /// outstanding further callers get `No { until: probe_deadline }`; if the
     /// probe outcome is never recorded (the slot was consumed during candidate

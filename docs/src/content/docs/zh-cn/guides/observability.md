@@ -41,16 +41,20 @@ Usage 由 `instance_settings.enable_usage` 控制，默认开启。结算还会�
 
 Admin 和 portal 的 mutation path 会写 audit row，包含 actor id/name、action、target、status 和 source IP。它用于回答“谁改了控制面”，而不是调试 LLM payload。
 
+Console 对 usage、request log 和 audit row 使用可直接跳页的数字分页。Usage 与 request log 保留时间和路由维度筛选；audit 支持按时间、操作者、action、target、status 和来源 IP 筛选。
+
 ## Credential Health
 
-Credential status 行跟踪每个 credential/channel pair：
+凭证全局状态行跟踪每个 credential/channel pair；模型局部状态行单独跟踪每个 credential/channel/最终上游模型组合：
 
 - `health_kind`；
 - 可选结构化 `health_json`；
 - `checked_at`；
 - `last_error`。
 
-Pipeline 和 channel response classifier 决定 credential 应该重试、cooldown，还是视为 auth-dead。Console 通过 `/admin/credential-statuses` 展示当前状态。
+Pipeline 和 channel response classifier 决定整个 credential 或仅某个模型应该重试、cooldown，还是视为 auth-dead。Console 分别通过 `/admin/credential-statuses` 与 `/admin/credential-model-statuses` 展示两个状态域；单凭证视图分别使用 `/admin/credentials/{id}/status` 与 `/admin/credentials/{id}/model-statuses`。
+
+模型请求失败默认只影响精确的 credential/最终上游模型组合，不会根据失败次数或跨模型相关性自动扩大范围。模型列表、Usage、Token Refresh 等不绑定模型的操作则更新 Credential 全局健康。
 
 ## Metrics
 

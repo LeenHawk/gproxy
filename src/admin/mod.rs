@@ -49,7 +49,7 @@ pub async fn authenticate_admin(
         return Some(admin);
     }
     let cp = state.cp();
-    let identity = crate::pipeline::auth::authenticate(&cp, headers, None).ok()?;
+    let identity = crate::util::api_key::authenticate(&cp.keys_by_digest, headers, None)?;
     identity.user.is_admin.then(|| session::AdminUser {
         id: identity.user.id,
         name: identity.user.name.clone(),

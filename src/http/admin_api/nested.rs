@@ -11,7 +11,6 @@
 
 use bytes::Bytes;
 use http::Method;
-use http::request::Parts;
 
 use crate::admin::guard::guard_admin;
 use crate::admin::invalidate;
@@ -22,7 +21,7 @@ use crate::store::persistence::records::{
     RouteMemberInput, RoutingRule, RoutingRuleInput, Rule, RuleInput, Team, TeamInput,
 };
 
-use super::{Resp, internal, json_body, parse_i64, segments};
+use super::{Request, Resp, internal, json_body, parse_i64, segments};
 
 // ── edge_crud_nested! macro ───────────────────────────────────────────────────
 
@@ -50,7 +49,7 @@ macro_rules! edge_crud_nested {
     ) => {
         async fn $fn_name(
             state: &AppState,
-            parts: &Parts,
+            parts: &Request,
             body: &Bytes,
         ) -> Option<Result<Resp, ApiError>> {
             let segs = segments(parts);
@@ -226,7 +225,7 @@ edge_crud_nested!(
 /// standard routes.
 pub(super) async fn dispatch(
     state: &AppState,
-    parts: &Parts,
+    parts: &Request,
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     if let Some(r) = dispatch_teams(state, parts, body).await {
