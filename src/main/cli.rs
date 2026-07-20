@@ -125,7 +125,7 @@ pub(crate) enum Command {
         #[arg(long = "out")]
         output: PathBuf,
     },
-    /// MIGRATE-V1 (remove in 2.1): import a legacy v1 SQLite database into a v2
+    /// MIGRATE-V1 (temporary 2.x bridge): import a legacy v1 SQLite database into a v2
     /// db backend, then exit. For explicit/offline migrations; the serve path
     /// auto-migrates a v1 db found at the configured location.
     #[cfg(feature = "migrate-v1")]

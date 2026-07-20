@@ -6,8 +6,8 @@ description: 将 v1 SQLite 部署迁移到 GPROXY v2，并理解行为差异。
 v2 带有一个临时 v1 SQLite 迁移器，使常见单机部署可以替换二进制后直接启动。启动时，
 v2 可识别旧的 `data/gproxy.db`，读取 v1 控制面配置，创建新的 v2 数据库，并把旧库移动为备份。
 
-这个迁移器是过渡能力，计划在 2.1 移除。仍在 v1 的实例应先经过仍包含默认
-`migrate-v1` feature 的 v2 build 完成迁移，再升级到后续 v2 release。
+这个迁移器是过渡能力，但在 2.1 中仍然保留。仍在 v1 的实例应先经过包含默认
+`migrate-v1` feature 的 v2 build 完成迁移；该能力将在后续 2.x release 中移除。
 
 ## 自动迁移何时触发
 

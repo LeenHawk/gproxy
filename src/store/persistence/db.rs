@@ -32,7 +32,7 @@ impl DbPersistence {
     }
 
     /// Close the underlying connection pool, flushing and releasing the SQLite
-    /// file handle. MIGRATE-V1 (remove in 2.1): the v1→v2 migration builds a
+    /// file handle. MIGRATE-V1 (temporary 2.x bridge): the v1→v2 migration builds a
     /// throwaway db here, imports into it, then must close it before renaming the
     /// file into place — an open WAL pool would otherwise hold the file.
     pub async fn close(self) -> anyhow::Result<()> {

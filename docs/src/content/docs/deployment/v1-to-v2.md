@@ -8,9 +8,9 @@ replace the binary and start directly. On startup, v2 can detect an old
 `data/gproxy.db`, read the v1 control-plane configuration, create a new v2
 database, and move the old database aside as a backup.
 
-This migrator is transitional and is planned for removal in 2.1. Move v1
-instances through a v2 build that still includes the default `migrate-v1`
-feature before upgrading to later v2 releases.
+This migrator is transitional but remains available in 2.1. Move v1 instances
+through a v2 build that includes the default `migrate-v1` feature before it is
+removed in a later 2.x release.
 
 ## When Automatic Migration Runs
 
