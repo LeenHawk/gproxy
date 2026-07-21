@@ -312,7 +312,7 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
         return Some(r);
     }
 
-    // 5. Read-only observability (usage / rollups / audit / logs / cred-status).
+    // 5. Observability (usage / rollups / audit / logs / cred-status).
     if let Some(r) = observability::dispatch(state, parts, body).await {
         return Some(r);
     }
@@ -382,15 +382,13 @@ fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
         ] => Some("GET,HEAD,POST"),
         [
             "admin",
-            "usage"
-            | "usage-summary"
+            "usage-summary"
             | "usage-rollups"
             | "credential-statuses"
             | "credential-model-statuses"
-            | "logs"
-            | "audit"
             | "tls-presets",
         ] => Some("GET,HEAD"),
+        ["admin", "usage" | "logs" | "audit"] => Some("GET,HEAD,DELETE"),
         ["admin", "batch", _] => Some("POST"),
         [
             "admin",

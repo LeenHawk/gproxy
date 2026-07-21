@@ -117,6 +117,25 @@
     "noData": "No data for the selected range."
   },
   "statistics": "Statistics",
+  "cleanup": {
+    "deleteAll": "Delete all",
+    "confirm": "Delete all",
+    "usage": {
+      "title": "Delete all usage data?",
+      "description": "Permanently deletes every usage record and usage aggregate. Current filters do not apply. This cannot be undone.",
+      "success": "All usage data deleted"
+    },
+    "logs": {
+      "title": "Delete all request logs?",
+      "description": "Permanently deletes every downstream and upstream request log. Current filters do not apply. This cannot be undone.",
+      "success": "All request logs deleted"
+    },
+    "audit": {
+      "title": "Delete all audit records?",
+      "description": "Permanently deletes all existing audit records. A new audit record for this operation will remain. Current filters do not apply.",
+      "success": "All previous audit records deleted"
+    }
+  },
   "logsList": {
     "empty": "No request logs — enable upstream/downstream logging in Settings.",
     "columns": {

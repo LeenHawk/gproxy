@@ -38,6 +38,24 @@ async fn usage_empty_list_ok() {
 }
 
 #[tokio::test]
+async fn observability_collections_can_be_cleared() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-clear-obs", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+
+    for path in ["/admin/usage", "/admin/logs", "/admin/audit"] {
+        let resp = run(&state, &parts("DELETE", path, Some(&cookie), None), b"")
+            .await
+            .expect("clear observability data");
+        assert_eq!(resp.status, http::StatusCode::NO_CONTENT, "{path}");
+    }
+
+    let audit = state.persistence.list_audit_logs(10).await.unwrap();
+    assert_eq!(audit.len(), 1);
+    assert_eq!(audit[0].target, "/admin/audit");
+}
+
+#[tokio::test]
 async fn observability_page_mode_returns_common_envelope() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin-page", true).await;

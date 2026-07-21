@@ -1,8 +1,9 @@
-//! Shared read-only admin observability endpoints.
+//! Shared admin observability endpoints.
 //!
 //! Covers usage, usage-rollups, audit, credential health, and request logs.
-//! All handlers are GET (read-only, no invalidate), target-independent, and
-//! mounted behind `guard_admin`.
+//! Collection DELETE handlers clear accumulated observability data without
+//! enumerating rows through the Console. All handlers are target-independent
+//! and mounted behind `guard_admin`.
 //!
 
 use bytes::Bytes;
@@ -75,7 +76,7 @@ pub(crate) struct LogsQuery {
     pub page_size: Option<String>,
 }
 
-/// Route a read-only observability request to its handler.
+/// Route an observability request to its handler.
 ///
 /// Returns `Some(result)` when the path matches; `None` to fall through.
 pub(super) async fn dispatch(
@@ -87,11 +88,13 @@ pub(super) async fn dispatch(
     let r = match (&parts.method, segs.as_slice()) {
         // Usage explorer
         (&Method::GET, ["admin", "usage"]) => list_usage(state, parts).await,
+        (&Method::DELETE, ["admin", "usage"]) => clear_usages(state, parts).await,
         (&Method::GET, ["admin", "usage-summary"]) => usage_summary(state, parts).await,
         (&Method::GET, ["admin", "usage-rollups"]) => list_usage_rollups(state, parts).await,
 
         // Audit
         (&Method::GET, ["admin", "audit"]) => list_audit(state, parts).await,
+        (&Method::DELETE, ["admin", "audit"]) => clear_audit(state, parts).await,
 
         // Credential statuses
         (&Method::GET, ["admin", "credential-statuses"]) => credential_statuses(state, parts).await,
@@ -107,6 +110,7 @@ pub(super) async fn dispatch(
 
         // Request logs
         (&Method::GET, ["admin", "logs"]) => list_logs(state, parts).await,
+        (&Method::DELETE, ["admin", "logs"]) => clear_logs(state, parts).await,
         (&Method::GET, ["admin", "logs", request_id, "downstream"]) => {
             downstream_logs(state, parts, request_id).await
         }
@@ -158,6 +162,12 @@ async fn list_usage(state: &AppState, parts: &Request) -> Result<Resp, ApiError>
             .map_err(internal)?;
         Resp::json(200, &rows)
     }
+}
+
+async fn clear_usages(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    state.persistence.clear_usages().await.map_err(internal)?;
+    Ok(Resp::no_content())
 }
 
 async fn usage_summary(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
@@ -229,6 +239,16 @@ async fn list_audit(state: &AppState, parts: &Request) -> Result<Resp, ApiError>
         .await
         .map_err(internal)?;
     Resp::json(200, &rows)
+}
+
+async fn clear_audit(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    state
+        .persistence
+        .clear_audit_logs()
+        .await
+        .map_err(internal)?;
+    Ok(Resp::no_content())
 }
 
 async fn credential_statuses(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
@@ -310,6 +330,16 @@ async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> 
             .map_err(internal)?;
         Resp::json(200, &rows)
     }
+}
+
+async fn clear_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> {
+    guard_admin(state, parts).await?;
+    state
+        .persistence
+        .clear_request_logs()
+        .await
+        .map_err(internal)?;
+    Ok(Resp::no_content())
 }
 
 async fn downstream_logs(

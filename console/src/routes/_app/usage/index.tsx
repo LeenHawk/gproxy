@@ -18,6 +18,7 @@ import {
   UsageMobileCard,
 } from "@/components/observability/usage-mobile-card";
 import { RequestDrawer } from "@/components/observability/request-drawer";
+import { ClearAllButton } from "@/components/observability/clear-all-button";
 import { AuditTab } from "@/components/observability/audit-tab";
 import { LogsTab } from "@/components/observability/logs-tab";
 import { BatchToolbar } from "@/components/batch-toolbar";
@@ -173,11 +174,20 @@ function UsagePage() {
         </TabsList>
 
         <TabsContent value="usage" className="mt-4 space-y-4">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <UsageFilters value={filter} onChange={changeFilter} />
-            <Button variant="outline" size="sm" onClick={() => batch.mode ? batch.exit() : batch.setMode(true)}>
-              {batch.mode ? tc("batch.cancel") : tc("batch.select")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => batch.mode ? batch.exit() : batch.setMode(true)}>
+                {batch.mode ? tc("batch.cancel") : tc("batch.select")}
+              </Button>
+              <ClearAllButton
+                data="usage"
+                onCleared={() => {
+                  batch.exit();
+                  setPage(1);
+                }}
+              />
+            </div>
           </div>
 
           <UsageSummaryBar summary={summary} pending={summaryPending} />
