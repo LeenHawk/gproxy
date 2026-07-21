@@ -190,6 +190,9 @@
     "taskletSocialSteps": "授權頁必須在目前分頁開啟。完成授權後，從網址列複製完整的 tasklet.ai 回呼 URL，返回 gproxy Console 並貼到下方。",
     "taskletOpenSocial": "在目前分頁開啟登入",
     "taskletSocialHint": "URL 必須以 https://tasklet.ai/oauth2callback 開頭並包含 code 與 state。授權碼只交換一次，不會儲存。",
+    "chatgptCookieLabel": "chatgpt.com Cookie",
+    "chatgptCookieHint": "貼上瀏覽器向 chatgpt.com 發出請求時的完整 Cookie 值。",
+    "chatgptCookieInvalid": "貼上的內容中找不到 Cookie。",
     "cookieLabel": "claude.ai Cookie",
     "cookieHint": "貼上完整 Cookie 標頭或僅 sessionKey=…;只會使用 sessionKey。",
     "cookieInvalid": "貼上的內容中找不到 sessionKey。"
