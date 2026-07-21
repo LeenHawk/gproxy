@@ -112,6 +112,25 @@ pub trait Channel: Send + Sync {
         Disposition::from_http(status, headers)
     }
 
+    /// Whether a model-bound auth rejection (401/402/403) kills the WHOLE
+    /// credential rather than only the exact (credential, model) pair. `true`
+    /// for subscription-account channels (codex, claudecode) whose token is
+    /// account-wide. Default: model-scoped.
+    fn credential_wide_auth(&self) -> bool {
+        false
+    }
+
+    /// Whether this model draws from the channel's account-wide MAIN quota
+    /// pool. The main limit governs the whole account, so a 429 here cools the
+    /// WHOLE credential (separate-limit models included). Models with an
+    /// ADDITIONAL scoped limit on top of the main pool (codex spark, claude
+    /// fable) return `false`: their own 429 means only the scoped limit is hit
+    /// and stays model-scoped. Default: `false` (per-model quota, api-key
+    /// channels).
+    fn shares_account_quota(&self, _upstream_model_id: &str) -> bool {
+        false
+    }
+
     /// Channel-specific REQUEST-body shaping (整形): runs after protocol
     /// transform + process rules, before [`prepare`](Channel::prepare). Pure
     /// field hygiene (strip unsupported fields, cap/rename, role/tools

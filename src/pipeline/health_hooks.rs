@@ -23,8 +23,19 @@ const RATE_LIMIT_DEFAULT: Duration = Duration::from_secs(30);
 const AUTH_DEAD_SECS: i64 = 600;
 
 /// Record one model-bound attempt. Credential health is keyed by the exact
-/// final upstream model; no result here is promoted to credential-wide health.
-/// `send_ms` is the measured send latency (native only; `None` on failures).
+/// final upstream model, with two channel-declared promotions:
+/// - 429 on a model drawing from the account-wide MAIN quota pool
+///   ([`shares_account_quota`](crate::channel::Channel::shares_account_quota))
+///   cools the whole credential — the main limit governs every model, so
+///   separate-limit models (codex spark, claude fable) are blocked too. Their
+///   OWN 429s stay model-scoped: only the additional scoped limit is hit, the
+///   main pool may still have budget;
+/// - auth-dead on account-wide-auth channels
+///   ([`credential_wide_auth`](crate::channel::Channel::credential_wide_auth))
+///   cools the whole credential (the token is dead for every model).
+///
+/// Breaker outcomes stay model-scoped. `send_ms` is the measured send latency
+/// (native only; `None` on failures).
 pub fn record_attempt(
     state: &AppState,
     cand: &Candidate,
@@ -35,6 +46,7 @@ pub fn record_attempt(
     let cred_cfg = breaker_config(&cand.provider.settings_json);
     let cred_id = cand.credential.id;
     let model = &cand.upstream_model_id;
+    let channel = state.channels.get(&cand.provider.channel);
     match disposition {
         Disposition::Success => {
             if let Some(mid) = cand.member_id
@@ -55,19 +67,43 @@ pub fn record_attempt(
         }
         Disposition::RateLimited { retry_after } => {
             let until = now + retry_after.unwrap_or(RATE_LIMIT_DEFAULT).as_secs() as i64;
-            state.health.cool_credential_model(cred_id, model, until);
-            persist_model_cooldown(state, cand, "rate_limited", until, "429 rate limited");
+            if channel.is_some_and(|ch| ch.shares_account_quota(model)) {
+                state.health.cool_credential(cred_id, until);
+                persist_credential_cooldown(
+                    state,
+                    &cand.provider,
+                    &cand.credential,
+                    "rate_limited",
+                    until,
+                    "429 rate limited (account-wide main quota)",
+                );
+            } else {
+                state.health.cool_credential_model(cred_id, model, until);
+                persist_model_cooldown(state, cand, "rate_limited", until, "429 rate limited");
+            }
         }
         Disposition::AuthDead => {
             let until = now + AUTH_DEAD_SECS;
-            state.health.cool_credential_model(cred_id, model, until);
-            persist_model_cooldown(
-                state,
-                cand,
-                "auth_dead",
-                until,
-                "model authentication rejected (401/402/403)",
-            );
+            if channel.is_some_and(|ch| ch.credential_wide_auth()) {
+                state.health.cool_credential(cred_id, until);
+                persist_credential_cooldown(
+                    state,
+                    &cand.provider,
+                    &cand.credential,
+                    "auth_dead",
+                    until,
+                    "credential authentication rejected (401/402/403)",
+                );
+            } else {
+                state.health.cool_credential_model(cred_id, model, until);
+                persist_model_cooldown(
+                    state,
+                    cand,
+                    "auth_dead",
+                    until,
+                    "model authentication rejected (401/402/403)",
+                );
+            }
         }
         // Client error returned to the caller — no health impact.
         Disposition::Permanent => {}
