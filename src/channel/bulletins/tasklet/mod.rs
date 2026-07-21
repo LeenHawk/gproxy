@@ -4,6 +4,8 @@ mod auth;
 mod bridge;
 pub(crate) mod mcp;
 mod models;
+mod registration;
+mod registration_support;
 mod request;
 mod response;
 mod routing;

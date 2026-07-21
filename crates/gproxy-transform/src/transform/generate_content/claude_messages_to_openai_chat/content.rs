@@ -1,5 +1,6 @@
 mod assistant;
 mod cache;
+mod document;
 mod system;
 mod user;
 

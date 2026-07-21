@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use http::{Request, Response, StatusCode, header};
 use serde_json::{Value, json};
 
-use super::{auth, bridge, request, response, stream};
+use super::{auth, bridge, registration, request, response, stream};
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest};
 use crate::http::client::{ClientError, ConduitSocket, RespStream, UpstreamClient};
 
@@ -37,6 +37,11 @@ pub fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
     let token = auth::session_token(ctx.secret)?.to_owned();
     let workspace = auth::workspace_id(ctx.secret)?.to_owned();
     let task = request::parse(&ctx.body, ctx.upstream_model_id)?;
+    let mcp = if task.tools.is_empty() {
+        None
+    } else {
+        Some(auth::mcp_config(ctx.secret)?)
+    };
     let downstream_stream = ctx.stream;
 
     Ok(PreparedRequest::custom_stream(Box::new(move |client| {
@@ -48,6 +53,7 @@ pub fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
                 workspace,
                 timezone,
                 task,
+                mcp,
                 emit_tool_trace,
                 downstream_stream,
             )
@@ -64,9 +70,13 @@ async fn run(
     workspace: String,
     timezone: String,
     mut task: request::TaskletRequest,
+    mcp: Option<auth::McpConfig>,
     emit_tool_trace: bool,
     downstream_stream: bool,
 ) -> Result<(StatusCode, http::HeaderMap, RespStream), ClientError> {
+    if let Some(config) = &mcp {
+        registration::ensure(&client, &base, &token, &workspace, &timezone, config).await?;
+    }
     let turn = bridge::register(&task.tools);
     if let Some(turn) = &turn {
         request::attach_tool_bridge(&mut task, turn.id())
@@ -114,7 +124,7 @@ async fn run(
     Ok((StatusCode::OK, headers, stream))
 }
 
-async fn open_socket(
+pub(super) async fn open_socket(
     client: &Arc<dyn UpstreamClient>,
     base: &str,
     token: &str,
@@ -153,7 +163,7 @@ async fn open_socket(
     }
 }
 
-async fn send_json(
+pub(super) async fn send_json(
     client: &Arc<dyn UpstreamClient>,
     base: &str,
     token: &str,

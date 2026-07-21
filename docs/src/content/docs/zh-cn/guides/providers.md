@@ -71,8 +71,9 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 
 仅 native 的 `tasklet` 渠道会为每次生成创建一个 Tasklet Agent，再通过 Tasklet sync
 WebSocket 转发 thinking、自主工具执行和最终内容。OpenAI Chat、Responses、Claude
-Messages 与 Gemini 生成请求由现有路由转换统一接入。内嵌 base64 图片/文件会先上传，
-也可以直接传 Tasklet 的 `f_...` 文件 ID。
+Messages 与 Gemini 生成请求由现有路由转换统一接入。内嵌 base64 图片、音频和文件会在生成
+请求内自动上传，不提供单独的下游 Files API；Tasklet 的 `f_...` 文件 ID 会直接传递。远程
+附件 URL 不由 gproxy 下载，而是作为任务内容交给 Tasklet 访问。
 
 手动凭据需要 `session_token` 与 `workspace_id`。它们来自已登录的 tasklet.ai 浏览器会话，
 等同账号密码，不要提交或分享。可选 provider 设置包括 `timezone`（默认 `UTC`）和
@@ -90,11 +91,22 @@ Messages 与 Gemini 生成请求由现有路由转换统一接入。内嵌 base6
 也可以在 `/api/sync` WebSocket 的第一条 `connect` 发送消息中找到 `sessionToken`。该 token
 等同密码；Tasklet 会话被撤销或过期后，需要在 gproxy 中同步更换。
 
-`channel-tasklet` 特征还会内置一个 Rust MCP 服务，用于把工具调用交还给客户端。先用
-公网 HTTPS 暴露 gproxy，并创建一个专供 Tasklet 使用的 gproxy 用户 API Key。在同一个
-Tasklet workspace 中连接 MCP 服务 `https://你的_GPROXY_域名/tasklet/mcp`，展开
-**Advanced → Headers**，添加 `X-API-Key: 你的_GPROXY_用户_KEY`，然后授权
-`gproxy_call_client_tool` 工具；该连接只需配置一次。MCP 接口不接受查询参数中的 key。
+`channel-tasklet` 特征还会内置一个 Rust MCP 服务，用于把工具调用交还给客户端。先用公网
+HTTPS 暴露 gproxy，创建一个专供 Tasklet 使用的 gproxy 用户 API Key，并在 Tasklet 凭据中
+加入：
+
+```json
+{
+  "mcp_url": "https://你的_GPROXY_域名/tasklet/mcp",
+  "mcp_api_key": "你的_GPROXY_用户_KEY"
+}
+```
+
+首次收到携带客户端 tools 的请求时，gproxy 会检查 Tasklet workspace 的连接。如果该 URL
+尚未注册，gproxy 会自动创建 Tasklet 要求的 pending MCP setup agent/block，携带
+`X-API-Key` 提交配置，验证新连接，并且只给 `gproxy_call_client_tool` 授予 workspace 权限。
+已存在的同 URL 连接会直接复用，不再需要手动去 Tasklet 添加连接。检查结果缓存五分钟后重新
+验证；MCP 接口不接受查询参数中的 key。
 
 当 OpenAI 兼容请求携带 function 或 custom tools 时，gproxy 会把 schema 与一个短期、
 一次性的 turn id 交给 Tasklet。Tasklet 发起 MCP 调用后，gproxy 会向原请求返回标准

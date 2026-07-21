@@ -105,6 +105,13 @@ pub(super) fn body_string(body: &[u8], redact: bool) -> String {
 fn redact_json(v: &mut Value) {
     match v {
         Value::Object(map) => {
+            let secret_header_value = map
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|name| SECRET_HEADERS.contains(&name.to_ascii_lowercase().as_str()));
+            if secret_header_value && let Some(value) = map.get_mut("value") {
+                *value = Value::String(REDACTED.to_owned());
+            }
             for (k, val) in map.iter_mut() {
                 if SECRET_FIELDS.contains(&k.to_ascii_lowercase().as_str()) {
                     *val = Value::String(REDACTED.to_owned());
@@ -135,6 +142,11 @@ mod tests {
         let out = body_string(body, true);
         assert!(!out.contains("sk-1") && !out.contains("\"t\""), "{out}");
         assert!(out.contains("\"model\":\"m\""), "{out}");
+
+        let custom_headers = br#"{"customHeaders":[{"name":"X-API-Key","value":"sk-mcp"}]}"#;
+        let out = body_string(custom_headers, true);
+        assert!(!out.contains("sk-mcp"), "{out}");
+        assert!(out.contains(REDACTED), "{out}");
 
         assert_eq!(redact_query("alt=1&key=sk-9", true), "alt=1&key=[REDACTED]");
     }

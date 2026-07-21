@@ -7,7 +7,7 @@ use futures_util::StreamExt;
 use http::{Request, Response, StatusCode};
 use serde_json::{Value, json};
 
-use super::{TaskletChannel, bridge, mcp, request, response, stream};
+use super::{TaskletChannel, auth, bridge, mcp, registration, request, response, stream};
 use crate::channel::{Channel, PrepareCtx, PreparedRequest};
 use crate::http::client::{ClientError, ConduitSocket, RespStream, UpstreamClient};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKey, OperationKind, Provider};
@@ -46,6 +46,24 @@ fn parses_inline_attachment_for_upload() {
     assert_eq!(parsed.message, "describe");
     assert_eq!(parsed.uploads.len(), 1);
     assert_eq!(parsed.uploads[0].bytes, b"img");
+}
+
+#[test]
+fn preserves_remote_file_url_in_generation_message() {
+    let body = json!({
+        "model":"tasklet-standard",
+        "messages":[{"role":"user","content":[
+            {"type":"text","text":"inspect"},
+            {"type":"file","file":{"file_url":"https://files.example/report.pdf"}}
+        ]}]
+    });
+    let parsed = request::parse(body.to_string().as_bytes(), "tasklet-standard").unwrap();
+    assert!(
+        parsed
+            .message
+            .contains("Attachment URL: https://files.example/report.pdf")
+    );
+    assert!(parsed.uploads.is_empty());
 }
 
 #[test]
@@ -104,6 +122,41 @@ impl ConduitSocket for PendingSocket {
 struct MockClient {
     requests: Mutex<Vec<Request<Bytes>>>,
     sent_frames: Arc<Mutex<Vec<Value>>>,
+}
+
+struct RegistrationClient {
+    requests: Mutex<Vec<Request<Bytes>>>,
+    responses: Mutex<VecDeque<Response<Bytes>>>,
+    socket_frames: Mutex<Option<VecDeque<Result<String, ClientError>>>>,
+    sent_frames: Arc<Mutex<Vec<Value>>>,
+}
+
+#[async_trait]
+impl UpstreamClient for RegistrationClient {
+    async fn send(&self, request: Request<Bytes>) -> Result<Response<Bytes>, ClientError> {
+        self.requests.lock().unwrap().push(request);
+        self.responses
+            .lock()
+            .unwrap()
+            .pop_front()
+            .ok_or_else(|| ClientError::Transport("missing registration response".into()))
+    }
+
+    async fn open_websocket(
+        &self,
+        _request: Request<Bytes>,
+    ) -> Result<Box<dyn ConduitSocket>, ClientError> {
+        let received = self
+            .socket_frames
+            .lock()
+            .unwrap()
+            .take()
+            .ok_or_else(|| ClientError::Transport("missing registration websocket".into()))?;
+        Ok(Box::new(MockSocket {
+            received,
+            sent: Arc::clone(&self.sent_frames),
+        }))
+    }
 }
 
 #[async_trait]
@@ -237,6 +290,123 @@ async fn mcp_bridge_emits_openai_tool_call() {
     assert!(text.contains("\"name\":\"get_weather\""));
     assert!(text.contains("\\\"city\\\":\\\"Paris\\\""));
     assert!(text.contains("\"finish_reason\":\"tool_calls\""));
+}
+
+#[tokio::test]
+async fn existing_mcp_connection_is_reused_and_bridge_tool_granted() {
+    let client = Arc::new(RegistrationClient {
+        requests: Mutex::new(Vec::new()),
+        responses: Mutex::new(VecDeque::from([
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::from_static(
+                    br#"{"connections":[{"connectionId":"conn_test","details":{"type":"mcp","serverUrl":"https://proxy.example/tasklet/mcp"}}]}"#,
+                ))
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::from_static(br#"{"status":"success"}"#))
+                .unwrap(),
+        ])),
+        socket_frames: Mutex::new(None),
+        sent_frames: Arc::new(Mutex::new(Vec::new())),
+    });
+    let client_dyn: Arc<dyn UpstreamClient> = client.clone();
+    registration::ensure(
+        &client_dyn,
+        "https://api.tasklet.ai",
+        "tasklet-token",
+        "ws_registration_test",
+        "UTC",
+        &auth::McpConfig {
+            url: "https://proxy.example/tasklet/mcp".into(),
+            api_key: "sk-mcp".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let requests = client.requests.lock().unwrap();
+    assert_eq!(requests[0].uri().path(), "/api/getAllConnections");
+    assert_eq!(
+        requests[1].uri().path(),
+        "/api/updateConnectionToolPermissions"
+    );
+    let permissions: Value = serde_json::from_slice(requests[1].body()).unwrap();
+    assert_eq!(permissions["connectionId"], "conn_test");
+    assert_eq!(
+        permissions["grantedToolNames"],
+        json!(["gproxy_call_client_tool"])
+    );
+}
+
+#[tokio::test]
+async fn missing_mcp_connection_is_created_with_private_header() {
+    let pending_arguments = json!({
+        "toolName":"create_new_connections",
+        "args":{"connection":{"type":"mcp"}}
+    })
+    .to_string();
+    let frames = [
+        json!({"type":"connected"}),
+        json!({"type":"blocksUpdate","updates":{"b_setup":{
+            "type":"tool_use",
+            "blockId":"b_setup",
+            "name":"invoke_tool",
+            "arguments":pending_arguments,
+            "result":{"type":"pending"},
+            "data":{"mcpServerSetup":{"completed":false}}
+        }}}),
+    ]
+    .into_iter()
+    .map(|frame| Ok(frame.to_string()))
+    .collect();
+    let client = Arc::new(RegistrationClient {
+        requests: Mutex::new(Vec::new()),
+        responses: Mutex::new(VecDeque::from([
+            Response::new(Bytes::from_static(br#"{"connections":[]}"#)),
+            Response::new(Bytes::from_static(br#"{"agentId":"a_setup"}"#)),
+            Response::new(Bytes::from_static(br#"{"status":"success"}"#)),
+            Response::new(Bytes::from_static(
+                br#"{"connections":[{"connectionId":"conn_auto","details":{"type":"mcp","serverUrl":"https://auto.example/tasklet/mcp"}}]}"#,
+            )),
+            Response::new(Bytes::from_static(br#"{"status":"success"}"#)),
+        ])),
+        socket_frames: Mutex::new(Some(frames)),
+        sent_frames: Arc::new(Mutex::new(Vec::new())),
+    });
+    let client_dyn: Arc<dyn UpstreamClient> = client.clone();
+    registration::ensure(
+        &client_dyn,
+        "https://api.tasklet.ai",
+        "tasklet-token",
+        "ws_auto_registration_test",
+        "UTC",
+        &auth::McpConfig {
+            url: "https://auto.example/tasklet/mcp".into(),
+            api_key: "sk-private-mcp".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let requests = client.requests.lock().unwrap();
+    assert_eq!(requests[1].uri().path(), "/api/sendChatMessage");
+    assert!(
+        !requests[1]
+            .body()
+            .windows(14)
+            .any(|part| part == b"sk-private-mcp")
+    );
+    assert_eq!(requests[2].uri().path(), "/api/setupMcpServer");
+    let setup: Value = serde_json::from_slice(requests[2].body()).unwrap();
+    assert_eq!(setup["agentId"], "a_setup");
+    assert_eq!(setup["blockId"], "b_setup");
+    assert_eq!(setup["config"]["customHeaders"][0]["name"], "X-API-Key");
+    assert_eq!(
+        setup["config"]["customHeaders"][0]["value"],
+        "sk-private-mcp"
+    );
 }
 
 #[tokio::test]

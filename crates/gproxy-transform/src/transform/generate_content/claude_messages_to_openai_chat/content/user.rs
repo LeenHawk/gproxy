@@ -3,6 +3,7 @@ use crate::protocol::{claude, openai};
 use super::super::super::common::openai_breakpoint;
 use super::super::tools::claude_tool_result_to_text;
 use super::cache::{breakpoint_for_text, warn_unrepresentable_cache_control};
+use super::document::claude_document_to_chat_parts;
 use super::system::{mid_conversation_system_content, push_developer_message};
 
 pub(in super::super) fn claude_blocks_to_user_messages(
@@ -31,9 +32,7 @@ pub(in super::super) fn claude_blocks_to_user_messages(
                 }
             }
             claude::ContentBlockParam::Document(block) => {
-                if let Some(part) = claude_document_to_chat_part(block) {
-                    user_parts.push(part);
-                }
+                user_parts.extend(claude_document_to_chat_parts(block));
             }
             claude::ContentBlockParam::MidConversationSystem(block) => {
                 flush_user_parts(&mut messages, &mut user_parts);
@@ -140,40 +139,6 @@ fn claude_image_to_chat_part(block: claude::ImageBlock) -> Option<openai::ChatCo
             detail: None,
             extra: Default::default(),
         },
-        prompt_cache_breakpoint: breakpoint,
-        extra: Default::default(),
-    })
-}
-
-fn claude_document_to_chat_part(block: claude::DocumentBlock) -> Option<openai::ChatContentPart> {
-    let breakpoint = openai_breakpoint(block.cache_control);
-    let file = match block.source {
-        claude::DocumentSource::File(source) => openai::ChatFileRef {
-            file_data: None,
-            file_id: Some(source.file_id),
-            filename: block.title,
-            extra: Default::default(),
-        },
-        claude::DocumentSource::Text(source) => openai::ChatFileRef {
-            file_data: Some(source.data),
-            file_id: None,
-            filename: block.title,
-            extra: Default::default(),
-        },
-        claude::DocumentSource::Base64(source) => openai::ChatFileRef {
-            file_data: Some(source.data),
-            file_id: None,
-            filename: block.title,
-            extra: Default::default(),
-        },
-        claude::DocumentSource::Content(_)
-        | claude::DocumentSource::Url(_)
-        | claude::DocumentSource::Raw(_) => {
-            return None;
-        }
-    };
-    Some(openai::ChatContentPart::File {
-        file,
         prompt_cache_breakpoint: breakpoint,
         extra: Default::default(),
     })

@@ -431,19 +431,17 @@ fn response_input_part_to_chat_part(
         openai::ResponseInputContentPart::InputFile {
             file_data,
             file_id,
+            file_url,
             filename,
             prompt_cache_breakpoint,
             ..
-        } => Some(openai::ChatContentPart::File {
-            file: openai::ChatFileRef {
-                file_data,
-                file_id,
-                filename,
-                extra: Default::default(),
-            },
+        } => Some(super::file::response_file_to_chat_part(
+            file_data,
+            file_id,
+            file_url,
+            filename,
             prompt_cache_breakpoint,
-            extra: Default::default(),
-        }),
+        )),
     }
 }
 
