@@ -123,6 +123,8 @@ mod pool;
 pub use pool::ClientPool;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+mod proxy_url;
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 mod wreq;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 pub use wreq::WreqClient;

@@ -6,6 +6,7 @@ use bytes::Bytes;
 
 use crate::config::{UPSTREAM_CONNECT_TIMEOUT, UPSTREAM_READ_TIMEOUT, UPSTREAM_TOTAL_TIMEOUT};
 
+use super::proxy_url::normalize_proxy_url;
 use super::{ClientError, ConduitSocket, RespStream, UpstreamClient};
 
 /// Default upstream User-Agent for requests that don't set one and aren't
@@ -59,7 +60,7 @@ impl WreqClient {
     ) -> wreq::Result<Self> {
         let mut builder = with_timeouts(wreq::Client::builder());
         if let Some(proxy_url) = proxy_url {
-            builder = builder.proxy(wreq::Proxy::all(proxy_url)?);
+            builder = builder.proxy(wreq::Proxy::all(&*normalize_proxy_url(proxy_url))?);
         }
         // A fingerprint carries its own UA via emulation headers; only fall back
         // to the proxy's default UA when no emulation is applied, so the default
@@ -84,7 +85,7 @@ impl WreqClient {
         let mut builder =
             with_timeouts(wreq::Client::builder()).emulation(wreq_util::Emulation::Chrome148);
         if let Some(proxy_url) = proxy_url {
-            builder = builder.proxy(wreq::Proxy::all(proxy_url)?);
+            builder = builder.proxy(wreq::Proxy::all(&*normalize_proxy_url(proxy_url))?);
         }
         Ok(Self {
             inner: builder.build()?,
