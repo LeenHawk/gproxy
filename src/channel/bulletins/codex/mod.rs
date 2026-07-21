@@ -44,6 +44,19 @@ impl Channel for CodexChannel {
         Provider::OpenAi
     }
 
+    /// ChatGPT-subscription account: the OAuth token is account-wide.
+    fn credential_wide_auth(&self) -> bool {
+        true
+    }
+
+    /// All models draw the account 5h/weekly MAIN pool; spark
+    /// (`gpt-5.3-codex-spark`) has an ADDITIONAL scoped limit on top
+    /// (`GPT-5.3-Codex-Spark` in `/wham/usage`), so its own 429 stays
+    /// model-scoped while a main-pool 429 blocks the whole credential.
+    fn shares_account_quota(&self, upstream_model_id: &str) -> bool {
+        !upstream_model_id.to_ascii_lowercase().contains("spark")
+    }
+
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         use crate::channel::routes::{cg, local, pass, pv, unsupported, xform};
         use crate::protocol::{ContentGenerationKind::*, Operation::*, Provider as P};

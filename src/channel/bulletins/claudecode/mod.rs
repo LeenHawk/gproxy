@@ -37,6 +37,19 @@ impl Channel for ClaudeCodeChannel {
         Provider::Claude
     }
 
+    /// Claude-subscription account: the OAuth token is account-wide.
+    fn credential_wide_auth(&self) -> bool {
+        true
+    }
+
+    /// All models draw the account 5h/weekly MAIN pool; fable
+    /// (`claude-fable-5`) has an ADDITIONAL weekly-scoped limit on top
+    /// (`weekly_scoped:fable` in the usage snapshot), so its own 429 stays
+    /// model-scoped while a main-pool 429 blocks the whole credential.
+    fn shares_account_quota(&self, upstream_model_id: &str) -> bool {
+        !upstream_model_id.to_ascii_lowercase().contains("fable")
+    }
+
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         routing::table()
     }

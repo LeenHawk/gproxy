@@ -4,7 +4,7 @@
 use super::*;
 use crate::health::CredAdmit;
 use crate::health::config::BreakerConfig;
-use crate::store::persistence::records::CredentialModelStatus;
+use crate::store::persistence::records::{CredentialModelStatus, CredentialStatus};
 use crate::util::time::unix_now;
 
 /// BUNDLE with several top-level arrays replaced.
@@ -52,6 +52,24 @@ fn ok_body() -> Bytes {
         "usage": { "prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2 }
     });
     Bytes::from(serde_json::to_vec(&v).unwrap())
+}
+
+async fn wait_credential_status(
+    persistence: &dyn crate::store::persistence::PersistenceBackend,
+    credential_id: i64,
+    kind: &str,
+) -> CredentialStatus {
+    for _ in 0..100 {
+        let rows = persistence
+            .list_credential_statuses(credential_id)
+            .await
+            .expect("list credential statuses");
+        if let Some(row) = rows.into_iter().find(|row| row.health_kind == kind) {
+            return row;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("no `{kind}` status persisted for credential {credential_id}");
 }
 
 async fn wait_model_status(
@@ -242,6 +260,141 @@ async fn rate_limited_cools_credential() {
         until > now + 20 && until <= now + 31,
         "default 30s: {until}"
     );
+}
+
+/// Subscription-account channel (claudecode), main limit first: a 429 on
+/// fable (`claude-fable-5`, ADDITIONAL scoped limit on top of the main pool)
+/// stays model-scoped — the main pool still serves other models — while a 429
+/// on a main-pool model cools the WHOLE credential (every model blocked).
+#[tokio::test]
+async fn subscription_channel_main_pool_429_cools_credential_scoped_limit_stays_model() {
+    let bundle = bundle_multi(&[
+        (
+            "providers",
+            json!([{
+                "id": 1, "name": "cc", "channel": "claudecode", "label": null,
+                "settings_json": { "base_url": "http://cc.local" },
+                "credential_strategy": "round_robin",
+                "proxy_url": null, "tls_fingerprint": null, "enabled": true
+            }]),
+        ),
+        (
+            "credentials",
+            json!([
+                { "id": 1, "provider_id": 1, "secret_json": { "access_token": "t1", "expires_at_ms": 0 } },
+            ]),
+        ),
+        ("provider_models", json!([])),
+        (
+            "routes",
+            json!([
+                { "id": 1, "name": "cc-route", "strategy": "failover", "enabled": true, "description": null },
+                { "id": 2, "name": "cc-fable", "strategy": "failover", "enabled": true, "description": null },
+                { "id": 3, "name": "cc-other", "strategy": "failover", "enabled": true, "description": null },
+            ]),
+        ),
+        (
+            "route_members",
+            json!([
+                { "id": 1, "route_id": 1, "provider_id": 1, "upstream_model_id": "claude-x", "weight": 100, "tier": 0, "enabled": true },
+                { "id": 2, "route_id": 2, "provider_id": 1, "upstream_model_id": "claude-fable-5", "weight": 100, "tier": 0, "enabled": true },
+                { "id": 3, "route_id": 3, "provider_id": 1, "upstream_model_id": "claude-y", "weight": 100, "tier": 0, "enabled": true },
+            ]),
+        ),
+        ("aliases", json!([])),
+        ("routing_rules", json!([])),
+        ("provider_rule_sets", json!([])),
+    ]);
+    let claude_ok = json!({
+        "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-x",
+        "content": [{ "type": "text", "text": "hi" }], "stop_reason": "end_turn",
+        "usage": { "input_tokens": 1, "output_tokens": 1 }
+    });
+    let mut fake = FakeUpstream::new(Bytes::from(serde_json::to_vec(&claude_ok).unwrap()), vec![]);
+    fake.statuses = vec![
+        StatusCode::TOO_MANY_REQUESTS, // req1: fable → its scoped limit → model-only
+        StatusCode::OK,                // req2: claude-x — main pool untouched
+        StatusCode::TOO_MANY_REQUESTS, // req3: claude-x → MAIN pool → credential-wide
+    ];
+    let fake = Arc::new(fake);
+    let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
+
+    let claude_ctx = |model: &str| {
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer sk-test".parse().unwrap());
+        headers.insert("content-type", "application/json".parse().unwrap());
+        let body = json!({
+            "model": model, "max_tokens": 16,
+            "messages": [{ "role": "user", "content": "hi" }]
+        });
+        RequestCtx {
+            request_id: format!("t-cc-{model}"),
+            method: Method::POST,
+            path: "/v1/messages".into(),
+            query: None,
+            headers,
+            body: Bytes::from(serde_json::to_vec(&body).unwrap()),
+            mode: RoutingMode::Aggregated,
+            identity: None,
+            op: None,
+            stream: false,
+            route_name: None,
+            pending_micros: 0,
+        }
+    };
+
+    // req1: fable 429 — only its own scoped limit hit → model-scoped cooldown.
+    assert!(
+        crate::pipeline::execute(&state, claude_ctx("cc-fable"))
+            .await
+            .is_err()
+    );
+    let now = unix_now();
+    assert_eq!(state.health.credential_available(1, now), CredAdmit::Yes);
+    assert_eq!(
+        state
+            .health
+            .credential_model_available(1, "claude-fable-5", now),
+        CredAdmit::No
+    );
+
+    // req2: the main pool still serves other models on the same credential.
+    let out = crate::pipeline::execute(&state, claude_ctx("cc-route"))
+        .await
+        .expect("main pool unaffected by fable's scoped limit");
+    assert_eq!(out.status, StatusCode::OK);
+
+    // req3: a main-pool model 429s → the WHOLE credential cools.
+    assert!(
+        crate::pipeline::execute(&state, claude_ctx("cc-route"))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        state.health.credential_available(1, unix_now()),
+        CredAdmit::No
+    );
+
+    // req4: a never-touched model is blocked at planning — no upstream call.
+    assert!(
+        crate::pipeline::execute(&state, claude_ctx("cc-other"))
+            .await
+            .is_err()
+    );
+    assert_eq!(fake.seen.lock().unwrap().len(), 3, "main limit first");
+
+    // Persisted: fable at model scope, the main-pool 429 at credential scope.
+    let row = wait_model_status(
+        state.persistence.as_ref(),
+        1,
+        "claude-fable-5",
+        "rate_limited",
+    )
+    .await;
+    assert_eq!(row.channel, "claudecode");
+    let row = wait_credential_status(state.persistence.as_ref(), 1, "rate_limited").await;
+    let j = row.health_json.expect("health_json");
+    assert_eq!(j["state"], "cooldown");
 }
 
 /// rpm_limit = 1: the second request in the same minute is skipped at the

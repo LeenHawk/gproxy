@@ -71,8 +71,10 @@ pub enum CredAdmit {
 #[derive(Default)]
 pub struct HealthState {
     members: DashMap<i64, Breaker>,
-    /// Credential-wide state, written only by operations without a model
-    /// target (refresh, model-list, usage) or explicit global evidence.
+    /// Credential-wide state, written by operations without a model target
+    /// (refresh, model-list, usage) and by 429/auth-dead outcomes on
+    /// subscription channels (`Channel::shares_account_quota` /
+    /// `Channel::credential_wide_auth`).
     creds: DashMap<i64, CredHealth>,
     /// Model request state. There is deliberately no inference or promotion
     /// from these exact pairs to credential-wide state.
