@@ -176,6 +176,12 @@
     "kiroStartUrl": "Start URL",
     "kiroRegion": "Region",
     "kiroStartUrlHint": "Your organization's AWS access portal URL (https://….awsapps.com/start).",
+    "taskletEmail": "Tasklet email",
+    "taskletEmailHint": "Tasklet will send a one-time PIN. The PIN and browser data are not stored.",
+    "taskletSendPin": "Send PIN",
+    "taskletResendPin": "Resend PIN",
+    "taskletPin": "Tasklet PIN",
+    "taskletPinHint": "Enter the PIN sent to {{email}}.",
     "cookieLabel": "claude.ai cookie",
     "cookieHint": "Paste the full Cookie header or just sessionKey=…; only sessionKey is used.",
     "cookieInvalid": "No sessionKey found in the pasted text."

@@ -174,11 +174,11 @@ export const CHANNELS: ChannelMeta[] = [
     secretTemplate: { access_token: "", cookie: "" },
   },
   {
-    // Tasklet Agent API (native-only `channel-tasklet` feature). The browser
-    // session token and workspace id are entered manually from a signed-in SPA.
+    // Tasklet Agent API (native-only `channel-tasklet` feature). The dedicated
+    // wizard exchanges an email PIN for a session token and workspace id.
     id: "tasklet",
     family: "oauth_tokens",
-    loginModes: [],
+    loginModes: ["authcode"],
     usage: false,
     endpointKinds: [],
     secretTemplate: {

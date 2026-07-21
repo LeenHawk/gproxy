@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { TaskletLoginFlow } from "@/components/providers/tasklet-login-flow";
 
 interface OAuthWizardProps {
   provider: Provider;
@@ -35,6 +36,7 @@ export function OAuthWizard({ provider, onDone }: OAuthWizardProps) {
   // Geminicli's two modes are both authcode but differ in redirect + paste UI
   // (callback URL vs bare code), so it gets a dedicated toggle.
   const isGemini = provider.channel === "geminicli";
+  const isTasklet = provider.channel === "tasklet";
 
   const finish = (credential: CredentialView) => {
     void queryClient.invalidateQueries({ queryKey: ["providers", provider.id, "credentials"] });
@@ -56,7 +58,9 @@ export function OAuthWizard({ provider, onDone }: OAuthWizardProps) {
         <Label htmlFor="w-name">{t("wizard.credName")}</Label>
         <Input id="w-name" value={credLabel} onChange={(e) => setCredLabel(e.target.value)} />
       </div>
-      {isKiro ? (
+      {isTasklet ? (
+        <TaskletLoginFlow provider={provider} credLabel={credLabel} onDone={finish} />
+      ) : isKiro ? (
         <KiroWizard provider={provider} credLabel={credLabel} onDone={finish} />
       ) : isGemini ? (
         <GeminiWizard provider={provider} credLabel={credLabel} onDone={finish} />

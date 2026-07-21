@@ -176,6 +176,12 @@
     "kiroStartUrl": "Start URL",
     "kiroRegion": "區域",
     "kiroStartUrlHint": "你所在組織的 AWS 存取入口網址(https://….awsapps.com/start)。",
+    "taskletEmail": "Tasklet 電子郵件",
+    "taskletEmailHint": "Tasklet 會傳送一次性 PIN；gproxy 不會儲存 PIN 或瀏覽器資料。",
+    "taskletSendPin": "傳送 PIN",
+    "taskletResendPin": "重新傳送 PIN",
+    "taskletPin": "Tasklet PIN",
+    "taskletPinHint": "輸入傳送到 {{email}} 的 PIN。",
     "cookieLabel": "claude.ai Cookie",
     "cookieHint": "貼上完整 Cookie 標頭或僅 sessionKey=…;只會使用 sessionKey。",
     "cookieInvalid": "貼上的內容中找不到 sessionKey。"
