@@ -26,6 +26,7 @@ pub trait UsagePersistence {
         to: i64,
         user_id: Option<i64>,
     ) -> anyhow::Result<Vec<UsageRollup>>;
+    async fn clear_usages(&self) -> anyhow::Result<()>;
     async fn metrics_aggregate(&self) -> anyhow::Result<MetricsAggregate>;
 
     async fn append_downstream_request(
@@ -63,6 +64,7 @@ pub trait UsagePersistence {
         request_id: &str,
         response_body: Option<String>,
     ) -> anyhow::Result<()>;
+    async fn clear_request_logs(&self) -> anyhow::Result<()>;
 
     async fn delete_usage(&self, id: i64) -> anyhow::Result<bool>;
     async fn set_enabled(
@@ -79,6 +81,7 @@ pub trait UsagePersistence {
         q: &AuditLogQuery,
         page: &PageQuery,
     ) -> anyhow::Result<PageResult<AuditLog>>;
+    async fn clear_audit_logs(&self) -> anyhow::Result<()>;
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -114,6 +117,9 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
         user_id: Option<i64>,
     ) -> anyhow::Result<Vec<UsageRollup>> {
         super::PersistenceBackend::list_usage_rollups(self, granularity, from, to, user_id).await
+    }
+    async fn clear_usages(&self) -> anyhow::Result<()> {
+        super::PersistenceBackend::clear_usages(self).await
     }
     async fn metrics_aggregate(&self) -> anyhow::Result<MetricsAggregate> {
         super::PersistenceBackend::metrics_aggregate(self).await
@@ -169,6 +175,9 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
     ) -> anyhow::Result<()> {
         super::PersistenceBackend::update_upstream_response(self, request_id, response_body).await
     }
+    async fn clear_request_logs(&self) -> anyhow::Result<()> {
+        super::PersistenceBackend::clear_request_logs(self).await
+    }
     async fn delete_usage(&self, id: i64) -> anyhow::Result<bool> {
         super::PersistenceBackend::delete_usage(self, id).await
     }
@@ -195,5 +204,8 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
         page: &PageQuery,
     ) -> anyhow::Result<PageResult<AuditLog>> {
         super::PersistenceBackend::query_audit_logs_page(self, q, page).await
+    }
+    async fn clear_audit_logs(&self) -> anyhow::Result<()> {
+        super::PersistenceBackend::clear_audit_logs(self).await
     }
 }

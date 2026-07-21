@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
 
 use super::super::{DbPersistence, ops};
 use crate::store::persistence::batch::AdminEntity;
@@ -44,6 +44,15 @@ impl UsagePersistence for DbPersistence {
         user_id: Option<i64>,
     ) -> anyhow::Result<Vec<UsageRollup>> {
         ops::usage::usage_rollups::list(&self.conn, granularity, from, to, user_id).await
+    }
+    async fn clear_usages(&self) -> anyhow::Result<()> {
+        let txn = self.conn.begin().await?;
+        usage::usage::Entity::delete_many().exec(&txn).await?;
+        usage::usage_rollup::Entity::delete_many()
+            .exec(&txn)
+            .await?;
+        txn.commit().await?;
+        Ok(())
     }
     async fn metrics_aggregate(&self) -> anyhow::Result<MetricsAggregate> {
         ops::metrics::aggregate(&self.conn).await
@@ -102,6 +111,17 @@ impl UsagePersistence for DbPersistence {
         ops::logs::upstream_requests::update_response_body(&self.conn, request_id, response_body)
             .await
     }
+    async fn clear_request_logs(&self) -> anyhow::Result<()> {
+        let txn = self.conn.begin().await?;
+        logs::upstream_request::Entity::delete_many()
+            .exec(&txn)
+            .await?;
+        logs::downstream_request::Entity::delete_many()
+            .exec(&txn)
+            .await?;
+        txn.commit().await?;
+        Ok(())
+    }
 
     async fn delete_usage(&self, id: i64) -> anyhow::Result<bool> {
         ops::batch::delete_usage(&self.conn, id).await
@@ -145,5 +165,11 @@ impl UsagePersistence for DbPersistence {
         page: &PageQuery,
     ) -> anyhow::Result<PageResult<AuditLog>> {
         ops::logs::audit_logs::query_page(&self.conn, q, page).await
+    }
+    async fn clear_audit_logs(&self) -> anyhow::Result<()> {
+        logs::audit_log::Entity::delete_many()
+            .exec(&self.conn)
+            .await?;
+        Ok(())
     }
 }

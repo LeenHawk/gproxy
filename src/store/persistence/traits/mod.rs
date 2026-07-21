@@ -198,6 +198,7 @@ persistence_backend! {
     UsagePersistence::summarize_usages => summarize_usages(q: &UsageQuery) -> anyhow::Result<UsageSummary>;
     UsagePersistence::add_usage_rollup => add_usage_rollup(input: UsageRollupInput) -> anyhow::Result<UsageRollup>;
     UsagePersistence::list_usage_rollups => list_usage_rollups(granularity: &str, from: i64, to: i64, user_id: Option<i64>) -> anyhow::Result<Vec<UsageRollup>>;
+    UsagePersistence::clear_usages => clear_usages() -> anyhow::Result<()>;
     UsagePersistence::metrics_aggregate => metrics_aggregate() -> anyhow::Result<MetricsAggregate>;
     UsagePersistence::append_downstream_request => append_downstream_request(input: DownstreamRequestInput) -> anyhow::Result<DownstreamRequest>;
     UsagePersistence::list_downstream_requests => list_downstream_requests(request_id: &str) -> anyhow::Result<Vec<DownstreamRequest>>;
@@ -207,12 +208,14 @@ persistence_backend! {
     UsagePersistence::append_upstream_request => append_upstream_request(input: UpstreamRequestInput) -> anyhow::Result<UpstreamRequest>;
     UsagePersistence::list_upstream_requests => list_upstream_requests(request_id: &str) -> anyhow::Result<Vec<UpstreamRequest>>;
     UsagePersistence::update_upstream_response => update_upstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
+    UsagePersistence::clear_request_logs => clear_request_logs() -> anyhow::Result<()>;
     UsagePersistence::delete_usage => delete_usage(id: i64) -> anyhow::Result<bool>;
     UsagePersistence::set_enabled => set_enabled(entity: AdminEntity, id: i64, enabled: bool) -> anyhow::Result<bool>;
     UsagePersistence::purge_before => purge_before(cutoff_ts: i64) -> anyhow::Result<u64>;
     UsagePersistence::append_audit_log => append_audit_log(input: AuditLogInput) -> anyhow::Result<AuditLog>;
     UsagePersistence::list_audit_logs => list_audit_logs(limit: u64) -> anyhow::Result<Vec<AuditLog>>;
     UsagePersistence::query_audit_logs_page => query_audit_logs_page(q: &AuditLogQuery, page: &PageQuery) -> anyhow::Result<PageResult<AuditLog>>;
+    UsagePersistence::clear_audit_logs => clear_audit_logs() -> anyhow::Result<()>;
 
     SettingsPersistence::list_instance_settings => list_instance_settings() -> anyhow::Result<Vec<InstanceSettings>>;
     SettingsPersistence::get_instance_settings => get_instance_settings(instance_name: &str) -> anyhow::Result<Option<InstanceSettings>>;

@@ -133,6 +133,12 @@ export interface AuditFilter {
   source_ip?: string;
 }
 
+export type ObservabilityData = "usage" | "logs" | "audit";
+
+export function clearObservabilityData(data: ObservabilityData): Promise<void> {
+  return api<void>(`/admin/${data}`, { method: "DELETE" });
+}
+
 function usageQs(f: UsageFilter, page?: number): string {
   const p = new URLSearchParams();
   if (f.limit != null) p.set("limit", String(f.limit));

@@ -8,6 +8,7 @@ import {
 } from "@/api/usage";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { AuditFilters } from "@/components/observability/audit-filters";
+import { ClearAllButton } from "@/components/observability/clear-all-button";
 import { Pagination } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,7 +59,10 @@ export function AuditTab() {
 
   return (
     <div className="space-y-4">
-      <AuditFilters value={filter} onChange={changeFilter} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <AuditFilters value={filter} onChange={changeFilter} />
+        <ClearAllButton data="audit" onCleared={() => setPage(1)} />
+      </div>
       {isPending ? (
         <div className="space-y-2" aria-busy="true">
           {Array.from({ length: 4 }).map((_, i) => (

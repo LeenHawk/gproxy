@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { logsPageQuery, type DownstreamRequest, type UsageFilter } from "@/api/usage";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { UsageFilters } from "@/components/observability/usage-filters";
+import { ClearAllButton } from "@/components/observability/clear-all-button";
 import { Pagination } from "@/components/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,12 +58,15 @@ export function LogsTab({ onSelect }: { onSelect: (requestId: string) => void })
 
   return (
     <div className="space-y-4">
-      <UsageFilters
-        value={filter}
-        onChange={changeFilter}
-        showModel={false}
-        routeListId="logs-route-datalist"
-      />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <UsageFilters
+          value={filter}
+          onChange={changeFilter}
+          showModel={false}
+          routeListId="logs-route-datalist"
+        />
+        <ClearAllButton data="logs" onCleared={() => setPage(1)} />
+      </div>
       <DataTable
         columns={cols}
         rows={rows}

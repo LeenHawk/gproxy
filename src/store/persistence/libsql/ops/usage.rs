@@ -43,6 +43,12 @@ impl UsagePersistence for LibsqlPersistence {
     ) -> anyhow::Result<Vec<UsageRollup>> {
         usage::usage_rollups::list(&self.client, granularity, from, to, user_id).await
     }
+    async fn clear_usages(&self) -> anyhow::Result<()> {
+        self.client
+            .execute_batch(&["DELETE FROM usages", "DELETE FROM usage_rollups"])
+            .await?;
+        Ok(())
+    }
     async fn metrics_aggregate(&self) -> anyhow::Result<MetricsAggregate> {
         metrics::aggregate(&self.client).await
     }
@@ -99,6 +105,15 @@ impl UsagePersistence for LibsqlPersistence {
     ) -> anyhow::Result<()> {
         logs::upstream_requests::update_response_body(&self.client, request_id, response_body).await
     }
+    async fn clear_request_logs(&self) -> anyhow::Result<()> {
+        self.client
+            .execute_batch(&[
+                "DELETE FROM upstream_requests",
+                "DELETE FROM downstream_requests",
+            ])
+            .await?;
+        Ok(())
+    }
 
     async fn delete_usage(&self, id: i64) -> anyhow::Result<bool> {
         batch::delete_usage(&self.client, id).await
@@ -135,5 +150,9 @@ impl UsagePersistence for LibsqlPersistence {
         page: &PageQuery,
     ) -> anyhow::Result<PageResult<AuditLog>> {
         logs::audit_logs::query_page(&self.client, q, page).await
+    }
+    async fn clear_audit_logs(&self) -> anyhow::Result<()> {
+        util::exec(&self.client, "DELETE FROM audit_logs", &[]).await?;
+        Ok(())
     }
 }
