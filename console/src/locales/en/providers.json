@@ -190,6 +190,9 @@
     "taskletSocialSteps": "The authorization page must open in this tab. After authorization, copy the complete tasklet.ai callback URL from the address bar, return to the gproxy Console, and paste it below.",
     "taskletOpenSocial": "Open sign-in in this tab",
     "taskletSocialHint": "The URL must start with https://tasklet.ai/oauth2callback and contain code and state. The code is exchanged once and is not stored.",
+    "chatgptCookieLabel": "chatgpt.com cookie",
+    "chatgptCookieHint": "Paste the complete Cookie value from a browser request to chatgpt.com.",
+    "chatgptCookieInvalid": "No Cookie content found in the pasted text.",
     "cookieLabel": "claude.ai cookie",
     "cookieHint": "Paste the full Cookie header or just sessionKey=…; only sessionKey is used.",
     "cookieInvalid": "No sessionKey found in the pasted text."

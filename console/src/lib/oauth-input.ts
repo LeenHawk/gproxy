@@ -29,3 +29,9 @@ export function extractSessionKey(pasted: string): string | null {
   }
   return null;
 }
+
+/** Accept either a Cookie header value or a complete `Cookie: ...` header line. */
+export function normalizeCookieHeader(pasted: string): string | null {
+  const text = pasted.trim().replace(/^cookie\s*:\s*/i, "").trim();
+  return text === "" ? null : text;
+}

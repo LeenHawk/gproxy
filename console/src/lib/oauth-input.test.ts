@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractSessionKey, validateCallbackUrl } from "./oauth-input";
+import { extractSessionKey, normalizeCookieHeader, validateCallbackUrl } from "./oauth-input";
 
 const AUTH = "https://claude.ai/oauth/authorize?client_id=x&state=abc&code_challenge=y";
 
@@ -29,5 +29,16 @@ describe("extractSessionKey", () => {
   it("rejects input without a sessionKey", () => {
     expect(extractSessionKey("foo=1; bar=2")).toBeNull();
     expect(extractSessionKey("")).toBeNull();
+  });
+});
+
+describe("normalizeCookieHeader", () => {
+  it("accepts a Cookie value or complete header line", () => {
+    expect(normalizeCookieHeader("foo=1; bar=2")).toBe("foo=1; bar=2");
+    expect(normalizeCookieHeader("Cookie: foo=1; bar=2")).toBe("foo=1; bar=2");
+  });
+  it("rejects empty Cookie content", () => {
+    expect(normalizeCookieHeader("Cookie: ")).toBeNull();
+    expect(normalizeCookieHeader("")).toBeNull();
   });
 });
