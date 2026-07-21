@@ -193,7 +193,7 @@ fn content_text(
                     &mut parts,
                 )?;
             }
-            Some("file") => collect_file(part.get("file"), uploads, file_ids)?,
+            Some("file") => collect_file(part.get("file"), uploads, file_ids, &mut parts)?,
             _ => {}
         }
     }
@@ -213,6 +213,7 @@ fn collect_file(
     file: Option<&Value>,
     uploads: &mut Vec<Upload>,
     file_ids: &mut Vec<String>,
+    text_parts: &mut Vec<String>,
 ) -> Result<(), ChannelError> {
     let Some(file) = file else { return Ok(()) };
     if let Some(id) = file.get("file_id").and_then(Value::as_str) {
@@ -228,12 +229,16 @@ fn collect_file(
         .get("filename")
         .and_then(Value::as_str)
         .unwrap_or("attachment.bin");
+    let data = file
+        .get("file_data")
+        .or_else(|| file.get("file_url"))
+        .and_then(Value::as_str);
     collect_data(
-        file.get("file_data").and_then(Value::as_str),
+        data,
         Some("application/octet-stream"),
         name,
         uploads,
-        &mut Vec::new(),
+        text_parts,
     )
 }
 

@@ -268,7 +268,7 @@ fn inline_data_to_chat_part(mime_type: String, data: String) -> Option<openai::C
         }),
         _ => Some(openai::ChatContentPart::File {
             file: openai::ChatFileRef {
-                file_data: Some(data),
+                file_data: Some(format!("data:{mime_type};base64,{data}")),
                 file_id: None,
                 filename: None,
                 extra: Default::default(),
@@ -295,16 +295,24 @@ fn file_data_to_chat_part(file_data: gemini::FileData) -> Option<openai::ChatCon
             extra: Default::default(),
         });
     }
-    Some(openai::ChatContentPart::File {
-        file: openai::ChatFileRef {
-            file_data: None,
-            file_id: Some(file_data.file_uri),
-            filename: None,
+    if file_data.file_uri.starts_with("f_") {
+        Some(openai::ChatContentPart::File {
+            file: openai::ChatFileRef {
+                file_data: None,
+                file_id: Some(file_data.file_uri),
+                filename: None,
+                extra: Default::default(),
+            },
+            prompt_cache_breakpoint: None,
             extra: Default::default(),
-        },
-        prompt_cache_breakpoint: None,
-        extra: Default::default(),
-    })
+        })
+    } else {
+        Some(openai::ChatContentPart::Text {
+            text: format!("Attachment URL: {}", file_data.file_uri),
+            prompt_cache_breakpoint: None,
+            extra: Default::default(),
+        })
+    }
 }
 
 fn function_response_to_text(response: &gemini::FunctionResponse) -> String {
@@ -327,5 +335,36 @@ fn chat_assistant_content_to_text(content: openai::ChatAssistantContent) -> Stri
             })
             .collect::<Vec<_>>()
             .join(""),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::protocol::gemini;
+
+    #[test]
+    fn non_image_inline_data_keeps_mime_type() {
+        let part =
+            super::inline_data_to_chat_part("application/pdf".into(), "cGRm".into()).unwrap();
+        let value = serde_json::to_value(part).unwrap();
+        assert_eq!(
+            value["file"]["file_data"],
+            "data:application/pdf;base64,cGRm"
+        );
+    }
+
+    #[test]
+    fn remote_non_image_file_becomes_attachment_text() {
+        let part = super::file_data_to_chat_part(gemini::FileData {
+            mime_type: Some("application/pdf".into()),
+            file_uri: "https://files.example/report.pdf".into(),
+            extra: Default::default(),
+        })
+        .unwrap();
+        let value = serde_json::to_value(part).unwrap();
+        assert_eq!(
+            value["text"],
+            "Attachment URL: https://files.example/report.pdf"
+        );
     }
 }

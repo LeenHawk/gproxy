@@ -181,7 +181,12 @@ export const CHANNELS: ChannelMeta[] = [
     loginModes: [],
     usage: false,
     endpointKinds: [],
-    secretTemplate: { session_token: "", workspace_id: "" },
+    secretTemplate: {
+      session_token: "",
+      workspace_id: "",
+      mcp_url: "https://YOUR_GPROXY_HOST/tasklet/mcp",
+      mcp_api_key: "",
+    },
   },
 ];
 
