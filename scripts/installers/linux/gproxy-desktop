@@ -111,7 +111,8 @@ if [ ! -f "$admin_marker" ]; then
     FALSE kiro "Kiro" \
     FALSE copilotcli "GitHub Copilot CLI" \
     FALSE chatgpt "ChatGPT Web" \
-    FALSE claudeweb "Claude Web" 2>/dev/null || true)"
+    FALSE claudeweb "Claude Web" \
+    FALSE tasklet "Tasklet Agent" 2>/dev/null || true)"
 
   if zenity --question --title="Set up GPROXY" \
     --text="Generate an administrator API key? It will be shown once after setup." \

@@ -14,6 +14,7 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   grokbuild: "https://api.x.ai/v1",
   chatgpt: "https://chatgpt.com",
   claudeweb: "https://claude.ai",
+  tasklet: "https://api.tasklet.ai",
 };
 
 export const ENDPOINT_KINDS = [
@@ -171,6 +172,16 @@ export const CHANNELS: ChannelMeta[] = [
     usage: false,
     endpointKinds: [],
     secretTemplate: { access_token: "", cookie: "" },
+  },
+  {
+    // Tasklet Agent API (native-only `channel-tasklet` feature). The browser
+    // session token and workspace id are entered manually from a signed-in SPA.
+    id: "tasklet",
+    family: "oauth_tokens",
+    loginModes: [],
+    usage: false,
+    endpointKinds: [],
+    secretTemplate: { session_token: "", workspace_id: "" },
   },
 ];
 

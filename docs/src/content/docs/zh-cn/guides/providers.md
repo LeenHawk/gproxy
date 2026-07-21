@@ -11,7 +11,8 @@ description: 在 GPROXY v2 中配置上游 Provider、凭据、Operation 路由�
 
 ## 内置 Channel
 
-native 和 edge runtime 构建同一套 channel registry。当前内置 channel id 包括：
+native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消费版 web 渠道不进入 edge
+构建。当前内置 channel id 包括：
 
 | Channel id | 常见用途 |
 | --- | --- |
@@ -21,6 +22,8 @@ native 和 edge runtime 构建同一套 channel registry。当前内置 channel 
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
 | `chatgpt` | 通过 chatgpt.com 会话 cookie 接入 ChatGPT 消费版 web 后端。 |
+| `claudeweb` | 通过 claude.ai 会话 cookie 接入 Claude 消费版 web 后端（仅 native）。 |
+| `tasklet` | 通过浏览器会话 token 接入 Tasklet Agent API（仅 native）。 |
 
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
 
@@ -63,6 +66,43 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 
 「进项目」与「临时聊天」互斥（项目会话必然是持久的）。当 `mode` 缺省时，旧的
 `temporary_chat: true\|false` 布尔仍然兼容生效。
+
+### Tasklet 渠道（会话 token）
+
+仅 native 的 `tasklet` 渠道会为每次生成创建一个 Tasklet Agent，再通过 Tasklet sync
+WebSocket 转发 thinking、自主工具执行和最终内容。OpenAI Chat、Responses、Claude
+Messages 与 Gemini 生成请求由现有路由转换统一接入。内嵌 base64 图片/文件会先上传，
+也可以直接传 Tasklet 的 `f_...` 文件 ID。
+
+手动凭据需要 `session_token` 与 `workspace_id`。它们来自已登录的 tasklet.ai 浏览器会话，
+等同账号密码，不要提交或分享。可选 provider 设置包括 `timezone`（默认 `UTC`）和
+`emit_tool_trace`（默认 `false`，开启后把工具名称作为 reasoning 输出）。
+
+获取方式：
+
+1. 登录 Tasklet，打开浏览器开发者工具的 **Network（网络）** 面板，然后向任意 agent
+   发送一条消息。如果没有捕获到请求，保持开发者工具开启并刷新页面后重试。
+2. 打开 `POST https://api.tasklet.ai/api/sendChatMessage` 请求。
+3. 在请求头 `Authorization` 中复制 `Bearer ` 后面的值，填入 `session_token`；不要包含
+   `Bearer ` 前缀。
+4. 从 JSON 请求体复制 `workspaceId`，填入 `workspace_id`。
+
+也可以在 `/api/sync` WebSocket 的第一条 `connect` 发送消息中找到 `sessionToken`。该 token
+等同密码；Tasklet 会话被撤销或过期后，需要在 gproxy 中同步更换。
+
+`channel-tasklet` 特征还会内置一个 Rust MCP 服务，用于把工具调用交还给客户端。先用
+公网 HTTPS 暴露 gproxy，并创建一个专供 Tasklet 使用的 gproxy 用户 API Key。在同一个
+Tasklet workspace 中连接 MCP 服务 `https://你的_GPROXY_域名/tasklet/mcp`，展开
+**Advanced → Headers**，添加 `X-API-Key: 你的_GPROXY_用户_KEY`，然后授权
+`gproxy_call_client_tool` 工具；该连接只需配置一次。MCP 接口不接受查询参数中的 key。
+
+当 OpenAI 兼容请求携带 function 或 custom tools 时，gproxy 会把 schema 与一个短期、
+一次性的 turn id 交给 Tasklet。Tasklet 发起 MCP 调用后，gproxy 会向原请求返回标准
+`tool_calls`，不会自行执行客户端工具。
+
+MCP 接口要求有效且已启用的 gproxy 用户 Key，并且不会公开凭据或当前工具清单；调用还必须
+持有活动 Tasklet turn 中的随机 turn id。撤销这个专用用户 Key 即可关闭 Tasklet MCP 访问。
+多实例部署必须确保生成请求与 MCP 回调落到同一个 gproxy 进程，因为活动响应流是进程内状态。
 
 ## Provider 字段
 

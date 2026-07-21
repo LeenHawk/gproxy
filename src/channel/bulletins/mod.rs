@@ -50,5 +50,7 @@ pub mod geminicli;
 pub mod grokbuild;
 #[cfg(feature = "channel-kiro")]
 pub mod kiro;
+#[cfg(all(feature = "channel-tasklet", not(target_arch = "wasm32")))]
+pub mod tasklet;
 #[cfg(feature = "channel-vertex")]
 pub mod vertex;

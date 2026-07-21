@@ -78,6 +78,17 @@ pub fn router(state: AppState) -> Router {
             ));
         }
         router = router.merge(gateway);
+        #[cfg(feature = "channel-tasklet")]
+        {
+            let mcp = ServiceBuilder::new()
+                .layer(axum::middleware::from_fn_with_state(
+                    state.clone(),
+                    require_tasklet_mcp_key,
+                ))
+                .layer(tower_http::limit::RequestBodyLimitLayer::new(256 * 1024))
+                .service(crate::channel::bulletins::tasklet::mcp::service());
+            router = router.nest_service("/tasklet/mcp", mcp);
+        }
         // /healthz, /version and /metrics sit behind the SAME admin gate as
         // /admin/* (session cookie or an admin user's API key) — no ops endpoint
         // is public. This gate stays outside the Admin API dispatcher.
@@ -97,6 +108,30 @@ pub fn router(state: AppState) -> Router {
     }
 
     router.with_state(state)
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "channel-tasklet"))]
+async fn require_tasklet_mcp_key(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse as _;
+
+    let authenticated = {
+        let snapshot = state.cp();
+        crate::pipeline::auth::authenticate(&snapshot, request.headers(), None).is_ok()
+    };
+    if authenticated {
+        next.run(request).await
+    } else {
+        let mut response = crate::api::error::ApiError::Unauthorized.into_response();
+        response.headers_mut().insert(
+            http::header::WWW_AUTHENTICATE,
+            http::HeaderValue::from_static("Bearer realm=\"gproxy-tasklet-mcp\""),
+        );
+        response
+    }
 }
 
 /// Convert target-independent ops response data to axum's body type.
@@ -255,6 +290,80 @@ mod tests {
                 "authorization,content-type,x-goog-api-key"
             ))
         );
+    }
+
+    #[cfg(feature = "channel-tasklet")]
+    #[tokio::test]
+    async fn tasklet_mcp_requires_enabled_user_key() {
+        use crate::store::persistence::records::UserKeyInput;
+
+        let (state, _dir) = state_with_cors(vec![]).await;
+        let org = state
+            .persistence
+            .upsert_org(OrgInput {
+                id: None,
+                name: "mcp-org".into(),
+                enabled: true,
+                description: None,
+            })
+            .await
+            .unwrap();
+        let user = state
+            .persistence
+            .upsert_user(UserInput {
+                id: None,
+                name: "mcp-user".into(),
+                org_id: org.id,
+                team_id: None,
+                password: None,
+                enabled: true,
+                is_admin: false,
+            })
+            .await
+            .unwrap();
+        state
+            .persistence
+            .upsert_user_key(UserKeyInput {
+                id: None,
+                user_id: user.id,
+                api_key_digest: crate::util::api_key::key_digest("sk-mcp-test"),
+                api_key_ciphertext: "sk-mcp-test".into(),
+                label: Some("tasklet".into()),
+                enabled: true,
+            })
+            .await
+            .unwrap();
+        let snapshot = ControlPlaneSnapshot::build(state.persistence.as_ref(), 2)
+            .await
+            .unwrap();
+        state.snapshot.store(Arc::new(snapshot));
+        let app = super::router(state);
+        let request = |key: Option<&str>| {
+            let mut request = Request::post("/tasklet/mcp")
+                .header(header::HOST, "localhost")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::ACCEPT, "application/json, text/event-stream")
+                .header("mcp-protocol-version", "2025-03-26");
+            if let Some(key) = key {
+                request = request.header("x-api-key", key);
+            }
+            request
+                .body(Body::from(
+                    r#"{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}"#,
+                ))
+                .unwrap()
+        };
+
+        let unauthorized = app.clone().oneshot(request(None)).await.unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+        assert!(
+            unauthorized
+                .headers()
+                .contains_key(header::WWW_AUTHENTICATE)
+        );
+
+        let authorized = app.oneshot(request(Some("sk-mcp-test"))).await.unwrap();
+        assert_eq!(authorized.status(), StatusCode::OK);
     }
 
     #[tokio::test]

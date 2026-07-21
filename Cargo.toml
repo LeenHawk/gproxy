@@ -60,7 +60,7 @@ axum = { version = "0.8", features = ["http2", "json", "ws"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
 # §16.2 overload protection: bounded in-flight concurrency + load-shed → 503.
 tower = { version = "0.5", default-features = false, features = ["util", "limit", "load-shed"] }
-tower-http = { version = "0.7", features = ["cors"] }
+tower-http = { version = "0.7", features = ["cors", "limit"] }
 clap = { version = "4", features = ["derive", "env"] }
 redis = { version = "1", features = ["tokio-comp", "connection-manager"], optional = true }
 sea-orm = { version = "2.0.0-rc.42", features = ["runtime-tokio-rustls", "sqlx-sqlite", "sqlx-postgres", "sqlx-mysql"], optional = true }
@@ -86,6 +86,7 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 # wasm/edge builds never embed the console (size-sensitive).
 rust-embed = { version = "8", features = ["include-exclude"] }
 mime_guess = "2"
+rmcp = { version = "2.2", default-features = false, features = ["macros", "server", "transport-streamable-http-server"], optional = true }
 
 # ── wasm32-only ───────────────────────────────────────────────────────────────
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -139,9 +140,9 @@ edge = ["cache-libsql", "cache-upstash", "persist-libsql", "upstream-fetch", "ch
 
 # ── channels: one feature per bulletin, all default-on. `channels` = every
 # channel (incl. native-only web-session channels); `channels-edge` is the
-# wasm/edge subset (chatgpt/claudeweb need multi-step native
+# wasm/edge subset (chatgpt/claudeweb/tasklet need multi-step native
 # streaming and/or browser TLS → upstream-wreq → native-only).
-channels = ["channels-edge", "channel-chatgpt", "channel-claudeweb"]
+channels = ["channels-edge", "channel-chatgpt", "channel-claudeweb", "channel-tasklet"]
 channels-edge = [
     "channel-aistudio",
     "channel-antigravity",
@@ -166,6 +167,7 @@ channel-aistudio = []
 channel-antigravity = []
 channel-chatgpt = ["upstream-wreq"]
 channel-claudeweb = ["upstream-wreq"]
+channel-tasklet = ["upstream-wreq", "dep:rmcp"]
 channel-claudeapi = []
 channel-claudecode = []
 channel-codex = []
