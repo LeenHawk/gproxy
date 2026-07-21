@@ -75,6 +75,10 @@ Messages 与 Gemini 生成请求由现有路由转换统一接入。内嵌 base6
 请求内自动上传，不提供单独的下游 Files API；Tasklet 的 `f_...` 文件 ID 会直接传递。远程
 附件 URL 不由 gproxy 下载，而是作为任务内容交给 Tasklet 访问。
 
+Tasklet 特征会启用本地 token 计数。当渲染后的 system/developer/messages 文本超过 50,000
+个本地 token 时，gproxy 会自动把完整文本上传为 `paste.txt`，消息仅保留
+`Read paste.txt.`；已有附件与客户端工具桥接不受影响。
+
 手动凭据需要 `session_token` 与 `workspace_id`。它们来自已登录的 tasklet.ai 浏览器会话，
 等同账号密码，不要提交或分享。可选 provider 设置包括 `timezone`（默认 `UTC`）和
 `emit_tool_trace`（默认 `false`，开启后把工具名称作为 reasoning 输出）。

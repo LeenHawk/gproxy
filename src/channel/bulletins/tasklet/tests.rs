@@ -67,6 +67,28 @@ fn preserves_remote_file_url_in_generation_message() {
 }
 
 #[test]
+fn oversized_prompt_becomes_text_upload() {
+    let text = "large prompt token ".repeat(60_000);
+    assert!(crate::tokenize::count_text(&text) > 50_000);
+    let body = json!({
+        "model":"tasklet-standard",
+        "messages":[{"role":"system","content":"follow carefully"},{
+            "role":"user","content":text
+        }]
+    });
+    let parsed = request::parse(body.to_string().as_bytes(), "tasklet-standard").unwrap();
+    let upload = parsed
+        .uploads
+        .iter()
+        .find(|upload| upload.file_name == "paste.txt")
+        .unwrap();
+    let uploaded = String::from_utf8(upload.bytes.clone()).unwrap();
+    assert!(uploaded.contains("system: follow carefully"));
+    assert!(uploaded.contains("user: large prompt token"));
+    assert_eq!(parsed.message, "Read paste.txt.");
+}
+
+#[test]
 fn captures_client_tools_and_attaches_bridge_instructions() {
     let body = json!({
         "model":"tasklet-standard",

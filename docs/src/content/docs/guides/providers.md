@@ -91,6 +91,11 @@ request; there is no separate downstream Files API. Tasklet `f_...` file ids are
 passed directly. Remote attachment URLs are included in the task for Tasklet to
 access rather than fetched by gproxy.
 
+The Tasklet feature includes local token counting. When the rendered
+system/developer/messages text exceeds 50,000 local tokens, gproxy automatically
+uploads the complete text as `paste.txt` and sends `Read paste.txt.`. Existing
+attachments and client-tool bridging continue normally.
+
 Create a manual credential with `session_token` and `workspace_id`. Both values
 come from an authenticated tasklet.ai browser session and are password-equivalent;
 do not commit or share them. Optional provider settings are `timezone` (default

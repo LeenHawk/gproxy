@@ -4,6 +4,9 @@ use serde_json::{Value, json};
 use crate::channel::ChannelError;
 use crate::protocol::openai::{ChatCompletionRequest, ChatTool, FunctionDefinition};
 
+const INLINE_TOKEN_LIMIT: u64 = 50_000;
+const LARGE_PROMPT_FILE: &str = "paste.txt";
+
 pub struct Upload {
     pub bytes: Vec<u8>,
     pub media_type: String,
@@ -57,7 +60,7 @@ pub fn parse(body: &[u8], upstream_model: &str) -> Result<TaskletRequest, Channe
             rendered.push((role, text));
         }
     }
-    let message = if rendered.len() == 1 && rendered[0].0 == "user" {
+    let mut message = if rendered.len() == 1 && rendered[0].0 == "user" {
         rendered.remove(0).1
     } else {
         rendered
@@ -71,6 +74,7 @@ pub fn parse(body: &[u8], upstream_model: &str) -> Result<TaskletRequest, Channe
             "tasklet request has no usable content".into(),
         ));
     }
+    move_large_prompt_to_upload(&mut message, &mut uploads);
     let model = if upstream_model.trim().is_empty() {
         serde_json::to_value(typed.model)
             .ok()
@@ -111,6 +115,18 @@ pub fn parse(body: &[u8], upstream_model: &str) -> Result<TaskletRequest, Channe
         tools,
         tool_choice,
     })
+}
+
+fn move_large_prompt_to_upload(message: &mut String, uploads: &mut Vec<Upload>) {
+    if crate::tokenize::count_text(message) <= INLINE_TOKEN_LIMIT {
+        return;
+    }
+    uploads.push(Upload {
+        bytes: std::mem::take(message).into_bytes(),
+        media_type: "text/plain".into(),
+        file_name: LARGE_PROMPT_FILE.into(),
+    });
+    *message = format!("Read {LARGE_PROMPT_FILE}.");
 }
 
 pub fn attach_tool_bridge(request: &mut TaskletRequest, turn_id: &str) -> Result<(), ChannelError> {
