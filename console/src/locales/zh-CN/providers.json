@@ -176,6 +176,12 @@
     "kiroStartUrl": "Start URL",
     "kiroRegion": "区域",
     "kiroStartUrlHint": "你所在组织的 AWS 访问门户地址(https://….awsapps.com/start)。",
+    "taskletEmail": "Tasklet 邮箱",
+    "taskletEmailHint": "Tasklet 会发送一次性 PIN；gproxy 不会保存 PIN 或浏览器数据。",
+    "taskletSendPin": "发送 PIN",
+    "taskletResendPin": "重新发送 PIN",
+    "taskletPin": "Tasklet PIN",
+    "taskletPinHint": "输入发送到 {{email}} 的 PIN。",
     "cookieLabel": "claude.ai Cookie",
     "cookieHint": "粘贴完整 Cookie 头或仅 sessionKey=…;只会使用 sessionKey。",
     "cookieInvalid": "粘贴内容中未找到 sessionKey。"

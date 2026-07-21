@@ -149,6 +149,8 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
             "claudeweb",
             Arc::new(bulletins::claudeweb::ClaudeWebChannel),
         ),
+        #[cfg(all(feature = "channel-tasklet", not(target_arch = "wasm32")))]
+        ("tasklet", Arc::new(bulletins::tasklet::TaskletChannel)),
     ]
 }
 

@@ -79,11 +79,13 @@ Tasklet 特征会启用本地 token 计数。当渲染后的 system/developer/me
 个本地 token 时，gproxy 会自动把完整文本上传为 `paste.txt`，消息仅保留
 `Read paste.txt.`；已有附件与客户端工具桥接不受影响。
 
-手动凭据需要 `session_token` 与 `workspace_id`。它们来自已登录的 tasklet.ai 浏览器会话，
-等同账号密码，不要提交或分享。可选 provider 设置包括 `timezone`（默认 `UTC`）和
-`emit_tool_trace`（默认 `false`，开启后把工具名称作为 reasoning 输出）。
+在 Tasklet provider 中点击 **接入**，输入账号邮箱并请求 Tasklet PIN，即可完成登录。
+gproxy 会直接向 Tasklet 交换 PIN，通过 `/api/profile` 验证返回的会话，并且只加密保存会话
+token 与所选 workspace 元数据。默认优先选择个人 workspace，否则使用 Tasklet 返回的第一
+个 workspace。可选 provider 设置包括 `timezone`（默认 `UTC`）和 `emit_tool_trace`（默认
+`false`，开启后把工具名称作为 reasoning 输出）。
 
-获取方式：
+仍可手动创建包含 `session_token` 与 `workspace_id` 的凭据。手动获取方式：
 
 1. 登录 Tasklet，打开浏览器开发者工具的 **Network（网络）** 面板，然后向任意 agent
    发送一条消息。如果没有捕获到请求，保持开发者工具开启并刷新页面后重试。

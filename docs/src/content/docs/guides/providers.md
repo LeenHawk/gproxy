@@ -96,12 +96,16 @@ system/developer/messages text exceeds 50,000 local tokens, gproxy automatically
 uploads the complete text as `paste.txt` and sends `Read paste.txt.`. Existing
 attachments and client-tool bridging continue normally.
 
-Create a manual credential with `session_token` and `workspace_id`. Both values
-come from an authenticated tasklet.ai browser session and are password-equivalent;
-do not commit or share them. Optional provider settings are `timezone` (default
-`UTC`) and `emit_tool_trace` (default `false`, emits tool names as reasoning).
+Use **Connect** on a Tasklet provider to enter the account email, request a Tasklet
+PIN, and complete login. gproxy exchanges the PIN directly with Tasklet, validates
+the returned session through `/api/profile`, and stores only the encrypted session
+token and selected workspace metadata. It prefers a personal workspace and falls
+back to the first workspace returned by Tasklet. Optional provider settings are
+`timezone` (default `UTC`) and `emit_tool_trace` (default `false`, emits tool names
+as reasoning).
 
-To obtain the values:
+Manual credentials with `session_token` and `workspace_id` remain supported. To
+obtain those values manually:
 
 1. Sign in to Tasklet, open the browser developer tools, select **Network**, and
    send any message to an agent. Reload the page first if the request is not
