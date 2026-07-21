@@ -85,6 +85,12 @@ token 与所选 workspace 元数据。默认优先选择个人 workspace，否�
 个 workspace。可选 provider 设置包括 `timezone`（默认 `UTC`）和 `emit_tool_trace`（默认
 `false`，开启后把工具名称作为 reasoning 输出）。
 
+同一向导还支持通过 Tasklet 官方 OAuth 客户端登录 Google 与 Microsoft 账号。Tasklet 将两者
+的 redirect URI 固定为 `https://tasklet.ai/oauth2callback`，并且只会把 popup 结果发给
+`tasklet.ai` 同源 opener，因此 gproxy 无法跨域自动接收回调。向导会改在当前标签页打开 OAuth；
+授权完成后，从地址栏复制完整回调 URL，返回 gproxy Console 并粘贴到待完成登录中。gproxy 会
+先验证回调 host、path 与一次性 state，再交换 code；回调 code 和浏览器状态都不会写入凭据。
+
 仍可手动创建包含 `session_token` 与 `workspace_id` 的凭据。手动获取方式：
 
 1. 登录 Tasklet，打开浏览器开发者工具的 **Network（网络）** 面板，然后向任意 agent

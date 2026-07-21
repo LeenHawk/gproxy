@@ -3,6 +3,10 @@
 mod auth;
 mod bridge;
 mod login;
+mod login_social;
+mod login_support;
+#[cfg(test)]
+mod login_tests;
 pub(crate) mod mcp;
 mod models;
 mod registration;
@@ -59,10 +63,10 @@ impl ChannelLogin for TaskletChannel {
         client: &std::sync::Arc<dyn UpstreamClient>,
         params: &serde_json::Value,
         _redirect_uri: &str,
-        _state: &str,
+        state: &str,
         _pkce_challenge: &str,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
-        login::start(client, params).await.map(Some)
+        login::start(client, params, state).await.map(Some)
     }
 
     async fn authcode_exchange(

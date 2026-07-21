@@ -104,6 +104,16 @@ back to the first workspace returned by Tasklet. Optional provider settings are
 `timezone` (default `UTC`) and `emit_tool_trace` (default `false`, emits tool names
 as reasoning).
 
+The same wizard supports Google and Microsoft account login through Tasklet's
+official OAuth clients. Tasklet fixes both providers' redirect URI to
+`https://tasklet.ai/oauth2callback` and only reports popup results to a
+`tasklet.ai` opener, so gproxy cannot receive that callback across origins. The
+wizard therefore opens OAuth in the current tab. After authorization, copy the
+complete callback URL from the address bar, return to the gproxy Console, and
+paste it into the pending login. gproxy verifies the callback host, path, and
+one-time state before exchanging the code; neither the callback code nor browser
+state is stored in the credential.
+
 Manual credentials with `session_token` and `workspace_id` remain supported. To
 obtain those values manually:
 

@@ -177,11 +177,19 @@
     "kiroRegion": "Region",
     "kiroStartUrlHint": "Your organization's AWS access portal URL (https://….awsapps.com/start).",
     "taskletEmail": "Tasklet email",
+    "taskletMethod": "Tasklet login method",
+    "taskletMethods": {
+      "email": "Email PIN"
+    },
     "taskletEmailHint": "Tasklet will send a one-time PIN. The PIN and browser data are not stored.",
     "taskletSendPin": "Send PIN",
     "taskletResendPin": "Resend PIN",
     "taskletPin": "Tasklet PIN",
     "taskletPinHint": "Enter the PIN sent to {{email}}.",
+    "taskletSocialIntro": "Sign in with the selected account through Tasklet's official Google or Microsoft OAuth client.",
+    "taskletSocialSteps": "The authorization page must open in this tab. After authorization, copy the complete tasklet.ai callback URL from the address bar, return to the gproxy Console, and paste it below.",
+    "taskletOpenSocial": "Open sign-in in this tab",
+    "taskletSocialHint": "The URL must start with https://tasklet.ai/oauth2callback and contain code and state. The code is exchanged once and is not stored.",
     "cookieLabel": "claude.ai cookie",
     "cookieHint": "Paste the full Cookie header or just sessionKey=…; only sessionKey is used.",
     "cookieInvalid": "No sessionKey found in the pasted text."
