@@ -86,7 +86,10 @@ The native-only `tasklet` channel submits each generation as a new Tasklet Agent
 then follows its `thinking`, autonomous tool execution, and final content over the
 Tasklet sync WebSocket. It accepts OpenAI Chat, Responses, Claude Messages, and
 Gemini generation requests through the normal routing transforms. Inline base64
-images/files are uploaded first; Tasklet `f_...` file ids can be passed directly.
+images, audio, and files are uploaded automatically as part of the generation
+request; there is no separate downstream Files API. Tasklet `f_...` file ids are
+passed directly. Remote attachment URLs are included in the task for Tasklet to
+access rather than fetched by gproxy.
 
 Create a manual credential with `session_token` and `workspace_id`. Both values
 come from an authenticated tasklet.ai browser session and are password-equivalent;
@@ -108,12 +111,23 @@ The token can also be seen in the first `connect` message sent over the
 in gproxy after the Tasklet session is revoked or expires.
 
 The `channel-tasklet` feature also embeds a Rust MCP server for client-side tool
-calls. Expose gproxy over public HTTPS and create a dedicated gproxy user API key.
-In the same Tasklet workspace, connect
-`https://YOUR_GPROXY_HOST/tasklet/mcp` as an MCP server, open **Advanced →
-Headers**, and add `X-API-Key: YOUR_GPROXY_USER_KEY`. Approve its
-`gproxy_call_client_tool` tool. This connection is made once. The MCP endpoint
-does not accept keys in its query string.
+calls. Expose gproxy over public HTTPS, create a dedicated gproxy user API key,
+and add these fields to the Tasklet credential:
+
+```json
+{
+  "mcp_url": "https://YOUR_GPROXY_HOST/tasklet/mcp",
+  "mcp_api_key": "YOUR_GPROXY_USER_KEY"
+}
+```
+
+On the first request containing client tools, gproxy checks the Tasklet workspace
+connections. If the URL is absent, it automatically creates the pending MCP setup
+agent/block required by Tasklet, submits the URL with `X-API-Key`, verifies the
+new connection, and grants workspace permission only to
+`gproxy_call_client_tool`. Existing matching connections are reused. No manual
+Tasklet connection step is required. The result is cached for five minutes, then
+revalidated, and the MCP endpoint does not accept keys in its query string.
 
 When an OpenAI-compatible request contains function or custom tools, gproxy gives
 Tasklet their schemas and a short-lived, single-use turn id. A Tasklet MCP call
