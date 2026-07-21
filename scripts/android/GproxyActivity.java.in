@@ -39,20 +39,20 @@ public final class GproxyActivity extends Activity {
     private TextView logView;
     private boolean receiverRegistered;
     private boolean startRequested;
-    private final boolean[] selectedChannels = new boolean[20];
+    private final boolean[] selectedChannels = new boolean[21];
 
     private static final String[] CHANNEL_IDS = {
         "openai", "openrouter", "deepseek", "groq", "nvidia", "vercel", "custom",
         "claudeapi", "aistudio", "vertexexpress", "vertex", "codex", "claudecode",
         "geminicli", "antigravity", "grokbuild", "kiro", "copilotcli", "chatgpt",
-        "claudeweb"
+        "claudeweb", "tasklet"
     };
     private static final String[] CHANNEL_LABELS = {
         "OpenAI API", "OpenRouter", "DeepSeek", "Groq", "NVIDIA NIM",
         "Vercel AI Gateway", "Custom endpoint (configure base URL later)",
         "Anthropic API", "Google AI Studio", "Vertex AI Express", "Vertex AI",
         "OpenAI Codex", "Claude Code", "Gemini CLI", "Antigravity", "Grok Build",
-        "Kiro", "GitHub Copilot CLI", "ChatGPT Web", "Claude Web"
+        "Kiro", "GitHub Copilot CLI", "ChatGPT Web", "Claude Web", "Tasklet Agent"
     };
 
     private final BroadcastReceiver events = new BroadcastReceiver() {

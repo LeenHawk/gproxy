@@ -14,8 +14,8 @@ GPROXY.
 
 ## Built-in Channels
 
-The native and edge runtimes build the same channel registry. Current built-in
-channel ids are:
+Native builds include every channel below. Edge builds exclude the consumer-web
+channels that require multi-step WebSocket sessions. Current built-in channel ids are:
 
 | Channel id | Typical use |
 | --- | --- |
@@ -25,6 +25,8 @@ channel ids are:
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
 | `chatgpt` | ChatGPT consumer web backend via a chatgpt.com session cookie. |
+| `claudeweb` | Claude consumer web backend via a claude.ai session cookie (native only). |
+| `tasklet` | Tasklet Agent API via a browser session token (native only). |
 
 Every channel declares a routing surface as `(Operation, OperationKind) ->
 RoutingDecision`. That is the source for the provider's default
@@ -77,6 +79,53 @@ the provider form as a three-way selector, controls where conversations land:
 Project and Temporary are mutually exclusive (a project conversation is always
 persistent). The legacy `temporary_chat: true\|false` boolean is still honored
 when `mode` is absent.
+
+### Tasklet channel (session token)
+
+The native-only `tasklet` channel submits each generation as a new Tasklet Agent,
+then follows its `thinking`, autonomous tool execution, and final content over the
+Tasklet sync WebSocket. It accepts OpenAI Chat, Responses, Claude Messages, and
+Gemini generation requests through the normal routing transforms. Inline base64
+images/files are uploaded first; Tasklet `f_...` file ids can be passed directly.
+
+Create a manual credential with `session_token` and `workspace_id`. Both values
+come from an authenticated tasklet.ai browser session and are password-equivalent;
+do not commit or share them. Optional provider settings are `timezone` (default
+`UTC`) and `emit_tool_trace` (default `false`, emits tool names as reasoning).
+
+To obtain the values:
+
+1. Sign in to Tasklet, open the browser developer tools, select **Network**, and
+   send any message to an agent. Reload the page first if the request is not
+   captured.
+2. Open the `POST https://api.tasklet.ai/api/sendChatMessage` request.
+3. Copy the value after `Bearer ` in the `Authorization` request header into
+   `session_token`. Do not include the `Bearer ` prefix.
+4. Copy `workspaceId` from the JSON request payload into `workspace_id`.
+
+The token can also be seen in the first `connect` message sent over the
+`/api/sync` WebSocket as `sessionToken`. Treat it like a password and replace it
+in gproxy after the Tasklet session is revoked or expires.
+
+The `channel-tasklet` feature also embeds a Rust MCP server for client-side tool
+calls. Expose gproxy over public HTTPS and create a dedicated gproxy user API key.
+In the same Tasklet workspace, connect
+`https://YOUR_GPROXY_HOST/tasklet/mcp` as an MCP server, open **Advanced →
+Headers**, and add `X-API-Key: YOUR_GPROXY_USER_KEY`. Approve its
+`gproxy_call_client_tool` tool. This connection is made once. The MCP endpoint
+does not accept keys in its query string.
+
+When an OpenAI-compatible request contains function or custom tools, gproxy gives
+Tasklet their schemas and a short-lived, single-use turn id. A Tasklet MCP call
+is then returned to the original caller as a normal `tool_calls` response;
+gproxy does not execute that client tool.
+
+The MCP endpoint requires an enabled gproxy user key and exposes no credentials
+or active tool catalogue. Delegation additionally requires the unguessable turn
+id carried only by the active Tasklet turn. Revoke the dedicated user key to
+disable Tasklet MCP access. In a multi-instance deployment, route the generation
+and its MCP callback to the same gproxy process, because active response streams
+are process-local.
 
 ## Provider Fields
 

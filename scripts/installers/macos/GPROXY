@@ -108,7 +108,7 @@ if [ ! -f "$admin_marker" ]; then
   fi
 
   bootstrap_channels="$(osascript <<'APPLESCRIPT' 2>/dev/null || true
-set picked to choose from list {"openai — OpenAI API", "openrouter — OpenRouter", "deepseek — DeepSeek", "groq — Groq", "nvidia — NVIDIA NIM", "vercel — Vercel AI Gateway", "custom — Custom endpoint (configure base URL later)", "claudeapi — Anthropic API", "aistudio — Google AI Studio", "vertexexpress — Vertex AI Express", "vertex — Vertex AI", "codex — OpenAI Codex", "claudecode — Claude Code", "geminicli — Gemini CLI", "antigravity — Antigravity", "grokbuild — Grok Build", "kiro — Kiro", "copilotcli — GitHub Copilot CLI", "chatgpt — ChatGPT Web", "claudeweb — Claude Web"} with title "Set up GPROXY" with prompt "Create providers for any built-in channels you want to configure now." with multiple selections allowed and empty selection allowed
+set picked to choose from list {"openai — OpenAI API", "openrouter — OpenRouter", "deepseek — DeepSeek", "groq — Groq", "nvidia — NVIDIA NIM", "vercel — Vercel AI Gateway", "custom — Custom endpoint (configure base URL later)", "claudeapi — Anthropic API", "aistudio — Google AI Studio", "vertexexpress — Vertex AI Express", "vertex — Vertex AI", "codex — OpenAI Codex", "claudecode — Claude Code", "geminicli — Gemini CLI", "antigravity — Antigravity", "grokbuild — Grok Build", "kiro — Kiro", "copilotcli — GitHub Copilot CLI", "chatgpt — ChatGPT Web", "claudeweb — Claude Web", "tasklet — Tasklet Agent"} with title "Set up GPROXY" with prompt "Create providers for any built-in channels you want to configure now." with multiple selections allowed and empty selection allowed
 if picked is false then return ""
 set ids to {}
 repeat with itemName in picked

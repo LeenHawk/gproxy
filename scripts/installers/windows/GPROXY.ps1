@@ -101,7 +101,8 @@ function Show-SetupDialog {
         @{ Id = "kiro"; Label = "Kiro" },
         @{ Id = "copilotcli"; Label = "GitHub Copilot CLI" },
         @{ Id = "chatgpt"; Label = "ChatGPT Web" },
-        @{ Id = "claudeweb"; Label = "Claude Web" }
+        @{ Id = "claudeweb"; Label = "Claude Web" },
+        @{ Id = "tasklet"; Label = "Tasklet Agent" }
     )
     $channelList = New-Object System.Windows.Forms.CheckedListBox
     $channelList.Location = New-Object System.Drawing.Point(20, 204)
