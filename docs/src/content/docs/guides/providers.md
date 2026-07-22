@@ -21,7 +21,7 @@ channels that require multi-step WebSocket sessions. Current built-in channel id
 | --- | --- |
 | `openai`, `custom` | OpenAI API or OpenAI-compatible gateways. |
 | `azure` | Microsoft Foundry / Azure OpenAI, including OpenAI v1, Claude, embeddings, compact, and deployment-bound image APIs. |
-| `aws` | Amazon Bedrock API-key channel using Mantle for inference and Runtime for Count Tokens. |
+| `aws-bedrock` | Amazon Bedrock API-key channel using native Bedrock control-plane and Runtime APIs. |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
@@ -70,29 +70,42 @@ recognizes those standard deployment names.
 
 ### Amazon Bedrock channel
 
-The `aws` channel uses an Amazon Bedrock API key stored as
+The `aws-bedrock` channel uses an Amazon Bedrock API key stored as
 `{"api_key":"..."}`. Supply the Bedrock bearer token commonly exposed as
-`AWS_BEARER_TOKEN_BEDROCK`, not an IAM access-key ID. The channel does not use
-SigV4 credentials or the separate Claude Platform on AWS integration.
+`AWS_BEARER_TOKEN_BEDROCK`, not an IAM access-key ID. Every request uses
+`Authorization: Bearer`; the channel does not use SigV4 credentials, Mantle, or
+the separate Claude Platform on AWS integration.
 
 Set `settings_json.region` to the AWS region containing the models. It defaults
-to `us-east-1`. GPROXY derives the Mantle endpoint
-`https://bedrock-mantle.<region>.api.aws` and the Runtime endpoint
-`https://bedrock-runtime.<region>.amazonaws.com`. `base_url` overrides only the
-Mantle root; `runtime_base_url` overrides only the Runtime root. Exact
-`endpoints` take precedence over both.
+to `us-east-1`. GPROXY derives the control-plane endpoint
+`https://bedrock.<region>.amazonaws.com` and Runtime endpoint
+`https://bedrock-runtime.<region>.amazonaws.com`. `control_base_url` and
+`base_url` override those roots respectively; exact `endpoints` take precedence.
 
-Models, OpenAI Chat Completions and Responses, native Claude Messages, all
-streaming requests, and Compact use Mantle. Claude requests use Mantle's
-`/anthropic/v1/messages` surface. OpenAI Compact falls back to a regular Mantle
-Responses call and is converted back to the Compact response shape. Mantle
-streams native SSE and therefore requires no AWS EventStream decoding.
+Model listing and lookup use `ListFoundationModels` and `GetFoundationModel`.
+OpenAI Chat Completions, OpenAI Responses, Claude Messages, and Gemini content
+requests converge on Runtime Converse. Streaming uses ConverseStream and GPROXY
+incrementally decodes AWS EventStream into the requested downstream SSE format.
+Text, images, tool definitions, tool choice, tool calls, and tool results are
+mapped to Converse. Streamed tool-call JSON is buffered per content block so
+Claude, OpenAI, and Gemini clients all receive one complete argument object.
 
-Only Count Tokens uses Bedrock Runtime. OpenAI, Claude, and Gemini Count Tokens
-requests converge on Runtime's `/model/{modelId}/count-tokens` operation, with
-the routed Bedrock model or inference-profile ID in the path. The channel does
-not use Runtime InvokeModel, InvokeModelWithResponseStream, Converse, or
-ConverseStream, and does not expose embeddings or image operations.
+OpenAI, Claude, and Gemini Count Tokens converge on Runtime's
+`/model/{modelId}/count-tokens` with a native `input.converse` body. The API key
+must allow the `bedrock:CountTokens` IAM action. OpenAI Compact is the sole
+exception to Converse: AWS does not support compaction through Converse, so it
+uses Anthropic compaction through Runtime InvokeModel. Route Compact to a model
+that supports it, such as `us.anthropic.claude-sonnet-4-6`.
+
+Claude `cache_control`, OpenAI `prompt_cache_breakpoint`, provider cache rules,
+and enabled magic strings become Bedrock Converse `cachePoint` blocks. Bedrock's
+cache read/write usage is mapped back to the downstream protocol. Bedrock does
+not expose the Claude 1-hour or OpenAI 30-minute TTL controls on `cachePoint`, so
+the Runtime model's default cache policy applies.
+
+The channel does not expose embeddings or image operations. Converse also does
+not represent every stateful Responses feature; hosted tools, background jobs,
+and conversation state are unsupported.
 
 The channel supports provider `cache_breakpoint` rules, magic-string cache
 triggers, and the opt-in Fable 5 to Opus 4.8 fallback. Bedrock-style model IDs
@@ -167,7 +180,7 @@ Common `settings_json` values are available as fields in the console:
 | `base_url` | Channel-wide fallback prefix. The standard operation path is appended when no exact endpoint override exists. |
 | `endpoints` | Optional exact URL overrides, for example `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`. Overrides take precedence over `base_url`, and no path is appended. Dynamic model paths may use `{model}`. |
 | `api_version` | API version for `azure` image generation and editing; defaults to `2025-04-01-preview`. |
-| `region` | AWS region for `aws`; defaults to `us-east-1`. |
+| `region` | AWS region for `aws-bedrock`; defaults to `us-east-1`. |
 | `enable_openai_magic_cache` | Recognize GPROXY cache trigger strings on OpenAI Chat/Responses targets and write explicit OpenAI breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, OpenRouter, Vercel, and custom endpoints. |
 | `enable_claude_magic_cache` | Recognize GPROXY cache trigger strings on Claude Messages targets and write `cache_control`. Available for Azure, Amazon Bedrock, Claude API, Claude Code, OpenRouter, Vercel, and custom endpoints. |
 | `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels, including Azure and Amazon Bedrock. |

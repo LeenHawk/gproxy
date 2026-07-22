@@ -12,8 +12,8 @@ mod tests;
 // each entry to match.
 #[cfg(feature = "channel-aistudio")]
 pub mod aistudio;
-#[cfg(feature = "channel-aws")]
-pub mod aws;
+#[cfg(feature = "channel-aws-bedrock")]
+pub mod aws_bedrock;
 #[cfg(feature = "channel-azure")]
 pub mod azure;
 #[cfg(feature = "channel-claudeapi")]

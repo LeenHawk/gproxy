@@ -1,0 +1,175 @@
+use std::collections::{BTreeMap, BTreeSet};
+
+use serde_json::{Value, json};
+
+use crate::channel::ChannelStreamDecoder;
+use crate::channel::aws_eventstream::{SmithyFrame, SmithyFrameParser};
+
+use super::converse::{push_sse as push, stream_index as index};
+
+#[path = "stream_events.rs"]
+mod events;
+
+pub(super) struct ConverseStreamDecoder {
+    parser: SmithyFrameParser,
+    started: bool,
+    stopped: bool,
+    stop_reason: Option<Value>,
+    blocks: BTreeSet<u64>,
+    tools: BTreeMap<u64, ToolBlock>,
+}
+
+#[derive(Default)]
+struct ToolBlock {
+    id: String,
+    name: String,
+    input: String,
+}
+
+impl ConverseStreamDecoder {
+    pub(super) fn new() -> Self {
+        Self {
+            parser: SmithyFrameParser::new(),
+            started: false,
+            stopped: false,
+            stop_reason: None,
+            blocks: BTreeSet::new(),
+            tools: BTreeMap::new(),
+        }
+    }
+
+    fn handle(&mut self, frame: SmithyFrame, out: &mut Vec<u8>) {
+        if let Some(kind) = frame.exception_type {
+            self.stopped = true;
+            let message = frame
+                .payload
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("AWS Bedrock stream failed");
+            push(
+                out,
+                "error",
+                json!({
+                    "type": "error",
+                    "error": { "type": kind, "message": message }
+                }),
+            );
+            return;
+        }
+        let Some(event) = frame.event_type.as_deref() else {
+            return;
+        };
+        match event {
+            "messageStart" => self.message_start(out),
+            "contentBlockStart" => self.content_start(&frame.payload, out),
+            "contentBlockDelta" => self.content_delta(&frame.payload, out),
+            "contentBlockStop" => {
+                let index = index(&frame.payload);
+                if let Some(tool) = self.tools.remove(&index) {
+                    let input =
+                        serde_json::from_str::<Value>(&tool.input).unwrap_or_else(|_| json!({}));
+                    push(
+                        out,
+                        "content_block_start",
+                        json!({
+                            "type": "content_block_start", "index": index,
+                            "content_block": {
+                                "type": "tool_use", "id": tool.id,
+                                "name": tool.name, "input": input
+                            }
+                        }),
+                    );
+                }
+                if self.blocks.remove(&index) {
+                    push(
+                        out,
+                        "content_block_stop",
+                        json!({ "type": "content_block_stop", "index": index }),
+                    );
+                }
+            }
+            "messageStop" => {
+                self.stop_reason = frame.payload.get("stopReason").cloned();
+            }
+            "metadata" => {
+                self.finish_message(frame.payload.get("usage").cloned(), out);
+            }
+            _ => {}
+        }
+    }
+
+    fn message_start(&mut self, out: &mut Vec<u8>) {
+        if self.started {
+            return;
+        }
+        self.started = true;
+        push(
+            out,
+            "message_start",
+            json!({
+                "type": "message_start",
+                "message": {
+                    "id": format!("msg_{}", crate::util::id::ulid().to_ascii_lowercase()),
+                    "type": "message", "role": "assistant", "model": "aws-bedrock",
+                    "content": [], "stop_reason": null, "stop_sequence": null,
+                    "usage": { "input_tokens": 0, "output_tokens": 0 }
+                }
+            }),
+        );
+    }
+
+    fn finish_message(&mut self, usage: Option<Value>, out: &mut Vec<u8>) {
+        if self.stopped {
+            return;
+        }
+        self.stopped = true;
+        let usage = usage
+            .map(super::converse::usage)
+            .unwrap_or_else(|| json!({ "input_tokens": 0, "output_tokens": 0 }));
+        push(
+            out,
+            "message_delta",
+            json!({
+                "type": "message_delta",
+                "delta": {
+                    "stop_reason": super::converse::stop_reason(self.stop_reason.take()),
+                    "stop_sequence": null
+                },
+                "usage": usage
+            }),
+        );
+        push(out, "message_stop", json!({ "type": "message_stop" }));
+    }
+}
+
+impl ChannelStreamDecoder for ConverseStreamDecoder {
+    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        for frame in self.parser.push(chunk) {
+            self.handle(frame, &mut out);
+        }
+        out
+    }
+
+    fn finish(&mut self) -> Vec<u8> {
+        let mut out = Vec::new();
+        if self.parser.has_pending() {
+            push(
+                &mut out,
+                "error",
+                json!({
+                    "type": "error", "error": {
+                        "type": "truncated_eventstream", "message": "AWS Bedrock stream ended inside a frame"
+                    }
+                }),
+            );
+        } else if self.started && !self.stopped {
+            self.finish_message(None, &mut out);
+        }
+        out
+    }
+}
+
+#[cfg(test)]
+#[path = "stream_tests.rs"]
+mod tests;

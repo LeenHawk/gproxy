@@ -29,15 +29,15 @@ import {
 import { EndpointFields, type EndpointRow } from "./endpoint-fields";
 
 const OPENAI_MAGIC_CACHE_CHANNELS = new Set([
-  "openai", "azure", "aws", "codex", "vercel", "openrouter", "custom",
+  "openai", "azure", "aws-bedrock", "codex", "vercel", "openrouter", "custom",
 ]);
 const CLAUDE_MAGIC_CACHE_CHANNELS = new Set([
-  "claudecode", "claudeapi", "azure", "aws", "vercel", "openrouter", "custom",
+  "claudecode", "claudeapi", "azure", "aws-bedrock", "vercel", "openrouter", "custom",
 ]);
 const CLAUDE_FALLBACK_CHANNELS = new Set([
-  "claudecode", "claudeapi", "azure", "aws", "vercel", "openrouter",
+  "claudecode", "claudeapi", "azure", "vercel", "openrouter",
 ]);
-const AWS_CHANNELS = new Set(["aws"]);
+const AWS_CHANNELS = new Set(["aws-bedrock"]);
 
 // ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
 const CHATGPT_MODES = ["normal", "temporary", "project"] as const;

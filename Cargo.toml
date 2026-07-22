@@ -146,7 +146,7 @@ channels-edge = [
     "channel-aistudio",
     "channel-antigravity",
     "channel-azure",
-    "channel-aws",
+    "channel-aws-bedrock",
     "channel-claudeapi",
     "channel-claudecode",
     "channel-codex",
@@ -167,7 +167,7 @@ channels-edge = [
 channel-aistudio = []
 channel-antigravity = []
 channel-azure = []
-channel-aws = []
+channel-aws-bedrock = []
 channel-chatgpt = ["upstream-wreq"]
 channel-claudeweb = ["upstream-wreq"]
 channel-claudeapi = []
