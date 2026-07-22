@@ -47,8 +47,9 @@ Azure Responses schema 已包含 `/openai/v1/responses/compact` 的 compaction �
 
 Azure 同时支持三项提示词管理功能。Provider 的 `cache_breakpoint` 规则会给 OpenAI
 Chat/Responses 插入原生 `prompt_cache_breakpoint`，或给 Claude Messages 插入
-`cache_control`。启用 `enable_magic_cache` 后，共用的 GPROXY 触发字符串会被删除，并在原位置
-插入目标协议缓存断点。启用 `enable_claude_fable_fallback` 后，`claude-fable-5` deployment 会
+`cache_control`。可分别启用 `enable_openai_magic_cache` 和 `enable_claude_magic_cache`，让共用的
+GPROXY 触发字符串只在对应目标协议中被删除，并在原位置插入原生缓存断点。启用
+`enable_claude_fable_fallback` 后，`claude-fable-5` deployment 会
 自动加入到 `claude-opus-4-8` 的服务端回退和所需 Anthropic beta 请求头。自定义 Azure
 deployment 名称无法由标准名称自动推导，应显式提供 `fallbacks` 链和
 `server-side-fallback-2026-06-01` beta 请求头。
@@ -138,7 +139,8 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 | `endpoints` | 可选的最终 URL 覆盖，例如 `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`；优先于 `base_url`，且不会追加路径。动态模型路径可以使用 `{model}`。 |
 | `api_version` | `azure` 图片生成/编辑接口的 API 版本；缺省为 `2025-04-01-preview`。 |
 | `region` | `aws` 使用的 AWS 区域；缺省为 `us-east-1`。 |
-| `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Azure、Amazon Bedrock、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
+| `enable_openai_magic_cache` | 在 OpenAI Chat/Responses 目标中识别 GPROXY 缓存触发字符串，并写入 OpenAI 显式断点。适用于 OpenAI、Azure、Amazon Bedrock、Codex、OpenRouter、Vercel 和 custom endpoint。 |
+| `enable_claude_magic_cache` | 在 Claude Messages 目标中识别 GPROXY 缓存触发字符串，并写入 `cache_control`。适用于 Azure、Amazon Bedrock、Claude API、Claude Code、OpenRouter、Vercel 和 custom endpoint。 |
 | `enable_claude_fable_fallback` | 在支持 Claude 的 Channel（包括 Azure 与 Amazon Bedrock）上启用 Fable 到 Opus 的回退行为。 |
 
 启用魔法字符串缓存前，建议先阅读[提示缓存](/zh-cn/guides/claude-caching/)，特别是 OpenAI

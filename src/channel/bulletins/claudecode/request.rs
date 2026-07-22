@@ -77,7 +77,7 @@ pub(super) fn prepare(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             .unwrap_or_default();
         let settings = RequestShapeSettings::from_value(ctx.provider_settings);
         Bytes::from(cch::apply(
-            &claude_magic_cache::apply_if_enabled(ctx.body, settings.enable_magic_cache),
+            &claude_magic_cache::apply_if_enabled(ctx.body, settings.enable_claude_magic_cache),
             &device_id,
             account_uuid,
             &session_id,

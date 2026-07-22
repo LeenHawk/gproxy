@@ -69,6 +69,70 @@ async fn migrates_instance_settings_size_limit_column() {
 }
 
 #[tokio::test]
+async fn migrates_magic_cache_setting_by_target_protocol() {
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-magic-cache.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE providers (\
+            id INTEGER PRIMARY KEY, settings_json TEXT NOT NULL)",
+    )
+    .await
+    .expect("old providers table");
+    conn.execute_unprepared(
+        "INSERT INTO providers (id, settings_json) VALUES \
+            (1, '{\"enable_magic_cache\":true,\"base_url\":\"https://one.example\"}'), \
+            (2, '{\"enable_magic_cache\":false}'), \
+            (3, '{\"base_url\":\"https://three.example\"}')",
+    )
+    .await
+    .expect("old provider settings");
+    conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
+        .await
+        .expect("schema_migrations");
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (13, 0)")
+        .await
+        .expect("version 13");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("migrate");
+    let backend = db.conn.get_database_backend();
+    let rows = db
+        .conn
+        .query_all_raw(Statement::from_string(
+            backend,
+            "SELECT id, settings_json FROM providers ORDER BY id".to_owned(),
+        ))
+        .await
+        .expect("query providers");
+    let settings = rows
+        .into_iter()
+        .map(|row| {
+            serde_json::from_str::<serde_json::Value>(
+                &row.try_get::<String>("", "settings_json")
+                    .expect("settings_json"),
+            )
+            .expect("valid settings JSON")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(settings[0]["enable_openai_magic_cache"], true);
+    assert_eq!(settings[0]["enable_claude_magic_cache"], true);
+    assert_eq!(settings[0]["base_url"], "https://one.example");
+    assert!(
+        settings
+            .iter()
+            .all(|value| value.get("enable_magic_cache").is_none())
+    );
+    assert!(settings[1].get("enable_openai_magic_cache").is_none());
+    assert!(settings[1].get("enable_claude_magic_cache").is_none());
+    assert_eq!(settings[2]["base_url"], "https://three.example");
+}
+
+#[tokio::test]
 async fn migrates_cache_breakpoint_message_target() {
     use sea_orm::{ConnectionTrait, Database, Statement};
 

@@ -58,8 +58,9 @@ precedence over `base_url` and support a `{model}` deployment placeholder.
 
 Azure also supports all three prompt-management features. Provider
 `cache_breakpoint` rules insert native `prompt_cache_breakpoint` markers into
-OpenAI Chat/Responses or `cache_control` into Claude Messages. Enabling
-`enable_magic_cache` recognizes the shared GPROXY trigger strings and inserts
+OpenAI Chat/Responses or `cache_control` into Claude Messages. Enable
+`enable_openai_magic_cache` and `enable_claude_magic_cache` independently to
+recognize the shared GPROXY trigger strings on each target protocol and insert
 the matching native marker. Enabling `enable_claude_fable_fallback` adds a
 server-side fallback from the `claude-fable-5` deployment to
 `claude-opus-4-8`, including the required Anthropic beta header. Custom Azure
@@ -167,7 +168,8 @@ Common `settings_json` values are available as fields in the console:
 | `endpoints` | Optional exact URL overrides, for example `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`. Overrides take precedence over `base_url`, and no path is appended. Dynamic model paths may use `{model}`. |
 | `api_version` | API version for `azure` image generation and editing; defaults to `2025-04-01-preview`. |
 | `region` | AWS region for `aws`; defaults to `us-east-1`. |
-| `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
+| `enable_openai_magic_cache` | Recognize GPROXY cache trigger strings on OpenAI Chat/Responses targets and write explicit OpenAI breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, OpenRouter, Vercel, and custom endpoints. |
+| `enable_claude_magic_cache` | Recognize GPROXY cache trigger strings on Claude Messages targets and write `cache_control`. Available for Azure, Amazon Bedrock, Claude API, Claude Code, OpenRouter, Vercel, and custom endpoints. |
 | `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels, including Azure and Amazon Bedrock. |
 
 See [Prompt Caching](/guides/claude-caching/) before enabling magic-string

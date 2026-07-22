@@ -21,7 +21,7 @@ const STRIP_KEYS: &[&str] = &[
 pub(super) fn shape(body: Bytes, ctx: &ShapeCtx) -> Bytes {
     let settings = RequestShapeSettings::from_value(ctx.settings);
     let body = match settings
-        .enable_magic_cache
+        .enable_openai_magic_cache
         .then(|| openai_cache::kind_for_operation(ctx.op))
         .flatten()
     {

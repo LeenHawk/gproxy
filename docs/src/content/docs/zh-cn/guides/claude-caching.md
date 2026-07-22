@@ -10,7 +10,8 @@ description: 通过 Provider 规则或 GPROXY 魔法字符串添加 Claude 和 O
 有两种添加断点的方式：
 
 - 缓存策略由 Provider 管理时，使用 `cache_breakpoint` 规则；
-- 需要客户端在提示词里决定边界时，打开 **魔法字符串缓存**。
+- 需要客户端在提示词里决定边界时，按目标协议打开 **OpenAI 魔法字符串缓存** 或
+  **Claude 魔法字符串缓存**。
 
 ## 手动断点规则
 
@@ -117,9 +118,10 @@ Claude 在选中的内容块上使用 `cache_control`：
 
 ## 魔法字符串
 
-在 Provider 设置中打开 **魔法字符串缓存** 后，客户端可以把触发字符串直接放进文本块。
-该开关适用于 OpenAI、Azure、Codex、Claude API、Claude Code、OpenRouter 和 Vercel 渠道。GPROXY
-会在发送上游前删除触发字符串，并在相同位置添加目标协议的缓存断点。
+在 Provider 设置中打开 **OpenAI 魔法字符串缓存** 或 **Claude 魔法字符串缓存** 后，客户端
+可以把触发字符串直接放进对应目标协议的文本块。Custom Provider 同时提供两个开关，应只为
+实际支持相应缓存格式的上游端点启用。两个开关只控制魔法字符串；手动 `cache_breakpoint` 仍由
+规则系统独立控制。GPROXY 会在发送上游前删除触发字符串，并在相同位置添加目标协议的缓存断点。
 
 Claude 和 OpenAI 格式共用以下触发字符串：
 

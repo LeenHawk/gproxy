@@ -104,7 +104,7 @@ fn stream_decoder_backfills_function_call_in_completed_output() {
 #[test]
 fn magic_cache_breakpoint_survives_codex_normalization() {
     let mut request_headers = HeaderMap::new();
-    let shape_settings = json!({ "enable_magic_cache": true });
+    let shape_settings = json!({ "enable_openai_magic_cache": true });
     let context = ShapeCtx {
         op: crate::protocol::OperationKey::content_generation(
             Operation::StreamGenerateContent,

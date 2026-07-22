@@ -360,6 +360,44 @@ pub const MIGRATIONS: &[Migration] = &[
         // already have materialized the current column on a partially old DB.
         sql: MigrationSql::Shared(&[]),
     },
+    Migration {
+        version: 14,
+        description: "providers.settings_json: split magic cache by target protocol",
+        sql: MigrationSql::ByDialect {
+            sqlite: &[
+                "UPDATE providers SET settings_json = json_remove(\
+                    json_set(settings_json, \
+                        '$.enable_openai_magic_cache', json('true'), \
+                        '$.enable_claude_magic_cache', json('true')), \
+                    '$.enable_magic_cache') \
+                 WHERE json_extract(settings_json, '$.enable_magic_cache') = 1",
+                "UPDATE providers SET settings_json = \
+                    json_remove(settings_json, '$.enable_magic_cache') \
+                 WHERE json_type(settings_json, '$.enable_magic_cache') IS NOT NULL",
+            ],
+            postgres: &[
+                "UPDATE providers SET settings_json = jsonb_set(\
+                    jsonb_set(settings_json::jsonb - 'enable_magic_cache', \
+                        '{enable_openai_magic_cache}', 'true'::jsonb), \
+                    '{enable_claude_magic_cache}', 'true'::jsonb)::text \
+                 WHERE settings_json::jsonb -> 'enable_magic_cache' = 'true'::jsonb",
+                "UPDATE providers SET settings_json = \
+                    (settings_json::jsonb - 'enable_magic_cache')::text \
+                 WHERE settings_json::jsonb ? 'enable_magic_cache'",
+            ],
+            mysql: &[
+                "UPDATE providers SET settings_json = JSON_REMOVE(\
+                    JSON_SET(settings_json, \
+                        '$.enable_openai_magic_cache', JSON_EXTRACT('true', '$'), \
+                        '$.enable_claude_magic_cache', JSON_EXTRACT('true', '$')), \
+                    '$.enable_magic_cache') \
+                 WHERE JSON_UNQUOTE(JSON_EXTRACT(settings_json, '$.enable_magic_cache')) = 'true'",
+                "UPDATE providers SET settings_json = \
+                    JSON_REMOVE(settings_json, '$.enable_magic_cache') \
+                 WHERE JSON_CONTAINS_PATH(settings_json, 'one', '$.enable_magic_cache')",
+            ],
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

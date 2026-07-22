@@ -110,7 +110,7 @@ impl Channel for ClaudeApiChannel {
         }
         let settings = RequestShapeSettings::from_value(ctx.settings);
         let body = shaping::with_json_body(body, |v| {
-            if settings.enable_magic_cache {
+            if settings.enable_claude_magic_cache {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
             }
             claude_cache_control::sanitize_claude_body(v);
