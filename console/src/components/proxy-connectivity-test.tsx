@@ -13,6 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   testConnectivity,
+  type ConnectivityProbeResult,
   type ConnectivityScope,
   type ConnectivityTestResult,
 } from "@/api/connectivity";
@@ -24,18 +25,6 @@ interface ProxyConnectivityTestProps {
   scope: ConnectivityScope;
   proxyUrl: string;
   providerId?: number;
-}
-
-function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-background/70 p-2.5 shadow-sm ring-1 ring-border/60">
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 truncate text-sm font-semibold" title={value}>{value}</div>
-    </div>
-  );
 }
 
 export function ProxyConnectivityTest({ scope, proxyUrl, providerId }: ProxyConnectivityTestProps) {
@@ -88,7 +77,10 @@ export function ProxyConnectivityTest({ scope, proxyUrl, providerId }: ProxyConn
 
 function SuccessResult({ result }: { result: ConnectivityTestResult }) {
   const { t } = useTranslation("common");
-  const place = [result.colo, result.location].filter(Boolean).join(" · ") || "—";
+  const probes: Array<[4 | 6, ConnectivityProbeResult]> = [];
+  if (result.ipv4) probes.push([4, result.ipv4]);
+  if (result.ipv6) probes.push([6, result.ipv6]);
+
   return (
     <div className="overflow-hidden rounded-xl border border-emerald-500/35 bg-gradient-to-br from-emerald-500/12 via-emerald-500/5 to-cyan-500/10">
       <div className="flex items-start justify-between gap-3 p-3.5">
@@ -101,24 +93,51 @@ function SuccessResult({ result }: { result: ConnectivityTestResult }) {
             <div className="text-xs text-muted-foreground">{t("proxyTest.successHint")}</div>
           </div>
         </div>
-        <Badge className="shrink-0 border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">
-          IPv{result.ip_version}
-        </Badge>
+        <div className="flex shrink-0 gap-1.5">
+          {probes.map(([version]) => (
+            <Badge key={version} className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300">
+              IPv{version}
+            </Badge>
+          ))}
+        </div>
       </div>
 
-      <div className="border-y border-emerald-500/15 bg-background/35 px-4 py-3">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{t("proxyTest.egressIp")}</div>
-        <div className="mt-0.5 break-all font-mono text-lg font-semibold tracking-tight">{result.ip}</div>
+      <div className="grid gap-2 border-y border-emerald-500/15 bg-background/35 p-3 sm:grid-cols-2">
+        {probes.map(([version, probe]) => (
+          <ProbeCard key={version} version={version} probe={probe} />
+        ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 p-3">
-        <Metric icon={<MapPin className="size-3" />} label={t("proxyTest.edge")} value={place} />
-        <Metric icon={<CircleGauge className="size-3" />} label={t("proxyTest.latency")} value={`${result.latency_ms} ms`} />
-        <Metric icon={<Globe2 className="size-3" />} label={t("proxyTest.route")} value={t(`proxyTest.sources.${result.proxy_source}`)} />
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Globe2 className="size-3" aria-hidden />
+          {t("proxyTest.route")}: {t(`proxyTest.sources.${result.proxy_source}`)}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Cloud className="size-3" aria-hidden />
+          {t("proxyTest.poweredBy")}
+        </span>
       </div>
-      <div className="flex items-center gap-1.5 px-4 pb-3 text-[11px] text-muted-foreground">
-        <Cloud className="size-3" aria-hidden />
-        {t("proxyTest.poweredBy")}
+    </div>
+  );
+}
+
+function ProbeCard({ version, probe }: { version: 4 | 6; probe: ConnectivityProbeResult }) {
+  const { t } = useTranslation("common");
+  const place = [probe.colo, probe.location].filter(Boolean).join(" · ") || "—";
+  return (
+    <div className="min-w-0 rounded-lg bg-background/75 p-3 shadow-sm ring-1 ring-border/60">
+      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="uppercase tracking-wider">IPv{version} {t("proxyTest.egressIp")}</span>
+        <span className="flex items-center gap-1 tabular-nums">
+          <CircleGauge className="size-3" aria-hidden />
+          {probe.latency_ms} ms
+        </span>
+      </div>
+      <div className="mt-1 break-all font-mono text-base font-semibold tracking-tight">{probe.ip}</div>
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground" title={t("proxyTest.edge")}>
+        <MapPin className="size-3 shrink-0" aria-hidden />
+        <span className="truncate">{place}</span>
       </div>
     </div>
   );

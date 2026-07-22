@@ -94,7 +94,8 @@ mod connectivity {
 
     use super::*;
 
-    const TRACE_URL: &str = "https://www.cloudflare.com/cdn-cgi/trace";
+    const TRACE_V4_URL: &str = "https://1.1.1.1/cdn-cgi/trace";
+    const TRACE_V6_URL: &str = "https://[2606:4700:4700::1111]/cdn-cgi/trace";
     const PROBE_TIMEOUT: Duration = Duration::from_secs(30);
     const MAX_TRACE_BYTES: usize = 8 * 1024;
 
@@ -116,24 +117,34 @@ mod connectivity {
     #[derive(Debug, Serialize)]
     struct TestResponse {
         ok: bool,
-        ip: Option<String>,
-        ip_version: Option<u8>,
-        colo: Option<String>,
-        location: Option<String>,
+        ipv4: Option<ProbeResponse>,
+        ipv6: Option<ProbeResponse>,
         latency_ms: u64,
         proxy_source: String,
         error_code: Option<String>,
         message: Option<String>,
     }
 
+    #[derive(Debug, Serialize)]
+    struct ProbeResponse {
+        ip: String,
+        colo: Option<String>,
+        location: Option<String>,
+        latency_ms: u64,
+    }
+
+    struct ProbeFailure {
+        latency_ms: u64,
+        code: &'static str,
+        message: String,
+    }
+
     impl TestResponse {
         fn failure(latency_ms: u64, source: String, code: &str, message: String) -> Self {
             Self {
                 ok: false,
-                ip: None,
-                ip_version: None,
-                colo: None,
-                location: None,
+                ipv4: None,
+                ipv6: None,
                 latency_ms,
                 proxy_source: source,
                 error_code: Some(code.into()),
@@ -161,12 +172,55 @@ mod connectivity {
                 ));
             }
         };
+        let (ipv4_result, ipv6_result) = tokio::join!(
+            probe(client.as_ref(), TRACE_V4_URL, false),
+            probe(client.as_ref(), TRACE_V6_URL, true),
+        );
+        let latency = ipv4_result
+            .as_ref()
+            .map_or_else(|error| error.latency_ms, |probe| probe.latency_ms)
+            .max(
+                ipv6_result
+                    .as_ref()
+                    .map_or_else(|error| error.latency_ms, |probe| probe.latency_ms),
+            );
+        let (ipv4, ipv4_error) = match ipv4_result {
+            Ok(probe) => (Some(probe), None),
+            Err(error) => (None, Some(error)),
+        };
+        let ipv6 = ipv6_result.ok();
+        if ipv4.is_some() || ipv6.is_some() {
+            return response(TestResponse {
+                ok: true,
+                ipv4,
+                ipv6,
+                latency_ms: latency,
+                proxy_source: source,
+                error_code: None,
+                message: None,
+            });
+        }
+
+        let error = ipv4_error.expect("an absent IPv4 result has an error");
+        response(TestResponse::failure(
+            latency,
+            source,
+            error.code,
+            error.message,
+        ))
+    }
+
+    async fn probe(
+        client: &dyn crate::http::client::UpstreamClient,
+        url: &'static str,
+        expect_ipv6: bool,
+    ) -> Result<ProbeResponse, ProbeFailure> {
         let request = http::Request::builder()
             .method(Method::GET)
-            .uri(TRACE_URL)
+            .uri(url)
             .header(http::header::ACCEPT, "text/plain")
             .body(Bytes::new())
-            .map_err(|error| ApiError::Internal(error.to_string()))?;
+            .expect("Cloudflare trace URL is valid");
         let started = Instant::now();
         let probe = async {
             let (status, _, mut stream) = client.send_streaming(request).await?;
@@ -183,12 +237,11 @@ mod connectivity {
         };
         let (status, body) = match tokio::time::timeout(PROBE_TIMEOUT, probe).await {
             Err(_) => {
-                return response(TestResponse::failure(
-                    elapsed(started),
-                    source,
-                    "timeout",
-                    "connectivity test timed out".into(),
-                ));
+                return Err(ProbeFailure {
+                    latency_ms: elapsed(started),
+                    code: "timeout",
+                    message: "connectivity test timed out".into(),
+                });
             }
             Ok(Err(error)) => {
                 let code = if matches!(error, ClientError::Config(_)) {
@@ -196,12 +249,11 @@ mod connectivity {
                 } else {
                     "transport"
                 };
-                return response(TestResponse::failure(
-                    elapsed(started),
-                    source,
+                return Err(ProbeFailure {
+                    latency_ms: elapsed(started),
                     code,
-                    client_error(&error),
-                ));
+                    message: client_error(&error),
+                });
             }
             Ok(Ok(value)) => value,
         };
@@ -212,35 +264,35 @@ mod connectivity {
             } else {
                 "http_status"
             };
-            return response(TestResponse::failure(
-                latency,
-                source,
+            return Err(ProbeFailure {
+                latency_ms: latency,
                 code,
-                format!("probe returned HTTP {}", status.as_u16()),
-            ));
+                message: format!("probe returned HTTP {}", status.as_u16()),
+            });
         }
         let trace = parse_trace(&body);
         let Some(ip_text) = trace.ip else {
-            return response(TestResponse::failure(
-                latency,
-                source,
-                "invalid_response",
-                "probe response did not contain a valid egress IP".into(),
-            ));
+            return Err(ProbeFailure {
+                latency_ms: latency,
+                code: "invalid_response",
+                message: "probe response did not contain a valid egress IP".into(),
+            });
         };
-        let ip: IpAddr = ip_text.parse().map_err(|_| {
-            ApiError::Internal("validated Cloudflare trace IP failed to parse".into())
-        })?;
-        response(TestResponse {
-            ok: true,
-            ip: Some(ip.to_string()),
-            ip_version: Some(if ip.is_ipv4() { 4 } else { 6 }),
+        let ip: IpAddr = ip_text
+            .parse()
+            .expect("parse_trace only returns validated IP addresses");
+        if ip.is_ipv6() != expect_ipv6 {
+            return Err(ProbeFailure {
+                latency_ms: latency,
+                code: "invalid_response",
+                message: "probe returned the wrong IP address family".into(),
+            });
+        }
+        Ok(ProbeResponse {
+            ip: ip.to_string(),
             colo: trace.colo,
             location: trace.location,
             latency_ms: latency,
-            proxy_source: source,
-            error_code: None,
-            message: None,
         })
     }
 
