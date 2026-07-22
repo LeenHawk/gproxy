@@ -2,11 +2,6 @@
 //! own auth in `auth.rs`. API-key channels share [`common`]; OAuth/envelope
 //! channels carry their own OAuth refresh + transform (M7 / M2, both landed).
 
-#[cfg(any(
-    feature = "channel-bedrock-mantle",
-    feature = "channel-bedrock-runtime"
-))]
-mod bedrock;
 pub mod common;
 
 #[cfg(test)]
@@ -17,12 +12,10 @@ mod tests;
 // each entry to match.
 #[cfg(feature = "channel-aistudio")]
 pub mod aistudio;
+#[cfg(feature = "channel-aws")]
+pub mod aws;
 #[cfg(feature = "channel-azure")]
 pub mod azure;
-#[cfg(feature = "channel-bedrock-mantle")]
-pub mod bedrock_mantle;
-#[cfg(feature = "channel-bedrock-runtime")]
-pub mod bedrock_runtime;
 #[cfg(feature = "channel-claudeapi")]
 pub mod claudeapi;
 #[cfg(feature = "channel-custom")]

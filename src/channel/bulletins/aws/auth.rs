@@ -7,9 +7,9 @@ use crate::channel::bulletins::common;
 pub(super) fn apply(
     req: &mut Request<Bytes>,
     api_key: &str,
-    anthropic: bool,
+    anthropic_mantle: bool,
 ) -> Result<(), ChannelError> {
-    if anthropic {
+    if anthropic_mantle {
         common::inject_header(req, HeaderName::from_static("x-api-key"), api_key)?;
         common::inject_static(
             req,
