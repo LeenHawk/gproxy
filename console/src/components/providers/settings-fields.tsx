@@ -8,7 +8,7 @@
  *   circuit_breaker   — all channels (both sub-fields must be filled or both omitted)
  *   auto_refresh_models — all channels (default true)
  *   location          — vertex only
- *   region            — Amazon Bedrock channels
+ *   region            — Amazon Bedrock channel
  *   profile_arn       — kiro only
  *   api_version       — azure deployment-bound image APIs
  *   enable_magic_cache — Claude/OpenAI-capable channels (magic-string prompt cache triggers)
@@ -29,12 +29,12 @@ import { EndpointFields, type EndpointRow } from "./endpoint-fields";
 
 // Channels whose backend honors magic-string cache triggers on native Claude/OpenAI bodies.
 const MAGIC_CACHE_CHANNELS = new Set([
-  "claudecode", "claudeapi", "openai", "azure", "bedrock-mantle", "bedrock-runtime", "codex", "vercel", "openrouter",
+  "claudecode", "claudeapi", "openai", "azure", "aws", "codex", "vercel", "openrouter",
 ]);
 const CLAUDE_FALLBACK_CHANNELS = new Set([
-  "claudecode", "claudeapi", "azure", "bedrock-mantle", "bedrock-runtime", "vercel", "openrouter",
+  "claudecode", "claudeapi", "azure", "aws", "vercel", "openrouter",
 ]);
-const BEDROCK_CHANNELS = new Set(["bedrock-mantle", "bedrock-runtime"]);
+const AWS_CHANNELS = new Set(["aws"]);
 
 // ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
 const CHATGPT_MODES = ["normal", "temporary", "project"] as const;
@@ -156,7 +156,7 @@ export function assembleSettings(
     }
   }
 
-  if (BEDROCK_CHANNELS.has(channel)) {
+  if (AWS_CHANNELS.has(channel)) {
     if (state.region.trim()) {
       result.region = state.region.trim();
     } else {
@@ -246,7 +246,7 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
         onChange={(endpoints) => onChange({ endpoints })}
       />
 
-      {BEDROCK_CHANNELS.has(channel) && (
+      {AWS_CHANNELS.has(channel) && (
         <div className="grid gap-2">
           <Label htmlFor="sf-region">{t("fields.region")}</Label>
           <Input
