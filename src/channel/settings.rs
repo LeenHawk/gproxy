@@ -75,7 +75,9 @@ pub fn endpoint_by_key(settings: &Value, key: &str, model: &str) -> Option<Strin
 #[serde(default)]
 pub struct RequestShapeSettings {
     #[serde(deserialize_with = "bool_or_default")]
-    pub enable_magic_cache: bool,
+    pub enable_openai_magic_cache: bool,
+    #[serde(deserialize_with = "bool_or_default")]
+    pub enable_claude_magic_cache: bool,
     #[serde(deserialize_with = "bool_or_default")]
     pub enable_claude_fable_fallback: bool,
 }

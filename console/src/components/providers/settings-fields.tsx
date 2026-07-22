@@ -11,7 +11,8 @@
  *   region            — Amazon Bedrock channel
  *   profile_arn       — kiro only
  *   api_version       — azure deployment-bound image APIs
- *   enable_magic_cache — Claude/OpenAI-capable channels (magic-string prompt cache triggers)
+ *   enable_openai_magic_cache — OpenAI magic-string prompt cache triggers
+ *   enable_claude_magic_cache — Claude magic-string prompt cache triggers
  *   enable_claude_fable_fallback — claudecode / claudeapi / vercel / openrouter
  *
  * Unknown keys (e.g. tokenizer_map) are preserved via the `base` prop.
@@ -27,9 +28,11 @@ import {
 } from "@/lib/channel-meta";
 import { EndpointFields, type EndpointRow } from "./endpoint-fields";
 
-// Channels whose backend honors magic-string cache triggers on native Claude/OpenAI bodies.
-const MAGIC_CACHE_CHANNELS = new Set([
-  "claudecode", "claudeapi", "openai", "azure", "aws", "codex", "vercel", "openrouter",
+const OPENAI_MAGIC_CACHE_CHANNELS = new Set([
+  "openai", "azure", "aws", "codex", "vercel", "openrouter", "custom",
+]);
+const CLAUDE_MAGIC_CACHE_CHANNELS = new Set([
+  "claudecode", "claudeapi", "azure", "aws", "vercel", "openrouter", "custom",
 ]);
 const CLAUDE_FALLBACK_CHANNELS = new Set([
   "claudecode", "claudeapi", "azure", "aws", "vercel", "openrouter",
@@ -50,7 +53,8 @@ export interface SettingsState {
   region: string;
   profileArn: string;
   apiVersion: string;
-  enableMagicCache: boolean;
+  enableOpenAiMagicCache: boolean;
+  enableClaudeMagicCache: boolean;
   enableClaudeFableFallback: boolean;
   chatgptMode: ChatgptMode;
   projectName: string;
@@ -96,7 +100,8 @@ export function initSettingsState(settingsJson: unknown, channel: string): Setti
     region: typeof s.region === "string" ? s.region : "",
     profileArn: typeof s.profile_arn === "string" ? s.profile_arn : "",
     apiVersion: typeof s.api_version === "string" ? s.api_version : "",
-    enableMagicCache: s.enable_magic_cache === true,
+    enableOpenAiMagicCache: s.enable_openai_magic_cache === true,
+    enableClaudeMagicCache: s.enable_claude_magic_cache === true,
     enableClaudeFableFallback: s.enable_claude_fable_fallback === true,
     chatgptMode: mode,
     projectName: typeof s.project_name === "string" ? s.project_name : "",
@@ -181,13 +186,24 @@ export function assembleSettings(
     }
   }
 
-  // enable_magic_cache (Claude/OpenAI-capable channels)
-  if (MAGIC_CACHE_CHANNELS.has(channel)) {
-    if (state.enableMagicCache) {
-      result.enable_magic_cache = true;
+  delete result.enable_magic_cache;
+  if (OPENAI_MAGIC_CACHE_CHANNELS.has(channel)) {
+    if (state.enableOpenAiMagicCache) {
+      result.enable_openai_magic_cache = true;
     } else {
-      delete result.enable_magic_cache;
+      delete result.enable_openai_magic_cache;
     }
+  } else {
+    delete result.enable_openai_magic_cache;
+  }
+  if (CLAUDE_MAGIC_CACHE_CHANNELS.has(channel)) {
+    if (state.enableClaudeMagicCache) {
+      result.enable_claude_magic_cache = true;
+    } else {
+      delete result.enable_claude_magic_cache;
+    }
+  } else {
+    delete result.enable_claude_magic_cache;
   }
 
   if (CLAUDE_FALLBACK_CHANNELS.has(channel)) {
@@ -343,18 +359,30 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
         </div>
       )}
 
-      {/* Claude/OpenAI-capable channels: magic-string prompt cache triggers */}
-      {MAGIC_CACHE_CHANNELS.has(channel) && (
+      {OPENAI_MAGIC_CACHE_CHANNELS.has(channel) && (
         <div className="grid gap-1">
           <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="sf-magic-cache">{t("fields.enableMagicCache")}</Label>
+            <Label htmlFor="sf-openai-magic-cache">{t("fields.enableOpenAiMagicCache")}</Label>
             <Switch
-              id="sf-magic-cache"
-              checked={state.enableMagicCache}
-              onCheckedChange={(v) => onChange({ enableMagicCache: v })}
+              id="sf-openai-magic-cache"
+              checked={state.enableOpenAiMagicCache}
+              onCheckedChange={(v) => onChange({ enableOpenAiMagicCache: v })}
             />
           </div>
-          <p className="text-xs text-muted-foreground">{t("form.enableMagicCacheHint")}</p>
+          <p className="text-xs text-muted-foreground">{t("form.enableOpenAiMagicCacheHint")}</p>
+        </div>
+      )}
+      {CLAUDE_MAGIC_CACHE_CHANNELS.has(channel) && (
+        <div className="grid gap-1">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="sf-claude-magic-cache">{t("fields.enableClaudeMagicCache")}</Label>
+            <Switch
+              id="sf-claude-magic-cache"
+              checked={state.enableClaudeMagicCache}
+              onCheckedChange={(v) => onChange({ enableClaudeMagicCache: v })}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">{t("form.enableClaudeMagicCacheHint")}</p>
         </div>
       )}
       {CLAUDE_FALLBACK_CHANNELS.has(channel) && (

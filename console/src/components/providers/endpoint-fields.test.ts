@@ -34,4 +34,14 @@ describe("endpoint settings", () => {
     expect(isValidEndpointUrl("ftp://api.example/v1/models")).toBe(false);
     expect(isValidEndpointUrl("https://api.example/v1/models?model={model}")).toBe(false);
   });
+
+  it("stores custom magic cache switches independently", () => {
+    const state = initSettingsState({ enable_magic_cache: true }, "custom");
+    state.enableOpenAiMagicCache = true;
+    state.enableClaudeMagicCache = false;
+
+    expect(assembleSettings({ enable_magic_cache: true }, state, "custom")).toEqual({
+      enable_openai_magic_cache: true,
+    });
+  });
 });

@@ -113,7 +113,7 @@ impl Channel for VercelChannel {
     fn shape_request(&self, body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
         let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
-            if !settings.enable_magic_cache {
+            if !settings.enable_openai_magic_cache {
                 return body;
             }
             return shaping::with_json_body(body, |value| {
@@ -124,7 +124,7 @@ impl Channel for VercelChannel {
             return body;
         }
         let body = shaping::with_json_body(body, |v| {
-            if settings.enable_magic_cache {
+            if settings.enable_claude_magic_cache {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
             }
             claude_cache_control::sanitize_claude_body(v);
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn shapes_openai_magic_cache_breakpoint() {
         let mut headers = HeaderMap::new();
-        let settings = serde_json::json!({ "enable_magic_cache": true });
+        let settings = serde_json::json!({ "enable_openai_magic_cache": true });
         let body = Bytes::from_static(
             br#"{"model":"openai/gpt-5.6","input":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}"#,
         );

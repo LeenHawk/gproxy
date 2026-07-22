@@ -106,7 +106,7 @@ impl Channel for OpenRouterChannel {
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
         let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
-            if !settings.enable_magic_cache {
+            if !settings.enable_openai_magic_cache {
                 return body;
             }
             return shaping::with_json_body(body, |value| {
@@ -114,12 +114,12 @@ impl Channel for OpenRouterChannel {
             });
         }
         if !is_claude_messages(ctx.op)
-            || (!settings.enable_magic_cache && !settings.enable_claude_fable_fallback)
+            || (!settings.enable_claude_magic_cache && !settings.enable_claude_fable_fallback)
         {
             return body;
         }
         shaping::with_json_body(body, |v| {
-            if settings.enable_magic_cache {
+            if settings.enable_claude_magic_cache {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
                 claude_cache_control::sanitize_claude_body(v);
             }
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn shapes_openai_magic_cache_breakpoint() {
         let mut headers = HeaderMap::new();
-        let settings = json!({ "enable_magic_cache": true });
+        let settings = json!({ "enable_openai_magic_cache": true });
         let body = Bytes::from_static(
             br#"{"model":"openai/gpt-5.6","input":[{"role":"user","content":[{"type":"input_text","text":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}]}"#,
         );

@@ -50,7 +50,7 @@ fn openai_v1_uses_api_key_header() {
 
 #[test]
 fn shapes_openai_magic_cache_for_chat_and_responses() {
-    let settings = json!({ "enable_magic_cache": true });
+    let settings = json!({ "enable_openai_magic_cache": true });
     let cases = [
         (
             ContentGenerationKind::OpenAiChatCompletions,
@@ -108,7 +108,7 @@ fn shapes_and_forwards_claude_magic_cache_and_fable_fallback() {
     let secret = json!({ "api_key": "azure-key" });
     let settings = json!({
         "base_url": "https://resource.services.ai.azure.com",
-        "enable_magic_cache": true,
+        "enable_claude_magic_cache": true,
         "enable_claude_fable_fallback": true
     });
     let op = OperationKey::content_generation(

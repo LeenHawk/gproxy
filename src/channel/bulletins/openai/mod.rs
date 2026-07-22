@@ -108,7 +108,7 @@ impl Channel for OpenAiChannel {
     fn shape_request(&self, body: Bytes, _headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
         let settings = RequestShapeSettings::from_value(ctx.settings);
         let Some(kind) = settings
-            .enable_magic_cache
+            .enable_openai_magic_cache
             .then(|| openai_cache::kind_for_operation(ctx.op))
             .flatten()
         else {
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn shapes_openai_magic_cache_breakpoint_when_enabled() {
         let mut headers = HeaderMap::new();
-        let settings = json!({ "enable_magic_cache": true });
+        let settings = json!({ "enable_openai_magic_cache": true });
         let body = Bytes::from_static(
             br#"{"model":"gpt-5.6","messages":[{"role":"system","content":"stable GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH"}]}"#,
         );

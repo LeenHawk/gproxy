@@ -4,7 +4,7 @@
 //! frozen magic strings inside its prompt text to mark a cache breakpoint; the
 //! proxy strips the token and stamps `cache_control` (ephemeral, with the
 //! matching ttl) on that block, capped at Claude's 4 breakpoints. Gated
-//! per-provider by the `enable_magic_cache` setting.
+//! per-provider by the `enable_claude_magic_cache` setting.
 
 use bytes::Bytes;
 use serde_json::{Value, json};
@@ -39,7 +39,7 @@ impl MagicTtl {
 }
 
 /// Apply magic-string cache triggers to `body` only when the provider's
-/// `enable_magic_cache` setting is true. Runs the strip+stamp pass, then
+/// `enable_claude_magic_cache` setting is true. Runs the strip+stamp pass, then
 /// `sanitize_claude_body` to migrate any marker off a now-empty block. Returns
 /// the body unchanged when disabled or unparseable.
 pub fn apply_if_enabled(body: Bytes, enabled: bool) -> Bytes {

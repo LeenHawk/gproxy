@@ -16,7 +16,7 @@ pub(super) fn request(body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> B
     }
     let settings = RequestShapeSettings::from_value(ctx.settings);
     if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
-        if !settings.enable_magic_cache {
+        if !settings.enable_openai_magic_cache {
             return body;
         }
         return shaping::with_json_body(body, |value| {
@@ -24,12 +24,12 @@ pub(super) fn request(body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> B
         });
     }
     if !is_claude_messages(ctx)
-        || (!settings.enable_magic_cache && !settings.enable_claude_fable_fallback)
+        || (!settings.enable_claude_magic_cache && !settings.enable_claude_fable_fallback)
     {
         return body;
     }
     shaping::with_json_body(body, |value| {
-        if settings.enable_magic_cache {
+        if settings.enable_claude_magic_cache {
             claude_magic_cache::apply_magic_string_cache_control_triggers(value);
             claude_cache_control::sanitize_claude_body(value);
         }

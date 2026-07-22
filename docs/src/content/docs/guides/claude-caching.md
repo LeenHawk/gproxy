@@ -12,8 +12,8 @@ API formats.
 There are two ways to add a breakpoint:
 
 - Use a `cache_breakpoint` rule when the provider owns the cache policy.
-- Enable **Magic-string cache** when the client needs to choose the boundary
-  inside prompt text.
+- Enable the OpenAI or Claude **Magic-string cache** switch when the client
+  needs to choose the boundary inside prompt text.
 
 ## Manual Breakpoint Rules
 
@@ -130,11 +130,13 @@ Use `merge` so any beta features already requested by the client are preserved.
 
 ## Magic Strings
 
-Turn on **Magic-string cache** in provider settings to let a client place a
-trigger directly in a text block. This setting is available for OpenAI, Codex,
-Azure, Claude API, Claude Code, OpenRouter, and Vercel channels. GPROXY removes the
-trigger before sending the request and adds the native cache marker at that
-location.
+Turn on **OpenAI magic-string cache** or **Claude magic-string cache** in
+provider settings to let a client place a trigger directly in a text block of
+that target protocol. Custom providers expose both switches, so each can be
+enabled only when its configured upstream endpoint supports that cache format.
+These switches affect magic strings only; manual `cache_breakpoint` rules remain
+controlled by the rule system. GPROXY removes the trigger before sending the
+request and adds the native cache marker at that location.
 
 The trigger strings are shared across Claude and OpenAI formats:
 

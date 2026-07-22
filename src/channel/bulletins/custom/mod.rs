@@ -5,9 +5,14 @@
 
 mod auth;
 
+use bytes::Bytes;
+use http::HeaderMap;
+
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
-use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest};
-use crate::protocol::Provider;
+use crate::channel::settings::RequestShapeSettings;
+use crate::channel::shaping::{self, claude_cache_control, claude_magic_cache, openai_cache};
+use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
+use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 
 const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     default_base_url: None,
@@ -76,5 +81,98 @@ impl Channel for CustomChannel {
         let (mut req, key) = common::build_request(ctx, &DEFAULTS)?;
         auth::apply(&mut req, &key, proto)?;
         Ok(PreparedRequest::new(req))
+    }
+
+    fn shape_request(&self, body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        let settings = RequestShapeSettings::from_value(ctx.settings);
+        if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
+            if !settings.enable_openai_magic_cache {
+                return body;
+            }
+            return shaping::with_json_body(body, |value| {
+                openai_cache::apply_magic_string_cache_breakpoints(value, kind)
+            });
+        }
+        if ctx.op.kind != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+            || !settings.enable_claude_magic_cache
+        {
+            return body;
+        }
+        shaping::with_json_body(body, |value| {
+            claude_magic_cache::apply_magic_string_cache_control_triggers(value);
+            claude_cache_control::sanitize_claude_body(value);
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http::StatusCode;
+    use serde_json::{Value, json};
+
+    use crate::protocol::{Operation, OperationKey};
+
+    const MAGIC: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+
+    fn ctx(kind: ContentGenerationKind, settings: &Value) -> ShapeCtx<'_> {
+        ShapeCtx {
+            op: OperationKey::content_generation(Operation::GenerateContent, kind),
+            stream: false,
+            status: StatusCode::OK,
+            settings,
+        }
+    }
+
+    #[test]
+    fn magic_cache_switches_are_protocol_specific() {
+        let openai_settings = json!({ "enable_openai_magic_cache": true });
+        let openai_body = Bytes::from(
+            json!({
+                "messages": [{"role": "user", "content": format!("stable {MAGIC}")}]
+            })
+            .to_string(),
+        );
+        let openai = CustomChannel.shape_request(
+            openai_body,
+            &mut HeaderMap::new(),
+            &ctx(
+                ContentGenerationKind::OpenAiChatCompletions,
+                &openai_settings,
+            ),
+        );
+        let openai: Value = serde_json::from_slice(&openai).unwrap();
+        assert_eq!(
+            openai["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+            "explicit"
+        );
+
+        let claude_body = Bytes::from(
+            json!({
+                "messages": [{
+                    "role": "user",
+                    "content": [{"type": "text", "text": format!("stable {MAGIC}")}]
+                }]
+            })
+            .to_string(),
+        );
+        let disabled = CustomChannel.shape_request(
+            claude_body.clone(),
+            &mut HeaderMap::new(),
+            &ctx(ContentGenerationKind::ClaudeMessages, &openai_settings),
+        );
+        assert_eq!(disabled, claude_body);
+
+        let claude_settings = json!({ "enable_claude_magic_cache": true });
+        let claude = CustomChannel.shape_request(
+            claude_body,
+            &mut HeaderMap::new(),
+            &ctx(ContentGenerationKind::ClaudeMessages, &claude_settings),
+        );
+        let claude: Value = serde_json::from_slice(&claude).unwrap();
+        assert_eq!(
+            claude["messages"][0]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
     }
 }
