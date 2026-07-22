@@ -16,6 +16,40 @@ export function parseVariantNames(variants: unknown): string[] {
   return [];
 }
 
+/** Read the effective preset actions stored as rewrite rules for each variant. */
+export function extractVariantActions(
+  variantNames: string[],
+  rules: Rule[],
+): Map<string, SuffixAction[]> {
+  const names = new Set(variantNames);
+  const actions = new Map<string, SuffixAction[]>();
+  const sortedRules = [...rules].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+
+  for (const rule of sortedRules) {
+    const name = rule.filter_model_pattern;
+    if (!rule.enabled || rule.kind !== "rewrite" || name == null || !names.has(name)) continue;
+    if (!rule.config_json || typeof rule.config_json !== "object" || Array.isArray(rule.config_json)) continue;
+
+    const config = rule.config_json as Record<string, unknown>;
+    if (config.action !== "set" || typeof config.path !== "string" || !Object.hasOwn(config, "value_json")) continue;
+    const current = actions.get(name) ?? [];
+    current.push({ path: config.path, value: config.value_json });
+    actions.set(name, current);
+  }
+  return actions;
+}
+
+export async function loadVariantActions(
+  providerId: number,
+  variantNames: string[],
+): Promise<Map<string, SuffixAction[]>> {
+  if (variantNames.length === 0) return new Map();
+  const rsId = await findProviderDefaultRuleSet(providerId);
+  if (rsId == null) return new Map();
+  const rules = await api<Rule[]>(`/admin/rule-sets/${rsId}/rules`);
+  return extractVariantActions(variantNames, rules);
+}
+
 export interface RuleDraft {
   kind: "rewrite";
   config_json: { path: string; action: "set"; value_json: unknown };

@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   SUFFIX_PROTOCOL_LABELS, UPSTREAM_SOURCE_GROUP_BY_CHANNEL,
-  suffixGroupsForChannel, suffixProtocolForChannel,
+  suffixGroupsForChannel,
   type SuffixAction, type SuffixProtocol,
 } from "@/components/providers/suffix-presets";
+import { inferSuffixSelection } from "@/components/providers/suffix-presets/selection";
 
 // Radix <SelectItem value=""> crashes at runtime — use a sentinel for "none".
 const NONE = "__none__";
@@ -28,18 +29,20 @@ function upstreamSuffix(upstreams: string[]): string {
 }
 
 export function VariantPresetPicker({
-  modelId, channel, onConfirm, onCancel,
+  modelId, channel, initialActions, onConfirm, onCancel,
 }: {
   modelId: string;
   channel: string;
+  initialActions: SuffixAction[];
   onConfirm: (actions: SuffixAction[], suggestedSuffix: string) => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation("providers");
-  const [protocol, setProtocol] = useState<SuffixProtocol>(() => suffixProtocolForChannel(channel));
+  const [initial] = useState(() => inferSuffixSelection(channel, initialActions));
+  const [protocol, setProtocol] = useState<SuffixProtocol>(initial.protocol);
   // group key → selected entry index (as string), or NONE.
-  const [picks, setPicks] = useState<Record<string, string>>({});
-  const [upstream, setUpstream] = useState("");
+  const [picks, setPicks] = useState<Record<string, string>>(initial.picks);
+  const [upstream, setUpstream] = useState(initial.upstream);
 
   const groups = suffixGroupsForChannel(protocol, channel);
   // Dropdown and custom input are mutually exclusive — both inject `only`.
@@ -66,8 +69,10 @@ export function VariantPresetPicker({
       s += upstreamSuffix(upstreams);
       a.push({ path: upstreamPath, value: upstreams });
     }
-    return { suffix: s, actions: a };
-  }, [groups, picks, upstream, upstreamPath]);
+    const selectedPaths = new Set(a.map((action) => action.path));
+    const preserved = initial.preservedActions.filter((action) => !selectedPaths.has(action.path));
+    return { suffix: s, actions: [...a, ...preserved] };
+  }, [groups, initial.preservedActions, picks, upstream, upstreamPath]);
 
   return (
     <div className="grid gap-3 rounded-md border bg-muted/30 p-3">
@@ -145,7 +150,7 @@ export function VariantPresetPicker({
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           {t("models.variantPicker.cancel")}
         </Button>
-        <Button type="button" size="sm" disabled={actions.length === 0} onClick={() => onConfirm(actions, suffix)}>
+        <Button type="button" size="sm" disabled={actions.length === 0 && initialActions.length === 0} onClick={() => onConfirm(actions, suffix)}>
           {t("models.variantPicker.apply")}
         </Button>
       </div>
