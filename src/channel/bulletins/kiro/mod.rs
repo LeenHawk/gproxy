@@ -13,7 +13,8 @@
 //!     Smithy event-stream into Responses SSE ([`response::KiroStreamDecoder`]).
 //!
 //! Auth is a dual `refresh_token` grant (social vs AWS IdC) — see [`auth`]. This
-//! is the heaviest channel; the binary frame parser lives in [`smithy`] and is
+//! is the heaviest channel; the binary frame parser lives in the channel-level
+//! `aws_eventstream` module and is
 //! the most-tested piece. All decode is synchronous, so the channel compiles on
 //! the wasm edge target (refresh is async via [`UpstreamClient`], fine on all).
 
@@ -26,7 +27,6 @@ mod request;
 mod request_tools;
 mod response;
 mod routing;
-mod smithy;
 mod sse;
 mod tool_calls;
 mod usage;

@@ -40,6 +40,7 @@ pub(super) fn is_wired(pair: TransformPair) -> bool {
             // exactly that direction by the reverse-pair convention)
             | P::OpenAiToClaudeCompact
             | P::ClaudeToOpenAiCompact
+            | P::OpenAiCompactToOpenAiResponses
             | P::OpenAiResponsesToOpenAiCompact
             | P::OpenAiCompactToGemini
             | P::GeminiToOpenAiCompact
@@ -93,6 +94,11 @@ pub(super) fn request_bytes(
         // compact
         P::OpenAiToClaudeCompact => run(compact::openai_to_claude::request, ctx, body),
         P::ClaudeToOpenAiCompact => run(compact::claude_to_openai::request, ctx, body),
+        P::OpenAiCompactToOpenAiResponses => run(
+            compact::openai_compact_to_openai_responses::request,
+            ctx,
+            body,
+        ),
         P::OpenAiResponsesToOpenAiCompact => run(
             compact::openai_responses_to_openai_compact::request,
             ctx,

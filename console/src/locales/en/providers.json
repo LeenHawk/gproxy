@@ -17,6 +17,7 @@
     "enabled": "Enabled",
     "baseUrl": "Base URL",
     "apiVersion": "Image API version",
+    "region": "AWS Region",
     "circuitBreaker": "Circuit breaker (optional)",
     "consecutiveFailures": "Consecutive failures",
     "cooldownSecs": "Cooldown (secs)",
@@ -55,6 +56,7 @@
     "baseUrlOrEndpointRequired": "The custom channel requires a Base URL or at least one endpoint.",
     "azureBaseUrlOrEndpointRequired": "The Azure channel requires a resource Base URL or at least one exact endpoint.",
     "apiVersionHint": "Azure deployment-bound image APIs require this version. Leave blank to use 2025-04-01-preview.",
+    "bedrockRegionHint": "Selects the regional Amazon Bedrock endpoint. Leave blank to use us-east-1.",
     "autoRefreshModelsHint": "Query this provider when clients list models. Turn off to use only persisted models; a local list-model routing rule also skips upstream refresh.",
     "enableMagicCacheHint": "Strip shared magic trigger strings and stamp native Claude or OpenAI prompt-cache breakpoints.",
     "enableClaudeFableFallbackHint": "For Claude Messages requests to Claude Fable 5, add fallback to Claude Opus 4.8.",
@@ -144,7 +146,8 @@
     "githubToken": "GitHub token",
     "saInvalid": "Must be JSON containing client_email and private_key",
     "tokensHint": "Paste tokens exported from the official client. expires_at_ms is unix milliseconds.",
-    "geminiHint": "project_id is required for this channel (the OAuth wizard resolves it automatically)."
+    "geminiHint": "project_id is required for this channel (the OAuth wizard resolves it automatically).",
+    "bedrockApiKeyHint": "Paste an Amazon Bedrock API key (AWS_BEARER_TOKEN_BEDROCK), not an IAM access-key ID."
   },
   "wizard": {
     "title": "Connect {{channel}}",

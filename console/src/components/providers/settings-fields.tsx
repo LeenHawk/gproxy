@@ -8,6 +8,7 @@
  *   circuit_breaker   — all channels (both sub-fields must be filled or both omitted)
  *   auto_refresh_models — all channels (default true)
  *   location          — vertex only
+ *   region            — Amazon Bedrock channels
  *   profile_arn       — kiro only
  *   api_version       — azure deployment-bound image APIs
  *   enable_magic_cache — Claude/OpenAI-capable channels (magic-string prompt cache triggers)
@@ -28,11 +29,12 @@ import { EndpointFields, type EndpointRow } from "./endpoint-fields";
 
 // Channels whose backend honors magic-string cache triggers on native Claude/OpenAI bodies.
 const MAGIC_CACHE_CHANNELS = new Set([
-  "claudecode", "claudeapi", "openai", "azure", "codex", "vercel", "openrouter",
+  "claudecode", "claudeapi", "openai", "azure", "bedrock-mantle", "bedrock-runtime", "codex", "vercel", "openrouter",
 ]);
 const CLAUDE_FALLBACK_CHANNELS = new Set([
-  "claudecode", "claudeapi", "azure", "vercel", "openrouter",
+  "claudecode", "claudeapi", "azure", "bedrock-mantle", "bedrock-runtime", "vercel", "openrouter",
 ]);
+const BEDROCK_CHANNELS = new Set(["bedrock-mantle", "bedrock-runtime"]);
 
 // ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
 const CHATGPT_MODES = ["normal", "temporary", "project"] as const;
@@ -45,6 +47,7 @@ export interface SettingsState {
   cooldownSecs: string;
   autoRefreshModels: boolean;
   location: string;
+  region: string;
   profileArn: string;
   apiVersion: string;
   enableMagicCache: boolean;
@@ -90,6 +93,7 @@ export function initSettingsState(settingsJson: unknown, channel: string): Setti
       typeof cb.cooldown_secs === "number" ? String(cb.cooldown_secs) : "",
     autoRefreshModels: s.auto_refresh_models !== false,
     location: typeof s.location === "string" ? s.location : "",
+    region: typeof s.region === "string" ? s.region : "",
     profileArn: typeof s.profile_arn === "string" ? s.profile_arn : "",
     apiVersion: typeof s.api_version === "string" ? s.api_version : "",
     enableMagicCache: s.enable_magic_cache === true,
@@ -149,6 +153,14 @@ export function assembleSettings(
       result.location = state.location.trim();
     } else {
       delete result.location;
+    }
+  }
+
+  if (BEDROCK_CHANNELS.has(channel)) {
+    if (state.region.trim()) {
+      result.region = state.region.trim();
+    } else {
+      delete result.region;
     }
   }
 
@@ -233,6 +245,19 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
         rows={state.endpoints}
         onChange={(endpoints) => onChange({ endpoints })}
       />
+
+      {BEDROCK_CHANNELS.has(channel) && (
+        <div className="grid gap-2">
+          <Label htmlFor="sf-region">{t("fields.region")}</Label>
+          <Input
+            id="sf-region"
+            value={state.region}
+            onChange={(event) => onChange({ region: event.target.value })}
+            placeholder="us-east-1"
+          />
+          <p className="text-xs text-muted-foreground">{t("form.bedrockRegionHint")}</p>
+        </div>
+      )}
 
       {channel === "azure" && (
         <div className="grid gap-2">

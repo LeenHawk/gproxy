@@ -17,6 +17,7 @@
     "enabled": "啟用",
     "baseUrl": "Base URL",
     "apiVersion": "圖片 API 版本",
+    "region": "AWS 區域",
     "circuitBreaker": "熔斷器（選填）",
     "consecutiveFailures": "連續失敗次數",
     "cooldownSecs": "冷卻時間（秒）",
@@ -55,6 +56,7 @@
     "baseUrlOrEndpointRequired": "custom 通道必須填寫 Base URL 或至少一個端點。",
     "azureBaseUrlOrEndpointRequired": "Azure 通道必須填寫資源 Base URL 或至少一個精確端點。",
     "apiVersionHint": "Azure deployment-bound 圖片介面需要此版本；留空使用 2025-04-01-preview。",
+    "bedrockRegionHint": "用於選擇 Amazon Bedrock 區域端點；留空使用 us-east-1。",
     "autoRefreshModelsHint": "用戶端查詢模型清單時請求此通道。關閉後只讀取已持久化模型；模型清單路由設為 local 時也不會請求上游。",
     "enableMagicCacheHint": "辨識並剝除共用魔法觸發字串,依目標協定寫入 Claude 或 OpenAI 原生快取斷點。",
     "enableClaudeFableFallbackHint": "Claude Messages 請求使用 Claude Fable 5 時,自動加入回退到 Claude Opus 4.8。",
@@ -144,7 +146,8 @@
     "githubToken": "GitHub Token",
     "saInvalid": "必須是含 client_email 與 private_key 的 JSON",
     "tokensHint": "貼上從官方用戶端匯出的 token;expires_at_ms 為 unix 毫秒。",
-    "geminiHint": "此通道必須提供 project_id(OAuth 精靈會自動解析)。"
+    "geminiHint": "此通道必須提供 project_id(OAuth 精靈會自動解析)。",
+    "bedrockApiKeyHint": "請貼上 Amazon Bedrock API key（AWS_BEARER_TOKEN_BEDROCK），不要填寫 IAM Access Key ID。"
   },
   "wizard": {
     "title": "連線 {{channel}}",

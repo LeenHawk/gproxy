@@ -31,11 +31,11 @@ use serde_json::{Value, json};
 
 use crate::channel::ChannelStreamDecoder;
 
-use super::smithy::{SmithyFrame, SmithyFrameParser};
 use super::sse::{
     dedup_chunk, gen_id, message_item, openai_usage, push_sse, reasoning_item, url_decode,
 };
 use super::tool_calls::ToolCallTracker;
+use crate::channel::aws_eventstream::{SmithyFrame, SmithyFrameParser};
 
 /// Per-stream Responses SSE state machine over the Smithy frame stream.
 pub struct KiroStreamDecoder {
@@ -396,8 +396,8 @@ impl ChannelStreamDecoder for KiroStreamDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::super::smithy::build_frame;
     use super::*;
+    use crate::channel::aws_eventstream::build_frame;
 
     /// Concatenate all `data:` payloads emitted by a decoder run for assertions.
     fn sse_text(bytes: &[u8]) -> String {
