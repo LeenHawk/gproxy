@@ -65,6 +65,8 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         // ── API-key ──
         #[cfg(feature = "channel-openai")]
         Arc::new(bulletins::openai::OpenAiChannel),
+        #[cfg(feature = "channel-azure")]
+        Arc::new(bulletins::azure::AzureChannel),
         #[cfg(feature = "channel-openrouter")]
         Arc::new(bulletins::openrouter::OpenRouterChannel),
         #[cfg(feature = "channel-deepseek")]

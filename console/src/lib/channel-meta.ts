@@ -32,6 +32,7 @@ const CUSTOM_ENDPOINTS = ENDPOINT_KINDS.filter(
 );
 const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   openai: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "openai_embeddings", "image_generations", "image_edits", "openai_compact"],
+  azure: ["openai_list_models", "openai_get_model", "claude_count_tokens", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings", "image_generations", "image_edits", "openai_compact"],
   openrouter: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "claude_messages", "openai_embeddings"],
   deepseek: ["openai_list_models", "openai_get_model", "openai_chat_completions", "claude_messages"],
   groq: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses"],
@@ -70,7 +71,7 @@ export interface ChannelMeta {
 }
 
 const API_KEY_IDS = [
-  "openai", "openrouter", "deepseek", "groq", "nvidia",
+  "openai", "azure", "openrouter", "deepseek", "groq", "nvidia",
   "vercel", "custom", "claudeapi", "aistudio", "vertexexpress",
 ] as const;
 

@@ -17,6 +17,7 @@ native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消�
 | Channel id | 常见用途 |
 | --- | --- |
 | `openai`, `custom` | OpenAI API 或 OpenAI-compatible gateway。 |
+| `azure` | Microsoft Foundry / Azure OpenAI；支持 OpenAI v1、Claude、嵌入、Compact 与 deployment-bound 图片接口。 |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
 | `claudeapi` | Anthropic Claude Messages API。 |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
@@ -25,6 +26,31 @@ native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消�
 | `claudeweb` | 通过 claude.ai 会话 cookie 接入 Claude 消费版 web 后端（仅 native）。 |
 
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
+
+### Azure 渠道
+
+`azure` channel 使用 API key 凭据，`settings_json.base_url` 必须填写 Azure 资源根地址，例如
+`https://<resource>.openai.azure.com` 或 portal 给出的 Foundry endpoint。OpenAI-family 请求会映射到
+`/openai/v1/*` 并使用 `api-key` 请求头；Claude Messages 与 Count Tokens 会映射到
+`/anthropic/v1/*` 并使用 `x-api-key`。请求中的模型 ID 必须是 Azure deployment 名称。
+
+图片生成和编辑使用 Azure 当前的 deployment-bound 接口：
+`/openai/deployments/{deployment}/images/generations` 与
+`/openai/deployments/{deployment}/images/edits`。缺省 `api-version` 是
+`2025-04-01-preview`，可通过 `settings_json.api_version` 修改，也可在精确 endpoint URL 中固定。
+Azure Responses schema 已包含 `/openai/v1/responses/compact` 的 compaction 类型；若具体资源版本
+尚未开放该接口，可用 `endpoints.openai_compact` 指向该资源支持的完整 URL。
+
+当 OpenAI 与 Claude 部署使用不同资源域名时，在 `settings_json.endpoints` 中分别配置精确 URL；
+精确 endpoint 优先于 `base_url`，并支持 `{model}` deployment 占位符。
+
+Azure 同时支持三项提示词管理功能。Provider 的 `cache_breakpoint` 规则会给 OpenAI
+Chat/Responses 插入原生 `prompt_cache_breakpoint`，或给 Claude Messages 插入
+`cache_control`。启用 `enable_magic_cache` 后，共用的 GPROXY 触发字符串会被删除，并在原位置
+插入目标协议缓存断点。启用 `enable_claude_fable_fallback` 后，`claude-fable-5` deployment 会
+自动加入到 `claude-opus-4-8` 的服务端回退和所需 Anthropic beta 请求头。自定义 Azure
+deployment 名称无法由标准名称自动推导，应显式提供 `fallbacks` 链和
+`server-side-fallback-2026-06-01` beta 请求头。
 
 ### Vertex Claude 合作伙伴模型
 
@@ -84,8 +110,9 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 | --- | --- |
 | `base_url` | Channel 级回退前缀；未配置精确 endpoint 时会追加标准接口路径。 |
 | `endpoints` | 可选的最终 URL 覆盖，例如 `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`；优先于 `base_url`，且不会追加路径。动态模型路径可以使用 `{model}`。 |
-| `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
-| `enable_claude_fable_fallback` | 在支持 Claude 的 Channel 上启用 Fable 到 Opus 的回退行为。 |
+| `api_version` | `azure` 图片生成/编辑接口的 API 版本；缺省为 `2025-04-01-preview`。 |
+| `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Azure、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
+| `enable_claude_fable_fallback` | 在支持 Claude 的 Channel（包括 Azure）上启用 Fable 到 Opus 的回退行为。 |
 
 启用魔法字符串缓存前，建议先阅读[提示缓存](/zh-cn/guides/claude-caching/)，特别是 OpenAI
 对模型版本和 TTL 的要求。

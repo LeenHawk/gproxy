@@ -118,7 +118,7 @@ Claude 在选中的内容块上使用 `cache_control`：
 ## 魔法字符串
 
 在 Provider 设置中打开 **魔法字符串缓存** 后，客户端可以把触发字符串直接放进文本块。
-该开关适用于 OpenAI、Codex、Claude API、Claude Code、OpenRouter 和 Vercel 渠道。GPROXY
+该开关适用于 OpenAI、Azure、Codex、Claude API、Claude Code、OpenRouter 和 Vercel 渠道。GPROXY
 会在发送上游前删除触发字符串，并在相同位置添加目标协议的缓存断点。
 
 Claude 和 OpenAI 格式共用以下触发字符串：
