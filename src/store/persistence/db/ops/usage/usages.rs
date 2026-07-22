@@ -142,6 +142,9 @@ fn filtered(q: &UsageQuery, include_cursor: bool) -> Select<usage::Entity> {
     if let Some(v) = q.provider_id {
         sel = sel.filter(C::ProviderId.eq(v));
     }
+    if let Some(v) = q.credential_id {
+        sel = sel.filter(C::CredentialId.eq(v));
+    }
     if let Some(v) = q.user_id {
         sel = sel.filter(C::UserId.eq(v));
     }
@@ -204,6 +207,16 @@ pub async fn summarize(conn: &DatabaseConnection, q: &UsageQuery) -> anyhow::Res
     }
     if let Some(v) = q.provider_id {
         push_summary_filter(&mut sql, &mut values, backend, "provider_id", "=", v.into());
+    }
+    if let Some(v) = q.credential_id {
+        push_summary_filter(
+            &mut sql,
+            &mut values,
+            backend,
+            "credential_id",
+            "=",
+            v.into(),
+        );
     }
     if let Some(v) = q.user_id {
         push_summary_filter(&mut sql, &mut values, backend, "user_id", "=", v.into());

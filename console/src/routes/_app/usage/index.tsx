@@ -175,7 +175,11 @@ function UsagePage() {
 
         <TabsContent value="usage" className="mt-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <UsageFilters value={filter} onChange={changeFilter} />
+            <UsageFilters
+              value={filter}
+              onChange={changeFilter}
+              showCredential
+            />
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => batch.mode ? batch.exit() : batch.setMode(true)}>
                 {batch.mode ? tc("batch.cancel") : tc("batch.select")}

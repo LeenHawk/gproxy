@@ -18,6 +18,7 @@
       "from": "開始時間",
       "to": "結束時間",
       "provider": "供應商",
+      "credential": "憑證",
       "user": "使用者",
       "route": "路由",
       "model": "模型",

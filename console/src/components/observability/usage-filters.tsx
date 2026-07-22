@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { credentialsQuery } from "@/api/credentials";
 import { providersQuery } from "@/api/providers";
 import { usersQuery } from "@/api/identity";
 import { routesQuery } from "@/api/routes";
@@ -33,6 +34,7 @@ interface UsageFiltersProps {
   value: Omit<UsageFilter, "before_id" | "limit">;
   onChange: (f: Omit<UsageFilter, "before_id" | "limit">) => void;
   showModel?: boolean;
+  showCredential?: boolean;
   routeListId?: string;
 }
 
@@ -40,10 +42,15 @@ export function UsageFilters({
   value,
   onChange,
   showModel = true,
+  showCredential = false,
   routeListId = "route-datalist",
 }: UsageFiltersProps) {
   const { t } = useTranslation("observability");
   const { data: providers } = useQuery(providersQuery);
+  const { data: credentials } = useQuery({
+    ...credentialsQuery(value.provider_id ?? 0),
+    enabled: showCredential && value.provider_id != null,
+  });
   const { data: users } = useQuery(usersQuery);
   const { data: routes } = useQuery(routesQuery);
 
@@ -95,9 +102,11 @@ export function UsageFilters({
       {/* Provider */}
       <Select
         value={value.provider_id != null ? String(value.provider_id) : ""}
-        onValueChange={(v) =>
-          setField("provider_id", v && v !== "__all__" ? Number(v) : undefined)
-        }
+        onValueChange={(v) => onChange({
+          ...value,
+          provider_id: v && v !== "__all__" ? Number(v) : undefined,
+          credential_id: undefined,
+        })}
       >
         <SelectTrigger size="sm" className="w-36">
           <SelectValue placeholder={t("usage.filters.provider")} />
@@ -111,6 +120,28 @@ export function UsageFilters({
           ))}
         </SelectContent>
       </Select>
+
+      {showCredential && (
+        <Select
+          value={value.credential_id != null ? String(value.credential_id) : ""}
+          onValueChange={(v) =>
+            setField("credential_id", v && v !== "__all__" ? Number(v) : undefined)
+          }
+          disabled={value.provider_id == null}
+        >
+          <SelectTrigger size="sm" className="w-36">
+            <SelectValue placeholder={t("usage.filters.credential")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">{t("usage.filters.credential")}</SelectItem>
+            {(credentials ?? []).map((credential) => (
+              <SelectItem key={credential.id} value={String(credential.id)}>
+                {credential.label ?? `#${credential.id}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* User */}
       <Select

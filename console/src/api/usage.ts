@@ -116,6 +116,7 @@ export interface UsageFilter {
   at_from?: number;
   at_to?: number;
   provider_id?: number;
+  credential_id?: number;
   user_id?: number;
   route_name?: string;
   model?: string;
@@ -146,6 +147,7 @@ function usageQs(f: UsageFilter, page?: number): string {
   if (f.at_from != null) p.set("at_from", String(f.at_from));
   if (f.at_to != null) p.set("at_to", String(f.at_to));
   if (f.provider_id != null) p.set("provider_id", String(f.provider_id));
+  if (f.credential_id != null) p.set("credential_id", String(f.credential_id));
   if (f.user_id != null) p.set("user_id", String(f.user_id));
   if (f.route_name) p.set("route_name", f.route_name);
   if (f.model) p.set("model", f.model);

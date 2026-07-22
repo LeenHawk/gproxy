@@ -69,17 +69,17 @@ async fn metrics_aggregate_sums_rollups_and_buckets_latency() {
 #[tokio::test]
 async fn usage_summary_matches_filters_and_ignores_pagination() {
     let db = mem().await;
-    for (rid, at, provider_id, model, input, output, cost) in [
-        ("r1", 100, 1, "model-a", 10, 20, "0.001"),
-        ("r2", 200, 1, "model-a", 30, 40, "0.002"),
-        ("r3", 300, 2, "model-b", 50, 60, "0.004"),
+    for (rid, at, provider_id, credential_id, model, input, output, cost) in [
+        ("r1", 100, 1, 11, "model-a", 10, 20, "0.001"),
+        ("r2", 200, 1, 11, "model-a", 30, 40, "0.002"),
+        ("r3", 150, 1, 12, "model-a", 50, 60, "0.004"),
     ] {
         db.append_usage(UsageInput {
             request_id: rid.to_owned(),
             at,
             route_name: Some("default".into()),
             provider_id: Some(provider_id),
-            credential_id: None,
+            credential_id: Some(credential_id),
             org_id: None,
             team_id: None,
             user_id: Some(7),
@@ -107,6 +107,7 @@ async fn usage_summary_matches_filters_and_ignores_pagination() {
             at_from: Some(100),
             at_to: Some(250),
             provider_id: Some(1),
+            credential_id: Some(11),
             user_id: Some(7),
             route_name: Some("default".into()),
             model: Some("model-a".into()),
@@ -130,6 +131,7 @@ async fn usage_summary_matches_filters_and_ignores_pagination() {
         .query_usages_page(
             &UsageQuery {
                 provider_id: Some(1),
+                credential_id: Some(11),
                 user_id: Some(7),
                 model: Some("model-a".into()),
                 ..Default::default()
