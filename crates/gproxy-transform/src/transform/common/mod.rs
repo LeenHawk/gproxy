@@ -10,6 +10,7 @@ pub mod roles;
 pub mod sse;
 pub mod tools;
 pub mod usage;
+pub mod utf8;
 
 pub use claude_mid_conv_system::*;
 pub use errors::*;

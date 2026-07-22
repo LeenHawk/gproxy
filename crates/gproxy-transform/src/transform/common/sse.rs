@@ -42,10 +42,12 @@ impl SseFrame {
 
 /// Incremental SSE frame decoder: feed raw body chunks, drain complete frames.
 /// Tolerates CRLF, multi-line `data:`, and frames split across chunk
-/// boundaries. Comments, `id:` and `retry:` lines are framing noise (dropped).
+/// boundaries — including chunks split inside a multi-byte UTF-8 character.
+/// Comments, `id:` and `retry:` lines are framing noise (dropped).
 #[derive(Debug, Default)]
 pub struct SseDecoder {
     buf: String,
+    utf8: super::utf8::Utf8StreamDecoder,
 }
 
 impl SseDecoder {
@@ -54,9 +56,10 @@ impl SseDecoder {
     }
 
     /// Append a chunk and return all complete (blank-line-terminated) frames.
-    /// SSE is text by definition; invalid UTF-8 is replaced lossily.
+    /// SSE is text by definition; genuinely invalid UTF-8 is replaced lossily,
+    /// while an incomplete trailing sequence waits for the next chunk.
     pub fn push(&mut self, chunk: &[u8]) -> Vec<SseFrame> {
-        self.buf.push_str(&String::from_utf8_lossy(chunk));
+        self.utf8.decode_into(chunk, &mut self.buf);
         if self.buf.contains('\r') {
             self.buf = self.buf.replace("\r\n", "\n");
         }
@@ -73,6 +76,7 @@ impl SseDecoder {
     /// Drain a trailing, unterminated frame at end of stream (some upstreams
     /// omit the final blank line).
     pub fn finish(&mut self) -> Option<SseFrame> {
+        self.utf8.flush(&mut self.buf);
         let raw = std::mem::take(&mut self.buf);
         parse_frame(&raw)
     }
@@ -119,5 +123,16 @@ mod tests {
         let frames = d.push(b"data: l1\r\ndata: l2\r\n\r\n");
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].data, "l1\nl2");
+    }
+
+    #[test]
+    fn multibyte_char_split_across_chunks() {
+        // "data: 汉字\n\n" split inside the 3-byte "汉" — must not yield U+FFFD.
+        let mut d = SseDecoder::new();
+        let bytes = "data: 汉字\n\n".as_bytes();
+        assert!(d.push(&bytes[..7]).is_empty()); // cuts "汉" after 1 byte
+        let frames = d.push(&bytes[7..]);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].data, "汉字");
     }
 }
