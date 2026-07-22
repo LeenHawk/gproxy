@@ -84,6 +84,7 @@ pub struct SseDecoder {
     current_event: Option<String>,
     data_buf: String,
     line_buf: String,
+    utf8: crate::transform::common::utf8::Utf8StreamDecoder,
     events: VecDeque<Event>,
 }
 
@@ -92,12 +93,10 @@ impl SseDecoder {
         Self::default()
     }
 
-    /// Feed a chunk of response bytes. Invalid UTF-8 is replaced.
+    /// Feed a chunk of response bytes. Genuinely invalid UTF-8 is replaced;
+    /// a multi-byte character split across chunks is reassembled.
     pub fn feed(&mut self, bytes: &[u8]) {
-        let s = std::str::from_utf8(bytes)
-            .map(std::borrow::Cow::Borrowed)
-            .unwrap_or_else(|_| String::from_utf8_lossy(bytes));
-        self.line_buf.push_str(&s);
+        self.utf8.decode_into(bytes, &mut self.line_buf);
         while let Some(idx) = self.line_buf.find('\n') {
             let line = self.line_buf[..idx].to_string();
             self.line_buf.drain(..=idx);
