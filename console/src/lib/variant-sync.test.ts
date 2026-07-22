@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { planVariantRuleChanges, parseVariantNames, type RuleDraft } from "./variant-sync";
+import {
+  extractVariantActions,
+  planVariantRuleChanges,
+  parseVariantNames,
+  type RuleDraft,
+} from "./variant-sync";
 import type { Rule } from "@/api/rules";
 import type { SuffixAction } from "@/components/providers/suffix-presets";
 
@@ -18,6 +23,22 @@ describe("parseVariantNames", () => {
     expect(parseVariantNames({ expose_base: false, variants: ["qwen-fast"] })).toEqual(["qwen-fast"]);
     expect(parseVariantNames(null)).toEqual([]);
     expect(parseVariantNames("nope")).toEqual([]);
+  });
+});
+
+describe("extractVariantActions", () => {
+  it("loads enabled rewrite/set rules for the requested variants in rule order", () => {
+    const rules = [
+      { ...rule(2, "gpt-fast"), sort_order: 1, config_json: { path: "service_tier", action: "set", value_json: "priority" } },
+      { ...rule(1, "gpt-fast"), config_json: { path: "reasoning", action: "set", value_json: { effort: "high" } } },
+      { ...rule(3, "another-model"), config_json: { path: "ignored", action: "set", value_json: true } },
+      { ...rule(4, "gpt-fast"), enabled: false, config_json: { path: "ignored", action: "set", value_json: true } },
+    ];
+
+    expect(extractVariantActions(["gpt-fast"], rules).get("gpt-fast")).toEqual([
+      { path: "reasoning", value: { effort: "high" } },
+      { path: "service_tier", value: "priority" },
+    ]);
   });
 });
 

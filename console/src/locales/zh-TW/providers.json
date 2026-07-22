@@ -271,7 +271,7 @@
     "variantRemove": "刪除變體",
     "variantSetBehavior": "設定行為…",
     "variantNoBehavior": "無行為",
-    "variantBehaviorKept": "(保留現有)",
+    "variantBehaviorLoading": "正在載入現有行為…",
     "addVariant": "新增變體",
     "exposeBase": "同時公開 base 模型",
     "variantPicker": {

@@ -271,7 +271,7 @@
     "variantRemove": "Remove variant",
     "variantSetBehavior": "Set behavior…",
     "variantNoBehavior": "No behavior",
-    "variantBehaviorKept": "(keeps existing)",
+    "variantBehaviorLoading": "Loading existing behavior…",
     "addVariant": "Add variant",
     "exposeBase": "Expose the base model too",
     "variantPicker": {

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { upsertProviderModel, type ProviderModel } from "@/api/provider-models";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { VariantEditor, type VariantRow } from "@/components/providers/variant-editor";
-import { syncModelVariants, parseVariantNames } from "@/lib/variant-sync";
+import { loadVariantActions, syncModelVariants, parseVariantNames } from "@/lib/variant-sync";
 import type { SuffixAction } from "@/components/providers/suffix-presets";
 
 function readVariantRows(variants: unknown): { rows: VariantRow[]; exposeBase: boolean } {
@@ -42,6 +42,20 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
   const [formError, setFormError] = useState<string | null>(null);
 
   const [oldNames] = useState(() => parseVariantNames(model?.variants_json));
+  const behaviorQuery = useQuery({
+    queryKey: ["providers", providerId, "variant-actions", model?.id ?? "new"],
+    queryFn: () => loadVariantActions(providerId, oldNames),
+    enabled: editing && oldNames.length > 0,
+  });
+
+  useEffect(() => {
+    if (!behaviorQuery.data) return;
+    setVariantRows((rows) => rows.map((row) => {
+      if (row.touched) return row;
+      const actions = behaviorQuery.data.get(row.name);
+      return actions ? { ...row, actions } : row;
+    }));
+  }, [behaviorQuery.data]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -72,6 +86,7 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["providers", providerId, "models"] });
+      void queryClient.invalidateQueries({ queryKey: ["providers", providerId, "variant-actions"] });
       void queryClient.invalidateQueries({ queryKey: ["rule-sets"] });
       toast.success(t("form.saved"));
       onSaved();
@@ -96,6 +111,7 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         exposeBase={exposeBase}
         modelId={modelId}
         channel={channel}
+        behaviorsLoading={behaviorQuery.isFetching}
         onChange={setVariantRows}
         onExposeBaseChange={setExposeBase}
       />
@@ -104,8 +120,14 @@ export function ModelForm({ providerId, providerName, channel, model, onSaved }:
         <Label htmlFor="md-enabled">{t("models.enabled")}</Label>
         <Switch id="md-enabled" checked={enabled} onCheckedChange={setEnabled} />
       </div>
-      {formError && <p className="text-sm text-destructive">{formError}</p>}
-      <Button type="submit" disabled={mutation.isPending}>{editing ? t("models.edit") : t("models.add")}</Button>
+      {(formError || behaviorQuery.error) && (
+        <p className="text-sm text-destructive">
+          {formError ?? (behaviorQuery.error instanceof ApiError ? behaviorQuery.error.message : String(behaviorQuery.error))}
+        </p>
+      )}
+      <Button type="submit" disabled={mutation.isPending || behaviorQuery.isFetching || behaviorQuery.isError}>
+        {editing ? t("models.edit") : t("models.add")}
+      </Button>
     </form>
   );
 }
