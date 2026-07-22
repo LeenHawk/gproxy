@@ -71,7 +71,8 @@ fn schema_to_claude_schema(schema: gemini::Schema) -> claude::JsonSchema {
     .unwrap_or_else(empty_schema)
 }
 
-fn value_to_claude_schema(value: Value) -> Option<claude::JsonSchema> {
+fn value_to_claude_schema(mut value: Value) -> Option<claude::JsonSchema> {
+    normalize_schema_types(&mut value);
     let Value::Object(mut map) = value else {
         return None;
     };
@@ -103,11 +104,57 @@ fn value_to_claude_schema(value: Value) -> Option<claude::JsonSchema> {
     })
 }
 
+fn normalize_schema_types(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            if let Some(kind) = map.get_mut("type") {
+                normalize_type(kind);
+            }
+            map.values_mut().for_each(normalize_schema_types);
+        }
+        Value::Array(values) => values.iter_mut().for_each(normalize_schema_types),
+        _ => {}
+    }
+}
+
+fn normalize_type(value: &mut Value) {
+    match value {
+        Value::String(kind) => kind.make_ascii_lowercase(),
+        Value::Array(kinds) => kinds.iter_mut().for_each(normalize_type),
+        _ => {}
+    }
+}
+
 fn empty_schema() -> claude::JsonSchema {
     claude::JsonSchema {
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties: Default::default(),
         required: Vec::new(),
         extra: Default::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn normalizes_nested_gemini_schema_types() {
+        let schema = value_to_claude_schema(json!({
+            "type": "OBJECT",
+            "properties": {
+                "city": { "type": "STRING" },
+                "days": { "type": ["INTEGER", "NULL"] }
+            }
+        }))
+        .unwrap();
+
+        assert_eq!(schema.properties["city"]["type"], "string");
+        assert_eq!(
+            schema.properties["days"]["type"],
+            json!(["integer", "null"])
+        );
     }
 }
