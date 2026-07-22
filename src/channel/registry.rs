@@ -104,8 +104,6 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(bulletins::chatgpt::ChatGptChannel),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
         Arc::new(bulletins::claudeweb::ClaudeWebChannel),
-        #[cfg(all(feature = "channel-tasklet", not(target_arch = "wasm32")))]
-        Arc::new(bulletins::tasklet::TaskletChannel),
     ]
 }
 
@@ -149,8 +147,6 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
             "claudeweb",
             Arc::new(bulletins::claudeweb::ClaudeWebChannel),
         ),
-        #[cfg(all(feature = "channel-tasklet", not(target_arch = "wasm32")))]
-        ("tasklet", Arc::new(bulletins::tasklet::TaskletChannel)),
     ]
 }
 

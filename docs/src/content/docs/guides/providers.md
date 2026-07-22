@@ -26,7 +26,6 @@ channels that require multi-step WebSocket sessions. Current built-in channel id
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
 | `chatgpt` | ChatGPT consumer web backend via a chatgpt.com session cookie. |
 | `claudeweb` | Claude consumer web backend via a claude.ai session cookie (native only). |
-| `tasklet` | Tasklet Agent API via a browser session token (native only). |
 
 Every channel declares a routing surface as `(Operation, OperationKind) ->
 RoutingDecision`. That is the source for the provider's default
@@ -79,86 +78,6 @@ the provider form as a three-way selector, controls where conversations land:
 Project and Temporary are mutually exclusive (a project conversation is always
 persistent). The legacy `temporary_chat: true\|false` boolean is still honored
 when `mode` is absent.
-
-### Tasklet channel (session token)
-
-The native-only `tasklet` channel submits each generation as a new Tasklet Agent,
-then follows its `thinking`, autonomous tool execution, and final content over the
-Tasklet sync WebSocket. It accepts OpenAI Chat, Responses, Claude Messages, and
-Gemini generation requests through the normal routing transforms. Inline base64
-images, audio, and files are uploaded automatically as part of the generation
-request; there is no separate downstream Files API. Tasklet `f_...` file ids are
-passed directly. Remote attachment URLs are included in the task for Tasklet to
-access rather than fetched by gproxy.
-
-The Tasklet feature includes local token counting. When the rendered
-system/developer/messages text exceeds 50,000 local tokens, gproxy automatically
-uploads the complete text as `paste.txt` and sends `Read paste.txt.`. Existing
-attachments and client-tool bridging continue normally.
-
-Use **Connect** on a Tasklet provider to enter the account email, request a Tasklet
-PIN, and complete login. gproxy exchanges the PIN directly with Tasklet, validates
-the returned session through `/api/profile`, and stores only the encrypted session
-token and selected workspace metadata. It prefers a personal workspace and falls
-back to the first workspace returned by Tasklet. Optional provider settings are
-`timezone` (default `UTC`) and `emit_tool_trace` (default `false`, emits tool names
-as reasoning).
-
-The same wizard supports Google and Microsoft account login through Tasklet's
-official OAuth clients. Tasklet fixes both providers' redirect URI to
-`https://tasklet.ai/oauth2callback` and only reports popup results to a
-`tasklet.ai` opener, so gproxy cannot receive that callback across origins. The
-wizard therefore opens OAuth in the current tab. After authorization, copy the
-complete callback URL from the address bar, return to the gproxy Console, and
-paste it into the pending login. gproxy verifies the callback host, path, and
-one-time state before exchanging the code; neither the callback code nor browser
-state is stored in the credential.
-
-Manual credentials with `session_token` and `workspace_id` remain supported. To
-obtain those values manually:
-
-1. Sign in to Tasklet, open the browser developer tools, select **Network**, and
-   send any message to an agent. Reload the page first if the request is not
-   captured.
-2. Open the `POST https://api.tasklet.ai/api/sendChatMessage` request.
-3. Copy the value after `Bearer ` in the `Authorization` request header into
-   `session_token`. Do not include the `Bearer ` prefix.
-4. Copy `workspaceId` from the JSON request payload into `workspace_id`.
-
-The token can also be seen in the first `connect` message sent over the
-`/api/sync` WebSocket as `sessionToken`. Treat it like a password and replace it
-in gproxy after the Tasklet session is revoked or expires.
-
-The `channel-tasklet` feature also embeds a Rust MCP server for client-side tool
-calls. Expose gproxy over public HTTPS, create a dedicated gproxy user API key,
-and add these fields to the Tasklet credential:
-
-```json
-{
-  "mcp_url": "https://YOUR_GPROXY_HOST/tasklet/mcp",
-  "mcp_api_key": "YOUR_GPROXY_USER_KEY"
-}
-```
-
-On the first request containing client tools, gproxy checks the Tasklet workspace
-connections. If the URL is absent, it automatically creates the pending MCP setup
-agent/block required by Tasklet, submits the URL with `X-API-Key`, verifies the
-new connection, and grants workspace permission only to
-`gproxy_call_client_tool`. Existing matching connections are reused. No manual
-Tasklet connection step is required. The result is cached for five minutes, then
-revalidated, and the MCP endpoint does not accept keys in its query string.
-
-When an OpenAI-compatible request contains function or custom tools, gproxy gives
-Tasklet their schemas and a short-lived, single-use turn id. A Tasklet MCP call
-is then returned to the original caller as a normal `tool_calls` response;
-gproxy does not execute that client tool.
-
-The MCP endpoint requires an enabled gproxy user key and exposes no credentials
-or active tool catalogue. Delegation additionally requires the unguessable turn
-id carried only by the active Tasklet turn. Revoke the dedicated user key to
-disable Tasklet MCP access. In a multi-instance deployment, route the generation
-and its MCP callback to the same gproxy process, because active response streams
-are process-local.
 
 ## Provider Fields
 

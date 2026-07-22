@@ -295,24 +295,11 @@ fn file_data_to_chat_part(file_data: gemini::FileData) -> Option<openai::ChatCon
             extra: Default::default(),
         });
     }
-    if file_data.file_uri.starts_with("f_") {
-        Some(openai::ChatContentPart::File {
-            file: openai::ChatFileRef {
-                file_data: None,
-                file_id: Some(file_data.file_uri),
-                filename: None,
-                extra: Default::default(),
-            },
-            prompt_cache_breakpoint: None,
-            extra: Default::default(),
-        })
-    } else {
-        Some(openai::ChatContentPart::Text {
-            text: format!("Attachment URL: {}", file_data.file_uri),
-            prompt_cache_breakpoint: None,
-            extra: Default::default(),
-        })
-    }
+    Some(openai::ChatContentPart::Text {
+        text: format!("Attachment URL: {}", file_data.file_uri),
+        prompt_cache_breakpoint: None,
+        extra: Default::default(),
+    })
 }
 
 fn function_response_to_text(response: &gemini::FunctionResponse) -> String {

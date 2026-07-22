@@ -14,7 +14,6 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   grokbuild: "https://api.x.ai/v1",
   chatgpt: "https://chatgpt.com",
   claudeweb: "https://claude.ai",
-  tasklet: "https://api.tasklet.ai",
 };
 
 export const ENDPOINT_KINDS = [
@@ -172,21 +171,6 @@ export const CHANNELS: ChannelMeta[] = [
     usage: false,
     endpointKinds: [],
     secretTemplate: { access_token: "", cookie: "" },
-  },
-  {
-    // Tasklet Agent API (native-only `channel-tasklet` feature). The dedicated
-    // wizard exchanges an email PIN for a session token and workspace id.
-    id: "tasklet",
-    family: "oauth_tokens",
-    loginModes: ["authcode"],
-    usage: false,
-    endpointKinds: [],
-    secretTemplate: {
-      session_token: "",
-      workspace_id: "",
-      mcp_url: "https://YOUR_GPROXY_HOST/tasklet/mcp",
-      mcp_api_key: "",
-    },
   },
 ];
 
