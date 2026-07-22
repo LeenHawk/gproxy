@@ -72,3 +72,5 @@ Pipeline 和 channel response classifier 决定整个 credential 或仅某个模
 ## Retention
 
 `instance_settings.retention_days` 控制 usage 和 request-log row 清理。`None` 或非正数表示永久保留。Retention 只应清理 logs 和 usage 数据，不应删除业务/控制面记录。
+
+在 native SQLite 上，`instance_settings.max_database_size_mb` 可设置数据库物理大小上限。服务每五分钟检查一次；超过上限后，会删除最旧的上下游请求日志和审计记录，再压缩数据库至配置上限的 90%。此容量清理绝不删除 usage row 和 usage rollup。如果仅保留的用量及控制面数据就已超过目标，清理会停止并记录警告。PostgreSQL、MySQL 和 edge/libSQL 不应用此设置，因为普通删行无法可靠缩小其物理存储。

@@ -21,6 +21,7 @@ pub struct Model {
     pub enable_tokenizer_download: bool,
     pub update_channel: Option<String>,
     pub retention_days: Option<i64>,
+    pub max_database_size_mb: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
 }

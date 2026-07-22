@@ -1,7 +1,9 @@
 //! Schema creation, migration, and legacy-table repair tests.
 
 use super::*;
-use crate::store::persistence::traits::{CorePersistence, ProviderPersistence, RoutingPersistence};
+use crate::store::persistence::traits::{
+    CorePersistence, ProviderPersistence, RoutingPersistence, SettingsPersistence,
+};
 
 #[tokio::test]
 async fn sqlite_memory_connect_and_health() {
@@ -30,6 +32,40 @@ async fn connect_stamps_latest_and_leaves_nothing_pending() {
     // version directly — replaying a migration (e.g. ADD COLUMN) against the
     // just-created tables would fail.
     assert_eq!(max, latest_version());
+}
+
+#[tokio::test]
+async fn migrates_instance_settings_size_limit_column() {
+    use sea_orm::{ConnectionTrait, Database};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-instance-settings.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE instance_settings (\
+            id INTEGER PRIMARY KEY, instance_name TEXT NOT NULL UNIQUE, proxy TEXT, \
+            spoof_emulation INTEGER, enable_usage INTEGER NOT NULL, \
+            enable_upstream_log INTEGER NOT NULL, enable_upstream_log_body INTEGER NOT NULL, \
+            enable_downstream_log INTEGER NOT NULL, enable_downstream_log_body INTEGER NOT NULL, \
+            disable_log_redaction INTEGER NOT NULL, enable_tokenizer_download INTEGER NOT NULL, \
+            update_channel TEXT, retention_days INTEGER, created_at INTEGER NOT NULL, \
+            updated_at INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old instance_settings table");
+    conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
+        .await
+        .unwrap();
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (12, 0)")
+        .await
+        .unwrap();
+    conn.close().await.unwrap();
+
+    let db = DbPersistence::connect(&dsn).await.expect("migrate");
+    db.list_instance_settings()
+        .await
+        .expect("new column readable");
 }
 
 #[tokio::test]

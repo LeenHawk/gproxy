@@ -21,6 +21,7 @@
     "disableLogRedaction": "禁用日志脱敏",
     "enableTokenizerDownload": "启用分词器下载",
     "retentionDays": "日志保留天数",
+    "maxDatabaseSizeMb": "数据库大小上限（MiB）",
     "autostart": "登录系统时自动启动 GPROXY"
   },
   "spoof": {
@@ -28,7 +29,8 @@
     "off": "默认关闭"
   },
   "retention": {
-    "forever": "留空表示永久保留日志"
+    "forever": "留空表示永久保留日志",
+    "databaseSizeHelp": "仅适用于本地 SQLite。超过上限后会删除最旧的请求日志和审计，并压缩至上限的 90%；用量数据始终保留。留空表示不限制。"
   },
   "warnings": {
     "sensitive": "警告：已启用一个或多个敏感选项。日志可能包含未脱敏内容或请求/响应体，其中可能含有密钥和个人信息。请仅在排查问题时启用这些选项。"

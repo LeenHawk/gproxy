@@ -202,6 +202,25 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
     }
     repair_price_rules_schema(conn, dialect).await?;
     repair_usage_schema(conn, dialect).await?;
+    repair_instance_settings_schema(conn, dialect).await?;
+    Ok(())
+}
+
+async fn repair_instance_settings_schema(
+    conn: &DatabaseConnection,
+    dialect: MigrationDialect,
+) -> anyhow::Result<()> {
+    let cols = table_columns(conn, dialect, "instance_settings").await?;
+    if !cols.is_empty() && !cols.contains("max_database_size_mb") {
+        let ty = match dialect {
+            MigrationDialect::Sqlite => "INTEGER",
+            MigrationDialect::Postgres | MigrationDialect::MySql => "BIGINT",
+        };
+        conn.execute_unprepared(&format!(
+            "ALTER TABLE instance_settings ADD COLUMN max_database_size_mb {ty}"
+        ))
+        .await?;
+    }
     Ok(())
 }
 

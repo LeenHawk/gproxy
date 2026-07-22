@@ -209,5 +209,6 @@ pub(super) fn settings_to_input(r: InstanceSettings) -> InstanceSettingsInput {
         enable_tokenizer_download: r.enable_tokenizer_download,
         update_channel: r.update_channel,
         retention_days: r.retention_days,
+        max_database_size_mb: r.max_database_size_mb,
     }
 }

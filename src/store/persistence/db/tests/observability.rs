@@ -1,7 +1,7 @@
 //! Metrics, usage summaries, request logs, and audit log tests.
 
 use super::*;
-use crate::store::persistence::traits::UsagePersistence;
+use crate::store::persistence::traits::{MaintenancePersistence, UsagePersistence};
 
 #[tokio::test]
 async fn metrics_aggregate_sums_rollups_and_buckets_latency() {
@@ -296,4 +296,75 @@ async fn audit_log_round_trip() {
     assert_eq!(filtered.total, 1);
     assert_eq!(filtered.items.len(), 1);
     assert_eq!(filtered.items[0].id, delete.id);
+}
+
+#[tokio::test]
+async fn size_pressure_prunes_logs_and_audit_but_preserves_usage() {
+    let db = mem().await;
+    db.append_usage(UsageInput {
+        request_id: "keep-usage".into(),
+        at: 100,
+        route_name: None,
+        provider_id: None,
+        credential_id: None,
+        org_id: None,
+        team_id: None,
+        user_id: None,
+        user_key_id: None,
+        operation: "chat".into(),
+        kind: "openai".into(),
+        model: None,
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_read_tokens: 0,
+        cache_creation_5m_tokens: 0,
+        cache_creation_30m_tokens: 0,
+        cache_creation_1h_tokens: 0,
+        cost: rust_decimal::Decimal::ZERO,
+        latency_ms: 1,
+        usage_source: "upstream".into(),
+        ended: "complete".into(),
+    })
+    .await
+    .unwrap();
+    db.append_downstream_request(DownstreamRequestInput {
+        request_id: "keep-usage".into(),
+        at: 100,
+        method: "POST".into(),
+        path: "/v1/messages".into(),
+        query: None,
+        status: 200,
+        headers_json: None,
+        body: Some("request log".into()),
+        response_body: Some("response log".into()),
+    })
+    .await
+    .unwrap();
+    db.append_audit_log(AuditLogInput {
+        actor_id: Some(1),
+        actor_name: Some("admin".into()),
+        action: "POST".into(),
+        target: "/admin/settings".into(),
+        status: 200,
+        source_ip: None,
+    })
+    .await
+    .unwrap();
+
+    let result = db
+        .prune_observability_storage(1, 1)
+        .await
+        .unwrap()
+        .expect("SQLite size limit should trigger");
+
+    assert_eq!(result.removed_rows, 2);
+    assert!(result.exhausted, "retained data alone exceeds one byte");
+    assert_eq!(db.list_usages(10).await.unwrap().len(), 1);
+    assert!(
+        db.list_downstream_requests("keep-usage")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(db.list_audit_logs(10).await.unwrap().is_empty());
 }
