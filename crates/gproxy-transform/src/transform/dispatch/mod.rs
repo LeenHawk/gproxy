@@ -200,6 +200,25 @@ mod tests {
     }
 
     #[test]
+    fn compact_to_responses_is_resolved_and_wired() {
+        let source = OperationKey::provider(Operation::CompactContent, Provider::OpenAi);
+        let target = OperationKey::content_generation(
+            Operation::GenerateContent,
+            ContentGenerationKind::OpenAiResponses,
+        );
+        let pair = crate::transform::resolve(source, target).unwrap();
+        assert_eq!(pair, TransformPair::OpenAiCompactToOpenAiResponses);
+        assert!(is_wired(pair));
+
+        let ctx = TransformContext::new(source, target);
+        let body = br#"{"model":"m","input":"summarize this"}"#;
+        let out = request_bytes(pair, &ctx, body).unwrap();
+        let value: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(value["model"], "m");
+        assert!(value.get("input").is_some());
+    }
+
+    #[test]
     fn openai_to_claude_models_list_response_roundtrip() {
         let source = OperationKey::provider(Operation::ListModels, Provider::OpenAi);
         let target = OperationKey::provider(Operation::ListModels, Provider::Claude);

@@ -47,6 +47,7 @@ pub enum TransformPair {
     GeminiToOpenAiEditImage,
     OpenAiToClaudeCompact,
     ClaudeToOpenAiCompact,
+    OpenAiCompactToOpenAiResponses,
     OpenAiResponsesToOpenAiCompact,
     OpenAiCompactToGemini,
     GeminiToOpenAiCompact,
@@ -323,7 +324,8 @@ fn resolve_compaction(source: OperationKey, target: OperationKey) -> Option<Tran
             Kind::GeminiGenerateContent => Some(TransformPair::OpenAiCompactToGemini),
             Kind::OpenAiChatCompletions => Some(TransformPair::OpenAiCompactToOpenAiChat),
             Kind::ClaudeMessages => Some(TransformPair::OpenAiToClaudeCompact),
-            Kind::OpenAiResponses | Kind::OpenAiResponsesWebSocket => None,
+            Kind::OpenAiResponses => Some(TransformPair::OpenAiCompactToOpenAiResponses),
+            Kind::OpenAiResponsesWebSocket => None,
         };
     }
 

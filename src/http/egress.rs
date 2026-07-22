@@ -14,10 +14,7 @@ pub(crate) struct ResponseMetadata {
 /// attach their target-specific buffered or streaming body.
 pub(crate) fn metadata(outcome: &ExecOutcome, request_id: &str) -> ResponseMetadata {
     let mut headers = sanitize_headers(&outcome.headers);
-    if outcome.status.is_success()
-        && matches!(outcome.body, ResponseBody::Stream(_))
-        && !headers.contains_key(header::CONTENT_TYPE)
-    {
+    if outcome.status.is_success() && matches!(outcome.body, ResponseBody::Stream(_)) {
         headers.insert(
             header::CONTENT_TYPE,
             HeaderValue::from_static("text/event-stream"),
@@ -100,13 +97,28 @@ mod tests {
     }
 
     #[test]
-    fn streaming_success_gets_content_type_only_when_absent() {
+    fn streaming_success_gets_sse_content_type() {
         let stream = futures_util::stream::empty();
         let metadata = metadata(
             &outcome(HeaderMap::new(), ResponseBody::Stream(Box::pin(stream))),
             "request-2",
         );
 
+        assert_eq!(metadata.headers[header::CONTENT_TYPE], "text/event-stream");
+    }
+
+    #[test]
+    fn streaming_success_replaces_upstream_binary_content_type() {
+        let stream = futures_util::stream::empty();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/vnd.amazon.eventstream"),
+        );
+        let metadata = metadata(
+            &outcome(headers, ResponseBody::Stream(Box::pin(stream))),
+            "request-3",
+        );
         assert_eq!(metadata.headers[header::CONTENT_TYPE], "text/event-stream");
     }
 }

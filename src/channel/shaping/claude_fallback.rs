@@ -50,8 +50,14 @@ fn fallback_model_for(model: &str) -> Option<String> {
         return Some(OPUS_48.to_string());
     }
 
-    let (namespace, leaf) = model.rsplit_once('/')?;
-    (leaf == FABLE_5).then(|| format!("{namespace}/{OPUS_48}"))
+    for separator in ['/', '.'] {
+        if let Some((namespace, leaf)) = model.rsplit_once(separator)
+            && leaf == FABLE_5
+        {
+            return Some(format!("{namespace}{separator}{OPUS_48}"));
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -96,6 +102,21 @@ mod tests {
         assert_eq!(
             body["fallbacks"],
             json!([{ "model": "anthropic/claude-opus-4-8" }])
+        );
+    }
+
+    #[test]
+    fn preserves_bedrock_namespace() {
+        let mut body = json!({
+            "model": "anthropic.claude-fable-5",
+            "messages": [],
+            "max_tokens": 32
+        });
+
+        assert!(apply_fable_to_opus48_body_only(&mut body));
+        assert_eq!(
+            body["fallbacks"],
+            json!([{ "model": "anthropic.claude-opus-4-8" }])
         );
     }
 

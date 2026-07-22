@@ -21,6 +21,7 @@ channels that require multi-step WebSocket sessions. Current built-in channel id
 | --- | --- |
 | `openai`, `custom` | OpenAI API or OpenAI-compatible gateways. |
 | `azure` | Microsoft Foundry / Azure OpenAI, including OpenAI v1, Claude, embeddings, compact, and deployment-bound image APIs. |
+| `bedrock-mantle`, `bedrock-runtime` | Amazon Bedrock API-key channels for the regional Mantle and Runtime inference surfaces. |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
@@ -65,6 +66,40 @@ server-side fallback from the `claude-fable-5` deployment to
 deployment names must use an explicit `fallbacks` chain plus the
 `server-side-fallback-2026-06-01` beta header because the automatic mapping only
 recognizes those standard deployment names.
+
+### Amazon Bedrock channels
+
+The `bedrock-mantle` and `bedrock-runtime` channels use Amazon Bedrock API keys,
+stored as `{"api_key":"..."}`. Supply the Bedrock bearer token commonly exposed
+as `AWS_BEARER_TOKEN_BEDROCK`, not an IAM access-key ID. SigV4 credentials and
+the separate Claude Platform on AWS integration are not used by these channels.
+
+Set `settings_json.region` to the AWS region containing the models. It defaults
+to `us-east-1`. GPROXY derives
+`https://bedrock-mantle.<region>.api.aws` or
+`https://bedrock-runtime.<region>.amazonaws.com`; `base_url` and exact
+`endpoints` can still override those defaults.
+
+`bedrock-mantle` uses the AWS OpenAI-compatible Models, Chat Completions, and
+Responses APIs. Native Claude requests use Mantle's `/anthropic/v1/messages`
+surface. OpenAI Compact requests fall back to a regular Mantle Responses call
+and are converted back to the Compact response shape.
+
+`bedrock-runtime` uses AWS's OpenAI-compatible Models and Chat Completions APIs.
+Native Claude requests use `InvokeModel`; GPROXY places the routed Bedrock model
+or inference-profile ID in `/model/{modelId}/invoke`, adds
+`anthropic_version: bedrock-2023-05-31`, and uses
+`/model/{modelId}/invoke-with-response-stream` for true Claude streaming. The
+channel incrementally decodes AWS EventStream frames into Claude SSE while
+leaving Runtime's OpenAI Chat Completions SSE byte-for-byte intact. Claude Count
+Tokens uses Runtime's `/model/{modelId}/count-tokens` operation. Compact requests
+use Bedrock's Anthropic compaction beta through the non-streaming InvokeModel
+path.
+
+Both channels support provider `cache_breakpoint` rules, magic-string cache
+triggers, and the opt-in Fable 5 to Opus 4.8 fallback. Bedrock-style model IDs
+such as `anthropic.claude-fable-5` retain their dot namespace when GPROXY builds
+the fallback. Model and API availability remains region-dependent.
 
 ### Vertex Claude partner models
 
@@ -134,8 +169,9 @@ Common `settings_json` values are available as fields in the console:
 | `base_url` | Channel-wide fallback prefix. The standard operation path is appended when no exact endpoint override exists. |
 | `endpoints` | Optional exact URL overrides, for example `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`. Overrides take precedence over `base_url`, and no path is appended. Dynamic model paths may use `{model}`. |
 | `api_version` | API version for `azure` image generation and editing; defaults to `2025-04-01-preview`. |
-| `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Azure, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
-| `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels, including Azure. |
+| `region` | AWS region for `bedrock-mantle` and `bedrock-runtime`; defaults to `us-east-1`. |
+| `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
+| `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels, including Azure and Amazon Bedrock. |
 
 See [Prompt Caching](/guides/claude-caching/) before enabling magic-string
 caching, especially for OpenAI's model and TTL requirements.

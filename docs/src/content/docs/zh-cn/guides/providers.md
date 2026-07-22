@@ -18,6 +18,7 @@ native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消�
 | --- | --- |
 | `openai`, `custom` | OpenAI API 或 OpenAI-compatible gateway。 |
 | `azure` | Microsoft Foundry / Azure OpenAI；支持 OpenAI v1、Claude、嵌入、Compact 与 deployment-bound 图片接口。 |
+| `bedrock-mantle`, `bedrock-runtime` | 使用 API key 接入 Amazon Bedrock 区域 Mantle 与 Runtime 推理接口。 |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | OpenAI-like 的 API-key provider。 |
 | `claudeapi` | Anthropic Claude Messages API。 |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
@@ -51,6 +52,34 @@ Chat/Responses 插入原生 `prompt_cache_breakpoint`，或给 Claude Messages �
 自动加入到 `claude-opus-4-8` 的服务端回退和所需 Anthropic beta 请求头。自定义 Azure
 deployment 名称无法由标准名称自动推导，应显式提供 `fallbacks` 链和
 `server-side-fallback-2026-06-01` beta 请求头。
+
+### Amazon Bedrock 渠道
+
+`bedrock-mantle` 与 `bedrock-runtime` 使用 Amazon Bedrock API key，凭据保存为
+`{"api_key":"..."}`。这里应填写通常由 `AWS_BEARER_TOKEN_BEDROCK` 表示的 Bedrock
+bearer token，而不是 IAM Access Key ID。这两个渠道不使用 SigV4 凭据，也不接入单独的
+Claude Platform on AWS。
+
+通过 `settings_json.region` 设置模型所在的 AWS 区域，缺省为 `us-east-1`。GPROXY 会生成
+`https://bedrock-mantle.<region>.api.aws` 或
+`https://bedrock-runtime.<region>.amazonaws.com`；仍可用 `base_url` 与精确
+`endpoints` 覆盖默认地址。
+
+`bedrock-mantle` 使用 AWS 的 OpenAI-compatible Models、Chat Completions 与 Responses
+接口；原生 Claude 请求使用 Mantle 的 `/anthropic/v1/messages`。OpenAI Compact 请求会
+回退为普通 Mantle Responses 调用，再转换回 Compact 响应格式。
+
+`bedrock-runtime` 使用 AWS 的 OpenAI-compatible Models 与 Chat Completions 接口。原生
+Claude 请求通过 `InvokeModel` 调用：GPROXY 把路由后的 Bedrock 模型或 inference profile ID
+放入 `/model/{modelId}/invoke`，加入 `anthropic_version: bedrock-2023-05-31`；Claude 流式请求
+使用 `/model/{modelId}/invoke-with-response-stream`，渠道会增量解码 AWS EventStream frame 并
+实时输出 Claude SSE。Runtime 的 OpenAI Chat Completions SSE 则保持逐字节透传。Claude Count
+Tokens 使用 Runtime 的 `/model/{modelId}/count-tokens` 接口。Compact 请求通过非流式
+InvokeModel 路径使用 Bedrock Anthropic compaction beta。
+
+两个渠道都支持 provider `cache_breakpoint` 规则、魔法字符串缓存触发，以及可选的 Fable 5
+到 Opus 4.8 回退。`anthropic.claude-fable-5` 这类 Bedrock 模型 ID 在生成 fallback 时会保留
+点号命名空间。模型与 API 的可用性仍取决于区域。
 
 ### Vertex Claude 合作伙伴模型
 
@@ -111,8 +140,9 @@ session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 
 | `base_url` | Channel 级回退前缀；未配置精确 endpoint 时会追加标准接口路径。 |
 | `endpoints` | 可选的最终 URL 覆盖，例如 `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`；优先于 `base_url`，且不会追加路径。动态模型路径可以使用 `{model}`。 |
 | `api_version` | `azure` 图片生成/编辑接口的 API 版本；缺省为 `2025-04-01-preview`。 |
-| `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Azure、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
-| `enable_claude_fable_fallback` | 在支持 Claude 的 Channel（包括 Azure）上启用 Fable 到 Opus 的回退行为。 |
+| `region` | `bedrock-mantle` 与 `bedrock-runtime` 使用的 AWS 区域；缺省为 `us-east-1`。 |
+| `enable_magic_cache` | 识别 GPROXY 缓存触发字符串，并写入 Claude 或 OpenAI 原生缓存断点。适用于 OpenAI、Azure、Amazon Bedrock、Codex、Claude API、Claude Code、OpenRouter 和 Vercel。 |
+| `enable_claude_fable_fallback` | 在支持 Claude 的 Channel（包括 Azure 与 Amazon Bedrock）上启用 Fable 到 Opus 的回退行为。 |
 
 启用魔法字符串缓存前，建议先阅读[提示缓存](/zh-cn/guides/claude-caching/)，特别是 OpenAI
 对模型版本和 TTL 的要求。

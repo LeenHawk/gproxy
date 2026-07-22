@@ -4,6 +4,7 @@
 //! capability. It does **no** protocol transform and **no** rule rewriting
 //! (those are the transform/process layers) and never mutates the request body.
 
+pub(crate) mod aws_eventstream;
 pub mod bulletins;
 pub mod disposition;
 pub mod envelope;
