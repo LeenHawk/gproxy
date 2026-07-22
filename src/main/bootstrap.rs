@@ -271,8 +271,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
         gproxy::app::invalidation::spawn_invalidation_listener(state.clone());
     }
 
-    // §8-D: periodically purge usage/request-log rows past the retention window
-    // (no-op until an operator sets `instance_settings.retention_days`).
+    // §8-D: periodically enforce time retention and the native SQLite size cap.
     gproxy::app::retention::spawn_retention_task(state.clone());
 
     super::server_lifecycle::serve(state, bind).await

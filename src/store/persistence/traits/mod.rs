@@ -2,6 +2,7 @@
 
 mod authz;
 mod identity;
+mod maintenance;
 mod provider;
 mod routing;
 mod settings;
@@ -9,6 +10,7 @@ mod usage;
 
 pub use authz::AuthzPersistence;
 pub use identity::IdentityPersistence;
+pub use maintenance::{MaintenancePersistence, StoragePruneResult};
 pub use provider::ProviderPersistence;
 pub use routing::RoutingPersistence;
 pub use settings::SettingsPersistence;
@@ -67,6 +69,7 @@ macro_rules! persistence_backend {
                 + ProviderPersistence
                 + RoutingPersistence
                 + IdentityPersistence
+                + MaintenancePersistence
                 + AuthzPersistence
                 + UsagePersistence
                 + SettingsPersistence,
@@ -190,6 +193,8 @@ persistence_backend! {
     AuthzPersistence::upsert_quota => upsert_quota(input: QuotaInput) -> anyhow::Result<Quota>;
     AuthzPersistence::delete_quota => delete_quota(id: i64) -> anyhow::Result<bool>;
     AuthzPersistence::add_quota_cost => add_quota_cost(scope: Scope, scope_id: i64, delta: rust_decimal::Decimal) -> anyhow::Result<()>;
+
+    MaintenancePersistence::prune_observability_storage => prune_observability_storage(max_bytes: u64, target_bytes: u64) -> anyhow::Result<Option<StoragePruneResult>>;
 
     UsagePersistence::append_usage => append_usage(input: UsageInput) -> anyhow::Result<Option<Usage>>;
     UsagePersistence::list_usages => list_usages(limit: u64) -> anyhow::Result<Vec<Usage>>;

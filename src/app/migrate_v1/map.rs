@@ -153,6 +153,7 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             enable_tokenizer_download: false,
             update_channel: s.update_channel.clone(),
             retention_days: None,
+            max_database_size_mb: None,
         });
     }
 

@@ -22,6 +22,7 @@ fn to_record(m: instance_setting::Model) -> InstanceSettings {
         enable_tokenizer_download: m.enable_tokenizer_download,
         update_channel: m.update_channel,
         retention_days: m.retention_days,
+        max_database_size_mb: m.max_database_size_mb,
         created_at: m.created_at,
         updated_at: m.updated_at,
     }
@@ -75,6 +76,7 @@ pub async fn upsert(
                 am.enable_tokenizer_download = Set(input.enable_tokenizer_download);
                 am.update_channel = Set(input.update_channel);
                 am.retention_days = Set(input.retention_days);
+                am.max_database_size_mb = Set(input.max_database_size_mb);
                 am.updated_at = Set(now);
                 am.update(conn).await.map_err(conflict)?
             }
@@ -95,6 +97,7 @@ pub async fn upsert(
                     enable_tokenizer_download: Set(input.enable_tokenizer_download),
                     update_channel: Set(input.update_channel),
                     retention_days: Set(input.retention_days),
+                    max_database_size_mb: Set(input.max_database_size_mb),
                     created_at: Set(now),
                     updated_at: Set(now),
                 }
@@ -117,6 +120,7 @@ pub async fn upsert(
             enable_tokenizer_download: Set(input.enable_tokenizer_download),
             update_channel: Set(input.update_channel),
             retention_days: Set(input.retention_days),
+            max_database_size_mb: Set(input.max_database_size_mb),
             created_at: Set(now),
             updated_at: Set(now),
         }

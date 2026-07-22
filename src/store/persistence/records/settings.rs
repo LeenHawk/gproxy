@@ -35,6 +35,10 @@ pub struct InstanceSettings {
     /// or `<= 0` = retain forever (the historical behaviour).
     #[serde(default)]
     pub retention_days: Option<i64>,
+    /// Native SQLite database size limit in MiB. Once exceeded, oldest request
+    /// logs and audit rows are removed until a compacted DB reaches 90%.
+    #[serde(default)]
+    pub max_database_size_mb: Option<i64>,
     /// Unix seconds.
     pub created_at: i64,
     /// Unix seconds.
@@ -61,4 +65,6 @@ pub struct InstanceSettingsInput {
     pub update_channel: Option<String>,
     #[serde(default)]
     pub retention_days: Option<i64>,
+    #[serde(default)]
+    pub max_database_size_mb: Option<i64>,
 }

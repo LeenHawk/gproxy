@@ -353,6 +353,13 @@ pub const MIGRATIONS: &[Migration] = &[
                         (credential_id, channel, model_id))"],
         },
     },
+    Migration {
+        version: 13,
+        description: "instance_settings.max_database_size_mb: SQLite log/audit size pressure",
+        // Added existence-aware by both schema runners because create_all may
+        // already have materialized the current column on a partially old DB.
+        sql: MigrationSql::Shared(&[]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

@@ -96,3 +96,13 @@ deployments where process-local counters would be misleading.
 `instance_settings.retention_days` controls cleanup of usage and request-log
 rows. `None` or a non-positive value retains rows indefinitely. Retention is for
 logs and usage data; it should not delete business/control-plane records.
+
+On native SQLite, `instance_settings.max_database_size_mb` sets an optional
+physical database size cap. The server checks it every five minutes. When the
+cap is exceeded, it removes the oldest upstream/downstream request logs and
+audit rows, then compacts the database to 90% of the configured cap. Usage rows
+and usage rollups are never removed by this size-pressure cleanup. If retained
+usage and control-plane data alone exceed the target, cleanup stops and emits a
+warning rather than deleting them. PostgreSQL, MySQL, and edge/libSQL ignore
+this setting because ordinary row deletion cannot reliably shrink their
+physical storage.

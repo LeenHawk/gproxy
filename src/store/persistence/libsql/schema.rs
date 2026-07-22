@@ -325,6 +325,7 @@ const TABLES: &[&str] = &[
         enable_tokenizer_download INTEGER NOT NULL, \
         update_channel TEXT, \
         retention_days INTEGER, \
+        max_database_size_mb INTEGER, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL)",
     // ── tokenizer vocabs ──
@@ -383,6 +384,7 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
     }
     repair::price_rules(client).await?;
     repair::usage(client).await?;
+    repair::instance_settings(client).await?;
     Ok(())
 }
 

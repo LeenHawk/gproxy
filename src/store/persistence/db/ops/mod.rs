@@ -12,6 +12,7 @@ pub mod authz;
 pub mod batch;
 pub mod identity;
 pub mod logs;
+pub mod maintenance;
 pub mod metrics;
 pub mod pricing;
 pub mod provider;

@@ -49,7 +49,7 @@ interface FormState {
   enableUsage: boolean; enableUpstreamLog: boolean; enableUpstreamLogBody: boolean;
   enableDownstreamLog: boolean; enableDownstreamLogBody: boolean;
   disableLogRedaction: boolean; enableTokenizerDownload: boolean;
-  updateChannel: string; retentionDays: string;
+  updateChannel: string; retentionDays: string; maxDatabaseSizeMb: string;
 }
 
 function initState(s?: InstanceSettings): FormState {
@@ -64,6 +64,7 @@ function initState(s?: InstanceSettings): FormState {
     enableTokenizerDownload: s?.enable_tokenizer_download ?? false,
     updateChannel: s?.update_channel ?? "default",
     retentionDays: s?.retention_days != null ? String(s.retention_days) : "",
+    maxDatabaseSizeMb: s?.max_database_size_mb != null ? String(s.max_database_size_mb) : "",
   };
 }
 
@@ -86,6 +87,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
     mutationFn: async () => {
       if (!f.instanceName.trim()) throw new ApiError(0, "bad_request", nameRequired);
       const retDays = f.retentionDays.trim() === "" || Number(f.retentionDays) <= 0 ? null : Number(f.retentionDays);
+      const maxDbMb = f.maxDatabaseSizeMb.trim() === "" || Number(f.maxDatabaseSizeMb) <= 0 ? null : Number(f.maxDatabaseSizeMb);
       const input: InstanceSettingsInput = {
         id: settings?.id ?? null,
         instance_name: f.instanceName.trim(),
@@ -100,6 +102,7 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
         enable_tokenizer_download: f.enableTokenizerDownload,
         update_channel: f.updateChannel === "default" ? null : f.updateChannel,
         retention_days: retDays,
+        max_database_size_mb: maxDbMb,
       };
       return upsertInstanceSettings(input);
     },
@@ -164,6 +167,9 @@ export function SettingsForm({ settings, onSaved }: { settings?: InstanceSetting
           {(!f.retentionDays.trim() || Number(f.retentionDays) <= 0) && (
             <p className="text-xs text-muted-foreground">{t("retention.forever")}</p>
           )}
+          <Label htmlFor="settings-db-size">{t("fields.maxDatabaseSizeMb")}</Label>
+          <Input id="settings-db-size" type="number" min="0" value={f.maxDatabaseSizeMb} onChange={(e) => set("maxDatabaseSizeMb")(e.target.value)} />
+          <p className="text-xs text-muted-foreground">{t("retention.databaseSizeHelp")}</p>
         </Section>
 
         <Section title={t("sections.tokenizer")}>

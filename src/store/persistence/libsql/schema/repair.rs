@@ -3,6 +3,28 @@ use std::collections::HashSet;
 use crate::store::libsql::LibsqlClient;
 use crate::store::persistence::libsql::row::col_str;
 
+pub(super) async fn instance_settings(client: &LibsqlClient) -> anyhow::Result<()> {
+    let qr = client
+        .execute("PRAGMA table_info(instance_settings)", &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql inspect instance_settings columns failed: {e}"))?;
+    let cols = qr
+        .rows
+        .iter()
+        .map(|row| col_str(row, 1))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    if !cols.is_empty() && !cols.contains("max_database_size_mb") {
+        client
+            .execute(
+                "ALTER TABLE instance_settings ADD COLUMN max_database_size_mb INTEGER",
+                &[],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("libsql repair instance_settings size limit: {e}"))?;
+    }
+    Ok(())
+}
+
 pub(super) async fn usage(client: &LibsqlClient) -> anyhow::Result<()> {
     let qr = client
         .execute("PRAGMA table_info(usages)", &[])
