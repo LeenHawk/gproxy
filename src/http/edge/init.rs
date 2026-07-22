@@ -98,7 +98,7 @@ pub async fn init(
 
     let upstream: Arc<dyn UpstreamClient> = Arc::new(FetchClient::new());
 
-    crate::app::bootstrap::ensure_admin(
+    let _ = crate::app::bootstrap::ensure_admin(
         persistence.as_ref(),
         &admin_user,
         Some(admin_password.as_str()),

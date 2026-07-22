@@ -1,11 +1,11 @@
-//! Native installer first-run options: starter providers and an admin API key.
+//! First-run bootstrap options: starter providers and an admin API key.
 
 use crate::channel::registry::ChannelRegistry;
 use crate::crypto::SecretCipher;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::{ProviderInput, UserKeyInput};
 
-/// Apply the options offered by native first-run setup. Channel ids are
+/// Apply the first-run bootstrap options. Channel ids are
 /// validated before any write, then materialized as enabled providers with the
 /// channel's default routing table. The optional API key belongs to the admin
 /// user and is idempotent by digest, so retrying a launcher after a slow boot
@@ -22,11 +22,23 @@ pub async fn ensure(
     let selected = validate_channels(channels, selected_channels)?;
     let admin_api_key = validate_admin_api_key(admin_api_key)?;
 
-    super::bootstrap::ensure_admin(db, admin_user, admin_password).await?;
-    ensure_providers(db, channels, selected).await?;
+    let generated_password = super::bootstrap::ensure_admin(db, admin_user, admin_password).await?;
+    let generated_api_key = generated_password
+        .as_ref()
+        .filter(|_| admin_api_key.is_none())
+        .map(|_| crate::util::rand::api_key());
+    let admin_api_key = admin_api_key.or(generated_api_key.as_deref());
     if let Some(bare) = admin_api_key {
         ensure_admin_api_key(db, cipher, admin_user, bare).await?;
     }
+    if let Some(password) = generated_password.as_deref() {
+        print_admin_banner(
+            admin_user,
+            password,
+            admin_api_key.expect("generated admin key"),
+        );
+    }
+    ensure_providers(db, channels, selected).await?;
     Ok(())
 }
 
@@ -121,11 +133,19 @@ async fn ensure_admin_api_key(
         user_id: admin.id,
         api_key_ciphertext: ciphertext,
         api_key_digest: digest,
-        label: Some("installer".to_string()),
+        label: Some("bootstrap".to_string()),
         enabled: true,
     })
     .await?;
     Ok(())
+}
+
+/// Print automatically generated first-boot credentials exactly once.
+fn print_admin_banner(admin_user: &str, password: &str, api_key: &str) {
+    let line = "=".repeat(60);
+    println!(
+        "{line}\n GPROXY first-boot admin created\n   user:     {admin_user}\n   password: {password}\n   API key:  {api_key}\n Change the password after first login. Shown ONCE; plaintext is not stored.\n{line}"
+    );
 }
 
 #[cfg(test)]
@@ -179,7 +199,25 @@ mod tests {
         let admin = db.get_user_by_name("owner").await.unwrap().unwrap();
         let keys = db.list_user_keys(admin.id).await.unwrap();
         assert_eq!(keys.len(), 1);
-        assert_eq!(keys[0].label.as_deref(), Some("installer"));
+        assert_eq!(keys[0].label.as_deref(), Some("bootstrap"));
+    }
+
+    #[tokio::test]
+    async fn generated_admin_gets_one_api_key() {
+        let (_dir, db) = store().await;
+        let channels = ChannelRegistry::with_builtin();
+
+        ensure(&db, &NoopCipher, &channels, "admin", None, &[], None)
+            .await
+            .unwrap();
+        ensure(&db, &NoopCipher, &channels, "admin", None, &[], None)
+            .await
+            .unwrap();
+
+        let admin = db.get_user_by_name("admin").await.unwrap().unwrap();
+        let keys = db.list_user_keys(admin.id).await.unwrap();
+        assert_eq!(keys.len(), 1);
+        assert!(keys[0].api_key_ciphertext.starts_with("sk-"));
     }
 
     #[tokio::test]

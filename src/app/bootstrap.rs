@@ -1,7 +1,7 @@
 //! First-boot admin bootstrap (§14.2): a self-serviceable empty store.
 //!
 //! After persistence health + first-boot import, this either creates a random
-//! `admin` under org `default` (printed once) on a fresh store, or — when a
+//! `admin` under org `default` on a fresh store, or — when a
 //! `--admin-password`/`GPROXY_ADMIN_PASSWORD` override is set — force-upserts
 //! that user every startup (host-level password recovery). Never seeds an
 //! already-populated store unless the override is active. native main-path.
@@ -12,13 +12,14 @@ use crate::store::persistence::records::{OrgInput, RoutePermissionInput, Scope, 
 
 /// Ensure an admin exists. With `admin_password` set, force-upsert the named
 /// user every call (recovery); otherwise seed a random admin only when the
-/// `users` table is empty. The plaintext password is never persisted, cached,
-/// or logged.
+/// `users` table is empty. Returns the generated plaintext password exactly
+/// once so the caller can finish first-boot setup and display all credentials
+/// together. The plaintext password is never persisted or cached.
 pub async fn ensure_admin(
     db: &dyn PersistenceBackend,
     admin_user: &str,
     admin_password: Option<&str>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<String>> {
     let org_id = ensure_default_org(db).await?;
     let users = db.list_users().await?;
     let existing = users.iter().find(|u| u.name == admin_user);
@@ -55,12 +56,12 @@ pub async fn ensure_admin(
             admin_user,
             "admin credential override active (from env/CLI); REMOVE the env/flag after recovery"
         );
-        return Ok(());
+        return Ok(None);
     }
 
     // No override: only bootstrap on a genuinely empty users table.
     if !users.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
     let pw = crate::util::rand::password();
@@ -76,8 +77,7 @@ pub async fn ensure_admin(
         })
         .await?;
     ensure_admin_route_permission(db, user.id).await?;
-    print_admin_banner(admin_user, &pw);
-    Ok(())
+    Ok(Some(pw))
 }
 
 async fn ensure_admin_route_permission(
@@ -115,14 +115,6 @@ async fn ensure_default_org(db: &dyn PersistenceBackend) -> anyhow::Result<i64> 
     Ok(org.id)
 }
 
-/// Print the one-time admin credentials to stdout in an unmissable box.
-fn print_admin_banner(admin_user: &str, password: &str) {
-    let line = "=".repeat(60);
-    println!(
-        "{line}\n GPROXY first-boot admin created\n   user:     {admin_user}\n   password: {password}\n Change it after first login. Shown ONCE — not stored in plaintext.\n{line}"
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,7 +131,7 @@ mod tests {
     #[tokio::test]
     async fn empty_store_creates_admin() {
         let (_dir, db) = store().await;
-        ensure_admin(&db, "admin", None).await.unwrap();
+        let _ = ensure_admin(&db, "admin", None).await.unwrap();
 
         let users = db.list_users().await.unwrap();
         assert_eq!(users.len(), 1);
@@ -152,7 +144,7 @@ mod tests {
         assert!(db.get_org_by_name("default").await.unwrap().is_some());
 
         // Re-running on the now-populated store must not duplicate the admin.
-        ensure_admin(&db, "admin", None).await.unwrap();
+        let _ = ensure_admin(&db, "admin", None).await.unwrap();
         assert_eq!(db.list_users().await.unwrap().len(), 1);
     }
 
@@ -173,7 +165,7 @@ mod tests {
         .await
         .unwrap();
 
-        ensure_admin(&db, "admin", Some("recover-123456"))
+        let _ = ensure_admin(&db, "admin", Some("recover-123456"))
             .await
             .unwrap();
 
@@ -189,7 +181,7 @@ mod tests {
 
         // Short recovery passwords are allowed; only blank/whitespace is
         // rejected so an env typo cannot silently disable password login.
-        ensure_admin(&db, "admin", Some("x")).await.unwrap();
+        let _ = ensure_admin(&db, "admin", Some("x")).await.unwrap();
         let users = db.list_users().await.unwrap();
         assert!(password::verify("x", users[0].password.as_ref().unwrap()));
 
