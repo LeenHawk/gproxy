@@ -9,6 +9,7 @@
  *   auto_refresh_models — all channels (default true)
  *   location          — vertex only
  *   profile_arn       — kiro only
+ *   api_version       — azure deployment-bound image APIs
  *   enable_magic_cache — Claude/OpenAI-capable channels (magic-string prompt cache triggers)
  *   enable_claude_fable_fallback — claudecode / claudeapi / vercel / openrouter
  *
@@ -27,9 +28,11 @@ import { EndpointFields, type EndpointRow } from "./endpoint-fields";
 
 // Channels whose backend honors magic-string cache triggers on native Claude/OpenAI bodies.
 const MAGIC_CACHE_CHANNELS = new Set([
-  "claudecode", "claudeapi", "openai", "codex", "vercel", "openrouter",
+  "claudecode", "claudeapi", "openai", "azure", "codex", "vercel", "openrouter",
 ]);
-const CLAUDE_FALLBACK_CHANNELS = new Set(["claudecode", "claudeapi", "vercel", "openrouter"]);
+const CLAUDE_FALLBACK_CHANNELS = new Set([
+  "claudecode", "claudeapi", "azure", "vercel", "openrouter",
+]);
 
 // ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
 const CHATGPT_MODES = ["normal", "temporary", "project"] as const;
@@ -43,6 +46,7 @@ export interface SettingsState {
   autoRefreshModels: boolean;
   location: string;
   profileArn: string;
+  apiVersion: string;
   enableMagicCache: boolean;
   enableClaudeFableFallback: boolean;
   chatgptMode: ChatgptMode;
@@ -87,6 +91,7 @@ export function initSettingsState(settingsJson: unknown, channel: string): Setti
     autoRefreshModels: s.auto_refresh_models !== false,
     location: typeof s.location === "string" ? s.location : "",
     profileArn: typeof s.profile_arn === "string" ? s.profile_arn : "",
+    apiVersion: typeof s.api_version === "string" ? s.api_version : "",
     enableMagicCache: s.enable_magic_cache === true,
     enableClaudeFableFallback: s.enable_claude_fable_fallback === true,
     chatgptMode: mode,
@@ -156,6 +161,14 @@ export function assembleSettings(
     }
   }
 
+  if (channel === "azure") {
+    if (state.apiVersion.trim()) {
+      result.api_version = state.apiVersion.trim();
+    } else {
+      delete result.api_version;
+    }
+  }
+
   // enable_magic_cache (Claude/OpenAI-capable channels)
   if (MAGIC_CACHE_CHANNELS.has(channel)) {
     if (state.enableMagicCache) {
@@ -220,6 +233,19 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
         rows={state.endpoints}
         onChange={(endpoints) => onChange({ endpoints })}
       />
+
+      {channel === "azure" && (
+        <div className="grid gap-2">
+          <Label htmlFor="sf-api-version">{t("fields.apiVersion")}</Label>
+          <Input
+            id="sf-api-version"
+            value={state.apiVersion}
+            onChange={(event) => onChange({ apiVersion: event.target.value })}
+            placeholder="2025-04-01-preview"
+          />
+          <p className="text-xs text-muted-foreground">{t("form.apiVersionHint")}</p>
+        </div>
+      )}
 
       {/* circuit breaker */}
       <div className="grid gap-2">

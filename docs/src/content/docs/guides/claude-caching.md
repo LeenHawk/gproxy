@@ -132,7 +132,7 @@ Use `merge` so any beta features already requested by the client are preserved.
 
 Turn on **Magic-string cache** in provider settings to let a client place a
 trigger directly in a text block. This setting is available for OpenAI, Codex,
-Claude API, Claude Code, OpenRouter, and Vercel channels. GPROXY removes the
+Azure, Claude API, Claude Code, OpenRouter, and Vercel channels. GPROXY removes the
 trigger before sending the request and adds the native cache marker at that
 location.
 

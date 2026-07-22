@@ -51,6 +51,9 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
       if (channel === "custom" && !settings.baseUrl.trim() && settings.endpoints.length === 0) {
         throw new ApiError(0, "bad_request", t("form.baseUrlOrEndpointRequired"));
       }
+      if (channel === "azure" && !settings.baseUrl.trim() && settings.endpoints.length === 0) {
+        throw new ApiError(0, "bad_request", t("form.azureBaseUrlOrEndpointRequired"));
+      }
       const endpointKinds = new Set(settings.endpoints.map((row) => row.kind));
       if (
         endpointKinds.size !== settings.endpoints.length

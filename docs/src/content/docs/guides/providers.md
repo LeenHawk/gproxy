@@ -20,6 +20,7 @@ channels that require multi-step WebSocket sessions. Current built-in channel id
 | Channel id | Typical use |
 | --- | --- |
 | `openai`, `custom` | OpenAI API or OpenAI-compatible gateways. |
+| `azure` | Microsoft Foundry / Azure OpenAI, including OpenAI v1, Claude, embeddings, compact, and deployment-bound image APIs. |
 | `openrouter`, `deepseek`, `groq`, `nvidia`, `vercel` | API-key providers with OpenAI-like surfaces. |
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
@@ -31,6 +32,39 @@ Every channel declares a routing surface as `(Operation, OperationKind) ->
 RoutingDecision`. That is the source for the provider's default
 `routing_rules` rows. Request behavior is therefore described by operation
 capability, not by provider-family buckets.
+
+### Azure channel
+
+The `azure` channel uses API-key credentials. Set `settings_json.base_url` to
+the Azure resource root, such as `https://<resource>.openai.azure.com`, or to
+the Foundry endpoint shown in the portal. OpenAI-family requests are mapped to
+`/openai/v1/*` with the `api-key` header. Claude Messages and Count Tokens are
+mapped to `/anthropic/v1/*` with `x-api-key`. The routed upstream model ID must
+be the Azure deployment name.
+
+Image generation and editing use Azure's current deployment-bound endpoints:
+`/openai/deployments/{deployment}/images/generations` and
+`/openai/deployments/{deployment}/images/edits`. The default `api-version` is
+`2025-04-01-preview`; override it with `settings_json.api_version` or place it
+directly in an exact endpoint URL. Azure's Responses schema includes the
+compaction type for `/openai/v1/responses/compact`; if a resource version has
+not enabled that operation, set `endpoints.openai_compact` to the complete URL
+supported by that resource.
+
+If OpenAI and Claude deployments use different resource hosts, configure their
+complete URLs separately in `settings_json.endpoints`. Exact endpoints take
+precedence over `base_url` and support a `{model}` deployment placeholder.
+
+Azure also supports all three prompt-management features. Provider
+`cache_breakpoint` rules insert native `prompt_cache_breakpoint` markers into
+OpenAI Chat/Responses or `cache_control` into Claude Messages. Enabling
+`enable_magic_cache` recognizes the shared GPROXY trigger strings and inserts
+the matching native marker. Enabling `enable_claude_fable_fallback` adds a
+server-side fallback from the `claude-fable-5` deployment to
+`claude-opus-4-8`, including the required Anthropic beta header. Custom Azure
+deployment names must use an explicit `fallbacks` chain plus the
+`server-side-fallback-2026-06-01` beta header because the automatic mapping only
+recognizes those standard deployment names.
 
 ### Vertex Claude partner models
 
@@ -99,8 +133,9 @@ Common `settings_json` values are available as fields in the console:
 | --- | --- |
 | `base_url` | Channel-wide fallback prefix. The standard operation path is appended when no exact endpoint override exists. |
 | `endpoints` | Optional exact URL overrides, for example `{"openai_chat_completions":"https://api.openai.com/v1/chat/completions"}`. Overrides take precedence over `base_url`, and no path is appended. Dynamic model paths may use `{model}`. |
-| `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
-| `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels. |
+| `api_version` | API version for `azure` image generation and editing; defaults to `2025-04-01-preview`. |
+| `enable_magic_cache` | Recognize GPROXY cache trigger strings and write native Claude or OpenAI cache breakpoints. Available for OpenAI, Azure, Codex, Claude API, Claude Code, OpenRouter, and Vercel. |
+| `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels, including Azure. |
 
 See [Prompt Caching](/guides/claude-caching/) before enabling magic-string
 caching, especially for OpenAI's model and TTL requirements.

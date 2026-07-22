@@ -145,6 +145,7 @@ channels = ["channels-edge", "channel-chatgpt", "channel-claudeweb"]
 channels-edge = [
     "channel-aistudio",
     "channel-antigravity",
+    "channel-azure",
     "channel-claudeapi",
     "channel-claudecode",
     "channel-codex",
@@ -164,6 +165,7 @@ channels-edge = [
 ]
 channel-aistudio = []
 channel-antigravity = []
+channel-azure = []
 channel-chatgpt = ["upstream-wreq"]
 channel-claudeweb = ["upstream-wreq"]
 channel-claudeapi = []
