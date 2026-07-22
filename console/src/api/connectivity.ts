@@ -8,12 +8,17 @@ export interface ConnectivityTestInput {
   provider_id?: number;
 }
 
-export interface ConnectivityTestResult {
-  ok: boolean;
-  ip: string | null;
-  ip_version: 4 | 6 | null;
+export interface ConnectivityProbeResult {
+  ip: string;
   colo: string | null;
   location: string | null;
+  latency_ms: number;
+}
+
+export interface ConnectivityTestResult {
+  ok: boolean;
+  ipv4: ConnectivityProbeResult | null;
+  ipv6: ConnectivityProbeResult | null;
   latency_ms: number;
   proxy_source: "credential" | "provider" | "global" | "startup" | "direct";
   error_code: string | null;
