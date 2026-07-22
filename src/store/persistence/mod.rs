@@ -42,6 +42,7 @@ pub struct UsageQuery {
     pub at_from: Option<i64>,
     pub at_to: Option<i64>,
     pub provider_id: Option<i64>,
+    pub credential_id: Option<i64>,
     pub user_id: Option<i64>,
     pub route_name: Option<String>,
     pub model: Option<String>,

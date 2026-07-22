@@ -181,6 +181,10 @@ fn filters(q: &UsageQuery, include_cursor: bool) -> (String, Vec<Value>) {
         sql.push_str(" AND provider_id = ?");
         args.push(arg_opt_i64(Some(v)));
     }
+    if let Some(v) = q.credential_id {
+        sql.push_str(" AND credential_id = ?");
+        args.push(arg_opt_i64(Some(v)));
+    }
     if let Some(v) = q.user_id {
         sql.push_str(" AND user_id = ?");
         args.push(arg_opt_i64(Some(v)));
@@ -207,14 +211,18 @@ mod tests {
     #[test]
     fn page_filters_exclude_cursor_but_keep_dimensions() {
         let q = UsageQuery {
+            credential_id: Some(3),
             user_id: Some(7),
             model: Some("m".into()),
             before_id: Some(9),
             ..Default::default()
         };
         let (page_sql, page_args) = filters(&q, false);
-        assert_eq!(page_sql, " WHERE 1=1 AND user_id = ? AND model = ?");
-        assert_eq!(page_args.len(), 2);
+        assert_eq!(
+            page_sql,
+            " WHERE 1=1 AND credential_id = ? AND user_id = ? AND model = ?"
+        );
+        assert_eq!(page_args.len(), 3);
         assert!(filters(&q, true).0.ends_with(" AND id < ?"));
     }
 }
@@ -242,6 +250,10 @@ pub async fn summarize(client: &LibsqlClient, q: &UsageQuery) -> anyhow::Result<
     }
     if let Some(v) = q.provider_id {
         sql.push_str(" AND provider_id = ?");
+        args.push(arg_integer(v));
+    }
+    if let Some(v) = q.credential_id {
+        sql.push_str(" AND credential_id = ?");
         args.push(arg_integer(v));
     }
     if let Some(v) = q.user_id {

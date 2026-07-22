@@ -18,6 +18,7 @@
       "from": "From",
       "to": "To",
       "provider": "Provider",
+      "credential": "Credential",
       "user": "User",
       "route": "Route",
       "model": "Model",
