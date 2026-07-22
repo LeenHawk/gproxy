@@ -10,6 +10,7 @@ pub(crate) const MAX_FRAME_LEN: usize = 32 * 1024 * 1024;
 #[derive(Debug)]
 pub(crate) struct SmithyFrame {
     pub event_type: Option<String>,
+    pub exception_type: Option<String>,
     pub payload: Value,
 }
 
@@ -44,6 +45,10 @@ impl SmithyFrameParser {
         }
         frames
     }
+
+    pub(crate) fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
+    }
 }
 
 fn be_u32(bytes: &[u8]) -> u32 {
@@ -66,6 +71,7 @@ fn decode_frame(frame: &[u8]) -> Option<SmithyFrame> {
     };
     Some(SmithyFrame {
         event_type: headers.get(":event-type").cloned(),
+        exception_type: headers.get(":exception-type").cloned(),
         payload,
     })
 }
