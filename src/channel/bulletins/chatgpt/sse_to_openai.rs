@@ -414,6 +414,7 @@ pub fn collect_all(model: &str, body: &[u8]) -> Vec<OpenAiChunk> {
     let mut converter = SseToOpenAi::with_model(model);
     let mut out = Vec::new();
     decoder.feed(body);
+    decoder.finish();
     while let Some(event) = decoder.next_event() {
         if let Some(chunk) = converter.on_event(event) {
             out.push(chunk);

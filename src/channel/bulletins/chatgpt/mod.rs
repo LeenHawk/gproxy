@@ -357,6 +357,7 @@ impl ChannelStreamDecoder for ChatGptStreamDecoder {
 
     fn finish(&mut self) -> Vec<u8> {
         let mut out = Vec::new();
+        self.decoder.finish();
         self.drain_events(&mut out);
         // Synthesize a stop if the upstream never sent `finished_successfully`.
         if !self.converter.finished() && self.converter.emitted_role() {

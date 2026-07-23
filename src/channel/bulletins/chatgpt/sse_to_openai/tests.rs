@@ -122,3 +122,14 @@ data: [DONE]\n\n";
     );
     assert!(!content.contains('\u{e200}') && !content.contains('\u{e202}'));
 }
+
+#[test]
+fn preserves_unterminated_multibyte_final_event() {
+    let body = r#"event: delta
+data: {"p":"","o":"add","v":{"message":{"id":"asst","author":{"role":"assistant"},"content":{"content_type":"text","parts":[""]},"status":"in_progress","metadata":{"model_slug":"gpt-5"}},"conversation_id":"c1"},"c":0}
+
+event: delta
+data: {"v":[{"p":"/message/content/parts/0","o":"append","v":"汉字🚀"}]}"#;
+    let chunks = collect_all("gpt-5", body.as_bytes());
+    assert_eq!(joined(&chunks, "content"), "汉字🚀");
+}

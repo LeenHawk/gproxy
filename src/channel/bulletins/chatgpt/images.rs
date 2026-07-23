@@ -33,6 +33,7 @@ pub(super) struct ImagePointer {
 pub(super) fn extract_image_pointers(body: &[u8]) -> (Vec<ImagePointer>, Option<String>) {
     let mut decoder = SseDecoder::new();
     decoder.feed(body);
+    decoder.finish();
 
     let mut conversation_id: Option<String> = None;
     let mut ids: Vec<String> = Vec::new();

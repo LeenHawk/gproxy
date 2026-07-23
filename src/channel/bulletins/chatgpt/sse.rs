@@ -104,6 +104,17 @@ impl SseDecoder {
         }
     }
 
+    /// End the byte stream, decoding and dispatching a final unterminated
+    /// line or event block when the upstream omits SSE trailing newlines.
+    pub fn finish(&mut self) {
+        self.utf8.flush(&mut self.line_buf);
+        if !self.line_buf.is_empty() {
+            let line = std::mem::take(&mut self.line_buf);
+            self.handle_line(line.trim_end_matches('\r'));
+        }
+        self.dispatch_block();
+    }
+
     fn handle_line(&mut self, line: &str) {
         if line.is_empty() {
             self.dispatch_block();
@@ -308,6 +319,21 @@ mod tests {
         } else {
             panic!();
         }
+    }
+
+    #[test]
+    fn finish_dispatches_unterminated_multibyte_event() {
+        let body = "data: {\"v\":[{\"p\":\"/x\",\"o\":\"append\",\"v\":\"汉字🚀\"}]}".as_bytes();
+        let mut d = SseDecoder::new();
+        for byte in body {
+            d.feed(std::slice::from_ref(byte));
+        }
+        d.finish();
+
+        let Event::Delta(delta) = d.next_event().unwrap() else {
+            panic!("expected delta");
+        };
+        assert_eq!(delta.patches[0].value, serde_json::json!("汉字🚀"));
     }
 
     #[test]
