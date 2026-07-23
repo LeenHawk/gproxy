@@ -334,6 +334,9 @@ mod tests {
             panic!("expected delta");
         };
         assert_eq!(delta.patches[0].value, serde_json::json!("汉字🚀"));
+
+        d.finish();
+        assert!(d.next_event().is_none());
     }
 
     #[test]

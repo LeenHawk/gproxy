@@ -484,3 +484,62 @@ async fn chat_via_conduit(
         None => Ok(one_chunk(http::StatusCode::OK, sse_headers(), stub)),
     }
 }
+
+#[cfg(test)]
+mod stream_tests {
+    use super::*;
+    use crate::http::client::{ClientError, RespStream};
+    use futures_util::StreamExt;
+
+    #[tokio::test]
+    async fn production_stream_finishes_unterminated_multibyte_event() {
+        let body = concat!(
+            "event: delta\n",
+            "data: {\"p\":\"\",\"o\":\"add\",\"v\":{\"message\":{\"id\":\"asst\",\"author\":{\"role\":\"assistant\"},\"content\":{\"content_type\":\"text\",\"parts\":[\"\"]},\"status\":\"in_progress\",\"metadata\":{\"model_slug\":\"gpt-5\"}},\"conversation_id\":\"c1\"},\"c\":0}\n\n",
+            "event: delta\n",
+            "data: {\"v\":[{\"p\":\"/message/content/parts/0\",\"o\":\"append\",\"v\":\"A\"}]}\n\n",
+            "event: delta\n",
+            "data: {\"v\":[{\"p\":\"/message/content/parts/0\",\"o\":\"append\",\"v\":\"汉字🚀\"}]}\r\n",
+        );
+        let rocket = "🚀".as_bytes();
+        let rocket_start = body
+            .as_bytes()
+            .windows(rocket.len())
+            .position(|window| window == rocket)
+            .unwrap();
+        let split = rocket_start + 1;
+        let chunks: Vec<Result<Bytes, ClientError>> = vec![
+            Ok(Bytes::copy_from_slice(&body.as_bytes()[..split])),
+            Ok(Bytes::copy_from_slice(&body.as_bytes()[split..])),
+        ];
+        let source: RespStream = Box::pin(futures_util::stream::iter(chunks));
+        let decoder = <ChatGptChannel as Channel>::stream_decoder(&ChatGptChannel).unwrap();
+        let output: Vec<Bytes> = crate::pipeline::stream::channel_decode_stream(source, decoder)
+            .map(Result::unwrap)
+            .collect()
+            .await;
+        let output = String::from_utf8(output.concat()).unwrap();
+
+        let mut content = String::new();
+        let mut done_count = 0;
+        for block in output.split("\n\n") {
+            let Some(data) = block.strip_prefix("data: ") else {
+                continue;
+            };
+            if data == "[DONE]" {
+                done_count += 1;
+                continue;
+            }
+            let chunk: Value = serde_json::from_str(data).unwrap();
+            if let Some(delta) = chunk
+                .pointer("/choices/0/delta/content")
+                .and_then(Value::as_str)
+            {
+                content.push_str(delta);
+            }
+        }
+
+        assert_eq!(content, "A汉字🚀");
+        assert_eq!(done_count, 1);
+    }
+}

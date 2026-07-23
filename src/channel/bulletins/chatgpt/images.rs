@@ -291,4 +291,14 @@ data: {"p":"","o":"add","v":{"message":{"content":{"content_type":"multimodal_te
         assert_eq!(ptrs.len(), 1);
         assert_eq!(ptrs[0].id, "sed:sedfoo_bar");
     }
+
+    #[test]
+    fn extracts_pointer_from_unterminated_final_event() {
+        let body = br#"event: delta
+data: {"p":"","o":"add","v":{"message":{"content":{"content_type":"multimodal_text","parts":[{"asset_pointer":"file-service://file_eof"}]},"author":{"role":"assistant"}},"conversation_id":"conv-eof"},"c":0}"#;
+        let (ptrs, cid) = extract_image_pointers(body);
+        assert_eq!(cid.as_deref(), Some("conv-eof"));
+        assert_eq!(ptrs.len(), 1);
+        assert_eq!(ptrs[0].id, "file_eof");
+    }
 }
