@@ -109,6 +109,7 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
       <div className="grid gap-2">
         <Label htmlFor="p-name">{t("fields.name")}</Label>
         <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <p className="text-xs text-muted-foreground">{t("fields.nameHint")}</p>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="p-label">{t("fields.label")}</Label>
