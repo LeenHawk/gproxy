@@ -9,7 +9,8 @@
   },
   "sideNav": { "all": "All providers" },
   "fields": {
-    "name": "Name",
+    "name": "Route name",
+    "nameHint": "Used in /{provider}/v1/*; replace {provider} with this route name.",
     "label": "Label",
     "channel": "Channel",
     "strategy": "Credential strategy",

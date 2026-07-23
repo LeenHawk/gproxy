@@ -9,7 +9,8 @@
   },
   "sideNav": { "all": "全部供应商" },
   "fields": {
-    "name": "名称",
+    "name": "路由名",
+    "nameHint": "用于访问 /{provider}/v1/*，其中 {provider} 替换为该路由名。",
     "label": "显示名",
     "channel": "渠道",
     "strategy": "凭证池策略",

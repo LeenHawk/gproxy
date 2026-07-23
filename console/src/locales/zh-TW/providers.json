@@ -9,7 +9,8 @@
   },
   "sideNav": { "all": "全部供應商" },
   "fields": {
-    "name": "名稱",
+    "name": "路由名稱",
+    "nameHint": "用於存取 /{provider}/v1/*，其中 {provider} 替換為此路由名稱。",
     "label": "顯示名稱",
     "channel": "通道",
     "strategy": "憑證池策略",
