@@ -25,18 +25,23 @@ pub(crate) async fn serve(state: AppState, bind: std::net::SocketAddr) -> anyhow
         Err(error) => tracing::warn!(%error, "could not initialize automatic startup"),
     }
     tracing::info!("GPROXY v2 listening on http://{bind}");
+    #[cfg(windows)]
+    let tray_exit = super::windows_tray::start(bind)?;
     // ConnectInfo carries the socket peer into handlers — the anchor the
     // trusted-proxy client-IP resolution verifies forwarding headers against.
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(shutdown_signal(
+        #[cfg(windows)]
+        tray_exit,
+    ))
     .await?;
     Ok(())
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(#[cfg(windows)] mut tray_exit: tokio::sync::oneshot::Receiver<()>) {
     use tokio::signal;
 
     let ctrl_c = async {
@@ -52,9 +57,15 @@ async fn shutdown_signal() {
             Err(e) => tracing::warn!("failed to install SIGTERM handler: {e}"),
         }
     };
-    #[cfg(not(unix))]
+    #[cfg(all(not(unix), not(windows)))]
     let terminate = std::future::pending::<()>();
 
+    #[cfg(windows)]
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = &mut tray_exit => {},
+    }
+    #[cfg(not(windows))]
     tokio::select! {
         _ = ctrl_c => {},
         _ = terminate => {},

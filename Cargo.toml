@@ -57,7 +57,7 @@ dashmap = "6"
 # ── native-only ───────────────────────────────────────────────────────────────
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 axum = { version = "0.8", features = ["http2", "json", "ws"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "sync"] }
 # §16.2 overload protection: bounded in-flight concurrency + load-shed → 503.
 tower = { version = "0.5", default-features = false, features = ["util", "limit", "load-shed"] }
 tower-http = { version = "0.7", features = ["cors"] }
@@ -86,6 +86,17 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 # wasm/edge builds never embed the console (size-sensitive).
 rust-embed = { version = "8", features = ["include-exclude"] }
 mime_guess = "2"
+
+# Windows desktop integration. The tray icon is owned by the server process;
+# windows-sys also provides the hidden self-update hand-off primitives.
+[target.'cfg(windows)'.dependencies]
+ico = "0.5"
+tray-icon = { version = "0.24", default-features = false }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 # ── wasm32-only ───────────────────────────────────────────────────────────────
 [target.'cfg(target_arch = "wasm32")'.dependencies]

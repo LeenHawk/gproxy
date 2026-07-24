@@ -9,6 +9,11 @@ use gproxy::store::persistence::PersistenceBackend;
 use super::cli::{Cli, Command};
 
 pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
+    #[cfg(windows)]
+    if let Some(parent_pid) = cli.gproxy_restart_parent {
+        super::windows_process::wait_for_parent(parent_pid)?;
+    }
+
     // Used by native first-run launchers so the same key can be passed through
     // an inherited environment variable and shown once without writing it to
     // disk. It is self-contained and must not initialize persistence.

@@ -8,6 +8,11 @@ use gproxy::http::client::UpstreamClient;
 #[derive(Parser)]
 #[command(name = "gproxy", version, about = "GPROXY v2 LLM proxy")]
 pub(crate) struct Cli {
+    /// Internal self-update hand-off: wait for the old process before booting.
+    #[cfg(windows)]
+    #[arg(long, hide = true)]
+    pub(crate) gproxy_restart_parent: Option<u32>,
+
     /// Bind host (IPv6 must use bracket notation, e.g. [::1]).
     #[arg(long, env = "GPROXY_HOST", default_value = "127.0.0.1")]
     pub(crate) host: String,

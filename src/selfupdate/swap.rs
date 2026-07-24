@@ -196,11 +196,58 @@ pub fn reexec() -> ! {
     std::process::exit(1);
 }
 
-/// On non-Unix, fall back to the supervisor model (a running Windows `.exe`
-/// cannot `execv`-replace itself).
-#[cfg(not(unix))]
+/// Windows cannot replace its process image with `execv`. Start the freshly
+/// installed executable hidden; it waits for this PID to release the listener
+/// before continuing startup.
+#[cfg(windows)]
 pub fn reexec() -> ! {
-    tracing::warn!("re-exec is Unix-only; falling back to supervisor exit");
+    use std::os::windows::process::CommandExt;
+    use windows_sys::Win32::System::Threading::CREATE_NO_WINDOW;
+
+    let exe = match current_exe_path() {
+        Ok(path) => path,
+        Err(error) => {
+            tracing::error!("Windows restart aborted: {error}");
+            std::process::exit(1);
+        }
+    };
+    let args = windows_restart_args();
+    let parent_pid = std::process::id().to_string();
+    tracing::info!(?exe, "starting updated Windows process");
+    let result = std::process::Command::new(&exe)
+        .arg("--gproxy-restart-parent")
+        .arg(parent_pid)
+        .args(args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn();
+    match result {
+        Ok(_) => std::process::exit(0),
+        Err(error) => {
+            tracing::error!(%error, "failed to start updated Windows process");
+            std::process::exit(1);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn windows_restart_args() -> Vec<std::ffi::OsString> {
+    let mut source = std::env::args_os().skip(1);
+    let mut args = Vec::new();
+    while let Some(arg) = source.next() {
+        let text = arg.to_string_lossy();
+        if text == "--gproxy-restart-parent" {
+            let _ = source.next();
+        } else if !text.starts_with("--gproxy-restart-parent=") {
+            args.push(arg);
+        }
+    }
+    args
+}
+
+/// Other non-Unix targets still require an external supervisor.
+#[cfg(all(not(unix), not(windows)))]
+pub fn reexec() -> ! {
+    tracing::warn!("re-exec is unavailable; falling back to supervisor exit");
     exit_for_supervisor();
 }
 
