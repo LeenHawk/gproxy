@@ -33,12 +33,7 @@
     "kind": "類型",
     "rpm": "RPM 上限",
     "tpm": "TPM 上限",
-    "credLabel": "顯示名稱",
-    "sessionMode": "工作階段模式",
-    "modeNormal": "一般",
-    "modeTemporary": "暫時聊天",
-    "modeProject": "進專案",
-    "projectName": "專案名稱"
+    "credLabel": "顯示名稱"
   },
   "strategy": {
     "round_robin": "輪詢",
@@ -64,8 +59,7 @@
     "enableClaudeMagicCacheHint": "僅對 Claude Messages 目標剝除魔法觸發字串，並寫入 Claude cache_control 斷點。",
     "enableClaudeFableFallbackHint": "Claude Messages 請求使用 Claude Fable 5 時,自動加入回退到 Claude Opus 4.8。",
     "saved": "已儲存",
-    "channelLocked": "通道在建立後不可變更。",
-    "projectNameHint": "對話會開在該 ChatGPT 專案裡(不存在則自動建立),方便在歷史裡分組查看。與暫時聊天互斥。"
+    "channelLocked": "通道在建立後不可變更。"
   },
   "endpoints": {
     "title": "端點 URL",
@@ -185,9 +179,6 @@
     "kiroStartUrl": "Start URL",
     "kiroRegion": "區域",
     "kiroStartUrlHint": "你所在組織的 AWS 存取入口網址(https://….awsapps.com/start)。",
-    "chatgptCookieLabel": "chatgpt.com Cookie",
-    "chatgptCookieHint": "貼上瀏覽器向 chatgpt.com 發出請求時的完整 Cookie 值。",
-    "chatgptCookieInvalid": "貼上的內容中找不到 Cookie。",
     "cookieLabel": "claude.ai Cookie",
     "cookieHint": "貼上完整 Cookie 標頭或僅 sessionKey=…;只會使用 sessionKey。",
     "cookieInvalid": "貼上的內容中找不到 sessionKey。"

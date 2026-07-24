@@ -33,12 +33,7 @@
     "kind": "类型",
     "rpm": "RPM 上限",
     "tpm": "TPM 上限",
-    "credLabel": "显示名",
-    "sessionMode": "会话模式",
-    "modeNormal": "普通",
-    "modeTemporary": "临时聊天",
-    "modeProject": "进项目",
-    "projectName": "项目名"
+    "credLabel": "显示名"
   },
   "strategy": {
     "round_robin": "轮询",
@@ -64,8 +59,7 @@
     "enableClaudeMagicCacheHint": "仅对 Claude Messages 目标剥除魔法触发串，并写入 Claude cache_control 断点。",
     "enableClaudeFableFallbackHint": "Claude Messages 请求使用 Claude Fable 5 时,自动加入回退到 Claude Opus 4.8。",
     "saved": "已保存",
-    "channelLocked": "渠道在创建后不可更改。",
-    "projectNameHint": "会话开在该 ChatGPT 项目里(不存在则自动创建),方便在历史里分组查看。与临时聊天互斥。"
+    "channelLocked": "渠道在创建后不可更改。"
   },
   "endpoints": {
     "title": "端点 URL",
@@ -185,9 +179,6 @@
     "kiroStartUrl": "Start URL",
     "kiroRegion": "区域",
     "kiroStartUrlHint": "你所在组织的 AWS 访问门户地址(https://….awsapps.com/start)。",
-    "chatgptCookieLabel": "chatgpt.com Cookie",
-    "chatgptCookieHint": "粘贴浏览器向 chatgpt.com 发起请求时的完整 Cookie 值。",
-    "chatgptCookieInvalid": "粘贴内容中未找到 Cookie。",
     "cookieLabel": "claude.ai Cookie",
     "cookieHint": "粘贴完整 Cookie 头或仅 sessionKey=…;只会使用 sessionKey。",
     "cookieInvalid": "粘贴内容中未找到 sessionKey。"

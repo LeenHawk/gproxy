@@ -23,7 +23,6 @@ native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消�
 | `claudeapi` | Anthropic Claude Messages API。 |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
-| `chatgpt` | 通过 chatgpt.com 会话 cookie 接入 ChatGPT 消费版 web 后端。 |
 | `claudeweb` | 通过 claude.ai 会话 cookie 接入 Claude 消费版 web 后端（仅 native）。 |
 
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
@@ -102,32 +101,6 @@ Opus 4.8 回退。`anthropic.claude-fable-5` 这类 Bedrock 模型 ID 在生成 
 在此能力加入前创建的 provider 会保留数据库中已有的路由规则。若要启用原生端点，请重置该
 provider 的默认路由，或手动把 Claude Messages 与 Claude count-tokens 规则改为
 `passthrough`。
-
-### ChatGPT 渠道（cookie 会话）
-
-`chatgpt` 渠道用浏览器**会话 cookie** 代理 **chatgpt.com 消费版 web 后端** —— 不是
-API key、也不是 OAuth。支持普通对话、thinking / pro / 深度研究（流式思维链 + 报告）、
-网页搜索、画图/改图。
-
-**凭证怎么获得。** 在浏览器登录 <https://chatgpt.com>，打开开发者工具 → 网络（Network），
-点任意一个 `chatgpt.com` 请求，复制它完整的 `Cookie` 请求头。在 console 里新建一个
-`chatgpt` provider，用 **Cookie 登录**把这段 cookie 粘进去。gproxy 会用它请求
-`/api/auth/session` 换出 access token，并把 Cloudflare / sentinel 反爬状态预热进密封的
-secret。之后 gproxy 会在 access token 临近过期时用存着的 cookie 自动续期（JWT 约 10 天，
-session cookie 长得多），所以凭据寿命跟着浏览器会话走 —— 只有当 session cookie 本身失效时
-才需要重新粘一份。
-
-**会话模式。** 一个 per-provider 设置（`provider_settings.mode`），在 provider 表单里
-是一个三选一选择器，控制会话落在哪里：
-
-| 模式 | 行为 |
-| --- | --- |
-| 普通（Normal） | 持久会话，进你正常的聊天历史。 |
-| 临时聊天（Temporary，默认） | 临时聊天 —— 不入历史、不用于训练。 |
-| 进项目（Project） | 会话开在一个 ChatGPT**项目**里，按名自动建/找（默认 `gproxy`），方便分组查看。项目名在表单里设。 |
-
-「进项目」与「临时聊天」互斥（项目会话必然是持久的）。当 `mode` 缺省时，旧的
-`temporary_chat: true\|false` 布尔仍然兼容生效。
 
 ## Provider 字段
 

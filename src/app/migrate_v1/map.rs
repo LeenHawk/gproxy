@@ -70,7 +70,7 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             credential_strategy: "round_robin".to_string(),
             proxy_url: None,
             tls_fingerprint: None,
-            enabled: true,
+            enabled: p.channel != "chatgpt",
         });
     }
 

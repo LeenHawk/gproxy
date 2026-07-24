@@ -110,7 +110,6 @@ if [ ! -f "$admin_marker" ]; then
     FALSE grokbuild "Grok Build" \
     FALSE kiro "Kiro" \
     FALSE copilotcli "GitHub Copilot CLI" \
-    FALSE chatgpt "ChatGPT Web" \
     FALSE claudeweb "Claude Web" 2>/dev/null || true)"
 
   if zenity --question --title="Set up GPROXY" \

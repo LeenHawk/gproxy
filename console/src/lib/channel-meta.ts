@@ -12,7 +12,6 @@ export const DEFAULT_BASE_URL: Record<string, string> = {
   vercel: "https://ai-gateway.vercel.sh",
   openrouter: "https://openrouter.ai/api",
   grokbuild: "https://api.x.ai/v1",
-  chatgpt: "https://chatgpt.com",
   claudeweb: "https://claude.ai",
 };
 
@@ -165,17 +164,6 @@ export const CHANNELS: ChannelMeta[] = [
     usage: true,
     endpointKinds: [],
     secretTemplate: { github_token: "" },
-  },
-  {
-    // ChatGPT consumer web backend (native-only `channel-chatgpt` feature).
-    // Operator pastes a chatgpt.com session cookie; cookie_exchange mints the
-    // access_token + warms the sentinel / __cf_bm anti-bot state into the secret.
-    id: "chatgpt",
-    family: "oauth_tokens",
-    loginModes: ["cookie"],
-    usage: false,
-    endpointKinds: [],
-    secretTemplate: { access_token: "", cookie: "" },
   },
 ];
 

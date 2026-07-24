@@ -100,7 +100,6 @@ function Show-SetupDialog {
         @{ Id = "grokbuild"; Label = "Grok Build" },
         @{ Id = "kiro"; Label = "Kiro" },
         @{ Id = "copilotcli"; Label = "GitHub Copilot CLI" },
-        @{ Id = "chatgpt"; Label = "ChatGPT Web" },
         @{ Id = "claudeweb"; Label = "Claude Web" }
     )
     $channelList = New-Object System.Windows.Forms.CheckedListBox

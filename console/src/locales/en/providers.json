@@ -33,12 +33,7 @@
     "kind": "Kind",
     "rpm": "RPM limit",
     "tpm": "TPM limit",
-    "credLabel": "Label",
-    "sessionMode": "Session mode",
-    "modeNormal": "Normal",
-    "modeTemporary": "Temporary",
-    "modeProject": "Project",
-    "projectName": "Project name"
+    "credLabel": "Label"
   },
   "strategy": {
     "round_robin": "Round robin",
@@ -64,8 +59,7 @@
     "enableClaudeMagicCacheHint": "On Claude Messages targets, strip magic triggers and stamp Claude cache_control breakpoints.",
     "enableClaudeFableFallbackHint": "For Claude Messages requests to Claude Fable 5, add fallback to Claude Opus 4.8.",
     "saved": "Saved",
-    "channelLocked": "Channel is fixed after creation.",
-    "projectNameHint": "Conversations open inside this ChatGPT project (auto-created if missing), so they stay grouped in your history. Mutually exclusive with temporary."
+    "channelLocked": "Channel is fixed after creation."
   },
   "endpoints": {
     "title": "Endpoint URLs",
@@ -185,9 +179,6 @@
     "kiroStartUrl": "Start URL",
     "kiroRegion": "Region",
     "kiroStartUrlHint": "Your organization's AWS access portal URL (https://….awsapps.com/start).",
-    "chatgptCookieLabel": "chatgpt.com cookie",
-    "chatgptCookieHint": "Paste the complete Cookie value from a browser request to chatgpt.com.",
-    "chatgptCookieInvalid": "No Cookie content found in the pasted text.",
     "cookieLabel": "claude.ai cookie",
     "cookieHint": "Paste the full Cookie header or just sessionKey=…; only sessionKey is used.",
     "cookieInvalid": "No sessionKey found in the pasted text."

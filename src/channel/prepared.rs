@@ -10,11 +10,11 @@ use crate::http::client::{ClientError, UpstreamClient};
 
 /// A channel-driven multi-step upstream exchange. The pipeline injects the
 /// resolved `(proxy, emulation)` client; the closure performs whatever sequence
-/// of calls it needs (chatgpt image gen: conversation → poll → download) and
-/// returns the finished, buffered response. The closure owns whatever else it
-/// needs (secret, inbound body) by `move`. Each call it makes through the
-/// injected client is logged (§8-D) by the pipeline's capturing wrapper — so the
-/// channel never resolves a proxy/client itself and never persists anything.
+/// of calls it needs and returns the finished, buffered response. The closure
+/// owns whatever else it needs (secret, inbound body) by `move`. Each call made
+/// through the injected client is logged (§8-D) by the pipeline's capturing
+/// wrapper, so the channel never resolves a proxy/client itself or persists
+/// anything.
 #[cfg(not(target_arch = "wasm32"))]
 pub type CustomSend = Box<
     dyn FnOnce(
@@ -33,9 +33,8 @@ pub type CustomSend = Box<
 
 /// A channel-driven multi-step exchange that returns a STREAMING body (native
 /// only). Like [`CustomSend`] but yields `(status, headers, stream)` so a
-/// long-running exchange (chatgpt thinking / deep-research conduit) streams the
-/// turn to the client incrementally instead of buffering the whole thing — vital
-/// for deep research, which can run for minutes.
+/// long-running exchange streams the response incrementally instead of buffering
+/// the whole thing.
 #[cfg(not(target_arch = "wasm32"))]
 pub type CustomStreamSend = Box<
     dyn FnOnce(
@@ -58,7 +57,7 @@ pub type CustomStreamSend = Box<
 
 /// The output of [`Channel::prepare`]: either a single direct upstream request
 /// (the common case — the pipeline sends it once), or a channel-driven
-/// multi-step exchange ([`CustomSend`], chatgpt image gen).
+/// multi-step exchange ([`CustomSend`]).
 ///
 /// Proxy and TLS-emulation are NOT carried here — they are per-credential /
 /// global / channel-default concerns resolved by the executor
@@ -73,10 +72,10 @@ pub enum PreparedRequest {
     /// Normal single send. `request.uri()` MUST be absolute (scheme + authority
     /// + path + query) — wreq cannot route a relative URI.
     Direct(http::Request<Bytes>),
-    /// Channel-driven multi-step exchange (chatgpt image gen).
+    /// Channel-driven buffered multi-step exchange.
     Custom(CustomSend),
     /// Channel-driven multi-step exchange that streams its body incrementally
-    /// (chatgpt thinking / deep-research conduit). Native only.
+    /// Native only.
     #[cfg(not(target_arch = "wasm32"))]
     CustomStream(CustomStreamSend),
 }
