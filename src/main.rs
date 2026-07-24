@@ -6,6 +6,12 @@ mod bootstrap;
 mod cli;
 #[path = "main/server_lifecycle.rs"]
 mod server_lifecycle;
+#[cfg(windows)]
+#[path = "main/windows_process.rs"]
+mod windows_process;
+#[cfg(windows)]
+#[path = "main/windows_tray.rs"]
+mod windows_tray;
 
 use clap::Parser;
 
