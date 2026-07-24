@@ -43,8 +43,8 @@ pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) 
     let body = shaping::with_json_body(body, |value| {
         claude_cache_control::sanitize_claude_body(value);
         claude_sampling::strip_sampling_params(value);
-        if settings.enable_claude_fable_fallback {
-            claude_fallback::apply_fable_to_opus48(value, headers);
+        if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
+            claude_fallback::apply_fable_fallback(value, headers, fallbacks);
         }
     });
     shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);

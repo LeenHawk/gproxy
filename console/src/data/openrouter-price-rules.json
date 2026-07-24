@@ -225,6 +225,32 @@
     {
       "provider_id": null,
       "match_type": "contains",
+      "model_match": "claude-opus-5-fast",
+      "input_price": "10",
+      "output_price": "50",
+      "cache_read_price": "1",
+      "cache_creation_5m_price": "12.5",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "20",
+      "image_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
+      "model_match": "claude-opus-5",
+      "input_price": "5",
+      "output_price": "25",
+      "cache_read_price": "0.5",
+      "cache_creation_5m_price": "6.25",
+      "cache_creation_30m_price": "0",
+      "cache_creation_1h_price": "10",
+      "image_price": "0",
+      "enabled": true
+    },
+    {
+      "provider_id": null,
+      "match_type": "contains",
       "model_match": "claude-opus-latest",
       "input_price": "5",
       "output_price": "25",

@@ -78,8 +78,20 @@ pub struct RequestShapeSettings {
     pub enable_openai_magic_cache: bool,
     #[serde(deserialize_with = "bool_or_default")]
     pub enable_claude_magic_cache: bool,
-    #[serde(deserialize_with = "bool_or_default")]
-    pub enable_claude_fable_fallback: bool,
+    pub claude_fable_fallbacks: Option<ClaudeFableFallbacks>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum ClaudeFableFallbacks {
+    Default(ClaudeFallbackDefault),
+    Models(Vec<String>),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub enum ClaudeFallbackDefault {
+    #[serde(rename = "default")]
+    Default,
 }
 
 impl RequestShapeSettings {

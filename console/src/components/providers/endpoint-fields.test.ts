@@ -44,4 +44,17 @@ describe("endpoint settings", () => {
       enable_openai_magic_cache: true,
     });
   });
+
+  it("stores default or ordered Claude fallback routing without a legacy switch", () => {
+    const state = initSettingsState({}, "claudeapi");
+    state.enableClaudeFableFallback = true;
+    expect(assembleSettings({}, state, "claudeapi")).toEqual({
+      claude_fable_fallbacks: "default",
+    });
+
+    state.claudeFableFallbackModels = ["claude-opus-5", "claude-opus-4-8", "claude-opus-5"];
+    expect(assembleSettings({}, state, "claudeapi")).toEqual({
+      claude_fable_fallbacks: ["claude-opus-5", "claude-opus-4-8"],
+    });
+  });
 });

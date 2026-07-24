@@ -46,4 +46,8 @@ pub enum RefusalCategoryKnown {
     Bio,
     #[serde(rename = "reasoning_extraction")]
     ReasoningExtraction,
+    #[serde(rename = "frontier_llm")]
+    FrontierLlm,
+    #[serde(rename = "general_harms")]
+    GeneralHarms,
 }

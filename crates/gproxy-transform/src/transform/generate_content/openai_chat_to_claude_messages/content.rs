@@ -247,7 +247,7 @@ pub(super) fn mid_conversation_system_text_block(
 ) -> claude::ContentBlockParam {
     let cache_control = block.cache_control.take();
     claude::ContentBlockParam::MidConversationSystem(claude::MidConversationSystemBlock {
-        content: vec![block],
+        content: vec![claude::MidConversationSystemContentBlock::Text(block)],
         type_: claude::MidConversationSystemBlockType::MidConversationSystem,
         cache_control,
     })

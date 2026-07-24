@@ -67,6 +67,11 @@ pub fn request(
         .as_ref()
         .and_then(|config| config.format.clone())
         .or(input.output_format);
+    let reasoning_effort = input
+        .output_config
+        .as_ref()
+        .and_then(|config| common::claude_effort_to_openai(config.effort.clone()))
+        .or_else(|| common::claude_thinking_to_openai(input.thinking));
 
     Ok(openai::ChatCompletionRequest {
         messages,
@@ -92,7 +97,7 @@ pub fn request(
         prompt_cache_key: Some(prompt_cache_key),
         prompt_cache_options: Some(common::openai_options_for_claude_root(input.cache_control)),
         prompt_cache_retention: None,
-        reasoning_effort: common::claude_thinking_to_openai(input.thinking),
+        reasoning_effort,
         response_format: common::claude_output_format_to_chat(output_format),
         safety_identifier: None,
         seed: None,
@@ -110,22 +115,7 @@ pub fn request(
         top_logprobs: None,
         top_p: input.top_p,
         user: input.metadata.and_then(|metadata| metadata.user_id),
-        verbosity: input.output_config.and_then(|config| {
-            config.effort.map(|effort| match effort {
-                claude::OutputEffort::Known(claude::OutputEffortKnown::Low) => {
-                    openai::Verbosity::Low
-                }
-                claude::OutputEffort::Known(claude::OutputEffortKnown::Medium) => {
-                    openai::Verbosity::Medium
-                }
-                claude::OutputEffort::Known(
-                    claude::OutputEffortKnown::High
-                    | claude::OutputEffortKnown::XHigh
-                    | claude::OutputEffortKnown::Max,
-                )
-                | claude::OutputEffort::Unknown(_) => openai::Verbosity::High,
-            })
-        }),
+        verbosity: None,
         web_search_options: None,
         extra: Default::default(),
     })
@@ -226,5 +216,31 @@ mod tests {
         let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
         assert_eq!(output["prompt_cache_options"]["mode"], "implicit");
         assert!(output["prompt_cache_options"].get("ttl").is_none());
+    }
+
+    #[test]
+    fn maps_claude_output_effort_to_reasoning_effort_not_verbosity() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-opus-5",
+            "max_tokens": 32,
+            "messages": [{"role": "user", "content": "hello"}],
+            "output_config": {"effort": "max"},
+            "thinking": {"type": "adaptive"}
+        }))
+        .unwrap();
+        let ctx = TransformContext::new(
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+        );
+
+        let output = serde_json::to_value(request(input, &ctx).unwrap()).unwrap();
+        assert_eq!(output["reasoning_effort"], "max");
+        assert!(output.get("verbosity").is_none());
     }
 }

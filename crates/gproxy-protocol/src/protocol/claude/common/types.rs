@@ -24,7 +24,8 @@ macro_rules! extensible_string_enum {
 }
 
 extensible_string_enum!(ClaudeModel, ClaudeModelKnown {
-    ClaudeFable5 => "claude-fable-5", ClaudeMythos5 => "claude-mythos-5",
+    ClaudeSonnet5 => "claude-sonnet-5", ClaudeFable5 => "claude-fable-5",
+    ClaudeMythos5 => "claude-mythos-5", ClaudeOpus5 => "claude-opus-5",
     ClaudeOpus48 => "claude-opus-4-8", ClaudeOpus47 => "claude-opus-4-7",
     ClaudeMythosPreview => "claude-mythos-preview", ClaudeOpus46 => "claude-opus-4-6",
     ClaudeSonnet46 => "claude-sonnet-4-6", ClaudeHaiku45 => "claude-haiku-4-5",
@@ -70,7 +71,11 @@ extensible_string_enum!(AnthropicBeta, AnthropicBetaKnown {
     CacheDiagnosis20260407 => "cache-diagnosis-2026-04-07",
     ThinkingTokenCount20260513 => "thinking-token-count-2026-05-13",
     ServerSideFallback20260601 => "server-side-fallback-2026-06-01",
+    ServerSideFallback20260701 => "server-side-fallback-2026-07-01",
     FallbackCredit20260601 => "fallback-credit-2026-06-01",
+    FallbackCredit20260701 => "fallback-credit-2026-07-01",
+    MidConversationToolChanges20260701 => "mid-conversation-tool-changes-2026-07-01",
+    AgentMemory20260722 => "agent-memory-2026-07-22",
 });
 
 extensible_string_enum!(MessageRole, MessageRoleKnown { User => "user", Assistant => "assistant", System => "system" });
@@ -101,8 +106,10 @@ extensible_string_enum!(ToolType, ToolTypeKnown {
     Memory20250818 => "memory_20250818", TextEditor20241022 => "text_editor_20241022",
     TextEditor20250124 => "text_editor_20250124", TextEditor20250429 => "text_editor_20250429",
     TextEditor20250728 => "text_editor_20250728", WebSearch20250305 => "web_search_20250305",
-    WebSearch20260209 => "web_search_20260209", WebFetch20250910 => "web_fetch_20250910",
+    WebSearch20260209 => "web_search_20260209", WebSearch20260318 => "web_search_20260318",
+    WebFetch20250910 => "web_fetch_20250910",
     WebFetch20260209 => "web_fetch_20260209", WebFetch20260309 => "web_fetch_20260309",
+    WebFetch20260318 => "web_fetch_20260318",
     Advisor20260301 => "advisor_20260301", ToolSearchBm2520251119 => "tool_search_tool_bm25_20251119",
     ToolSearchBm25 => "tool_search_tool_bm25", ToolSearchRegex20251119 => "tool_search_tool_regex_20251119",
     ToolSearchRegex => "tool_search_tool_regex", McpToolset => "mcp_toolset",
@@ -125,3 +132,4 @@ extensible_string_enum!(ContextEditType, ContextEditTypeKnown {
     ClearThinking20251015 => "clear_thinking_20251015",
     Compact20260112 => "compact_20260112",
 });
+extensible_string_enum!(ResponseInclusion, ResponseInclusionKnown { Full => "full", Excluded => "excluded" });

@@ -129,8 +129,8 @@ impl Channel for VercelChannel {
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
-            if settings.enable_claude_fable_fallback {
-                claude_fallback::apply_fable_to_opus48(v, headers);
+            if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
+                claude_fallback::apply_fable_fallback(v, headers, fallbacks);
             }
         });
         shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
@@ -233,17 +233,16 @@ mod tests {
     #[test]
     fn injects_and_forwards_fable_fallback_beta() {
         let mut headers = HeaderMap::new();
-        let shape_settings = serde_json::json!({ "enable_claude_fable_fallback": true });
+        let shape_settings = serde_json::json!({
+            "claude_fable_fallbacks": "default"
+        });
         let body =
             Bytes::from(r#"{"model":"anthropic/claude-fable-5","messages":[],"max_tokens":32}"#);
         let shaped =
             VercelChannel.shape_request(body, &mut headers, &fallback_ctx(&shape_settings));
 
         let v: Value = serde_json::from_slice(&shaped).unwrap();
-        assert_eq!(
-            v["fallbacks"],
-            serde_json::json!([{ "model": "anthropic/claude-opus-4-8" }])
-        );
+        assert_eq!(v["fallbacks"], serde_json::json!("default"));
 
         let secret = serde_json::json!({ "api_key": "vk-test" });
         let settings = serde_json::json!({});
@@ -268,7 +267,7 @@ mod tests {
 
         assert_eq!(
             req.headers().get("anthropic-beta").unwrap(),
-            "server-side-fallback-2026-06-01"
+            "server-side-fallback-2026-07-01"
         );
     }
 }
