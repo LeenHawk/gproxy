@@ -204,6 +204,8 @@
     "unsupported": "This channel exposes no usage endpoint.",
     "plan": "Plan",
     "credits": "Credits",
+    "creditsDisabled": "Disabled",
+    "unlimited": "Unlimited",
     "raw": "Raw response",
     "resets": "resets {{time}}",
     "reset": {

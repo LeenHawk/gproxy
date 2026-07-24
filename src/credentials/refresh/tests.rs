@@ -110,7 +110,7 @@ impl TestState {
         opened: Value,
         force: bool,
     ) -> Result<Value, ChannelError> {
-        let resolve_client = || Ok(Arc::clone(&self.upstream));
+        let resolve_client = |_secret: &Value| Ok(Arc::clone(&self.upstream));
         self.refresh
             .ensure_fresh(
                 RefreshDeps {

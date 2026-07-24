@@ -4,7 +4,7 @@ use bytes::Bytes;
 use http::{HeaderMap, Method, Response};
 use serde_json::{Value, json};
 
-use super::{ClaudeCodeChannel, auth, request};
+use super::{ClaudeCodeChannel, auth, request, usage};
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, ShapeCtx};
 use crate::http::client::{ClientError, UpstreamClient};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKey, Provider};
@@ -81,6 +81,22 @@ fn prepare_injects_oauth_and_stainless() {
         "0.81.0"
     );
     assert_eq!(req.headers().get("x-stainless-runtime").unwrap(), "node");
+    assert_eq!(
+        req.headers()
+            .get("x-stainless-os")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        super::stainless::os(std::env::consts::OS)
+    );
+    assert_eq!(
+        req.headers()
+            .get("x-stainless-arch")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        super::stainless::arch(std::env::consts::ARCH)
+    );
     assert_eq!(
         req.headers().get("user-agent").unwrap(),
         "claude-cli/2.1.112 (external, cli)"
@@ -186,7 +202,7 @@ async fn authcode_start_urls() {
         .expect("claudecode supports authcode");
     let url = &claude.authorize_url;
     assert!(
-        url.starts_with("https://claude.ai/oauth/authorize?"),
+        url.starts_with("https://claude.com/cai/oauth/authorize?"),
         "{url}"
     );
     assert!(
@@ -223,6 +239,83 @@ async fn authcode_start_urls() {
     assert!(url.contains("code_challenge_method=S256"), "{url}");
     assert!(url.contains("redirect_uri="), "{url}");
     assert!(url.contains("cloud-platform"), "{url}");
+}
+
+#[test]
+fn token_exchange_uses_platform_json_request() {
+    let request = auth::token_request(&json!({
+        "grant_type": "authorization_code",
+        "client_id": auth::OAUTH_CLIENT_ID,
+    }))
+    .unwrap();
+
+    assert_eq!(request.uri(), auth::TOKEN_URL);
+    assert_eq!(request.headers()["content-type"], "application/json");
+    assert_eq!(request.headers()["user-agent"], "axios/1.13.6");
+    assert_eq!(
+        request.headers()["accept"],
+        "application/json, text/plain, */*"
+    );
+    assert_eq!(
+        request.headers()["accept-encoding"],
+        "gzip, compress, deflate, br"
+    );
+    assert!(request.headers().get("anthropic-beta").is_none());
+    let transport = request
+        .extensions()
+        .get::<crate::http::client::TransportOptions>()
+        .unwrap();
+    assert_eq!(
+        transport.total_timeout,
+        Some(std::time::Duration::from_secs(15))
+    );
+    assert_eq!(transport.max_redirects, Some(21));
+    assert_eq!(transport.http_version, Some(http::Version::HTTP_11));
+    assert!(!transport.omit_body);
+    assert_eq!(
+        serde_json::from_slice::<Value>(request.body()).unwrap()["grant_type"],
+        "authorization_code"
+    );
+}
+
+#[test]
+fn cookie_lifecycle_requires_browser_profile() {
+    let channel = ClaudeCodeChannel;
+    assert!(channel.cookie_login_requires_browser());
+    assert!(channel.refresh_requires_browser(&json!({ "cookie": "sk-ant-sid" })));
+    assert!(!channel.refresh_requires_browser(&json!({
+        "cookie": "sk-ant-sid",
+        "refresh_token": "rt"
+    })));
+    assert!(!channel.refresh_requires_browser(&json!({ "refresh_token": "rt" })));
+}
+
+#[test]
+fn usage_uses_claude_code_wire_shape() {
+    let request = usage::request(&json!({ "access_token": "tok" }), &json!({}))
+        .unwrap()
+        .unwrap();
+    assert_eq!(request.headers()["user-agent"], "claude-code/2.1.112");
+    assert_eq!(
+        request.headers()["accept"],
+        "application/json, text/plain, */*"
+    );
+    assert_eq!(
+        request.headers()["accept-encoding"],
+        "gzip, compress, deflate, br"
+    );
+    assert!(request.headers().get("content-length").is_none());
+    let transport = request
+        .extensions()
+        .get::<crate::http::client::TransportOptions>()
+        .unwrap();
+    assert_eq!(
+        transport.total_timeout,
+        Some(std::time::Duration::from_secs(5))
+    );
+    assert_eq!(transport.max_redirects, Some(21));
+    assert_eq!(transport.http_version, Some(http::Version::HTTP_11));
+    assert!(transport.omit_body);
 }
 
 fn messages_ctx() -> ShapeCtx<'static> {

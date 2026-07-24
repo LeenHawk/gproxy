@@ -121,6 +121,16 @@ pub trait Channel: Send + Sync {
         false
     }
 
+    /// Whether first-time cookie exchange must use the native browser profile.
+    fn cookie_login_requires_browser(&self) -> bool {
+        false
+    }
+
+    /// Whether refreshing this secret must use the native browser profile.
+    fn refresh_requires_browser(&self, _secret: &Value) -> bool {
+        false
+    }
+
     /// Whether this model draws from the channel's account-wide MAIN quota
     /// pool. The main limit governs the whole account, so a 429 here cools the
     /// WHOLE credential (separate-limit models included). Models with an

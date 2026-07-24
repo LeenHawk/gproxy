@@ -236,7 +236,7 @@ async fn token_exchange(
         ("origin", CLAUDE_AI_BASE_URL),
         ("user-agent", USER_AGENT),
     ];
-    let resp = super::auth::token_post(client, &form, &extra).await?;
+    let resp = super::auth::legacy_token_post(client, &form, &extra).await?;
     let access_token = resp
         .access_token
         .filter(|s| !s.is_empty())

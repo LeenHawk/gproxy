@@ -182,11 +182,11 @@ pub const MAX_BODY_BYTES: usize = 50 * 1024 * 1024;
 pub const UPSTREAM_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Per-read idle cap: bounds silent stalls (header wait, dead streams) while
 /// leaving actively-streaming responses uncapped in total duration.
-pub const UPSTREAM_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+pub const UPSTREAM_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3600);
 /// Total cap for NON-streaming upstream calls (connect → full body buffered).
 /// Streaming is bounded by the read timeout only — long active streams are
 /// legitimate.
-pub const UPSTREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+pub const UPSTREAM_TOTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(86400);
 
 impl RuntimeConfig {
     /// Resolve the `host:port` bind address.

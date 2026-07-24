@@ -4,11 +4,13 @@
 //! weekly windows, and an `extra_usage` on-demand-credit block. The many
 //! experimental codename windows (`tangelo`, `iguana_necktie`, `seven_day_cowork`
 //! …) are almost always `null` and are left in [`UsageSnapshot::raw`] rather than
-//! modeled. The `claude-cli` User-Agent is required — without it the endpoint
+//! modeled. The `claude-code` User-Agent is required — without it the endpoint
 //! serves an aggressively rate-limited bucket.
 
 use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT};
+use http::header::{
+    ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_TYPE, HeaderName, HeaderValue, USER_AGENT,
+};
 use http::{HeaderMap, Method, Request, StatusCode};
 use serde::Deserialize;
 use serde_json::Value;
@@ -18,6 +20,9 @@ use super::auth;
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{UsageCredits, UsageSnapshot, UsageWindow};
+use crate::http::client::TransportOptions;
+
+const USAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Build `GET {base}/api/oauth/usage` with the CLI fingerprint headers.
 pub(super) fn request(
@@ -38,13 +43,29 @@ pub(super) fn request(
         }
     };
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
+    req.extensions_mut().insert(TransportOptions {
+        total_timeout: Some(USAGE_TIMEOUT),
+        max_redirects: Some(21),
+        http_version: Some(http::Version::HTTP_11),
+        omit_body: true,
+    });
     let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
         .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
     let h = req.headers_mut();
     h.insert(AUTHORIZATION, bearer);
-    h.insert(ACCEPT, HeaderValue::from_static("application/json"));
+    h.insert(
+        ACCEPT,
+        HeaderValue::from_static("application/json, text/plain, */*"),
+    );
+    h.insert(
+        ACCEPT_ENCODING,
+        HeaderValue::from_static("gzip, compress, deflate, br"),
+    );
     h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    h.insert(USER_AGENT, HeaderValue::from_static(auth::USER_AGENT));
+    h.insert(
+        USER_AGENT,
+        HeaderValue::from_static(auth::CLAUDE_CODE_USER_AGENT),
+    );
     h.insert(
         HeaderName::from_static("anthropic-beta"),
         HeaderValue::from_static(auth::ANTHROPIC_BETA),
@@ -101,7 +122,7 @@ pub(super) fn parse(status: StatusCode, body: &Bytes) -> Option<UsageSnapshot> {
         }
     }
 
-    // `extra_usage` is on-demand overage credits; surface it only when enabled.
+    // Keep disabled/unlimited states so the Console can render them explicitly.
     let credits = usage
         .extra_usage
         .as_ref()
@@ -134,7 +155,8 @@ impl ClaudeWindow {
     }
 }
 
-/// On-demand overage credits (`extra_usage`). Amounts are in cents.
+/// On-demand overage credits (`extra_usage`). Upstream cents are normalized to
+/// major currency units for display.
 #[derive(Deserialize)]
 struct ClaudeExtraUsage {
     is_enabled: Option<bool>,
@@ -145,13 +167,12 @@ struct ClaudeExtraUsage {
 
 impl ClaudeExtraUsage {
     fn to_credits(&self) -> Option<UsageCredits> {
-        if self.is_enabled != Some(true) {
-            return None;
-        }
+        let enabled = self.is_enabled?;
         Some(UsageCredits {
-            has_credits: Some(true),
-            used_credits: self.used_credits,
-            monthly_limit: self.monthly_limit,
+            has_credits: Some(enabled),
+            unlimited: enabled.then_some(self.monthly_limit.is_none()),
+            used_credits: self.used_credits.map(|value| value / 100.0),
+            monthly_limit: self.monthly_limit.map(|value| value / 100.0),
             currency: self.currency.clone(),
             ..Default::default()
         })
@@ -265,8 +286,7 @@ mod tests {
             snap.windows[0].resets_at.as_deref(),
             Some("2026-06-12T16:20:00.899712+00:00")
         );
-        // extra_usage disabled → no credits block.
-        assert!(snap.credits.is_none());
+        assert_eq!(snap.credits.unwrap().has_credits, Some(false));
     }
 
     #[test]
@@ -314,5 +334,30 @@ mod tests {
     #[test]
     fn non_success_is_none() {
         assert!(parse(StatusCode::TOO_MANY_REQUESTS, &Bytes::from_static(b"{}")).is_none());
+    }
+
+    #[test]
+    fn normalizes_extra_usage_money_and_unlimited_state() {
+        let finite = ClaudeExtraUsage {
+            is_enabled: Some(true),
+            monthly_limit: Some(5000.0),
+            used_credits: Some(1234.0),
+            currency: Some("USD".into()),
+        }
+        .to_credits()
+        .unwrap();
+        assert_eq!(finite.used_credits, Some(12.34));
+        assert_eq!(finite.monthly_limit, Some(50.0));
+        assert_eq!(finite.unlimited, Some(false));
+
+        let unlimited = ClaudeExtraUsage {
+            is_enabled: Some(true),
+            monthly_limit: None,
+            used_credits: None,
+            currency: Some("USD".into()),
+        }
+        .to_credits()
+        .unwrap();
+        assert_eq!(unlimited.unlimited, Some(true));
     }
 }

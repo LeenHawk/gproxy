@@ -32,6 +32,36 @@ pub struct WreqClient {
 }
 
 impl WreqClient {
+    fn prepare_request(&self, mut req: http::Request<Bytes>) -> Result<wreq::Request, ClientError> {
+        let options = req.extensions_mut().remove::<super::TransportOptions>();
+        let mut request: wreq::Request = req.into();
+        let Some(options) = options else {
+            return Ok(request);
+        };
+        if options.omit_body {
+            *request.body_mut() = None;
+        }
+
+        let mut builder = wreq::RequestBuilder::from_parts(self.inner.clone(), request);
+        if let Some(timeout) = options.total_timeout {
+            builder = builder.timeout(timeout);
+        }
+        if let Some(max_redirects) = options.max_redirects {
+            let policy = if max_redirects == 0 {
+                wreq::redirect::Policy::none()
+            } else {
+                wreq::redirect::Policy::limited(max_redirects)
+            };
+            builder = builder.redirect(policy);
+        }
+        if let Some(version) = options.http_version {
+            builder = builder.version(version);
+        }
+        builder
+            .build()
+            .map_err(|error| ClientError::Config(error.to_string()))
+    }
+
     /// Build a `WreqClient` with a default [`wreq::Client`].
     ///
     /// Auto-decompression (`gzip`/`brotli`/`zstd`/`deflate`) is enabled: the
@@ -108,7 +138,7 @@ impl Default for WreqClient {
 impl UpstreamClient for WreqClient {
     async fn send(&self, req: http::Request<Bytes>) -> Result<http::Response<Bytes>, ClientError> {
         // http::Request<Bytes> -> wreq::Request via From impl (Bytes: Into<wreq::Body>).
-        let wreq_req: wreq::Request = req.into();
+        let wreq_req = self.prepare_request(req)?;
 
         // Non-stream: the whole exchange (connect → full body) is bounded, on
         // top of the builder's connect/read caps — a trickling upstream can't
@@ -152,7 +182,7 @@ impl UpstreamClient for WreqClient {
     ) -> Result<(http::StatusCode, http::HeaderMap, RespStream), ClientError> {
         use futures_util::{StreamExt, TryStreamExt};
 
-        let wreq_req: wreq::Request = req.into();
+        let wreq_req = self.prepare_request(req)?;
         let resp = self
             .inner
             .execute(wreq_req)
@@ -221,5 +251,29 @@ impl ConduitSocket for WreqConduit {
                 None => return None,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transport_options_can_omit_an_empty_get_body() {
+        let client = WreqClient::new();
+        let mut request = http::Request::get("https://example.com/api/oauth/usage")
+            .body(Bytes::new())
+            .unwrap();
+        request
+            .extensions_mut()
+            .insert(super::super::TransportOptions {
+                http_version: Some(http::Version::HTTP_11),
+                omit_body: true,
+                ..Default::default()
+            });
+
+        let request = client.prepare_request(request).unwrap();
+        assert!(request.body().is_none());
+        assert_eq!(request.version(), Some(http::Version::HTTP_11));
     }
 }

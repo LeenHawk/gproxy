@@ -1,15 +1,11 @@
 //! Claude Code auth — Anthropic OAuth2 `refresh_token` grant + the
 //! claude-cli / `@anthropic-ai/sdk` impersonation header set. Base
-//! `https://api.anthropic.com`; token endpoint `/v1/oauth/token`. A
+//! `https://api.anthropic.com`; token endpoint on `platform.claude.com`. A
 //! session-cookie bootstrap (claude.ai → token exchange) is a documented
 //! follow-up (see [`refresh`]).
 //!
-//! As an impersonation channel it forwards the claude-cli fingerprint headers
-//! (its per-channel allow-list, applied after the global blacklist):
-//! `user-agent`, `anthropic-beta`, `anthropic-dangerous-direct-browser-access`,
-//! `x-app`, `x-claude-code-session-id`, and the `x-stainless-*` family
-//! (arch / lang / os / package-version / retry-count / runtime /
-//! runtime-version / timeout). `anthropic-version` is injected, not forwarded.
+//! As an impersonation channel it preserves client beta tokens, then injects
+//! the remaining Claude CLI and Stainless fingerprint headers itself.
 
 use std::sync::Arc;
 
@@ -23,14 +19,15 @@ use crate::channel::oauth;
 use crate::http::client::UpstreamClient;
 
 pub(super) const OAUTH_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
+pub(super) const TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
+pub(super) const LEGACY_TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
 pub(super) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub(super) const CLAUDE_AI_BASE_URL: &str = "https://claude.ai";
 
 /// Authorization endpoint for the interactive authcode+PKCE login (§14.5).
-/// claude.ai hosts the Claude Code OAuth consent page; the token exchange still
-/// posts to api.anthropic.com.
-pub(super) const AUTHORIZE_URL: &str = "https://claude.ai/oauth/authorize";
+/// claude.com hosts the Claude-account consent page; token exchange is hosted on
+/// platform.claude.com.
+pub(super) const AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
 /// Default redirect_uri the Claude Code login uses when the caller passes none
 /// (mined from v1 `CLAUDECODE_REDIRECT_URI`).
 pub(super) const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
@@ -41,23 +38,10 @@ pub(super) const OAUTH_SCOPE: &str =
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
 pub(super) const USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
-const PROFILE_USER_AGENT: &str = "claude-code/2.1.112";
+pub(super) const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.112";
 
 /// Refresh slightly before expiry to avoid racing a 401 mid-flight.
 const EXPIRY_SKEW_MS: i64 = 60_000;
-
-/// Anthropic JS SDK (Stainless-generated) values used by gproxy v1's Claude
-/// Code 2.1.112 fingerprint.
-const STAINLESS: &[(&str, &str)] = &[
-    ("x-stainless-retry-count", "0"),
-    ("x-stainless-timeout", "600"),
-    ("x-stainless-lang", "js"),
-    ("x-stainless-package-version", "0.81.0"),
-    ("x-stainless-os", "Linux"),
-    ("x-stainless-arch", "x64"),
-    ("x-stainless-runtime", "node"),
-    ("x-stainless-runtime-version", "v22.20.0"),
-];
 
 /// Read a trimmed, non-empty string field from the secret.
 fn secret_str<'a>(secret: &'a Value, key: &str) -> Option<&'a str> {
@@ -142,7 +126,7 @@ fn pct(s: &str) -> String {
 /// the effective redirect_uri (so `complete` exchanges with the same value).
 ///
 /// The query mirrors v1 `claudecode.rs` (`code=true` flag + the standard PKCE
-/// set); Anthropic hosts the consent page on claude.ai.
+/// set); Anthropic hosts the consent page on claude.com.
 pub(super) fn authcode_start(redirect_uri: &str, state: &str, challenge: &str) -> (String, String) {
     let redirect_uri = if redirect_uri.trim().is_empty() {
         DEFAULT_REDIRECT_URI
@@ -167,11 +151,8 @@ pub(super) fn authcode_start(redirect_uri: &str, state: &str, challenge: &str) -
 }
 
 /// Exchange an authorization code (+PKCE verifier) for the plaintext secret.
-/// Anthropic's `/v1/oauth/token` rejects exchanges that omit `client_id` or the
-/// `anthropic-version` / `anthropic-beta` / CLI `user-agent` headers (same as
-/// [`refresh`]), so they are sent explicitly. After token exchange, fetches
-/// `/api/oauth/profile` to backfill `account_uuid`, `user_email`, and
-/// `rate_limit_tier`.
+/// After token exchange, fetches `/api/oauth/profile` to backfill
+/// `account_uuid`, `user_email`, and `rate_limit_tier`.
 pub(super) async fn authcode_exchange(
     client: &Arc<dyn UpstreamClient>,
     code: &str,
@@ -179,21 +160,15 @@ pub(super) async fn authcode_exchange(
     redirect_uri: &str,
     state: &str,
 ) -> Result<Value, ChannelError> {
-    let form = [
-        ("grant_type", "authorization_code"),
-        ("client_id", OAUTH_CLIENT_ID),
-        ("code", code),
-        ("redirect_uri", redirect_uri),
-        ("code_verifier", verifier),
-        ("state", state),
-    ];
-    let extra_headers = [
-        ("anthropic-version", ANTHROPIC_VERSION),
-        ("anthropic-beta", ANTHROPIC_BETA),
-        ("origin", CLAUDE_AI_BASE_URL),
-        ("user-agent", USER_AGENT),
-    ];
-    let resp = token_post(client, &form, &extra_headers).await?;
+    let payload = serde_json::json!({
+        "grant_type": "authorization_code",
+        "client_id": OAUTH_CLIENT_ID,
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "code_verifier": verifier,
+        "state": state,
+    });
+    let resp = token_post(client, &payload).await?;
 
     let access_token = resp
         .access_token
@@ -221,17 +196,16 @@ pub(super) async fn enrich_from_profile(client: &Arc<dyn UpstreamClient>, secret
     let Some(at) = secret_str(secret, "access_token").map(ToOwned::to_owned) else {
         return;
     };
-    let Ok(req) = http::Request::builder()
+    let Ok(mut req) = http::Request::builder()
         .method(http::Method::GET)
         .uri(format!("{DEFAULT_BASE_URL}/api/oauth/profile"))
         .header(http::header::AUTHORIZATION, format!("Bearer {at}"))
-        .header(http::header::ACCEPT, "application/json")
-        .header("anthropic-beta", ANTHROPIC_BETA)
-        .header(http::header::USER_AGENT, PROFILE_USER_AGENT)
+        .header(http::header::CONTENT_TYPE, "application/json")
         .body(Bytes::new())
     else {
         return;
     };
+    super::axios::apply(&mut req, 10, true);
     let Ok(resp) = client.send(req).await else {
         return;
     };
@@ -303,10 +277,6 @@ pub(super) fn needs_refresh(secret: &Value) -> bool {
 /// secret (both tokens rotate; `expires_at_ms` is recomputed; cookie /
 /// account_uuid / device_id / user_email are preserved).
 ///
-/// Anthropic's `/v1/oauth/token` rejects refreshes that omit `client_id` or the
-/// `anthropic-version` / `anthropic-beta` / CLI `user-agent` headers, so we send
-/// them explicitly via [`oauth::token_post`].
-///
 /// Cookie fallback (§14.5 M7b): a credential carrying only a `cookie` (no
 /// `refresh_token`) is re-minted through the claude.ai → org-discovery → token
 /// exchange bootstrap by [`super::cookie::refresh`], reusing the passed
@@ -330,17 +300,27 @@ pub(super) async fn refresh(
         }
     };
 
-    let form = [
-        ("grant_type", "refresh_token"),
-        ("client_id", OAUTH_CLIENT_ID),
-        ("refresh_token", refresh_token),
-    ];
-    let extra_headers = [
-        ("anthropic-version", ANTHROPIC_VERSION),
-        ("anthropic-beta", ANTHROPIC_BETA),
-        ("user-agent", USER_AGENT),
-    ];
-    let resp = token_post(client, &form, &extra_headers).await?;
+    let resp = if secret_str(secret, "cookie").is_some() {
+        let form = [
+            ("grant_type", "refresh_token"),
+            ("client_id", OAUTH_CLIENT_ID),
+            ("refresh_token", refresh_token),
+        ];
+        let headers = [
+            ("anthropic-version", ANTHROPIC_VERSION),
+            ("anthropic-beta", ANTHROPIC_BETA),
+            ("user-agent", USER_AGENT),
+        ];
+        legacy_token_post(client, &form, &headers).await?
+    } else {
+        let payload = serde_json::json!({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": OAUTH_CLIENT_ID,
+            "scope": OAUTH_SCOPE,
+        });
+        token_post(client, &payload).await?
+    };
 
     let new_access = resp
         .access_token
@@ -363,7 +343,25 @@ pub(super) async fn refresh(
     Ok(out)
 }
 
+pub(super) fn token_request(payload: &Value) -> Result<Request<Bytes>, ChannelError> {
+    let body = serde_json::to_vec(payload)
+        .map_err(|e| ChannelError::Build(format!("token request encode: {e}")))?;
+    let mut request = Request::post(TOKEN_URL)
+        .header(http::header::CONTENT_TYPE, "application/json")
+        .body(Bytes::from(body))
+        .map_err(|e| ChannelError::Build(format!("token request build: {e}")))?;
+    super::axios::apply(&mut request, 15, false);
+    Ok(request)
+}
+
 pub(super) async fn token_post(
+    client: &Arc<dyn UpstreamClient>,
+    payload: &Value,
+) -> Result<oauth::TokenResponse, ChannelError> {
+    send_token_request(client, token_request(payload)?).await
+}
+
+pub(super) async fn legacy_token_post(
     client: &Arc<dyn UpstreamClient>,
     form: &[(&str, &str)],
     extra_headers: &[(&str, &str)],
@@ -373,7 +371,7 @@ pub(super) async fn token_post(
         .map(|(k, v)| format!("{}={}", oauth::percent_encode(k), oauth::percent_encode(v)))
         .collect::<Vec<_>>()
         .join("&");
-    let mut builder = Request::post(TOKEN_URL)
+    let mut builder = Request::post(LEGACY_TOKEN_URL)
         .header(
             http::header::CONTENT_TYPE,
             "application/x-www-form-urlencoded",
@@ -382,12 +380,19 @@ pub(super) async fn token_post(
     for (k, v) in extra_headers {
         builder = builder.header(*k, *v);
     }
-    let req = builder
+    let request = builder
         .body(Bytes::from(body))
         .map_err(|e| ChannelError::Build(format!("token request build: {e}")))?;
 
+    send_token_request(client, request).await
+}
+
+async fn send_token_request(
+    client: &Arc<dyn UpstreamClient>,
+    request: Request<Bytes>,
+) -> Result<oauth::TokenResponse, ChannelError> {
     let resp = client
-        .send(req)
+        .send(request)
         .await
         .map_err(|e| ChannelError::Build(format!("token request failed: {e}")))?;
     let (parts, body) = resp.into_parts();
@@ -448,12 +453,7 @@ pub(super) fn apply(
         http::header::USER_AGENT,
         HeaderValue::from_static(USER_AGENT),
     );
-    for (name, value) in STAINLESS {
-        h.insert(
-            HeaderName::from_static(name),
-            HeaderValue::from_static(value),
-        );
-    }
+    super::stainless::apply(h)?;
     h.insert(
         http::header::ACCEPT,
         HeaderValue::from_static("application/json"),

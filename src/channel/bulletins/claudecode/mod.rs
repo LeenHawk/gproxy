@@ -3,12 +3,14 @@
 //! response decoder.
 
 mod auth;
+mod axios;
 mod cch;
 mod cookie;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 mod fingerprint;
 mod request;
 mod routing;
+mod stainless;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 mod usage;
@@ -40,6 +42,22 @@ impl Channel for ClaudeCodeChannel {
     /// Claude-subscription account: the OAuth token is account-wide.
     fn credential_wide_auth(&self) -> bool {
         true
+    }
+
+    fn cookie_login_requires_browser(&self) -> bool {
+        true
+    }
+
+    fn refresh_requires_browser(&self, secret: &Value) -> bool {
+        let has_cookie = secret
+            .get("cookie")
+            .and_then(Value::as_str)
+            .is_some_and(|cookie| !cookie.trim().is_empty());
+        let has_refresh_token = secret
+            .get("refresh_token")
+            .and_then(Value::as_str)
+            .is_some_and(|token| !token.trim().is_empty());
+        has_cookie && !has_refresh_token
     }
 
     /// All models draw the account 5h/weekly MAIN pool; fable

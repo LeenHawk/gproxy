@@ -8,7 +8,7 @@ use js_sys::{Array, Uint8Array, global};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Headers, Request, RequestInit, Response, WorkerGlobalScope};
+use web_sys::{AbortSignal, Headers, Request, RequestInit, Response, WorkerGlobalScope};
 
 use super::{ClientError, UpstreamClient};
 
@@ -105,7 +105,8 @@ impl Default for FetchClient {
 async fn fetch_raw(
     req: http::Request<Bytes>,
 ) -> Result<(http::StatusCode, http::HeaderMap, Response), ClientError> {
-    let (parts, body_bytes) = req.into_parts();
+    let (mut parts, body_bytes) = req.into_parts();
+    let transport = parts.extensions.remove::<super::TransportOptions>();
 
     let js_headers = Headers::new().map_err(js_err)?;
     for (name, value) in &parts.headers {
@@ -118,6 +119,12 @@ async fn fetch_raw(
     let init = RequestInit::new();
     init.set_method(parts.method.as_str());
     init.set_headers_headers(&js_headers);
+    let timeout_signal = transport
+        .and_then(|options| options.total_timeout)
+        .map(|timeout| AbortSignal::timeout_with_f64(timeout.as_secs_f64() * 1000.0));
+    if let Some(signal) = timeout_signal.as_ref() {
+        init.set_signal(Some(signal));
+    }
     if parts.method != http::Method::GET
         && parts.method != http::Method::HEAD
         && !body_bytes.is_empty()

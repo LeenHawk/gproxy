@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, RefreshCw, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { consumeRateLimitResetCredit, credentialUsageQuery, type UsageWindow } from "@/api/credentials";
+import { consumeRateLimitResetCredit, credentialUsageQuery, type UsageCredits, type UsageWindow } from "@/api/credentials";
 import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -26,6 +26,29 @@ function windowReset(w: UsageWindow): string | undefined {
   const resetAt = new Date(w.resets_at);
   if (Number.isNaN(resetAt.getTime())) return w.resets_at;
   return resetAt.toLocaleString();
+}
+
+function formatCredits(credits: UsageCredits, disabled: string, unlimited: string): string {
+  const used = credits.used_credits;
+  const limit = credits.monthly_limit;
+  if (credits.has_credits === false && used === undefined && limit === undefined && !credits.balance) return disabled;
+  if (credits.unlimited) return unlimited;
+  if (used === undefined || limit === undefined) {
+    if (credits.balance) return credits.balance;
+    return JSON.stringify(credits);
+  }
+  const format = (value: number) => {
+    if (!credits.currency) return String(value);
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: credits.currency,
+      }).format(value);
+    } catch {
+      return `${value} ${credits.currency}`;
+    }
+  };
+  return `${format(used)} / ${format(limit)}`;
 }
 
 function humanizeWindowName(name: string): string {
@@ -116,10 +139,7 @@ export function UsageCard({ credentialId }: { credentialId: number }) {
           {snapshot.credits && (
             <p className="text-sm">
               <span className="text-muted-foreground">{t("usage.credits")}:</span>{" "}
-              {snapshot.credits.unlimited ? "∞"
-                : snapshot.credits.balance ?? (snapshot.credits.used_credits !== undefined && snapshot.credits.monthly_limit !== undefined
-                  ? `${snapshot.credits.used_credits} / ${snapshot.credits.monthly_limit}`
-                : JSON.stringify(snapshot.credits))}
+              {formatCredits(snapshot.credits, t("usage.creditsDisabled"), t("usage.unlimited"))}
             </p>
           )}
           {resetCredits && (

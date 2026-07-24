@@ -25,6 +25,10 @@ use crate::store::cache::CacheBackend;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::Credential;
 
+/// Lazily resolves the transport from the latest decrypted secret under lock.
+pub type RefreshClientResolver<'a> =
+    dyn Fn(&Value) -> Result<Arc<dyn UpstreamClient>, ClientError> + Send + Sync + 'a;
+
 /// Services used by a refresh, supplied by the application layer. Client
 /// resolution stays lazy so single-flight losers can reuse the winner without
 /// failing on or constructing an upstream client they no longer need.
@@ -32,8 +36,7 @@ pub struct RefreshDeps<'a> {
     pub persistence: &'a dyn PersistenceBackend,
     pub cache: &'a dyn CacheBackend,
     pub cipher: &'a dyn SecretCipher,
-    pub resolve_client:
-        &'a (dyn Fn() -> Result<Arc<dyn UpstreamClient>, ClientError> + Send + Sync),
+    pub resolve_client: &'a RefreshClientResolver<'a>,
 }
 
 /// Serialises refreshes per credential id so concurrent requests cannot rotate
@@ -103,7 +106,7 @@ impl RefreshOrchestrator {
         // the token endpoint). Resolved BEFORE the redis lock so a bad-target
         // failure never leaks the lock; an unusable target fails the refresh
         // (cool + skip), never a silent downgrade to the default client.
-        let client = (deps.resolve_client)()
+        let client = (deps.resolve_client)(&current.secret)
             .map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?;
         // Cross-instance single-flight: the local mutex above serialises this
         // instance, but a single-use refresh_token must not be rotated by two

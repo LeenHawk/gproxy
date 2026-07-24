@@ -3,6 +3,15 @@
 
 use bytes::Bytes;
 
+/// Per-request transport behavior carried through [`http::Request::extensions`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TransportOptions {
+    pub total_timeout: Option<std::time::Duration>,
+    pub max_redirects: Option<usize>,
+    pub http_version: Option<http::Version>,
+    pub omit_body: bool,
+}
+
 /// Synchronous decoder for a chunked upstream byte stream.
 ///
 /// A decoder may buffer partial frames in [`push`](Self::push) and flush any

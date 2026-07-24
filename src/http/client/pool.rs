@@ -118,6 +118,27 @@ impl ClientPool {
             }
         }
     }
+
+    /// Resolve the shared Chrome148 client used for browser-only auth flows.
+    pub fn for_browser(&self, proxy: Option<&str>) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let key = (
+            proxy.unwrap_or_default().to_string(),
+            "browser:chrome148".to_string(),
+        );
+        if let Some(client) = self.by_target.get(&key) {
+            return Ok(Arc::clone(&client));
+        }
+        match WreqClient::browser_with_proxy(proxy) {
+            Ok(client) => {
+                let client: Arc<dyn UpstreamClient> = Arc::new(client);
+                self.by_target.insert(key, Arc::clone(&client));
+                Ok(client)
+            }
+            Err(error) => Err(ClientError::Config(format!(
+                "browser client build failed: {error}"
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -210,5 +231,17 @@ mod tests {
         // Distinct from the default (None, None) client.
         let def = pool.for_target(None, None).unwrap();
         assert!(!Arc::ptr_eq(&def, &a));
+    }
+
+    #[test]
+    fn for_browser_uses_a_distinct_cached_profile() {
+        let pool = ClientPool::new(Arc::new(Dummy));
+        let browser = pool.for_browser(None).unwrap();
+        let browser_again = pool.for_browser(None).unwrap();
+        assert!(Arc::ptr_eq(&browser, &browser_again));
+        assert!(!Arc::ptr_eq(
+            &browser,
+            &pool.for_target(None, None).unwrap()
+        ));
     }
 }
