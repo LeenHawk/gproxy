@@ -22,7 +22,6 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import {
   channelMeta, DEFAULT_BASE_URL, ENDPOINT_KINDS, type EndpointKind,
 } from "@/lib/channel-meta";
@@ -39,10 +38,6 @@ const CLAUDE_FALLBACK_CHANNELS = new Set([
 ]);
 const AWS_CHANNELS = new Set(["aws-bedrock"]);
 
-// ChatGPT session mode (普通 / 临时聊天 / 进项目). Persisted as `mode` in settings.
-const CHATGPT_MODES = ["normal", "temporary", "project"] as const;
-type ChatgptMode = (typeof CHATGPT_MODES)[number];
-
 export interface SettingsState {
   baseUrl: string;
   endpoints: EndpointRow[];
@@ -56,8 +51,6 @@ export interface SettingsState {
   enableOpenAiMagicCache: boolean;
   enableClaudeMagicCache: boolean;
   enableClaudeFableFallback: boolean;
-  chatgptMode: ChatgptMode;
-  projectName: string;
 }
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
@@ -71,13 +64,6 @@ export function initSettingsState(settingsJson: unknown, channel: string): Setti
   const cb = objectValue(s.circuit_breaker) ?? {};
   const supported = new Set(channelMeta(channel)?.endpointKinds ?? []);
   const endpoints = objectValue(s.endpoints);
-  // `mode` is canonical; fall back to the legacy `temporary_chat` bool
-  // (true/absent → temporary, false → normal) to match the backend.
-  const mode = CHATGPT_MODES.includes(s.mode as ChatgptMode)
-    ? (s.mode as ChatgptMode)
-    : s.temporary_chat === false
-      ? "normal"
-      : "temporary";
   return {
     baseUrl: typeof s.base_url === "string" ? s.base_url : "",
     endpoints: endpoints
@@ -103,8 +89,6 @@ export function initSettingsState(settingsJson: unknown, channel: string): Setti
     enableOpenAiMagicCache: s.enable_openai_magic_cache === true,
     enableClaudeMagicCache: s.enable_claude_magic_cache === true,
     enableClaudeFableFallback: s.enable_claude_fable_fallback === true,
-    chatgptMode: mode,
-    projectName: typeof s.project_name === "string" ? s.project_name : "",
   };
 }
 
@@ -211,19 +195,6 @@ export function assembleSettings(
       result.enable_claude_fable_fallback = true;
     } else {
       delete result.enable_claude_fable_fallback;
-    }
-  }
-
-  // chatgpt: session `mode` (普通 / 临时聊天 / 进项目). `mode` supersedes the
-  // legacy `temporary_chat` bool, so drop the latter. `project_name` only when
-  // in project mode (default `gproxy` is applied backend-side if omitted).
-  if (channel === "chatgpt") {
-    result.mode = state.chatgptMode;
-    delete result.temporary_chat;
-    if (state.chatgptMode === "project" && state.projectName.trim()) {
-      result.project_name = state.projectName.trim();
-    } else {
-      delete result.project_name;
     }
   }
 
@@ -400,47 +371,6 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
           <p className="text-xs text-muted-foreground">
             {t("form.enableClaudeFableFallbackHint")}
           </p>
-        </div>
-      )}
-      {/* chatgpt: session mode (普通 / 临时聊天 / 进项目) — a sliding-pill segmented control */}
-      {channel === "chatgpt" && (
-        <div className="grid gap-2">
-          <Label>{t("fields.sessionMode")}</Label>
-          <div className="inline-flex w-fit rounded-full bg-muted p-1">
-            {CHATGPT_MODES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => onChange({ chatgptMode: m })}
-                className={cn(
-                  "rounded-full px-4 py-1 text-sm font-medium transition-colors",
-                  state.chatgptMode === m
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t(
-                  m === "normal"
-                    ? "fields.modeNormal"
-                    : m === "temporary"
-                      ? "fields.modeTemporary"
-                      : "fields.modeProject",
-                )}
-              </button>
-            ))}
-          </div>
-          {state.chatgptMode === "project" && (
-            <div className="grid gap-2">
-              <Label htmlFor="sf-project-name">{t("fields.projectName")}</Label>
-              <Input
-                id="sf-project-name"
-                value={state.projectName}
-                onChange={(e) => onChange({ projectName: e.target.value })}
-                placeholder="gproxy"
-              />
-              <p className="text-xs text-muted-foreground">{t("form.projectNameHint")}</p>
-            </div>
-          )}
         </div>
       )}
     </div>

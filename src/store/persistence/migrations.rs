@@ -398,6 +398,13 @@ pub const MIGRATIONS: &[Migration] = &[
             ],
         },
     },
+    Migration {
+        version: 15,
+        description: "disable removed ChatGPT Web providers",
+        sql: MigrationSql::Shared(&[
+            "UPDATE providers SET enabled = FALSE WHERE channel = 'chatgpt'",
+        ]),
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner

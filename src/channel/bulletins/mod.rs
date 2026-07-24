@@ -38,8 +38,6 @@ pub mod vertexexpress;
 // OAuth / envelope channels (functional)
 #[cfg(feature = "channel-antigravity")]
 pub mod antigravity;
-#[cfg(feature = "channel-chatgpt")]
-pub mod chatgpt;
 #[cfg(feature = "channel-claudecode")]
 pub mod claudecode;
 #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]

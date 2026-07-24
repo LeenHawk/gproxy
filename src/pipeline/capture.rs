@@ -113,7 +113,7 @@ pub async fn log_upstream(
 
 /// Like [`log_upstream`] but decoupled from `RequestCtx`/`Candidate` (takes the
 /// raw identity fields). Used by [`CapturingClient`] to log EACH call a
-/// multi-step `Custom` exchange (chatgpt image gen) makes.
+/// multi-step `Custom` exchange makes.
 pub async fn log_upstream_raw(
     state: &AppState,
     request_id: &str,
@@ -150,8 +150,8 @@ pub async fn log_upstream_raw(
 /// A transparent [`UpstreamClient`](crate::http::client::UpstreamClient)
 /// decorator that logs EACH `send` (request + response) as a §8-D upstream row.
 /// The pipeline wraps its resolved client in this and hands it to a `Custom`
-/// multi-step exchange ([`crate::channel::PreparedRequest::Custom`], chatgpt
-/// image gen) so every conversation / poll / download call is captured —
+/// multi-step exchange ([`crate::channel::PreparedRequest::Custom`]) so every
+/// upstream call is captured —
 /// identical gating to the single-send path (`enable_upstream_log`).
 pub struct CapturingClient {
     inner: std::sync::Arc<dyn crate::http::client::UpstreamClient>,
@@ -263,17 +263,6 @@ impl crate::http::client::UpstreamClient for CapturingClient {
         req: http::Request<Bytes>,
     ) -> Result<http::Response<Bytes>, crate::http::client::ClientError> {
         self.inner.send_websocket(req).await
-    }
-
-    /// Forward conduit-WS opening to the inner client (the chatgpt thinking-model
-    /// handoff path). The WS itself isn't an HTTP send, so it's not per-frame
-    /// logged; the preceding `celsius/ws/user` GET rides `send` and IS captured.
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn open_conduit(
-        &self,
-        url: &str,
-    ) -> Result<Box<dyn crate::http::client::ConduitSocket>, crate::http::client::ClientError> {
-        self.inner.open_conduit(url).await
     }
 
     /// Forward generic upstream WebSocket opening (Responses WebSocket target).

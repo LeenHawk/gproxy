@@ -138,10 +138,9 @@ upstream-fetch = []
 edge = ["cache-libsql", "cache-upstash", "persist-libsql", "upstream-fetch", "channels-edge"]
 
 # ── channels: one feature per bulletin, all default-on. `channels` = every
-# channel (incl. native-only web-session channels); `channels-edge` is the
-# wasm/edge subset (chatgpt/claudeweb need multi-step native
-# streaming and/or browser TLS → upstream-wreq → native-only).
-channels = ["channels-edge", "channel-chatgpt", "channel-claudeweb"]
+# channel (including native-only web-session channels); `channels-edge` is the
+# wasm/edge subset (`claudeweb` needs native browser TLS via `upstream-wreq`).
+channels = ["channels-edge", "channel-claudeweb"]
 channels-edge = [
     "channel-aistudio",
     "channel-antigravity",
@@ -168,7 +167,6 @@ channel-aistudio = []
 channel-antigravity = []
 channel-azure = []
 channel-aws-bedrock = []
-channel-chatgpt = ["upstream-wreq"]
 channel-claudeweb = ["upstream-wreq"]
 channel-claudeapi = []
 channel-claudecode = []

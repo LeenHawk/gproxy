@@ -16,8 +16,8 @@ use crate::channel::{Channel, ChannelLogin};
 ///
 /// `login` is a parallel map holding the channels that support a §14.5
 /// interactive login (authcode: codex, claudecode, geminicli, antigravity,
-/// kiro; device-code: grokbuild, copilotcli; cookie: claudecode,
-/// claudeweb, chatgpt); a channel absent from it has no login flow.
+/// kiro; device-code: grokbuild, copilotcli; cookie: claudecode, claudeweb); a
+/// channel absent from it has no login flow.
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
@@ -104,8 +104,6 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
         Arc::new(bulletins::kiro::KiroChannel),
         #[cfg(feature = "channel-copilotcli")]
         Arc::new(bulletins::copilotcli::CopilotCliChannel),
-        #[cfg(feature = "channel-chatgpt")]
-        Arc::new(bulletins::chatgpt::ChatGptChannel),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
         Arc::new(bulletins::claudeweb::ClaudeWebChannel),
     ]
@@ -144,8 +142,6 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
             "copilotcli",
             Arc::new(bulletins::copilotcli::CopilotCliChannel),
         ),
-        #[cfg(feature = "channel-chatgpt")]
-        ("chatgpt", Arc::new(bulletins::chatgpt::ChatGptChannel)),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
         (
             "claudeweb",
@@ -178,7 +174,6 @@ mod emulation_tests {
             "antigravity",
             "kiro",
             "copilotcli",
-            "chatgpt",
             "claudeweb",
         ];
         let mut found = Vec::new();

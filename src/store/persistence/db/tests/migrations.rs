@@ -78,15 +78,16 @@ async fn migrates_magic_cache_setting_by_target_protocol() {
     let conn = Database::connect(&dsn).await.expect("seed connect");
     conn.execute_unprepared(
         "CREATE TABLE providers (\
-            id INTEGER PRIMARY KEY, settings_json TEXT NOT NULL)",
+            id INTEGER PRIMARY KEY, channel TEXT NOT NULL, enabled INTEGER NOT NULL, \
+            settings_json TEXT NOT NULL)",
     )
     .await
     .expect("old providers table");
     conn.execute_unprepared(
-        "INSERT INTO providers (id, settings_json) VALUES \
-            (1, '{\"enable_magic_cache\":true,\"base_url\":\"https://one.example\"}'), \
-            (2, '{\"enable_magic_cache\":false}'), \
-            (3, '{\"base_url\":\"https://three.example\"}')",
+        "INSERT INTO providers (id, channel, enabled, settings_json) VALUES \
+            (1, 'openai', 1, '{\"enable_magic_cache\":true,\"base_url\":\"https://one.example\"}'), \
+            (2, 'openai', 1, '{\"enable_magic_cache\":false}'), \
+            (3, 'openai', 1, '{\"base_url\":\"https://three.example\"}')",
     )
     .await
     .expect("old provider settings");
@@ -130,6 +131,49 @@ async fn migrates_magic_cache_setting_by_target_protocol() {
     assert!(settings[1].get("enable_openai_magic_cache").is_none());
     assert!(settings[1].get("enable_claude_magic_cache").is_none());
     assert_eq!(settings[2]["base_url"], "https://three.example");
+}
+
+#[tokio::test]
+async fn disables_removed_chatgpt_providers() {
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-chatgpt-provider.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE providers (id INTEGER PRIMARY KEY, channel TEXT NOT NULL, enabled INTEGER NOT NULL)",
+    )
+    .await
+    .expect("old providers table");
+    conn.execute_unprepared(
+        "INSERT INTO providers (id, channel, enabled) VALUES (1, 'chatgpt', 1), (2, 'openai', 1)",
+    )
+    .await
+    .expect("old providers");
+    conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
+        .await
+        .expect("schema_migrations");
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (14, 0)")
+        .await
+        .expect("version 14");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("migrate");
+    let backend = db.conn.get_database_backend();
+    let rows = db
+        .conn
+        .query_all_raw(Statement::from_string(
+            backend,
+            "SELECT channel, enabled FROM providers ORDER BY id".to_owned(),
+        ))
+        .await
+        .expect("query providers");
+
+    assert_eq!(rows[0].try_get::<String>("", "channel").unwrap(), "chatgpt");
+    assert_eq!(rows[0].try_get::<i64>("", "enabled").unwrap(), 0);
+    assert_eq!(rows[1].try_get::<String>("", "channel").unwrap(), "openai");
+    assert_eq!(rows[1].try_get::<i64>("", "enabled").unwrap(), 1);
 }
 
 #[tokio::test]

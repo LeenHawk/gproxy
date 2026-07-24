@@ -26,7 +26,6 @@ channels that require multi-step WebSocket sessions. Current built-in channel id
 | `claudeapi` | Anthropic Claude Messages API. |
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex upstreams; `vertex` also supports native Claude partner models. |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
-| `chatgpt` | ChatGPT consumer web backend via a chatgpt.com session cookie. |
 | `claudeweb` | Claude consumer web backend via a claude.ai session cookie (native only). |
 
 Every channel declares a routing surface as `(Operation, OperationKind) ->
@@ -128,36 +127,6 @@ for enablement, model ids, and regional availability.
 Providers created before this capability was added keep their stored routing
 rules. Reset that provider's routing defaults, or change the Claude Messages and
 Claude count-tokens rules to `passthrough`, to opt in to the native endpoints.
-
-### ChatGPT channel (cookie session)
-
-The `chatgpt` channel proxies the **chatgpt.com consumer web backend** using a
-browser **session cookie** — no API key or OAuth. It supports normal chat,
-thinking / pro / deep-research (streamed chain-of-thought + report), web search,
-and image generation/edit.
-
-**Getting the credential.** Sign in to <https://chatgpt.com> in a browser, open
-DevTools → Network, click any `chatgpt.com` request, and copy its full `Cookie`
-request header. In the console, add a `chatgpt` provider with **Cookie login** and
-paste that cookie string. gproxy exchanges it at `/api/auth/session` to mint the
-access token and warms the Cloudflare / sentinel anti-bot state into the sealed
-secret. gproxy then auto-refreshes the access token from the stored cookie as it
-nears expiry (the JWT lasts ~10 days; the session cookie far longer), so the
-credential lives as long as the browser session — re-paste only when the session
-cookie itself lapses.
-
-**Session mode.** A per-provider setting (`provider_settings.mode`), surfaced in
-the provider form as a three-way selector, controls where conversations land:
-
-| Mode | Behavior |
-| --- | --- |
-| Normal | Persistent conversations in your normal chat history. |
-| Temporary (default) | Temporary chat — excluded from history and model training. |
-| Project | Conversations open inside a ChatGPT **project**, auto-created/found by name (default `gproxy`), so they stay grouped for easy review. Set the project name in the form. |
-
-Project and Temporary are mutually exclusive (a project conversation is always
-persistent). The legacy `temporary_chat: true\|false` boolean is still honored
-when `mode` is absent.
 
 ## Provider Fields
 

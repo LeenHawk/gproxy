@@ -8,7 +8,7 @@ import {
 } from "@/api/login-flows";
 import type { CredentialView } from "@/api/credentials";
 import { channelMeta, type LoginMode } from "@/lib/channel-meta";
-import { extractSessionKey, normalizeCookieHeader, validateCallbackUrl } from "@/lib/oauth-input";
+import { extractSessionKey, validateCallbackUrl } from "@/lib/oauth-input";
 import type { Provider } from "@/api/providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -378,11 +378,7 @@ function CookieFlow({ provider, credLabel, onDone }: FlowProps) {
   const { t } = useTranslation("providers");
   const [pasted, setPasted] = useState("");
   const [touched, setTouched] = useState(false);
-  const isChatGpt = provider.channel === "chatgpt";
-  const cookie = isChatGpt ? normalizeCookieHeader(pasted) : extractSessionKey(pasted);
-  const labelKey = isChatGpt ? "wizard.chatgptCookieLabel" : "wizard.cookieLabel";
-  const hintKey = isChatGpt ? "wizard.chatgptCookieHint" : "wizard.cookieHint";
-  const invalidKey = isChatGpt ? "wizard.chatgptCookieInvalid" : "wizard.cookieInvalid";
+  const cookie = extractSessionKey(pasted);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -400,11 +396,13 @@ function CookieFlow({ provider, credLabel, onDone }: FlowProps) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label htmlFor="w-cookie">{t(labelKey)}</Label>
+        <Label htmlFor="w-cookie">{t("wizard.cookieLabel")}</Label>
         <Textarea id="w-cookie" rows={3} value={pasted} spellCheck={false} autoComplete="off"
           onChange={(e) => setPasted(e.target.value)} onBlur={() => setTouched(true)} />
         <p className={touched && pasted.trim() !== "" && cookie === null ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
-          {touched && pasted.trim() !== "" && cookie === null ? t(invalidKey) : t(hintKey)}
+          {touched && pasted.trim() !== "" && cookie === null
+            ? t("wizard.cookieInvalid")
+            : t("wizard.cookieHint")}
         </p>
       </div>
       {mutation.isError && <p className="text-sm text-destructive">{t("wizard.failed")}</p>}

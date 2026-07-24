@@ -48,8 +48,8 @@ pub(super) struct AttemptOutcome {
     /// Upstream request headers actually sent — captured only when the
     /// upstream-log toggle is on (§8-D), `None` otherwise.
     pub(super) sent_headers: Option<HeaderMap>,
-    /// This attempt was a `Custom` multi-step exchange (chatgpt image gen): its
-    /// per-call §8-D logging is done inline by the [`CapturingClient`], so the
+    /// This attempt was a `Custom` multi-step exchange: its per-call §8-D
+    /// logging is done inline by the [`CapturingClient`], so the
     /// caller skips the single aggregate `log_upstream` row.
     ///
     /// [`CapturingClient`]: crate::pipeline::capture::CapturingClient
@@ -115,8 +115,8 @@ pub(super) async fn attempt(
 
     // §17: capture what the wire actually carries — the sent body feeds the
     // count ladder; the URL feeds failed-attempt audit rows. A `Direct` request
-    // carries this + is sent once. A `Custom` multi-step exchange (chatgpt image
-    // gen) has NO single request — its `CapturingClient` logs each call — so the
+    // carries this + is sent once. A `Custom` multi-step exchange has NO single
+    // request — its `CapturingClient` logs each call — so the
     // audit fields are minimal and it carries the closure instead.
     let method = parts.method.clone();
     #[cfg(not(target_arch = "wasm32"))]
@@ -186,8 +186,7 @@ pub(super) async fn attempt(
         ))
     };
     let send_result: Result<(StatusCode, HeaderMap, BodySource), String> = 'send: {
-        // Streaming custom exchange (chatgpt conduit): the body streams to the
-        // client as the turn unfolds (vital for multi-minute deep research).
+        // Streaming custom exchange: stream the body as the upstream produces it.
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(send) = custom_stream_send {
             break 'send send(make_capturing())
@@ -195,8 +194,8 @@ pub(super) async fn attempt(
                 .map(|(status, headers, st)| (status, headers, BodySource::Streaming(st)))
                 .map_err(|e| e.to_string());
         }
-        // Buffered custom multi-step exchange (chatgpt image gen): wrap the
-        // resolved client so EVERY call it makes is captured (§8-D), then run it.
+        // Buffered custom multi-step exchange: wrap the resolved client so EVERY
+        // call it makes is captured (§8-D), then run it.
         if let Some(send) = custom_send {
             break 'send send(make_capturing())
                 .await

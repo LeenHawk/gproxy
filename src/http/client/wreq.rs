@@ -77,8 +77,8 @@ impl WreqClient {
     /// Build a `WreqClient` impersonating a real Chrome browser (TLS + HTTP/2 +
     /// headers, via `wreq-util`'s captured emulation), optionally routed through
     /// `proxy_url`. Used for the cookie → OAuth exchange + cookie refresh, which
-    /// hit Cloudflare-fronted `claude.ai` / `chatgpt.com` (reject non-browser
-    /// TLS) and MUST ride the same egress proxy as the credential's traffic
+    /// hit Cloudflare-fronted `claude.ai` (which rejects non-browser TLS) and
+    /// MUST ride the same egress proxy as the credential's traffic
     /// (providers risk-score by source IP). Best-effort: verify against live
     /// origins, as Cloudflare's checks evolve.
     pub fn browser_with_proxy(proxy_url: Option<&str>) -> wreq::Result<Self> {
@@ -171,23 +171,6 @@ impl UpstreamClient for WreqClient {
         Ok((status, headers, stream))
     }
 
-    /// Open a conduit WebSocket via wreq's `ws` support — rides this client's
-    /// proxy + TLS emulation (Cloudflare-fronted `ws.chatgpt.com` rejects
-    /// non-browser TLS). The url carries its own `?verify=` auth.
-    async fn open_conduit(&self, url: &str) -> Result<Box<dyn ConduitSocket>, ClientError> {
-        let resp = self
-            .inner
-            .websocket(url)
-            .send()
-            .await
-            .map_err(|e| ClientError::Transport(format!("conduit handshake: {e}")))?;
-        let ws = resp
-            .into_websocket()
-            .await
-            .map_err(|e| ClientError::Transport(format!("conduit upgrade: {e}")))?;
-        Ok(Box::new(WreqConduit { ws }))
-    }
-
     async fn open_websocket(
         &self,
         req: http::Request<Bytes>,
@@ -221,7 +204,7 @@ impl ConduitSocket for WreqConduit {
         self.ws
             .send(wreq::ws::message::Message::text(text))
             .await
-            .map_err(|e| ClientError::Transport(format!("conduit send: {e}")))
+            .map_err(|e| ClientError::Transport(format!("websocket send: {e}")))
     }
 
     async fn recv_text(&mut self) -> Option<Result<String, ClientError>> {
@@ -233,7 +216,7 @@ impl ConduitSocket for WreqConduit {
                     Err(_) => continue,
                 },
                 Some(Err(e)) => {
-                    return Some(Err(ClientError::Transport(format!("conduit recv: {e}"))));
+                    return Some(Err(ClientError::Transport(format!("websocket recv: {e}"))));
                 }
                 None => return None,
             }
