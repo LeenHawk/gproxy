@@ -51,6 +51,7 @@ struct FakeUpstream {
     statuses: Vec<StatusCode>,
     /// canned non-stream response body
     response: Bytes,
+    response_content_type: &'static str,
     /// canned stream chunks (send_streaming)
     chunks: Vec<Bytes>,
     calls: AtomicUsize,
@@ -69,7 +70,7 @@ impl UpstreamClient for FakeUpstream {
             .unwrap_or(StatusCode::OK);
         Ok(http::Response::builder()
             .status(status)
-            .header("content-type", "application/json")
+            .header("content-type", self.response_content_type)
             .body(self.response.clone())
             .expect("response"))
     }
@@ -118,9 +119,15 @@ impl FakeUpstream {
             seen: Mutex::new(vec![]),
             statuses: vec![StatusCode::OK],
             response,
+            response_content_type: "application/json",
             chunks,
             calls: AtomicUsize::new(0),
         }
+    }
+
+    fn with_response_content_type(mut self, content_type: &'static str) -> Self {
+        self.response_content_type = content_type;
+        self
     }
 
     fn capture(&self, req: &http::Request<Bytes>) {

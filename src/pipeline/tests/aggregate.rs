@@ -25,7 +25,10 @@ async fn non_stream_client_collapses_forced_stream() {
         "\"choices\":[{\"index\":0,\"delta\":{\"content\":\"llo\"},\"finish_reason\":\"stop\"}]}\n\n",
         "data: [DONE]\n\n",
     );
-    let fake = Arc::new(FakeUpstream::new(Bytes::from(sse), vec![]));
+    let fake = Arc::new(
+        FakeUpstream::new(Bytes::from(sse), vec![])
+            .with_response_content_type("text/plain; charset=utf-8"),
+    );
     let (state, _dir) = state_with_bundle(Arc::clone(&fake), &bundle).await;
 
     let mut headers = HeaderMap::new();
@@ -76,6 +79,7 @@ async fn non_stream_client_collapses_forced_stream() {
     let v: Value = serde_json::from_slice(&b).unwrap();
     assert_eq!(v["object"], "chat.completion", "collapsed object: {v}");
     assert_eq!(v["choices"][0]["message"]["content"], "hello");
+    assert_eq!(outcome.headers["content-type"], "application/json");
 }
 
 /// `(create_image, open_ai) → (stream_generate_content, open_ai_responses)` is a

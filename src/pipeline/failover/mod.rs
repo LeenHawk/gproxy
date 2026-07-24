@@ -343,9 +343,20 @@ pub async fn run_failover(
             if let Some(settle) = settle {
                 settle::settle_body(settle.ctx, &settle.body, settle.stream).await;
             }
-            if plan.is_transform() {
+            if plan.is_transform() || plan.is_aggregate_stream() {
                 // converted bytes no longer match the upstream framing
                 headers.remove(http::header::CONTENT_LENGTH);
+            }
+            if status.is_success()
+                && plan.is_aggregate_stream()
+                && matches!(&body, ResponseBody::Full(_))
+            {
+                // The upstream event stream has been collapsed into one JSON
+                // object, so its original media type no longer describes the body.
+                headers.insert(
+                    http::header::CONTENT_TYPE,
+                    http::HeaderValue::from_static("application/json"),
+                );
             }
             #[cfg(not(target_arch = "wasm32"))]
             let body = match (status.is_success(), ctx.op.map(|op| op.kind), body) {
