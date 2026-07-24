@@ -64,7 +64,10 @@ fn blocks_to_contents(
                 let text = block
                     .content
                     .into_iter()
-                    .map(|block| block.text)
+                    .filter_map(|block| match block {
+                        claude::MidConversationSystemContentBlock::Text(block) => Some(block.text),
+                        _ => None,
+                    })
                     .collect::<Vec<_>>()
                     .join("");
                 if !text.is_empty() {

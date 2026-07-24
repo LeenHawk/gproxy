@@ -142,12 +142,15 @@ async fn disables_removed_chatgpt_providers() {
     let dsn = format!("sqlite://{}?mode=rwc", path.display());
     let conn = Database::connect(&dsn).await.expect("seed connect");
     conn.execute_unprepared(
-        "CREATE TABLE providers (id INTEGER PRIMARY KEY, channel TEXT NOT NULL, enabled INTEGER NOT NULL)",
+        "CREATE TABLE providers (\
+            id INTEGER PRIMARY KEY, channel TEXT NOT NULL, enabled INTEGER NOT NULL, \
+            settings_json TEXT NOT NULL)",
     )
     .await
     .expect("old providers table");
     conn.execute_unprepared(
-        "INSERT INTO providers (id, channel, enabled) VALUES (1, 'chatgpt', 1), (2, 'openai', 1)",
+        "INSERT INTO providers (id, channel, enabled, settings_json) VALUES \
+            (1, 'chatgpt', 1, '{}'), (2, 'openai', 1, '{}')",
     )
     .await
     .expect("old providers");
@@ -174,6 +177,74 @@ async fn disables_removed_chatgpt_providers() {
     assert_eq!(rows[0].try_get::<i64>("", "enabled").unwrap(), 0);
     assert_eq!(rows[1].try_get::<String>("", "channel").unwrap(), "openai");
     assert_eq!(rows[1].try_get::<i64>("", "enabled").unwrap(), 1);
+}
+
+#[tokio::test]
+async fn migrates_claude_fable_fallback_setting() {
+    use sea_orm::{ConnectionTrait, Database, Statement};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("old-claude-fallback.db");
+    let dsn = format!("sqlite://{}?mode=rwc", path.display());
+    let conn = Database::connect(&dsn).await.expect("seed connect");
+    conn.execute_unprepared(
+        "CREATE TABLE providers (\
+            id INTEGER PRIMARY KEY, channel TEXT NOT NULL, enabled INTEGER NOT NULL, \
+            settings_json TEXT NOT NULL)",
+    )
+    .await
+    .expect("old providers table");
+    conn.execute_unprepared(
+        "INSERT INTO providers (id, channel, enabled, settings_json) VALUES \
+            (1, 'claudeapi', 1, '{\"enable_claude_fable_fallback\":true,\"base_url\":\"https://one.example\"}'), \
+            (2, 'claudeapi', 1, '{\"enable_claude_fable_fallback\":false}'), \
+            (3, 'claudeapi', 1, '{\"base_url\":\"https://three.example\"}'), \
+            (4, 'claudeapi', 1, '{\"enable_claude_fable_fallback\":true,\"claude_fable_fallbacks\":\"default\"}')",
+    )
+    .await
+    .expect("old provider settings");
+    conn.execute_unprepared(crate::store::persistence::migrations::CREATE_MIGRATIONS_TABLE)
+        .await
+        .expect("schema_migrations");
+    conn.execute_unprepared("INSERT INTO schema_migrations (version, applied_at) VALUES (15, 0)")
+        .await
+        .expect("version 15");
+    conn.close().await.expect("close seed");
+
+    let db = DbPersistence::connect(&dsn).await.expect("migrate");
+    let backend = db.conn.get_database_backend();
+    let rows = db
+        .conn
+        .query_all_raw(Statement::from_string(
+            backend,
+            "SELECT settings_json FROM providers ORDER BY id".to_owned(),
+        ))
+        .await
+        .expect("query providers");
+    let settings = rows
+        .into_iter()
+        .map(|row| {
+            serde_json::from_str::<serde_json::Value>(
+                &row.try_get::<String>("", "settings_json")
+                    .expect("settings_json"),
+            )
+            .expect("valid settings JSON")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        settings[0]["claude_fable_fallbacks"],
+        json!(["claude-opus-4-8"])
+    );
+    assert_eq!(settings[0]["base_url"], "https://one.example");
+    assert!(settings[1].get("claude_fable_fallbacks").is_none());
+    assert_eq!(settings[2]["base_url"], "https://three.example");
+    assert_eq!(settings[3]["claude_fable_fallbacks"], "default");
+    assert!(
+        settings
+            .iter()
+            .all(|value| value.get("enable_claude_fable_fallback").is_none())
+    );
 }
 
 #[tokio::test]

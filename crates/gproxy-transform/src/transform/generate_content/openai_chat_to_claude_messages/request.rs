@@ -144,7 +144,7 @@ pub fn request(
     let max_tokens = common::merge_openai_max_tokens(input.max_completion_tokens, input.max_tokens)
         .map(u64::from)
         .unwrap_or(common::DEFAULT_CLAUDE_MAX_TOKENS);
-    let output_config = chat_output_config(input.response_format, input.verbosity);
+    let output_config = chat_output_config(input.response_format, input.reasoning_effort.clone());
     let metadata = input
         .user
         .or_else(|| {
@@ -198,14 +198,10 @@ pub fn request(
 
 fn chat_output_config(
     response_format: Option<openai::ChatResponseFormat>,
-    verbosity: Option<openai::Verbosity>,
+    reasoning_effort: Option<openai::ReasoningEffort>,
 ) -> Option<claude::OutputConfig> {
     let format = common::chat_response_format_to_claude(response_format);
-    let effort = verbosity.map(|verbosity| match verbosity {
-        openai::Verbosity::Low => claude::OutputEffort::Known(claude::OutputEffortKnown::Low),
-        openai::Verbosity::Medium => claude::OutputEffort::Known(claude::OutputEffortKnown::Medium),
-        openai::Verbosity::High => claude::OutputEffort::Known(claude::OutputEffortKnown::High),
-    });
+    let effort = common::openai_effort_to_claude(reasoning_effort);
     if effort.is_none() && format.is_none() {
         None
     } else {
@@ -355,5 +351,20 @@ mod tests {
             blocks.last().unwrap(),
             claude::ContentBlockParam::MidConversationSystem(_)
         ));
+    }
+
+    #[test]
+    fn maps_reasoning_effort_to_claude_output_effort() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-opus-5",
+            "messages": [{"role": "user", "content": "solve it"}],
+            "reasoning_effort": "max",
+            "verbosity": "low"
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert_eq!(output["output_config"]["effort"], "max");
+        assert_eq!(output["thinking"]["type"], "adaptive");
     }
 }

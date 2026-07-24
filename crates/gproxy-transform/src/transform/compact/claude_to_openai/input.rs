@@ -213,7 +213,10 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
             openai::ResponseOutput::Text(mcp_tool_result_content_to_text(block.content)),
         ),
         claude::ContentBlockParam::MidConversationSystem(block) => {
-            let text = join_text(block.content.into_iter().map(|block| block.text));
+            let text = join_text(block.content.into_iter().filter_map(|block| match block {
+                claude::MidConversationSystemContentBlock::Text(block) => Some(block.text),
+                _ => None,
+            }));
             if text.is_empty() {
                 ClaudeRequestBlockItem::None
             } else {

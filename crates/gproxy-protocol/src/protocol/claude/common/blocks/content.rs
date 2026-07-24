@@ -40,6 +40,8 @@ pub enum ContentBlockParam {
     ContainerUpload(ContainerUploadBlock),
     Compaction(CompactionBlock),
     MidConversationSystem(MidConversationSystemBlock),
+    ToolAddition(ToolAdditionBlock),
+    ToolRemoval(ToolRemovalBlock),
     Fallback(FallbackBlock),
     Raw(TypedObject),
 }

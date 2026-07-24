@@ -381,7 +381,7 @@ fn shape_request_non_messages_op_is_identity() {
 #[test]
 fn shape_request_injects_fable_fallback_and_keeps_oauth_beta() {
     let mut headers = HeaderMap::new();
-    let settings = json!({ "enable_claude_fable_fallback": true });
+    let settings = json!({ "claude_fable_fallbacks": ["claude-opus-4-8"] });
     headers.insert("anthropic-beta", "oauth-2025-04-20".parse().unwrap());
     let body = Bytes::from_static(br#"{"model":"claude-fable-5","messages":[],"max_tokens":32}"#);
     let out = ClaudeCodeChannel.shape_request(body, &mut headers, &fallback_ctx(&settings));

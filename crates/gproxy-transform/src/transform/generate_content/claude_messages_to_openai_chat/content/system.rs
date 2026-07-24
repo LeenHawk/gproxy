@@ -106,6 +106,9 @@ pub(super) fn mid_conversation_system_content(
         .content
         .into_iter()
         .filter_map(|block| {
+            let claude::MidConversationSystemContentBlock::Text(block) = block else {
+                return None;
+            };
             if block.text.trim().is_empty() {
                 if block.cache_control.is_some() {
                     warn_dropped_cache_breakpoint("text", "OpenAI Chat mid-conversation system");

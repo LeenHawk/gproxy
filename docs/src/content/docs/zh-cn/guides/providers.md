@@ -44,14 +44,11 @@ Azure Responses schema 已包含 `/openai/v1/responses/compact` 的 compaction �
 当 OpenAI 与 Claude 部署使用不同资源域名时，在 `settings_json.endpoints` 中分别配置精确 URL；
 精确 endpoint 优先于 `base_url`，并支持 `{model}` deployment 占位符。
 
-Azure 同时支持三项提示词管理功能。Provider 的 `cache_breakpoint` 规则会给 OpenAI
+Azure 同时支持两项提示词管理功能。Provider 的 `cache_breakpoint` 规则会给 OpenAI
 Chat/Responses 插入原生 `prompt_cache_breakpoint`，或给 Claude Messages 插入
 `cache_control`。可分别启用 `enable_openai_magic_cache` 和 `enable_claude_magic_cache`，让共用的
-GPROXY 触发字符串只在对应目标协议中被删除，并在原位置插入原生缓存断点。启用
-`enable_claude_fable_fallback` 后，`claude-fable-5` deployment 会
-自动加入到 `claude-opus-4-8` 的服务端回退和所需 Anthropic beta 请求头。自定义 Azure
-deployment 名称无法由标准名称自动推导，应显式提供 `fallbacks` 链和
-`server-side-fallback-2026-06-01` beta 请求头。
+GPROXY 触发字符串只在对应目标协议中被删除，并在原位置插入原生缓存断点。Microsoft
+Foundry 不提供 Anthropic 服务端回退，因此 Azure channel 不会注入 `fallbacks`。
 
 ### Amazon Bedrock 渠道
 
@@ -84,9 +81,20 @@ Claude 1 小时或 OpenAI 30 分钟 TTL 的等价控制，因此使用 Runtime �
 该 channel 不提供嵌入与图片操作；Converse 无法表达的 Responses hosted tool、后台任务与会话状态
 也不受支持。
 
-该渠道支持 provider `cache_breakpoint` 规则、魔法字符串缓存触发，以及可选的 Fable 5 到
-Opus 4.8 回退。`anthropic.claude-fable-5` 这类 Bedrock 模型 ID 在生成 fallback 时会保留点号
-命名空间。模型与 API 的可用性仍取决于区域。
+该渠道支持 provider `cache_breakpoint` 规则与魔法字符串缓存触发。Amazon Bedrock 不提供
+Anthropic 服务端回退；请改用 provider 级路由或客户端回退。模型与 API 的可用性仍取决于区域。
+
+### Claude Fable 回退
+
+在 `claudeapi`、`claudecode`、`vercel` 或兼容 Claude 的 `custom` channel 中设置
+`settings_json.claude_fable_fallbacks`，可在 `claude-fable-5` 因策略拒绝时重试。值为字符串
+`"default"` 时使用 Anthropic 按拒绝类别维护的默认路由；也可填写一至三个按顺序尝试的模型
+ID。GPROXY 会分别为默认路由和显式链加入 `server-side-fallback-2026-07-01` 或
+`server-side-fallback-2026-06-01`。请求本身已有的 `fallbacks` 始终优先。
+
+OpenRouter 会把同一设置转换成自身的模型路由 `fallbacks` 数组，而不使用 Anthropic beta。
+由于 OpenRouter 没有 Anthropic `"default"` 的等价模式，该值会转换成显式 Claude Opus 4.8
+回退。
 
 ### Vertex Claude 合作伙伴模型
 
@@ -124,7 +132,7 @@ provider 的默认路由，或手动把 Claude Messages 与 Claude count-tokens 
 | `region` | `aws-bedrock` 使用的 AWS 区域；缺省为 `us-east-1`。 |
 | `enable_openai_magic_cache` | 在 OpenAI Chat/Responses 目标中识别 GPROXY 缓存触发字符串，并写入 OpenAI 显式断点。适用于 OpenAI、Azure、Amazon Bedrock、Codex、OpenRouter、Vercel 和 custom endpoint。 |
 | `enable_claude_magic_cache` | 在 Claude Messages 目标中识别 GPROXY 缓存触发字符串，并写入 `cache_control`。适用于 Azure、Amazon Bedrock、Claude API、Claude Code、OpenRouter、Vercel 和 custom endpoint。 |
-| `enable_claude_fable_fallback` | 在支持 Claude 的 Channel（包括 Azure 与 Amazon Bedrock）上启用 Fable 到 Opus 的回退行为。 |
+| `claude_fable_fallbacks` | 使用 Anthropic `"default"` 路由或一至三个有序模型重试 Fable 5 拒绝；适用于 Claude API 类 channel，并可作为 OpenRouter 显式模型链。 |
 
 启用魔法字符串缓存前，建议先阅读[提示缓存](/zh-cn/guides/claude-caching/)，特别是 OpenAI
 对模型版本和 TTL 的要求。

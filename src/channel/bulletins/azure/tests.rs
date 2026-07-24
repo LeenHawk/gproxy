@@ -104,12 +104,11 @@ fn claude_uses_anthropic_surface() {
 }
 
 #[test]
-fn shapes_and_forwards_claude_magic_cache_and_fable_fallback() {
+fn shapes_claude_magic_cache_without_unsupported_fallback() {
     let secret = json!({ "api_key": "azure-key" });
     let settings = json!({
         "base_url": "https://resource.services.ai.azure.com",
-        "enable_claude_magic_cache": true,
-        "enable_claude_fable_fallback": true
+        "enable_claude_magic_cache": true
     });
     let op = OperationKey::content_generation(
         Operation::GenerateContent,
@@ -130,9 +129,9 @@ fn shapes_and_forwards_claude_magic_cache_and_fable_fallback() {
     );
     let value: serde_json::Value = serde_json::from_slice(&shaped).unwrap();
     assert_eq!(value["system"][0]["cache_control"]["type"], "ephemeral");
-    assert_eq!(value["fallbacks"], json!([{ "model": "claude-opus-4-8" }]));
+    assert!(value.get("fallbacks").is_none());
     assert!(!String::from_utf8_lossy(&shaped).contains(MAGIC_TRIGGER));
-    assert_eq!(headers["anthropic-beta"], "server-side-fallback-2026-06-01");
+    assert!(headers.get("anthropic-beta").is_none());
 
     let req = AzureChannel
         .prepare(PrepareCtx {
@@ -153,10 +152,7 @@ fn shapes_and_forwards_claude_magic_cache_and_fable_fallback() {
         req.uri().to_string(),
         "https://resource.services.ai.azure.com/anthropic/v1/messages"
     );
-    assert_eq!(
-        req.headers()["anthropic-beta"],
-        "server-side-fallback-2026-06-01"
-    );
+    assert!(req.headers().get("anthropic-beta").is_none());
 }
 
 #[test]

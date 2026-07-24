@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use super::super::{CacheControl, CitationConfig, ClaudeModel, McpToolset, TypedObject};
+use super::super::{
+    CacheControl, CitationConfig, ClaudeModel, McpToolset, ResponseInclusion, TypedObject,
+};
 use super::{CustomToolType, JsonSchema, ToolCommon, ToolCommonWithoutInputExamples, UserLocation};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -227,6 +229,7 @@ pub struct ComputerTool20251124 {
 pub enum WebSearchTool {
     WebSearch20250305(WebSearchTool20250305),
     WebSearch20260209(WebSearchTool20260209),
+    WebSearch20260318(WebSearchTool20260318),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -252,6 +255,19 @@ pub struct WebSearchTool20260209 {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WebSearchTool20260318 {
+    pub name: WebSearchToolName,
+    #[serde(rename = "type")]
+    pub type_: WebSearchTool20260318Type,
+    #[serde(flatten)]
+    pub params: WebSearchToolParams,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_inclusion: Option<ResponseInclusion>,
+    #[serde(flatten)]
+    pub common: ToolCommonWithoutInputExamples,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WebSearchToolParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -269,6 +285,7 @@ pub enum WebFetchTool {
     WebFetch20250910(WebFetchTool20250910),
     WebFetch20260209(WebFetchTool20260209),
     WebFetch20260309(WebFetchTool20260309),
+    WebFetch20260318(WebFetchTool20260318),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -300,6 +317,21 @@ pub struct WebFetchTool20260309 {
     pub type_: WebFetchTool20260309Type,
     #[serde(flatten)]
     pub params: WebFetchToolParams,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_cache: Option<bool>,
+    #[serde(flatten)]
+    pub common: ToolCommonWithoutInputExamples,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WebFetchTool20260318 {
+    pub name: WebFetchToolName,
+    #[serde(rename = "type")]
+    pub type_: WebFetchTool20260318Type,
+    #[serde(flatten)]
+    pub params: WebFetchToolParams,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_inclusion: Option<ResponseInclusion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub use_cache: Option<bool>,
     #[serde(flatten)]
@@ -372,10 +404,12 @@ single_wire_enum!(ComputerTool20251124Type { Computer20251124 => "computer_20251
 single_wire_enum!(WebSearchToolName { WebSearch => "web_search" });
 single_wire_enum!(WebSearchTool20250305Type { WebSearch20250305 => "web_search_20250305" });
 single_wire_enum!(WebSearchTool20260209Type { WebSearch20260209 => "web_search_20260209" });
+single_wire_enum!(WebSearchTool20260318Type { WebSearch20260318 => "web_search_20260318" });
 single_wire_enum!(WebFetchToolName { WebFetch => "web_fetch" });
 single_wire_enum!(WebFetchTool20250910Type { WebFetch20250910 => "web_fetch_20250910" });
 single_wire_enum!(WebFetchTool20260209Type { WebFetch20260209 => "web_fetch_20260209" });
 single_wire_enum!(WebFetchTool20260309Type { WebFetch20260309 => "web_fetch_20260309" });
+single_wire_enum!(WebFetchTool20260318Type { WebFetch20260318 => "web_fetch_20260318" });
 single_wire_enum!(AdvisorToolName { Advisor => "advisor" });
 single_wire_enum!(AdvisorTool20260301Type { Advisor20260301 => "advisor_20260301" });
 

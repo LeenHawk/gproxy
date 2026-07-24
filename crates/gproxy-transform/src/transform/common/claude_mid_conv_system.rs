@@ -6,7 +6,7 @@
 //! on this model`. For those, a mid-conversation system message must be
 //! downgraded to a plain assistant turn instead.
 
-/// Models released before Opus 4.8 — a closed, enumerable set. Substring match
+/// Models without mid-conversation system support. Substring match
 /// tolerates vendor prefixes (`anthropic.`, `us.anthropic.`) and date/version
 /// suffixes (`claude-opus-4-20250514` hits `claude-opus-4-2`).
 const PRE_OPUS_48: &[&str] = &[
@@ -26,11 +26,11 @@ const PRE_OPUS_48: &[&str] = &[
     "claude-opus-4-6",
     "claude-opus-4-7",
     "claude-opus-4@",
+    "claude-sonnet-5",
 ];
 
 /// Whether this Claude model accepts a mid-conversation system turn.
-/// Unknown/future models default to `true` — the pre-4.8 set is closed, new
-/// models all support it.
+/// Unknown/future models default to `true`.
 pub fn supports_mid_conv_system(model: &str) -> bool {
     let m = model.to_ascii_lowercase();
     !PRE_OPUS_48.iter().any(|p| m.contains(p))
@@ -57,9 +57,10 @@ mod tests {
             "claude-opus-4-8",
             "claude-opus-4-9",
             "claude-fable-5",
-            "claude-sonnet-5",
+            "claude-opus-5",
         ] {
             assert!(supports_mid_conv_system(m), "{m} should keep mid_conv");
         }
+        assert!(!supports_mid_conv_system("claude-sonnet-5"));
     }
 }

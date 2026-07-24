@@ -15,6 +15,10 @@ pub fn request(
         .as_ref()
         .and_then(|config| config.format.clone())
         .or(input.output_format);
+    let output_effort = input
+        .output_config
+        .as_ref()
+        .and_then(|config| config.effort.clone());
 
     Ok(gemini::GenerateContentRequest {
         model: Some(common::claude_model_string(input.model)),
@@ -29,7 +33,7 @@ pub fn request(
             input.temperature,
             input.top_p,
             input.top_k,
-            input.thinking,
+            (input.thinking, output_effort),
             output_format,
         ),
         cached_content: None,
@@ -45,16 +49,23 @@ fn generation_config(
     temperature: Option<f64>,
     top_p: Option<f64>,
     top_k: Option<i64>,
-    thinking: Option<claude::ThinkingConfig>,
+    reasoning: (Option<claude::ThinkingConfig>, Option<claude::OutputEffort>),
     output_format: Option<claude::JsonSchemaFormat>,
 ) -> Option<gemini::GenerationConfig> {
+    let (thinking, effort) = reasoning;
+    let mut thinking_config = common::claude_thinking_to_gemini(thinking);
+    if let Some(level) = common::claude_effort_to_gemini(effort) {
+        thinking_config
+            .get_or_insert_with(Default::default)
+            .thinking_level = Some(level);
+    }
     let mut config = gemini::GenerationConfig {
         stop_sequences: stop_sequences.unwrap_or_default(),
         max_output_tokens: Some(u64_to_i32(max_tokens)),
         temperature,
         top_p,
         top_k: top_k.map(i64_to_i32),
-        thinking_config: common::claude_thinking_to_gemini(thinking),
+        thinking_config,
         ..Default::default()
     };
     if let Some(format) = output_format {

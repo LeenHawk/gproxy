@@ -11,6 +11,7 @@ pub(in crate::transform::models) fn model(
 
     Ok(claude::ModelInfo {
         id: id.clone().into(),
+        allowed_fallback_models: Vec::new(),
         type_: claude_model_object(),
         created_at: DEFAULT_CREATED_AT.to_owned(),
         display_name: id,

@@ -32,6 +32,82 @@ pub(in crate::transform::generate_content) fn claude_thinking_to_openai(
     }
 }
 
+pub(in crate::transform::generate_content) fn openai_effort_to_claude(
+    effort: Option<openai::ReasoningEffort>,
+) -> Option<claude::OutputEffort> {
+    Some(claude::OutputEffort::Known(match effort? {
+        openai::ReasoningEffort::None
+        | openai::ReasoningEffort::Minimal
+        | openai::ReasoningEffort::Low => claude::OutputEffortKnown::Low,
+        openai::ReasoningEffort::Medium => claude::OutputEffortKnown::Medium,
+        openai::ReasoningEffort::High => claude::OutputEffortKnown::High,
+        openai::ReasoningEffort::XHigh => claude::OutputEffortKnown::XHigh,
+        openai::ReasoningEffort::Max => claude::OutputEffortKnown::Max,
+    }))
+}
+
+pub(in crate::transform::generate_content) fn claude_effort_to_openai(
+    effort: Option<claude::OutputEffort>,
+) -> Option<openai::ReasoningEffort> {
+    match effort? {
+        claude::OutputEffort::Known(claude::OutputEffortKnown::Low) => {
+            Some(openai::ReasoningEffort::Low)
+        }
+        claude::OutputEffort::Known(claude::OutputEffortKnown::Medium) => {
+            Some(openai::ReasoningEffort::Medium)
+        }
+        claude::OutputEffort::Known(claude::OutputEffortKnown::High) => {
+            Some(openai::ReasoningEffort::High)
+        }
+        claude::OutputEffort::Known(claude::OutputEffortKnown::XHigh) => {
+            Some(openai::ReasoningEffort::XHigh)
+        }
+        claude::OutputEffort::Known(claude::OutputEffortKnown::Max) => {
+            Some(openai::ReasoningEffort::Max)
+        }
+        claude::OutputEffort::Unknown(_) => None,
+    }
+}
+
+pub(in crate::transform::generate_content) fn gemini_thinking_to_claude_effort(
+    thinking: Option<&gemini::ThinkingConfig>,
+) -> Option<claude::OutputEffort> {
+    let level = thinking?.thinking_level.as_ref()?;
+    Some(claude::OutputEffort::Known(match level {
+        gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Minimal)
+        | gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Low) => {
+            claude::OutputEffortKnown::Low
+        }
+        gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Medium)
+        | gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::ThinkingLevelUnspecified) => {
+            claude::OutputEffortKnown::Medium
+        }
+        gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High) => {
+            claude::OutputEffortKnown::High
+        }
+        gemini::ThinkingLevel::Unknown(_) => return None,
+    }))
+}
+
+pub(in crate::transform::generate_content) fn claude_effort_to_gemini(
+    effort: Option<claude::OutputEffort>,
+) -> Option<gemini::ThinkingLevel> {
+    Some(match effort? {
+        claude::OutputEffort::Known(claude::OutputEffortKnown::Low) => {
+            gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Low)
+        }
+        claude::OutputEffort::Known(claude::OutputEffortKnown::Medium) => {
+            gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::Medium)
+        }
+        claude::OutputEffort::Known(
+            claude::OutputEffortKnown::High
+            | claude::OutputEffortKnown::XHigh
+            | claude::OutputEffortKnown::Max,
+        ) => gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High),
+        claude::OutputEffort::Unknown(value) => gemini::ThinkingLevel::Unknown(value),
+    })
+}
+
 pub(in crate::transform::generate_content) fn openai_reasoning_to_gemini(
     effort: Option<openai::ReasoningEffort>,
 ) -> Option<gemini::ThinkingConfig> {

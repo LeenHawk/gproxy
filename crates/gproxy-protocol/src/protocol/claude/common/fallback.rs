@@ -2,9 +2,53 @@ use serde::{Deserialize, Serialize};
 
 use super::{ClaudeModel, JsonObject, OutputConfig, Speed, ThinkingConfig};
 
-/// One entry of the request-level `fallbacks` chain (beta
-/// `server-side-fallback-2026-06-01`): a substitute model tried server-side
-/// when the requested model declines for policy reasons.
+/// Request-level fallback routing: either Anthropic's category-aware defaults
+/// or an ordered chain of up to three caller-selected models.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FallbacksParam {
+    Default(FallbacksDefault),
+    Models(Vec<FallbackParam>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FallbacksDefault {
+    #[serde(rename = "default")]
+    Default,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FallbackCreditTokenParam {
+    Token(String),
+    Config(FallbackCreditTokenConfig),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FallbackCreditTokenConfig {
+    pub token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<FallbackCreditMode>,
+    #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
+    pub extra: JsonObject,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FallbackCreditMode {
+    Known(FallbackCreditModeKnown),
+    Unknown(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FallbackCreditModeKnown {
+    #[serde(rename = "strict")]
+    Strict,
+    #[serde(rename = "best_effort")]
+    BestEffort,
+}
+
+/// One ordered entry of the request-level `fallbacks` chain.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FallbackParam {
     pub model: ClaudeModel,

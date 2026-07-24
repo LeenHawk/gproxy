@@ -13,7 +13,7 @@
  *   api_version       — azure deployment-bound image APIs
  *   enable_openai_magic_cache — OpenAI magic-string prompt cache triggers
  *   enable_claude_magic_cache — Claude magic-string prompt cache triggers
- *   enable_claude_fable_fallback — claudecode / claudeapi / vercel / openrouter
+ *   claude_fable_fallbacks — claudecode / claudeapi / vercel / openrouter / custom
  *
  * Unknown keys (e.g. tokenizer_map) are preserved via the `base` prop.
  */
@@ -34,7 +34,7 @@ const CLAUDE_MAGIC_CACHE_CHANNELS = new Set([
   "claudecode", "claudeapi", "azure", "aws-bedrock", "vercel", "openrouter", "custom",
 ]);
 const CLAUDE_FALLBACK_CHANNELS = new Set([
-  "claudecode", "claudeapi", "azure", "vercel", "openrouter",
+  "claudecode", "claudeapi", "vercel", "openrouter", "custom",
 ]);
 const AWS_CHANNELS = new Set(["aws-bedrock"]);
 
@@ -51,6 +51,7 @@ export interface SettingsState {
   enableOpenAiMagicCache: boolean;
   enableClaudeMagicCache: boolean;
   enableClaudeFableFallback: boolean;
+  claudeFableFallbackModels: string[];
 }
 
 function objectValue(value: unknown): Record<string, unknown> | undefined {
@@ -88,7 +89,15 @@ export function initSettingsState(settingsJson: unknown, channel: string): Setti
     apiVersion: typeof s.api_version === "string" ? s.api_version : "",
     enableOpenAiMagicCache: s.enable_openai_magic_cache === true,
     enableClaudeMagicCache: s.enable_claude_magic_cache === true,
-    enableClaudeFableFallback: s.enable_claude_fable_fallback === true,
+    enableClaudeFableFallback:
+      s.claude_fable_fallbacks === "default" || Array.isArray(s.claude_fable_fallbacks),
+    claudeFableFallbackModels: Array.isArray(s.claude_fable_fallbacks)
+      ? s.claude_fable_fallbacks
+          .filter((model): model is string => typeof model === "string")
+          .slice(0, 3)
+          .concat(["", "", ""])
+          .slice(0, 3)
+      : ["", "", ""],
   };
 }
 
@@ -192,10 +201,16 @@ export function assembleSettings(
 
   if (CLAUDE_FALLBACK_CHANNELS.has(channel)) {
     if (state.enableClaudeFableFallback) {
-      result.enable_claude_fable_fallback = true;
+      const models = state.claudeFableFallbackModels
+        .map((model) => model.trim())
+        .filter((model, index, all) => model && all.indexOf(model) === index)
+        .slice(0, 3);
+      result.claude_fable_fallbacks = models.length > 0 ? models : "default";
     } else {
-      delete result.enable_claude_fable_fallback;
+      delete result.claude_fable_fallbacks;
     }
+  } else {
+    delete result.claude_fable_fallbacks;
   }
 
   return result;
@@ -371,6 +386,25 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
           <p className="text-xs text-muted-foreground">
             {t("form.enableClaudeFableFallbackHint")}
           </p>
+          {state.enableClaudeFableFallback && (
+            <div className="grid gap-2 pt-1">
+              {state.claudeFableFallbackModels.map((model, index) => (
+                <Input
+                  key={index}
+                  aria-label={t("form.claudeFableFallbackModel", { index: index + 1 })}
+                  value={model}
+                  onChange={(event) => {
+                    const models = [...state.claudeFableFallbackModels];
+                    models[index] = event.target.value;
+                    onChange({ claudeFableFallbackModels: models });
+                  }}
+                  placeholder={index === 0
+                    ? t("form.claudeFableFallbackDefault")
+                    : t("form.claudeFableFallbackModel", { index: index + 1 })}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

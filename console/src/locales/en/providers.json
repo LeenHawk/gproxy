@@ -57,7 +57,9 @@
     "autoRefreshModelsHint": "Query this provider when clients list models. Turn off to use only persisted models; a local list-model routing rule also skips upstream refresh.",
     "enableOpenAiMagicCacheHint": "On OpenAI Chat and Responses targets, strip magic triggers and stamp explicit OpenAI cache breakpoints.",
     "enableClaudeMagicCacheHint": "On Claude Messages targets, strip magic triggers and stamp Claude cache_control breakpoints.",
-    "enableClaudeFableFallbackHint": "For Claude Messages requests to Claude Fable 5, add fallback to Claude Opus 4.8.",
+    "enableClaudeFableFallbackHint": "Retry Claude Fable 5 refusals. Leave all model fields empty for Anthropic's default routing, or enter up to three models in order.",
+    "claudeFableFallbackDefault": "Anthropic default routing",
+    "claudeFableFallbackModel": "Fallback model {{index}}",
     "saved": "Saved",
     "channelLocked": "Channel is fixed after creation."
   },

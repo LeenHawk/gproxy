@@ -42,12 +42,12 @@ pub fn request(
         inference_geo: None,
         mcp_servers: None,
         metadata: None,
-        output_config: output_format.map(|format| claude::OutputConfig {
-            effort: None,
-            format: Some(format),
-            task_budget: None,
-            extra: Default::default(),
-        }),
+        output_config: claude_output_config(
+            output_format,
+            generation_config
+                .as_ref()
+                .and_then(|config| config.thinking_config.as_ref()),
+        ),
         output_format: None,
         service_tier: common::gemini_service_tier_to_claude(input.service_tier),
         speed: None,
@@ -78,6 +78,22 @@ pub fn request(
             .map(i64::from),
         top_p: generation_config.as_ref().and_then(|config| config.top_p),
         user_profile_id: None,
+        extra: Default::default(),
+    })
+}
+
+fn claude_output_config(
+    format: Option<claude::JsonSchemaFormat>,
+    thinking: Option<&gemini::ThinkingConfig>,
+) -> Option<claude::OutputConfig> {
+    let effort = common::gemini_thinking_to_claude_effort(thinking);
+    if effort.is_none() && format.is_none() {
+        return None;
+    }
+    Some(claude::OutputConfig {
+        effort,
+        format,
+        task_budget: None,
         extra: Default::default(),
     })
 }

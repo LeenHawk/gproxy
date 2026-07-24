@@ -38,6 +38,7 @@ pub struct ListModelsResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ModelInfo {
     pub id: ClaudeModel,
+    pub allowed_fallback_models: Vec<ClaudeModel>,
     #[serde(rename = "type")]
     pub type_: ModelObjectType,
     pub created_at: String,

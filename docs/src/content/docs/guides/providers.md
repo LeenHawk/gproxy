@@ -55,17 +55,13 @@ If OpenAI and Claude deployments use different resource hosts, configure their
 complete URLs separately in `settings_json.endpoints`. Exact endpoints take
 precedence over `base_url` and support a `{model}` deployment placeholder.
 
-Azure also supports all three prompt-management features. Provider
+Azure also supports both prompt-management features. Provider
 `cache_breakpoint` rules insert native `prompt_cache_breakpoint` markers into
 OpenAI Chat/Responses or `cache_control` into Claude Messages. Enable
 `enable_openai_magic_cache` and `enable_claude_magic_cache` independently to
 recognize the shared GPROXY trigger strings on each target protocol and insert
-the matching native marker. Enabling `enable_claude_fable_fallback` adds a
-server-side fallback from the `claude-fable-5` deployment to
-`claude-opus-4-8`, including the required Anthropic beta header. Custom Azure
-deployment names must use an explicit `fallbacks` chain plus the
-`server-side-fallback-2026-06-01` beta header because the automatic mapping only
-recognizes those standard deployment names.
+the matching native marker. Anthropic server-side fallback is not available on
+Microsoft Foundry, so the Azure channel does not inject `fallbacks`.
 
 ### Amazon Bedrock channel
 
@@ -106,10 +102,24 @@ The channel does not expose embeddings or image operations. Converse also does
 not represent every stateful Responses feature; hosted tools, background jobs,
 and conversation state are unsupported.
 
-The channel supports provider `cache_breakpoint` rules, magic-string cache
-triggers, and the opt-in Fable 5 to Opus 4.8 fallback. Bedrock-style model IDs
-such as `anthropic.claude-fable-5` retain their dot namespace when GPROXY builds
-the fallback. Model and API availability remains region-dependent.
+The channel supports provider `cache_breakpoint` rules and magic-string cache
+triggers. Anthropic server-side fallback is not available on Amazon Bedrock;
+use provider-level routing or client-side fallback instead. Model and API
+availability remains region-dependent.
+
+### Claude Fable fallback
+
+Set `settings_json.claude_fable_fallbacks` on `claudeapi`, `claudecode`,
+`vercel`, or a Claude-compatible `custom` channel to retry policy refusals from
+`claude-fable-5`. Use the string `"default"` for Anthropic's category-aware
+default routing, or an ordered array of one to three model IDs. GPROXY adds
+`server-side-fallback-2026-07-01` for default routing and
+`server-side-fallback-2026-06-01` for an explicit chain. Caller-provided
+`fallbacks` remain authoritative.
+
+OpenRouter uses the same setting for its own model-routing `fallbacks` array,
+not Anthropic's beta. Because OpenRouter has no equivalent to Anthropic's
+`"default"` mode, that value maps to an explicit Claude Opus 4.8 fallback.
 
 ### Vertex Claude partner models
 
@@ -152,7 +162,7 @@ Common `settings_json` values are available as fields in the console:
 | `region` | AWS region for `aws-bedrock`; defaults to `us-east-1`. |
 | `enable_openai_magic_cache` | Recognize GPROXY cache trigger strings on OpenAI Chat/Responses targets and write explicit OpenAI breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, OpenRouter, Vercel, and custom endpoints. |
 | `enable_claude_magic_cache` | Recognize GPROXY cache trigger strings on Claude Messages targets and write `cache_control`. Available for Azure, Amazon Bedrock, Claude API, Claude Code, OpenRouter, Vercel, and custom endpoints. |
-| `enable_claude_fable_fallback` | Add the supported Claude Fable-to-Opus fallback behavior on Claude-capable channels, including Azure and Amazon Bedrock. |
+| `claude_fable_fallbacks` | Retry Fable 5 refusals with `"default"` Anthropic routing or an ordered array of one to three models. Supported on Claude API-like channels and as an explicit model chain on OpenRouter. |
 
 See [Prompt Caching](/guides/claude-caching/) before enabling magic-string
 caching, especially for OpenAI's model and TTL requirements.

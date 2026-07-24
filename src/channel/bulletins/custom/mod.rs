@@ -78,12 +78,18 @@ impl Channel for CustomChannel {
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         // Decide the auth style from the inbound path BEFORE `ctx` is consumed.
         let proto = auth::detect(ctx.path);
+        let anthropic_beta = (ctx.method == http::Method::POST && ctx.path == "/v1/messages")
+            .then(|| ctx.headers.get("anthropic-beta").cloned())
+            .flatten();
         let (mut req, key) = common::build_request(ctx, &DEFAULTS)?;
+        if let Some(value) = anthropic_beta {
+            req.headers_mut().insert("anthropic-beta", value);
+        }
         auth::apply(&mut req, &key, proto)?;
         Ok(PreparedRequest::new(req))
     }
 
-    fn shape_request(&self, body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
+    fn shape_request(&self, body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
         let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
             if !settings.enable_openai_magic_cache {
@@ -94,13 +100,18 @@ impl Channel for CustomChannel {
             });
         }
         if ctx.op.kind != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
-            || !settings.enable_claude_magic_cache
+            || (!settings.enable_claude_magic_cache && settings.claude_fable_fallbacks.is_none())
         {
             return body;
         }
         shaping::with_json_body(body, |value| {
-            claude_magic_cache::apply_magic_string_cache_control_triggers(value);
-            claude_cache_control::sanitize_claude_body(value);
+            if settings.enable_claude_magic_cache {
+                claude_magic_cache::apply_magic_string_cache_control_triggers(value);
+                claude_cache_control::sanitize_claude_body(value);
+            }
+            if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
+                shaping::claude_fallback::apply_fable_fallback(value, headers, fallbacks);
+            }
         })
     }
 }
@@ -174,5 +185,16 @@ mod tests {
             claude["messages"][0]["content"][0]["cache_control"]["type"],
             "ephemeral"
         );
+
+        let fallback_settings = json!({ "claude_fable_fallbacks": "default" });
+        let mut headers = HeaderMap::new();
+        let fallback = CustomChannel.shape_request(
+            Bytes::from_static(br#"{"model":"claude-fable-5","messages":[],"max_tokens":32}"#),
+            &mut headers,
+            &ctx(ContentGenerationKind::ClaudeMessages, &fallback_settings),
+        );
+        let fallback: Value = serde_json::from_slice(&fallback).unwrap();
+        assert_eq!(fallback["fallbacks"], "default");
+        assert_eq!(headers["anthropic-beta"], "server-side-fallback-2026-07-01");
     }
 }

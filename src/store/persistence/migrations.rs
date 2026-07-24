@@ -51,6 +51,13 @@
 //! }
 //! ```
 
+mod claude_fallback;
+
+use claude_fallback::{
+    MYSQL_SQL as CLAUDE_FALLBACK_MYSQL_SQL, POSTGRES_SQL as CLAUDE_FALLBACK_POSTGRES_SQL,
+    SQLITE_SQL as CLAUDE_FALLBACK_SQLITE_SQL,
+};
+
 /// The version stamped for the auto-created baseline schema. Migrations in
 /// [`MIGRATIONS`] must use versions strictly greater than this.
 pub const BASELINE_VERSION: i64 = 1;
@@ -404,6 +411,15 @@ pub const MIGRATIONS: &[Migration] = &[
         sql: MigrationSql::Shared(&[
             "UPDATE providers SET enabled = FALSE WHERE channel = 'chatgpt'",
         ]),
+    },
+    Migration {
+        version: 16,
+        description: "providers.settings_json: migrate Claude Fable fallback routing",
+        sql: MigrationSql::ByDialect {
+            sqlite: CLAUDE_FALLBACK_SQLITE_SQL,
+            postgres: CLAUDE_FALLBACK_POSTGRES_SQL,
+            mysql: CLAUDE_FALLBACK_MYSQL_SQL,
+        },
     },
 ];
 

@@ -114,7 +114,7 @@ impl Channel for OpenRouterChannel {
             });
         }
         if !is_claude_messages(ctx.op)
-            || (!settings.enable_claude_magic_cache && !settings.enable_claude_fable_fallback)
+            || (!settings.enable_claude_magic_cache && settings.claude_fable_fallbacks.is_none())
         {
             return body;
         }
@@ -123,8 +123,10 @@ impl Channel for OpenRouterChannel {
                 claude_magic_cache::apply_magic_string_cache_control_triggers(v);
                 claude_cache_control::sanitize_claude_body(v);
             }
-            if settings.enable_claude_fable_fallback && v.get("models").is_none() {
-                claude_fallback::apply_fable_to_opus48_body_only(v);
+            if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref()
+                && v.get("models").is_none()
+            {
+                claude_fallback::apply_openrouter_fallback(v, fallbacks);
             }
         })
     }
@@ -195,7 +197,7 @@ mod tests {
     #[test]
     fn injects_openrouter_fable_fallback_without_anthropic_beta() {
         let mut headers = HeaderMap::new();
-        let shape_settings = json!({ "enable_claude_fable_fallback": true });
+        let shape_settings = json!({ "claude_fable_fallbacks": ["claude-opus-4-8"] });
         let body =
             Bytes::from(r#"{"model":"anthropic/claude-fable-5","messages":[],"max_tokens":32}"#);
         let shaped =
@@ -234,7 +236,7 @@ mod tests {
     #[test]
     fn does_not_combine_fallbacks_with_openrouter_models() {
         let mut headers = HeaderMap::new();
-        let settings = json!({ "enable_claude_fable_fallback": true });
+        let settings = json!({ "claude_fable_fallbacks": ["claude-opus-4-8"] });
         let body = Bytes::from(
             r#"{"model":"anthropic/claude-fable-5","models":["anthropic/claude-fable-5","anthropic/claude-opus-4-8"],"messages":[],"max_tokens":32}"#,
         );
