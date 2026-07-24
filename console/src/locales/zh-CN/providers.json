@@ -204,6 +204,8 @@
     "unsupported": "该渠道不提供用量端点。",
     "plan": "套餐",
     "credits": "额度",
+    "creditsDisabled": "未启用",
+    "unlimited": "无限制",
     "raw": "原始响应",
     "resets": "{{time}} 重置",
     "reset": {

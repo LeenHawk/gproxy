@@ -204,6 +204,8 @@
     "unsupported": "此通道不提供用量端點。",
     "plan": "方案",
     "credits": "額度",
+    "creditsDisabled": "未啟用",
+    "unlimited": "無限制",
     "raw": "原始回應",
     "resets": "{{time}} 重設",
     "reset": {

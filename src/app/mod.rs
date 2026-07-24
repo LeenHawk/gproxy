@@ -158,7 +158,9 @@ impl AppState {
         opened: serde_json::Value,
         force: bool,
     ) -> Result<serde_json::Value, crate::channel::ChannelError> {
-        let resolve_client = || self.upstream_client_for_credential(channel, credential, provider);
+        let resolve_client = |secret: &serde_json::Value| {
+            self.upstream_client_for_refresh(channel, credential, provider, secret)
+        };
         self.refresh
             .ensure_fresh(
                 crate::credentials::refresh::RefreshDeps {
@@ -243,10 +245,22 @@ impl AppState {
         self.upstream_client_for_credential_inner(channel, credential, provider)
     }
 
+    fn upstream_client_for_refresh(
+        &self,
+        channel: &Arc<dyn crate::channel::Channel>,
+        credential: &Credential,
+        provider: &Provider,
+        secret: &serde_json::Value,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        if !channel.refresh_requires_browser(secret) {
+            return self.upstream_client_for_credential(channel, credential, provider);
+        }
+        self.upstream_browser_client_for_credential(credential, provider)
+    }
+
     /// Resolve the browser-emulating client used by a channel's first cookie
-    /// exchange. It shares the same pool key as subsequent credential traffic,
-    /// preserving Cloudflare connection state and response cookies instead of
-    /// discarding them with a one-off login client.
+    /// exchange. Cookie-only refreshes reuse the same browser-profile pool;
+    /// ordinary model traffic remains on its channel/DB fingerprint.
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
     pub(crate) fn upstream_client_for_cookie_login(
         &self,
@@ -261,6 +275,9 @@ impl AppState {
             .ok_or_else(|| ClientError::Config("provider not found".into()))?;
         let global_proxy = self.upstream_proxy_url();
         let proxy = provider.proxy_url.as_deref().or(global_proxy.as_deref());
+        if channel.cookie_login_requires_browser() {
+            return self.client_pool.for_browser(proxy);
+        }
         match channel.default_emulation() {
             Some(emulation) => self.client_pool.for_channel(proxy, channel.id(), emulation),
             None => self.client_pool.for_target(proxy, None),
@@ -273,7 +290,9 @@ impl AppState {
         _channel: &Arc<dyn crate::channel::Channel>,
         _provider_id: i64,
     ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
-        Ok(Arc::clone(&self.upstream))
+        Err(ClientError::Config(
+            "cookie login requires the upstream-wreq browser client".into(),
+        ))
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
@@ -290,6 +309,29 @@ impl AppState {
         _proxy: Option<&str>,
     ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
         Ok(Arc::clone(&self.upstream))
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    fn upstream_browser_client_for_credential(
+        &self,
+        credential: &Credential,
+        provider: &Provider,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let global_proxy = self.upstream_proxy_url();
+        let proxy =
+            crate::channel::resolve::effective_proxy(credential, provider, global_proxy.as_deref());
+        self.client_pool.for_browser(proxy.as_deref())
+    }
+
+    #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
+    fn upstream_browser_client_for_credential(
+        &self,
+        _credential: &Credential,
+        _provider: &Provider,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        Err(ClientError::Config(
+            "cookie credential refresh requires the native browser client".into(),
+        ))
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]

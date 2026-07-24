@@ -119,10 +119,10 @@ pub struct UsageCredits {
     /// Formatted balance string when the provider gives one (codex `balance`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balance: Option<String>,
-    /// Credits consumed, in the provider's own unit (cents for claudecode).
+    /// Credits consumed, normalized to the provider's display unit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub used_credits: Option<f64>,
-    /// Spending cap, in the provider's own unit (cents for claudecode).
+    /// Spending cap, normalized to the provider's display unit.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monthly_limit: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
