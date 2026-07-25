@@ -3,7 +3,7 @@ set -eu
 
 contents="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 launcher="$contents/MacOS/GPROXY"
-binary="$contents/MacOS/gproxy"
+binary="$contents/MacOS/gproxy-server"
 data_dir="$HOME/Library/Application Support/GPROXY/data"
 log_dir="$HOME/Library/Logs/GPROXY"
 admin_marker="$data_dir/.desktop-admin-user"

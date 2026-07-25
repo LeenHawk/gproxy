@@ -10,8 +10,12 @@ trap 'rm -rf "$work"' EXIT
 
 app="$work/image/GPROXY.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-install -m 0755 "$binary" "$app/Contents/MacOS/gproxy"
+install -m 0755 "$binary" "$app/Contents/MacOS/gproxy-server"
 install -m 0755 scripts/installers/macos/GPROXY "$app/Contents/MacOS/GPROXY"
+cmp -s "$binary" "$app/Contents/MacOS/gproxy-server" || {
+  echo "staged macOS server binary does not match $binary" >&2
+  exit 1
+}
 sed "s/__VERSION__/$version/g" scripts/installers/macos/Info.plist.in \
   > "$app/Contents/Info.plist"
 cp README.md "$work/image/README.md"
@@ -20,4 +24,5 @@ ln -s /Applications "$work/image/Applications"
 codesign --force --deep --sign - "$app"
 hdiutil create -quiet -volname GPROXY -srcfolder "$work/image" \
   -ov -format UDZO "$artifact.dmg"
+hdiutil verify -quiet "$artifact.dmg"
 shasum -a 256 "$artifact.dmg" > "$artifact.dmg.sha256"
