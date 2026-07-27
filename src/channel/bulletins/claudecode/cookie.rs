@@ -17,7 +17,7 @@ use http::{Request, Response};
 use serde_json::Value;
 
 use super::auth::{
-    CLAUDE_AI_BASE_URL, DEFAULT_REDIRECT_URI, OAUTH_CLIENT_ID, OAUTH_SCOPE, USER_AGENT,
+    AUTHORIZE_SCOPE, CLAUDE_AI_BASE_URL, DEFAULT_REDIRECT_URI, OAUTH_CLIENT_ID, USER_AGENT,
 };
 use crate::channel::ChannelError;
 use crate::channel::oauth;
@@ -183,7 +183,7 @@ async fn authorize(
         "client_id": OAUTH_CLIENT_ID,
         "organization_uuid": org_uuid,
         "redirect_uri": DEFAULT_REDIRECT_URI,
-        "scope": OAUTH_SCOPE,
+        "scope": AUTHORIZE_SCOPE,
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
@@ -236,7 +236,9 @@ async fn token_exchange(
         ("origin", CLAUDE_AI_BASE_URL),
         ("user-agent", USER_AGENT),
     ];
-    let resp = super::auth::legacy_token_post(client, &form, &extra).await?;
+    let resp = super::token::post(client, &form, &extra)
+        .await
+        .map_err(super::token::Error::into_channel_error)?;
     let access_token = resp
         .access_token
         .filter(|s| !s.is_empty())

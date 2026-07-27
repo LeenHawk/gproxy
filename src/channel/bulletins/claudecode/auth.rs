@@ -1,6 +1,6 @@
 //! Claude Code auth — Anthropic OAuth2 `refresh_token` grant + the
 //! claude-cli / `@anthropic-ai/sdk` impersonation header set. Base
-//! `https://api.anthropic.com`; token endpoint on `platform.claude.com`. A
+//! `https://api.anthropic.com`, including the OAuth token endpoint. A
 //! session-cookie bootstrap (claude.ai → token exchange) is a documented
 //! follow-up (see [`refresh`]).
 //!
@@ -15,24 +15,24 @@ use http::header::{AUTHORIZATION, HeaderName, HeaderValue};
 use serde_json::Value;
 
 use crate::channel::ChannelError;
-use crate::channel::oauth;
 use crate::http::client::UpstreamClient;
 
 pub(super) const OAUTH_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-pub(super) const TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
-pub(super) const LEGACY_TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
+pub(super) const TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
 pub(super) const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub(super) const CLAUDE_AI_BASE_URL: &str = "https://claude.ai";
 
 /// Authorization endpoint for the interactive authcode+PKCE login (§14.5).
-/// claude.com hosts the Claude-account consent page; token exchange is hosted on
-/// platform.claude.com.
+/// claude.com hosts the Claude-account consent page; token exchange posts to
+/// [`TOKEN_URL`].
 pub(super) const AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
 /// Default redirect_uri the Claude Code login uses when the caller passes none
 /// (mined from v1 `CLAUDECODE_REDIRECT_URI`).
 pub(super) const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
-/// OAuth scopes requested at login (mined from v1 `CLAUDECODE_OAUTH_SCOPE`).
-pub(super) const OAUTH_SCOPE: &str =
+/// Full account-login grant used by Claude Code's authorize flow.
+pub(super) const AUTHORIZE_SCOPE: &str = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
+/// Scopes re-declared while refreshing; `org:create_api_key` is login-only.
+pub(super) const REFRESH_SCOPE: &str =
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -40,8 +40,9 @@ pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
 pub(super) const USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
 pub(super) const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.112";
 
-/// Refresh one hour before expiry to avoid racing a 401 mid-flight.
-const EXPIRY_SKEW_MS: i64 = 3_600_000;
+/// Match Claude Code's five-minute proactive refresh window.
+const EXPIRY_SKEW_MS: i64 = 300_000;
+const PROJECT_SCOPES: [&str; 2] = ["user:projects:read", "user:projects:write"];
 
 /// Read a trimmed, non-empty string field from the secret.
 fn secret_str<'a>(secret: &'a Value, key: &str) -> Option<&'a str> {
@@ -50,6 +51,28 @@ fn secret_str<'a>(secret: &'a Value, key: &str) -> Option<&'a str> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|s| !s.is_empty())
+}
+
+fn stored_scope(secret: &Value) -> Option<String> {
+    let scopes = secret.get("scopes")?.as_array()?;
+    let scopes = scopes
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|scope| !scope.is_empty())
+        .collect::<Vec<_>>();
+    (!scopes.is_empty()).then(|| scopes.join(" "))
+}
+
+pub(super) fn refresh_scope(secret: &Value) -> String {
+    let stored = stored_scope(secret).unwrap_or_default();
+    let mut scopes = REFRESH_SCOPE.split_whitespace().collect::<Vec<_>>();
+    for scope in PROJECT_SCOPES {
+        if stored.split_whitespace().any(|value| value == scope) {
+            scopes.push(scope);
+        }
+    }
+    scopes.join(" ")
 }
 
 /// Stable per-credential `device_id` (a 64-hex string, mirroring the real CLI).
@@ -138,7 +161,7 @@ pub(super) fn authcode_start(redirect_uri: &str, state: &str, challenge: &str) -
         ("client_id", OAUTH_CLIENT_ID),
         ("response_type", "code"),
         ("redirect_uri", redirect_uri),
-        ("scope", OAUTH_SCOPE),
+        ("scope", AUTHORIZE_SCOPE),
         ("code_challenge", challenge),
         ("code_challenge_method", "S256"),
         ("state", state),
@@ -160,30 +183,47 @@ pub(super) async fn authcode_exchange(
     redirect_uri: &str,
     state: &str,
 ) -> Result<Value, ChannelError> {
-    let payload = serde_json::json!({
-        "grant_type": "authorization_code",
-        "client_id": OAUTH_CLIENT_ID,
-        "code": code,
-        "redirect_uri": redirect_uri,
-        "code_verifier": verifier,
-        "state": state,
-    });
-    let resp = token_post(client, &payload).await?;
+    let form = [
+        ("grant_type", "authorization_code"),
+        ("client_id", OAUTH_CLIENT_ID),
+        ("code", code),
+        ("redirect_uri", redirect_uri),
+        ("code_verifier", verifier),
+        ("state", state),
+    ];
+    let headers = [
+        ("anthropic-version", ANTHROPIC_VERSION),
+        ("anthropic-beta", ANTHROPIC_BETA),
+        ("origin", CLAUDE_AI_BASE_URL),
+        ("user-agent", USER_AGENT),
+    ];
+    let resp = super::token::post(client, &form, &headers)
+        .await
+        .map_err(super::token::Error::into_channel_error)?;
 
     let access_token = resp
         .access_token
         .filter(|s| !s.is_empty())
         .ok_or_else(|| ChannelError::Build("token response missing access_token".into()))?;
+    let refresh_token = resp
+        .refresh_token
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| ChannelError::Build("token response missing refresh_token".into()))?;
     let expires_at_ms = crate::util::time::unix_now().saturating_mul(1000)
         + resp.expires_in.unwrap_or(3600) as i64 * 1000;
+    let granted_scopes = resp
+        .scope
+        .as_deref()
+        .unwrap_or(AUTHORIZE_SCOPE)
+        .split_whitespace()
+        .collect::<Vec<_>>();
 
     let mut secret = serde_json::json!({
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "expires_at_ms": expires_at_ms,
+        "scopes": granted_scopes,
     });
-    if let Some(rt) = resp.refresh_token.filter(|s| !s.is_empty()) {
-        secret["refresh_token"] = Value::String(rt);
-    }
     enrich_from_profile(client, &mut secret).await;
     ensure_device_id(&mut secret);
     Ok(secret)
@@ -300,26 +340,40 @@ pub(super) async fn refresh(
         }
     };
 
-    let resp = if secret_str(secret, "cookie").is_some() {
-        let form = [
-            ("grant_type", "refresh_token"),
-            ("client_id", OAUTH_CLIENT_ID),
-            ("refresh_token", refresh_token),
-        ];
-        let headers = [
-            ("anthropic-version", ANTHROPIC_VERSION),
-            ("anthropic-beta", ANTHROPIC_BETA),
-            ("user-agent", USER_AGENT),
-        ];
-        legacy_token_post(client, &form, &headers).await?
-    } else {
-        let payload = serde_json::json!({
-            "grant_type": "refresh_token",
-            "refresh_token": refresh_token,
-            "client_id": OAUTH_CLIENT_ID,
-            "scope": OAUTH_SCOPE,
-        });
-        token_post(client, &payload).await?
+    let scope = refresh_scope(secret);
+    let form = [
+        ("grant_type", "refresh_token"),
+        ("client_id", OAUTH_CLIENT_ID),
+        ("refresh_token", refresh_token),
+        ("scope", scope.as_str()),
+    ];
+    let headers = [
+        ("anthropic-version", ANTHROPIC_VERSION),
+        ("anthropic-beta", ANTHROPIC_BETA),
+        ("user-agent", USER_AGENT),
+    ];
+    let resp = match super::token::post(client, &form, &headers).await {
+        Ok(response) => response,
+        Err(error) if error.is_invalid_scope() => {
+            let Some(exact_scope) = stored_scope(secret).filter(|value| {
+                value != &scope
+                    && value
+                        .split_whitespace()
+                        .any(|scope| scope == "user:inference")
+            }) else {
+                return Err(error.into_channel_error());
+            };
+            let fallback = [
+                ("grant_type", "refresh_token"),
+                ("client_id", OAUTH_CLIENT_ID),
+                ("refresh_token", refresh_token),
+                ("scope", exact_scope.as_str()),
+            ];
+            super::token::post(client, &fallback, &headers)
+                .await
+                .map_err(super::token::Error::into_channel_error)?
+        }
+        Err(error) => return Err(error.into_channel_error()),
     };
 
     let new_access = resp
@@ -338,80 +392,20 @@ pub(super) async fn refresh(
     if let Some(rt) = resp.refresh_token.filter(|s| !s.is_empty()) {
         obj.insert("refresh_token".into(), Value::String(rt));
     }
+    if let Some(scopes) = resp.scope {
+        obj.insert(
+            "scopes".into(),
+            Value::Array(
+                scopes
+                    .split_whitespace()
+                    .map(|scope| Value::String(scope.to_owned()))
+                    .collect(),
+            ),
+        );
+    }
     obj.insert("expires_at_ms".into(), Value::Number(expires_at_ms.into()));
     ensure_device_id(&mut out);
     Ok(out)
-}
-
-pub(super) fn token_request(payload: &Value) -> Result<Request<Bytes>, ChannelError> {
-    let body = serde_json::to_vec(payload)
-        .map_err(|e| ChannelError::Build(format!("token request encode: {e}")))?;
-    let mut request = Request::post(TOKEN_URL)
-        .header(http::header::CONTENT_TYPE, "application/json")
-        .body(Bytes::from(body))
-        .map_err(|e| ChannelError::Build(format!("token request build: {e}")))?;
-    super::axios::apply(&mut request, 15, false);
-    Ok(request)
-}
-
-pub(super) async fn token_post(
-    client: &Arc<dyn UpstreamClient>,
-    payload: &Value,
-) -> Result<oauth::TokenResponse, ChannelError> {
-    send_token_request(client, token_request(payload)?).await
-}
-
-pub(super) async fn legacy_token_post(
-    client: &Arc<dyn UpstreamClient>,
-    form: &[(&str, &str)],
-    extra_headers: &[(&str, &str)],
-) -> Result<oauth::TokenResponse, ChannelError> {
-    let body = form
-        .iter()
-        .map(|(k, v)| format!("{}={}", oauth::percent_encode(k), oauth::percent_encode(v)))
-        .collect::<Vec<_>>()
-        .join("&");
-    let mut builder = Request::post(LEGACY_TOKEN_URL)
-        .header(
-            http::header::CONTENT_TYPE,
-            "application/x-www-form-urlencoded",
-        )
-        .header(http::header::ACCEPT, "application/json, text/plain, */*");
-    for (k, v) in extra_headers {
-        builder = builder.header(*k, *v);
-    }
-    let request = builder
-        .body(Bytes::from(body))
-        .map_err(|e| ChannelError::Build(format!("token request build: {e}")))?;
-
-    send_token_request(client, request).await
-}
-
-async fn send_token_request(
-    client: &Arc<dyn UpstreamClient>,
-    request: Request<Bytes>,
-) -> Result<oauth::TokenResponse, ChannelError> {
-    let resp = client.send(request).await.map_err(|e| {
-        tracing::warn!(error = %e, "Claude Code OAuth token request failed");
-        ChannelError::Build(format!("token request failed: {e}"))
-    })?;
-    let (parts, body) = resp.into_parts();
-    if !parts.status.is_success() {
-        tracing::warn!(
-            status = %parts.status,
-            "Claude Code OAuth token endpoint rejected request"
-        );
-        let snippet = String::from_utf8_lossy(&body);
-        let snippet: String = snippet.chars().take(256).collect();
-        return Err(ChannelError::Build(format!(
-            "token endpoint {}: {snippet}",
-            parts.status
-        )));
-    }
-    serde_json::from_slice(&body).map_err(|e| {
-        tracing::warn!(error = %e, "Claude Code OAuth token response was invalid");
-        ChannelError::Build(format!("token response parse: {e}"))
-    })
 }
 
 /// Inject the OAuth bearer + v1 claude-cli / Stainless impersonation headers

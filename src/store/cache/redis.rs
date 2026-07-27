@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use redis::AsyncCommands;
 
-use super::{CacheBackend, CacheError, CounterError, InvalidationHandler};
+use super::{CacheBackend, CacheError, CounterError, InvalidationHandler, LockAttempt};
 
 /// First reconnect backoff after a dropped subscription.
 const RECONNECT_BASE: Duration = Duration::from_millis(500);
@@ -258,30 +258,54 @@ impl CacheBackend for RedisCache {
         }
     }
 
-    /// Acquire a best-effort distributed lock via `SET key 1 NX PX <ms>`.
+    /// Acquire a distributed lock via `SET key owner NX PX <ms>`.
     /// Returns `true` only when the key was newly set (`OK`); a held lock
     /// (`nil`) or any error returns `false`, so callers fall back to their
     /// local mutex / bounded wait rather than blocking.
-    async fn try_lock(&self, key: &str, ttl: Duration) -> bool {
+    async fn try_lock(&self, key: &str, owner: &str, ttl: Duration) -> LockAttempt {
         let mut cm = self.cm.clone();
         let ms = ttl.as_millis().max(1) as u64;
         let res: redis::RedisResult<Option<String>> = redis::cmd("SET")
             .arg(key)
-            .arg("1")
+            .arg(owner)
             .arg("NX")
             .arg("PX")
             .arg(ms)
             .query_async(&mut cm)
             .await;
-        matches!(res, Ok(Some(_)))
+        match res {
+            Ok(Some(_)) => LockAttempt::Acquired,
+            Ok(None) => LockAttempt::Busy,
+            Err(error) => {
+                tracing::error!(%error, "redis lock acquisition failed");
+                LockAttempt::Unavailable
+            }
+        }
     }
 
-    /// Release a lock acquired via [`RedisCache::try_lock`] with a plain `DEL`.
-    /// The short lock TTL bounds a stuck lock if this never runs; a
-    /// token-scoped check-and-delete is a noted hardening for later.
-    async fn unlock(&self, key: &str) {
+    async fn extend_lock(&self, key: &str, owner: &str, ttl: Duration) -> bool {
         let mut cm = self.cm.clone();
-        let _: redis::RedisResult<i64> = redis::cmd("DEL").arg(key).query_async(&mut cm).await;
+        let script = redis::Script::new(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+             return redis.call('PEXPIRE', KEYS[1], ARGV[2]) else return 0 end",
+        );
+        let result: redis::RedisResult<i64> = script
+            .key(key)
+            .arg(owner)
+            .arg(ttl.as_millis().max(1) as u64)
+            .invoke_async(&mut cm)
+            .await;
+        matches!(result, Ok(1))
+    }
+
+    /// Release only when this caller still owns the lock.
+    async fn unlock(&self, key: &str, owner: &str) {
+        let mut cm = self.cm.clone();
+        let script = redis::Script::new(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+             return redis.call('DEL', KEYS[1]) else return 0 end",
+        );
+        let _: redis::RedisResult<i64> = script.key(key).arg(owner).invoke_async(&mut cm).await;
     }
 }
 

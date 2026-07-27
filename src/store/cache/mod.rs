@@ -105,6 +105,13 @@ impl std::fmt::Display for CacheError {
 
 impl std::error::Error for CacheError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LockAttempt {
+    Acquired,
+    Busy,
+    Unavailable,
+}
+
 /// A pluggable cache backend.
 ///
 /// Native impls: [`MemoryCache`] (in-process) and [`RedisCache`] (Redis-backed).
@@ -148,13 +155,20 @@ pub trait CacheBackend: Send + Sync {
     /// needs no cross-instance invalidation). Lands in the multi-instance phase.
     async fn subscribe(&self, channel: &str, handler: InvalidationHandler);
 
-    /// Acquire a best-effort distributed lock (redis `SET NX PX`). Returns
-    /// `true` if acquired. Default `true` — single-instance backends rely on
-    /// the caller's local mutex; only redis needs cross-instance exclusion.
-    async fn try_lock(&self, _key: &str, _ttl: Duration) -> bool {
+    /// Acquire a distributed lock for `owner` (redis `SET NX PX`). The result
+    /// distinguishes contention from backend failure. The owner token makes release compare-and-delete,
+    /// so an expired holder cannot delete a successor's lock. Default `true`
+    /// is for single-instance backends protected by an in-process mutex.
+    async fn try_lock(&self, _key: &str, _owner: &str, _ttl: Duration) -> LockAttempt {
+        LockAttempt::Acquired
+    }
+
+    /// Extend a lock only if `owner` still holds it. Default `true` for
+    /// single-instance backends whose lock is the caller's local mutex.
+    async fn extend_lock(&self, _key: &str, _owner: &str, _ttl: Duration) -> bool {
         true
     }
 
-    /// Release a lock acquired via [`CacheBackend::try_lock`]. Default no-op.
-    async fn unlock(&self, _key: &str) {}
+    /// Release a lock acquired by `owner`. Default no-op.
+    async fn unlock(&self, _key: &str, _owner: &str) {}
 }

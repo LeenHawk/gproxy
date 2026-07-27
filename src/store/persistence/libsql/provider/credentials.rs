@@ -129,22 +129,23 @@ pub async fn update_secret_if_current(
     client: &LibsqlClient,
     id: i64,
     provider_id: i64,
-    expected_updated_at: i64,
+    expected_secret_json: serde_json::Value,
     secret_json: serde_json::Value,
 ) -> anyhow::Result<bool> {
     let now = now_secs();
     let secret = serde_json::to_string(&secret_json)?;
+    let expected_secret = serde_json::to_string(&expected_secret_json)?;
     let n = exec(
         client,
         "UPDATE credentials SET secret_json=?, updated_at=? \
-         WHERE id=? AND provider_id=? AND enabled=? AND updated_at=?",
+         WHERE id=? AND provider_id=? AND enabled=? AND secret_json=?",
         &[
             arg_text(&secret),
             arg_integer(now),
             arg_integer(id),
             arg_integer(provider_id),
             arg_bool(true),
-            arg_integer(expected_updated_at),
+            arg_text(&expected_secret),
         ],
     )
     .await?;
