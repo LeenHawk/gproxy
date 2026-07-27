@@ -5,6 +5,7 @@
 # pushes the tag and creates an empty draft GitHub Release with the publisher's
 # authenticated `gh` identity. The tag push drives .github/workflows/release.yml,
 # which builds native binaries, edge wasm bundles, and multi-arch Docker images,
+# publishes the crates.io libraries (scripts/publish-crates.sh),
 # uploads all assets + manifest to that draft, and publishes it only after the
 # upload is complete. CI does all the building.
 #
@@ -118,7 +119,7 @@ echo "  title    : gproxy $TAG"
 echo "  target   : $TARGET ($(git rev-parse --short HEAD))"
 echo "  notes    : $NOTES"
 echo "  version  : $VERSION_BUMP"
-echo "  publish  : tag push + local draft creation; release.yml uploads assets and publishes the draft"
+echo "  publish  : tag push + local draft creation; release.yml uploads assets, publishes the draft, and pushes the crates.io libraries"
 echo
 
 if [ "$DRY" = 1 ]; then
