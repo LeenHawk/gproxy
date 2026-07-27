@@ -2,16 +2,17 @@
 //! says the decrypted secret needs it. Per-credential local mutex serialises
 //! concurrent refreshes within an instance (many providers rotate refresh_token
 //! each call, so a double refresh kills the credential). Across instances, a
-//! best-effort redis lock (key = `gproxy:refresh:lock:{cred id}`) wraps the
-//! upstream refresh call so two instances cannot rotate a single-use token at
-//! once; the loser waits briefly, re-reads, and reuses the winner's result.
-//! The redis lock is a no-op `true` on memory/edge backends (single instance).
+//! distributed lease (key = `gproxy:refresh:lock:{cred id}`) spans rotation and
+//! CAS writeback so two instances cannot spend a single-use token concurrently;
+//! the loser waits, re-reads, and reuses the winner's result. Redis, Upstash, and
+//! libSQL provide owner-scoped leases; memory relies on the local mutex.
 //!
 //! The mutex is `futures_util::lock::Mutex` (runtime-agnostic): tokio is a
 //! native-only dependency, so the edge/wasm build cannot use `tokio::sync`.
 
 use std::sync::Arc;
 
+use futures_util::future::Either;
 use serde_json::Value;
 
 mod locks;
@@ -21,9 +22,21 @@ use locks::RefreshLocks;
 use crate::channel::{Channel, ChannelError};
 use crate::crypto::SecretCipher;
 use crate::http::client::{ClientError, UpstreamClient};
-use crate::store::cache::CacheBackend;
+use crate::store::cache::{CacheBackend, LockAttempt};
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::Credential;
+
+const DISTRIBUTED_LOCK_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+const DISTRIBUTED_LOCK_RETRIES: usize = 60;
+const COMPROMISED_RESULT_RETRIES: usize = 30;
+#[cfg(not(test))]
+const DISTRIBUTED_LOCK_HEARTBEAT_MS: u64 = 5_000;
+#[cfg(test)]
+const DISTRIBUTED_LOCK_HEARTBEAT_MS: u64 = 1;
+#[cfg(not(test))]
+const DISTRIBUTED_LOCK_RETRY_MS: u64 = 1_000;
+#[cfg(test)]
+const DISTRIBUTED_LOCK_RETRY_MS: u64 = 1;
 
 /// Lazily resolves the transport from the latest decrypted secret under lock.
 pub type RefreshClientResolver<'a> =
@@ -85,7 +98,7 @@ impl RefreshOrchestrator {
         //     rotated it → use that (a 2nd rotation would double-spend a single-use
         //     refresh_token and kill the cred). If unchanged, this caller is the
         //     winner and must honor `force`.
-        let mut current = reread_open_enabled(deps.persistence, deps.cipher, credential)
+        let current = reread_open_enabled(deps.persistence, deps.cipher, credential)
             .await
             .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
             .ok_or_else(|| {
@@ -97,76 +110,194 @@ impl RefreshOrchestrator {
         if force && current.secret != opened {
             return Ok(current.secret);
         }
-        // §7.4: resolve the effective (proxy, TLS fingerprint) for THIS
-        // credential and refresh through the matching pooled client — mirroring
-        // `failover::attempt`. A credential pinned to an egress proxy / TLS
-        // profile then refreshes from the same identity it serves traffic from
-        // (some providers risk-score token refreshes by source IP, and a
-        // refresh from the host's bare IP can trip revocation + leaks that IP to
-        // the token endpoint). Resolved BEFORE the redis lock so a bad-target
-        // failure never leaks the lock; an unusable target fails the refresh
-        // (cool + skip), never a silent downgrade to the default client.
-        let client = (deps.resolve_client)(&current.secret)
-            .map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?;
         // Cross-instance single-flight: the local mutex above serialises this
         // instance, but a single-use refresh_token must not be rotated by two
-        // instances at once. Acquire a best-effort redis lock around the actual
-        // upstream refresh. Default-true on memory/edge, so single-instance and
-        // wasm builds take the fast path (always `acquired`).
+        // instances at once. The lease spans both the upstream rotation and its
+        // CAS writeback; releasing before persistence would let a peer re-read
+        // and spend the old refresh token again.
         let lock_key = format!("gproxy:refresh:lock:{}", credential.id);
-        let acquired = deps
-            .cache
-            .try_lock(&lock_key, std::time::Duration::from_secs(30))
-            .await;
-        if !acquired {
-            // Another instance is rotating this credential. Wait briefly, re-read,
-            // and reuse its result if it landed — avoids a second rotation. The
-            // wait is native-only (tokio); on wasm `acquired` is always true via
-            // the default, so this branch is unreachable there.
-            #[cfg(not(target_arch = "wasm32"))]
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let lock_owner = crate::util::rand::uuid_v4();
+        let mut acquired = false;
+        for attempt in 0..=DISTRIBUTED_LOCK_RETRIES {
+            match deps
+                .cache
+                .try_lock(&lock_key, &lock_owner, DISTRIBUTED_LOCK_TTL)
+                .await
+            {
+                LockAttempt::Acquired => {
+                    acquired = true;
+                    break;
+                }
+                LockAttempt::Unavailable => {
+                    return Err(ChannelError::Transient(
+                        "credential refresh lock backend unavailable".into(),
+                    ));
+                }
+                LockAttempt::Busy => {}
+            }
+            if attempt == DISTRIBUTED_LOCK_RETRIES {
+                break;
+            }
+            crate::util::time::sleep_ms(DISTRIBUTED_LOCK_RETRY_MS).await;
             let peer = reread_open_enabled(deps.persistence, deps.cipher, credential)
                 .await
                 .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
                 .ok_or_else(|| {
                     ChannelError::Build("credential changed or disabled during refresh".into())
                 })?;
-            if !force && !channel.needs_refresh(&peer.secret) {
+            if (!force && !channel.needs_refresh(&peer.secret)) || (force && peer.secret != opened)
+            {
                 return Ok(peer.secret);
             }
-            if force && peer.secret != opened {
-                return Ok(peer.secret);
-            }
-            // Still stale after the wait — fall through and refresh anyway
-            // (bounded: we tried once and the peer didn't land in time).
-            current = peer;
         }
-        // Bind the Result so the redis lock is released on EVERY exit path —
-        // including the error path — before `?` propagates. Never hold the lock
-        // across seal/writeback/publish; release right after the upstream call.
-        let fresh = channel.refresh(&client, &current.secret).await;
-        if acquired {
-            deps.cache.unlock(&lock_key).await;
+        if !acquired {
+            return Err(ChannelError::Transient(
+                "credential refresh lock remained busy".into(),
+            ));
         }
-        let fresh = fresh?;
-        // seal + writeback + publish — channel error already propagated above so
-        // the caller cools + skips the credential on a failed refresh.
-        let sealed = deps
-            .cipher
-            .seal(&fresh)
-            .map_err(|e| ChannelError::Build(format!("seal refreshed secret: {e}")))?;
-        writeback(deps.persistence, credential, current.updated_at, sealed)
-            .await
-            .map_err(|e| ChannelError::Build(format!("persist refreshed secret: {e}")))?;
-        crate::store::cache::broadcast(deps.cache, format!("cred:{}", credential.id).as_bytes())
-            .await;
-        Ok(fresh)
+
+        let result = refresh_under_lease(
+            &deps,
+            channel,
+            credential,
+            &opened,
+            force,
+            &lock_key,
+            &lock_owner,
+        )
+        .await;
+        deps.cache.unlock(&lock_key, &lock_owner).await;
+        result
     }
+}
+
+async fn refresh_under_lease(
+    deps: &RefreshDeps<'_>,
+    channel: &Arc<dyn Channel>,
+    credential: &Credential,
+    opened: &Value,
+    force: bool,
+    lock_key: &str,
+    lock_owner: &str,
+) -> Result<Value, ChannelError> {
+    let mut operation = Box::pin(refresh_and_persist(
+        deps, channel, credential, opened, force,
+    ));
+    loop {
+        let heartbeat = Box::pin(crate::util::time::sleep_ms(DISTRIBUTED_LOCK_HEARTBEAT_MS));
+        match futures_util::future::select(operation, heartbeat).await {
+            Either::Left((result, _)) => return result,
+            Either::Right((_, pending)) => {
+                operation = pending;
+                if !deps
+                    .cache
+                    .extend_lock(lock_key, lock_owner, DISTRIBUTED_LOCK_TTL)
+                    .await
+                {
+                    tracing::warn!(
+                        credential_id = credential.id,
+                        "credential refresh lease lost; finishing with CAS writeback"
+                    );
+                    let result = operation.await;
+                    return recover_after_lost_lease(deps, credential, opened, result).await;
+                }
+            }
+        }
+    }
+}
+
+async fn recover_after_lost_lease(
+    deps: &RefreshDeps<'_>,
+    credential: &Credential,
+    opened: &Value,
+    result: Result<Value, ChannelError>,
+) -> Result<Value, ChannelError> {
+    let error = match result {
+        Ok(fresh) => return Ok(fresh),
+        Err(error) => error,
+    };
+    for attempt in 0..=COMPROMISED_RESULT_RETRIES {
+        if let Some(peer) = reread_open_enabled(deps.persistence, deps.cipher, credential)
+            .await
+            .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
+            && peer.secret != *opened
+        {
+            return Ok(peer.secret);
+        }
+        if attempt < COMPROMISED_RESULT_RETRIES {
+            crate::util::time::sleep_ms(DISTRIBUTED_LOCK_RETRY_MS).await;
+        }
+    }
+    Err(ChannelError::Transient(format!(
+        "refresh lease was lost before a peer result appeared: {error}"
+    )))
+}
+
+async fn refresh_and_persist(
+    deps: &RefreshDeps<'_>,
+    channel: &Arc<dyn Channel>,
+    credential: &Credential,
+    opened: &Value,
+    force: bool,
+) -> Result<Value, ChannelError> {
+    let current = reread_open_enabled(deps.persistence, deps.cipher, credential)
+        .await
+        .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
+        .ok_or_else(|| {
+            ChannelError::Build("credential changed or disabled during refresh".into())
+        })?;
+    if (!force && !channel.needs_refresh(&current.secret)) || (force && current.secret != *opened) {
+        return Ok(current.secret);
+    }
+
+    let client = (deps.resolve_client)(&current.secret)
+        .map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?;
+    let fresh = channel.refresh(&client, &current.secret).await?;
+
+    let sealed = deps
+        .cipher
+        .seal(&fresh)
+        .map_err(|e| ChannelError::Build(format!("seal refreshed secret: {e}")))?;
+    let original_secret = current.secret.clone();
+    let mut expected = current;
+    for _ in 0..3 {
+        let updated = writeback(
+            deps.persistence,
+            credential,
+            expected.sealed.clone(),
+            sealed.clone(),
+        )
+        .await
+        .map_err(|e| ChannelError::Build(format!("persist refreshed secret: {e}")))?;
+        if updated {
+            crate::store::cache::broadcast(
+                deps.cache,
+                format!("cred:{}", credential.id).as_bytes(),
+            )
+            .await;
+            return Ok(fresh);
+        }
+        let Some(peer) = reread_open_enabled(deps.persistence, deps.cipher, credential)
+            .await
+            .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
+        else {
+            return Err(ChannelError::Build(
+                "credential changed or disabled during refresh".into(),
+            ));
+        };
+        if peer.secret != original_secret {
+            return Ok(peer.secret);
+        }
+        expected = peer;
+    }
+    Err(ChannelError::Transient(
+        "credential kept changing during refresh writeback".into(),
+    ))
 }
 
 struct OpenCredential {
     secret: Value,
-    updated_at: i64,
+    sealed: Value,
 }
 
 /// Re-read the credential from persistence and decrypt its secret. Missing,
@@ -183,9 +314,10 @@ async fn reread_open_enabled(
     if stored.provider_id != credential.provider_id || !stored.enabled {
         return Ok(None);
     }
+    let sealed = stored.secret_json;
     Ok(Some(OpenCredential {
-        secret: cipher.open(&stored.secret_json)?,
-        updated_at: stored.updated_at,
+        secret: cipher.open(&sealed)?,
+        sealed,
     }))
 }
 
@@ -195,19 +327,17 @@ async fn reread_open_enabled(
 async fn writeback(
     persistence: &dyn PersistenceBackend,
     credential: &Credential,
-    expected_updated_at: i64,
+    expected_secret_json: Value,
     sealed: Value,
-) -> anyhow::Result<()> {
-    let updated = PersistenceBackend::update_credential_secret_if_current(
+) -> anyhow::Result<bool> {
+    PersistenceBackend::update_credential_secret_if_current(
         persistence,
         credential.id,
         credential.provider_id,
-        expected_updated_at,
+        expected_secret_json,
         sealed,
     )
-    .await?;
-    anyhow::ensure!(updated, "credential changed or disabled during refresh");
-    Ok(())
+    .await
 }
 
 #[cfg(test)]

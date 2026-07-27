@@ -167,7 +167,12 @@ async fn fetch_models_for_credential(
     {
         Ok(v) => v,
         Err(e) => {
-            record_credential_attempt(state, cand, &Disposition::AuthDead);
+            let disposition = if matches!(e, ChannelError::Transient(_)) {
+                Disposition::Transient
+            } else {
+                Disposition::AuthDead
+            };
+            record_credential_attempt(state, cand, &disposition);
             return CredentialPull::Next(ModelsError::Channel(e));
         }
     };
@@ -229,8 +234,18 @@ async fn fetch_models_for_credential(
                         error = %e,
                         "forced refresh after model-list AuthDead failed; skipping credential"
                     );
-                    record_credential_attempt(state, cand, &Disposition::AuthDead);
-                    CredentialPull::Next(ModelsError::Status(status.as_u16()))
+                    let transient = matches!(&e, ChannelError::Transient(_));
+                    let disposition = if transient {
+                        Disposition::Transient
+                    } else {
+                        Disposition::AuthDead
+                    };
+                    record_credential_attempt(state, cand, &disposition);
+                    if transient {
+                        CredentialPull::Next(ModelsError::Channel(e))
+                    } else {
+                        CredentialPull::Next(ModelsError::Status(status.as_u16()))
+                    }
                 }
             }
         }

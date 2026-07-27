@@ -4,7 +4,7 @@ use bytes::Bytes;
 use http::{HeaderMap, Method, Response};
 use serde_json::{Value, json};
 
-use super::{ClaudeCodeChannel, auth, request, usage};
+use super::{ClaudeCodeChannel, auth, request, token, usage};
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, ShapeCtx};
 use crate::http::client::{ClientError, UpstreamClient};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKey, Provider};
@@ -18,6 +18,20 @@ impl UpstreamClient for MockUpstream {
             .status(200)
             .body(Bytes::from_static(
                 br#"{"access_token":"new","refresh_token":"newrt","expires_in":3600}"#,
+            ))
+            .unwrap())
+    }
+}
+
+struct InvalidGrantUpstream;
+
+#[async_trait::async_trait]
+impl UpstreamClient for InvalidGrantUpstream {
+    async fn send(&self, _request: http::Request<Bytes>) -> Result<Response<Bytes>, ClientError> {
+        Ok(Response::builder()
+            .status(400)
+            .body(Bytes::from_static(
+                br#"{"error":{"type":"invalid_grant","message":"Refresh token expired"}}"#,
             ))
             .unwrap())
     }
@@ -38,6 +52,46 @@ async fn refresh_rotates_tokens() {
     assert_eq!(out["refresh_token"], "newrt");
     assert!(out["expires_at_ms"].as_i64().unwrap() > 0);
     assert_eq!(out["account_uuid"], "acct-123");
+}
+
+#[test]
+fn refresh_uses_official_window_and_preserves_project_scopes() {
+    let now_ms = crate::util::time::unix_now().saturating_mul(1000);
+    assert!(!auth::needs_refresh(&json!({
+        "access_token": "token",
+        "expires_at_ms": now_ms + 301_000,
+    })));
+    assert!(auth::needs_refresh(&json!({
+        "access_token": "token",
+        "expires_at_ms": now_ms + 299_000,
+    })));
+    assert_eq!(
+        auth::refresh_scope(&json!({
+            "scopes": ["user:inference", "user:projects:read"]
+        })),
+        format!("{} user:projects:read", auth::REFRESH_SCOPE)
+    );
+}
+
+#[tokio::test]
+async fn invalid_grant_is_a_permanent_credential_error() {
+    let client: Arc<dyn UpstreamClient> = Arc::new(InvalidGrantUpstream);
+    let error = ClaudeCodeChannel
+        .refresh(
+            &client,
+            &json!({
+                "access_token": "old",
+                "refresh_token": "expired",
+                "expires_at_ms": 1,
+            }),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        crate::channel::ChannelError::InvalidCredential(message)
+            if message.contains("invalid or expired")
+    ));
 }
 
 #[test]
@@ -213,7 +267,10 @@ async fn authcode_start_urls() {
     assert!(url.contains("state=ST"), "{url}");
     assert!(url.contains("code_challenge_method=S256"), "{url}");
     assert!(url.contains("redirect_uri="), "{url}");
-    assert!(url.contains("scope=user%3Aprofile"), "{url}");
+    assert!(
+        url.contains("scope=org%3Acreate_api_key%20user%3Aprofile"),
+        "{url}"
+    );
     assert_eq!(claude.redirect_uri, auth::DEFAULT_REDIRECT_URI);
     assert_eq!(
         claude
@@ -242,40 +299,46 @@ async fn authcode_start_urls() {
 }
 
 #[test]
-fn token_exchange_uses_platform_json_request() {
-    let request = auth::token_request(&json!({
-        "grant_type": "authorization_code",
-        "client_id": auth::OAUTH_CLIENT_ID,
-    }))
-    .unwrap();
+fn token_refresh_uses_api_form_request_with_scope() {
+    let form = [
+        ("grant_type", "refresh_token"),
+        ("client_id", auth::OAUTH_CLIENT_ID),
+        ("refresh_token", "rt"),
+        ("scope", auth::REFRESH_SCOPE),
+    ];
+    let headers = [
+        ("anthropic-version", "2023-06-01"),
+        ("anthropic-beta", auth::ANTHROPIC_BETA),
+        ("user-agent", auth::USER_AGENT),
+    ];
+    let request = token::request(&form, &headers).unwrap();
 
     assert_eq!(request.uri(), auth::TOKEN_URL);
-    assert_eq!(request.headers()["content-type"], "application/json");
-    assert_eq!(request.headers()["user-agent"], "axios/1.13.6");
+    assert_eq!(
+        request.headers()["content-type"],
+        "application/x-www-form-urlencoded"
+    );
+    assert_eq!(request.headers()["user-agent"], auth::USER_AGENT);
+    assert_eq!(request.headers()["anthropic-version"], "2023-06-01");
+    assert_eq!(request.headers()["anthropic-beta"], auth::ANTHROPIC_BETA);
     assert_eq!(
         request.headers()["accept"],
         "application/json, text/plain, */*"
     );
-    assert_eq!(
-        request.headers()["accept-encoding"],
-        "gzip, compress, deflate, br"
-    );
-    assert!(request.headers().get("anthropic-beta").is_none());
     let transport = request
         .extensions()
         .get::<crate::http::client::TransportOptions>()
         .unwrap();
     assert_eq!(
         transport.total_timeout,
-        Some(std::time::Duration::from_secs(15))
+        Some(std::time::Duration::from_secs(30))
     );
     assert_eq!(transport.max_redirects, Some(21));
     assert_eq!(transport.http_version, Some(http::Version::HTTP_11));
     assert!(!transport.omit_body);
-    assert_eq!(
-        serde_json::from_slice::<Value>(request.body()).unwrap()["grant_type"],
-        "authorization_code"
-    );
+    let body = std::str::from_utf8(request.body()).unwrap();
+    assert!(body.starts_with("grant_type=refresh_token&client_id="));
+    assert!(body.contains("&scope=user%3Aprofile%20user%3Ainference"));
 }
 
 #[test]

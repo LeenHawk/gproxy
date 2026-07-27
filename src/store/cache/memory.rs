@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use dashmap::DashMap;
 
+#[cfg(test)]
+use super::LockAttempt;
 use super::{CacheBackend, CacheError, CounterError, InvalidationHandler};
 
 struct Entry {
@@ -131,13 +133,16 @@ mod tests {
         assert_eq!(cache.get("k").await, None);
     }
 
-    /// Memory inherits the default `try_lock` (always `true`): single-instance
+    /// Memory inherits the default `try_lock` (always acquired): single-instance
     /// exclusion is the caller's local mutex, so the refresh single-flight must
     /// see the lock as always acquired and proceed.
     #[tokio::test]
     async fn try_lock_default_true_on_memory() {
         let cache = MemoryCache::new();
-        assert!(cache.try_lock("lk", Duration::from_secs(30)).await);
-        cache.unlock("lk").await; // no-op, must not panic
+        assert_eq!(
+            cache.try_lock("lk", "owner", Duration::from_secs(30)).await,
+            LockAttempt::Acquired
+        );
+        cache.unlock("lk", "owner").await; // no-op, must not panic
     }
 }

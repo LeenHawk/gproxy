@@ -127,6 +127,7 @@ pub(super) async fn device_poll(
             access_token: parsed.access_token,
             refresh_token: parsed.refresh_token,
             expires_in: parsed.expires_in,
+            scope: None,
             id_token: parsed.id_token,
         })
         .map(DevicePoll::Ready);

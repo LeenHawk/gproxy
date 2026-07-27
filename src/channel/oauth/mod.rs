@@ -36,6 +36,8 @@ pub struct TokenResponse {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub expires_in: Option<u64>,
+    /// Granted OAuth scopes, returned as a space-delimited string.
+    pub scope: Option<String>,
     /// OpenID Connect id_token (JWT). Surfaced for channels that decode claims
     /// from it (e.g. codex extracts the ChatGPT account id); ignored elsewhere.
     pub id_token: Option<String>,

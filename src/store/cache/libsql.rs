@@ -31,7 +31,7 @@ use serde_json::Value;
 use crate::store::libsql::{LibsqlClient, arg_blob, arg_integer, arg_null, arg_text};
 
 use super::b64;
-use super::{CacheBackend, CacheError, CounterError, InvalidationHandler};
+use super::{CacheBackend, CacheError, CounterError, InvalidationHandler, LockAttempt};
 
 /// Edge cache backend backed by a libSQL/Turso kv table.
 pub struct LibsqlCache {
@@ -177,6 +177,55 @@ impl CacheBackend for LibsqlCache {
     async fn publish(&self, _channel: &str, _payload: &[u8]) {}
 
     async fn subscribe(&self, _channel: &str, _handler: InvalidationHandler) {}
+
+    async fn try_lock(&self, key: &str, owner: &str, ttl: Duration) -> LockAttempt {
+        let ttl_ms = ttl.as_millis().max(1) as i64;
+        match self
+            .client
+            .execute(
+                "INSERT INTO gproxy_kv(k, v, expires_ms) \
+                 VALUES(?, ?, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) + ?) \
+                 ON CONFLICT(k) DO UPDATE SET v = excluded.v, expires_ms = excluded.expires_ms \
+                 WHERE gproxy_kv.expires_ms IS NOT NULL AND gproxy_kv.expires_ms <= \
+                       CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) \
+                 RETURNING 1",
+                &[arg_text(key), arg_text(owner), arg_integer(ttl_ms)],
+            )
+            .await
+        {
+            Ok(result) if !result.rows.is_empty() => LockAttempt::Acquired,
+            Ok(_) => LockAttempt::Busy,
+            Err(error) => {
+                tracing::error!(%error, "libsql lock acquisition failed");
+                LockAttempt::Unavailable
+            }
+        }
+    }
+
+    async fn extend_lock(&self, key: &str, owner: &str, ttl: Duration) -> bool {
+        let ttl_ms = ttl.as_millis().max(1) as i64;
+        self.client
+            .execute(
+                "UPDATE gproxy_kv SET expires_ms = \
+                   CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) + ? \
+                 WHERE k = ? AND v = ? AND expires_ms > \
+                   CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) \
+                 RETURNING 1",
+                &[arg_integer(ttl_ms), arg_text(key), arg_text(owner)],
+            )
+            .await
+            .is_ok_and(|result| !result.rows.is_empty())
+    }
+
+    async fn unlock(&self, key: &str, owner: &str) {
+        let _ = self
+            .client
+            .execute(
+                "DELETE FROM gproxy_kv WHERE k = ? AND v = ?",
+                &[arg_text(key), arg_text(owner)],
+            )
+            .await;
+    }
 }
 
 fn hrana_value_to_bytes(v: &Value) -> Option<Vec<u8>> {

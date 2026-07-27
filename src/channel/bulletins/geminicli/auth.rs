@@ -313,6 +313,7 @@ mod tests {
             access_token: Some("new-at".into()),
             refresh_token: None,
             expires_in: Some(3600),
+            scope: None,
             id_token: None,
         };
         let out = apply_token_response(secret, resp).unwrap();
@@ -334,6 +335,7 @@ mod tests {
             access_token: Some("new-at".into()),
             refresh_token: Some("new-rt".into()),
             expires_in: Some(1800),
+            scope: None,
             id_token: None,
         };
         let out = apply_token_response(secret, resp).unwrap();

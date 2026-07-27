@@ -312,6 +312,55 @@ async fn refresh_does_not_reenable_disabled_credential() {
 }
 
 #[tokio::test]
+async fn refresh_does_not_overwrite_same_second_secret_edit() {
+    let cipher = cipher();
+    let (state, cred, _dir) =
+        state_with_cred(Arc::clone(&cipher), json!({"access_token": "old"})).await;
+    let channel: Arc<dyn Channel> = Arc::new(FakeRefreshChannel {
+        refreshes: Arc::new(AtomicUsize::new(0)),
+        sleep_ms: 50,
+    });
+    let provider = test_provider();
+
+    let (result, _) = tokio::join!(
+        state.ensure_fresh_credential(
+            &channel,
+            &cred,
+            &provider,
+            json!({"access_token": "old"}),
+            false,
+        ),
+        async {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            PersistenceBackend::upsert_credential(
+                state.persistence.as_ref(),
+                CredentialInput {
+                    id: Some(cred.id),
+                    provider_id: cred.provider_id,
+                    name: cred.name.clone(),
+                    kind: cred.kind.clone(),
+                    secret_json: cipher.seal(&json!({"access_token": "admin"})).unwrap(),
+                    weight: cred.weight,
+                    rpm_limit: cred.rpm_limit,
+                    tpm_limit: cred.tpm_limit,
+                    proxy_url: cred.proxy_url.clone(),
+                    tls_fingerprint: cred.tls_fingerprint.clone(),
+                    enabled: true,
+                },
+            )
+            .await
+            .unwrap();
+        },
+    );
+
+    assert_eq!(result.unwrap(), json!({"access_token": "admin"}));
+    assert_eq!(
+        cipher.open(&stored_secret(&state, &cred).await).unwrap(),
+        json!({"access_token": "admin"})
+    );
+}
+
+#[tokio::test]
 async fn no_refresh_when_fresh() {
     let cipher = cipher();
     let fresh = json!({"access_token": "new"});
@@ -433,3 +482,6 @@ async fn forced_single_flight_rotates_once() {
     assert_eq!(refreshes.load(Ordering::SeqCst), 1);
     assert_eq!(a.unwrap(), b.unwrap());
 }
+
+mod compromised;
+mod distributed_lock;

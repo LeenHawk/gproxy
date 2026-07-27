@@ -273,12 +273,14 @@ pub(super) fn refresh_failed(
         error = %e,
         "credential refresh failed; cooling credential"
     );
-    health_hooks::record_credential_attempt(
-        state,
-        &cand.provider,
-        &cand.credential,
-        &Disposition::AuthDead,
-    );
+    if !matches!(e, crate::channel::ChannelError::Transient(_)) {
+        health_hooks::record_credential_attempt(
+            state,
+            &cand.provider,
+            &cand.credential,
+            &Disposition::AuthDead,
+        );
+    }
     settle::audit_failure(
         state,
         &ctx.request_id,

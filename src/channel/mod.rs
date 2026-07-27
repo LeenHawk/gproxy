@@ -276,4 +276,6 @@ pub enum ChannelError {
     Unsupported(&'static str),
     #[error("build error: {0}")]
     Build(String),
+    #[error("transient channel error: {0}")]
+    Transient(String),
 }

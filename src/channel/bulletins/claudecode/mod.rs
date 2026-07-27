@@ -13,6 +13,7 @@ mod routing;
 mod stainless;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
+mod token;
 mod usage;
 
 use std::sync::Arc;

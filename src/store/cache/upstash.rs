@@ -26,7 +26,7 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response, WorkerGlobalScope};
 
 use super::b64;
-use super::{CacheBackend, CacheError, CounterError, InvalidationHandler};
+use super::{CacheBackend, CacheError, CounterError, InvalidationHandler, LockAttempt};
 
 /// Edge cache backend backed by Upstash Redis REST.
 pub struct UpstashCache {
@@ -157,6 +157,52 @@ impl CacheBackend for UpstashCache {
     async fn publish(&self, _channel: &str, _payload: &[u8]) {}
 
     async fn subscribe(&self, _channel: &str, _handler: InvalidationHandler) {}
+
+    async fn try_lock(&self, key: &str, owner: &str, ttl: Duration) -> LockAttempt {
+        let result = self
+            .cmd(&[
+                json!("SET"),
+                json!(key),
+                json!(owner),
+                json!("NX"),
+                json!("PX"),
+                json!(ttl.as_millis().max(1) as u64),
+            ])
+            .await;
+        match result {
+            Some(Value::String(value)) if value == "OK" => LockAttempt::Acquired,
+            Some(Value::Null) => LockAttempt::Busy,
+            _ => LockAttempt::Unavailable,
+        }
+    }
+
+    async fn extend_lock(&self, key: &str, owner: &str, ttl: Duration) -> bool {
+        let script = "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('PEXPIRE', KEYS[1], ARGV[2]) else return 0 end";
+        let result = self
+            .cmd(&[
+                json!("EVAL"),
+                json!(script),
+                json!(1),
+                json!(key),
+                json!(owner),
+                json!(ttl.as_millis().max(1) as u64),
+            ])
+            .await;
+        result.as_ref().and_then(Value::as_i64) == Some(1)
+    }
+
+    async fn unlock(&self, key: &str, owner: &str) {
+        let script = "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end";
+        let _ = self
+            .cmd(&[
+                json!("EVAL"),
+                json!(script),
+                json!(1),
+                json!(key),
+                json!(owner),
+            ])
+            .await;
+    }
 }
 
 #[cfg(test)]

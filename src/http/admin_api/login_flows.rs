@@ -174,6 +174,7 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
                 ChannelError::InvalidCredential(_) => "invalid_credential",
                 ChannelError::Unsupported(_) => "unsupported",
                 ChannelError::Build(_) => "request_or_upstream",
+                ChannelError::Transient(_) => "transient",
             };
             tracing::warn!(
                 channel = %session.channel,

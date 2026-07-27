@@ -58,11 +58,12 @@ fn persistence_sync_lock() -> &'static Mutex<()> {
 async fn persist_additions(state: &AppState, provider: &Provider, models: &[ModelEntry]) {
     let _local_guard = persistence_sync_lock().lock().await;
     let lock_key = format!("gproxy:model-catalog:persist-lock:{}", provider.id);
+    let lock_owner = crate::util::rand::uuid_v4();
     let acquired = state
         .cache
-        .try_lock(&lock_key, Duration::from_secs(30))
+        .try_lock(&lock_key, &lock_owner, Duration::from_secs(30))
         .await;
-    if !acquired {
+    if acquired != crate::store::cache::LockAttempt::Acquired {
         // A peer is syncing this provider and will broadcast invalidation when
         // it commits. This request can still return its live response.
         return;
@@ -112,7 +113,7 @@ async fn persist_additions(state: &AppState, provider: &Provider, models: &[Mode
             );
         }
     }
-    state.cache.unlock(&lock_key).await;
+    state.cache.unlock(&lock_key, &lock_owner).await;
     if let Err(error) = result {
         tracing::warn!(
             provider_id = provider.id,
