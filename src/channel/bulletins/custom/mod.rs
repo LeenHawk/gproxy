@@ -110,7 +110,7 @@ impl Channel for CustomChannel {
                 claude_cache_control::sanitize_claude_body(value);
             }
             if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
-                shaping::claude_fallback::apply_fable_fallback(value, headers, fallbacks);
+                shaping::claude_fallback::apply_claude_fallback(value, headers, fallbacks);
             }
         })
     }
@@ -189,7 +189,7 @@ mod tests {
         let fallback_settings = json!({ "claude_fable_fallbacks": "default" });
         let mut headers = HeaderMap::new();
         let fallback = CustomChannel.shape_request(
-            Bytes::from_static(br#"{"model":"claude-fable-5","messages":[],"max_tokens":32}"#),
+            Bytes::from_static(br#"{"model":"claude-opus-5","messages":[],"max_tokens":32}"#),
             &mut headers,
             &ctx(ContentGenerationKind::ClaudeMessages, &fallback_settings),
         );

@@ -126,18 +126,19 @@ pub async fn update_secret_if_current(
     conn: &DatabaseConnection,
     id: i64,
     provider_id: i64,
-    expected_updated_at: i64,
+    expected_secret_json: Value,
     secret_json: Value,
 ) -> anyhow::Result<bool> {
     let now = crate::store::persistence::db::ops::now_secs();
     let secret = serde_json::to_string(&secret_json)?;
+    let expected_secret = serde_json::to_string(&expected_secret_json)?;
     let res = credential::Entity::update_many()
         .col_expr(credential::Column::SecretJson, Expr::value(secret))
         .col_expr(credential::Column::UpdatedAt, Expr::value(now))
         .filter(credential::Column::Id.eq(id))
         .filter(credential::Column::ProviderId.eq(provider_id))
         .filter(credential::Column::Enabled.eq(true))
-        .filter(credential::Column::UpdatedAt.eq(expected_updated_at))
+        .filter(credential::Column::SecretJson.eq(expected_secret))
         .exec(conn)
         .await?;
     Ok(res.rows_affected > 0)

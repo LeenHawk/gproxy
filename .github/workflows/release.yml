@@ -1,12 +1,12 @@
 name: release
 
 # Builds the v2 distribution: native binaries, edge (wasm) bundles, and Docker
-# images. Version tags (`vX.Y.Z`) build everything first, then create a draft
-# GitHub Release, upload all assets, and publish it only after the manifest is
-# present. Every other trigger (push to `main`, manual dispatch) refreshes the
-# rolling `staging` tag with commit-namespaced native assets plus a signed
-# `staging` manifest keyed by commit identity. Edge bundles and the deploy branch are
-# regenerated on every run.
+# images. Version tags (`vX.Y.Z`) build everything first, then publish the
+# reusable libraries to crates.io, create a draft GitHub Release, upload all
+# assets, and publish it only after the manifest is present. Every other trigger
+# (push to `main`, manual dispatch) refreshes the rolling `staging` tag with
+# commit-namespaced native assets plus a signed `staging` manifest keyed by
+# commit identity. Edge bundles and the deploy branch are regenerated on every run.
 on:
   workflow_dispatch:
   push:
@@ -644,6 +644,29 @@ jobs:
             docker buildx imagetools create -t "${tag}-musl" \
               "${tag}-amd64-musl" "${tag}-arm64-musl" "${tag}-riscv64-musl"
           done <<< "${{ steps.meta.outputs.tags }}"
+
+  # crates.io publish for the three reusable libraries (the AGPL `gproxy` root
+  # crate ships as binaries/images, not as a library). Version tags only, and
+  # gated on build-native so a version that does not compile everywhere never
+  # reaches the registry — crates.io publishes cannot be undone, only yanked.
+  # The script skips crate/versions already on the index, so re-running a tag is
+  # a no-op instead of an error.
+  publish-crates:
+    name: Publish crates.io libraries
+    if: ${{ github.ref_type == 'tag' }}
+    needs: build-native
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-crates
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ env.PUBLISH_TAG }}
+        run: bash scripts/publish-crates.sh
 
   publish-github-release:
     name: Publish GitHub Release assets
