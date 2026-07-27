@@ -125,6 +125,7 @@ fn decodes_id_token_claims_and_maps_login_secret() {
         access_token: Some("access".into()),
         refresh_token: None,
         expires_in: Some(3600),
+        scope: None,
         id_token: Some(jwt),
     })
     .unwrap();

@@ -38,14 +38,14 @@ impl ProviderPersistence for LibsqlPersistence {
         &self,
         id: i64,
         provider_id: i64,
-        expected_updated_at: i64,
+        expected_secret_json: serde_json::Value,
         secret_json: serde_json::Value,
     ) -> anyhow::Result<bool> {
         provider::credentials::update_secret_if_current(
             &self.client,
             id,
             provider_id,
-            expected_updated_at,
+            expected_secret_json,
             secret_json,
         )
         .await

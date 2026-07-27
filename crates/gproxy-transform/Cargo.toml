@@ -1,14 +1,20 @@
 [package]
 name = "gproxy-transform"
-version = "2.1.4"
+version = "2.1.6"
 edition = "2024"
-license = "AGPL-3.0-or-later"
-description = "GPROXY provider protocol transforms"
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+license = "MIT"
+description = "Pairwise request/response/stream transforms between the OpenAI, Anthropic Claude, and Google Gemini APIs"
+homepage = "https://gproxy.leenhawk.com"
+repository = "https://github.com/LeenHawk/gproxy"
+readme = "README.md"
+keywords = ["llm", "openai", "anthropic", "gemini", "transform"]
+categories = ["api-bindings", "encoding", "web-programming"]
 
 [dependencies]
 blake3 = "1"
 bytes = "1"
-gproxy-protocol = { path = "../gproxy-protocol", version = "2.1.4" }
+gproxy-protocol = { path = "../gproxy-protocol", version = "2.1.6" }
 http = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

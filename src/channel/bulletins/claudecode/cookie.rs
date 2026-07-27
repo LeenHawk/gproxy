@@ -178,16 +178,7 @@ async fn authorize(
     state: &str,
     challenge: &str,
 ) -> Result<String, ChannelError> {
-    let payload = serde_json::json!({
-        "response_type": "code",
-        "client_id": OAUTH_CLIENT_ID,
-        "organization_uuid": org_uuid,
-        "redirect_uri": DEFAULT_REDIRECT_URI,
-        "scope": OAUTH_SCOPE,
-        "state": state,
-        "code_challenge": challenge,
-        "code_challenge_method": "S256",
-    });
+    let payload = authorize_payload(org_uuid, state, challenge);
     let body = serde_json::to_vec(&payload)
         .map_err(|e| ChannelError::Build(format!("authorize payload: {e}")))?;
     let url = format!("{API_BASE}/v1/oauth/{org_uuid}/authorize");
@@ -214,6 +205,19 @@ async fn authorize(
         .ok_or_else(|| ChannelError::Build("authorize: missing code in redirect_uri".into()))
 }
 
+fn authorize_payload(org_uuid: &str, state: &str, challenge: &str) -> Value {
+    serde_json::json!({
+        "response_type": "code",
+        "client_id": OAUTH_CLIENT_ID,
+        "organization_uuid": org_uuid,
+        "redirect_uri": DEFAULT_REDIRECT_URI,
+        "scope": OAUTH_SCOPE,
+        "state": state,
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+    })
+}
+
 /// Step 3: POST `/v1/oauth/token` with the code + verifier + state, map to the
 /// `{access_token, refresh_token?, expires_at_ms}` secret.
 async fn token_exchange(
@@ -236,7 +240,9 @@ async fn token_exchange(
         ("origin", CLAUDE_AI_BASE_URL),
         ("user-agent", USER_AGENT),
     ];
-    let resp = super::auth::legacy_token_post(client, &form, &extra).await?;
+    let resp = super::token::post(client, &form, &extra)
+        .await
+        .map_err(super::token::Error::into_channel_error)?;
     let access_token = resp
         .access_token
         .filter(|s| !s.is_empty())
@@ -398,5 +404,17 @@ mod tests {
         assert!(!is_cloudflare_challenge(http::StatusCode::FORBIDDEN, perm));
         // A success is never a challenge.
         assert!(!is_cloudflare_challenge(http::StatusCode::OK, page));
+    }
+
+    #[test]
+    fn subscription_cookie_authorize_does_not_request_api_key_scope() {
+        let payload = authorize_payload("org", "state", "challenge");
+        assert_eq!(payload["scope"], OAUTH_SCOPE);
+        assert!(
+            !payload["scope"]
+                .as_str()
+                .unwrap()
+                .contains("org:create_api_key")
+        );
     }
 }
