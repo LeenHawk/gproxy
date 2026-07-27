@@ -69,7 +69,7 @@ fn refresh_uses_official_window_and_preserves_project_scopes() {
         auth::refresh_scope(&json!({
             "scopes": ["user:inference", "user:projects:read"]
         })),
-        format!("{} user:projects:read", auth::REFRESH_SCOPE)
+        format!("{} user:projects:read", auth::OAUTH_SCOPE)
     );
 }
 
@@ -267,10 +267,8 @@ async fn authcode_start_urls() {
     assert!(url.contains("state=ST"), "{url}");
     assert!(url.contains("code_challenge_method=S256"), "{url}");
     assert!(url.contains("redirect_uri="), "{url}");
-    assert!(
-        url.contains("scope=org%3Acreate_api_key%20user%3Aprofile"),
-        "{url}"
-    );
+    assert!(url.contains("scope=user%3Aprofile"), "{url}");
+    assert!(!url.contains("org%3Acreate_api_key"), "{url}");
     assert_eq!(claude.redirect_uri, auth::DEFAULT_REDIRECT_URI);
     assert_eq!(
         claude
@@ -304,7 +302,7 @@ fn token_refresh_uses_api_form_request_with_scope() {
         ("grant_type", "refresh_token"),
         ("client_id", auth::OAUTH_CLIENT_ID),
         ("refresh_token", "rt"),
-        ("scope", auth::REFRESH_SCOPE),
+        ("scope", auth::OAUTH_SCOPE),
     ];
     let headers = [
         ("anthropic-version", "2023-06-01"),
