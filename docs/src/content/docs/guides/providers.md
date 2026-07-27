@@ -107,11 +107,12 @@ triggers. Anthropic server-side fallback is not available on Amazon Bedrock;
 use provider-level routing or client-side fallback instead. Model and API
 availability remains region-dependent.
 
-### Claude Fable fallback
+### Claude fallback
 
 Set `settings_json.claude_fable_fallbacks` on `claudeapi`, `claudecode`,
 `vercel`, or a Claude-compatible `custom` channel to retry policy refusals from
-`claude-fable-5`. Use the string `"default"` for Anthropic's category-aware
+Claude models. The setting name is retained for compatibility with existing
+configurations. Use the string `"default"` for Anthropic's category-aware
 default routing, or an ordered array of one to three model IDs. GPROXY adds
 `server-side-fallback-2026-07-01` for default routing and
 `server-side-fallback-2026-06-01` for an explicit chain. Caller-provided
@@ -162,7 +163,7 @@ Common `settings_json` values are available as fields in the console:
 | `region` | AWS region for `aws-bedrock`; defaults to `us-east-1`. |
 | `enable_openai_magic_cache` | Recognize GPROXY cache trigger strings on OpenAI Chat/Responses targets and write explicit OpenAI breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, OpenRouter, Vercel, and custom endpoints. |
 | `enable_claude_magic_cache` | Recognize GPROXY cache trigger strings on Claude Messages targets and write `cache_control`. Available for Azure, Amazon Bedrock, Claude API, Claude Code, OpenRouter, Vercel, and custom endpoints. |
-| `claude_fable_fallbacks` | Retry Fable 5 refusals with `"default"` Anthropic routing or an ordered array of one to three models. Supported on Claude API-like channels and as an explicit model chain on OpenRouter. |
+| `claude_fable_fallbacks` | Retry Claude model refusals with `"default"` Anthropic routing or an ordered array of one to three models. Supported on Claude API-like channels and as an explicit model chain on OpenRouter. |
 
 See [Prompt Caching](/guides/claude-caching/) before enabling magic-string
 caching, especially for OpenAI's model and TTL requirements.
