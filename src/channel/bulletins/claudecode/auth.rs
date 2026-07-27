@@ -40,8 +40,8 @@ pub(super) const ANTHROPIC_BETA: &str = "oauth-2025-04-20";
 pub(super) const USER_AGENT: &str = "claude-cli/2.1.112 (external, cli)";
 pub(super) const CLAUDE_CODE_USER_AGENT: &str = "claude-code/2.1.112";
 
-/// Refresh slightly before expiry to avoid racing a 401 mid-flight.
-const EXPIRY_SKEW_MS: i64 = 60_000;
+/// Refresh one hour before expiry to avoid racing a 401 mid-flight.
+const EXPIRY_SKEW_MS: i64 = 3_600_000;
 
 /// Read a trimmed, non-empty string field from the secret.
 fn secret_str<'a>(secret: &'a Value, key: &str) -> Option<&'a str> {
