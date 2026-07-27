@@ -29,10 +29,8 @@ pub(super) const AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
 /// Default redirect_uri the Claude Code login uses when the caller passes none
 /// (mined from v1 `CLAUDECODE_REDIRECT_URI`).
 pub(super) const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
-/// Full account-login grant used by Claude Code's authorize flow.
-pub(super) const AUTHORIZE_SCOPE: &str = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
-/// Scopes re-declared while refreshing; `org:create_api_key` is login-only.
-pub(super) const REFRESH_SCOPE: &str =
+/// OAuth scopes used for login and re-declared while refreshing.
+pub(super) const OAUTH_SCOPE: &str =
     "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
 
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -66,7 +64,7 @@ fn stored_scope(secret: &Value) -> Option<String> {
 
 pub(super) fn refresh_scope(secret: &Value) -> String {
     let stored = stored_scope(secret).unwrap_or_default();
-    let mut scopes = REFRESH_SCOPE.split_whitespace().collect::<Vec<_>>();
+    let mut scopes = OAUTH_SCOPE.split_whitespace().collect::<Vec<_>>();
     for scope in PROJECT_SCOPES {
         if stored.split_whitespace().any(|value| value == scope) {
             scopes.push(scope);
@@ -161,7 +159,7 @@ pub(super) fn authcode_start(redirect_uri: &str, state: &str, challenge: &str) -
         ("client_id", OAUTH_CLIENT_ID),
         ("response_type", "code"),
         ("redirect_uri", redirect_uri),
-        ("scope", AUTHORIZE_SCOPE),
+        ("scope", OAUTH_SCOPE),
         ("code_challenge", challenge),
         ("code_challenge_method", "S256"),
         ("state", state),
@@ -214,7 +212,7 @@ pub(super) async fn authcode_exchange(
     let granted_scopes = resp
         .scope
         .as_deref()
-        .unwrap_or(AUTHORIZE_SCOPE)
+        .unwrap_or(OAUTH_SCOPE)
         .split_whitespace()
         .collect::<Vec<_>>();
 
