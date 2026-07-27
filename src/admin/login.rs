@@ -3,8 +3,8 @@
 //! The interactive authcode flow is two HTTP round-trips (`start` → user visits
 //! the authorize URL → `complete` with the callback). Between them the PKCE
 //! verifier + CSRF state + redirect_uri must survive server-side but never reach
-//! the browser. They live in the cache under a random one-shot id with a 10-min
-//! TTL — `take` deletes on read so a callback can't be replayed.
+//! the browser. They live in the cache under a random id with a 10-min TTL and
+//! are deleted immediately after a successful code exchange.
 //!
 //! cache-only, axum-free → compiles on native and edge.
 
@@ -67,11 +67,17 @@ pub async fn start(
     Ok(sid)
 }
 
-/// Consume a pending login (one-shot: get + delete). `None` if missing/expired.
-pub async fn take(cache: &dyn CacheBackend, sid: &str) -> Option<LoginSession> {
+/// Read a pending authcode login without deleting it. The caller clears it after
+/// a successful code exchange so validation and transient upstream failures can
+/// be retried while the session is live.
+pub async fn peek(cache: &dyn CacheBackend, sid: &str) -> Option<LoginSession> {
     let raw = cache.get(&key(sid)).await?;
-    cache.delete(&key(sid)).await;
     serde_json::from_slice(&raw).ok()
+}
+
+/// Delete an authcode login session after a successful code exchange.
+pub async fn clear(cache: &dyn CacheBackend, sid: &str) {
+    cache.delete(&key(sid)).await;
 }
 
 fn key(sid: &str) -> String {
@@ -112,4 +118,32 @@ pub async fn device_peek(cache: &dyn CacheBackend, sid: &str) -> Option<DeviceSe
 /// Delete a device login session (on Ready/Denied).
 pub async fn device_clear(cache: &dyn CacheBackend, sid: &str) {
     cache.delete(&key(sid)).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::cache::MemoryCache;
+
+    #[tokio::test]
+    async fn authcode_session_remains_until_cleared() {
+        let cache = MemoryCache::new();
+        let sid = start(
+            &cache,
+            "claudecode".into(),
+            Some(7),
+            "verifier".into(),
+            "state".into(),
+            "https://example.com/callback".into(),
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(peek(&cache, &sid).await.unwrap().state, "state");
+        assert!(peek(&cache, &sid).await.is_some());
+
+        clear(&cache, &sid).await;
+        assert!(peek(&cache, &sid).await.is_none());
+    }
 }

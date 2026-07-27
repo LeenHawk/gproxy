@@ -7,14 +7,18 @@ describe("validateCallbackUrl", () => {
   it("accepts a real callback with code+state", () => {
     expect(validateCallbackUrl("https://platform.claude.com/oauth/code/callback?code=c1&state=abc", AUTH)).toBe(true);
   });
-  it("rejects the authorize URL itself (wontfix guard)", () => {
+  it("rejects the authorize URL itself", () => {
     expect(validateCallbackUrl(AUTH + "&code=zzz", AUTH)).toBe(false);
+  });
+  it("rejects a callback from a different authorization session", () => {
+    expect(validateCallbackUrl("https://platform.claude.com/oauth/code/callback?code=c1&state=old", AUTH)).toBe(false);
   });
   it("rejects missing code or state, garbage, and empty", () => {
     expect(validateCallbackUrl("https://x.test/cb?code=c1", AUTH)).toBe(false);
     expect(validateCallbackUrl("https://x.test/cb?state=s1", AUTH)).toBe(false);
     expect(validateCallbackUrl("not a url", AUTH)).toBe(false);
     expect(validateCallbackUrl("", AUTH)).toBe(false);
+    expect(validateCallbackUrl("https://x.test/cb?code=c1&state=abc", "not a url")).toBe(false);
   });
 });
 
