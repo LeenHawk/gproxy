@@ -391,12 +391,16 @@ async fn send_token_request(
     client: &Arc<dyn UpstreamClient>,
     request: Request<Bytes>,
 ) -> Result<oauth::TokenResponse, ChannelError> {
-    let resp = client
-        .send(request)
-        .await
-        .map_err(|e| ChannelError::Build(format!("token request failed: {e}")))?;
+    let resp = client.send(request).await.map_err(|e| {
+        tracing::warn!(error = %e, "Claude Code OAuth token request failed");
+        ChannelError::Build(format!("token request failed: {e}"))
+    })?;
     let (parts, body) = resp.into_parts();
     if !parts.status.is_success() {
+        tracing::warn!(
+            status = %parts.status,
+            "Claude Code OAuth token endpoint rejected request"
+        );
         let snippet = String::from_utf8_lossy(&body);
         let snippet: String = snippet.chars().take(256).collect();
         return Err(ChannelError::Build(format!(
@@ -404,8 +408,10 @@ async fn send_token_request(
             parts.status
         )));
     }
-    serde_json::from_slice(&body)
-        .map_err(|e| ChannelError::Build(format!("token response parse: {e}")))
+    serde_json::from_slice(&body).map_err(|e| {
+        tracing::warn!(error = %e, "Claude Code OAuth token response was invalid");
+        ChannelError::Build(format!("token response parse: {e}"))
+    })
 }
 
 /// Inject the OAuth bearer + v1 claude-cli / Stainless impersonation headers
