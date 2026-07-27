@@ -1,4 +1,4 @@
-//! Opt-in fallback injection for Claude Fable 5.
+//! Opt-in fallback injection for Claude Messages requests.
 //!
 //! Anthropic-compatible channels use the `server-side-fallback` beta. OpenRouter
 //! uses its own Messages `fallbacks` field for multi-model routing.
@@ -9,17 +9,16 @@ use serde_json::{Map, Value, json};
 use super::anthropic_beta;
 use crate::channel::settings::ClaudeFableFallbacks;
 
-const FABLE_5: &str = "claude-fable-5";
 const OPUS_48: &str = "claude-opus-4-8";
 pub const SERVER_SIDE_FALLBACK_BETA: &str = "server-side-fallback-2026-06-01";
 pub const DEFAULT_FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 
-/// If the request targets Claude Fable 5, ensure it carries the configured
-/// server-side fallback routing plus the matching beta header.
+/// Ensure the request carries the configured server-side fallback routing plus
+/// the matching beta header.
 ///
 /// Existing `fallbacks` are preserved; the beta token is still appended so a
 /// user-provided fallback chain works when the channel setting is enabled.
-pub fn apply_fable_fallback(
+pub fn apply_claude_fallback(
     body: &mut Value,
     headers: &mut HeaderMap,
     configured: &ClaudeFableFallbacks,
@@ -33,8 +32,8 @@ pub fn apply_fable_fallback(
     }
 }
 
-/// If the request targets Claude Fable 5, ensure it carries an OpenRouter
-/// fallback chain without touching headers.
+/// Ensure the request carries an OpenRouter fallback chain without touching
+/// headers.
 ///
 /// Used by OpenRouter, whose Anthropic Messages `fallbacks` field is handled by
 /// OpenRouter's multi-model routing rather than Anthropic's beta.
@@ -49,13 +48,10 @@ fn apply(
 ) -> Option<&'static str> {
     let root = body.as_object_mut()?;
     let model = root.get("model").and_then(Value::as_str)?;
-    fallback_model_for(model, OPUS_48)?;
 
     if !root.contains_key("fallbacks") {
-        root.insert(
-            "fallbacks".into(),
-            configured_fallbacks(model, configured, supports_default),
-        );
+        let fallbacks = configured_fallbacks(model, configured, supports_default)?;
+        root.insert("fallbacks".into(), fallbacks);
     }
     Some(beta_for(root))
 }
@@ -64,7 +60,7 @@ fn configured_fallbacks(
     model: &str,
     configured: &ClaudeFableFallbacks,
     supports_default: bool,
-) -> Value {
+) -> Option<Value> {
     match configured {
         ClaudeFableFallbacks::Default(_) => default_fallbacks(model, supports_default),
         ClaudeFableFallbacks::Models(models) => {
@@ -74,8 +70,7 @@ fn configured_fallbacks(
                 .map(|model| model.trim())
                 .filter(|model| !model.is_empty())
             {
-                let fallback =
-                    fallback_model_for(model, fallback).unwrap_or_else(|| fallback.to_owned());
+                let fallback = fallback_model_for(model, fallback);
                 if fallback != model
                     && !chain.iter().any(|entry: &Value| entry["model"] == fallback)
                 {
@@ -86,22 +81,23 @@ fn configured_fallbacks(
                 }
             }
             if !chain.is_empty() {
-                return Value::Array(chain);
+                return Some(Value::Array(chain));
             }
             default_fallbacks(model, supports_default)
         }
     }
 }
 
-fn default_fallbacks(model: &str, supports_default: bool) -> Value {
+fn default_fallbacks(model: &str, supports_default: bool) -> Option<Value> {
     if supports_default {
-        return json!("default");
+        return Some(json!("default"));
     }
     opus48_fallbacks(model)
 }
 
-fn opus48_fallbacks(model: &str) -> Value {
-    json!([{ "model": fallback_model_for(model, OPUS_48).unwrap_or_else(|| OPUS_48.to_owned()) }])
+fn opus48_fallbacks(model: &str) -> Option<Value> {
+    let fallback = fallback_model_for(model, OPUS_48);
+    (fallback != model).then(|| json!([{ "model": fallback }]))
 }
 
 fn beta_for(root: &Map<String, Value>) -> &'static str {
@@ -112,12 +108,15 @@ fn beta_for(root: &Map<String, Value>) -> &'static str {
     }
 }
 
-fn fallback_model_for(model: &str, fallback: &str) -> Option<String> {
-    let namespace = model.strip_suffix(FABLE_5)?;
-    if namespace.is_empty() || !fallback.starts_with("claude-") {
-        Some(fallback.to_owned())
+fn fallback_model_for(model: &str, fallback: &str) -> String {
+    if !fallback.starts_with("claude-") {
+        fallback.to_owned()
     } else {
-        Some(format!("{namespace}{fallback}"))
+        let namespace = model
+            .rfind("claude-")
+            .map(|index| &model[..index])
+            .unwrap_or_default();
+        format!("{namespace}{fallback}")
     }
 }
 
@@ -145,7 +144,7 @@ mod tests {
 
         let configured =
             ClaudeFableFallbacks::Default(crate::channel::settings::ClaudeFallbackDefault::Default);
-        apply_fable_fallback(&mut body, &mut headers, &configured);
+        apply_claude_fallback(&mut body, &mut headers, &configured);
 
         assert_eq!(body["fallbacks"], json!("default"));
         assert_eq!(header_value(&headers), DEFAULT_FALLBACK_BETA);
@@ -161,7 +160,7 @@ mod tests {
         let mut headers = HeaderMap::new();
 
         let configured = ClaudeFableFallbacks::Models(vec![OPUS_48.to_owned()]);
-        apply_fable_fallback(&mut body, &mut headers, &configured);
+        apply_claude_fallback(&mut body, &mut headers, &configured);
 
         assert_eq!(
             body["fallbacks"],
@@ -200,7 +199,7 @@ mod tests {
         );
 
         let configured = ClaudeFableFallbacks::Models(vec![OPUS_48.to_owned()]);
-        apply_fable_fallback(&mut body, &mut headers, &configured);
+        apply_claude_fallback(&mut body, &mut headers, &configured);
 
         assert_eq!(body["fallbacks"], json!([{ "model": "claude-opus-4-7" }]));
         assert_eq!(
@@ -224,7 +223,7 @@ mod tests {
             HeaderValue::from_static("files-api-2025-04-14,server-side-fallback-2026-06-01"),
         );
 
-        apply_fable_fallback(&mut body, &mut headers, &configured);
+        apply_claude_fallback(&mut body, &mut headers, &configured);
 
         assert_eq!(
             header_value(&headers),
@@ -233,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn ignores_non_fable_models() {
+    fn applies_to_non_fable_models() {
         let mut body = json!({
             "model": "claude-sonnet-4-6",
             "messages": [],
@@ -242,10 +241,10 @@ mod tests {
         let mut headers = HeaderMap::new();
 
         let configured = ClaudeFableFallbacks::Models(vec![OPUS_48.to_owned()]);
-        apply_fable_fallback(&mut body, &mut headers, &configured);
+        apply_claude_fallback(&mut body, &mut headers, &configured);
 
-        assert!(body.get("fallbacks").is_none());
-        assert!(headers.get("anthropic-beta").is_none());
+        assert_eq!(body["fallbacks"], json!([{ "model": "claude-opus-4-8" }]));
+        assert_eq!(header_value(&headers), SERVER_SIDE_FALLBACK_BETA);
     }
 
     #[test]
@@ -277,7 +276,7 @@ mod tests {
         ]);
         let mut headers = HeaderMap::new();
 
-        apply_fable_fallback(&mut body, &mut headers, &configured);
+        apply_claude_fallback(&mut body, &mut headers, &configured);
 
         assert_eq!(
             body["fallbacks"],
@@ -288,5 +287,19 @@ mod tests {
             ])
         );
         assert_eq!(header_value(&headers), SERVER_SIDE_FALLBACK_BETA);
+    }
+
+    #[test]
+    fn openrouter_default_does_not_fallback_to_the_same_model() {
+        let mut body = json!({
+            "model": "anthropic/claude-opus-4-8",
+            "messages": [],
+            "max_tokens": 32
+        });
+        let configured =
+            ClaudeFableFallbacks::Default(crate::channel::settings::ClaudeFallbackDefault::Default);
+
+        assert!(!apply_openrouter_fallback(&mut body, &configured));
+        assert!(body.get("fallbacks").is_none());
     }
 }

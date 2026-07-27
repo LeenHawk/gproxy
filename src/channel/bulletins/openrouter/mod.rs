@@ -195,11 +195,11 @@ mod tests {
     }
 
     #[test]
-    fn injects_openrouter_fable_fallback_without_anthropic_beta() {
+    fn injects_openrouter_claude_fallback_without_anthropic_beta() {
         let mut headers = HeaderMap::new();
         let shape_settings = json!({ "claude_fable_fallbacks": ["claude-opus-4-8"] });
         let body =
-            Bytes::from(r#"{"model":"anthropic/claude-fable-5","messages":[],"max_tokens":32}"#);
+            Bytes::from(r#"{"model":"anthropic/claude-sonnet-5","messages":[],"max_tokens":32}"#);
         let shaped =
             OpenRouterChannel.shape_request(body, &mut headers, &fallback_ctx(&shape_settings));
 
@@ -220,7 +220,7 @@ mod tests {
                     ContentGenerationKind::ClaudeMessages,
                 ),
                 stream: false,
-                upstream_model_id: "anthropic/claude-fable-5",
+                upstream_model_id: "anthropic/claude-sonnet-5",
                 method: http::Method::POST,
                 path: "/v1/messages",
                 query: None,

@@ -44,7 +44,7 @@ pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) 
         claude_cache_control::sanitize_claude_body(value);
         claude_sampling::strip_sampling_params(value);
         if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
-            claude_fallback::apply_fable_fallback(value, headers, fallbacks);
+            claude_fallback::apply_claude_fallback(value, headers, fallbacks);
         }
     });
     shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
