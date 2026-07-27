@@ -132,3 +132,10 @@ jobs:
       # target (the native deps must NOT leak into the worker).
       - name: Edge wasm check
         run: cargo check --lib --no-default-features --features edge --target wasm32-unknown-unknown
+
+      # The release tag publishes these three to crates.io (scripts/publish-crates.sh).
+      # Packaging them here catches missing metadata / files excluded from the
+      # .crate archive on the PR instead of mid-release. One invocation so the
+      # intra-workspace path deps resolve against the crates being packaged.
+      - name: Package publishable crates
+        run: cargo package -p gproxy-protocol -p gproxy-tokenize -p gproxy-transform

@@ -3,13 +3,26 @@ title: Rust SDK
 description: 当前 v2 Rust library surface、feature flags，以及内部模块和发布 SDK 的边界。
 ---
 
-当前 v2 tree 是一个名为 `gproxy` 的单 Rust package。它构建：
+当前 v2 tree 是一个 Rust workspace。根 package `gproxy` 构建：
 
 - `src/main.rs` 中的 native binary；
 - `src/lib.rs` 中的 library crate，crate type 包括 `rlib` 和 `cdylib`。
 
-不同于 v1，这个 v2 checkout 当前没有单独的已发布 crate：
-`gproxy-sdk`、`gproxy-protocol`、`gproxy-channel` 或 `gproxy-engine`。除非未来增加独立 SDK package，否则应把 `gproxy` library modules 视为仓库内 integration surface。
+其中三个 workspace member 以 MIT 发布到 crates.io，版本与承载它们的 `gproxy`
+release 保持一致：
+
+| Crate | 内容 |
+| --- | --- |
+| [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) | OpenAI/Claude/Gemini wire types、operation taxonomy、endpoint metadata。仅依赖 `serde` + `http`，可编译到 `wasm32`。 |
+| [`gproxy-transform`](https://crates.io/crates/gproxy-transform) | 这三套 API 之间的 pairwise 请求/响应/流式转换。纯同步、无 I/O。 |
+| [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize) | 离线 token 计数：tiktoken、Hugging Face 词表、字符估算。 |
+
+根 package `gproxy` **不**发布到 crates.io —— 它是 AGPL 应用本体，以 binary、
+Docker image 和 edge bundle 分发。仓库同样没有 `gproxy-sdk`、`gproxy-channel`
+或 `gproxy-engine`；其余 `gproxy` library modules 应视为仓库内 integration surface。
+
+发布已自动化：推送 `vX.Y.Z` tag 时，release workflow 会执行
+`scripts/publish-crates.sh`，并跳过 registry 上已存在的 crate/version。
 
 ## Library modules
 

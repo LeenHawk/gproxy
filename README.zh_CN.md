@@ -147,3 +147,8 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 ## 许可证
 
 [AGPL-3.0-or-later](LICENSE) · 作者：[LeenHawk](https://github.com/LeenHawk)
+
+可复用的库以 MIT 发布在 crates.io：
+[`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) ·
+[`gproxy-transform`](https://crates.io/crates/gproxy-transform) ·
+[`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize)

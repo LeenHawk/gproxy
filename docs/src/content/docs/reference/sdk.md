@@ -3,15 +3,28 @@ title: Rust SDK
 description: Current v2 Rust library surface, feature flags, and the boundary between internal modules and a published SDK.
 ---
 
-The current v2 tree is a single Rust package named `gproxy`. It builds both:
+The current v2 tree is a Rust workspace. The root package `gproxy` builds both:
 
 - a native binary at `src/main.rs`;
 - a library crate at `src/lib.rs` with `rlib` and `cdylib` crate types.
 
-Unlike v1, this v2 checkout does not currently contain separate published
-crates named `gproxy-sdk`, `gproxy-protocol`, `gproxy-channel`, or
-`gproxy-engine`. Treat the `gproxy` library modules as the in-repo integration
-surface unless/until a separate SDK package is added.
+Three workspace members are published to crates.io under MIT, versioned in
+lockstep with the `gproxy` release that ships them:
+
+| Crate | What it is |
+| --- | --- |
+| [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) | OpenAI/Claude/Gemini wire types, operation taxonomy, endpoint metadata. `serde` + `http` only, `wasm32`-clean. |
+| [`gproxy-transform`](https://crates.io/crates/gproxy-transform) | Pairwise request/response/stream conversion between those three APIs. Pure and synchronous. |
+| [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize) | Offline token counting: tiktoken, Hugging Face vocabularies, character estimate. |
+
+The `gproxy` root package itself is **not** published to crates.io — it is the
+AGPL application, distributed as binaries, Docker images, and edge bundles. It
+also has no `gproxy-sdk`, `gproxy-channel`, or `gproxy-engine` counterpart;
+treat the remaining `gproxy` library modules as the in-repo integration surface.
+
+Publishing is automated: pushing a `vX.Y.Z` tag runs
+`scripts/publish-crates.sh` from the release workflow, which skips any
+crate/version already on the registry.
 
 ## Library modules
 
