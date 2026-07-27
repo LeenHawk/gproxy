@@ -1,5 +1,5 @@
-/** Client-side guard for the authcode wizard (spec §6): the pasted URL must be the
- *  CALLBACK (carrying code+state) — not the authorize URL itself (known backend wontfix). */
+/** Client-side guard for the authcode wizard: require the callback from the
+ * current authorization session, not an authorize URL or a stale callback. */
 export function validateCallbackUrl(pasted: string, authorizeUrl: string): boolean {
   let url: URL;
   try {
@@ -7,12 +7,15 @@ export function validateCallbackUrl(pasted: string, authorizeUrl: string): boole
   } catch {
     return false;
   }
-  if (!url.searchParams.get("code") || !url.searchParams.get("state")) return false;
+  const callbackState = url.searchParams.get("state");
+  if (!url.searchParams.get("code") || !callbackState) return false;
   try {
     const auth = new URL(authorizeUrl);
+    const expectedState = auth.searchParams.get("state");
+    if (!expectedState || callbackState !== expectedState) return false;
     if (url.origin === auth.origin && url.pathname === auth.pathname) return false;
   } catch {
-    /* unparseable authorize URL — fall through */
+    return false;
   }
   return true;
 }

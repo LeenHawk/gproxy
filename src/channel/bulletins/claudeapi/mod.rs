@@ -116,7 +116,7 @@ impl Channel for ClaudeApiChannel {
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
             if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
-                claude_fallback::apply_fable_fallback(v, headers, fallbacks);
+                claude_fallback::apply_claude_fallback(v, headers, fallbacks);
             }
         });
         shaping::anthropic_beta::strip_beta_tokens(headers, &["context-1m-2025-08-07"]);
@@ -227,13 +227,13 @@ mod tests {
     }
 
     #[test]
-    fn injects_fable_server_side_fallback() {
+    fn injects_server_side_fallback_for_any_claude_model() {
         let mut headers = HeaderMap::new();
         let settings = serde_json::json!({
             "claude_fable_fallbacks": "default"
         });
         let body = Bytes::from(
-            r#"{"model":"claude-fable-5","messages":[],"max_tokens":32,"temperature":0.7}"#,
+            r#"{"model":"claude-opus-5","messages":[],"max_tokens":32,"temperature":0.7}"#,
         );
         let out = ClaudeApiChannel.shape_request(body, &mut headers, &fallback_ctx(&settings));
 

@@ -17,8 +17,8 @@ use crate::api::login::{
     LoginStartRequest, LoginStartResponse,
 };
 use crate::app::AppState;
-use crate::channel::DevicePoll;
 use crate::channel::oauth;
+use crate::channel::{ChannelError, DevicePoll};
 use crate::store::persistence::records::CredentialInput;
 
 use super::{Request, Resp, json_body, segments};
@@ -106,9 +106,9 @@ async fn start(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, 
     )
 }
 
-/// `POST /admin/login-flows/complete`. Consumes the pending login, verifies the
-/// CSRF state, exchanges the callback code for a secret, and persists it as a
-/// sealed credential under `provider_id`.
+/// `POST /admin/login-flows/complete`. Verifies the pending login and CSRF state,
+/// exchanges the callback code, then consumes the session and persists the
+/// secret as a sealed credential under `provider_id`.
 async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let req: LoginCompleteRequest = json_body(body)?;
@@ -117,8 +117,7 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
 
     // CODE-ONLY flows (e.g. geminicli `codeassist.google.com/authcode`) return a
     // bare authorization code with no callback URL / `state`; callback-URL flows
-    // paste the full redirect. Validate the callback up front so a malformed
-    // paste doesn't consume the one-shot session.
+    // paste the full redirect. Validate the callback before reading the session.
     let bare_code = req.code.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let callback = if bare_code.is_none() {
         Some(parse_callback(&req.callback_url).ok_or_else(bad)?)
@@ -126,16 +125,18 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
         None
     };
 
-    let session = login::take(state.cache.as_ref(), &req.login_session_id)
-        .await
-        .ok_or_else(bad)?;
+    let Some(session) = login::peek(state.cache.as_ref(), &req.login_session_id).await else {
+        tracing::warn!("authcode login session is missing or expired");
+        return Err(bad());
+    };
     let code = match (bare_code, callback) {
-        // Bare code: no `state` to verify — PKCE (the per-session verifier) is the
-        // CSRF protection, and the session is one-shot + short-TTL.
+        // Bare code: no `state` to verify — PKCE (the per-session verifier) and
+        // the short-lived server-side session provide the CSRF protection.
         (Some(code), _) => code.to_string(),
         (None, Some((code, cb_state))) => {
             // CSRF: the callback state MUST match the one we issued.
             if cb_state != session.state {
+                tracing::warn!(channel = %session.channel, "authcode login callback state mismatch");
                 return Err(bad());
             }
             code
@@ -144,10 +145,20 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
     };
 
     let channel = state.channels.login_for(&session.channel).ok_or_else(bad)?;
-    let provider_id = authcode_provider_id(session.provider_id, req.provider_id).ok_or_else(bad)?;
+    let Some(provider_id) = authcode_provider_id(session.provider_id, req.provider_id) else {
+        tracing::warn!(channel = %session.channel, "authcode login provider mismatch");
+        return Err(bad());
+    };
     let login_client = state
         .upstream_client_for_provider_id(Some(provider_id))
-        .map_err(|_| bad())?;
+        .map_err(|_| {
+            tracing::warn!(
+                channel = %session.channel,
+                provider_id,
+                "authcode login client initialization failed"
+            );
+            bad()
+        })?;
     let secret = channel
         .authcode_exchange(
             &login_client,
@@ -157,7 +168,26 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
             session.extra.as_ref(),
         )
         .await
-        .map_err(|_| bad())?;
+        .map_err(|error| {
+            let error_kind = match &error {
+                ChannelError::MissingSetting(_) => "missing_setting",
+                ChannelError::InvalidCredential(_) => "invalid_credential",
+                ChannelError::Unsupported(_) => "unsupported",
+                ChannelError::Build(_) => "request_or_upstream",
+                ChannelError::Transient(_) => "transient",
+            };
+            tracing::warn!(
+                channel = %session.channel,
+                provider_id,
+                error_kind,
+                "authcode login exchange failed"
+            );
+            bad()
+        })?;
+
+    // The authorization code is consumed upstream at this point; prevent replay
+    // even if local sealing or persistence subsequently fails.
+    login::clear(state.cache.as_ref(), &req.login_session_id).await;
 
     let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
     let name = req.name.or_else(|| label_from_secret(&secret));

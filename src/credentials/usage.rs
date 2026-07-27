@@ -78,7 +78,8 @@ pub async fn fetch_usage(
     {
         Ok(secret) => secret,
         Err(e) => {
-            record(state, &provider, &credential, &Disposition::AuthDead);
+            let disposition = refresh_failure_disposition(&e);
+            record(state, &provider, &credential, &disposition);
             return Err(UsageError::Channel(e));
         }
     };
@@ -105,7 +106,8 @@ pub async fn fetch_usage(
                 result = fetch_with(&channel, &secret, &provider.settings_json, &client).await;
             }
             Err(e) => {
-                record(state, &provider, &credential, &Disposition::AuthDead);
+                let disposition = refresh_failure_disposition(&e);
+                record(state, &provider, &credential, &disposition);
                 return Err(UsageError::Channel(e));
             }
         }
@@ -155,7 +157,12 @@ pub async fn consume_rate_limit_reset_credit(
     {
         Ok(secret) => secret,
         Err(e) => {
-            record(state, &provider, &credential, &Disposition::AuthDead);
+            record(
+                state,
+                &provider,
+                &credential,
+                &refresh_failure_disposition(&e),
+            );
             return Err(UsageError::Channel(e));
         }
     };
@@ -195,12 +202,25 @@ pub async fn consume_rate_limit_reset_credit(
                 .await;
             }
             Err(e) => {
-                record(state, &provider, &credential, &Disposition::AuthDead);
+                record(
+                    state,
+                    &provider,
+                    &credential,
+                    &refresh_failure_disposition(&e),
+                );
                 return Err(UsageError::Channel(e));
             }
         }
     }
     finish(state, &provider, &credential, result)
+}
+
+fn refresh_failure_disposition(error: &ChannelError) -> Disposition {
+    if matches!(error, ChannelError::Transient(_)) {
+        Disposition::Transient
+    } else {
+        Disposition::AuthDead
+    }
 }
 
 fn record(

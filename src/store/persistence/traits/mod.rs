@@ -117,7 +117,7 @@ persistence_backend! {
     ProviderPersistence::list_credentials => list_credentials(provider_id: i64) -> anyhow::Result<Vec<Credential>>;
     ProviderPersistence::get_credential => get_credential(id: i64) -> anyhow::Result<Option<Credential>>;
     ProviderPersistence::upsert_credential => upsert_credential(input: CredentialInput) -> anyhow::Result<Credential>;
-    ProviderPersistence::update_credential_secret_if_current => update_credential_secret_if_current(id: i64, provider_id: i64, expected_updated_at: i64, secret_json: serde_json::Value) -> anyhow::Result<bool>;
+    ProviderPersistence::update_credential_secret_if_current => update_credential_secret_if_current(id: i64, provider_id: i64, expected_secret_json: serde_json::Value, secret_json: serde_json::Value) -> anyhow::Result<bool>;
     ProviderPersistence::delete_credential => delete_credential(id: i64) -> anyhow::Result<bool>;
     ProviderPersistence::list_credential_statuses => list_credential_statuses(credential_id: i64) -> anyhow::Result<Vec<CredentialStatus>>;
     ProviderPersistence::list_all_credential_statuses => list_all_credential_statuses() -> anyhow::Result<Vec<CredentialStatus>>;

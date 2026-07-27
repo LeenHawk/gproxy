@@ -20,7 +20,7 @@ pub trait ProviderPersistence {
         &self,
         id: i64,
         provider_id: i64,
-        expected_updated_at: i64,
+        expected_secret_json: serde_json::Value,
         secret_json: serde_json::Value,
     ) -> anyhow::Result<bool>;
     async fn delete_credential(&self, id: i64) -> anyhow::Result<bool>;
@@ -90,14 +90,14 @@ impl ProviderPersistence for dyn super::PersistenceBackend + '_ {
         &self,
         id: i64,
         provider_id: i64,
-        expected_updated_at: i64,
+        expected_secret_json: serde_json::Value,
         secret_json: serde_json::Value,
     ) -> anyhow::Result<bool> {
         super::PersistenceBackend::update_credential_secret_if_current(
             self,
             id,
             provider_id,
-            expected_updated_at,
+            expected_secret_json,
             secret_json,
         )
         .await
