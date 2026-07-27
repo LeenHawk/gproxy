@@ -2,8 +2,19 @@
 name = "gproxy-tokenize"
 version = "2.1.5"
 edition = "2024"
-license = "AGPL-3.0-or-later"
-description = "GPROXY local token counting"
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+license = "MIT"
+description = "Offline token counting for LLM request bodies: tiktoken, Hugging Face vocabularies, character estimate"
+homepage = "https://gproxy.leenhawk.com"
+repository = "https://github.com/LeenHawk/gproxy"
+readme = "README.md"
+keywords = ["llm", "tokenizer", "tiktoken", "tokens", "bpe"]
+categories = ["text-processing", "api-bindings"]
+
+# docs.rs builds the default (dependency-free) feature set by default, which
+# hides the whole registry. Document the full surface instead.
+[package.metadata.docs.rs]
+features = ["count-local"]
 
 [dependencies]
 serde_json = "1"
