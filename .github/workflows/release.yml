@@ -645,7 +645,7 @@ jobs:
               "${tag}-amd64-musl" "${tag}-arm64-musl" "${tag}-riscv64-musl"
           done <<< "${{ steps.meta.outputs.tags }}"
 
-  # crates.io publish for the three reusable libraries (the AGPL `gproxy` root
+  # crates.io publish for the four reusable libraries (the AGPL `gproxy` root
   # crate ships as binaries/images, not as a library). Version tags only, and
   # gated on build-native so a version that does not compile everywhere never
   # reaches the registry — crates.io publishes cannot be undone, only yanked.

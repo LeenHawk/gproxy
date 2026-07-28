@@ -163,6 +163,7 @@ If GPROXY is useful to you, you can support its continued development through
 [AGPL-3.0-or-later](LICENSE) · Author: [LeenHawk](https://github.com/LeenHawk)
 
 The reusable libraries are MIT and published to crates.io:
+[`gproxy-channel-api`](https://crates.io/crates/gproxy-channel-api) ·
 [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) ·
 [`gproxy-transform`](https://crates.io/crates/gproxy-transform) ·
 [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize)
