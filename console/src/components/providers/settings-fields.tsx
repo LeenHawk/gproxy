@@ -23,9 +23,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  channelMeta, DEFAULT_BASE_URL, ENDPOINT_KINDS, type EndpointKind,
+  channelMeta, DEFAULT_BASE_URL, type ChannelMeta, type EndpointKind,
 } from "@/lib/channel-meta";
 import { EndpointFields, type EndpointRow } from "./endpoint-fields";
+import {
+  assembleGenericSettings, GenericSettingsFields,
+} from "./generic-settings-fields";
 
 const OPENAI_MAGIC_CACHE_CHANNELS = new Set([
   "openai", "azure", "aws-bedrock", "codex", "vercel", "openrouter", "custom",
@@ -39,6 +42,7 @@ const CLAUDE_FALLBACK_CHANNELS = new Set([
 const AWS_CHANNELS = new Set(["aws-bedrock"]);
 
 export interface SettingsState {
+  genericSettings: Record<string, unknown>;
   baseUrl: string;
   endpoints: EndpointRow[];
   consecutiveFailures: string;
@@ -60,19 +64,24 @@ function objectValue(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-export function initSettingsState(settingsJson: unknown, channel: string): SettingsState {
+export function initSettingsState(
+  settingsJson: unknown,
+  channel: string,
+  meta?: ChannelMeta,
+): SettingsState {
   const s = objectValue(settingsJson) ?? {};
   const cb = objectValue(s.circuit_breaker) ?? {};
-  const supported = new Set(channelMeta(channel)?.endpointKinds ?? []);
+  const resolvedMeta = meta ?? channelMeta(channel);
+  const supported = new Set(resolvedMeta?.endpointKinds ?? []);
   const endpoints = objectValue(s.endpoints);
   return {
+    genericSettings: { ...s },
     baseUrl: typeof s.base_url === "string" ? s.base_url : "",
     endpoints: endpoints
       ? Object.entries(endpoints)
           .filter((entry): entry is [EndpointKind, string] =>
-            ENDPOINT_KINDS.includes(entry[0] as EndpointKind)
-              && supported.has(entry[0] as EndpointKind)
-              && typeof entry[1] === "string",
+            typeof entry[1] === "string"
+              && (resolvedMeta === undefined || supported.has(entry[0])),
           )
           .map(([kind, url]) => ({ kind, url }))
       : [],
@@ -109,8 +118,12 @@ export function assembleSettings(
   base: unknown,
   state: SettingsState,
   channel: string,
+  meta?: ChannelMeta,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = { ...(objectValue(base) ?? {}) };
+  const resolvedMeta = meta ?? channelMeta(channel);
+  const isExternal = resolvedMeta?.source === "external";
+  const isBuiltin = resolvedMeta?.source === "builtin";
 
   if (state.baseUrl.trim()) {
     result.base_url = state.baseUrl.trim();
@@ -179,51 +192,57 @@ export function assembleSettings(
     }
   }
 
-  delete result.enable_magic_cache;
-  if (OPENAI_MAGIC_CACHE_CHANNELS.has(channel)) {
-    if (state.enableOpenAiMagicCache) {
-      result.enable_openai_magic_cache = true;
+  if (isBuiltin) {
+    delete result.enable_magic_cache;
+    if (OPENAI_MAGIC_CACHE_CHANNELS.has(channel)) {
+      if (state.enableOpenAiMagicCache) {
+        result.enable_openai_magic_cache = true;
+      } else {
+        delete result.enable_openai_magic_cache;
+      }
     } else {
       delete result.enable_openai_magic_cache;
     }
-  } else {
-    delete result.enable_openai_magic_cache;
-  }
-  if (CLAUDE_MAGIC_CACHE_CHANNELS.has(channel)) {
-    if (state.enableClaudeMagicCache) {
-      result.enable_claude_magic_cache = true;
+    if (CLAUDE_MAGIC_CACHE_CHANNELS.has(channel)) {
+      if (state.enableClaudeMagicCache) {
+        result.enable_claude_magic_cache = true;
+      } else {
+        delete result.enable_claude_magic_cache;
+      }
     } else {
       delete result.enable_claude_magic_cache;
     }
-  } else {
-    delete result.enable_claude_magic_cache;
-  }
 
-  if (CLAUDE_FALLBACK_CHANNELS.has(channel)) {
-    if (state.enableClaudeFableFallback) {
-      const models = state.claudeFableFallbackModels
-        .map((model) => model.trim())
-        .filter((model, index, all) => model && all.indexOf(model) === index)
-        .slice(0, 3);
-      result.claude_fable_fallbacks = models.length > 0 ? models : "default";
+    if (CLAUDE_FALLBACK_CHANNELS.has(channel)) {
+      if (state.enableClaudeFableFallback) {
+        const models = state.claudeFableFallbackModels
+          .map((model) => model.trim())
+          .filter((model, index, all) => model && all.indexOf(model) === index)
+          .slice(0, 3);
+        result.claude_fable_fallbacks = models.length > 0 ? models : "default";
+      } else {
+        delete result.claude_fable_fallbacks;
+      }
     } else {
       delete result.claude_fable_fallbacks;
     }
-  } else {
-    delete result.claude_fable_fallbacks;
   }
 
-  return result;
+  return isExternal && resolvedMeta
+    ? assembleGenericSettings(result, state.genericSettings, resolvedMeta.settingsFields)
+    : result;
 }
 
 interface SettingsFieldsProps {
   channel: string;
+  meta?: ChannelMeta;
   state: SettingsState;
   onChange: (next: Partial<SettingsState>) => void;
 }
 
-export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps) {
+export function SettingsFields({ channel, meta, state, onChange }: SettingsFieldsProps) {
   const { t } = useTranslation("providers");
+  const resolvedMeta = meta ?? channelMeta(channel);
   const defaultUrl = DEFAULT_BASE_URL[channel];
   const isCustom = channel === "custom";
 
@@ -243,10 +262,18 @@ export function SettingsFields({ channel, state, onChange }: SettingsFieldsProps
       </div>
 
       <EndpointFields
-        channel={channel}
+        endpointKinds={resolvedMeta?.endpointKinds ?? []}
         rows={state.endpoints}
         onChange={(endpoints) => onChange({ endpoints })}
       />
+
+      {resolvedMeta?.source === "external" && (
+        <GenericSettingsFields
+          fields={resolvedMeta.settingsFields}
+          values={state.genericSettings}
+          onChange={(genericSettings) => onChange({ genericSettings })}
+        />
+      )}
 
       {AWS_CHANNELS.has(channel) && (
         <div className="grid gap-2">

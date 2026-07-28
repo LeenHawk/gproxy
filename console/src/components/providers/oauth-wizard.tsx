@@ -7,7 +7,7 @@ import {
   type DeviceStartResponse, type LoginStartResponse,
 } from "@/api/login-flows";
 import type { CredentialView } from "@/api/credentials";
-import { channelMeta, type LoginMode } from "@/lib/channel-meta";
+import type { ChannelMeta, LoginMode } from "@/lib/channel-meta";
 import { extractSessionKey, validateCallbackUrl } from "@/lib/oauth-input";
 import type { Provider } from "@/api/providers";
 import { Button } from "@/components/ui/button";
@@ -19,14 +19,14 @@ import { Textarea } from "@/components/ui/textarea";
 
 interface OAuthWizardProps {
   provider: Provider;
+  meta: ChannelMeta;
   onDone: (credential: CredentialView) => void;
 }
 
-export function OAuthWizard({ provider, onDone }: OAuthWizardProps) {
+export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
-  const meta = channelMeta(provider.channel);
-  const modes = meta?.loginModes ?? [];
+  const modes = meta.loginModes;
   const [mode, setMode] = useState<LoginMode>(modes[0] ?? "authcode");
   const [credLabel, setCredLabel] = useState("");
   // Kiro has four credential methods that span both the device and authcode
@@ -62,7 +62,7 @@ export function OAuthWizard({ provider, onDone }: OAuthWizardProps) {
         <GeminiWizard provider={provider} credLabel={credLabel} onDone={finish} />
       ) : (
         <>
-          {mode === "authcode" && <AuthcodeFlow provider={provider} credLabel={credLabel} onDone={finish} startParams={meta?.loginParams} />}
+          {mode === "authcode" && <AuthcodeFlow provider={provider} credLabel={credLabel} onDone={finish} startParams={meta.loginParams} />}
           {mode === "device" && <DeviceFlow provider={provider} credLabel={credLabel} onDone={finish} />}
           {mode === "cookie" && <CookieFlow provider={provider} credLabel={credLabel} onDone={finish} />}
         </>

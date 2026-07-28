@@ -1,6 +1,11 @@
-export type SecretFamily = "api_key" | "oauth_tokens" | "service_account" | "github_token";
+import type { ChannelCatalogDto, ChannelSettingFieldDto } from "@/api/channels";
 
-/** Default base_url per channel. Absent = no public configurable default. */
+export type SecretFamily = ChannelCatalogDto["credential_family"];
+export type ProviderFamily = ChannelCatalogDto["provider_family"];
+export type LoginMode = ChannelCatalogDto["login_modes"][number];
+export type EndpointKind = string;
+export type ChannelSettingField = ChannelSettingFieldDto;
+
 export const DEFAULT_BASE_URL: Record<string, string> = {
   openai: "https://api.openai.com",
   claudeapi: "https://api.anthropic.com",
@@ -24,7 +29,6 @@ export const ENDPOINT_KINDS = [
   "openai_embeddings", "gemini_embeddings", "image_generations", "image_edits",
   "openai_compact", "openai_conversations", "usage", "rate_limit_reset",
 ] as const;
-export type EndpointKind = (typeof ENDPOINT_KINDS)[number];
 
 const CUSTOM_ENDPOINTS = ENDPOINT_KINDS.filter(
   (kind) => !["openai_conversations", "usage", "rate_limit_reset"].includes(kind),
@@ -50,23 +54,19 @@ const ENDPOINTS_BY_CHANNEL: Partial<Record<string, readonly EndpointKind[]>> = {
   grokbuild: ["openai_list_models", "openai_get_model", "openai_chat_completions", "openai_responses", "image_generations", "image_edits", "openai_compact"],
   kiro: ["openai_responses"],
 };
-export type LoginMode = "authcode" | "device" | "cookie";
 
 export interface ChannelMeta {
   id: string;
+  displayName: string;
+  source: ChannelCatalogDto["source"];
+  providerFamily: ProviderFamily;
   family: SecretFamily;
   loginModes: LoginMode[];
-  /** GET /admin/credentials/{id}/usage supported */
+  settingsFields: readonly ChannelSettingField[];
   usage: boolean;
-  /** Exact upstream URLs that this channel resolves from settings_json.endpoints. */
   endpointKinds: readonly EndpointKind[];
-  /** Prefill for the manual secret editor */
-  secretTemplate: Record<string, unknown>;
-  /** providers:secret.* extra hint key, if any */
+  secretTemplate: unknown;
   hintKey?: string;
-  /** Extra params posted to authcode_start. geminicli needs `code_only:false` so
-   *  it uses the loopback redirect (a pasteable `?code=&state=` callback URL)
-   *  instead of the headless codeassist page that only shows a bare code. */
   loginParams?: Record<string, unknown>;
 }
 
@@ -77,96 +77,117 @@ const API_KEY_IDS = [
 
 const OAUTH_TOKENS = { access_token: "", refresh_token: "" };
 
-export const CHANNELS: ChannelMeta[] = [
-  ...API_KEY_IDS.map((id) => ({
-    id: id as string,
-    family: "api_key" as const,
-    loginModes: [] as LoginMode[],
+const DISPLAY_NAMES: Record<string, string> = {
+  aistudio: "Google AI Studio", antigravity: "Antigravity", "aws-bedrock": "AWS Bedrock",
+  claudeapi: "Claude API", claudecode: "Claude Code", claudeweb: "Claude Web",
+  copilotcli: "GitHub Copilot CLI", geminicli: "Gemini CLI",
+  grokbuild: "Grok Build", vertexexpress: "Vertex AI Express",
+};
+const CLAUDE_CHANNELS = new Set(["claudeapi", "claudecode", "claudeweb"]);
+const GEMINI_CHANNELS = new Set(["aistudio", "vertexexpress", "vertex", "geminicli", "antigravity"]);
+
+function providerFamily(id: string): ProviderFamily {
+  if (CLAUDE_CHANNELS.has(id)) return "claude";
+  if (GEMINI_CHANNELS.has(id)) return "gemini";
+  return "open_ai";
+}
+
+function builtinMeta(
+  id: string,
+  family: SecretFamily,
+  extra: Partial<ChannelMeta> = {},
+): ChannelMeta {
+  return {
+    id,
+    displayName: DISPLAY_NAMES[id] ?? id,
+    source: "builtin",
+    providerFamily: providerFamily(id),
+    family,
+    loginModes: [],
+    settingsFields: [],
     usage: false,
     endpointKinds: ENDPOINTS_BY_CHANNEL[id] ?? [],
-    secretTemplate: { api_key: "" },
-    hintKey: id === "aws-bedrock"
-      ? "bedrockApiKeyHint"
-      : undefined,
+    secretTemplate: family === "api_key" ? { api_key: "" } : {},
+    ...extra,
+  };
+}
+
+function oauthMeta(
+  id: string,
+  loginModes: LoginMode[],
+  extra: Partial<ChannelMeta> = {},
+): ChannelMeta {
+  return builtinMeta(id, "oauth_tokens", {
+    loginModes, usage: true, secretTemplate: { ...OAUTH_TOKENS }, ...extra,
+  });
+}
+
+export const CHANNELS: ChannelMeta[] = [
+  ...API_KEY_IDS.map((id) => builtinMeta(id, "api_key", {
+    hintKey: id === "aws-bedrock" ? "bedrockApiKeyHint" : undefined,
   })),
-  {
-    id: "vertex",
-    family: "service_account",
-    loginModes: [],
-    usage: false,
-    endpointKinds: [],
+  builtinMeta("vertex", "service_account", {
     secretTemplate: { client_email: "", private_key: "", project_id: "" },
-  },
-  {
-    id: "geminicli",
-    family: "oauth_tokens",
-    loginModes: ["authcode"],
-    usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.geminicli ?? [],
+  }),
+  oauthMeta("geminicli", ["authcode"], {
     secretTemplate: { ...OAUTH_TOKENS, project_id: "" },
     hintKey: "geminiHint",
-  },
-  {
-    id: "antigravity",
-    family: "oauth_tokens",
-    loginModes: ["authcode"],
-    usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.antigravity ?? [],
+  }),
+  oauthMeta("antigravity", ["authcode"], {
     secretTemplate: { ...OAUTH_TOKENS, project_id: "" },
     hintKey: "geminiHint",
-  },
-  {
-    id: "claudecode",
-    family: "oauth_tokens",
-    loginModes: ["authcode", "cookie"],
-    usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.claudecode ?? [],
-    secretTemplate: { ...OAUTH_TOKENS },
-  },
-  {
-    // Claude consumer web backend (native-only `channel-claudeweb` feature).
-    // Cookie login validates sessionKey and stores the selected chat org UUID.
-    id: "claudeweb",
-    family: "oauth_tokens",
-    loginModes: ["cookie"],
-    usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.claudeweb ?? [],
+  }),
+  oauthMeta("claudecode", ["authcode", "cookie"]),
+  oauthMeta("claudeweb", ["cookie"], {
     secretTemplate: { cookie: "", account_uuid: "" },
-  },
-  {
-    id: "codex",
-    family: "oauth_tokens",
-    loginModes: ["authcode", "device"],
-    usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.codex ?? [],
+  }),
+  oauthMeta("codex", ["authcode", "device"], {
     secretTemplate: { ...OAUTH_TOKENS, account_id: "" },
-  },
-  {
-    id: "grokbuild",
-    family: "oauth_tokens",
+  }),
+  oauthMeta("grokbuild", ["device"]),
+  oauthMeta("kiro", ["authcode", "device"]),
+  builtinMeta("copilotcli", "github_token", {
     loginModes: ["device"],
     usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.grokbuild ?? [],
-    secretTemplate: { ...OAUTH_TOKENS },
-  },
-  {
-    id: "kiro",
-    family: "oauth_tokens",
-    loginModes: ["authcode", "device"],
-    usage: true,
-    endpointKinds: ENDPOINTS_BY_CHANNEL.kiro ?? [],
-    secretTemplate: { ...OAUTH_TOKENS },
-  },
-  {
-    id: "copilotcli",
-    family: "github_token",
-    loginModes: ["device"],
-    usage: true,
-    endpointKinds: [],
     secretTemplate: { github_token: "" },
-  },
+  }),
 ];
 
-export function channelMeta(id: string): ChannelMeta | undefined {
-  return CHANNELS.find((c) => c.id === id);
+function normalizeRemote(entry: ChannelCatalogDto): ChannelMeta {
+  return {
+    id: entry.id,
+    displayName: entry.display_name,
+    source: entry.source,
+    providerFamily: entry.provider_family,
+    family: entry.credential_family,
+    loginModes: [...entry.login_modes],
+    settingsFields: entry.settings_fields.map((field) => ({ ...field })),
+    usage: entry.usage,
+    endpointKinds: [...entry.endpoint_kinds],
+    secretTemplate: entry.secret_template,
+  };
+}
+
+export function mergeChannelCatalog(remote: ChannelCatalogDto[] | undefined): ChannelMeta[] {
+  if (remote === undefined) return CHANNELS;
+  return remote.map((entry) => {
+    const normalized = normalizeRemote(entry);
+    const overlay = entry.source === "builtin" ? channelMeta(entry.id) : undefined;
+    return overlay
+      ? {
+          ...normalized,
+          ...overlay,
+          source: normalized.source,
+          displayName: normalized.displayName,
+          providerFamily: normalized.providerFamily,
+        }
+      : normalized;
+  });
+}
+
+export function channelMeta(
+  id: string,
+  catalog: readonly ChannelMeta[] = CHANNELS,
+): ChannelMeta | undefined {
+  return catalog.find((channel) => channel.id === id);
 }
