@@ -12,6 +12,7 @@ pub mod http_util;
 pub mod login;
 pub mod oauth;
 pub mod prepared;
+pub mod registration;
 pub mod registry;
 pub mod resolve;
 pub mod responses_websocket;

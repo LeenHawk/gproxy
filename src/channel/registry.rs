@@ -10,7 +10,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::channel::bulletins;
+use crate::channel::registration::RegisteredChannel;
 use crate::channel::{Channel, ChannelLogin};
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ChannelRegistryError {
+    #[error("channel `{0}` is already registered")]
+    DuplicateChannel(&'static str),
+    #[error("channel login `{0}` is already registered")]
+    DuplicateLogin(&'static str),
+}
 
 /// Registry of channel adapters keyed by `Channel::id` (== `Provider.channel`).
 ///
@@ -38,6 +47,18 @@ impl ChannelRegistry {
         Self { map, login }
     }
 
+    /// Build the built-in registry and apply compile-time external
+    /// registrations. External registration is native-only and feature-gated;
+    /// without it this is identical to [`with_builtin`](Self::with_builtin).
+    pub fn with_builtin_and_linked() -> Result<Self, ChannelRegistryError> {
+        let mut registry = Self::with_builtin();
+        #[cfg(all(not(target_arch = "wasm32"), feature = "external-channels"))]
+        for constructor in crate::channel::registration::CHANNEL_REGISTRATIONS {
+            registry.register(constructor())?;
+        }
+        Ok(registry)
+    }
+
     /// Look up a channel by id.
     pub fn get(&self, id: &str) -> Option<Arc<dyn Channel>> {
         self.map.get(id).cloned()
@@ -48,14 +69,25 @@ impl ChannelRegistry {
         self.login.get(id).cloned()
     }
 
-    /// Test-only: build the full built-in set plus one extra (or overriding)
-    /// channel under `id`. Lets integration tests drive paths no built-in
-    /// channel exercises (e.g. a channel whose `refresh` succeeds).
-    #[cfg(test)]
-    pub fn with_channel(id: &'static str, channel: Arc<dyn Channel>) -> Self {
-        let mut reg = Self::with_builtin();
-        reg.map.insert(id, channel);
-        reg
+    /// Register one externally supplied channel and its optional login adapter.
+    /// Registration is startup-only; duplicate IDs are rejected rather than
+    /// depending on linker order or silently replacing a built-in channel.
+    pub fn register(
+        &mut self,
+        registration: RegisteredChannel,
+    ) -> Result<(), ChannelRegistryError> {
+        let id = registration.channel.id();
+        if self.map.contains_key(id) {
+            return Err(ChannelRegistryError::DuplicateChannel(id));
+        }
+        if registration.login.is_some() && self.login.contains_key(id) {
+            return Err(ChannelRegistryError::DuplicateLogin(id));
+        }
+        self.map.insert(id, registration.channel);
+        if let Some(login) = registration.login {
+            self.login.insert(id, login);
+        }
+        Ok(())
     }
 }
 
