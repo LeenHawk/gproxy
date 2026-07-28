@@ -135,13 +135,15 @@ async fn authdead_refresh_retry_succeeds() {
     let fake = Arc::new(fake);
 
     let refreshes = Arc::new(AtomicUsize::new(0));
-    let reg = Arc::new(ChannelRegistry::with_channel(
-        "test_refresh",
+    let mut reg = ChannelRegistry::with_builtin();
+    reg.register(crate::channel::registration::RegisteredChannel::new(
         Arc::new(RefreshChannel {
             refreshes: refreshes.clone(),
             should_fail: false,
         }),
-    ));
+    ))
+    .unwrap();
+    let reg = Arc::new(reg);
     let (state, _dir) = build_state(
         Arc::clone(&fake),
         REFRESH_BUNDLE,
@@ -212,13 +214,15 @@ async fn refresh_failure_skips_credential() {
     let fake = Arc::new(fake);
 
     let refreshes = Arc::new(AtomicUsize::new(0));
-    let reg = Arc::new(ChannelRegistry::with_channel(
-        "test_refresh",
+    let mut reg = ChannelRegistry::with_builtin();
+    reg.register(crate::channel::registration::RegisteredChannel::new(
         Arc::new(RefreshChannel {
             refreshes: refreshes.clone(),
             should_fail: true,
         }),
-    ));
+    ))
+    .unwrap();
+    let reg = Arc::new(reg);
     let (state, _dir) = build_state(
         Arc::clone(&fake),
         REFRESH_BUNDLE,
