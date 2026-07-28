@@ -1,0 +1,32 @@
+[package]
+name = "gproxy-channel-api"
+version = "2.1.6"
+edition = "2024"
+authors = ["LeenHawk <leenhawk@leenhawk.com>"]
+license = "MIT"
+description = "Channel contracts for extending GPROXY with provider adapters"
+homepage = "https://gproxy.leenhawk.com"
+repository = "https://github.com/LeenHawk/gproxy"
+readme = "README.md"
+keywords = ["llm", "proxy", "provider", "channel", "api"]
+categories = ["api-bindings", "web-programming"]
+
+[features]
+external-channels = ["dep:linkme"]
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1"
+futures-core = "0.3"
+futures-util = "0.3"
+gproxy-protocol = { path = "../gproxy-protocol", version = "2.1.6" }
+gproxy-transform = { path = "../gproxy-transform", version = "2.1.6" }
+http = "1"
+httpdate = "1"
+linkme = { version = "0.3", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"

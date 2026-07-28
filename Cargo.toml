@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [workspace]
 members = [
+    "crates/gproxy-channel-api",
     "crates/gproxy-protocol",
     "crates/gproxy-tokenize",
     "crates/gproxy-transform",
@@ -34,6 +35,7 @@ bytes = "1"
 chacha20poly1305 = "0.11.0"
 futures-core = "0.3"
 futures-util = "0.3"
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "2.1.6" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.1.6" }
 gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "2.1.6" }
 gproxy-transform = { path = "crates/gproxy-transform", version = "2.1.6" }
@@ -58,7 +60,8 @@ dashmap = "6"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 axum = { version = "0.8", features = ["http2", "json", "ws"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "sync"] }
-linkme = { version = "0.3", optional = true }
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "2.1.6", features = ["external-channels"] }
+linkme = "0.3"
 # §16.2 overload protection: bounded in-flight concurrency + load-shed → 503.
 tower = { version = "0.5", default-features = false, features = ["util", "limit", "load-shed"] }
 tower-http = { version = "0.7", features = ["cors"] }
@@ -139,9 +142,6 @@ persist-db = ["dep:sea-orm"]
 migrate-v1 = ["dep:sqlx", "persist-db"]
 # outbound transport (native)
 upstream-wreq = ["dep:wreq", "dep:wreq-util"]
-# Compile-time collection of externally linked channel crates. Native only;
-# edge bundles retain their explicit built-in channel set.
-external-channels = ["dep:linkme"]
 # local token counting: tiktoken + HF tokenizers registry (native only)
 count-local = ["gproxy-tokenize/count-local"]
 
@@ -201,7 +201,7 @@ channel-vertex = []
 channel-vertexexpress = []
 
 # dev convenience: all native backends
-full = ["cache-memory", "cache-redis", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels", "external-channels"]
+full = ["cache-memory", "cache-redis", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels"]
 
 
 [profile.release]

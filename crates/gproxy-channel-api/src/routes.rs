@@ -7,7 +7,7 @@
 use crate::protocol::{
     ContentGenerationKind as Cg, Operation, OperationKey, OperationKind, Provider,
 };
-use crate::transform::routing::RoutingDecision;
+use gproxy_transform::routing::RoutingDecision;
 
 /// A channel's declared routing surface: source cell → decision.
 pub type RouteList = Vec<(OperationKey, RoutingDecision)>;

@@ -1885,6 +1885,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.17",
  "getrandom 0.4.3",
+ "gproxy-channel-api",
  "gproxy-protocol",
  "gproxy-tokenize",
  "gproxy-transform",
@@ -1924,6 +1925,25 @@ dependencies = [
  "wreq",
  "wreq-util",
  "zip",
+]
+
+[[package]]
+name = "gproxy-channel-api"
+version = "2.1.6"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "gproxy-protocol",
+ "gproxy-transform",
+ "http",
+ "httpdate",
+ "js-sys",
+ "linkme",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

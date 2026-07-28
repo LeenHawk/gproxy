@@ -61,7 +61,7 @@ impl ChannelRegistry {
     /// without it this is identical to [`with_builtin`](Self::with_builtin).
     pub fn with_builtin_and_linked() -> Result<Self, ChannelRegistryError> {
         let registry = Self::with_builtin();
-        #[cfg(all(not(target_arch = "wasm32"), feature = "external-channels"))]
+        #[cfg(not(target_arch = "wasm32"))]
         {
             let mut registry = registry;
             for constructor in crate::channel::registration::CHANNEL_REGISTRATIONS {
@@ -69,7 +69,7 @@ impl ChannelRegistry {
             }
             return Ok(registry);
         }
-        #[cfg(not(all(not(target_arch = "wasm32"), feature = "external-channels")))]
+        #[cfg(target_arch = "wasm32")]
         Ok(registry)
     }
 

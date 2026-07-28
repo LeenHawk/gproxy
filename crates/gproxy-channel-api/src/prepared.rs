@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 
-use crate::http::client::{ClientError, UpstreamClient};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::transport::RespStream;
+use crate::transport::{ClientError, UpstreamClient};
 
 /// A channel-driven multi-step upstream exchange. The pipeline injects the
 /// resolved `(proxy, emulation)` client; the closure performs whatever sequence
@@ -43,11 +45,7 @@ pub type CustomStreamSend = Box<
             Box<
                 dyn Future<
                         Output = Result<
-                            (
-                                http::StatusCode,
-                                http::HeaderMap,
-                                crate::http::client::RespStream,
-                            ),
+                            (http::StatusCode, http::HeaderMap, RespStream),
                             ClientError,
                         >,
                     > + Send,
@@ -55,14 +53,14 @@ pub type CustomStreamSend = Box<
         > + Send,
 >;
 
-/// The output of [`Channel::prepare`]: either a single direct upstream request
+/// The output of [`Channel::prepare`](crate::Channel::prepare): either a single direct upstream request
 /// (the common case — the pipeline sends it once), or a channel-driven
 /// multi-step exchange ([`CustomSend`]).
 ///
 /// Proxy and TLS-emulation are NOT carried here — they are per-credential /
 /// global / channel-default concerns resolved by the executor
-/// (see [`crate::channel::resolve`]), not the channel's to decide; the executor
-/// injects the resolved client into a `Custom` closure.
+/// not the channel's to decide; the executor injects the resolved client into a
+/// `Custom` closure.
 // `Direct` (a full `http::Request`) is the hot path — every normal request. The
 // size gap vs the boxed `Custom` closure is real, but boxing `Direct` to close
 // it would add a heap allocation to EVERY request for the sake of the rare

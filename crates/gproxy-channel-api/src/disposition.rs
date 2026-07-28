@@ -74,8 +74,21 @@ fn parse_retry_after(headers: &HeaderMap) -> Option<Duration> {
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
         .as_secs() as i64;
-    let now = crate::util::time::unix_now();
+    let now = unix_now();
     (target > now).then(|| Duration::from_secs((target - now) as u64))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+#[cfg(target_arch = "wasm32")]
+fn unix_now() -> i64 {
+    (js_sys::Date::now() / 1000.0) as i64
 }
 
 #[cfg(test)]
