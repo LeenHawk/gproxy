@@ -5,6 +5,7 @@ pub mod context;
 pub mod disposition;
 pub mod error;
 pub mod login;
+pub mod metadata;
 pub mod prepared;
 pub mod registration;
 pub mod routes;
@@ -20,6 +21,10 @@ pub use gproxy_transform as transform;
 pub use login::{
     AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, ChannelLogin, CookieExchangeCtx,
     DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx,
+};
+pub use metadata::{
+    ChannelCatalogEntry, ChannelMetadata, ChannelSettingField, ChannelSource, CredentialFamily,
+    LoginMode, SettingControl,
 };
 pub use prepared::PreparedRequest;
 pub use registration::{ChannelRegistration, RegisteredChannel};

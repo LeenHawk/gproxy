@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::channel::bulletins;
 use crate::channel::registration::RegisteredChannel;
-use crate::channel::{Channel, ChannelLogin};
+use crate::channel::{Channel, ChannelCatalogEntry, ChannelLogin, ChannelSource};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ChannelRegistryError {
@@ -30,6 +30,7 @@ pub enum ChannelRegistryError {
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
+    source: HashMap<&'static str, ChannelSource>,
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
     emulation: HashMap<&'static str, crate::channel::emulation::EmulationFactory>,
 }
@@ -46,11 +47,13 @@ impl ChannelRegistry {
         for (id, lg) in builtin_logins() {
             login.insert(id, lg);
         }
+        let source = map.keys().map(|id| (*id, ChannelSource::Builtin)).collect();
         #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
         let emulation = crate::channel::emulation::builtin().into_iter().collect();
         Self {
             map,
             login,
+            source,
             #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
             emulation,
         }
@@ -83,6 +86,29 @@ impl ChannelRegistry {
         self.login.get(id).cloned()
     }
 
+    /// Metadata for every channel compiled into this binary, sorted by id.
+    pub fn catalog(&self) -> Vec<ChannelCatalogEntry> {
+        let mut entries = self
+            .map
+            .iter()
+            .map(|(id, channel)| {
+                let source = self
+                    .source
+                    .get(id)
+                    .copied()
+                    .unwrap_or(ChannelSource::External);
+                let mut metadata = match source {
+                    ChannelSource::Builtin => crate::channel::metadata::builtin(channel.as_ref()),
+                    ChannelSource::External => channel.metadata(),
+                };
+                metadata.id = (*id).to_string();
+                ChannelCatalogEntry { source, metadata }
+            })
+            .collect::<Vec<_>>();
+        entries.sort_by(|a, b| a.metadata.id.cmp(&b.metadata.id));
+        entries
+    }
+
     /// Resolve a root-owned built-in TLS/HTTP impersonation profile.
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
     pub fn default_emulation(&self, id: &str) -> Option<wreq::Emulation> {
@@ -104,6 +130,7 @@ impl ChannelRegistry {
             return Err(ChannelRegistryError::DuplicateLogin(id));
         }
         self.map.insert(id, registration.channel);
+        self.source.insert(id, ChannelSource::External);
         if let Some(login) = registration.login {
             self.login.insert(id, login);
         }

@@ -9,6 +9,7 @@ use serde_json::Value;
 use crate::context::{PrepareCtx, RefreshCtx, ShapeCtx, TransportKind};
 use crate::disposition::Disposition;
 use crate::error::ChannelError;
+use crate::metadata::ChannelMetadata;
 use crate::prepared::PreparedRequest;
 use crate::transport::{ByteStreamDecoder as ChannelStreamDecoder, UpstreamClient};
 use crate::usage::{RateLimitResetCreditConsumeResponse, UsageSnapshot};
@@ -24,6 +25,11 @@ pub trait Channel: Send + Sync {
 
     /// The provider family this channel's upstream belongs to (billing/usage).
     fn provider_family(&self) -> crate::protocol::Provider;
+
+    /// Metadata for runtime discovery and generic configuration UIs.
+    fn metadata(&self) -> ChannelMetadata {
+        ChannelMetadata::new(self.id(), self.provider_family())
+    }
 
     /// The channel's explicit routing surface (ported from its capabilities).
     fn routing_table(&self) -> crate::routes::RouteList;

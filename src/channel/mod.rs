@@ -6,6 +6,7 @@ pub mod bulletins;
 pub(crate) mod emulation;
 pub mod envelope;
 pub mod http_util;
+pub(crate) mod metadata;
 pub mod oauth;
 pub mod registry;
 pub mod resolve;
@@ -14,11 +15,12 @@ pub mod settings;
 pub mod shaping;
 
 pub use gproxy_channel_api::{
-    AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, Channel, ChannelError, ChannelLogin,
-    ChannelStreamDecoder, CookieExchangeCtx, DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx,
-    Disposition, PrepareCtx, PreparedRequest, RateLimitResetCreditConsumeOutcome,
-    RateLimitResetCreditConsumeResponse, RateLimitResetCredits, RefreshCtx, ShapeCtx,
-    TransportKind, UsageCredits, UsageSnapshot, UsageWindow,
+    AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, Channel, ChannelCatalogEntry,
+    ChannelError, ChannelLogin, ChannelMetadata, ChannelSettingField, ChannelSource,
+    ChannelStreamDecoder, CookieExchangeCtx, CredentialFamily, DeviceInit, DevicePoll,
+    DevicePollCtx, DeviceStartCtx, Disposition, LoginMode, PrepareCtx, PreparedRequest,
+    RateLimitResetCreditConsumeOutcome, RateLimitResetCreditConsumeResponse, RateLimitResetCredits,
+    RefreshCtx, SettingControl, ShapeCtx, TransportKind, UsageCredits, UsageSnapshot, UsageWindow,
 };
 pub use gproxy_channel_api::{
     disposition, login, prepared, registration, routes, transport, usage,

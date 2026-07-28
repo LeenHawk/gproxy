@@ -140,6 +140,32 @@ fn parse_json(resp: &super::Resp) -> serde_json::Value {
 }
 
 #[tokio::test]
+async fn channel_catalog_is_guarded_and_sorted() {
+    let (state, _dir) = state_with(vec![]).await;
+    let unauthenticated = parts("GET", "/admin/channels", None, None);
+    assert_eq!(
+        run(&state, &unauthenticated, b"")
+            .await
+            .expect_err("admin guard")
+            .status(),
+        http::StatusCode::UNAUTHORIZED
+    );
+
+    let admin_id = seed_user(&state, "channel-admin", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+    let request = parts("GET", "/admin/channels", Some(&cookie), None);
+    let response = run(&state, &request, b"").await.expect("catalog");
+    assert_eq!(response.status, http::StatusCode::OK);
+    let entries = parse_json(&response).as_array().unwrap().clone();
+    let ids = entries
+        .iter()
+        .map(|entry| entry["id"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
+    assert!(entries.iter().all(|entry| entry["source"] == "builtin"));
+}
+
+#[tokio::test]
 async fn admin_me_with_cookie_ok_without_cookie_401() {
     let (state, _dir) = state_with(vec![]).await;
     let admin_id = seed_user(&state, "admin", true).await;
