@@ -7,6 +7,8 @@
 pub(crate) mod aws_eventstream;
 pub mod bulletins;
 pub mod disposition;
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) mod emulation;
 pub mod envelope;
 pub mod http_util;
 pub mod login;
@@ -264,17 +266,6 @@ pub trait Channel: Send + Sync {
         _headers: &HeaderMap,
         _body: &Bytes,
     ) -> Option<RateLimitResetCreditConsumeResponse> {
-        None
-    }
-
-    /// Built-in TLS + HTTP/2 impersonation profile for this channel (§7.4),
-    /// available when instance settings explicitly enable spoof emulation and no
-    /// DB `tls_fingerprint` (credential/provider) overrides it. `None` (the
-    /// default) means no built-in profile — the default client.
-    /// Impersonation channels build it from `wreq` typed options in their own
-    /// `fingerprint.rs`. Native + `upstream-wreq` only.
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
         None
     }
 }

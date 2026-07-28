@@ -30,6 +30,8 @@ pub enum ChannelRegistryError {
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    emulation: HashMap<&'static str, crate::channel::emulation::EmulationFactory>,
 }
 
 impl ChannelRegistry {
@@ -44,7 +46,14 @@ impl ChannelRegistry {
         for (id, lg) in builtin_logins() {
             login.insert(id, lg);
         }
-        Self { map, login }
+        #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+        let emulation = crate::channel::emulation::builtin().into_iter().collect();
+        Self {
+            map,
+            login,
+            #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+            emulation,
+        }
     }
 
     /// Build the built-in registry and apply compile-time external
@@ -72,6 +81,12 @@ impl ChannelRegistry {
     /// Look up a channel's interactive login, or `None` if it has no login flow.
     pub fn login_for(&self, id: &str) -> Option<Arc<dyn ChannelLogin>> {
         self.login.get(id).cloned()
+    }
+
+    /// Resolve a root-owned built-in TLS/HTTP impersonation profile.
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    pub fn default_emulation(&self, id: &str) -> Option<wreq::Emulation> {
+        self.emulation.get(id).map(|factory| factory())
     }
 
     /// Register one externally supplied channel and its optional login adapter.
@@ -190,43 +205,5 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
 impl Default for ChannelRegistry {
     fn default() -> Self {
         Self::with_builtin()
-    }
-}
-
-#[cfg(all(test, not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-mod emulation_tests {
-    use super::builtin_channels;
-    use crate::http::client::WreqClient;
-
-    /// Every impersonation channel's opt-in built-in `default_emulation` must
-    /// build a real wreq client. BoringSSL validates the cipher/curve/sigalg
-    /// token strings only at client-build time (not `TlsOptions::build`), so
-    /// this is the test that catches a bad token in a channel's `fingerprint.rs`.
-    #[test]
-    fn channel_default_emulations_build() {
-        let expected = [
-            "claudecode",
-            "codex",
-            "geminicli",
-            "antigravity",
-            "kiro",
-            "copilotcli",
-            "claudeweb",
-        ];
-        let mut found = Vec::new();
-        for ch in builtin_channels() {
-            if let Some(emu) = ch.default_emulation() {
-                WreqClient::with_proxy_and_emulation(None, Some(emu)).unwrap_or_else(|e| {
-                    panic!("{}: default_emulation client build failed: {e}", ch.id())
-                });
-                found.push(ch.id());
-            }
-        }
-        for id in expected {
-            assert!(
-                found.contains(&id),
-                "{id} should expose a default_emulation"
-            );
-        }
     }
 }
