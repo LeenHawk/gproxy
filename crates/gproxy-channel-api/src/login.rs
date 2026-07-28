@@ -9,12 +9,12 @@
 //! Pure async + `serde_json` — no cipher, no persistence, no axum. Compiles on
 //! native AND wasm (the registry that holds these is used on every target); the
 //! admin HTTP endpoints that drive the flow are native-only. The dual
-//! `#[cfg_attr]` async_trait Send/?Send split mirrors [`Channel`].
+//! `#[cfg_attr]` async_trait Send/?Send split mirrors [`Channel`](crate::Channel).
 
 use std::sync::Arc;
 
-use crate::channel::ChannelError;
-use crate::http::client::UpstreamClient;
+use crate::error::ChannelError;
+use crate::transport::UpstreamClient;
 
 /// The output of [`ChannelLogin::authcode_start`]: where to send the user, and
 /// the redirect_uri the channel actually used.
@@ -133,7 +133,8 @@ pub trait ChannelLogin: Send + Sync {
 
     /// Begin a device-code login: ask the provider for a device + user code.
     /// `None`-by-default channels return `Unsupported`. The caller stashes the
-    /// returned `device_code` server-side and polls [`device_poll`].
+    /// returned `device_code` server-side and polls
+    /// [`device_poll`](ChannelLogin::device_poll).
     ///
     /// `params` is opaque operator-supplied input (mirrors
     /// [`authcode_start`](ChannelLogin::authcode_start)) — e.g.
@@ -148,7 +149,8 @@ pub trait ChannelLogin: Send + Sync {
     }
 
     /// Poll a pending device-code login with the `device_code` from
-    /// [`device_start`]. Returns [`DevicePoll::Ready`] with the PLAINTEXT secret
+    /// [`device_start`](ChannelLogin::device_start). Returns [`DevicePoll::Ready`]
+    /// with the PLAINTEXT secret
     /// once authorized (the caller seals + persists), else `Pending`/`Denied`.
     async fn device_poll(
         &self,
