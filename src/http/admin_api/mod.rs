@@ -11,6 +11,7 @@
 pub(crate) mod auth;
 pub(crate) mod authz;
 pub(crate) mod batch;
+mod channels;
 pub(crate) mod credential_ops;
 pub mod crud;
 mod host;
@@ -307,6 +308,10 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
         return Some(r);
     }
 
+    if let Some(r) = channels::dispatch(state, parts).await {
+        return Some(r);
+    }
+
     // 4. Authz-scoped entities (route-permissions / rate-limits / quotas).
     if let Some(r) = authz::dispatch(state, parts, body).await {
         return Some(r);
@@ -373,7 +378,7 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
 fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
     match segments {
         ["admin", "login" | "logout"] => Some("POST"),
-        ["admin", "me"] => Some("GET,HEAD"),
+        ["admin", "me" | "channels"] => Some("GET,HEAD"),
         ["admin", "autostart"] => Some("GET,HEAD,PUT"),
         [
             "admin",
