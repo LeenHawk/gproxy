@@ -279,7 +279,7 @@ impl AppState {
         if channel.cookie_login_requires_browser() {
             return self.client_pool.for_browser(proxy);
         }
-        match channel.default_emulation() {
+        match self.channels.default_emulation(channel.id()) {
             Some(emulation) => self.client_pool.for_channel(proxy, channel.id(), emulation),
             None => self.client_pool.for_target(proxy, None),
         }
@@ -350,7 +350,7 @@ impl AppState {
         if let Some(fp) = fingerprint.as_ref() {
             self.client_pool.for_target(proxy.as_deref(), Some(fp))
         } else if spoof_emulation {
-            if let Some(emu) = channel.default_emulation() {
+            if let Some(emu) = self.channels.default_emulation(channel.id()) {
                 self.client_pool
                     .for_channel(proxy.as_deref(), channel.id(), emu)
             } else {

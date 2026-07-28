@@ -34,6 +34,11 @@ use crate::protocol::Provider;
 
 pub struct AntigravityChannel;
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for AntigravityChannel {
@@ -117,11 +122,6 @@ impl Channel for AntigravityChannel {
         ];
         routes.extend(responses_ws_to(cg(GeminiGenerateContent)));
         routes
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {

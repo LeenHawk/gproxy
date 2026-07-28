@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use http::{Request, Response, StatusCode};
 use serde_json::{Value, json};
 
-use super::{ClaudeWebChannel, auth, models};
+use super::{ClaudeWebChannel, auth, default_emulation, models};
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, PreparedRequest};
 use crate::http::client::{ClientError, RespStream, UpstreamClient};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind};
@@ -258,11 +258,8 @@ async fn live_tool_result_round_trip() {
     let device_id = std::env::var("CLAUDE_DEVICE_ID").ok();
     let channel = ClaudeWebChannel;
     let client: Arc<dyn UpstreamClient> = Arc::new(
-        crate::http::client::WreqClient::with_proxy_and_emulation(
-            None,
-            channel.default_emulation(),
-        )
-        .expect("browser client"),
+        crate::http::client::WreqClient::with_proxy_and_emulation(None, Some(default_emulation()))
+            .expect("browser client"),
     );
     let secret = match organization {
         Some(organization) => json!({

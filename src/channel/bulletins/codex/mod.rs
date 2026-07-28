@@ -33,6 +33,11 @@ use crate::protocol::{Operation, Provider};
 
 pub struct CodexChannel;
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for CodexChannel {
@@ -136,11 +141,6 @@ impl Channel for CodexChannel {
             unsupported(CreateEmbedding, pv(P::Gemini)),
             pass(CompactContent, pv(P::OpenAi)),
         ]
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
