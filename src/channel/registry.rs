@@ -51,11 +51,16 @@ impl ChannelRegistry {
     /// registrations. External registration is native-only and feature-gated;
     /// without it this is identical to [`with_builtin`](Self::with_builtin).
     pub fn with_builtin_and_linked() -> Result<Self, ChannelRegistryError> {
-        let mut registry = Self::with_builtin();
+        let registry = Self::with_builtin();
         #[cfg(all(not(target_arch = "wasm32"), feature = "external-channels"))]
-        for constructor in crate::channel::registration::CHANNEL_REGISTRATIONS {
-            registry.register(constructor())?;
+        {
+            let mut registry = registry;
+            for constructor in crate::channel::registration::CHANNEL_REGISTRATIONS {
+                registry.register(constructor())?;
+            }
+            return Ok(registry);
         }
+        #[cfg(not(all(not(target_arch = "wasm32"), feature = "external-channels")))]
         Ok(registry)
     }
 

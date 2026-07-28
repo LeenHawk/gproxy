@@ -52,7 +52,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
                 dsn
             }
         };
-        let channels = gproxy::channel::registry::ChannelRegistry::with_builtin();
+        let channels = gproxy::channel::registry::ChannelRegistry::with_builtin_and_linked()?;
         let report =
             gproxy::app::migrate_v1::run_cli(from, &to_dsn, *dry_run, cipher.as_ref(), &channels)
                 .await?;
@@ -108,7 +108,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
     #[cfg(feature = "migrate-v1")]
     if cli.command.is_none() {
         let PersistenceConfig::Db { dsn } = &config.persistence;
-        let channels = gproxy::channel::registry::ChannelRegistry::with_builtin();
+        let channels = gproxy::channel::registry::ChannelRegistry::with_builtin_and_linked()?;
         if let Some(report) =
             gproxy::app::migrate_v1::maybe_migrate_on_boot(dsn, cipher.as_ref(), &channels).await?
         {
@@ -190,7 +190,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
     // resets the admin every startup. Only on the serve path — the import/
     // export subcommands have already returned above.
     let bootstrap_admin_api_key = std::env::var("GPROXY_BOOTSTRAP_ADMIN_API_KEY").ok();
-    let channels = gproxy::channel::registry::ChannelRegistry::with_builtin();
+    let channels = gproxy::channel::registry::ChannelRegistry::with_builtin_and_linked()?;
     gproxy::app::install_setup::ensure(
         persistence.as_ref(),
         cipher.as_ref(),

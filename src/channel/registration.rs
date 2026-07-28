@@ -87,4 +87,20 @@ mod tests {
             ChannelRegistryError::DuplicateChannel("registration-test")
         );
     }
+
+    #[cfg(all(not(target_arch = "wasm32"), feature = "external-channels"))]
+    fn linked_test_channel() -> RegisteredChannel {
+        RegisteredChannel::new(Arc::new(TestChannel))
+    }
+
+    #[cfg(all(not(target_arch = "wasm32"), feature = "external-channels"))]
+    #[linkme::distributed_slice(CHANNEL_REGISTRATIONS)]
+    static LINKED_TEST_CHANNEL: ChannelRegistration = linked_test_channel;
+
+    #[cfg(all(not(target_arch = "wasm32"), feature = "external-channels"))]
+    #[test]
+    fn linked_registrations_are_loaded() {
+        let registry = ChannelRegistry::with_builtin_and_linked().unwrap();
+        assert!(registry.get("registration-test").is_some());
+    }
 }
