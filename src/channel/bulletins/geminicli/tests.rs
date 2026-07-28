@@ -234,9 +234,20 @@ impl UpstreamClient for NoopUpstream {
 #[tokio::test]
 async fn authcode_start_selects_redirect_by_code_only() {
     let client: Arc<dyn UpstreamClient> = Arc::new(NoopUpstream);
+    let settings = Value::Null;
 
+    let params = json!({});
     let start = GeminiCliChannel
-        .authcode_start(&client, &json!({}), "", "ST", "CH")
+        .authcode_start(
+            &client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "ST",
+                pkce_challenge: "CH",
+            },
+        )
         .await
         .unwrap()
         .unwrap();
@@ -247,15 +258,35 @@ async fn authcode_start_selects_redirect_by_code_only() {
             .contains("redirect_uri=https%3A%2F%2Fcodeassist.google.com%2Fauthcode")
     );
 
+    let params = json!({ "code_only": true });
     let start = GeminiCliChannel
-        .authcode_start(&client, &json!({ "code_only": true }), "", "ST", "CH")
+        .authcode_start(
+            &client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "ST",
+                pkce_challenge: "CH",
+            },
+        )
         .await
         .unwrap()
         .unwrap();
     assert_eq!(start.redirect_uri, "https://codeassist.google.com/authcode");
 
+    let params = json!({ "code_only": false });
     let start = GeminiCliChannel
-        .authcode_start(&client, &json!({ "code_only": false }), "", "ST", "CH")
+        .authcode_start(
+            &client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "ST",
+                pkce_challenge: "CH",
+            },
+        )
         .await
         .unwrap()
         .unwrap();
@@ -266,13 +297,17 @@ async fn authcode_start_selects_redirect_by_code_only() {
             .contains("127.0.0.1%3A1455%2Foauth2callback")
     );
 
+    let params = json!({ "code_only": true });
     let start = GeminiCliChannel
         .authcode_start(
             &client,
-            &json!({ "code_only": true }),
-            "http://127.0.0.1:9999/cb",
-            "ST",
-            "CH",
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "http://127.0.0.1:9999/cb",
+                state: "ST",
+                pkce_challenge: "CH",
+            },
         )
         .await
         .unwrap()

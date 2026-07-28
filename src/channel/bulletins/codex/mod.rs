@@ -162,9 +162,9 @@ impl Channel for CodexChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        token::refresh(client, secret).await
+        token::refresh(client, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -235,13 +235,10 @@ impl ChannelLogin for CodexChannel {
     async fn authcode_start(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _params: &Value,
-        redirect_uri: &str,
-        state: &str,
-        pkce_challenge: &str,
+        ctx: crate::channel::AuthCodeStartCtx<'_>,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
         let (authorize_url, redirect_uri) =
-            auth::authcode_start(redirect_uri, state, pkce_challenge);
+            auth::authcode_start(ctx.redirect_uri, ctx.state, ctx.pkce_challenge);
         Ok(Some(AuthCodeStart {
             authorize_url,
             redirect_uri,
@@ -252,18 +249,15 @@ impl ChannelLogin for CodexChannel {
     async fn authcode_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        code: &str,
-        verifier: &str,
-        redirect_uri: &str,
-        _extra: Option<&Value>,
+        ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::authcode_exchange(client, code, verifier, redirect_uri).await
+        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri).await
     }
 
     async fn device_start(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        _params: &Value,
+        _ctx: crate::channel::DeviceStartCtx<'_>,
     ) -> Result<DeviceInit, ChannelError> {
         auth::device_start(client).await
     }
@@ -271,8 +265,8 @@ impl ChannelLogin for CodexChannel {
     async fn device_poll(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        device_code: &str,
+        ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        auth::device_poll(client, device_code).await
+        auth::device_poll(client, ctx.device_code).await
     }
 }

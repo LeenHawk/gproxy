@@ -379,8 +379,19 @@ fn forwards_codex_client_headers() {
 #[tokio::test]
 async fn codex_authcode_start_url() {
     let client: Arc<dyn UpstreamClient> = Arc::new(NoopUpstream);
+    let settings = Value::Null;
+    let params = json!({});
     let start = CodexChannel
-        .authcode_start(&client, &json!({}), "", "STATE", "CHAL")
+        .authcode_start(
+            &client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "STATE",
+                pkce_challenge: "CHAL",
+            },
+        )
         .await
         .expect("authcode_start ok")
         .expect("codex supports authcode");

@@ -271,7 +271,19 @@ async fn live_tool_result_round_trip() {
             "capabilities":["chat"],
             "device_id":device_id.unwrap_or_else(crate::util::rand::uuid_v4)
         }),
-        None => channel.cookie_exchange(&client, &cookie).await.unwrap(),
+        None => {
+            let settings = Value::Null;
+            channel
+                .cookie_exchange(
+                    &client,
+                    crate::channel::CookieExchangeCtx {
+                        provider_settings: &settings,
+                        cookie: &cookie,
+                    },
+                )
+                .await
+                .unwrap()
+        }
     };
     let settings = json!({"timezone":"Asia/Singapore"});
     let headers = http::HeaderMap::new();

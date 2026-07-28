@@ -36,7 +36,7 @@ impl Channel for DelayedInvalidGrant {
     async fn refresh(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _secret: &Value,
+        _ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         Err(ChannelError::InvalidCredential("invalid_grant".into()))

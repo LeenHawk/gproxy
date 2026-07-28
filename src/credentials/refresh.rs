@@ -19,7 +19,7 @@ mod locks;
 
 use locks::RefreshLocks;
 
-use crate::channel::{Channel, ChannelError};
+use crate::channel::{Channel, ChannelError, RefreshCtx};
 use crate::crypto::SecretCipher;
 use crate::http::client::{ClientError, UpstreamClient};
 use crate::store::cache::{CacheBackend, LockAttempt};
@@ -49,6 +49,7 @@ pub struct RefreshDeps<'a> {
     pub persistence: &'a dyn PersistenceBackend,
     pub cache: &'a dyn CacheBackend,
     pub cipher: &'a dyn SecretCipher,
+    pub provider_settings: &'a Value,
     pub resolve_client: &'a RefreshClientResolver<'a>,
 }
 
@@ -252,7 +253,15 @@ async fn refresh_and_persist(
 
     let client = (deps.resolve_client)(&current.secret)
         .map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?;
-    let fresh = channel.refresh(&client, &current.secret).await?;
+    let fresh = channel
+        .refresh(
+            &client,
+            RefreshCtx {
+                secret: &current.secret,
+                provider_settings: deps.provider_settings,
+            },
+        )
+        .await?;
 
     let sealed = deps
         .cipher
