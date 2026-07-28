@@ -13,6 +13,7 @@ pub mod app;
 pub mod autostart;
 pub mod billing;
 pub mod channel;
+pub use gproxy_channel_api as channel_api;
 pub mod config;
 pub mod credentials;
 pub mod crypto;
