@@ -1,6 +1,11 @@
 //! GPROXY v2 library crate. The binary (`main.rs`) is a thin wiring
 //! layer over these modules.
 
+// Native bootstrap modules historically used the package name because they
+// lived in the binary crate. Keep that path valid when compiling them into the
+// reusable library entrypoint.
+extern crate self as gproxy;
+
 pub mod admin;
 pub mod api;
 pub mod app;
@@ -13,6 +18,8 @@ pub mod credentials;
 pub mod crypto;
 pub mod health;
 pub mod http;
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub mod native;
 pub mod pipeline;
 pub mod process;
 pub use gproxy_protocol as protocol;
