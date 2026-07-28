@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { channelMeta, type EndpointKind } from "@/lib/channel-meta";
+import type { EndpointKind } from "@/lib/channel-meta";
 
 export interface EndpointRow {
   kind: EndpointKind | "";
@@ -15,7 +15,7 @@ export interface EndpointRow {
 }
 
 interface EndpointFieldsProps {
-  channel: string;
+  endpointKinds: readonly EndpointKind[];
   rows: EndpointRow[];
   onChange: (rows: EndpointRow[]) => void;
 }
@@ -42,13 +42,13 @@ export function isValidEndpointUrl(input: string): boolean {
   }
 }
 
-export function EndpointFields({ channel, rows, onChange }: EndpointFieldsProps) {
+export function EndpointFields({ endpointKinds, rows, onChange }: EndpointFieldsProps) {
   const { t } = useTranslation("providers");
-  const kinds = channelMeta(channel)?.endpointKinds ?? [];
-  if (kinds.length === 0) return null;
+  if (endpointKinds.length === 0) return null;
 
   const selected = new Set(rows.map((row) => row.kind).filter(Boolean));
-  const canAdd = !rows.some((row) => !row.kind) && kinds.some((kind) => !selected.has(kind));
+  const canAdd = !rows.some((row) => !row.kind)
+    && endpointKinds.some((kind) => !selected.has(kind));
   const update = (index: number, next: Partial<EndpointRow>) =>
     onChange(rows.map((row, i) => i === index ? { ...row, ...next } : row));
 
@@ -79,13 +79,13 @@ export function EndpointFields({ channel, rows, onChange }: EndpointFieldsProps)
                 <SelectValue placeholder={t("endpoints.kindPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                {kinds.map((kind) => (
+                {endpointKinds.map((kind) => (
                   <SelectItem
                     key={kind}
                     value={kind}
                     disabled={kind !== row.kind && selected.has(kind)}
                   >
-                    {t(`endpoints.kinds.${kind}`)}
+                    {t(`endpoints.kinds.${kind}`, { defaultValue: kind })}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { credentialsQuery, deleteCredential, type CredentialView } from "@/api/credentials";
 import type { Provider } from "@/api/providers";
 import { ApiError } from "@/api/http";
-import { channelMeta } from "@/lib/channel-meta";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
@@ -20,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
+import { useChannelMeta } from "@/hooks/use-channel-catalog";
 
 function credName(c: CredentialView, fallback: string): string {
   return c.label ?? fallback;
@@ -30,7 +30,7 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
   const { t: tc } = useTranslation("common");
   const queryClient = useQueryClient();
   const { data: creds, isPending } = useQuery(credentialsQuery(provider.id));
-  const meta = channelMeta(provider.channel);
+  const meta = useChannelMeta(provider.channel);
   const rows = creds ?? [];
   const batch = useBatch("credentials", ["providers", provider.id, "credentials"]);
   const ids = rows.map((c) => c.id);
@@ -178,7 +178,7 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         <CredentialForm
           key={editTarget?.id ?? "new"}
           providerId={provider.id}
-          channel={provider.channel}
+          meta={meta}
           credential={editTarget}
           onSaved={() => setFormOpen(false)}
         />
@@ -199,15 +199,18 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
       <EntityDialog
         open={wizardOpen}
         onOpenChange={setWizardOpen}
-        title={t("wizard.title", { channel: provider.channel })}
+        title={t("wizard.title", { channel: meta?.displayName ?? provider.channel })}
       >
-        <OAuthWizard
-          provider={provider}
-          onDone={() => {
-            toast.success(t("wizard.done"));
-            setWizardOpen(false);
-          }}
-        />
+        {meta && (
+          <OAuthWizard
+            provider={provider}
+            meta={meta}
+            onDone={() => {
+              toast.success(t("wizard.done"));
+              setWizardOpen(false);
+            }}
+          />
+        )}
       </EntityDialog>
 
       <EntityDialog

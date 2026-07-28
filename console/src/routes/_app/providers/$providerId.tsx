@@ -11,6 +11,7 @@ import { deleteProviderDefaultRuleSet } from "@/lib/provider-rule-set";
 import { ProviderSectionBar, ProviderSideNav } from "@/components/providers/provider-side-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useChannelMeta } from "@/hooks/use-channel-catalog";
 
 export const Route = createFileRoute("/_app/providers/$providerId")({
   loader: ({ context, params }) => {
@@ -28,6 +29,7 @@ function ProviderDetailLayout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: provider } = useSuspenseQuery(providerQuery(id));
+  const meta = useChannelMeta(provider.channel);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const removal = useMutation({
@@ -57,7 +59,14 @@ function ProviderDetailLayout() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold">{provider.label ?? provider.name}</h1>
-              <Badge variant="outline" className="font-mono">{provider.channel}</Badge>
+              <Badge variant="outline" className="gap-1.5">
+                {meta?.displayName ?? provider.channel}
+                {meta && meta.displayName !== provider.channel && (
+                  <span className="font-mono text-[0.65rem] text-muted-foreground">
+                    {provider.channel}
+                  </span>
+                )}
+              </Badge>
               {!provider.enabled && <Badge variant="outline">off</Badge>}
             </div>
             <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)}>

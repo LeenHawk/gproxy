@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { upsertProvider, type Provider } from "@/api/providers";
 import { ApiError } from "@/api/http";
-import { CHANNELS } from "@/lib/channel-meta";
+import { channelMeta } from "@/lib/channel-meta";
 import { ensureProviderDefaultRuleSet } from "@/lib/provider-rule-set";
+import { useChannelCatalog } from "@/hooks/use-channel-catalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,6 @@ import { TlsFingerprintField } from "./tls-fingerprint-field";
 import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 interface ProviderFormProps {
-  /** undefined = create */
   provider?: Provider;
   onSaved: (saved: Provider) => void;
 }
@@ -31,23 +31,38 @@ const STRATEGIES = ["round_robin", "sticky"] as const;
 export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
+  const catalog = useChannelCatalog();
   const editing = provider !== undefined;
 
   const [name, setName] = useState(provider?.name ?? "");
   const [label, setLabel] = useState(provider?.label ?? "");
-  const [channel, setChannel] = useState(provider?.channel ?? "openai");
+  const [channel, setChannel] = useState(provider?.channel ?? catalog[0]?.id ?? "");
+  const selectedMeta = channelMeta(channel, catalog)
+    ?? (editing ? channelMeta(channel) : undefined);
   const [strategy, setStrategy] = useState(provider?.credential_strategy ?? "round_robin");
   const [proxyUrl, setProxyUrl] = useState(provider?.proxy_url ?? "");
   const [enabled, setEnabled] = useState(provider?.enabled ?? true);
   const [settings, setSettings] = useState<SettingsState>(() =>
-    initSettingsState(provider?.settings_json, provider?.channel ?? "openai"),
+    initSettingsState(provider?.settings_json, channel, selectedMeta),
   );
   const [tls, setTls] = useState<unknown>(provider?.tls_fingerprint ?? null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (editing || selectedMeta) return;
+    const next = catalog[0];
+    const nextChannel = next?.id ?? "";
+    if (channel === nextChannel) return;
+    setChannel(nextChannel);
+    setSettings(initSettingsState(undefined, nextChannel, next));
+  }, [catalog, channel, editing, selectedMeta]);
+
   const mutation = useMutation({
     mutationFn: () => {
       if (!name.trim()) throw new ApiError(0, "bad_request", t("form.required"));
+      if (!editing && !selectedMeta) {
+        throw new ApiError(0, "bad_request", t("form.required"));
+      }
       if (channel === "custom" && !settings.baseUrl.trim() && settings.endpoints.length === 0) {
         throw new ApiError(0, "bad_request", t("form.baseUrlOrEndpointRequired"));
       }
@@ -62,13 +77,10 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
         throw new ApiError(0, "bad_request", t("endpoints.invalid"));
       }
 
-      const settings_json = assembleSettings(provider?.settings_json, settings, channel);
+      const settings_json = assembleSettings(provider?.settings_json, settings, channel, selectedMeta);
 
-      // tls_fingerprint: send blob to set/update; omit (absent) to clear → backend NULL
       const tlsPayload: { tls_fingerprint?: unknown } = {};
-      if (tls != null) {
-        tlsPayload.tls_fingerprint = tls;
-      }
+      if (tls != null) tlsPayload.tls_fingerprint = tls;
 
       return upsertProvider({
         id: provider?.id ?? null,
@@ -117,17 +129,30 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
       </div>
       <div className="grid gap-2">
         <Label>{t("fields.channel")}</Label>
-        <Select value={channel} disabled={editing} onValueChange={(v) => { setChannel(v); setSettings(initSettingsState(provider?.settings_json, v)); }}>
+        <Select
+          value={channel}
+          disabled={editing || catalog.length === 0}
+          onValueChange={(value) => {
+            const meta = channelMeta(value, catalog);
+            setChannel(value);
+            setSettings(initSettingsState(provider?.settings_json, value, meta));
+          }}
+        >
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             {(["api_key", "oauth_tokens", "service_account", "github_token"] as const).map((family) => {
-              const group = CHANNELS.filter((c) => c.family === family);
+              const group = catalog.filter((c) => c.family === family);
               if (group.length === 0) return null;
               return (
                 <SelectGroup key={family}>
                   <SelectLabel>{t(`family.${family}`)}</SelectLabel>
                   {group.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.id}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      <span>{c.displayName}</span>
+                      {c.displayName !== c.id && (
+                        <span className="font-mono text-xs text-muted-foreground">{c.id}</span>
+                      )}
+                    </SelectItem>
                   ))}
                 </SelectGroup>
               );
@@ -153,14 +178,13 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
         <ProxyConnectivityTest scope="provider" proxyUrl={proxyUrl} />
       </div>
 
-      {/* Structured settings — no raw JSON */}
       <SettingsFields
         channel={channel}
+        meta={selectedMeta}
         state={settings}
         onChange={(next) => setSettings((prev) => ({ ...prev, ...next }))}
       />
 
-      {/* TLS fingerprint — popover preset picker */}
       <TlsFingerprintField value={tls} onChange={setTls} label={t("fields.tlsProfile")} />
 
       <div className="flex items-center justify-between">
@@ -168,7 +192,7 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
         <Switch id="p-enabled" checked={enabled} onCheckedChange={setEnabled} />
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" disabled={mutation.isPending || (!editing && !selectedMeta)}>
         {editing ? t("form.edit") : t("form.create")}
       </Button>
     </form>
