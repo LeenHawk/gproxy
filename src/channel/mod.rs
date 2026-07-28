@@ -19,6 +19,7 @@ pub mod responses_websocket;
 pub mod routes;
 pub mod settings;
 pub mod shaping;
+pub mod transport;
 pub mod usage;
 
 use std::sync::Arc;
@@ -27,12 +28,12 @@ use bytes::Bytes;
 use http::{HeaderMap, StatusCode};
 use serde_json::Value;
 
-use crate::http::client::UpstreamClient;
+use transport::UpstreamClient;
 
-pub use crate::http::client::ByteStreamDecoder as ChannelStreamDecoder;
 pub use disposition::Disposition;
 pub use login::{AuthCodeStart, ChannelLogin, DeviceInit, DevicePoll};
 pub use prepared::PreparedRequest;
+pub use transport::ByteStreamDecoder as ChannelStreamDecoder;
 pub use usage::{RateLimitResetCreditConsumeResponse, UsageCredits, UsageSnapshot, UsageWindow};
 
 /// Declared upstream transport, for capability-based degradation (§7.4).
