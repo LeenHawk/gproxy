@@ -31,7 +31,10 @@ use serde_json::Value;
 use transport::UpstreamClient;
 
 pub use disposition::Disposition;
-pub use login::{AuthCodeStart, ChannelLogin, DeviceInit, DevicePoll};
+pub use login::{
+    AuthCodeExchangeCtx, AuthCodeStart, AuthCodeStartCtx, ChannelLogin, CookieExchangeCtx,
+    DeviceInit, DevicePoll, DevicePollCtx, DeviceStartCtx,
+};
 pub use prepared::PreparedRequest;
 pub use transport::ByteStreamDecoder as ChannelStreamDecoder;
 pub use usage::{RateLimitResetCreditConsumeResponse, UsageCredits, UsageSnapshot, UsageWindow};
@@ -87,6 +90,15 @@ pub struct ShapeCtx<'a> {
     /// Opaque provider settings. Channels deserialize only the settings they
     /// own; the pipeline does not interpret channel policy.
     pub settings: &'a Value,
+}
+
+/// Inputs for a host-orchestrated credential refresh.
+#[derive(Debug, Clone, Copy)]
+pub struct RefreshCtx<'a> {
+    /// Latest decrypted secret, re-read under the refresh lease.
+    pub secret: &'a Value,
+    /// Opaque settings of the credential's provider.
+    pub provider_settings: &'a Value,
 }
 
 /// Pure upstream access adapter (§6.3). Implementors provide `id`,
@@ -197,7 +209,7 @@ pub trait Channel: Send + Sync {
     async fn refresh(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _secret: &Value,
+        _ctx: RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         Err(ChannelError::Unsupported("refresh"))
     }

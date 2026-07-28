@@ -211,9 +211,9 @@ impl Channel for AntigravityChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::refresh(client, secret).await
+        auth::refresh(client, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -258,13 +258,10 @@ impl ChannelLogin for AntigravityChannel {
     async fn authcode_start(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _params: &Value,
-        redirect_uri: &str,
-        state: &str,
-        pkce_challenge: &str,
+        ctx: crate::channel::AuthCodeStartCtx<'_>,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
         let (authorize_url, redirect_uri) =
-            auth::authcode_start(redirect_uri, state, pkce_challenge);
+            auth::authcode_start(ctx.redirect_uri, ctx.state, ctx.pkce_challenge);
         Ok(Some(AuthCodeStart {
             authorize_url,
             redirect_uri,
@@ -275,12 +272,9 @@ impl ChannelLogin for AntigravityChannel {
     async fn authcode_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        code: &str,
-        verifier: &str,
-        redirect_uri: &str,
-        _extra: Option<&Value>,
+        ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::authcode_exchange(client, code, verifier, redirect_uri).await
+        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri).await
     }
 }
 

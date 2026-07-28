@@ -167,6 +167,7 @@ impl AppState {
                     persistence: self.persistence.as_ref(),
                     cache: self.cache.as_ref(),
                     cipher: self.cipher.as_ref(),
+                    provider_settings: &provider.settings_json,
                     resolve_client: &resolve_client,
                 },
                 channel,

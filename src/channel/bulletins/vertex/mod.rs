@@ -255,11 +255,11 @@ impl Channel for VertexChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         // jsonwebtoken v10 `rust_crypto` backend signs on all targets (incl
         // edge), so refresh works everywhere — no native gate.
-        exchange_token(client, secret).await
+        exchange_token(client, ctx.secret).await
     }
 }
 

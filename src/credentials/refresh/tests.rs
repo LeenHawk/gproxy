@@ -71,7 +71,7 @@ impl Channel for FakeRefreshChannel {
     async fn refresh(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _secret: &Value,
+        _ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         self.refreshes.fetch_add(1, Ordering::SeqCst);
         if self.sleep_ms > 0 {
@@ -106,7 +106,7 @@ impl TestState {
         &self,
         channel: &Arc<dyn Channel>,
         credential: &Credential,
-        _provider: &Provider,
+        provider: &Provider,
         opened: Value,
         force: bool,
     ) -> Result<Value, ChannelError> {
@@ -117,6 +117,7 @@ impl TestState {
                     persistence: self.persistence.as_ref(),
                     cache: self.cache.as_ref(),
                     cipher: self.cipher.as_ref(),
+                    provider_settings: &provider.settings_json,
                     resolve_client: &resolve_client,
                 },
                 channel,
@@ -446,7 +447,7 @@ impl Channel for AlwaysFreshRotatingChannel {
     async fn refresh(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _secret: &Value,
+        _ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         let n = self.refreshes.fetch_add(1, Ordering::SeqCst) + 1;
         if self.sleep_ms > 0 {

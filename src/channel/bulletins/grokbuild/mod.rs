@@ -168,9 +168,9 @@ impl Channel for GrokBuildChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::refresh(client, secret).await
+        auth::refresh(client, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -197,7 +197,7 @@ impl ChannelLogin for GrokBuildChannel {
     async fn device_start(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        _params: &Value,
+        _ctx: crate::channel::DeviceStartCtx<'_>,
     ) -> Result<DeviceInit, ChannelError> {
         auth::device_start(client).await
     }
@@ -205,9 +205,9 @@ impl ChannelLogin for GrokBuildChannel {
     async fn device_poll(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        device_code: &str,
+        ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        auth::device_poll(client, device_code).await
+        auth::device_poll(client, ctx.device_code).await
     }
 }
 

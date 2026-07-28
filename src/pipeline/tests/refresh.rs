@@ -64,13 +64,13 @@ impl Channel for RefreshChannel {
     async fn refresh(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         self.refreshes.fetch_add(1, Ordering::SeqCst);
         if self.should_fail {
             return Err(ChannelError::Unsupported("test refresh fail"));
         }
-        let mut next = secret.clone();
+        let mut next = ctx.secret.clone();
         next["access_token"] = Value::String("refreshed-token".into());
         Ok(next)
     }

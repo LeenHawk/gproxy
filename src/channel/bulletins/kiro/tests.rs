@@ -66,11 +66,50 @@ async fn refresh_dispatches_by_secret_shape() {
 }
 
 #[tokio::test]
+async fn channel_refresh_receives_provider_settings() {
+    let client = mock(json!({
+        "accessToken": "new-access",
+        "refreshToken": "new-refresh",
+        "expiresIn": 3600,
+    }));
+    let dyn_client: Arc<dyn UpstreamClient> = client.clone();
+    let secret = json!({ "access_token": "old", "refresh_token": "old-rt" });
+    let settings = json!({ "auth_base_url": "https://private-auth.example" });
+
+    KiroChannel
+        .refresh(
+            &dyn_client,
+            crate::channel::RefreshCtx {
+                secret: &secret,
+                provider_settings: &settings,
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        client.seen.lock().unwrap()[0],
+        "https://private-auth.example/refreshToken"
+    );
+}
+
+#[tokio::test]
 async fn sso_authcode_start_registers_and_builds_authorize_url() {
     let client = mock(json!({ "clientId": "reg-cid", "clientSecret": "reg-secret" }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
+    let settings = Value::Null;
+    let params = json!({});
     let started = KiroChannel
-        .authcode_start(&dyn_client, &json!({}), "", "st-1", "chal-1")
+        .authcode_start(
+            &dyn_client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "st-1",
+                pkce_challenge: "chal-1",
+            },
+        )
         .await
         .unwrap()
         .expect("kiro has an authcode login");
@@ -111,9 +150,20 @@ async fn sso_authcode_start_registers_and_builds_authorize_url() {
 async fn authcode_start_rejects_social_and_unknown_methods() {
     let client = mock(json!({ "clientId": "x", "clientSecret": "y" }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
+    let settings = Value::Null;
     for method in ["social", "external_idp", "builder-id", "totally-bogus"] {
+        let params = json!({ "auth_method": method });
         let err = KiroChannel
-            .authcode_start(&dyn_client, &json!({ "auth_method": method }), "", "s", "c")
+            .authcode_start(
+                &dyn_client,
+                crate::channel::AuthCodeStartCtx {
+                    provider_settings: &settings,
+                    params: &params,
+                    redirect_uri: "",
+                    state: "s",
+                    pkce_challenge: "c",
+                },
+            )
             .await;
         assert!(err.is_err(), "auth_method={method} must be rejected");
     }
@@ -179,8 +229,16 @@ async fn kiro_device_start_posts_authorization() {
         "expiresInMilliseconds": 900000,
     }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
+    let settings = Value::Null;
+    let params = json!({});
     let init = KiroChannel
-        .device_start(&dyn_client, &json!({}))
+        .device_start(
+            &dyn_client,
+            crate::channel::DeviceStartCtx {
+                provider_settings: &settings,
+                params: &params,
+            },
+        )
         .await
         .expect("device_start ok");
     assert_eq!(init.device_code, "dev-code-1");
@@ -200,8 +258,15 @@ async fn kiro_device_start_posts_authorization() {
 async fn kiro_device_poll_pending_then_authorized() {
     let client = mock(json!({ "status": "authorization_pending" }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
+    let settings = Value::Null;
     let poll = KiroChannel
-        .device_poll(&dyn_client, "dev-code-1")
+        .device_poll(
+            &dyn_client,
+            crate::channel::DevicePollCtx {
+                provider_settings: &settings,
+                device_code: "dev-code-1",
+            },
+        )
         .await
         .expect("device_poll ok");
     assert!(matches!(poll, DevicePoll::Pending));
@@ -219,7 +284,13 @@ async fn kiro_device_poll_pending_then_authorized() {
     }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
     let poll = KiroChannel
-        .device_poll(&dyn_client, "dev-code-1")
+        .device_poll(
+            &dyn_client,
+            crate::channel::DevicePollCtx {
+                provider_settings: &settings,
+                device_code: "dev-code-1",
+            },
+        )
         .await
         .expect("device_poll ok");
     let secret = match poll {
@@ -236,8 +307,15 @@ async fn kiro_device_poll_pending_then_authorized() {
 async fn kiro_device_poll_denied() {
     let client = mock(json!({ "status": "expired" }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
+    let settings = Value::Null;
     let poll = KiroChannel
-        .device_poll(&dyn_client, "dev-code-1")
+        .device_poll(
+            &dyn_client,
+            crate::channel::DevicePollCtx {
+                provider_settings: &settings,
+                device_code: "dev-code-1",
+            },
+        )
         .await
         .expect("device_poll ok");
     assert!(matches!(poll, DevicePoll::Denied));
