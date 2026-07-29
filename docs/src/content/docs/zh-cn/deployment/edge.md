@@ -3,7 +3,7 @@ title: Edge Wasm 部署
 description: 将预构建的 GPROXY v2 WebAssembly bundle 部署到支持的 edge 平台。
 ---
 
-edge runtime 是同一个单 Rust crate 用 `--no-default-features --features edge` 编译出的
+edge runtime 是 root Rust 应用 library 用 `--no-default-features --features edge` 编译出的
 `wasm32-unknown-unknown` library。平台入口负责加载 wasm-bindgen glue，调用 Rust
 `init(...)` 建立 `AppState`，并把每个请求转交给 wasm `fetch` 路径。
 
@@ -131,6 +131,9 @@ edge runtime 尽量共享相同 routing engine、transform pipeline、admin/user
 
 - `/admin/update/*`
 - `/admin/login-flows/cookie`
+
+edge 同样不支持 native 编译时外部 Channel 注册。`linkme` registration slice 仅存在于
+native；需要支持 edge 的 adapter 必须进入显式内置 Channel 集合，并包含在 Wasm build 中。
 
 credential 实时 usage 与 rate-limit reset-credit 操作使用 edge fetch transport。三个受支持
 的 edge 目标都会通过真正的 `ReadableStream` 实时转发上游 SSE，并保留逐帧协议转换。

@@ -3,39 +3,46 @@ title: Architecture
 description: The current GPROXY v2 runtime architecture and request lifecycle.
 ---
 
-GPROXY v2 is a single Rust crate with two runtime surfaces:
+GPROXY v2 is a Rust workspace centered on one AGPL application package with two
+runtime surfaces:
 
-- a native binary in `src/main.rs`, served by Axum and native upstream clients;
+- a native binary in `src/main.rs`, backed by the reusable CLI entrypoint in
+  `src/native.rs`, Axum, and native upstream clients;
 - a wasm library entry in `src/lib.rs` / `src/http/edge/`, used by edge platform
   bundles.
 
-The crate is still layered. The important distinction from v1 is packaging, not
-discipline: v2 keeps protocol types, transforms, request orchestration,
-channels, storage, administration, and deployment boundaries separate inside
-one repository.
+Four MIT workspace libraries expose reusable protocol, transform, tokenization,
+and channel-extension contracts. The root application remains layered: v2 keeps
+protocol types, transforms, request orchestration, channels, storage,
+administration, and deployment boundaries separate inside one repository.
 
 ## Repository Layout
 
 ```text
 .
-|-- Cargo.toml              # one crate: lib + bin
+|-- Cargo.toml              # root application package and workspace
 |-- src/
-|   |-- main.rs             # native CLI, config, AppState, Axum server
+|   |-- main.rs             # thin official native entrypoint
+|   |-- native.rs           # reusable standard CLI and bootstrap entrypoint
 |   |-- lib.rs              # shared module surface and wasm exports
 |   |-- app/                # bootstrap, snapshots, import/export, v1 migration
-|   |-- protocol/           # Operation taxonomy and provider wire models
-|   |-- transform/          # operation-oriented protocol transforms
 |   |-- process/            # provider rule-set compilation and application
 |   |-- channel/            # upstream adapters and registry
 |   |-- pipeline/           # request lifecycle orchestration
 |   |-- http/               # native server, edge adapter, admin API dispatcher
 |   |-- store/              # cache and persistence backends
 |   `-- admin/ billing/ credentials/ health/ tokenize/ selfupdate/ usage/
+|-- crates/
+|   |-- gproxy-channel-api/ # stable channel extension contract
+|   |-- gproxy-protocol/    # Operation taxonomy and wire models
+|   |-- gproxy-transform/   # operation-oriented protocol transforms
+|   `-- gproxy-tokenize/    # reusable tokenization library
+|-- examples/
+|   `-- external-channel/   # linked channel crate and custom runner
 |-- console/                # React console, built separately
 |-- assets/console/         # generated console embed target
 |-- deploy/                 # edge and platform packaging entries
-|-- docs/                   # Starlight documentation website
-`-- dev-docs/               # developer/source notes used as reference material
+`-- docs/                   # Starlight documentation website
 ```
 
 ## Request Lifecycle
@@ -89,9 +96,26 @@ Three layers are intentionally separate:
   before the upstream channel sees the request. The engine should remain
   permissive; provider-specific presets belong in configuration and the console
   unless the runtime truly needs a new primitive.
-- **Channel** owns upstream access: endpoint, auth, request preparation, response
-  disposition, optional stream decode, OAuth refresh, usage endpoints, and
-  native TLS/HTTP2 profiles.
+- **Channel** owns provider-specific upstream access: endpoint and auth
+  injection, request preparation and shaping, response disposition, optional
+  stream decoding, OAuth refresh/login, and usage parsing. The host owns secret
+  persistence and encryption, refresh leases, proxy resolution, request capture,
+  the transport implementation, and built-in TLS/HTTP profiles.
+
+### Compile-Time Channel Extensions
+
+Built-in adapters and native compile-time external crates implement the same
+`gproxy-channel-api::Channel` contract. Native startup builds the explicit
+built-in registry and then collects statically linked constructors from a
+`linkme` distributed slice. Duplicate ids fail startup. The runtime catalog is
+served by authenticated `GET /admin/channels`, allowing the Console to discover
+the channels actually compiled into that executable.
+
+External registration is deliberately not a dynamic plugin ABI. The extension
+runs as trusted in-process Rust code, and a thin custom binary retains the crate
+before calling `gproxy::native::run_cli()`. Edge builds use the explicit built-in
+registry and do not collect the native registration slice. See
+[Adding a Channel](/guides/adding-a-channel/) for the complete contract.
 
 ## AppState And Snapshots
 
@@ -108,10 +132,10 @@ backends such as libSQL/Turso and REST-style shared stores.
 
 | Runtime | Boundary |
 | --- | --- |
-| Native | CLI/env config, Axum server, embedded console assets, native wreq client pool, optional self-update. |
-| Edge | wasm entry, fetch adapter, platform-provided environment, no embedded console binary assets by default. |
-| Console | React SPA in `console/`; build output is synced to `assets/console/` for native embedding. |
-| Documentation | Starlight site in `docs/`; development/reference source notes live in `dev-docs/`. |
+| Native | CLI/env config, Axum server, built-in plus compile-time linked channel registry, embedded console assets, native wreq client pool, optional self-update. |
+| Edge | wasm entry, built-in channel registry, fetch adapter, platform-provided environment, no embedded console binary assets by default. |
+| Console | React SPA in `console/`; reads the runtime channel catalog and syncs build output to `assets/console/` for native embedding. |
+| Documentation | Starlight site in `docs/`. |
 
 ## Stable Code Reference Index
 
@@ -128,7 +152,7 @@ specific document path refer to that external document instead.
 | `§4` | Shared admin API contracts and DTOs. |
 | `§5` | End-to-end request lifecycle and pipeline boundaries. |
 | `§6`, `§6.1` | Operation-first transforms and provider rule processing. |
-| `§6.3` | Channel registry, local operations, and request orchestration. |
+| `§6.3` | Channel contract and startup registry, including built-in and native compile-time registrations; local operations and request orchestration. |
 | `§6.4` | Upstream disposition and bounded failover. |
 | `§7.2` | Control-plane snapshots, hot reload, and invalidation. |
 | `§7.4` | Effective upstream proxy, TLS fingerprint, and HTTP transport. |
@@ -157,6 +181,8 @@ specific document path refer to that external document instead.
 ## Where To Go Next
 
 - Configure upstreams in [Providers & Channels](/guides/providers/).
+- Implement a built-in or external adapter in
+  [Adding a Channel](/guides/adding-a-channel/).
 - Understand model-facing routing in [Models & Aliases](/guides/models/).
 - Deploy native and edge builds in [Release Build](/deployment/release-build/) and
   [Edge Wasm](/deployment/edge/).

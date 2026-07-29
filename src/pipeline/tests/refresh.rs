@@ -64,13 +64,13 @@ impl Channel for RefreshChannel {
     async fn refresh(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         self.refreshes.fetch_add(1, Ordering::SeqCst);
         if self.should_fail {
             return Err(ChannelError::Unsupported("test refresh fail"));
         }
-        let mut next = secret.clone();
+        let mut next = ctx.secret.clone();
         next["access_token"] = Value::String("refreshed-token".into());
         Ok(next)
     }
@@ -135,13 +135,15 @@ async fn authdead_refresh_retry_succeeds() {
     let fake = Arc::new(fake);
 
     let refreshes = Arc::new(AtomicUsize::new(0));
-    let reg = Arc::new(ChannelRegistry::with_channel(
-        "test_refresh",
+    let mut reg = ChannelRegistry::with_builtin();
+    reg.register(crate::channel::registration::RegisteredChannel::new(
         Arc::new(RefreshChannel {
             refreshes: refreshes.clone(),
             should_fail: false,
         }),
-    ));
+    ))
+    .unwrap();
+    let reg = Arc::new(reg);
     let (state, _dir) = build_state(
         Arc::clone(&fake),
         REFRESH_BUNDLE,
@@ -212,13 +214,15 @@ async fn refresh_failure_skips_credential() {
     let fake = Arc::new(fake);
 
     let refreshes = Arc::new(AtomicUsize::new(0));
-    let reg = Arc::new(ChannelRegistry::with_channel(
-        "test_refresh",
+    let mut reg = ChannelRegistry::with_builtin();
+    reg.register(crate::channel::registration::RegisteredChannel::new(
         Arc::new(RefreshChannel {
             refreshes: refreshes.clone(),
             should_fail: true,
         }),
-    ));
+    ))
+    .unwrap();
+    let reg = Arc::new(reg);
     let (state, _dir) = build_state(
         Arc::clone(&fake),
         REFRESH_BUNDLE,
@@ -303,6 +307,7 @@ fn openai_fan_ctx() -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }

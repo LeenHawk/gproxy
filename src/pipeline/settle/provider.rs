@@ -15,9 +15,18 @@ use serde_json::Value;
 use crate::app::AppState;
 use crate::billing::{self, UsageRecord, price};
 use crate::pipeline::context::{Candidate, RequestCtx};
-use crate::protocol::{Operation, Provider as Family};
+use crate::protocol::{Operation, OperationKey, Provider as Family};
 use crate::usage::{Ended, NormalizedUsage, UsageSource, extract};
 use crate::util::time::unix_now;
+
+/// Whether this op settles here (embeddings / image generation). Lets the
+/// caller skip spawning a settle task for every other buffered success.
+pub(crate) fn billable(op: Option<OperationKey>) -> bool {
+    matches!(
+        op.map(|o| o.operation),
+        Some(Operation::CreateEmbedding | Operation::CreateImage | Operation::EditImage)
+    )
+}
 
 /// Settle a successful embedding / image response. No-op for any other
 /// operation (the caller invokes this for every successful buffered response;

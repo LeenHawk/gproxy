@@ -34,6 +34,15 @@ pub async fn get(
         .transpose()
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<Quota>> {
+    quota::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect()
+}
+
 pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Result<Quota> {
     let now = crate::store::persistence::db::ops::now_secs();
 

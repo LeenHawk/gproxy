@@ -194,6 +194,13 @@ impl RelayBuffer {
 
     pub(crate) fn push(&mut self, chunk: Bytes) {
         self.total += chunk.len() as u64;
+        if chunk.len() > BUFFER_CAP {
+            self.chunks.clear();
+            self.stored = BUFFER_CAP;
+            self.chunks
+                .push_back(Bytes::copy_from_slice(&chunk[chunk.len() - BUFFER_CAP..]));
+            return;
+        }
         self.stored += chunk.len();
         self.chunks.push_back(chunk);
         while self.stored > BUFFER_CAP {
@@ -321,7 +328,7 @@ async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         let text = frames::produced_text(ctx.usage_kind, &frames);
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let (usage, source) = ladder(&ctx, &text).await;
+            let (usage, source) = ladder(&ctx, text).await;
             record(&ctx, usage, source, ended).await;
         }
         #[cfg(target_arch = "wasm32")]

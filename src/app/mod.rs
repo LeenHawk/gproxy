@@ -167,6 +167,7 @@ impl AppState {
                     persistence: self.persistence.as_ref(),
                     cache: self.cache.as_ref(),
                     cipher: self.cipher.as_ref(),
+                    provider_settings: &provider.settings_json,
                     resolve_client: &resolve_client,
                 },
                 channel,
@@ -200,7 +201,8 @@ impl AppState {
 
     /// Resolve a client for provider-scoped auxiliary calls that have no concrete
     /// credential yet (login bootstrap, self-contained provider helpers):
-    /// provider proxy first, then the instance/global default.
+    /// provider proxy first, then the instance/global default, plus the
+    /// provider TLS fingerprint when the host transport supports it.
     pub fn upstream_client_for_provider(
         &self,
         provider: &Provider,
@@ -209,7 +211,15 @@ impl AppState {
             .proxy_url
             .clone()
             .or_else(|| self.upstream_proxy_url());
-        self.upstream_client_for_proxy(proxy.as_deref())
+        #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+        {
+            self.client_pool
+                .for_target(proxy.as_deref(), provider.tls_fingerprint.as_ref())
+        }
+        #[cfg(not(all(not(target_arch = "wasm32"), feature = "upstream-wreq")))]
+        {
+            self.upstream_client_for_proxy(proxy.as_deref())
+        }
     }
 
     /// Resolve a client for a provider id if the caller has one, otherwise for the
@@ -258,9 +268,9 @@ impl AppState {
         self.upstream_browser_client_for_credential(credential, provider)
     }
 
-    /// Resolve the browser-emulating client used by a channel's first cookie
-    /// exchange. Cookie-only refreshes reuse the same browser-profile pool;
-    /// ordinary model traffic remains on its channel/DB fingerprint.
+    /// Resolve the client used by a channel's first cookie exchange. A
+    /// browser-required channel keeps the browser profile; other channels use
+    /// the provider fingerprint or their built-in emulation.
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
     pub(crate) fn upstream_client_for_cookie_login(
         &self,
@@ -278,7 +288,10 @@ impl AppState {
         if channel.cookie_login_requires_browser() {
             return self.client_pool.for_browser(proxy);
         }
-        match channel.default_emulation() {
+        if provider.tls_fingerprint.is_some() {
+            return self.upstream_client_for_provider(&provider);
+        }
+        match self.channels.default_emulation(channel.id()) {
             Some(emulation) => self.client_pool.for_channel(proxy, channel.id(), emulation),
             None => self.client_pool.for_target(proxy, None),
         }
@@ -287,12 +300,21 @@ impl AppState {
     #[cfg(all(not(target_arch = "wasm32"), not(feature = "upstream-wreq")))]
     pub(crate) fn upstream_client_for_cookie_login(
         &self,
-        _channel: &Arc<dyn crate::channel::Channel>,
-        _provider_id: i64,
+        channel: &Arc<dyn crate::channel::Channel>,
+        provider_id: i64,
     ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
-        Err(ClientError::Config(
-            "cookie login requires the upstream-wreq browser client".into(),
-        ))
+        if channel.cookie_login_requires_browser() {
+            return Err(ClientError::Config(
+                "cookie login requires the upstream-wreq browser client".into(),
+            ));
+        }
+        let provider = self
+            .cp()
+            .providers_by_id
+            .get(&provider_id)
+            .cloned()
+            .ok_or_else(|| ClientError::Config("provider not found".into()))?;
+        self.upstream_client_for_provider(&provider)
     }
 
     #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
@@ -344,12 +366,24 @@ impl AppState {
         let global_proxy = self.upstream_proxy_url();
         let proxy =
             crate::channel::resolve::effective_proxy(credential, provider, global_proxy.as_deref());
-        let spoof_emulation = self.cp().spoof_emulation;
-        let fingerprint = crate::channel::resolve::effective_tls_fingerprint(credential, provider);
-        if let Some(fp) = fingerprint.as_ref() {
-            self.client_pool.for_target(proxy.as_deref(), Some(fp))
+        // §7.4: fingerprint + pool hash come PAIRED from the CURRENT snapshot
+        // (resolved & hashed at rebuild) — one HashMap read per attempt instead
+        // of a fingerprint deep-clone + canonicalize + blake3. A credential
+        // whose fingerprint vanished in a newer snapshot simply resolves to
+        // the spoof/default client (config changes apply immediately). Guard
+        // scoped to the lookup.
+        let (spoof_emulation, tls) = {
+            let cp = self.cp();
+            (
+                cp.spoof_emulation,
+                cp.tls_by_credential.get(&credential.id).cloned(),
+            )
+        };
+        if let Some(t) = tls.as_deref() {
+            self.client_pool
+                .for_target_hashed(proxy.as_deref(), &t.hash, &t.fingerprint)
         } else if spoof_emulation {
-            if let Some(emu) = channel.default_emulation() {
+            if let Some(emu) = self.channels.default_emulation(channel.id()) {
                 self.client_pool
                     .for_channel(proxy.as_deref(), channel.id(), emu)
             } else {

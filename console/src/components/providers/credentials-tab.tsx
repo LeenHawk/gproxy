@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { credentialsQuery, deleteCredential, type CredentialView } from "@/api/credentials";
 import type { Provider } from "@/api/providers";
 import { ApiError } from "@/api/http";
-import { channelMeta } from "@/lib/channel-meta";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
@@ -20,6 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
+import { useChannelMeta } from "@/hooks/use-channel-catalog";
+import { bulkModeFor } from "@/lib/credential-bulk-parse";
 
 function credName(c: CredentialView, fallback: string): string {
   return c.label ?? fallback;
@@ -30,7 +31,12 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
   const { t: tc } = useTranslation("common");
   const queryClient = useQueryClient();
   const { data: creds, isPending } = useQuery(credentialsQuery(provider.id));
-  const meta = channelMeta(provider.channel);
+  const catalogState = useChannelMeta(provider.channel);
+  const { meta } = catalogState;
+  const canMutate = catalogState.authoritative && meta !== undefined;
+  const catalogMessageKey = catalogState.availability === "ready"
+    ? "catalog.metadataUnavailable"
+    : `catalog.${catalogState.availability}`;
   const rows = creds ?? [];
   const batch = useBatch("credentials", ["providers", provider.id, "credentials"]);
   const ids = rows.map((c) => c.id);
@@ -54,8 +60,16 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
     },
   });
 
-  const openCreate = () => { setEditTarget(undefined); setFormOpen(true); };
-  const openEdit = (c: CredentialView) => { setEditTarget(c); setFormOpen(true); };
+  const openCreate = () => {
+    if (!canMutate) return;
+    setEditTarget(undefined);
+    setFormOpen(true);
+  };
+  const openEdit = (c: CredentialView) => {
+    if (!canMutate) return;
+    setEditTarget(c);
+    setFormOpen(true);
+  };
 
   const actions = (c: CredentialView) => (
     <div className="flex items-center justify-end gap-1">
@@ -64,7 +78,13 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
           <Gauge className="size-4" aria-hidden />
         </Button>
       )}
-      <Button variant="ghost" size="icon" aria-label={t("creds.edit")} onClick={(e) => { e.stopPropagation(); openEdit(c); }}>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t("creds.edit")}
+        disabled={!canMutate}
+        onClick={(e) => { e.stopPropagation(); openEdit(c); }}
+      >
         <Pencil className="size-4" aria-hidden />
       </Button>
       <Button variant="ghost" size="icon" className="text-destructive" aria-label={t("delete.credential")}
@@ -102,16 +122,28 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         {!batch.mode && (
           <>
             {(meta?.loginModes.length ?? 0) > 0 && (
-              <Button variant="outline" onClick={() => setWizardOpen(true)}>
+              <Button
+                variant="outline"
+                disabled={!canMutate}
+                onClick={() => {
+                  if (!canMutate) return;
+                  setWizardOpen(true);
+                }}
+              >
                 {t("creds.oauth")}
               </Button>
             )}
-            {meta?.family === "api_key" && (
-              <Button variant="outline" onClick={() => setBulkOpen(true)}>
-                {t("creds.bulk.button")}
-              </Button>
-            )}
-            <Button onClick={openCreate}>
+            <Button
+              variant="outline"
+              disabled={!canMutate}
+              onClick={() => {
+                if (!canMutate) return;
+                setBulkOpen(true);
+              }}
+            >
+              {t("creds.bulk.button")}
+            </Button>
+            <Button disabled={!canMutate} onClick={openCreate}>
               <Plus className="size-4" aria-hidden />
               {t("creds.manual")}
             </Button>
@@ -121,6 +153,24 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
           {batch.mode ? tc("batch.cancel") : tc("batch.select")}
         </Button>
       </div>
+
+      {!canMutate && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+          <span className={catalogState.availability === "error" ? "text-destructive" : "text-muted-foreground"}>
+            {t(catalogMessageKey)}
+          </span>
+          {catalogState.availability !== "loading" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={catalogState.isFetching}
+              onClick={() => { void catalogState.refetch(); }}
+            >
+              {t("catalog.retry")}
+            </Button>
+          )}
+        </div>
+      )}
 
       {isPending ? (
         <div className="grid gap-2" aria-busy="true"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>
@@ -175,13 +225,16 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         description={meta ? t(`family.${meta.family}`) : undefined}
         wide
       >
-        <CredentialForm
-          key={editTarget?.id ?? "new"}
-          providerId={provider.id}
-          channel={provider.channel}
-          credential={editTarget}
-          onSaved={() => setFormOpen(false)}
-        />
+        {canMutate && meta && (
+          <CredentialForm
+            key={editTarget?.id ?? "new"}
+            providerId={provider.id}
+            meta={meta}
+            metadataAuthoritative={catalogState.authoritative}
+            credential={editTarget}
+            onSaved={() => setFormOpen(false)}
+          />
+        )}
       </EntityDialog>
 
       <ConfirmDangerous
@@ -199,15 +252,18 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
       <EntityDialog
         open={wizardOpen}
         onOpenChange={setWizardOpen}
-        title={t("wizard.title", { channel: provider.channel })}
+        title={t("wizard.title", { channel: meta?.displayName ?? provider.channel })}
       >
-        <OAuthWizard
-          provider={provider}
-          onDone={() => {
-            toast.success(t("wizard.done"));
-            setWizardOpen(false);
-          }}
-        />
+        {canMutate && meta && (
+          <OAuthWizard
+            provider={provider}
+            meta={meta}
+            onDone={() => {
+              toast.success(t("wizard.done"));
+              setWizardOpen(false);
+            }}
+          />
+        )}
       </EntityDialog>
 
       <EntityDialog
@@ -222,14 +278,20 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         title={t("creds.bulk.title")}
-        description={t("creds.bulk.textareaHint")}
+        description={meta && bulkModeFor(meta.family) === "json"
+          ? t("creds.bulk.jsonHint")
+          : t("creds.bulk.textareaHint")}
         wide
       >
-        <CredentialBulkImport
-          key={bulkOpen ? "open" : "closed"}
-          providerId={provider.id}
-          onClose={() => setBulkOpen(false)}
-        />
+        {canMutate && meta && (
+          <CredentialBulkImport
+            key={bulkOpen ? "open" : "closed"}
+            providerId={provider.id}
+            meta={meta}
+            metadataAuthoritative={catalogState.authoritative}
+            onClose={() => setBulkOpen(false)}
+          />
+        )}
       </EntityDialog>
     </div>
   );

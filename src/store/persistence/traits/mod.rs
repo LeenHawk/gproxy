@@ -115,6 +115,7 @@ persistence_backend! {
     ProviderPersistence::upsert_provider => upsert_provider(input: ProviderInput) -> anyhow::Result<Provider>;
     ProviderPersistence::delete_provider => delete_provider(id: i64) -> anyhow::Result<bool>;
     ProviderPersistence::list_credentials => list_credentials(provider_id: i64) -> anyhow::Result<Vec<Credential>>;
+    ProviderPersistence::list_all_credentials => list_all_credentials() -> anyhow::Result<Vec<Credential>>;
     ProviderPersistence::get_credential => get_credential(id: i64) -> anyhow::Result<Option<Credential>>;
     ProviderPersistence::upsert_credential => upsert_credential(input: CredentialInput) -> anyhow::Result<Credential>;
     ProviderPersistence::update_credential_secret_if_current => update_credential_secret_if_current(id: i64, provider_id: i64, expected_secret_json: serde_json::Value, secret_json: serde_json::Value) -> anyhow::Result<bool>;
@@ -128,6 +129,7 @@ persistence_backend! {
     ProviderPersistence::upsert_credential_model_status => upsert_credential_model_status(input: CredentialModelStatusInput) -> anyhow::Result<CredentialModelStatus>;
     ProviderPersistence::delete_credential_model_status => delete_credential_model_status(id: i64) -> anyhow::Result<bool>;
     ProviderPersistence::list_provider_models => list_provider_models(provider_id: i64) -> anyhow::Result<Vec<ProviderModel>>;
+    ProviderPersistence::list_all_provider_models => list_all_provider_models() -> anyhow::Result<Vec<ProviderModel>>;
     ProviderPersistence::upsert_provider_model => upsert_provider_model(input: ProviderModelInput) -> anyhow::Result<ProviderModel>;
     ProviderPersistence::delete_provider_model => delete_provider_model(id: i64) -> anyhow::Result<bool>;
     ProviderPersistence::list_price_rules => list_price_rules() -> anyhow::Result<Vec<PriceRule>>;
@@ -140,6 +142,7 @@ persistence_backend! {
     RoutingPersistence::upsert_route => upsert_route(input: RouteInput) -> anyhow::Result<Route>;
     RoutingPersistence::delete_route => delete_route(id: i64) -> anyhow::Result<bool>;
     RoutingPersistence::list_route_members => list_route_members(route_id: i64) -> anyhow::Result<Vec<RouteMember>>;
+    RoutingPersistence::list_all_route_members => list_all_route_members() -> anyhow::Result<Vec<RouteMember>>;
     RoutingPersistence::upsert_route_member => upsert_route_member(input: RouteMemberInput) -> anyhow::Result<RouteMember>;
     RoutingPersistence::delete_route_member => delete_route_member(id: i64) -> anyhow::Result<bool>;
     RoutingPersistence::list_aliases => list_aliases() -> anyhow::Result<Vec<Alias>>;
@@ -147,6 +150,7 @@ persistence_backend! {
     RoutingPersistence::upsert_alias => upsert_alias(input: AliasInput) -> anyhow::Result<Alias>;
     RoutingPersistence::delete_alias => delete_alias(id: i64) -> anyhow::Result<bool>;
     RoutingPersistence::list_routing_rules => list_routing_rules(provider_id: i64) -> anyhow::Result<Vec<RoutingRule>>;
+    RoutingPersistence::list_all_routing_rules => list_all_routing_rules() -> anyhow::Result<Vec<RoutingRule>>;
     RoutingPersistence::get_routing_rule => get_routing_rule(id: i64) -> anyhow::Result<Option<RoutingRule>>;
     RoutingPersistence::upsert_routing_rule => upsert_routing_rule(input: RoutingRuleInput) -> anyhow::Result<RoutingRule>;
     RoutingPersistence::delete_routing_rule => delete_routing_rule(id: i64) -> anyhow::Result<bool>;
@@ -156,10 +160,12 @@ persistence_backend! {
     RoutingPersistence::upsert_rule_set => upsert_rule_set(input: RuleSetInput) -> anyhow::Result<RuleSet>;
     RoutingPersistence::delete_rule_set => delete_rule_set(id: i64) -> anyhow::Result<bool>;
     RoutingPersistence::list_rules => list_rules(rule_set_id: i64) -> anyhow::Result<Vec<Rule>>;
+    RoutingPersistence::list_all_rules => list_all_rules() -> anyhow::Result<Vec<Rule>>;
     RoutingPersistence::get_rule => get_rule(id: i64) -> anyhow::Result<Option<Rule>>;
     RoutingPersistence::upsert_rule => upsert_rule(input: RuleInput) -> anyhow::Result<Rule>;
     RoutingPersistence::delete_rule => delete_rule(id: i64) -> anyhow::Result<bool>;
     RoutingPersistence::list_provider_rule_sets => list_provider_rule_sets(provider_id: i64) -> anyhow::Result<Vec<ProviderRuleSet>>;
+    RoutingPersistence::list_all_provider_rule_sets => list_all_provider_rule_sets() -> anyhow::Result<Vec<ProviderRuleSet>>;
     RoutingPersistence::upsert_provider_rule_set => upsert_provider_rule_set(input: ProviderRuleSetInput) -> anyhow::Result<ProviderRuleSet>;
     RoutingPersistence::delete_provider_rule_set => delete_provider_rule_set(id: i64) -> anyhow::Result<bool>;
 
@@ -169,6 +175,7 @@ persistence_backend! {
     IdentityPersistence::upsert_org => upsert_org(input: OrgInput) -> anyhow::Result<Org>;
     IdentityPersistence::delete_org => delete_org(id: i64) -> anyhow::Result<bool>;
     IdentityPersistence::list_teams => list_teams(org_id: i64) -> anyhow::Result<Vec<Team>>;
+    IdentityPersistence::list_all_teams => list_all_teams() -> anyhow::Result<Vec<Team>>;
     IdentityPersistence::get_team => get_team(id: i64) -> anyhow::Result<Option<Team>>;
     IdentityPersistence::upsert_team => upsert_team(input: TeamInput) -> anyhow::Result<Team>;
     IdentityPersistence::delete_team => delete_team(id: i64) -> anyhow::Result<bool>;
@@ -178,18 +185,22 @@ persistence_backend! {
     IdentityPersistence::upsert_user => upsert_user(input: UserInput) -> anyhow::Result<User>;
     IdentityPersistence::delete_user => delete_user(id: i64) -> anyhow::Result<bool>;
     IdentityPersistence::list_user_keys => list_user_keys(user_id: i64) -> anyhow::Result<Vec<UserKey>>;
+    IdentityPersistence::list_all_user_keys => list_all_user_keys() -> anyhow::Result<Vec<UserKey>>;
     IdentityPersistence::get_user_key => get_user_key(id: i64) -> anyhow::Result<Option<UserKey>>;
     IdentityPersistence::find_user_key_by_digest => find_user_key_by_digest(digest: &str) -> anyhow::Result<Option<UserKey>>;
     IdentityPersistence::upsert_user_key => upsert_user_key(input: UserKeyInput) -> anyhow::Result<UserKey>;
     IdentityPersistence::delete_user_key => delete_user_key(id: i64) -> anyhow::Result<bool>;
 
     AuthzPersistence::list_route_permissions => list_route_permissions(scope: Scope, scope_id: i64) -> anyhow::Result<Vec<RoutePermission>>;
+    AuthzPersistence::list_all_route_permissions => list_all_route_permissions() -> anyhow::Result<Vec<RoutePermission>>;
     AuthzPersistence::upsert_route_permission => upsert_route_permission(input: RoutePermissionInput) -> anyhow::Result<RoutePermission>;
     AuthzPersistence::delete_route_permission => delete_route_permission(id: i64) -> anyhow::Result<bool>;
     AuthzPersistence::list_rate_limits => list_rate_limits(scope: Scope, scope_id: i64) -> anyhow::Result<Vec<RateLimit>>;
+    AuthzPersistence::list_all_rate_limits => list_all_rate_limits() -> anyhow::Result<Vec<RateLimit>>;
     AuthzPersistence::upsert_rate_limit => upsert_rate_limit(input: RateLimitInput) -> anyhow::Result<RateLimit>;
     AuthzPersistence::delete_rate_limit => delete_rate_limit(id: i64) -> anyhow::Result<bool>;
     AuthzPersistence::get_quota => get_quota(scope: Scope, scope_id: i64) -> anyhow::Result<Option<Quota>>;
+    AuthzPersistence::list_all_quotas => list_all_quotas() -> anyhow::Result<Vec<Quota>>;
     AuthzPersistence::upsert_quota => upsert_quota(input: QuotaInput) -> anyhow::Result<Quota>;
     AuthzPersistence::delete_quota => delete_quota(id: i64) -> anyhow::Result<bool>;
     AuthzPersistence::add_quota_cost => add_quota_cost(scope: Scope, scope_id: i64, delta: rust_decimal::Decimal) -> anyhow::Result<()>;
@@ -212,7 +223,7 @@ persistence_backend! {
     UsagePersistence::update_downstream_response => update_downstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
     UsagePersistence::append_upstream_request => append_upstream_request(input: UpstreamRequestInput) -> anyhow::Result<UpstreamRequest>;
     UsagePersistence::list_upstream_requests => list_upstream_requests(request_id: &str) -> anyhow::Result<Vec<UpstreamRequest>>;
-    UsagePersistence::update_upstream_response => update_upstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
+    UsagePersistence::update_upstream_response_by_id => update_upstream_response_by_id(capture_id: i64, request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
     UsagePersistence::clear_request_logs => clear_request_logs() -> anyhow::Result<()>;
     UsagePersistence::delete_usage => delete_usage(id: i64) -> anyhow::Result<bool>;
     UsagePersistence::set_enabled => set_enabled(entity: AdminEntity, id: i64, enabled: bool) -> anyhow::Result<bool>;

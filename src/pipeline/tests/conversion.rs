@@ -97,6 +97,7 @@ async fn gemini_inbound_streaming_sets_body_stream_flag() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };

@@ -12,6 +12,7 @@ pub trait RoutingPersistence {
     async fn upsert_route(&self, input: RouteInput) -> anyhow::Result<Route>;
     async fn delete_route(&self, id: i64) -> anyhow::Result<bool>;
     async fn list_route_members(&self, route_id: i64) -> anyhow::Result<Vec<RouteMember>>;
+    async fn list_all_route_members(&self) -> anyhow::Result<Vec<RouteMember>>;
     async fn upsert_route_member(&self, input: RouteMemberInput) -> anyhow::Result<RouteMember>;
     async fn delete_route_member(&self, id: i64) -> anyhow::Result<bool>;
     async fn list_aliases(&self) -> anyhow::Result<Vec<Alias>>;
@@ -20,6 +21,7 @@ pub trait RoutingPersistence {
     async fn delete_alias(&self, id: i64) -> anyhow::Result<bool>;
 
     async fn list_routing_rules(&self, provider_id: i64) -> anyhow::Result<Vec<RoutingRule>>;
+    async fn list_all_routing_rules(&self) -> anyhow::Result<Vec<RoutingRule>>;
     async fn get_routing_rule(&self, id: i64) -> anyhow::Result<Option<RoutingRule>>;
     async fn upsert_routing_rule(&self, input: RoutingRuleInput) -> anyhow::Result<RoutingRule>;
     async fn upsert_routing_rules_batch(
@@ -39,6 +41,7 @@ pub trait RoutingPersistence {
     async fn upsert_rule_set(&self, input: RuleSetInput) -> anyhow::Result<RuleSet>;
     async fn delete_rule_set(&self, id: i64) -> anyhow::Result<bool>;
     async fn list_rules(&self, rule_set_id: i64) -> anyhow::Result<Vec<Rule>>;
+    async fn list_all_rules(&self) -> anyhow::Result<Vec<Rule>>;
     async fn get_rule(&self, id: i64) -> anyhow::Result<Option<Rule>>;
     async fn upsert_rule(&self, input: RuleInput) -> anyhow::Result<Rule>;
     async fn delete_rule(&self, id: i64) -> anyhow::Result<bool>;
@@ -46,6 +49,7 @@ pub trait RoutingPersistence {
         &self,
         provider_id: i64,
     ) -> anyhow::Result<Vec<ProviderRuleSet>>;
+    async fn list_all_provider_rule_sets(&self) -> anyhow::Result<Vec<ProviderRuleSet>>;
     async fn upsert_provider_rule_set(
         &self,
         input: ProviderRuleSetInput,

@@ -42,6 +42,14 @@ pub async fn list(client: &LibsqlClient, provider_id: i64) -> anyhow::Result<Vec
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<Credential>> {
+    query(client, &format!("SELECT {COLS} FROM credentials"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn get(client: &LibsqlClient, id: i64) -> anyhow::Result<Option<Credential>> {
     query_one(
         client,

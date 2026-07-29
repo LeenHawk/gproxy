@@ -49,6 +49,14 @@ pub async fn list(client: &LibsqlClient, provider_id: i64) -> anyhow::Result<Vec
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<ProviderModel>> {
+    query(client, &format!("SELECT {COLS} FROM provider_models"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn upsert(
     client: &LibsqlClient,
     input: ProviderModelInput,

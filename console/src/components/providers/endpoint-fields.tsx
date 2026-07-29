@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { channelMeta, type EndpointKind } from "@/lib/channel-meta";
+import type { EndpointKind } from "@/lib/channel-meta";
 
 export interface EndpointRow {
   kind: EndpointKind | "";
@@ -15,8 +15,9 @@ export interface EndpointRow {
 }
 
 interface EndpointFieldsProps {
-  channel: string;
+  endpointKinds: readonly EndpointKind[];
   rows: EndpointRow[];
+  required?: boolean;
   onChange: (rows: EndpointRow[]) => void;
 }
 
@@ -42,20 +43,23 @@ export function isValidEndpointUrl(input: string): boolean {
   }
 }
 
-export function EndpointFields({ channel, rows, onChange }: EndpointFieldsProps) {
+export function EndpointFields({ endpointKinds, rows, required = false, onChange }: EndpointFieldsProps) {
   const { t } = useTranslation("providers");
-  const kinds = channelMeta(channel)?.endpointKinds ?? [];
-  if (kinds.length === 0) return null;
+  if (endpointKinds.length === 0) return null;
 
   const selected = new Set(rows.map((row) => row.kind).filter(Boolean));
-  const canAdd = !rows.some((row) => !row.kind) && kinds.some((kind) => !selected.has(kind));
+  const canAdd = !rows.some((row) => !row.kind)
+    && endpointKinds.some((kind) => !selected.has(kind));
   const update = (index: number, next: Partial<EndpointRow>) =>
     onChange(rows.map((row, i) => i === index ? { ...row, ...next } : row));
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-2" role="group" aria-required={required}>
       <div className="flex items-center justify-between gap-3">
-        <Label>{t("endpoints.title")}</Label>
+        <Label>
+          {t("endpoints.title")}
+          {required ? ` (${t("form.required")})` : ""}
+        </Label>
         <Button
           type="button"
           variant="outline"
@@ -75,17 +79,21 @@ export function EndpointFields({ channel, rows, onChange }: EndpointFieldsProps)
               value={row.kind}
               onValueChange={(kind) => update(index, { kind: kind as EndpointKind })}
             >
-              <SelectTrigger className="w-full" aria-label={t("endpoints.kind")}>
+              <SelectTrigger
+                className="w-full"
+                aria-label={t("endpoints.kind")}
+                aria-required={required}
+              >
                 <SelectValue placeholder={t("endpoints.kindPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                {kinds.map((kind) => (
+                {endpointKinds.map((kind) => (
                   <SelectItem
                     key={kind}
                     value={kind}
                     disabled={kind !== row.kind && selected.has(kind)}
                   >
-                    {t(`endpoints.kinds.${kind}`)}
+                    {t(`endpoints.kinds.${kind}`, { defaultValue: kind })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -95,6 +103,7 @@ export function EndpointFields({ channel, rows, onChange }: EndpointFieldsProps)
               onChange={(event) => update(index, { url: event.target.value })}
               placeholder={t("endpoints.urlPlaceholder")}
               aria-label={t("endpoints.url")}
+              required={required}
             />
             <Button
               type="button"

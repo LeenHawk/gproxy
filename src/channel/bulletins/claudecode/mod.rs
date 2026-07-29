@@ -29,6 +29,11 @@ use crate::protocol::Provider;
 
 pub struct ClaudeCodeChannel;
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for ClaudeCodeChannel {
@@ -73,11 +78,6 @@ impl Channel for ClaudeCodeChannel {
         routing::table()
     }
 
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
-    }
-
     fn shape_request(&self, body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
         request::shape(body, headers, ctx)
     }
@@ -93,9 +93,9 @@ impl Channel for ClaudeCodeChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::refresh(client, secret).await
+        auth::refresh(client, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -122,42 +122,37 @@ impl ChannelLogin for ClaudeCodeChannel {
     async fn authcode_start(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _params: &Value,
-        redirect_uri: &str,
-        state: &str,
-        pkce_challenge: &str,
+        ctx: crate::channel::AuthCodeStartCtx<'_>,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
         let (authorize_url, redirect_uri) =
-            auth::authcode_start(redirect_uri, state, pkce_challenge);
+            auth::authcode_start(ctx.redirect_uri, ctx.state, ctx.pkce_challenge);
         Ok(Some(AuthCodeStart {
             authorize_url,
             redirect_uri,
-            extra: Some(json!({ "state": state })),
+            extra: Some(json!({ "state": ctx.state })),
         }))
     }
 
     async fn authcode_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        code: &str,
-        verifier: &str,
-        redirect_uri: &str,
-        extra: Option<&Value>,
+        ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        let state = extra
+        let state = ctx
+            .extra
             .and_then(|value| value.get("state"))
             .and_then(Value::as_str)
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .ok_or_else(|| ChannelError::Build("claudecode login session missing state".into()))?;
-        auth::authcode_exchange(client, code, verifier, redirect_uri, state).await
+        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri, state).await
     }
 
     async fn cookie_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        cookie: &str,
+        ctx: crate::channel::CookieExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        cookie::exchange(client, cookie).await
+        cookie::exchange(client, ctx.cookie).await
     }
 }

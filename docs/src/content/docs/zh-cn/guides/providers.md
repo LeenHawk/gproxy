@@ -12,7 +12,8 @@ description: 在 GPROXY v2 中配置上游 Provider、凭据、Operation 路由�
 ## 内置 Channel
 
 native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消费版 web 渠道不进入 edge
-构建。当前内置 channel id 包括：
+构建。Claude 的 Cookie 登录仅在 native 可用，edge runtime 不会公布该登录模式。当前内置
+channel id 包括：
 
 | Channel id | 常见用途 |
 | --- | --- |
@@ -24,6 +25,19 @@ native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消�
 | `aistudio`, `vertex`, `vertexexpress` | Gemini / Vertex 上游；`vertex` 也支持原生 Claude 合作伙伴模型。 |
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
 | `claudeweb` | 通过 claude.ai 会话 cookie 接入 Claude 消费版 web 后端（仅 native）。 |
+
+上表描述官方 build。自定义 native binary 还可以链接外部 Channel crate。Console 会读取需要
+鉴权的 runtime catalog，因此外部项会根据 `Channel::metadata()` 出现在 Provider selector 中，
+不需要修改 Console 静态列表。编译时集成 contract 见
+[添加 Channel](/zh-cn/guides/adding-a-channel/)。
+
+成功返回的 runtime catalog 对当前可执行文件具有权威性，其中的凭据类型、登录模式、endpoint
+类型、密钥模板与 usage 能力都以服务端为准；Console 只会为已知内置 Channel 叠加纯 UI 提示。
+仅当确认旧版后端对 catalog endpoint 返回 404 或 405 时，Console 才使用静态列表说明已有的
+内置 Provider。该回退仅用于显示：Provider 创建与保存、凭证手动创建与编辑、OAuth 和凭证批量
+导入都会保持禁用；usage 查看以及不依赖元数据的删除和批量操作仍可使用。加载状态只出现在首次
+成功取得 catalog 之前；后台重新获取期间仍可使用已缓存的权威元数据。其他真实错误会分别显示，
+并可重试。Admin API 也会拒绝使用当前可执行文件未注册 Channel 的 Provider 创建或更新请求。
 
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
 
@@ -91,7 +105,8 @@ Anthropic 服务端回退；请改用 provider 级路由或客户端回退。模
 配置而保留。值为字符串
 `"default"` 时使用 Anthropic 按拒绝类别维护的默认路由；也可填写一至三个按顺序尝试的模型
 ID。GPROXY 会分别为默认路由和显式链加入 `server-side-fallback-2026-07-01` 或
-`server-side-fallback-2026-06-01`。请求本身已有的 `fallbacks` 始终优先。
+`server-side-fallback-2026-06-01`。请求本身已有的 `fallbacks` 始终优先。对于已知不接受
+Anthropic 服务端 `fallbacks` 参数的模型，GPROXY 会跳过该设置；未知及未来模型默认仍可使用。
 
 OpenRouter 会把同一设置转换成自身的模型路由 `fallbacks` 数组，而不使用 Anthropic beta。
 由于 OpenRouter 没有 Anthropic `"default"` 的等价模式，该值会转换成显式 Claude Opus 4.8
@@ -134,6 +149,15 @@ provider 的默认路由，或手动把 Claude Messages 与 Claude count-tokens 
 | `enable_openai_magic_cache` | 在 OpenAI Chat/Responses 目标中识别 GPROXY 缓存触发字符串，并写入 OpenAI 显式断点。适用于 OpenAI、Azure、Amazon Bedrock、Codex、OpenRouter、Vercel 和 custom endpoint。 |
 | `enable_claude_magic_cache` | 在 Claude Messages 目标中识别 GPROXY 缓存触发字符串，并写入 `cache_control`。适用于 Azure、Amazon Bedrock、Claude API、Claude Code、OpenRouter、Vercel 和 custom endpoint。 |
 | `claude_fable_fallbacks` | 使用 Anthropic `"default"` 路由或一至三个有序模型重试 Claude 模型拒绝；适用于 Claude API 类 channel，并可作为 OpenRouter 显式模型链。 |
+
+对于外部 Channel 表单，Console 的共用控件保留 `base_url`、`endpoints`、
+`circuit_breaker` 和 `auto_refresh_models`。如果外部元数据也声明这些 key，由共用控件负责，
+重复的通用字段会被忽略，从而确保每个 key 只渲染并序列化一次。这些控件会采用元数据默认值；
+仅当没有已持久化值且 `endpoints`、`circuit_breaker` 的 object 默认值有效时才初始化该默认值。
+字段标记为 required 时，`base_url` 不得为空，`endpoints` 必须至少包含一个有效的精确 URL，
+`circuit_breaker` 的 `consecutive_failures` 与 `cooldown_secs` 都必须是正整数，满足这些条件后才能
+保存 Provider。无法识别的已持久化设置会保留。其他外部设置声明使用通用控件；同一 key 重复声明
+时采用第一个字段。
 
 启用魔法字符串缓存前，建议先阅读[提示缓存](/zh-cn/guides/claude-caching/)，特别是 OpenAI
 对模型版本和 TTL 的要求。

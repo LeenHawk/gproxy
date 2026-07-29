@@ -31,6 +31,11 @@ const EXPIRY_SKEW_MS: i64 = 60_000;
 
 pub struct CopilotCliChannel;
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for CopilotCliChannel {
@@ -101,11 +106,6 @@ impl Channel for CopilotCliChannel {
         routes
     }
 
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
-    }
-
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
         let copilot_token = ctx
             .secret
@@ -156,16 +156,16 @@ impl Channel for CopilotCliChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        let github_token = auth::github_token(secret)?;
-        let vscode_version = auth::vscode_version(secret);
+        let github_token = auth::github_token(ctx.secret)?;
+        let vscode_version = auth::vscode_version(ctx.secret);
         let resp = auth::exchange_copilot_token(client, github_token, vscode_version).await?;
         let expires_at_ms = resp.expires_at.saturating_mul(1000);
 
         // Preserve github_token + every other field; only the Copilot token
         // and its expiry rotate.
-        let mut out = secret.clone();
+        let mut out = ctx.secret.clone();
         let obj = out
             .as_object_mut()
             .ok_or_else(|| ChannelError::Build("secret is not an object".into()))?;
@@ -204,7 +204,7 @@ impl ChannelLogin for CopilotCliChannel {
     async fn device_start(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        _params: &serde_json::Value,
+        _ctx: crate::channel::DeviceStartCtx<'_>,
     ) -> Result<DeviceInit, ChannelError> {
         auth::device_start(client).await
     }
@@ -212,9 +212,9 @@ impl ChannelLogin for CopilotCliChannel {
     async fn device_poll(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        device_code: &str,
+        ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        auth::device_poll(client, device_code).await
+        auth::device_poll(client, ctx.device_code).await
     }
 }
 
@@ -246,7 +246,17 @@ mod tests {
     async fn refresh_reexchanges_copilot_token() {
         let secret = json!({ "github_token": "ghu_abc", "account_type": "business" });
         let client: Arc<dyn UpstreamClient> = Arc::new(MockUpstream);
-        let out = CopilotCliChannel.refresh(&client, &secret).await.unwrap();
+        let settings = Value::Null;
+        let out = CopilotCliChannel
+            .refresh(
+                &client,
+                crate::channel::RefreshCtx {
+                    secret: &secret,
+                    provider_settings: &settings,
+                },
+            )
+            .await
+            .unwrap();
 
         assert_eq!(out["copilot_token"], "cop-xyz");
         assert_eq!(out["copilot_expires_at_ms"], 1_700_000_000_000i64);
@@ -279,7 +289,7 @@ mod tests {
             headers: &headers,
             body: Bytes::from_static(b"{\"model\":\"gpt-4o\"}"),
         };
-        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http();
+        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http().unwrap();
 
         assert_eq!(
             req.uri().to_string(),
@@ -329,7 +339,7 @@ mod tests {
             headers: &headers,
             body: Bytes::new(),
         };
-        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http();
+        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http().unwrap();
         assert_eq!(req.method(), Method::GET);
         assert_eq!(
             req.uri().to_string(),

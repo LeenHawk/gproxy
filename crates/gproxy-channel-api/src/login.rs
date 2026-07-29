@@ -9,12 +9,12 @@
 //! Pure async + `serde_json` — no cipher, no persistence, no axum. Compiles on
 //! native AND wasm (the registry that holds these is used on every target); the
 //! admin HTTP endpoints that drive the flow are native-only. The dual
-//! `#[cfg_attr]` async_trait Send/?Send split mirrors [`Channel`].
+//! `#[cfg_attr]` async_trait Send/?Send split mirrors [`Channel`](crate::Channel).
 
 use std::sync::Arc;
 
-use crate::channel::ChannelError;
-use crate::http::client::UpstreamClient;
+use crate::error::ChannelError;
+use crate::transport::UpstreamClient;
 
 /// The output of [`ChannelLogin::authcode_start`]: where to send the user, and
 /// the redirect_uri the channel actually used.
@@ -56,6 +56,42 @@ pub enum DevicePoll {
     Denied,
 }
 
+/// Inputs for starting an authorization-code login.
+pub struct AuthCodeStartCtx<'a> {
+    pub provider_settings: &'a serde_json::Value,
+    pub params: &'a serde_json::Value,
+    pub redirect_uri: &'a str,
+    pub state: &'a str,
+    pub pkce_challenge: &'a str,
+}
+
+/// Inputs for exchanging an authorization code.
+pub struct AuthCodeExchangeCtx<'a> {
+    pub provider_settings: &'a serde_json::Value,
+    pub code: &'a str,
+    pub verifier: &'a str,
+    pub redirect_uri: &'a str,
+    pub extra: Option<&'a serde_json::Value>,
+}
+
+/// Inputs for starting a device-code login.
+pub struct DeviceStartCtx<'a> {
+    pub provider_settings: &'a serde_json::Value,
+    pub params: &'a serde_json::Value,
+}
+
+/// Inputs for one device-code poll.
+pub struct DevicePollCtx<'a> {
+    pub provider_settings: &'a serde_json::Value,
+    pub device_code: &'a str,
+}
+
+/// Inputs for exchanging a browser session cookie.
+pub struct CookieExchangeCtx<'a> {
+    pub provider_settings: &'a serde_json::Value,
+    pub cookie: &'a str,
+}
+
 /// Interactive OAuth authorization-code (+PKCE) login for a channel.
 ///
 /// Defaults make the trait opt-in: a channel that does not override returns
@@ -76,10 +112,7 @@ pub trait ChannelLogin: Send + Sync {
     async fn authcode_start(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _params: &serde_json::Value,
-        _redirect_uri: &str,
-        _state: &str,
-        _pkce_challenge: &str,
+        _ctx: AuthCodeStartCtx<'_>,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
         Ok(None)
     }
@@ -93,17 +126,15 @@ pub trait ChannelLogin: Send + Sync {
     async fn authcode_exchange(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _code: &str,
-        _verifier: &str,
-        _redirect_uri: &str,
-        _extra: Option<&serde_json::Value>,
+        _ctx: AuthCodeExchangeCtx<'_>,
     ) -> Result<serde_json::Value, ChannelError> {
         Err(ChannelError::Unsupported("authcode login"))
     }
 
     /// Begin a device-code login: ask the provider for a device + user code.
     /// `None`-by-default channels return `Unsupported`. The caller stashes the
-    /// returned `device_code` server-side and polls [`device_poll`].
+    /// returned `device_code` server-side and polls
+    /// [`device_poll`](ChannelLogin::device_poll).
     ///
     /// `params` is opaque operator-supplied input (mirrors
     /// [`authcode_start`](ChannelLogin::authcode_start)) — e.g.
@@ -112,18 +143,19 @@ pub trait ChannelLogin: Send + Sync {
     async fn device_start(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _params: &serde_json::Value,
+        _ctx: DeviceStartCtx<'_>,
     ) -> Result<DeviceInit, ChannelError> {
         Err(ChannelError::Unsupported("device login"))
     }
 
     /// Poll a pending device-code login with the `device_code` from
-    /// [`device_start`]. Returns [`DevicePoll::Ready`] with the PLAINTEXT secret
+    /// [`device_start`](ChannelLogin::device_start). Returns [`DevicePoll::Ready`]
+    /// with the PLAINTEXT secret
     /// once authorized (the caller seals + persists), else `Pending`/`Denied`.
     async fn device_poll(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _device_code: &str,
+        _ctx: DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
         Err(ChannelError::Unsupported("device login"))
     }
@@ -134,7 +166,7 @@ pub trait ChannelLogin: Send + Sync {
     async fn cookie_exchange(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        _cookie: &str,
+        _ctx: CookieExchangeCtx<'_>,
     ) -> Result<serde_json::Value, ChannelError> {
         Err(ChannelError::Unsupported("cookie login"))
     }

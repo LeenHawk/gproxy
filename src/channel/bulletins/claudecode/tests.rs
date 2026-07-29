@@ -46,7 +46,17 @@ async fn refresh_rotates_tokens() {
         "account_uuid": "acct-123",
     });
     let client: Arc<dyn UpstreamClient> = Arc::new(MockUpstream);
-    let out = ClaudeCodeChannel.refresh(&client, &secret).await.unwrap();
+    let settings = Value::Null;
+    let out = ClaudeCodeChannel
+        .refresh(
+            &client,
+            crate::channel::RefreshCtx {
+                secret: &secret,
+                provider_settings: &settings,
+            },
+        )
+        .await
+        .unwrap();
 
     assert_eq!(out["access_token"], "new");
     assert_eq!(out["refresh_token"], "newrt");
@@ -76,14 +86,19 @@ fn refresh_uses_official_window_and_preserves_project_scopes() {
 #[tokio::test]
 async fn invalid_grant_is_a_permanent_credential_error() {
     let client: Arc<dyn UpstreamClient> = Arc::new(InvalidGrantUpstream);
+    let secret = json!({
+        "access_token": "old",
+        "refresh_token": "expired",
+        "expires_at_ms": 1,
+    });
+    let settings = Value::Null;
     let error = ClaudeCodeChannel
         .refresh(
             &client,
-            &json!({
-                "access_token": "old",
-                "refresh_token": "expired",
-                "expires_at_ms": 1,
-            }),
+            crate::channel::RefreshCtx {
+                secret: &secret,
+                provider_settings: &settings,
+            },
         )
         .await
         .unwrap_err();
@@ -114,7 +129,7 @@ fn prepare_injects_oauth_and_stainless() {
         headers: &headers,
         body: Bytes::from_static(b"{\"model\":\"claude-sonnet-4\"}"),
     };
-    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http();
+    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http().unwrap();
 
     assert_eq!(
         req.uri().to_string(),
@@ -203,7 +218,7 @@ fn anthropic_beta_oauth_first_then_client_deduped() {
         headers: &headers,
         body: Bytes::from_static(b"{\"messages\":[]}"),
     };
-    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http();
+    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http().unwrap();
     assert_eq!(
         req.headers().get("anthropic-beta").unwrap(),
         "oauth-2025-04-20,feat-x,feat-y"
@@ -234,7 +249,8 @@ fn count_tokens_skips_cch_metadata_injection() {
                 body: body.clone(),
             })
             .unwrap()
-            .into_http();
+            .into_http()
+            .unwrap();
         serde_json::from_slice::<Value>(req.body()).unwrap()
     };
     let count = prepare("/v1/messages/count_tokens");
@@ -249,8 +265,19 @@ fn count_tokens_skips_cch_metadata_injection() {
 #[tokio::test]
 async fn authcode_start_urls() {
     let client: Arc<dyn UpstreamClient> = Arc::new(MockUpstream);
+    let settings = Value::Null;
+    let params = json!({});
     let claude = ClaudeCodeChannel
-        .authcode_start(&client, &json!({}), "", "ST", "CH")
+        .authcode_start(
+            &client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "ST",
+                pkce_challenge: "CH",
+            },
+        )
         .await
         .expect("authcode_start ok")
         .expect("claudecode supports authcode");
@@ -279,7 +306,16 @@ async fn authcode_start_urls() {
     );
 
     let gemini = crate::channel::bulletins::geminicli::GeminiCliChannel
-        .authcode_start(&client, &json!({}), "", "ST", "CH")
+        .authcode_start(
+            &client,
+            crate::channel::AuthCodeStartCtx {
+                provider_settings: &settings,
+                params: &params,
+                redirect_uri: "",
+                state: "ST",
+                pkce_challenge: "CH",
+            },
+        )
         .await
         .expect("authcode_start ok")
         .expect("geminicli supports authcode");

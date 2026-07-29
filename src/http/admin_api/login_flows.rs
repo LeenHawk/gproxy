@@ -17,8 +17,12 @@ use crate::api::login::{
     LoginStartRequest, LoginStartResponse,
 };
 use crate::app::AppState;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::channel::CookieExchangeCtx;
 use crate::channel::oauth;
-use crate::channel::{ChannelError, DevicePoll};
+use crate::channel::{
+    AuthCodeExchangeCtx, AuthCodeStartCtx, ChannelError, DevicePoll, DevicePollCtx, DeviceStartCtx,
+};
 use crate::store::persistence::records::CredentialInput;
 
 use super::{Request, Resp, json_body, segments};
@@ -70,16 +74,21 @@ async fn start(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, 
     let (verifier, challenge) = oauth::pkce();
     let state_tok = crate::util::rand::uuid_v4();
     let params = req.params.clone().unwrap_or_else(|| serde_json::json!({}));
+    let provider_settings = provider_settings(state, req.provider_id, &req.channel)
+        .map_err(|_| ApiError::BadRequest("login provider does not match channel".into()))?;
     let login_client = state
         .upstream_client_for_provider_id(req.provider_id)
         .map_err(|_| ApiError::BadRequest("login client init failed".into()))?;
     let started = channel
         .authcode_start(
             &login_client,
-            &params,
-            req.redirect_uri.as_deref().unwrap_or_default(),
-            &state_tok,
-            &challenge,
+            AuthCodeStartCtx {
+                provider_settings: &provider_settings,
+                params: &params,
+                redirect_uri: req.redirect_uri.as_deref().unwrap_or_default(),
+                state: &state_tok,
+                pkce_challenge: &challenge,
+            },
         )
         .await
         .map_err(|e| ApiError::BadRequest(e.to_string()))?
@@ -159,13 +168,18 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
             );
             bad()
         })?;
+    let provider_settings =
+        provider_settings(state, Some(provider_id), &session.channel).map_err(|_| bad())?;
     let secret = channel
         .authcode_exchange(
             &login_client,
-            &code,
-            &session.verifier,
-            &session.redirect_uri,
-            session.extra.as_ref(),
+            AuthCodeExchangeCtx {
+                provider_settings: &provider_settings,
+                code: &code,
+                verifier: &session.verifier,
+                redirect_uri: &session.redirect_uri,
+                extra: session.extra.as_ref(),
+            },
         )
         .await
         .map_err(|error| {
@@ -190,7 +204,9 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
     login::clear(state.cache.as_ref(), &req.login_session_id).await;
 
     let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-    let name = req.name.or_else(|| label_from_secret(&secret));
+    let name = req
+        .name
+        .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
     let cred = seal_create(state, provider_id, name, sealed)
         .await
         .map_err(|_| bad())?;
@@ -209,11 +225,19 @@ async fn device_start(state: &AppState, parts: &Request, body: &Bytes) -> Result
         .login_for(&req.channel)
         .ok_or_else(|| ApiError::NotFound("unknown channel".into()))?;
     let params = req.params.clone().unwrap_or_else(|| serde_json::json!({}));
+    let provider_settings = provider_settings(state, Some(req.provider_id), &req.channel)
+        .map_err(|_| ApiError::BadRequest("device login provider does not match channel".into()))?;
     let login_client = state
         .upstream_client_for_provider_id(Some(req.provider_id))
         .map_err(|_| ApiError::BadRequest("device login client init failed".into()))?;
     let init = channel
-        .device_start(&login_client, &params)
+        .device_start(
+            &login_client,
+            DeviceStartCtx {
+                provider_settings: &provider_settings,
+                params: &params,
+            },
+        )
         .await
         .map_err(|_| ApiError::BadRequest("channel has no device login".into()))?;
     let sid = login::device_start(
@@ -253,16 +277,26 @@ async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<
     let login_client = state
         .upstream_client_for_provider_id(Some(session.provider_id))
         .map_err(|_| bad())?;
+    let provider_settings =
+        provider_settings(state, Some(session.provider_id), &session.channel).map_err(|_| bad())?;
 
     match channel
-        .device_poll(&login_client, &session.device_code)
+        .device_poll(
+            &login_client,
+            DevicePollCtx {
+                provider_settings: &provider_settings,
+                device_code: &session.device_code,
+            },
+        )
         .await
     {
         Ok(DevicePoll::Pending) => Resp::json(200, &serde_json::json!({ "status": "pending" })),
         Ok(DevicePoll::Ready(secret)) => {
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
             let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-            let name = session.name.or_else(|| label_from_secret(&secret));
+            let name = session
+                .name
+                .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
             let cred = seal_create(state, session.provider_id, name, sealed)
                 .await
                 .map_err(|_| bad())?;
@@ -301,8 +335,16 @@ async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp,
     let cookie_client = state
         .upstream_client_for_cookie_login(&request_channel, req.provider_id)
         .map_err(|_| ApiError::BadRequest("cookie login client init failed".into()))?;
+    let provider_settings = provider_settings(state, Some(req.provider_id), &req.channel)
+        .map_err(|_| ApiError::BadRequest("cookie login provider does not match channel".into()))?;
     let secret = channel
-        .cookie_exchange(&cookie_client, &req.cookie)
+        .cookie_exchange(
+            &cookie_client,
+            CookieExchangeCtx {
+                provider_settings: &provider_settings,
+                cookie: &req.cookie,
+            },
+        )
         .await
         .map_err(|error| {
             tracing::warn!(channel = %req.channel, %error, "cookie login exchange failed");
@@ -312,7 +354,9 @@ async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp,
         .cipher
         .seal(&secret)
         .map_err(|_| ApiError::BadRequest("cookie login failed".into()))?;
-    let name = req.name.or_else(|| label_from_secret(&secret));
+    let name = req
+        .name
+        .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
     let credential = seal_create(state, req.provider_id, name, sealed).await?;
     Resp::json(200, &credential)
 }
@@ -324,21 +368,23 @@ async fn cookie(_state: &AppState, _parts: &Request, _body: &Bytes) -> Result<Re
     ))
 }
 
-fn label_from_secret(secret: &serde_json::Value) -> Option<String> {
-    let email = secret
-        .get("user_email")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())?;
-    let tier = secret
-        .get("rate_limit_tier")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    Some(match tier {
-        Some(tier) => format!("{email} {tier}"),
-        None => email.to_string(),
-    })
+fn provider_settings(
+    state: &AppState,
+    provider_id: Option<i64>,
+    channel: &str,
+) -> Result<serde_json::Value, ApiError> {
+    let Some(provider_id) = provider_id else {
+        return Ok(serde_json::Value::Null);
+    };
+    let snapshot = state.cp();
+    let provider = snapshot
+        .providers_by_id
+        .get(&provider_id)
+        .ok_or_else(|| ApiError::NotFound("provider not found".into()))?;
+    if provider.channel != channel {
+        return Err(ApiError::BadRequest("provider channel mismatch".into()));
+    }
+    Ok(provider.settings_json.clone())
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────

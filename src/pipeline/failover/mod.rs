@@ -258,24 +258,47 @@ pub async fn run_failover(
                 multi_step,
             } = outcome;
             let latency_ms = send_ms.map(|ms| ms as i64).unwrap_or(0);
-            // §8-D upstream response capture is gated here; the guard/return
-            // value carries it. `materialize` runs BEFORE `log_upstream` so the
-            // non-streaming upstream body can be folded into the same INSERT.
-            let up_cap = {
+            // A direct successful stream needs its row id before its body is
+            // exposed. Custom streams own their exact per-call guards inside
+            // `CapturingClient`; buffered responses are folded into the later
+            // INSERT as before.
+            let direct_stream_capture = {
                 let ls = state.cp().log_settings.clone();
-                (ls.enable_upstream_log && ls.enable_upstream_log_body).then(|| {
-                    UpstreamRespCapture {
-                        state: state.clone(),
-                        request_id: ctx.request_id.clone(),
-                    }
+                !multi_step
+                    && matches!(&source, BodySource::Streaming(_))
+                    && ls.enable_upstream_log
+                    && ls.enable_upstream_log_body
+            };
+            let up_cap = if direct_stream_capture {
+                capture::start_upstream_stream(
+                    state,
+                    ctx,
+                    cand,
+                    capture::UpstreamWire {
+                        status,
+                        latency_ms,
+                        url: &sent_url,
+                        method: &method,
+                        sent_headers: sent_headers.as_ref(),
+                        sent_body: &sent_body,
+                        resp_body: None,
+                    },
+                )
+                .await
+                .map(|capture_id| UpstreamRespCapture {
+                    state: state.clone(),
+                    capture_id,
                 })
+            } else {
+                None
             };
             // The attempt reached the provider and is being relayed; log its
             // upstream row EVEN IF response materialization fails afterwards
             // (a 2xx whose cross-protocol transform errors must still leave an
             // upstream trace). Borrow `upstream_raw` from the Ok arm; `?` below
             // propagates a materialize error only after the row is written.
-            let rule_filter_model = crate::pipeline::classify::peek_model(&ctx.body)
+            let rule_filter_model = memo
+                .inbound_model(ctx)
                 .or_else(|| crate::pipeline::classify::path_model_id(&ctx.path))
                 .unwrap_or_else(|| cand.upstream_model_id.clone());
             let response_rules = rules.as_deref().map(|rules| ResponseRuleCtx {
@@ -322,7 +345,7 @@ pub async fn run_failover(
             // A `multi_step` (Custom) exchange already logged each of its calls
             // inline via the `CapturingClient`, so there is no single aggregate
             // row to write here — skip it (its `sent_url` is empty anyway).
-            if !multi_step {
+            if !multi_step && !direct_stream_capture {
                 capture::log_upstream(
                     state,
                     ctx,
@@ -340,8 +363,15 @@ pub async fn run_failover(
                 .await;
             }
             let Materialized { body, settle, .. } = mat?;
-            if let Some(settle) = settle {
-                settle::settle_body(settle.ctx, &settle.body, settle.stream).await;
+            if let Some(s) = settle {
+                // §17: settle (usage extract + reconcile + usage INSERT) must
+                // not delay the client-visible response — detach it, mirroring
+                // the streaming StreamGuard. wasm has no detached tasks, so the
+                // inline await is the platform cost there.
+                #[cfg(not(target_arch = "wasm32"))]
+                tokio::spawn(async move { settle::settle_body(s.ctx, &s.body, s.stream).await });
+                #[cfg(target_arch = "wasm32")]
+                settle::settle_body(s.ctx, &s.body, s.stream).await;
             }
             if plan.is_transform() || plan.is_aggregate_stream() {
                 // converted bytes no longer match the upstream framing
@@ -370,11 +400,22 @@ pub async fn run_failover(
                 (_, _, body) => body,
             };
             // §17: embeddings / image generation are provider-shaped (not
-            // content-generation) so `capture` skipped them — settle them inline
-            // from the buffered JSON (a no-op for every other op).
+            // content-generation) so `capture` skipped them — settle them from
+            // the buffered JSON, detached on native so the write never delays
+            // the response (inline on wasm: no detached tasks there).
             if status.is_success()
+                && settle::provider::billable(ctx.op)
                 && let ResponseBody::Full(b) = &body
             {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let (state, ctx, cand, b) =
+                        (state.clone(), ctx.clone(), cand.clone(), b.clone());
+                    tokio::spawn(
+                        async move { settle::provider::settle(&state, &ctx, &cand, &b).await },
+                    );
+                }
+                #[cfg(target_arch = "wasm32")]
                 settle::provider::settle(state, ctx, cand, b).await;
             }
             return Ok(ExecOutcome {
@@ -420,22 +461,30 @@ pub async fn run_failover(
 /// Per-credential minute budgets (§3.3), incr-then-check on the shared cache
 /// (same off-by-one semantics as authz). rpm increments per attempt; tpm is
 /// read-only here — settle-time reconciliation (M6 §17) feeds `ctpm:*` with
-/// each request's actual total tokens. A counter backend failure counts as
+/// each request's actual total tokens. The two counters run in parallel (one
+/// RTT round on remote backends). A counter backend failure counts as
 /// exhausted (fail-closed): a configured budget must not vanish with the cache.
 async fn budget_exhausted(state: &AppState, cand: &Candidate) -> bool {
     let bucket = crate::util::time::unix_now() / 60;
     let ttl = Some(Duration::from_secs(120));
-    if let Some(limit) = cand.credential.rpm_limit {
-        let key = format!("crpm:{}:m{bucket}", cand.credential.id);
-        if !matches!(state.cache.incr(&key, 1, ttl).await, Ok(n) if n <= limit) {
-            return true;
+    let rpm = async {
+        match cand.credential.rpm_limit {
+            Some(limit) => {
+                let key = format!("crpm:{}:m{bucket}", cand.credential.id);
+                !matches!(state.cache.incr(&key, 1, ttl).await, Ok(n) if n <= limit)
+            }
+            None => false,
         }
-    }
-    if let Some(limit) = cand.credential.tpm_limit {
-        let key = format!("ctpm:{}:m{bucket}", cand.credential.id);
-        if !matches!(state.cache.incr(&key, 0, ttl).await, Ok(n) if n <= limit) {
-            return true;
+    };
+    let tpm = async {
+        match cand.credential.tpm_limit {
+            Some(limit) => {
+                let key = format!("ctpm:{}:m{bucket}", cand.credential.id);
+                !matches!(state.cache.incr(&key, 0, ttl).await, Ok(n) if n <= limit)
+            }
+            None => false,
         }
-    }
-    false
+    };
+    let (rpm_exhausted, tpm_exhausted) = futures_util::join!(rpm, tpm);
+    rpm_exhausted || tpm_exhausted
 }

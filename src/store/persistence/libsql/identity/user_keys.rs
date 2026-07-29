@@ -47,6 +47,14 @@ pub async fn list(client: &LibsqlClient, user_id: i64) -> anyhow::Result<Vec<Use
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<UserKey>> {
+    query(client, &format!("SELECT {COLS} FROM user_keys"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn find_by_digest(
     client: &LibsqlClient,
     digest: &str,

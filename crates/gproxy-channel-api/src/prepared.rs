@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 
-use crate::http::client::{ClientError, UpstreamClient};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::transport::RespStream;
+use crate::transport::{ClientError, UpstreamClient};
 
 /// A channel-driven multi-step upstream exchange. The pipeline injects the
 /// resolved `(proxy, emulation)` client; the closure performs whatever sequence
@@ -43,11 +45,7 @@ pub type CustomStreamSend = Box<
             Box<
                 dyn Future<
                         Output = Result<
-                            (
-                                http::StatusCode,
-                                http::HeaderMap,
-                                crate::http::client::RespStream,
-                            ),
+                            (http::StatusCode, http::HeaderMap, RespStream),
                             ClientError,
                         >,
                     > + Send,
@@ -55,14 +53,14 @@ pub type CustomStreamSend = Box<
         > + Send,
 >;
 
-/// The output of [`Channel::prepare`]: either a single direct upstream request
+/// The output of [`Channel::prepare`](crate::Channel::prepare): either a single direct upstream request
 /// (the common case — the pipeline sends it once), or a channel-driven
 /// multi-step exchange ([`CustomSend`]).
 ///
 /// Proxy and TLS-emulation are NOT carried here — they are per-credential /
 /// global / channel-default concerns resolved by the executor
-/// (see [`crate::channel::resolve`]), not the channel's to decide; the executor
-/// injects the resolved client into a `Custom` closure.
+/// not the channel's to decide; the executor injects the resolved client into a
+/// `Custom` closure.
 // `Direct` (a full `http::Request`) is the hot path — every normal request. The
 // size gap vs the boxed `Custom` closure is real, but boxing `Direct` to close
 // it would add a heap allocation to EVERY request for the sake of the rare
@@ -97,13 +95,38 @@ impl PreparedRequest {
         Self::CustomStream(send)
     }
 
-    /// Consume the direct request for the transport. Only valid on
-    /// [`Direct`](PreparedRequest::Direct) — callers that never produce a
-    /// `Custom` (the admin model-pull, tests) use this.
-    pub fn into_http(self) -> http::Request<Bytes> {
+    /// Execute this request in a host path that requires a buffered response.
+    /// Buffered custom exchanges use the same resolved client as direct
+    /// requests. A streaming-only exchange is rejected as a recoverable host
+    /// configuration error instead of being consumed or panicking.
+    pub async fn send_buffered(
+        self,
+        client: Arc<dyn UpstreamClient>,
+    ) -> Result<http::Response<Bytes>, ClientError> {
         match self {
-            Self::Direct(r) => r,
-            _ => unreachable!("into_http called on a Custom-exchange PreparedRequest"),
+            Self::Direct(request) => client.send(request).await,
+            Self::Custom(send) => send(client).await,
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::CustomStream(_) => Err(ClientError::Config(
+                "streaming custom exchange cannot run in a buffered request path".into(),
+            )),
+        }
+    }
+
+    /// Consume a direct request without executing it.
+    ///
+    /// Custom exchanges require a host-provided [`UpstreamClient`] and must use
+    /// [`send_buffered`](Self::send_buffered) or the streaming pipeline executor.
+    pub fn into_http(self) -> Result<http::Request<Bytes>, ClientError> {
+        match self {
+            Self::Direct(request) => Ok(request),
+            Self::Custom(_) => Err(ClientError::Config(
+                "custom exchange requires execution through an upstream client".into(),
+            )),
+            #[cfg(not(target_arch = "wasm32"))]
+            Self::CustomStream(_) => Err(ClientError::Config(
+                "streaming custom exchange requires the streaming pipeline executor".into(),
+            )),
         }
     }
 }

@@ -2,6 +2,7 @@
 
 pub mod claude;
 pub mod endpoint;
+pub(crate) mod extensible;
 pub mod gemini;
 pub mod openai;
 pub mod operation;

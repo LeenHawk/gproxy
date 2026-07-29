@@ -22,15 +22,9 @@ fn openai_item_text(item: openai::ResponseItem) -> String {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Input(message)) => {
             response_input_parts_text(message.content)
         }
-        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => message
-            .content
-            .into_iter()
-            .map(|part| match part {
-                openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
-                openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => refusal,
-            })
-            .collect::<Vec<_>>()
-            .join(""),
+        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
+            response_output_parts_text(message.content)
+        }
         openai::ResponseItem::Typed(_) | openai::ResponseItem::Unknown(_) => String::new(),
     }
 }
@@ -39,7 +33,19 @@ fn openai_easy_content_text(content: openai::ResponseEasyInputContent) -> String
     match content {
         openai::ResponseEasyInputContent::Text(text) => text,
         openai::ResponseEasyInputContent::Parts(parts) => response_input_parts_text(parts),
+        openai::ResponseEasyInputContent::OutputParts(parts) => response_output_parts_text(parts),
     }
+}
+
+fn response_output_parts_text(parts: Vec<openai::ResponseMessageOutputContentPart>) -> String {
+    parts
+        .into_iter()
+        .map(|part| match part {
+            openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
+            openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => refusal,
+        })
+        .collect::<Vec<_>>()
+        .join("")
 }
 
 fn response_input_parts_text(parts: Vec<openai::ResponseInputContentPart>) -> String {

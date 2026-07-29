@@ -69,6 +69,11 @@ pub(super) const ORIGIN: &str = "KIRO_CLI";
 
 pub struct KiroChannel;
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for KiroChannel {
@@ -82,11 +87,6 @@ impl Channel for KiroChannel {
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         routing::table()
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -115,11 +115,9 @@ impl Channel for KiroChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        // `provider_settings` are not threaded into refresh; the social auth base
-        // defaults inside `auth::refresh` when absent (the common case).
-        auth::refresh(client, &Value::Null, secret).await
+        auth::refresh(client, ctx.provider_settings, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -149,41 +147,41 @@ impl ChannelLogin for KiroChannel {
     async fn authcode_start(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        params: &Value,
-        redirect_uri: &str,
-        state: &str,
-        pkce_challenge: &str,
+        ctx: crate::channel::AuthCodeStartCtx<'_>,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
-        let started =
-            auth::authcode_start(client, params, redirect_uri, state, pkce_challenge).await?;
+        let started = auth::authcode_start(
+            client,
+            ctx.params,
+            ctx.redirect_uri,
+            ctx.state,
+            ctx.pkce_challenge,
+        )
+        .await?;
         Ok(Some(started))
     }
 
     async fn authcode_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        code: &str,
-        verifier: &str,
-        redirect_uri: &str,
-        extra: Option<&Value>,
+        ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::authcode_exchange(client, code, verifier, redirect_uri, extra).await
+        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri, ctx.extra).await
     }
 
     async fn device_start(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        params: &Value,
+        ctx: crate::channel::DeviceStartCtx<'_>,
     ) -> Result<DeviceInit, ChannelError> {
-        auth::device_start(client, params).await
+        auth::device_start(client, ctx.provider_settings, ctx.params).await
     }
 
     async fn device_poll(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        device_code: &str,
+        ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        auth::device_poll(client, device_code).await
+        auth::device_poll(client, ctx.provider_settings, ctx.device_code).await
     }
 }
 

@@ -9,8 +9,9 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use serde_json::Value;
 
-use super::fingerprint::{fingerprint_hash, to_emulation};
+use super::fingerprint::to_emulation;
 use super::{ClientError, UpstreamClient, WreqClient};
+use crate::channel::resolve::fingerprint_hash;
 
 /// Upstream client pool keyed by `(proxy, fingerprint_hash)`. The default client
 /// (already configured with the global proxy, if any) serves the `(None, None)`
@@ -39,16 +40,34 @@ impl ClientPool {
     /// a malformed proxy URL is [`ClientError::Config`], and so is a PRESENT
     /// fingerprint that maps to no emulation (wrong shape / nothing usable) —
     /// the caller skips the candidate like any upstream connect failure.
+    ///
+    /// Hashes the fingerprint on every call; the attempt hot path uses
+    /// [`for_target_hashed`](Self::for_target_hashed) with the snapshot's
+    /// precomputed hash instead.
     pub fn for_target(
         &self,
         proxy: Option<&str>,
         fingerprint: Option<&Value>,
     ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
-        let fp_hash = fingerprint.map(fingerprint_hash).unwrap_or_default();
-        if proxy.is_none() && fp_hash.is_empty() {
-            return Ok(Arc::clone(&self.default_client));
+        match fingerprint {
+            Some(fp) => self.for_target_hashed(proxy, &fingerprint_hash(fp), fp),
+            None if proxy.is_none() => Ok(Arc::clone(&self.default_client)),
+            None => self.build_or_cached(proxy, String::new(), None),
         }
-        let key = (proxy.unwrap_or_default().to_string(), fp_hash);
+    }
+
+    /// [`for_target`](Self::for_target) with a PRESENT fingerprint whose hash
+    /// was precomputed (snapshot-resident, §7.4) — a pool hit costs one
+    /// `DashMap` read instead of recanonicalizing + rehashing the fingerprint
+    /// JSON per attempt. `hash` MUST be `fingerprint_hash(fingerprint)`; the
+    /// snapshot keeps the pair together to guarantee that.
+    pub fn for_target_hashed(
+        &self,
+        proxy: Option<&str>,
+        hash: &str,
+        fingerprint: &Value,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let key = (proxy.unwrap_or_default().to_string(), hash.to_owned());
         if let Some(c) = self.by_target.get(&key) {
             return Ok(Arc::clone(&c));
         }
@@ -56,22 +75,28 @@ impl ClientPool {
         // nothing (non-object, comment-only, no usable layer — see
         // `fingerprint::to_emulation`) would silently drop the TLS-profile
         // layer, so it fails the attempt instead.
-        let emulation = match fingerprint {
-            None => None,
-            Some(fp) => match to_emulation(fp) {
-                Some(e) => Some(e),
-                None => {
-                    tracing::warn!(
-                        "tls_fingerprint configured but yields no emulation; failing attempt"
-                    );
-                    return Err(ClientError::Config(
-                        "tls_fingerprint configured but yields no usable emulation \
-                         (check the fingerprint schema)"
-                            .into(),
-                    ));
-                }
-            },
+        let Some(emulation) = to_emulation(fingerprint) else {
+            tracing::warn!("tls_fingerprint configured but yields no emulation; failing attempt");
+            return Err(ClientError::Config(
+                "tls_fingerprint configured but yields no usable emulation \
+                 (check the fingerprint schema)"
+                    .into(),
+            ));
         };
+        self.build_or_cached(proxy, key.1, Some(emulation))
+    }
+
+    /// Build + cache one target client (cache re-checked under the key).
+    fn build_or_cached(
+        &self,
+        proxy: Option<&str>,
+        fp_hash: String,
+        emulation: Option<wreq::Emulation>,
+    ) -> Result<Arc<dyn UpstreamClient>, ClientError> {
+        let key = (proxy.unwrap_or_default().to_string(), fp_hash);
+        if let Some(c) = self.by_target.get(&key) {
+            return Ok(Arc::clone(&c));
+        }
         match WreqClient::with_proxy_and_emulation(proxy, emulation) {
             Ok(c) => {
                 let c: Arc<dyn UpstreamClient> = Arc::new(c);
@@ -187,6 +212,12 @@ mod tests {
             .for_target(Some("http://127.0.0.1:9"), Some(&fp))
             .unwrap();
         assert!(Arc::ptr_eq(&b, &b2));
+        // Precomputed-hash path (snapshot-resident, §7.4) shares the SAME
+        // cache entry as the hashing path.
+        let b3 = pool
+            .for_target_hashed(Some("http://127.0.0.1:9"), &fingerprint_hash(&fp), &fp)
+            .unwrap();
+        assert!(Arc::ptr_eq(&b, &b3));
 
         // (None, None) → the default client (distinct from the built ones).
         let def = pool.for_target(None, None).unwrap();

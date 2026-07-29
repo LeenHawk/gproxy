@@ -125,6 +125,9 @@ fn easy_input_content_to_chat_content(
         openai::ResponseEasyInputContent::Parts(parts) => {
             response_input_parts_to_chat_content(parts)
         }
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            openai::ChatContent::Text(output_parts_text(parts))
+        }
     }
 }
 
@@ -136,7 +139,23 @@ fn easy_input_content_to_chat_text_content(
         openai::ResponseEasyInputContent::Parts(parts) => {
             response_input_parts_to_chat_text_content(parts)
         }
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            openai::ChatTextContent::Text(output_parts_text(parts))
+        }
     }
+}
+
+/// Flattens replayed assistant history parts to plain text, mirroring the bare
+/// rendering used by [`output_message_to_chat_param`] and the Claude compact path.
+fn output_parts_text(parts: Vec<openai::ResponseMessageOutputContentPart>) -> String {
+    parts
+        .into_iter()
+        .map(|part| match part {
+            openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
+            openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => refusal,
+        })
+        .collect::<Vec<_>>()
+        .join("")
 }
 
 fn easy_input_content_to_chat_assistant_content(
@@ -164,6 +183,29 @@ fn easy_input_content_to_chat_assistant_content(
                 })
                 .collect(),
         ),
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            openai::ChatAssistantContent::Parts(
+                parts
+                    .into_iter()
+                    .map(|part| match part {
+                        openai::ResponseMessageOutputContentPart::OutputText { text, .. } => {
+                            openai::ChatAssistantContentPart::Text {
+                                text,
+                                prompt_cache_breakpoint: None,
+                                extra: Default::default(),
+                            }
+                        }
+                        openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
+                            openai::ChatAssistantContentPart::Refusal {
+                                refusal,
+                                prompt_cache_breakpoint: None,
+                                extra: Default::default(),
+                            }
+                        }
+                    })
+                    .collect(),
+            )
+        }
     }
 }
 

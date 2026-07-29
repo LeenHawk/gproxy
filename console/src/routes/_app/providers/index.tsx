@@ -4,7 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { providersQuery, type Provider } from "@/api/providers";
-import { channelMeta } from "@/lib/channel-meta";
+import { channelMeta, type ChannelMeta } from "@/lib/channel-meta";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
 import { ProviderForm } from "@/components/providers/provider-form";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
+import { useChannelCatalog } from "@/hooks/use-channel-catalog";
 import { BatchToolbar } from "@/components/batch-toolbar";
 
 export const Route = createFileRoute("/_app/providers/")({
@@ -23,10 +24,22 @@ function EnabledBadge({ enabled }: { enabled: boolean }) {
   return <Badge variant={enabled ? "secondary" : "outline"}>{enabled ? "on" : "off"}</Badge>;
 }
 
+function ChannelName({ id, meta }: { id: string; meta?: ChannelMeta }) {
+  const displayName = meta?.displayName ?? id;
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-2">
+      <span>{displayName}</span>
+      {displayName !== id && <span className="font-mono text-xs text-muted-foreground">{id}</span>}
+    </span>
+  );
+}
+
 function ProvidersPage() {
   const { t } = useTranslation("providers");
   const navigate = useNavigate();
   const { data: providers, isPending } = useQuery(providersQuery);
+  const catalogState = useChannelCatalog();
+  const catalog = catalogState.catalog;
   const [createOpen, setCreateOpen] = useState(false);
 
   const rows = providers ?? [];
@@ -38,10 +51,10 @@ function ProvidersPage() {
       <span className="font-medium">{p.label ?? p.name}</span>
     ) },
     { key: "channel", header: t("fields.channel"), cell: (p) => (
-      <span className="font-mono text-xs">{p.channel}</span>
+      <ChannelName id={p.channel} meta={channelMeta(p.channel, catalog)} />
     ) },
     { key: "family", header: "", cell: (p) => {
-      const meta = channelMeta(p.channel);
+      const meta = channelMeta(p.channel, catalog);
       return meta ? <Badge variant="outline">{t(`family.${meta.family}`)}</Badge> : null;
     } },
     { key: "strategy", header: t("fields.strategy"), cell: (p) => t(`strategy.${p.credential_strategy}`, { defaultValue: p.credential_strategy }) },
@@ -56,12 +69,43 @@ function ProvidersPage() {
           <Button variant="outline" onClick={() => batch.setMode(!batch.mode)}>
             {batch.mode ? t("batch.cancel", { ns: "common" }) : t("batch.select", { ns: "common" })}
           </Button>
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button
+            disabled={!catalogState.authoritative || catalog.length === 0}
+            onClick={() => {
+              if (!catalogState.authoritative || catalog.length === 0) return;
+              setCreateOpen(true);
+            }}
+          >
             <Plus className="size-4" aria-hidden />
             <span className="hidden sm:inline">{t("new")}</span>
           </Button>
         </div>
       </div>
+
+      {catalogState.availability !== "ready" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+          <span className={catalogState.availability === "error" ? "text-destructive" : "text-muted-foreground"}>
+            {t(`catalog.${catalogState.availability}`)}
+            {catalogState.availability === "error" && catalogState.error instanceof Error
+              ? ` ${catalogState.error.message}`
+              : ""}
+          </span>
+          {catalogState.availability !== "loading" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={catalogState.isFetching}
+              onClick={() => { void catalogState.refetch(); }}
+            >
+              {t("catalog.retry")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {catalogState.availability === "ready" && catalog.length === 0 && (
+        <p className="text-sm text-muted-foreground">{t("catalog.empty")}</p>
+      )}
 
       {isPending ? (
         <div className="grid gap-2" aria-busy="true">
@@ -82,7 +126,7 @@ function ProvidersPage() {
             indeterminate: batch.selected.size > 0 && !batch.allSelectedFor(ids),
           } : undefined}
           renderCard={(p) => {
-            const meta = channelMeta(p.channel);
+            const meta = channelMeta(p.channel, catalog);
             return (
               <div className="grid gap-1">
                 <div className="flex items-center justify-between">
@@ -90,7 +134,7 @@ function ProvidersPage() {
                   <EnabledBadge enabled={p.enabled} />
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="font-mono">{p.channel}</span>
+                  <ChannelName id={p.channel} meta={meta} />
                   {meta && <Badge variant="outline">{t(`family.${meta.family}`)}</Badge>}
                   <span>·</span>
                   <span>{t(`strategy.${p.credential_strategy}`, { defaultValue: p.credential_strategy })}</span>

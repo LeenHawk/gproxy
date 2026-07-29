@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [workspace]
 members = [
+    "crates/gproxy-channel-api",
     "crates/gproxy-protocol",
     "crates/gproxy-tokenize",
     "crates/gproxy-transform",
@@ -34,6 +35,7 @@ bytes = "1"
 chacha20poly1305 = "0.11.0"
 futures-core = "0.3"
 futures-util = "0.3"
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "2.1.6" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "2.1.6" }
 gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "2.1.6" }
 gproxy-transform = { path = "crates/gproxy-transform", version = "2.1.6" }
@@ -42,6 +44,9 @@ gproxy-transform = { path = "crates/gproxy-transform", version = "2.1.6" }
 getrandom = "0.4"
 http = "1"
 httpdate = "1"
+# SIMD-accelerated substring search for multipart boundary scanning (already
+# in the tree via regex/aho-corasick; pinned here as a direct dep).
+memchr = "2"
 regex = "1"
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }
@@ -58,6 +63,8 @@ dashmap = "6"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 axum = { version = "0.8", features = ["http2", "json", "ws"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "sync"] }
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "2.1.6", features = ["external-channels"] }
+linkme = "0.3"
 # §16.2 overload protection: bounded in-flight concurrency + load-shed → 503.
 tower = { version = "0.5", default-features = false, features = ["util", "limit", "load-shed"] }
 tower-http = { version = "0.7", features = ["cors"] }
@@ -110,7 +117,7 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 wasm-streams = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["AbortSignal", "Headers", "ReadableStream", "Request", "RequestInit", "RequestMode", "Response", "ResponseInit", "WorkerGlobalScope"] }
+web-sys = { version = "0.3", features = ["AbortSignal", "Headers", "ReadableStream", "Request", "RequestInit", "RequestMode", "RequestRedirect", "Response", "ResponseInit", "WorkerGlobalScope"] }
 tower = { version = "0.5", default-features = false, features = ["util"] }
 http-body-util = "0.1"
 

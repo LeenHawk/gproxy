@@ -36,8 +36,9 @@ const SAMPLING_TOLERANT_MODELS: &[&str] = &[
 ///
 /// Behavior depends on the model in the request:
 ///
-/// - **Models in [`SAMPLING_TOLERANT_MODELS`]**: if `temperature` is
-///   present, strip `top_p` only (the two interact poorly on Claude).
+/// - **Models in [`SAMPLING_TOLERANT_MODELS`] without extended thinking**:
+///   if `temperature` is present, strip `top_p` only (the two interact poorly
+///   on Claude).
 ///   `temperature` and `top_k` are left untouched.
 /// - **All other models** (including Opus 4.7+, unknown, and future models): strip
 ///   `temperature`, `top_p`, and `top_k` unconditionally — the
@@ -50,11 +51,16 @@ pub fn strip_sampling_params(body: &mut Value) {
         return;
     };
 
-    let tolerant = map.get("model").and_then(Value::as_str).is_some_and(|m| {
-        SAMPLING_TOLERANT_MODELS
-            .iter()
-            .any(|&prefix| m.starts_with(prefix))
-    });
+    let tolerant = map
+        .get("thinking")
+        .and_then(|thinking| thinking.get("type"))
+        .and_then(Value::as_str)
+        != Some("enabled")
+        && map.get("model").and_then(Value::as_str).is_some_and(|m| {
+            SAMPLING_TOLERANT_MODELS
+                .iter()
+                .any(|&prefix| m.starts_with(prefix))
+        });
 
     if tolerant {
         if map.contains_key("temperature") {
@@ -155,6 +161,37 @@ mod tests {
         let before = body.clone();
         strip_sampling_params(&mut body);
         assert_eq!(body, before);
+    }
+
+    #[test]
+    fn thinking_enabled_strips_incompatible_sampling_params() {
+        let mut body = json!({
+            "model": "claude-opus-4-5",
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "top_k": 40,
+        });
+
+        strip_sampling_params(&mut body);
+
+        let map = body.as_object().unwrap();
+        assert!(!map.contains_key("temperature"));
+        assert!(!map.contains_key("top_p"));
+        assert!(!map.contains_key("top_k"));
+    }
+
+    #[test]
+    fn thinking_enabled_strips_temperature_one() {
+        let mut body = json!({
+            "model": "claude-opus-4-5",
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
+            "temperature": 1,
+        });
+
+        strip_sampling_params(&mut body);
+
+        assert!(body.get("temperature").is_none());
     }
 
     // ── Edge cases ───────────────────────────────────────────────────

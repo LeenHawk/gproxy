@@ -7,10 +7,10 @@
 //!
 //! The fetch is driven exactly like a credential refresh (resolve the
 //! credential's pooled client → send [`Channel::prepare_usage_request`] →
-//! [`Channel::parse_usage`]); see [`crate::credentials`].
+//! [`Channel::parse_usage`]); the host owns transport and persistence.
 //!
-//! [`Channel::prepare_usage_request`]: crate::channel::Channel::prepare_usage_request
-//! [`Channel::parse_usage`]: crate::channel::Channel::parse_usage
+//! [`Channel::prepare_usage_request`]: crate::Channel::prepare_usage_request
+//! [`Channel::parse_usage`]: crate::Channel::parse_usage
 
 use serde::Serialize;
 use serde_json::Value;
@@ -64,7 +64,7 @@ pub struct UsageWindow {
 }
 
 impl UsageWindow {
-    /// A percentage-based window (`used_percent` in [0,100]).
+    /// A percentage-based window (`used_percent` in \[0, 100\]).
     pub fn percent(name: impl Into<String>, used_percent: f64) -> Self {
         Self {
             name: name.into(),

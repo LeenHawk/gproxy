@@ -1,11 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { channelMeta } from "@/lib/channel-meta";
+import type { ChannelMeta } from "@/lib/channel-meta";
 import { JsonField, parseJsonText } from "@/components/form/json-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface SecretEditorProps {
-  channel: string;
+  meta: ChannelMeta;
   /** Raw editor text. api_key family: bare key string. Others: JSON text. */
   value: string;
   onChange: (text: string) => void;
@@ -13,12 +13,10 @@ interface SecretEditorProps {
 }
 
 /** Returns the plaintext secret_json for submission, or null when invalid/empty. */
-export function buildSecret(channel: string, text: string): unknown | null {
-  const meta = channelMeta(channel);
+export function buildSecret(meta: ChannelMeta, text: string): unknown | null {
   const trimmed = text.trim();
   if (trimmed === "") return null;
-  // Unknown channels render the api_key input — keep serialization consistent.
-  if (!meta || meta.family === "api_key") return { api_key: trimmed };
+  if (meta.family === "api_key") return { api_key: trimmed };
   const parsed = parseJsonText(trimmed);
   if (!parsed.ok) return null;
   if (meta.family === "service_account") {
@@ -29,16 +27,19 @@ export function buildSecret(channel: string, text: string): unknown | null {
   return parsed.value;
 }
 
-export function secretTemplateText(channel: string): string {
-  const meta = channelMeta(channel);
-  if (!meta || meta.family === "api_key") return "";
-  return JSON.stringify(meta.secretTemplate, null, 2);
+export function secretTemplateText(meta: ChannelMeta): string {
+  if (meta.family === "api_key") {
+    const template = meta.secretTemplate;
+    if (typeof template !== "object" || template === null || Array.isArray(template)) return "";
+    const apiKey = (template as Record<string, unknown>).api_key;
+    return typeof apiKey === "string" ? apiKey : "";
+  }
+  return JSON.stringify(meta.secretTemplate, null, 2) ?? "";
 }
 
-export function SecretEditor({ channel, value, onChange, editing }: SecretEditorProps) {
+export function SecretEditor({ meta, value, onChange, editing }: SecretEditorProps) {
   const { t } = useTranslation("providers");
-  const meta = channelMeta(channel);
-  const family = meta?.family ?? "api_key";
+  const family = meta.family;
 
   const label =
     family === "api_key" ? t("secret.apiKey")
@@ -72,7 +73,7 @@ export function SecretEditor({ channel, value, onChange, editing }: SecretEditor
   return (
     <div className="grid gap-2">
       <Label htmlFor="c-secret">{label}</Label>
-      <JsonField id="c-secret" value={value} onChange={onChange} rows={8} hint={hint} placeholder={secretTemplateText(channel)} />
+      <JsonField id="c-secret" value={value} onChange={onChange} rows={8} hint={hint} placeholder={secretTemplateText(meta)} />
     </div>
   );
 }

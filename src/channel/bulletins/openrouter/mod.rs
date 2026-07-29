@@ -228,7 +228,8 @@ mod tests {
                 body: shaped,
             })
             .unwrap()
-            .into_http();
+            .into_http()
+            .unwrap();
 
         assert!(req.headers().get("anthropic-beta").is_none());
     }

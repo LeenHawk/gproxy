@@ -8,7 +8,6 @@ mod other;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 
 use super::{TransformContext, TransformError, TransformPair};
 
@@ -44,16 +43,24 @@ pub fn response_bytes(
     }
 }
 
-/// Convert one decoded stream event (upstream wire JSON value → inbound wire
-/// JSON value). Same reverse-pair convention as [`response_bytes`]. Only
-/// content-generation pairs stream; the other groups are buffered.
-pub fn stream_event_value(
+/// One converted stream event: pre-encoded inbound frame payload, or the
+/// typed Responses event when the inbound side runs the aggregation state
+/// machine.
+pub enum StreamEventOut {
+    Encoded { event: Option<String>, data: String },
+    Responses(Box<crate::protocol::openai::ResponseStreamEvent>),
+}
+
+/// Convert one decoded stream event (upstream wire JSON text → inbound event).
+/// Same reverse-pair convention as [`response_bytes`]. Only content-generation
+/// pairs stream; the other groups are buffered.
+pub fn stream_event(
     pair: TransformPair,
     ctx: &TransformContext,
-    event: Value,
-) -> Result<Value, TransformError> {
+    data: &str,
+) -> Result<StreamEventOut, TransformError> {
     if content::is_content(pair) {
-        content::stream_event_value(pair, ctx, event)
+        content::stream_event(pair, ctx, data)
     } else {
         Err(not_wired(pair))
     }
@@ -94,24 +101,6 @@ where
     )
 }
 
-fn run_value<S, T>(
-    f: impl Fn(S, &TransformContext) -> Result<T, TransformError>,
-    ctx: &TransformContext,
-    event: Value,
-) -> Result<Value, TransformError>
-where
-    S: DeserializeOwned,
-    T: Serialize,
-{
-    let input: S = serde_json::from_value(event).map_err(|e| TransformError::InvalidInput {
-        reason: format!("decode stream event: {e}"),
-    })?;
-    let out = f(input, ctx)?;
-    serde_json::to_value(&out).map_err(|e| TransformError::Serialization {
-        reason: e.to_string(),
-    })
-}
-
 fn not_wired(pair: TransformPair) -> TransformError {
     TransformError::InvalidInput {
         reason: format!("bytes dispatch not wired for {pair:?}"),
@@ -120,6 +109,8 @@ fn not_wired(pair: TransformPair) -> TransformError {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+
     use super::*;
     use crate::protocol::{ContentGenerationKind, Operation, OperationKey, Provider};
 

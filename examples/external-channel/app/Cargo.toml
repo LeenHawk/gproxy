@@ -1,0 +1,13 @@
+[package]
+name = "gproxy-example-channel-bin"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+description = "GPROXY runner with the example external channel linked in"
+publish = false
+
+[dependencies]
+anyhow = "1"
+gproxy = { path = "../../.." }
+gproxy-example-channel = { path = "../channel" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

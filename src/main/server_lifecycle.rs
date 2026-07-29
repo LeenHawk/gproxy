@@ -5,7 +5,8 @@ use gproxy::app::AppState;
 pub(crate) fn init_tracing() {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    // Embedders own the global subscriber when they installed one first.
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
 pub(crate) async fn serve(state: AppState, bind: std::net::SocketAddr) -> anyhow::Result<()> {
@@ -71,4 +72,13 @@ async fn shutdown_signal(#[cfg(windows)] mut tray_exit: tokio::sync::oneshot::Re
         _ = terminate => {},
     }
     tracing::info!("shutdown signal received");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn tracing_initialization_is_idempotent() {
+        super::init_tracing();
+        super::init_tracing();
+    }
 }

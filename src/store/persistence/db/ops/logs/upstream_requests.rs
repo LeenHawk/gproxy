@@ -1,7 +1,10 @@
 //! Upstream-request log ops for the `db` backend (append-only).
 
 use sea_orm::ActiveValue::{NotSet, Set};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    sea_query::Expr,
+};
 
 use crate::store::persistence::records::{UpstreamRequest, UpstreamRequestInput};
 
@@ -67,6 +70,7 @@ pub async fn list(
 ) -> anyhow::Result<Vec<UpstreamRequest>> {
     upstream_request::Entity::find()
         .filter(upstream_request::Column::RequestId.eq(request_id))
+        .order_by_asc(upstream_request::Column::Id)
         .all(conn)
         .await?
         .into_iter()
@@ -74,24 +78,24 @@ pub async fn list(
         .collect()
 }
 
-/// Backfill `response_body` (and `updated_at`) on rows matching `request_id`.
-/// No-op when no row matches. Used by streaming responses that settle after the
-/// row was appended.
+/// Atomically backfill one captured transport call. No-op when either identity
+/// field no longer matches (for example, retention removed and reused its id).
 pub async fn update_response_body(
     conn: &DatabaseConnection,
+    capture_id: i64,
     request_id: &str,
     response_body: Option<String>,
 ) -> anyhow::Result<()> {
     let now = crate::store::persistence::db::ops::now_secs();
-    if let Some(m) = upstream_request::Entity::find()
+    upstream_request::Entity::update_many()
+        .col_expr(
+            upstream_request::Column::ResponseBody,
+            Expr::value(response_body),
+        )
+        .col_expr(upstream_request::Column::UpdatedAt, Expr::value(now))
+        .filter(upstream_request::Column::Id.eq(capture_id))
         .filter(upstream_request::Column::RequestId.eq(request_id))
-        .one(conn)
-        .await?
-    {
-        let mut am: upstream_request::ActiveModel = m.into();
-        am.response_body = Set(response_body);
-        am.updated_at = Set(now);
-        am.update(conn).await?;
-    }
+        .exec(conn)
+        .await?;
     Ok(())
 }

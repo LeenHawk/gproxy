@@ -26,6 +26,9 @@ impl IdentityPersistence for LibsqlPersistence {
     async fn list_teams(&self, org_id: i64) -> anyhow::Result<Vec<Team>> {
         identity::teams::list(&self.client, org_id).await
     }
+    async fn list_all_teams(&self) -> anyhow::Result<Vec<Team>> {
+        identity::teams::list_all(&self.client).await
+    }
     async fn get_team(&self, id: i64) -> anyhow::Result<Option<Team>> {
         identity::teams::get(&self.client, id).await
     }
@@ -54,6 +57,9 @@ impl IdentityPersistence for LibsqlPersistence {
 
     async fn list_user_keys(&self, user_id: i64) -> anyhow::Result<Vec<UserKey>> {
         identity::user_keys::list(&self.client, user_id).await
+    }
+    async fn list_all_user_keys(&self) -> anyhow::Result<Vec<UserKey>> {
+        identity::user_keys::list_all(&self.client).await
     }
     async fn get_user_key(&self, id: i64) -> anyhow::Result<Option<UserKey>> {
         identity::user_keys::get(&self.client, id).await

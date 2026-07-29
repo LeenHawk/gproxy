@@ -14,6 +14,16 @@ pub enum ResponseStreamEvent {
     Unknown(UnknownResponseStreamEvent),
 }
 
+impl ResponseStreamEvent {
+    /// SSE event name: the wire `type` of this event, if any.
+    pub fn event_name(&self) -> Option<&str> {
+        match self {
+            Self::Known(event) => Some(event.event_name()),
+            Self::Unknown(event) => event.type_.as_ref().map(ResponseStreamEventType::as_str),
+        }
+    }
+}
+
 impl Serialize for ResponseStreamEvent {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -566,6 +576,93 @@ pub enum KnownResponseStreamEvent {
     },
 }
 
+impl KnownResponseStreamEvent {
+    /// Typed event type of this variant, mirroring the serde `type` tag.
+    pub fn event_type(&self) -> ResponseStreamEventTypeKnown {
+        use ResponseStreamEventTypeKnown as T;
+        match self {
+            Self::ResponseCreated { .. } => T::ResponseCreated,
+            Self::ResponseInProgress { .. } => T::ResponseInProgress,
+            Self::ResponseCompleted { .. } => T::ResponseCompleted,
+            Self::ResponseFailed { .. } => T::ResponseFailed,
+            Self::ResponseIncomplete { .. } => T::ResponseIncomplete,
+            Self::ResponseQueued { .. } => T::ResponseQueued,
+            Self::ResponseOutputItemAdded { .. } => T::ResponseOutputItemAdded,
+            Self::ResponseOutputItemDone { .. } => T::ResponseOutputItemDone,
+            Self::ResponseContentPartAdded { .. } => T::ResponseContentPartAdded,
+            Self::ResponseContentPartDone { .. } => T::ResponseContentPartDone,
+            Self::ResponseOutputTextDelta { .. } => T::ResponseOutputTextDelta,
+            Self::ResponseOutputTextDone { .. } => T::ResponseOutputTextDone,
+            Self::ResponseOutputTextAnnotationAdded { .. } => T::ResponseOutputTextAnnotationAdded,
+            Self::ResponseFunctionCallArgumentsDelta { .. } => {
+                T::ResponseFunctionCallArgumentsDelta
+            }
+            Self::ResponseFunctionCallArgumentsDone { .. } => T::ResponseFunctionCallArgumentsDone,
+            Self::ResponseCustomToolCallInputDelta { .. } => T::ResponseCustomToolCallInputDelta,
+            Self::ResponseCustomToolCallInputDone { .. } => T::ResponseCustomToolCallInputDone,
+            Self::ResponseRefusalDelta { .. } => T::ResponseRefusalDelta,
+            Self::ResponseRefusalDone { .. } => T::ResponseRefusalDone,
+            Self::ResponseReasoningSummaryPartAdded { .. } => T::ResponseReasoningSummaryPartAdded,
+            Self::ResponseReasoningSummaryPartDone { .. } => T::ResponseReasoningSummaryPartDone,
+            Self::ResponseReasoningSummaryTextDelta { .. } => T::ResponseReasoningSummaryTextDelta,
+            Self::ResponseReasoningSummaryTextDone { .. } => T::ResponseReasoningSummaryTextDone,
+            Self::ResponseReasoningTextDelta { .. } => T::ResponseReasoningTextDelta,
+            Self::ResponseReasoningTextDone { .. } => T::ResponseReasoningTextDone,
+            Self::ResponseAudioDelta { .. } => T::ResponseAudioDelta,
+            Self::ResponseAudioDone { .. } => T::ResponseAudioDone,
+            Self::ResponseAudioTranscriptDelta { .. } => T::ResponseAudioTranscriptDelta,
+            Self::ResponseAudioTranscriptDone { .. } => T::ResponseAudioTranscriptDone,
+            Self::ResponseImageGenerationCallCompleted { .. } => {
+                T::ResponseImageGenerationCallCompleted
+            }
+            Self::ResponseImageGenerationCallGenerating { .. } => {
+                T::ResponseImageGenerationCallGenerating
+            }
+            Self::ResponseImageGenerationCallInProgress { .. } => {
+                T::ResponseImageGenerationCallInProgress
+            }
+            Self::ResponseImageGenerationCallPartialImage { .. } => {
+                T::ResponseImageGenerationCallPartialImage
+            }
+            Self::ResponseFileSearchCallInProgress { .. } => T::ResponseFileSearchCallInProgress,
+            Self::ResponseFileSearchCallSearching { .. } => T::ResponseFileSearchCallSearching,
+            Self::ResponseFileSearchCallCompleted { .. } => T::ResponseFileSearchCallCompleted,
+            Self::ResponseWebSearchCallInProgress { .. } => T::ResponseWebSearchCallInProgress,
+            Self::ResponseWebSearchCallSearching { .. } => T::ResponseWebSearchCallSearching,
+            Self::ResponseWebSearchCallCompleted { .. } => T::ResponseWebSearchCallCompleted,
+            Self::ResponseCodeInterpreterCallInProgress { .. } => {
+                T::ResponseCodeInterpreterCallInProgress
+            }
+            Self::ResponseCodeInterpreterCallInterpreting { .. } => {
+                T::ResponseCodeInterpreterCallInterpreting
+            }
+            Self::ResponseCodeInterpreterCallCompleted { .. } => {
+                T::ResponseCodeInterpreterCallCompleted
+            }
+            Self::ResponseCodeInterpreterCallCodeDelta { .. } => {
+                T::ResponseCodeInterpreterCallCodeDelta
+            }
+            Self::ResponseCodeInterpreterCallCodeDone { .. } => {
+                T::ResponseCodeInterpreterCallCodeDone
+            }
+            Self::ResponseMcpCallArgumentsDelta { .. } => T::ResponseMcpCallArgumentsDelta,
+            Self::ResponseMcpCallArgumentsDone { .. } => T::ResponseMcpCallArgumentsDone,
+            Self::ResponseMcpCallInProgress { .. } => T::ResponseMcpCallInProgress,
+            Self::ResponseMcpCallCompleted { .. } => T::ResponseMcpCallCompleted,
+            Self::ResponseMcpCallFailed { .. } => T::ResponseMcpCallFailed,
+            Self::ResponseMcpListToolsInProgress { .. } => T::ResponseMcpListToolsInProgress,
+            Self::ResponseMcpListToolsCompleted { .. } => T::ResponseMcpListToolsCompleted,
+            Self::ResponseMcpListToolsFailed { .. } => T::ResponseMcpListToolsFailed,
+            Self::Error { .. } => T::Error,
+        }
+    }
+
+    /// SSE event name: the exact serde rename of this variant.
+    pub fn event_name(&self) -> &'static str {
+        self.event_type().as_str()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UnknownResponseStreamEvent {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
@@ -574,4 +671,32 @@ pub struct UnknownResponseStreamEvent {
     pub sequence_number: Option<u64>,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: Extra,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: `event_name()` must equal the serialized `type` tag.
+    #[test]
+    fn event_name_matches_serialized_type_tag() {
+        let events: Vec<ResponseStreamEvent> = [
+            r#"{"type":"response.output_text.delta","content_index":0,"delta":"hi","item_id":"msg_0","output_index":0}"#,
+            r#"{"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","type":"function_call","call_id":"c1","name":"f","arguments":"{}"}}"#,
+            r#"{"type":"response.function_call_arguments.done","arguments":"{}","item_id":"fc_1","name":"f","output_index":0}"#,
+            r#"{"type":"response.completed","response":{"id":"r","object":"response","created_at":0,"output":[]}}"#,
+            r#"{"type":"response.some_future_event","sequence_number":1}"#,
+        ]
+        .iter()
+        .map(|raw| serde_json::from_str(raw).unwrap())
+        .collect();
+        for event in events {
+            let value = serde_json::to_value(&event).unwrap();
+            assert_eq!(
+                event.event_name(),
+                value.get("type").and_then(Value::as_str),
+                "{value}"
+            );
+        }
+    }
 }

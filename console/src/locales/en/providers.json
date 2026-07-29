@@ -8,6 +8,14 @@
     "models": "Models"
   },
   "sideNav": { "all": "All providers" },
+  "catalog": {
+    "loading": "Loading channels from this executable...",
+    "error": "The runtime channel catalog could not be loaded.",
+    "legacy": "This older backend has no runtime channel catalog. Legacy metadata is display-only; provider saves and credential creation, editing, OAuth, and bulk import are disabled.",
+    "empty": "This executable has no registered channels.",
+    "metadataUnavailable": "Authoritative metadata for this channel is unavailable. Provider saves and credential creation, editing, OAuth, and bulk import are disabled.",
+    "retry": "Retry"
+  },
   "fields": {
     "name": "Route name",
     "nameHint": "Used in /{provider}/v1/*; replace {provider} with this route name.",
@@ -19,7 +27,7 @@
     "baseUrl": "Base URL",
     "apiVersion": "Image API version",
     "region": "AWS Region",
-    "circuitBreaker": "Circuit breaker (optional)",
+    "circuitBreaker": "Circuit breaker",
     "consecutiveFailures": "Consecutive failures",
     "cooldownSecs": "Cooldown (secs)",
     "autoRefreshModels": "Refresh models on list requests",
@@ -52,6 +60,9 @@
     "baseUrlHint": "Used as the fallback prefix when no exact endpoint override is configured.",
     "baseUrlOrEndpointRequired": "The custom channel requires a Base URL or at least one endpoint.",
     "azureBaseUrlOrEndpointRequired": "The Azure channel requires a resource Base URL or at least one exact endpoint.",
+    "baseUrlRequired": "This channel requires a Base URL.",
+    "endpointsRequired": "This channel requires at least one valid endpoint.",
+    "circuitBreakerInvalid": "Circuit breaker requires positive integer values for both fields.",
     "apiVersionHint": "Azure deployment-bound image APIs require this version. Leave blank to use 2025-04-01-preview.",
     "bedrockRegionHint": "Selects the regional Amazon Bedrock endpoint. Leave blank to use us-east-1.",
     "autoRefreshModelsHint": "Query this provider when clients list models. Turn off to use only persisted models; a local list-model routing rule also skips upstream refresh.",
@@ -131,9 +142,19 @@
       "title": "Bulk import credentials",
       "textareaLabel": "API keys (one per line)",
       "textareaHint": "One key per line. Optional: key,label or key<TAB>label. Lines starting with # are ignored.",
+      "jsonLabel": "Credential JSON (array, single object, or one object per line)",
+      "jsonHint": "Paste a JSON array, a single object, or one object per line (JSONL). Each object is the credential secret; optionally wrap as {\"label\": \"...\", \"secret\": {...}}.",
+      "upload": "Upload JSON files",
+      "fileItems": "{{count}} item(s)",
+      "removeFile": "Remove file",
+      "err": {
+        "invalid_json": "{{source}}: invalid JSON",
+        "invalid_secret": "{{source}}: not a valid credential secret"
+      },
+      "errMore": "…and {{count}} more issue(s)",
       "import": "Import {{count}} key(s)",
-      "importing": "Importing {{done}}/{{total}}…",
-      "summary": "Created {{created}}, failed {{failed}}, skipped {{dupes}} duplicate(s)",
+      "importing": "Importing {{total}} key(s)…",
+      "summary": "Created {{created}}, already existed {{existing}}, failed {{failed}}, skipped {{dupes}} duplicate line(s)",
       "close": "Close",
       "empty": "No valid lines"
     }
@@ -182,8 +203,11 @@
     "kiroRegion": "Region",
     "kiroStartUrlHint": "Your organization's AWS access portal URL (https://….awsapps.com/start).",
     "cookieLabel": "claude.ai cookie",
-    "cookieHint": "Paste the full Cookie header or just sessionKey=…; only sessionKey is used.",
-    "cookieInvalid": "No sessionKey found in the pasted text."
+    "cookieHint": "Paste the full Cookie header or just sessionKey=... Complete headers, including Cloudflare cookies, are preserved.",
+    "cookieInvalid": "No sessionKey found in the pasted text.",
+    "cookieGenericLabel": "Cookie credential",
+    "cookieGenericHint": "Paste the opaque cookie value expected by this channel.",
+    "cookieGenericInvalid": "Enter a nonempty cookie value."
   },
   "health": {
     "title": "Health",

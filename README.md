@@ -141,7 +141,7 @@ Ops endpoints (`/healthz`, `/version`, `/metrics`) are admin-gated.
 - **[Quick start](https://gproxy.leenhawk.com/getting-started/quick-start/)**
 - **[Prompt caching](https://gproxy.leenhawk.com/guides/claude-caching/)**
 - **[Edge deployment](https://gproxy.leenhawk.com/deployment/edge/)**
-- **[Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/)**
+- **[Adding a channel or external crate](https://gproxy.leenhawk.com/guides/adding-a-channel/)**
 
 ## Star History
 
@@ -163,6 +163,7 @@ If GPROXY is useful to you, you can support its continued development through
 [AGPL-3.0-or-later](LICENSE) · Author: [LeenHawk](https://github.com/LeenHawk)
 
 The reusable libraries are MIT and published to crates.io:
+[`gproxy-channel-api`](https://crates.io/crates/gproxy-channel-api) ·
 [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) ·
 [`gproxy-transform`](https://crates.io/crates/gproxy-transform) ·
 [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize)

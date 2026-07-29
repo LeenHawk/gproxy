@@ -1,4 +1,14 @@
-use serde_json::{Value, json};
+//! Text-bearing item state (message / reasoning) and its synthetic events.
+
+use crate::protocol::openai::{
+    Extra, KnownResponseStreamEvent as KnownEvent, ResponseContentPart, ResponseItem,
+    ResponseItemLifecycleStatus, ResponseMessageItem, ResponseMessageItemType,
+    ResponseMessageOutputContentPart, ResponseOutputItem, ResponseOutputMessageItem,
+    ResponseOutputMessageRole, ResponseReasoningTextPart, ResponseReasoningTextType,
+    ResponseStreamEvent, TypedResponseItem,
+};
+
+use super::known;
 
 #[derive(Default)]
 pub(super) struct ResponsesTextItemState {
@@ -11,13 +21,19 @@ pub(super) struct ResponsesTextItemState {
 }
 
 impl ResponsesTextItemState {
+    /// Record delta identity; emit the synthetic item_added on first delta.
     pub(super) fn ensure(
         &mut self,
-        event: &Value,
-        fallback_id: &'static str,
-        build: impl FnOnce(&Self) -> Value,
-    ) -> Vec<Value> {
-        self.note_delta_identity(event, fallback_id);
+        item_id: &str,
+        output_index: u32,
+        content_index: u32,
+        build: impl FnOnce(&Self) -> ResponseStreamEvent,
+    ) -> Vec<ResponseStreamEvent> {
+        if self.id.is_none() {
+            self.id = Some(item_id.to_owned());
+        }
+        self.output_index.get_or_insert(output_index);
+        self.content_index.get_or_insert(content_index);
         if self.started {
             return Vec::new();
         }
@@ -25,14 +41,10 @@ impl ResponsesTextItemState {
         vec![build(self)]
     }
 
-    pub(super) fn push_delta(&mut self, event: &Value) {
-        self.note_delta_identity(event, "item_0");
-        if let Some(delta) = event.get("delta").and_then(Value::as_str) {
-            self.text.push_str(delta);
-        }
-    }
-
-    pub(super) fn finish(&mut self, build: impl FnOnce(&Self) -> Vec<Value>) -> Vec<Value> {
+    pub(super) fn finish(
+        &mut self,
+        build: impl FnOnce(&Self) -> Vec<ResponseStreamEvent>,
+    ) -> Vec<ResponseStreamEvent> {
         if !self.started || self.done {
             return Vec::new();
         }
@@ -40,58 +52,23 @@ impl ResponsesTextItemState {
         build(self)
     }
 
-    fn note_delta_identity(&mut self, event: &Value, fallback_id: &'static str) {
-        if self.id.is_none() {
-            self.id = event
-                .get("item_id")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-                .or_else(|| Some(fallback_id.into()));
-        }
-        if self.output_index.is_none() {
-            self.output_index = event
-                .get("output_index")
-                .and_then(Value::as_u64)
-                .and_then(|n| n.try_into().ok())
-                .or(Some(0));
-        }
-        if self.content_index.is_none() {
-            self.content_index = event
-                .get("content_index")
-                .and_then(Value::as_u64)
-                .and_then(|n| n.try_into().ok())
-                .or(Some(0));
-        }
-    }
-
-    pub(super) fn note_added(&mut self, event: &Value) {
+    pub(super) fn note_added(&mut self, id: Option<&str>, output_index: u32) {
         self.started = true;
-        self.note_item_identity(event);
+        self.note_item_identity(id, output_index);
     }
-    pub(super) fn note_item_done(&mut self, event: &Value) {
+    pub(super) fn note_item_done(&mut self, id: Option<&str>, output_index: u32) {
         self.done = true;
-        self.note_item_identity(event);
+        self.note_item_identity(id, output_index);
     }
-    pub(super) fn note_done_text(&mut self, event: &Value) {
+    pub(super) fn note_done_text(&mut self, text: &str) {
         self.done = true;
-        if let Some(text) = event.get("text").and_then(Value::as_str) {
-            self.text = text.into();
-        }
+        text.clone_into(&mut self.text);
     }
-    fn note_item_identity(&mut self, event: &Value) {
+    fn note_item_identity(&mut self, id: Option<&str>, output_index: u32) {
         if self.id.is_none() {
-            self.id = event
-                .get("item")
-                .and_then(|item| item.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            self.id = id.map(str::to_owned);
         }
-        if self.output_index.is_none() {
-            self.output_index = event
-                .get("output_index")
-                .and_then(Value::as_u64)
-                .and_then(|n| n.try_into().ok());
-        }
+        self.output_index.get_or_insert(output_index);
     }
     pub(super) fn id(&self) -> &str {
         self.id.as_deref().unwrap_or("item_0")
@@ -104,17 +81,124 @@ impl ResponsesTextItemState {
     }
 }
 
-pub(super) fn message_item_added(state: &ResponsesTextItemState) -> Value {
-    json!({"type":"response.output_item.added","output_index":state.output_index(),"item":message_item(state,"in_progress")})
+pub(super) fn message_item_added(state: &ResponsesTextItemState) -> ResponseStreamEvent {
+    item_added(
+        message_item(state, ResponseItemLifecycleStatus::InProgress),
+        state.output_index(),
+    )
 }
-pub(super) fn reasoning_item_added(state: &ResponsesTextItemState) -> Value {
-    json!({"type":"response.output_item.added","output_index":state.output_index(),"item":reasoning_item(state,"in_progress")})
+
+pub(super) fn reasoning_item_added(state: &ResponsesTextItemState) -> ResponseStreamEvent {
+    item_added(
+        reasoning_item(state, ResponseItemLifecycleStatus::InProgress),
+        state.output_index(),
+    )
 }
-pub(super) fn message_item(state: &ResponsesTextItemState, status: &str) -> Value {
-    json!({"id":state.id(),"type":"message","status":status,"role":"assistant",
-        "content":[{"type":"output_text","text":state.text,"annotations":[]}]})
+
+fn item_added(item: ResponseOutputItem, output_index: u32) -> ResponseStreamEvent {
+    known(KnownEvent::ResponseOutputItemAdded {
+        item: Box::new(item),
+        output_index,
+        sequence_number: None,
+        extra: Extra::new(),
+    })
 }
-pub(super) fn reasoning_item(state: &ResponsesTextItemState, status: &str) -> Value {
-    json!({"id":state.id(),"type":"reasoning","status":status,"summary":[],
-        "content":[{"type":"reasoning_text","text":state.text}]})
+
+/// Synthetic tail closing an open message item: output_text.done,
+/// content_part.done, output_item.done.
+pub(super) fn message_done_events(state: &ResponsesTextItemState) -> Vec<ResponseStreamEvent> {
+    vec![
+        known(KnownEvent::ResponseOutputTextDone {
+            content_index: state.content_index(),
+            item_id: state.id().to_owned(),
+            logprobs: None,
+            output_index: state.output_index(),
+            sequence_number: None,
+            text: state.text.clone(),
+            extra: Extra::new(),
+        }),
+        known(KnownEvent::ResponseContentPartDone {
+            content_index: state.content_index(),
+            item_id: state.id().to_owned(),
+            output_index: state.output_index(),
+            part: ResponseContentPart::OutputText {
+                annotations: Vec::new(),
+                logprobs: None,
+                text: state.text.clone(),
+                extra: Extra::new(),
+            },
+            sequence_number: None,
+            extra: Extra::new(),
+        }),
+        known(KnownEvent::ResponseOutputItemDone {
+            item: Box::new(message_item(state, ResponseItemLifecycleStatus::Completed)),
+            output_index: state.output_index(),
+            sequence_number: None,
+            extra: Extra::new(),
+        }),
+    ]
+}
+
+/// Synthetic tail closing an open reasoning item: reasoning_text.done,
+/// output_item.done.
+pub(super) fn reasoning_done_events(state: &ResponsesTextItemState) -> Vec<ResponseStreamEvent> {
+    vec![
+        known(KnownEvent::ResponseReasoningTextDone {
+            content_index: state.content_index(),
+            item_id: state.id().to_owned(),
+            output_index: state.output_index(),
+            sequence_number: None,
+            text: state.text.clone(),
+            extra: Extra::new(),
+        }),
+        known(KnownEvent::ResponseOutputItemDone {
+            item: Box::new(reasoning_item(
+                state,
+                ResponseItemLifecycleStatus::Completed,
+            )),
+            output_index: state.output_index(),
+            sequence_number: None,
+            extra: Extra::new(),
+        }),
+    ]
+}
+
+pub(super) fn message_item(
+    state: &ResponsesTextItemState,
+    status: ResponseItemLifecycleStatus,
+) -> ResponseOutputItem {
+    ResponseOutputItem(ResponseItem::Message(ResponseMessageItem::Output(
+        ResponseOutputMessageItem {
+            type_: ResponseMessageItemType::Message,
+            id: state.id().to_owned(),
+            role: ResponseOutputMessageRole::Assistant,
+            content: vec![ResponseMessageOutputContentPart::OutputText {
+                annotations: Vec::new(),
+                logprobs: None,
+                text: state.text.clone(),
+                extra: Extra::new(),
+            }],
+            status,
+            phase: None,
+            extra: Extra::new(),
+        },
+    )))
+}
+
+pub(super) fn reasoning_item(
+    state: &ResponsesTextItemState,
+    status: ResponseItemLifecycleStatus,
+) -> ResponseOutputItem {
+    ResponseOutputItem(ResponseItem::Typed(TypedResponseItem::Reasoning {
+        id: Some(state.id().to_owned()),
+        summary: Vec::new(),
+        content: Some(vec![ResponseReasoningTextPart {
+            text: state.text.clone(),
+            type_: ResponseReasoningTextType::ReasoningText,
+            extra: Extra::new(),
+        }]),
+        encrypted_content: None,
+        status: Some(status),
+        extra: Extra::new(),
+    }))
 }

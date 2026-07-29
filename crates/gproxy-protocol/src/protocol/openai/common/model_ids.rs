@@ -1,10 +1,19 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum OpenAiModelId {
     Known(OpenAiModelIdKnown),
     Unknown(String),
+}
+
+// Manual Deserialize: this field rides in EVERY chat stream event; the derived
+// untagged fallback formatted (then discarded) an error listing all ~100 known
+// model ids per miss (see `protocol::extensible`).
+impl<'de> serde::Deserialize<'de> for OpenAiModelId {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        crate::protocol::extensible::deserialize_extensible(d, Self::Known, Self::Unknown)
+    }
 }
 
 impl From<String> for OpenAiModelId {

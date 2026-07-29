@@ -133,20 +133,28 @@ fn invalid_multipart_form(reason: impl Into<String>) -> PipelineError {
 }
 
 #[derive(Debug)]
-struct MultipartPart {
+struct MultipartPart<'a> {
     name: Option<String>,
     filename: Option<String>,
     content_type: Option<String>,
-    body: Vec<u8>,
+    /// Borrowed from the original body — parts are never copied; the only
+    /// owned derivative is the base64 data-URL built in [`part_value`].
+    body: &'a [u8],
 }
 
-fn parse_multipart(body: &[u8], content_type: Option<&str>) -> Result<Vec<MultipartPart>, String> {
+fn parse_multipart<'a>(
+    body: &'a [u8],
+    content_type: Option<&str>,
+) -> Result<Vec<MultipartPart<'a>>, String> {
     let boundary = boundary(content_type, body).ok_or("missing boundary")?;
     let mut delimiter = Vec::with_capacity(boundary.len() + 2);
     delimiter.extend_from_slice(b"--");
     delimiter.extend_from_slice(&boundary);
+    // One SIMD-accelerated finder for the delimiter, reused for every
+    // boundary scan over the (multi-MB, for image edits) body.
+    let finder = memchr::memmem::Finder::new(&delimiter);
 
-    let first = memmem(body, &delimiter).ok_or("first boundary not found")?;
+    let first = finder.find(body).ok_or("first boundary not found")?;
     let mut rest = &body[first + delimiter.len()..];
     let mut parts = Vec::new();
 
@@ -158,7 +166,7 @@ fn parse_multipart(body: &[u8], content_type: Option<&str>) -> Result<Vec<Multip
         if rest.is_empty() {
             break;
         }
-        let end = memmem(rest, &delimiter).ok_or("trailing boundary not found")?;
+        let end = finder.find(rest).ok_or("trailing boundary not found")?;
         let part = strip_suffix_newline(&rest[..end]);
         if !part.is_empty() {
             parts.push(parse_part(part)?);
@@ -206,7 +214,7 @@ fn strip_suffix_newline(value: &[u8]) -> &[u8] {
         .unwrap_or(value)
 }
 
-fn parse_part(raw: &[u8]) -> Result<MultipartPart, String> {
+fn parse_part(raw: &[u8]) -> Result<MultipartPart<'_>, String> {
     let (header_bytes, body) =
         split_headers_body(raw).ok_or("part header/body separator missing")?;
     let (mut name, mut filename, mut content_type) = (None, None, None);
@@ -239,28 +247,21 @@ fn parse_part(raw: &[u8]) -> Result<MultipartPart, String> {
         name,
         filename,
         content_type,
-        body: body.to_vec(),
+        body,
     })
 }
 
 fn split_headers_body(raw: &[u8]) -> Option<(&[u8], &[u8])> {
-    memmem(raw, b"\r\n\r\n")
+    memchr::memmem::find(raw, b"\r\n\r\n")
         .map(|idx| (&raw[..idx], &raw[idx + 4..]))
-        .or_else(|| memmem(raw, b"\n\n").map(|idx| (&raw[..idx], &raw[idx + 2..])))
+        .or_else(|| memchr::memmem::find(raw, b"\n\n").map(|idx| (&raw[..idx], &raw[idx + 2..])))
 }
 
 fn trim_quotes(value: &str) -> &str {
     value.trim_matches('"')
 }
 
-fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
-    }
-    (0..=haystack.len() - needle.len()).find(|&i| haystack[i..i + needle.len()] == *needle)
-}
-
-fn part_value(part: MultipartPart) -> Value {
+fn part_value(part: MultipartPart<'_>) -> Value {
     let MultipartPart {
         filename,
         content_type,
@@ -275,7 +276,7 @@ fn part_value(part: MultipartPart) -> Value {
         return Value::String(format!("data:{mime_type};base64,{}", B64.encode(body)));
     }
 
-    Value::String(String::from_utf8_lossy(&body).into_owned())
+    Value::String(String::from_utf8_lossy(body).into_owned())
 }
 
 fn canonical_form_name(name: &str) -> (String, bool) {
@@ -344,6 +345,7 @@ mod tests {
             identity: None,
             op: None,
             stream: false,
+            body_model: None,
             route_name: None,
             pending_micros: 0,
         }

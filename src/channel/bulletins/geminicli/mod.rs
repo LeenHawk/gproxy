@@ -25,6 +25,11 @@ use crate::protocol::Provider;
 
 pub struct GeminiCliChannel;
 
+#[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
 impl Channel for GeminiCliChannel {
@@ -38,11 +43,6 @@ impl Channel for GeminiCliChannel {
 
     fn routing_table(&self) -> crate::channel::routes::RouteList {
         routing::table()
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
@@ -68,9 +68,9 @@ impl Channel for GeminiCliChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::refresh(client, secret).await
+        auth::refresh(client, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -113,19 +113,17 @@ impl ChannelLogin for GeminiCliChannel {
     async fn authcode_start(
         &self,
         _client: &Arc<dyn UpstreamClient>,
-        params: &Value,
-        redirect_uri: &str,
-        state: &str,
-        pkce_challenge: &str,
+        ctx: crate::channel::AuthCodeStartCtx<'_>,
     ) -> Result<Option<AuthCodeStart>, ChannelError> {
-        let effective = if !redirect_uri.trim().is_empty() {
-            redirect_uri
-        } else if params.get("code_only").and_then(Value::as_bool) == Some(false) {
+        let effective = if !ctx.redirect_uri.trim().is_empty() {
+            ctx.redirect_uri
+        } else if ctx.params.get("code_only").and_then(Value::as_bool) == Some(false) {
             auth::LOOPBACK_REDIRECT_URI
         } else {
             auth::DEFAULT_REDIRECT_URI
         };
-        let (authorize_url, redirect_uri) = auth::authcode_start(effective, state, pkce_challenge);
+        let (authorize_url, redirect_uri) =
+            auth::authcode_start(effective, ctx.state, ctx.pkce_challenge);
         Ok(Some(AuthCodeStart {
             authorize_url,
             redirect_uri,
@@ -136,11 +134,8 @@ impl ChannelLogin for GeminiCliChannel {
     async fn authcode_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        code: &str,
-        verifier: &str,
-        redirect_uri: &str,
-        _extra: Option<&Value>,
+        ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::authcode_exchange(client, code, verifier, redirect_uri).await
+        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri).await
     }
 }

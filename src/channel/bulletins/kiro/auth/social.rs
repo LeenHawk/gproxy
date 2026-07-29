@@ -34,6 +34,10 @@ const DEVICE_LOGIN_PROVIDER: &str = "Github";
 /// proactive refresh path has an `expires_at_ms` to compare against.
 const DEVICE_TOKEN_TTL_MS: i64 = 3_600_000;
 
+fn auth_base(settings: &Value) -> &str {
+    secret_str(settings, "auth_base_url").unwrap_or(DEFAULT_AUTH_BASE_URL)
+}
+
 /// Map an operator `params.login_provider` (case-insensitive `github`/`google`,
 /// or a bare provider string) to the wire `loginProvider` value. Defaults to
 /// [`DEVICE_LOGIN_PROVIDER`] (GitHub) when absent/unrecognised.
@@ -79,11 +83,12 @@ struct DeviceAuthorizationResponse {
 /// provider's milliseconds / 1000, floored to 1s, defaulting to 5s).
 pub(super) async fn device_start(
     client: &Arc<dyn UpstreamClient>,
+    settings: &Value,
     params: &Value,
 ) -> Result<DeviceInit, ChannelError> {
     let url = format!(
         "{}/oauth/device/authorization",
-        DEFAULT_AUTH_BASE_URL.trim_end_matches('/')
+        auth_base(settings).trim_end_matches('/')
     );
     let body = device_start_body(login_provider(params));
     let resp: DeviceAuthorizationResponse = json_post(client, &url, &body).await?;
@@ -140,11 +145,12 @@ fn device_poll_body(device_code: &str) -> Value {
 /// plaintext secret; anything else (expired/denied) → [`DevicePoll::Denied`].
 pub(super) async fn device_poll(
     client: &Arc<dyn UpstreamClient>,
+    settings: &Value,
     device_code: &str,
 ) -> Result<DevicePoll, ChannelError> {
     let url = format!(
         "{}/oauth/device/poll",
-        DEFAULT_AUTH_BASE_URL.trim_end_matches('/')
+        auth_base(settings).trim_end_matches('/')
     );
     let resp: DevicePollResponse = json_post(client, &url, &device_poll_body(device_code)).await?;
 
@@ -208,8 +214,7 @@ pub(super) async fn refresh(
     let refresh_token = secret_str(secret, "refresh_token")
         .ok_or_else(|| ChannelError::InvalidCredential("missing refresh_token".into()))?
         .to_string();
-    let auth_base = secret_str(settings, "auth_base_url").unwrap_or(DEFAULT_AUTH_BASE_URL);
-    let url = format!("{}/refreshToken", auth_base.trim_end_matches('/'));
+    let url = format!("{}/refreshToken", auth_base(settings).trim_end_matches('/'));
     let body = json!({ "refreshToken": refresh_token });
 
     let resp: TokenResponse = json_post(client, &url, &body).await?;

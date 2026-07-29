@@ -127,7 +127,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 - **[快速开始](https://gproxy.leenhawk.com/zh-cn/getting-started/quick-start/)**
 - **[提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)**
 - **[边缘部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)**
-- **[新增 Channel](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
+- **[新增 Channel 或外部 crate](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
 
 ## Star History
 
@@ -149,6 +149,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 [AGPL-3.0-or-later](LICENSE) · 作者：[LeenHawk](https://github.com/LeenHawk)
 
 可复用的库以 MIT 发布在 crates.io：
+[`gproxy-channel-api`](https://crates.io/crates/gproxy-channel-api) ·
 [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) ·
 [`gproxy-transform`](https://crates.io/crates/gproxy-transform) ·
 [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize)

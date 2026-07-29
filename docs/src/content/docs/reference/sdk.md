@@ -6,21 +6,24 @@ description: Current v2 Rust library surface, feature flags, and the boundary be
 The current v2 tree is a Rust workspace. The root package `gproxy` builds both:
 
 - a native binary at `src/main.rs`;
-- a library crate at `src/lib.rs` with `rlib` and `cdylib` crate types.
+- an `rlib` library crate at `src/lib.rs`. Edge build scripts explicitly request
+  a `cdylib` when producing Wasm artifacts.
 
-Three workspace members are published to crates.io under MIT, versioned in
+Four workspace members are published to crates.io under MIT, versioned in
 lockstep with the `gproxy` release that ships them:
 
 | Crate | What it is |
 | --- | --- |
+| [`gproxy-channel-api`](https://crates.io/crates/gproxy-channel-api) | Stable channel, metadata, login/refresh/usage, stream, host transport, and native compile-time registration contracts. |
 | [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) | OpenAI/Claude/Gemini wire types, operation taxonomy, endpoint metadata. `serde` + `http` only, `wasm32`-clean. |
 | [`gproxy-transform`](https://crates.io/crates/gproxy-transform) | Pairwise request/response/stream conversion between those three APIs. Pure and synchronous. |
 | [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize) | Offline token counting: tiktoken, Hugging Face vocabularies, character estimate. |
 
-The `gproxy` root package itself is **not** published to crates.io — it is the
+The `gproxy` root package itself is **not** published to crates.io. It is the
 AGPL application, distributed as binaries, Docker images, and edge bundles. It
-also has no `gproxy-sdk`, `gproxy-channel`, or `gproxy-engine` counterpart;
-treat the remaining `gproxy` library modules as the in-repo integration surface.
+still has no published full `gproxy-sdk` or `gproxy-engine` counterpart. Use the
+narrow `gproxy-channel-api` contract for external adapters and treat the
+remaining root library modules as the in-repo integration surface.
 
 Publishing is automated: pushing a `vX.Y.Z` tag runs
 `scripts/publish-crates.sh` from the release workflow, which skips any
@@ -34,7 +37,9 @@ crate/version already on the registry.
 | --- | --- |
 | `protocol` | Provider-neutral operation taxonomy plus OpenAI, Claude, and Gemini wire types. |
 | `transform` | Cross-protocol request/response transforms and stream adapters. |
-| `channel` | Channel trait, built-in provider adapters, auth, credential refresh, request shaping, model list helpers, and channel routing tables. |
+| `channel_api` | Re-export of the stable published channel extension contract. |
+| `channel` | Host integration, built-in adapters, registry, metadata overlays, and root-owned channel helpers. |
+| `native` | Native-only reusable standard CLI/bootstrap entrypoint for custom linked binaries. |
 | `pipeline` | Request execution: auth, authz, route selection, failover, transforms, upstream execution, capture, and settlement. |
 | `store` | Cache and persistence traits/backends. |
 | `billing` and `usage` | Pricing, pending quota estimates, normalized usage extraction, and usage records. |
@@ -53,31 +58,52 @@ The package-level feature flags are backend-oriented:
 
 | Feature | Purpose |
 | --- | --- |
-| `default` | Native default: memory cache, db persistence, wreq upstream client, local counting, and v1 migration. |
-| `full` | Native convenience feature enabling all native backends. |
+| `default` | Native default: memory cache, db persistence, wreq upstream client, local counting, v1 migration, and all native built-in channels. |
+| `full` | Native convenience feature enabling all native backends and channels. |
 | `cache-memory` | In-process cache backend. |
 | `cache-redis` | Redis cache backend for multi-instance cache/invalidation. |
 | `persist-db` | SeaORM database persistence backend. |
 | `migrate-v1` | Legacy v1 SQLite migration reader and serve-path auto-migration hook. |
 | `upstream-wreq` | Native HTTP upstream client. |
 | `count-local` | Native local token-counting support through tokenizer dependencies. |
+| `channels` | All built-in native channels. Individual adapters also have `channel-*` features. |
+| `channels-edge` | Built-in channel subset compatible with Wasm/edge. |
 | `cache-libsql`, `cache-upstash`, `persist-libsql`, `upstream-fetch` | Wasm/edge backend gates. |
 | `edge` | Umbrella for the wasm edge backend set. |
 
+`external-channels` is a `gproxy-channel-api` feature, not a root application
+feature. It exposes the native registration slice and is enabled by the native
+root dependency. The slice does not exist on `wasm32`.
+
 ## Embedding boundary
 
-The binary is intentionally thin: it parses CLI/env configuration, builds
-persistence/cache/client/channel registry/state, optionally runs import/export
-or migration/update subcommands, and then serves the HTTP router.
+The official binary is intentionally thin. A custom native binary that only
+adds compile-time channel crates should retain each crate and call the standard
+entrypoint:
 
-If you embed the library directly, you are responsible for wiring the same
-pieces:
+```rust
+use my_gproxy_channel as _;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    gproxy::native::run_cli().await
+}
+```
+
+This preserves the standard CLI, persistence, cache, client and channel
+registry, migrations, subcommands, and HTTP server. The complete package and
+source-identity requirements are documented in
+[Adding a Channel](/guides/adding-a-channel/).
+
+Deep embedding remains possible. If you bypass `run_cli()`, you are responsible
+for wiring the same pieces:
 
 1. Build a `RuntimeConfig`.
 2. Open a `PersistenceBackend`.
 3. Build a `SecretCipher`.
 4. Build a `CacheBackend`.
-5. Build a `ChannelRegistry`.
+5. Build a `ChannelRegistry`; use `with_builtin_and_linked()` if external
+   registrations must be collected.
 6. Build an `AppState` and control-plane snapshot.
 7. Call the HTTP router or lower-level pipeline functions.
 
@@ -102,6 +128,7 @@ that taxonomy.
 
 ## Current recommendation
 
-For production use, run the `gproxy` binary or one of the edge bundles. Use the
-library surface for development, tests, custom deployments inside this
-repository, or experiments where you can track internal API changes.
+For normal production use, run the official `gproxy` binary, image, or edge
+bundle. For a custom native provider adapter, use `gproxy-channel-api` and a
+thin linked runner. Use the remaining root library surface only for deep
+embedding, tests, or deployments that can track internal API changes.

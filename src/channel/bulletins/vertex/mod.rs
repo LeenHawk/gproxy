@@ -255,11 +255,11 @@ impl Channel for VertexChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
         // jsonwebtoken v10 `rust_crypto` backend signs on all targets (incl
         // edge), so refresh works everywhere — no native gate.
-        exchange_token(client, secret).await
+        exchange_token(client, ctx.secret).await
     }
 }
 
@@ -385,7 +385,7 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
             headers: &headers,
             body: Bytes::from_static(b"{}"),
         };
-        let req = VertexChannel.prepare(ctx).unwrap().into_http();
+        let req = VertexChannel.prepare(ctx).unwrap().into_http().unwrap();
         assert_eq!(
             req.uri().to_string(),
             "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/proj-123/locations/us-central1/publishers/google/models/gemini-2.5-pro:generateContent"
@@ -424,7 +424,7 @@ yR/PS6gbNUvYTwD+RYNaQFOsbyQkoNy1azBQm6X1m3J2+c+wnrYp\n\
             headers: &headers,
             body: Bytes::new(),
         };
-        let req = VertexChannel.prepare(ctx).unwrap().into_http();
+        let req = VertexChannel.prepare(ctx).unwrap().into_http().unwrap();
         assert_eq!(
             req.uri().to_string(),
             "https://us-central1-aiplatform.googleapis.com/v1beta1/publishers/google/models"

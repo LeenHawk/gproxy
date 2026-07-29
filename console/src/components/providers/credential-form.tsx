@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { upsertCredential, revealSecret, type CredentialView } from "@/api/credentials";
 import { ApiError } from "@/api/http";
 import { buildSecret, SecretEditor, secretTemplateText } from "@/components/providers/secret-editor";
-import { channelMeta } from "@/lib/channel-meta";
+import type { ChannelMeta } from "@/lib/channel-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,8 @@ import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 interface CredentialFormProps {
   providerId: number;
-  channel: string;
+  meta: ChannelMeta;
+  metadataAuthoritative: boolean;
   /** undefined = create */
   credential?: CredentialView;
   onSaved: () => void;
@@ -26,14 +27,16 @@ function intOrNull(v: string): number | null {
   return v.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export function CredentialForm({ providerId, channel, credential, onSaved }: CredentialFormProps) {
+export function CredentialForm({
+  providerId, meta, metadataAuthoritative, credential, onSaved,
+}: CredentialFormProps) {
   const { t } = useTranslation("providers");
   const { t: tc } = useTranslation("common"); // json.invalid lives in common
   const queryClient = useQueryClient();
   const editing = credential !== undefined;
 
   const [label, setLabel] = useState(credential?.label ?? "");
-  const [secretText, setSecretText] = useState(editing ? "" : secretTemplateText(channel));
+  const [secretText, setSecretText] = useState(editing ? "" : secretTemplateText(meta));
   const [weight, setWeight] = useState(String(credential?.weight ?? 100));
   const [rpm, setRpm] = useState(credential?.rpm_limit?.toString() ?? "");
   const [tpm, setTpm] = useState(credential?.tpm_limit?.toString() ?? "");
@@ -44,8 +47,8 @@ export function CredentialForm({ providerId, channel, credential, onSaved }: Cre
 
   useEffect(() => {
     if (!editing || !credential.has_secret) return;
+    const family = meta.family;
     revealSecret(credential.id).then((secret) => {
-      const family = channelMeta(channel)?.family ?? "api_key";
       if (family === "api_key") {
         const key = (secret as Record<string, string>)?.api_key ?? "";
         setSecretText(key);
@@ -53,11 +56,14 @@ export function CredentialForm({ providerId, channel, credential, onSaved }: Cre
         setSecretText(JSON.stringify(secret, null, 2));
       }
     }).catch(() => { /* keep empty — user can still type */ });
-  }, [editing, credential?.id, credential?.has_secret, channel]);
+  }, [editing, credential?.id, credential?.has_secret, meta.family]);
 
   const mutation = useMutation({
     mutationFn: () => {
-      const secret = buildSecret(channel, secretText);
+      if (!metadataAuthoritative) {
+        throw new ApiError(0, "bad_request", t("catalog.metadataUnavailable"));
+      }
+      const secret = buildSecret(meta, secretText);
       if (!editing && secret === null) {
         throw new ApiError(0, "bad_request", tc("json.invalid"));
       }
@@ -72,7 +78,7 @@ export function CredentialForm({ providerId, channel, credential, onSaved }: Cre
       return upsertCredential(providerId, {
         id: credential?.id ?? null,
         label: label.trim() === "" ? null : label.trim(),
-        kind: credential?.kind ?? channelMeta(channel)?.family ?? "api_key",
+        kind: credential?.kind ?? meta.family,
         ...(secret !== null ? { secret_json: secret } : {}),
         weight: intOrNull(weight) ?? 100,
         rpm_limit: intOrNull(rpm),
@@ -105,7 +111,7 @@ export function CredentialForm({ providerId, channel, credential, onSaved }: Cre
         <Label htmlFor="c-label">{t("fields.credLabel")}</Label>
         <Input id="c-label" value={label} onChange={(e) => setLabel(e.target.value)} />
       </div>
-      <SecretEditor channel={channel} value={secretText} onChange={setSecretText} editing={editing} />
+      <SecretEditor meta={meta} value={secretText} onChange={setSecretText} editing={editing} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="grid gap-2">
           <Label htmlFor="c-weight">{t("fields.weight")}</Label>
@@ -132,7 +138,7 @@ export function CredentialForm({ providerId, channel, credential, onSaved }: Cre
         <Switch id="c-enabled" checked={enabled} onCheckedChange={setEnabled} />
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" disabled={mutation.isPending || !metadataAuthoritative}>
         {editing ? t("creds.edit") : t("creds.add")}
       </Button>
     </form>

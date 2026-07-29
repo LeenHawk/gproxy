@@ -64,6 +64,7 @@ mod fetch {
 
     use crate::app::AppState;
     use crate::app::snapshot::ControlPlaneSnapshot;
+    use crate::channel::PreparedRequest;
     use crate::config::{
         CacheConfig, DEFAULT_MAX_ATTEMPTS, DEFAULT_MAX_IN_FLIGHT, PersistenceConfig, RuntimeConfig,
         UpstreamConfig,
@@ -148,6 +149,32 @@ mod fetch {
                 seen: Mutex::new(Vec::new()),
                 calls: AtomicUsize::new(0),
             }
+        }
+    }
+
+    struct CustomListChannel;
+
+    #[async_trait::async_trait]
+    impl Channel for CustomListChannel {
+        fn id(&self) -> &'static str {
+            "custom-list-test"
+        }
+
+        fn provider_family(&self) -> Provider {
+            Provider::OpenAi
+        }
+
+        fn routing_table(&self) -> crate::channel::routes::RouteList {
+            Vec::new()
+        }
+
+        fn prepare(&self, _ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
+            let request = http::Request::get("http://fake.local/v1/models")
+                .body(Bytes::new())
+                .unwrap();
+            Ok(PreparedRequest::custom(Box::new(move |client| {
+                Box::pin(async move { client.send(request).await })
+            })))
         }
     }
 
@@ -245,5 +272,44 @@ mod fetch {
             3,
             "each credential is attempted once"
         );
+    }
+
+    #[tokio::test]
+    async fn buffered_model_pull_executes_custom_exchange_with_resolved_client() {
+        let upstream = Arc::new(SequencedUpstream::new(vec![StatusCode::OK]));
+        let client: Arc<dyn UpstreamClient> = upstream.clone();
+        let channel: Arc<dyn Channel> = Arc::new(CustomListChannel);
+        let secret = serde_json::json!({});
+        let settings = serde_json::json!({});
+
+        let result = fetch_models_with(&channel, Provider::OpenAi, &secret, &settings, &client)
+            .await
+            .unwrap();
+        let ModelPullResult::Success(models) = result else {
+            panic!("custom model pull should succeed");
+        };
+
+        assert_eq!(
+            models
+                .iter()
+                .map(|model| model.id.as_str())
+                .collect::<Vec<_>>(),
+            ["shared", "gpt-other"]
+        );
+        assert_eq!(upstream.calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[cfg(feature = "upstream-wreq")]
+    #[tokio::test]
+    async fn provider_scoped_client_applies_fingerprint_fail_closed() {
+        let upstream = Arc::new(SequencedUpstream::new(vec![StatusCode::OK]));
+        let (state, _dir) = state_with(upstream).await;
+        let mut provider = state.cp().providers_by_id[&1].as_ref().clone();
+        provider.tls_fingerprint = Some(serde_json::json!({ "_note": "not an emulation" }));
+
+        assert!(matches!(
+            state.upstream_client_for_provider(&provider),
+            Err(ClientError::Config(_))
+        ));
     }
 }

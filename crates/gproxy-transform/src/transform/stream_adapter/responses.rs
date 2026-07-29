@@ -1,14 +1,20 @@
+//! Typed aggregation state machine for Responses SSE streams: fills in
+//! synthetic lifecycle events (item_added / *_done / response.completed) that
+//! sparse upstreams omit, so the inbound side always sees a complete stream.
+
 mod text;
 mod tool;
 
 use std::collections::BTreeMap;
 
-use serde_json::{Value, json};
-
-use super::{ContentGenerationKind, SseDecoder, SseFrame, encode_frame};
-use text::{
-    ResponsesTextItemState, message_item, message_item_added, reasoning_item, reasoning_item_added,
+use crate::protocol::openai::{
+    Extra, KnownResponseStreamEvent as KnownEvent, ResponseItem, ResponseMessageItem,
+    ResponseObject, ResponseObjectType, ResponseOutputItem, ResponseStatus, ResponseStreamEvent,
+    TypedResponseItem,
 };
+
+use super::{SseDecoder, SseFrame, encode_responses_event};
+use text::ResponsesTextItemState;
 use tool::{ResponsesToolItemState, ResponsesToolKind};
 
 /// Stateful normalizer for an upstream that already speaks Responses SSE.
@@ -44,14 +50,12 @@ impl ResponsesStreamNormalizer {
             out.extend_from_slice(frame.encode().as_bytes());
             return;
         }
-        let Ok(event) = serde_json::from_str::<Value>(&frame.data) else {
+        let Ok(event) = serde_json::from_str::<ResponseStreamEvent>(&frame.data) else {
             out.extend_from_slice(frame.encode().as_bytes());
             return;
         };
         for event in self.responses.push(event) {
-            out.extend_from_slice(
-                encode_frame(ContentGenerationKind::OpenAiResponses, &event).as_bytes(),
-            );
+            encode_responses_event(&event, out);
         }
     }
 }
@@ -65,69 +69,139 @@ pub(super) struct ResponsesStreamState {
 }
 
 impl ResponsesStreamState {
-    pub(super) fn push(&mut self, mut event: Value) -> Vec<Value> {
-        match event.get("type").and_then(Value::as_str) {
-            Some("response.output_text.delta") => {
+    pub(super) fn push(&mut self, event: ResponseStreamEvent) -> Vec<ResponseStreamEvent> {
+        let mut event = match event {
+            ResponseStreamEvent::Known(known) => known,
+            unknown => return vec![unknown],
+        };
+        let mut out = match &mut event {
+            KnownEvent::ResponseOutputTextDelta {
+                content_index,
+                delta,
+                item_id,
+                output_index,
+                ..
+            } => {
                 let mut out = self.finish_reasoning();
-                out.extend(self.message.ensure(&event, "msg_0", message_item_added));
-                self.message.push_delta(&event);
-                out.push(event);
+                out.extend(self.message.ensure(
+                    item_id,
+                    *output_index,
+                    *content_index,
+                    text::message_item_added,
+                ));
+                self.message.text.push_str(delta);
                 out
             }
-            Some("response.reasoning_text.delta") => {
-                let mut out = self
-                    .reasoning
-                    .ensure(&event, "reasoning_0", reasoning_item_added);
-                self.reasoning.push_delta(&event);
-                out.push(event);
+            KnownEvent::ResponseReasoningTextDelta {
+                content_index,
+                delta,
+                item_id,
+                output_index,
+                ..
+            } => {
+                let out = self.reasoning.ensure(
+                    item_id,
+                    *output_index,
+                    *content_index,
+                    text::reasoning_item_added,
+                );
+                self.reasoning.text.push_str(delta);
                 out
             }
-            Some("response.function_call_arguments.delta") => {
-                self.note_tool_input_delta(&mut event, ResponsesToolKind::Function);
-                vec![event]
+            KnownEvent::ResponseFunctionCallArgumentsDelta {
+                delta,
+                item_id,
+                output_index,
+                ..
+            } => {
+                self.note_tool_input_delta(
+                    ResponsesToolKind::Function,
+                    *output_index,
+                    item_id,
+                    delta,
+                );
+                Vec::new()
             }
-            Some("response.custom_tool_call_input.delta") => {
-                self.note_tool_input_delta(&mut event, ResponsesToolKind::Custom);
-                vec![event]
+            KnownEvent::ResponseCustomToolCallInputDelta {
+                delta,
+                item_id,
+                output_index,
+                ..
+            } => {
+                self.note_tool_input_delta(
+                    ResponsesToolKind::Custom,
+                    *output_index,
+                    item_id,
+                    delta,
+                );
+                Vec::new()
             }
-            Some("response.function_call_arguments.done") => {
-                self.note_tool_input_done(&mut event, ResponsesToolKind::Function);
-                vec![event]
+            KnownEvent::ResponseFunctionCallArgumentsDone {
+                arguments,
+                item_id,
+                name,
+                output_index,
+                ..
+            } => {
+                self.note_tool_input_done(
+                    ResponsesToolKind::Function,
+                    *output_index,
+                    item_id,
+                    arguments,
+                    Some(name),
+                );
+                Vec::new()
             }
-            Some("response.custom_tool_call_input.done") => {
-                self.note_tool_input_done(&mut event, ResponsesToolKind::Custom);
-                vec![event]
+            KnownEvent::ResponseCustomToolCallInputDone {
+                input,
+                item_id,
+                output_index,
+                ..
+            } => {
+                self.note_tool_input_done(
+                    ResponsesToolKind::Custom,
+                    *output_index,
+                    item_id,
+                    input,
+                    None,
+                );
+                Vec::new()
             }
-            Some("response.completed") => {
+            KnownEvent::ResponseCompleted { response, .. } => {
                 let mut out = self.finish_reasoning();
                 out.extend(self.finish_message());
                 out.extend(self.finish_tools());
-                self.patch_completed_output(&mut event);
+                self.patch_completed_output(response);
                 self.completed = true;
-                out.push(event);
                 out
             }
-            Some("response.output_item.added") => {
-                self.note_item_added(&event);
-                vec![event]
+            KnownEvent::ResponseOutputItemAdded {
+                item, output_index, ..
+            } => {
+                self.note_item_added(item, *output_index);
+                Vec::new()
             }
-            Some("response.output_item.done") => {
-                self.note_item_done(&event);
-                vec![event]
+            KnownEvent::ResponseOutputItemDone {
+                item, output_index, ..
+            } => {
+                self.note_item_done(item, *output_index);
+                Vec::new()
             }
-            Some("response.output_text.done") => {
-                self.message.note_done_text(&event);
-                vec![event]
+            KnownEvent::ResponseOutputTextDone { text, .. } => {
+                self.message.note_done_text(text);
+                Vec::new()
             }
-            Some("response.reasoning_text.done") => {
-                self.reasoning.note_done_text(&event);
-                vec![event]
+            KnownEvent::ResponseReasoningTextDone { text, .. } => {
+                self.reasoning.note_done_text(text);
+                Vec::new()
             }
-            _ => vec![event],
-        }
+            _ => Vec::new(),
+        };
+        out.push(ResponseStreamEvent::Known(event));
+        out
     }
 
-    pub(super) fn finish(&mut self) -> Vec<Value> {
+    pub(super) fn finish(&mut self) -> Vec<ResponseStreamEvent> {
         if self.completed {
             return Vec::new();
         }
@@ -135,125 +209,113 @@ impl ResponsesStreamState {
         out.extend(self.finish_message());
         if !out.is_empty() {
             out.extend(self.finish_tools());
-            out.push(json!({
-                "type": "response.completed",
-                "response": {"id":"resp_0","object":"response","created_at":0,
-                    "completed_at":0,"status":"completed","output":[]},
+            out.push(known(KnownEvent::ResponseCompleted {
+                response: Box::new(fallback_completed_response()),
+                sequence_number: None,
+                extra: Extra::new(),
             }));
             self.completed = true;
         }
         out
     }
 
-    fn finish_message(&mut self) -> Vec<Value> {
-        self.message.finish(|state| {
-            vec![
-                json!({"type":"response.output_text.done","output_index":state.output_index(),
-                "item_id":state.id(),"content_index":state.content_index(),"text":state.text}),
-                json!({"type":"response.content_part.done","output_index":state.output_index(),
-                "item_id":state.id(),"content_index":state.content_index(),
-                "part":{"type":"output_text","text":state.text,"annotations":[]}}),
-                json!({"type":"response.output_item.done","output_index":state.output_index(),
-                "item":message_item(state,"completed")}),
-            ]
-        })
+    fn finish_message(&mut self) -> Vec<ResponseStreamEvent> {
+        self.message.finish(text::message_done_events)
     }
 
-    fn finish_reasoning(&mut self) -> Vec<Value> {
-        self.reasoning.finish(|state| {
-            vec![
-                json!({"type":"response.reasoning_text.done","output_index":state.output_index(),
-                "item_id":state.id(),"content_index":state.content_index(),"text":state.text}),
-                json!({"type":"response.output_item.done","output_index":state.output_index(),
-                "item":reasoning_item(state,"completed")}),
-            ]
-        })
+    fn finish_reasoning(&mut self) -> Vec<ResponseStreamEvent> {
+        self.reasoning.finish(text::reasoning_done_events)
     }
 
-    fn note_item_added(&mut self, event: &Value) {
-        match item_type(event) {
-            Some("message") => self.message.note_added(event),
-            Some("reasoning") => self.reasoning.note_added(event),
-            Some("function_call") => self.note_tool_added(event, ResponsesToolKind::Function),
-            Some("custom_tool_call") => self.note_tool_added(event, ResponsesToolKind::Custom),
+    fn note_item_added(&mut self, item: &ResponseOutputItem, output_index: u32) {
+        match &item.0 {
+            ResponseItem::Message(message) if message_has_type(message) => {
+                self.message.note_added(message_id(message), output_index);
+            }
+            ResponseItem::Typed(TypedResponseItem::Reasoning { id, .. }) => {
+                self.reasoning.note_added(id.as_deref(), output_index);
+            }
+            ResponseItem::Typed(typed @ TypedResponseItem::FunctionCall { .. }) => {
+                self.note_tool_added(typed, ResponsesToolKind::Function, output_index);
+            }
+            ResponseItem::Typed(typed @ TypedResponseItem::CustomToolCall { .. }) => {
+                self.note_tool_added(typed, ResponsesToolKind::Custom, output_index);
+            }
             _ => {}
         }
     }
 
-    fn note_item_done(&mut self, event: &Value) {
-        match item_type(event) {
-            Some("message") => self.message.note_item_done(event),
-            Some("reasoning") => self.reasoning.note_item_done(event),
-            Some("function_call") => self.note_tool_item_done(event, ResponsesToolKind::Function),
-            Some("custom_tool_call") => self.note_tool_item_done(event, ResponsesToolKind::Custom),
+    fn note_item_done(&mut self, item: &ResponseOutputItem, output_index: u32) {
+        match &item.0 {
+            ResponseItem::Message(message) if message_has_type(message) => {
+                self.message
+                    .note_item_done(message_id(message), output_index);
+            }
+            ResponseItem::Typed(TypedResponseItem::Reasoning { id, .. }) => {
+                self.reasoning.note_item_done(id.as_deref(), output_index);
+            }
+            ResponseItem::Typed(typed @ TypedResponseItem::FunctionCall { .. }) => {
+                self.note_tool_item_done(typed, ResponsesToolKind::Function, output_index);
+            }
+            ResponseItem::Typed(typed @ TypedResponseItem::CustomToolCall { .. }) => {
+                self.note_tool_item_done(typed, ResponsesToolKind::Custom, output_index);
+            }
             _ => {}
         }
     }
 
-    fn note_tool_added(&mut self, event: &Value, kind: ResponsesToolKind) {
-        let Some(index) = event_output_index(event) else {
-            return;
-        };
+    fn note_tool_added(&mut self, item: &TypedResponseItem, kind: ResponsesToolKind, index: u32) {
         let state = self.tools.entry(index).or_default();
         state.note_kind(kind, index);
-        if let Some(item) = event.get("item") {
-            state.note_item(item);
-        }
+        state.note_item(item);
     }
 
-    fn note_tool_item_done(&mut self, event: &Value, kind: ResponsesToolKind) {
-        let Some(index) = event_output_index(event) else {
-            return;
-        };
+    fn note_tool_item_done(
+        &mut self,
+        item: &TypedResponseItem,
+        kind: ResponsesToolKind,
+        index: u32,
+    ) {
         let state = self.tools.entry(index).or_default();
         state.note_kind(kind, index);
         state.item_done = true;
-        if let Some(item) = event.get("item") {
-            state.note_item(item);
-        }
+        state.note_item(item);
     }
 
-    fn note_tool_input_delta(&mut self, event: &mut Value, kind: ResponsesToolKind) {
-        let Some(index) = event_output_index(event) else {
-            return;
-        };
+    fn note_tool_input_delta(
+        &mut self,
+        kind: ResponsesToolKind,
+        index: u32,
+        item_id: &mut String,
+        delta: &str,
+    ) {
         let state = self.tools.entry(index).or_default();
         state.note_kind(kind, index);
-        state.note_event_item_id(event);
-        if let Some(id) = state.item_id.as_deref() {
-            event["item_id"] = Value::String(id.into());
-        }
-        if let Some(delta) = event.get("delta").and_then(Value::as_str) {
-            state.input.push_str(delta);
-        }
+        state.note_event_item_id(item_id);
+        state.rewrite_event_item_id(item_id);
+        state.input.push_str(delta);
     }
 
-    fn note_tool_input_done(&mut self, event: &mut Value, kind: ResponsesToolKind) {
-        let Some(index) = event_output_index(event) else {
-            return;
-        };
+    fn note_tool_input_done(
+        &mut self,
+        kind: ResponsesToolKind,
+        index: u32,
+        item_id: &mut String,
+        input: &str,
+        name: Option<&str>,
+    ) {
         let state = self.tools.entry(index).or_default();
         state.note_kind(kind, index);
-        state.note_event_item_id(event);
-        if let Some(id) = state.item_id.as_deref() {
-            event["item_id"] = Value::String(id.into());
-        }
-        let field = match kind {
-            ResponsesToolKind::Function => "arguments",
-            ResponsesToolKind::Custom => "input",
-        };
-        if let Some(done) = event.get(field).and_then(Value::as_str) {
-            state.input = done.into();
-        }
-        if matches!(kind, ResponsesToolKind::Function)
-            && let Some(name) = event.get("name").and_then(Value::as_str)
-        {
-            state.name.get_or_insert_with(|| name.into());
+        state.note_event_item_id(item_id);
+        state.rewrite_event_item_id(item_id);
+        input.clone_into(&mut state.input);
+        if let Some(name) = name {
+            state.name.get_or_insert_with(|| name.to_owned());
         }
         state.input_done = true;
     }
 
-    fn finish_tools(&mut self) -> Vec<Value> {
+    fn finish_tools(&mut self) -> Vec<ResponseStreamEvent> {
         let mut out = Vec::new();
         for state in self.tools.values_mut() {
             if !state.can_finish() {
@@ -271,45 +333,95 @@ impl ResponsesStreamState {
         out
     }
 
-    fn patch_completed_output(&self, event: &mut Value) {
-        let Some(response) = event.get_mut("response").and_then(Value::as_object_mut) else {
-            return;
-        };
-        if !response
-            .get("output")
-            .and_then(Value::as_array)
-            .is_none_or(Vec::is_empty)
-        {
+    fn patch_completed_output(&self, response: &mut ResponseObject) {
+        if !response.output.is_empty() {
             return;
         }
         let output = self.completed_output_items();
         if !output.is_empty() {
-            response.insert("output".into(), Value::Array(output));
+            response.output = output;
         }
     }
 
-    fn completed_output_items(&self) -> Vec<Value> {
+    fn completed_output_items(&self) -> Vec<ResponseOutputItem> {
+        use crate::protocol::openai::ResponseItemLifecycleStatus::Completed;
         let mut output = Vec::new();
         if self.reasoning.started {
-            output.push(reasoning_item(&self.reasoning, "completed"));
+            output.push(text::reasoning_item(&self.reasoning, Completed));
         }
         if self.message.started {
-            output.push(message_item(&self.message, "completed"));
+            output.push(text::message_item(&self.message, Completed));
         }
         output.extend(
             self.tools
                 .values()
                 .filter(|state| state.can_finish())
-                .map(|state| state.item("completed")),
+                .map(ResponsesToolItemState::completed_item),
         );
         output
     }
 }
 
-fn item_type(event: &Value) -> Option<&str> {
-    event.get("item")?.get("type")?.as_str()
+fn known(event: KnownEvent) -> ResponseStreamEvent {
+    ResponseStreamEvent::Known(event)
 }
 
-fn event_output_index(event: &Value) -> Option<u32> {
-    event.get("output_index")?.as_u64()?.try_into().ok()
+fn message_has_type(message: &ResponseMessageItem) -> bool {
+    match message {
+        ResponseMessageItem::Output(_) => true,
+        ResponseMessageItem::Input(input) => input.type_.is_some(),
+        ResponseMessageItem::EasyInput(easy) => easy.type_.is_some(),
+    }
+}
+
+fn message_id(message: &ResponseMessageItem) -> Option<&str> {
+    match message {
+        ResponseMessageItem::Output(output) => Some(&output.id),
+        ResponseMessageItem::Input(input) => input.id.as_deref(),
+        ResponseMessageItem::EasyInput(_) => None,
+    }
+}
+
+/// Fallback `response.completed` payload for streams that never sent one.
+fn fallback_completed_response() -> ResponseObject {
+    ResponseObject {
+        id: "resp_0".to_owned(),
+        created_at: 0,
+        background: None,
+        completed_at: Some(0),
+        conversation: None,
+        error: None,
+        incomplete_details: None,
+        instructions: None,
+        max_output_tokens: None,
+        max_tool_calls: None,
+        metadata: None,
+        model: None,
+        moderation: None,
+        multi_agent: None,
+        object: ResponseObjectType::Response,
+        output: Vec::new(),
+        output_text: None,
+        parallel_tool_calls: None,
+        prompt: None,
+        prompt_cache_key: None,
+        prompt_cache_options: None,
+        prompt_cache_retention: None,
+        previous_response_id: None,
+        reasoning: None,
+        safety_identifier: None,
+        service_tier: None,
+        status: Some(ResponseStatus::Completed),
+        store: None,
+        temperature: None,
+        text: None,
+        tool_choice: None,
+        tools: None,
+        top_logprobs: None,
+        top_p: None,
+        truncation: None,
+        usage: None,
+        user: None,
+        extra: Extra::new(),
+    }
 }

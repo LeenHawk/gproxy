@@ -1,3 +1,5 @@
+import type { ChannelMeta } from "@/lib/channel-meta";
+
 /** Client-side guard for the authcode wizard: require the callback from the
  * current authorization session, not an authorize URL or a stale callback. */
 export function validateCallbackUrl(pasted: string, authorizeUrl: string): boolean {
@@ -20,13 +22,26 @@ export function validateCallbackUrl(pasted: string, authorizeUrl: string): boole
   return true;
 }
 
-/** Forgiving cookie input (ported v1 UX): accept a full Cookie header dump or the bare
- *  sessionKey value; return `sessionKey=…` or null when absent. */
-export function extractSessionKey(pasted: string): string | null {
+function cookieHeaderValue(pasted: string): string {
   const text = pasted.trim();
+  const separator = text.indexOf(":");
+  return separator > 0 && text.slice(0, separator).trim().toLowerCase() === "cookie"
+    ? text.slice(separator + 1).trim()
+    : text;
+}
+
+/** External cookie values are opaque. Claude's built-ins additionally accept a bare
+ * session key while preserving every cookie from a complete browser header. */
+export function normalizeCookieInput(
+  pasted: string,
+  meta: Pick<ChannelMeta, "id" | "source">,
+): string | null {
+  const isClaudeBuiltin = meta.source === "builtin"
+    && (meta.id === "claudecode" || meta.id === "claudeweb");
+  if (!isClaudeBuiltin) return pasted.trim() || null;
+  const text = cookieHeaderValue(pasted);
   if (text === "") return null;
-  const match = /sessionKey=([^;\s]+)/.exec(text);
-  if (match) return `sessionKey=${match[1]}`;
+  if (/((^|;)\s*sessionKey=[^;\s]+)/.test(text)) return text;
   if (text.startsWith("sk-ant-") && !text.includes("=") && !text.includes(";")) {
     return `sessionKey=${text}`;
   }

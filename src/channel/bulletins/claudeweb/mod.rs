@@ -35,6 +35,10 @@ impl ClaudeWebChannel {
     pub const ID: &'static str = "claudeweb";
 }
 
+pub(crate) fn default_emulation() -> wreq::Emulation {
+    fingerprint::default_emulation()
+}
+
 #[async_trait::async_trait]
 impl Channel for ClaudeWebChannel {
     fn id(&self) -> &'static str {
@@ -64,13 +68,9 @@ impl Channel for ClaudeWebChannel {
     async fn refresh(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        secret: &Value,
+        ctx: crate::channel::RefreshCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::refresh(client, secret).await
-    }
-
-    fn default_emulation(&self) -> Option<wreq::Emulation> {
-        Some(fingerprint::default_emulation())
+        auth::refresh(client, ctx.secret).await
     }
 
     fn prepare_usage_request(
@@ -96,8 +96,8 @@ impl ChannelLogin for ClaudeWebChannel {
     async fn cookie_exchange(
         &self,
         client: &Arc<dyn UpstreamClient>,
-        cookie: &str,
+        ctx: crate::channel::CookieExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::exchange(client, cookie).await
+        auth::exchange(client, ctx.cookie).await
     }
 }

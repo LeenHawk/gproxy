@@ -471,6 +471,7 @@ fn claude_ctx_as(api_key: &str, model: &str, stream: bool) -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }

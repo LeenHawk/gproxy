@@ -44,6 +44,7 @@ async fn streaming_chat_client_uses_non_stream_upstream_and_gets_sse() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };
@@ -106,6 +107,7 @@ async fn gemini_json_stream_is_a_valid_array() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };

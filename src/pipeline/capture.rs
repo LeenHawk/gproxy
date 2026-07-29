@@ -1,7 +1,8 @@
 //! §8-D request capture: `downstream_requests` / `upstream_requests` wire logs
 //! gated by the instance log toggles (§8-E), with §14.3 secret redaction.
-//! Native writes are fire-and-forget spawns; wasm awaits inline (no detached
-//! tasks on edge).
+//! Ordinary native writes are fire-and-forget spawns; rows requiring a later
+//! streaming-body backfill are inserted inline first. wasm awaits inline (no
+//! detached tasks on edge).
 
 use bytes::Bytes;
 use http::{HeaderMap, StatusCode};
@@ -10,10 +11,12 @@ use serde_json::Value;
 use crate::app::AppState;
 use crate::pipeline::context::{Candidate, RequestCtx};
 use crate::store::persistence::records::{DownstreamRequestInput, UpstreamRequestInput};
-use crate::util::time::{unix_now, unix_now_ms};
+use crate::util::time::unix_now;
 
+mod client;
 mod redaction;
 
+pub use client::CapturingClient;
 use redaction::{body_string, headers_json, redact_query, warn_unless_redacted};
 
 /// The downstream wire facts, captured BEFORE the pipeline mutates the request
@@ -88,9 +91,17 @@ pub struct UpstreamWire<'a> {
     /// upstream-log toggle was on.
     pub sent_headers: Option<&'a HeaderMap>,
     pub sent_body: &'a Bytes,
-    /// Non-streaming upstream (provider) response body, post channel-decode /
-    /// pre transform; `None` for streams (the spliced guard backfills those).
+    /// Buffered upstream response body; `None` for streams (a guard backfills
+    /// the exact row after consuming bytes at that path's capture seam).
     pub resp_body: Option<&'a Bytes>,
+}
+
+/// Stable correlation for one captured upstream transport call. The request id
+/// prevents a stale guard from targeting a reused database row id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UpstreamCaptureId {
+    row_id: i64,
+    request_id: String,
 }
 
 /// Append the final (returned-to-client) upstream attempt's wire facts if
@@ -101,32 +112,77 @@ pub async fn log_upstream(
     cand: &Candidate,
     w: UpstreamWire<'_>,
 ) {
-    log_upstream_raw(
+    let Some(input) = upstream_input(
+        state,
+        &ctx.request_id,
+        cand.provider.id,
+        cand.credential.id,
+        w,
+    ) else {
+        return;
+    };
+    persist(state, Row::Upstream(input)).await;
+}
+
+/// Insert an upstream row inline and return its primary key. Streaming capture
+/// uses this before exposing the body so its later backfill cannot race the
+/// INSERT or select another call sharing the downstream request id.
+async fn insert_upstream_raw(
+    state: &AppState,
+    request_id: &str,
+    provider_id: i64,
+    credential_id: i64,
+    w: UpstreamWire<'_>,
+) -> Option<UpstreamCaptureId> {
+    let input = upstream_input(state, request_id, provider_id, credential_id, w)?;
+    match crate::store::persistence::PersistenceBackend::append_upstream_request(
+        state.persistence.as_ref(),
+        input,
+    )
+    .await
+    {
+        Ok(row) => Some(UpstreamCaptureId {
+            row_id: row.id,
+            request_id: row.request_id,
+        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "request-capture log write failed");
+            None
+        }
+    }
+}
+
+/// Start a direct streaming capture before the stream is returned. Custom
+/// exchanges do this inside [`CapturingClient`] for the exact transport call.
+pub(crate) async fn start_upstream_stream(
+    state: &AppState,
+    ctx: &RequestCtx,
+    cand: &Candidate,
+    w: UpstreamWire<'_>,
+) -> Option<UpstreamCaptureId> {
+    insert_upstream_raw(
         state,
         &ctx.request_id,
         cand.provider.id,
         cand.credential.id,
         w,
     )
-    .await;
+    .await
 }
 
-/// Like [`log_upstream`] but decoupled from `RequestCtx`/`Candidate` (takes the
-/// raw identity fields). Used by [`CapturingClient`] to log EACH call a
-/// multi-step `Custom` exchange makes.
-pub async fn log_upstream_raw(
+fn upstream_input(
     state: &AppState,
     request_id: &str,
     provider_id: i64,
     credential_id: i64,
     w: UpstreamWire<'_>,
-) {
+) -> Option<UpstreamRequestInput> {
     let ls = state.cp().log_settings.clone();
     if !ls.enable_upstream_log {
-        return;
+        return None;
     }
     let redact = warn_unless_redacted(&ls);
-    let input = UpstreamRequestInput {
+    Some(UpstreamRequestInput {
         request_id: request_id.to_owned(),
         at: unix_now(),
         provider_id: Some(provider_id),
@@ -143,138 +199,7 @@ pub async fn log_upstream_raw(
             .resp_body
             .filter(|_| ls.enable_upstream_log_body)
             .map(|b| body_string(b, redact)),
-    };
-    persist(state, Row::Upstream(input)).await;
-}
-
-/// A transparent [`UpstreamClient`](crate::http::client::UpstreamClient)
-/// decorator that logs EACH `send` (request + response) as a §8-D upstream row.
-/// The pipeline wraps its resolved client in this and hands it to a `Custom`
-/// multi-step exchange ([`crate::channel::PreparedRequest::Custom`]) so every
-/// upstream call is captured —
-/// identical gating to the single-send path (`enable_upstream_log`).
-pub struct CapturingClient {
-    inner: std::sync::Arc<dyn crate::http::client::UpstreamClient>,
-    state: AppState,
-    request_id: String,
-    provider_id: i64,
-    credential_id: i64,
-}
-
-impl CapturingClient {
-    pub fn new(
-        inner: std::sync::Arc<dyn crate::http::client::UpstreamClient>,
-        state: AppState,
-        request_id: String,
-        provider_id: i64,
-        credential_id: i64,
-    ) -> Self {
-        Self {
-            inner,
-            state,
-            request_id,
-            provider_id,
-            credential_id,
-        }
-    }
-}
-
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-impl crate::http::client::UpstreamClient for CapturingClient {
-    async fn send(
-        &self,
-        req: http::Request<Bytes>,
-    ) -> Result<http::Response<Bytes>, crate::http::client::ClientError> {
-        // No capture work when the toggle is off — straight passthrough.
-        if !self.state.cp().log_settings.enable_upstream_log {
-            return self.inner.send(req).await;
-        }
-        let url = req.uri().to_string();
-        let method = req.method().clone();
-        let sent_headers = req.headers().clone();
-        let sent_body = req.body().clone();
-        let start_ms = unix_now_ms();
-        let resp = self.inner.send(req).await?;
-        let latency_ms = unix_now_ms().saturating_sub(start_ms) as i64;
-        let resp_body = resp.body().clone();
-        log_upstream_raw(
-            &self.state,
-            &self.request_id,
-            self.provider_id,
-            self.credential_id,
-            UpstreamWire {
-                status: resp.status(),
-                latency_ms,
-                url: &url,
-                method: &method,
-                sent_headers: Some(&sent_headers),
-                sent_body: &sent_body,
-                resp_body: Some(&resp_body),
-            },
-        )
-        .await;
-        Ok(resp)
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn send_streaming(
-        &self,
-        req: http::Request<Bytes>,
-    ) -> Result<
-        (StatusCode, HeaderMap, crate::http::client::RespStream),
-        crate::http::client::ClientError,
-    > {
-        // CustomStream exchanges must preserve streaming even when request
-        // capture is disabled. Falling back to the trait's buffered default is
-        // especially fatal for Claude Web client tools: `/completion` remains
-        // open until a later `/tool_result`, so buffering waits forever.
-        if !self.state.cp().log_settings.enable_upstream_log {
-            return self.inner.send_streaming(req).await;
-        }
-        let url = req.uri().to_string();
-        let method = req.method().clone();
-        let sent_headers = req.headers().clone();
-        let sent_body = req.body().clone();
-        let start_ms = unix_now_ms();
-        let (status, headers, stream) = self.inner.send_streaming(req).await?;
-        let latency_ms = unix_now_ms().saturating_sub(start_ms) as i64;
-        log_upstream_raw(
-            &self.state,
-            &self.request_id,
-            self.provider_id,
-            self.credential_id,
-            UpstreamWire {
-                status,
-                latency_ms,
-                url: &url,
-                method: &method,
-                sent_headers: Some(&sent_headers),
-                sent_body: &sent_body,
-                resp_body: None,
-            },
-        )
-        .await;
-        Ok((status, headers, stream))
-    }
-
-    async fn send_websocket(
-        &self,
-        req: http::Request<Bytes>,
-    ) -> Result<http::Response<Bytes>, crate::http::client::ClientError> {
-        self.inner.send_websocket(req).await
-    }
-
-    /// Forward generic upstream WebSocket opening (Responses WebSocket target).
-    /// The handshake and frames are transport-level work owned by the channel's
-    /// custom stream closure.
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn open_websocket(
-        &self,
-        req: http::Request<Bytes>,
-    ) -> Result<Box<dyn crate::http::client::ConduitSocket>, crate::http::client::ClientError> {
-        self.inner.open_websocket(req).await
-    }
+    })
 }
 
 enum Row {
@@ -311,7 +236,8 @@ async fn persist(state: &AppState, row: Row) {
 
 /// Backfill the captured DOWNSTREAM response body for a streaming response (the
 /// row was appended before the stream settled). Gated by the downstream
-/// log-body toggle; redacted + capped by [`body_string`]. Fire-and-forget.
+/// log-body toggle; redacted + capped by [`body_string`]. The caller chooses
+/// whether to await or detach this write.
 pub async fn record_downstream_response(state: &AppState, request_id: &str, body: &[u8]) {
     let ls = state.cp().log_settings.clone();
     if !(ls.enable_downstream_log && ls.enable_downstream_log_body) {
@@ -323,19 +249,23 @@ pub async fn record_downstream_response(state: &AppState, request_id: &str, body
 }
 
 /// Backfill the captured UPSTREAM response body for a streaming response.
-pub async fn record_upstream_response(state: &AppState, request_id: &str, body: &[u8]) {
+pub(crate) async fn record_upstream_response(
+    state: &AppState,
+    capture_id: UpstreamCaptureId,
+    body: &[u8],
+) {
     let ls = state.cp().log_settings.clone();
     if !(ls.enable_upstream_log && ls.enable_upstream_log_body) {
         return;
     }
     let redact = warn_unless_redacted(&ls);
     let s = body_string(body, redact);
-    persist_response(state, RespRow::Upstream(request_id.to_owned(), s)).await;
+    persist_response(state, RespRow::Upstream(capture_id, s)).await;
 }
 
 enum RespRow {
     Downstream(String, String),
-    Upstream(String, String),
+    Upstream(UpstreamCaptureId, String),
 }
 
 async fn persist_response(state: &AppState, row: RespRow) {
@@ -349,10 +279,12 @@ async fn persist_response(state: &AppState, row: RespRow) {
                 )
                 .await
             }
-            RespRow::Upstream(rid, body) => {
-                crate::store::persistence::PersistenceBackend::update_upstream_response(
+            RespRow::Upstream(capture_id, body) => {
+                let UpstreamCaptureId { row_id, request_id } = capture_id;
+                crate::store::persistence::PersistenceBackend::update_upstream_response_by_id(
                     db,
-                    &rid,
+                    row_id,
+                    &request_id,
                     Some(body),
                 )
                 .await
@@ -362,11 +294,5 @@ async fn persist_response(state: &AppState, row: RespRow) {
             tracing::warn!(error = %e, "response-capture log write failed");
         }
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let persistence = std::sync::Arc::clone(&state.persistence);
-        tokio::spawn(async move { write(persistence.as_ref(), row).await });
-    }
-    #[cfg(target_arch = "wasm32")]
     write(state.persistence.as_ref(), row).await;
 }

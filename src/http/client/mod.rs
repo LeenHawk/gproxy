@@ -1,115 +1,49 @@
-//! Outbound HTTP: a client-agnostic [`UpstreamClient`] trait with a native
-//! (wreq) and an edge (fetch) implementation, selected by build target.
+//! Outbound HTTP implementations for the host-owned channel transport.
 
-use bytes::Bytes;
-
-/// Per-request transport behavior carried through [`http::Request::extensions`].
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TransportOptions {
-    pub total_timeout: Option<std::time::Duration>,
-    pub max_redirects: Option<usize>,
-    pub http_version: Option<http::Version>,
-    pub omit_body: bool,
-}
-
-/// Synchronous decoder for a chunked upstream byte stream.
-///
-/// A decoder may buffer partial frames in [`push`](Self::push) and flush any
-/// trailing state from [`finish`](Self::finish). The same interface is driven
-/// by native and edge response streams.
-pub trait ByteStreamDecoder: Send {
-    /// Feed one raw upstream chunk and return any decoded bytes.
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8>;
-
-    /// Flush trailing buffered state at end of stream.
-    fn finish(&mut self) -> Vec<u8>;
-}
-
-/// Transport-level error from the upstream client.
-#[derive(Debug, thiserror::Error)]
-pub enum ClientError {
-    #[error("upstream transport error: {0}")]
-    Transport(String),
-    /// Per-target client configuration is unusable (malformed proxy URL,
-    /// fingerprint that maps to no emulation). Fails the attempt instead of
-    /// silently downgrading to the default client (§7.4 policy bypass).
-    #[error("upstream client config error: {0}")]
-    Config(String),
-}
-
-/// Streaming response body. Native streams are `Send` for axum/tokio; wasm
-/// streams stay local because Fetch `ReadableStream` handles are JS-bound.
-/// Item error is [`ClientError`] — the SAME typedef as
-/// [`crate::pipeline::outcome::ByteStream`].
 #[cfg(not(target_arch = "wasm32"))]
-pub type RespStream =
-    std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, ClientError>> + Send>>;
-#[cfg(target_arch = "wasm32")]
-pub type RespStream =
-    std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, ClientError>>>>;
+pub use crate::channel::transport::ConduitSocket;
+pub use crate::channel::transport::{
+    ByteStreamDecoder, ClientError, RespStream, TransportOptions, UpstreamClient,
+};
 
-/// An open upstream WebSocket (native only): text-frame send + receive. Kept
-/// minimal and object-safe so [`UpstreamClient::open_websocket`] can return one
-/// across the `dyn` boundary.
-#[cfg(not(target_arch = "wasm32"))]
-#[async_trait::async_trait]
-pub trait ConduitSocket: Send {
-    /// Send one text frame.
-    async fn send_text(&mut self, text: String) -> Result<(), ClientError>;
-    /// Receive the next text frame; `None` when the socket closes. Non-text
-    /// frames (ping/pong/binary) are skipped by the implementation.
-    async fn recv_text(&mut self) -> Option<Result<String, ClientError>>;
+#[cfg(any(target_arch = "wasm32", test))]
+fn validate_fetch_options(options: Option<&TransportOptions>) -> Result<(), ClientError> {
+    let Some(options) = options else {
+        return Ok(());
+    };
+    if options.max_redirects.is_some_and(|limit| limit > 0) {
+        return Err(ClientError::Config(
+            "Fetch cannot enforce a positive max_redirects bound; use None or Some(0)".into(),
+        ));
+    }
+    if options.http_version.is_some() {
+        return Err(ClientError::Config(
+            "Fetch cannot select an HTTP version; use None".into(),
+        ));
+    }
+    Ok(())
 }
 
-/// Client-agnostic upstream HTTP transport. Native impl = wreq (supports TLS
-/// emulation); edge impl = host `fetch`. The `?Send` on the wasm async_trait
-/// controls the FUTURE; `Send + Sync` here constrains the implementing TYPE so
-/// that `Arc<dyn UpstreamClient>` is usable in multi-threaded async contexts.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
-pub trait UpstreamClient: Send + Sync {
-    /// Send a fully-formed request and return the response (status + headers + body bytes).
-    async fn send(&self, req: http::Request<Bytes>) -> Result<http::Response<Bytes>, ClientError>;
+#[cfg(any(target_arch = "wasm32", test))]
+fn fetch_sends_body(method: &http::Method, options: Option<&TransportOptions>) -> bool {
+    *method != http::Method::GET
+        && *method != http::Method::HEAD
+        && !options.is_some_and(|options| options.omit_body)
+}
 
-    /// Send a fully prepared Responses WebSocket request and return the
-    /// collected response as an SSE body. Native normally uses
-    /// [`open_websocket`](Self::open_websocket) for streaming; the edge
-    /// Responses-WebSocket bridge uses this collected round-trip hook.
-    async fn send_websocket(
-        &self,
-        _req: http::Request<Bytes>,
-    ) -> Result<http::Response<Bytes>, ClientError> {
-        Err(ClientError::Config(
-            "upstream websocket not supported by this client".into(),
+#[cfg(any(target_arch = "wasm32", test))]
+fn fetch_websocket_frame(
+    body: bytes::Bytes,
+    options: Option<&TransportOptions>,
+) -> Result<Option<String>, ClientError> {
+    if options.is_some_and(|options| options.omit_body) {
+        return Ok(None);
+    }
+    String::from_utf8(body.to_vec()).map(Some).map_err(|error| {
+        ClientError::Transport(format!(
+            "responses websocket request is not UTF-8 JSON: {error}"
         ))
-    }
-
-    /// Streaming variant: status + headers immediately, body as a
-    /// `ClientError`-itemed byte stream. The default buffers via `send` and
-    /// wraps the whole body as one chunk — a correct, lower-fidelity fallback;
-    /// target transports override it with their native streaming primitive.
-    async fn send_streaming(
-        &self,
-        req: http::Request<Bytes>,
-    ) -> Result<(http::StatusCode, http::HeaderMap, RespStream), ClientError> {
-        let resp = self.send(req).await?;
-        let (parts, body) = resp.into_parts();
-        let once = futures_util::stream::once(async move { Ok::<Bytes, ClientError>(body) });
-        Ok((parts.status, parts.headers, Box::pin(once)))
-    }
-
-    /// Open a generic upstream WebSocket from a fully prepared request
-    /// (NATIVE only). Headers are preserved for auth and beta flags; the body is
-    /// owned by the caller and is not sent by the handshake.
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn open_websocket(
-        &self,
-        _req: http::Request<Bytes>,
-    ) -> Result<Box<dyn ConduitSocket>, ClientError> {
-        Err(ClientError::Config(
-            "upstream websocket not supported by this client".into(),
-        ))
-    }
+    })
 }
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
@@ -130,3 +64,46 @@ pub use wreq::WreqClient;
 mod fetch;
 #[cfg(all(target_arch = "wasm32", feature = "upstream-fetch"))]
 pub use fetch::FetchClient;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fetch_transport_policy_is_explicit_and_honors_body_omission() {
+        let no_redirect = TransportOptions {
+            max_redirects: Some(0),
+            omit_body: true,
+            ..Default::default()
+        };
+        assert!(validate_fetch_options(Some(&no_redirect)).is_ok());
+        assert!(!fetch_sends_body(&http::Method::POST, Some(&no_redirect)));
+        assert!(!fetch_sends_body(&http::Method::GET, None));
+        assert!(fetch_sends_body(&http::Method::POST, None));
+        assert_eq!(
+            fetch_websocket_frame(bytes::Bytes::from_static(b"frame"), Some(&no_redirect)).unwrap(),
+            None
+        );
+        assert_eq!(
+            fetch_websocket_frame(bytes::Bytes::from_static(b"frame"), None).unwrap(),
+            Some("frame".into())
+        );
+
+        let bounded = TransportOptions {
+            max_redirects: Some(1),
+            ..Default::default()
+        };
+        assert!(matches!(
+            validate_fetch_options(Some(&bounded)),
+            Err(ClientError::Config(_))
+        ));
+        let versioned = TransportOptions {
+            http_version: Some(http::Version::HTTP_11),
+            ..Default::default()
+        };
+        assert!(matches!(
+            validate_fetch_options(Some(&versioned)),
+            Err(ClientError::Config(_))
+        ));
+    }
+}

@@ -205,41 +205,101 @@ impl UpstreamClient for WreqClient {
         &self,
         req: http::Request<Bytes>,
     ) -> Result<Box<dyn ConduitSocket>, ClientError> {
-        let uri = req.uri().to_string();
-        let headers = req.headers().clone();
-        let resp = self
+        let (mut parts, _) = req.into_parts();
+        let options = parts.extensions.remove::<super::TransportOptions>();
+        let deadline = options
+            .and_then(|options| options.total_timeout)
+            .map(websocket_deadline)
+            .transpose()?;
+
+        // Build from RequestBuilder so redirect and request timeout policy reach
+        // the handshake. WebSocketRequestBuilder itself only exposes version.
+        let mut request = self
             .inner
-            .websocket(uri)
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|e| ClientError::Transport(format!("websocket handshake: {e}")))?;
-        let ws = resp
-            .into_websocket()
-            .await
-            .map_err(|e| ClientError::Transport(format!("websocket upgrade: {e}")))?;
-        Ok(Box::new(WreqConduit { ws }))
+            .request(http::Method::GET, parts.uri.to_string())
+            .headers(parts.headers);
+        if let Some(options) = options {
+            if let Some(timeout) = options.total_timeout {
+                request = request.timeout(timeout);
+            }
+            if let Some(max_redirects) = options.max_redirects {
+                request = request.redirect(redirect_policy(max_redirects));
+            }
+        }
+        let mut request = wreq::ws::WebSocketRequestBuilder::new(request);
+        if let Some(version) = options.and_then(|options| options.http_version) {
+            request = request.version(version);
+        }
+
+        let open = async {
+            let resp = request
+                .send()
+                .await
+                .map_err(|e| ClientError::Transport(format!("websocket handshake: {e}")))?;
+            resp.into_websocket()
+                .await
+                .map_err(|e| ClientError::Transport(format!("websocket upgrade: {e}")))
+        };
+        let ws = match deadline {
+            Some(deadline) => tokio::time::timeout_at(deadline, open)
+                .await
+                .map_err(|_| websocket_timeout())??,
+            None => open.await?,
+        };
+        Ok(Box::new(WreqConduit { ws, deadline }))
     }
+}
+
+fn redirect_policy(max_redirects: usize) -> wreq::redirect::Policy {
+    if max_redirects == 0 {
+        wreq::redirect::Policy::none()
+    } else {
+        wreq::redirect::Policy::limited(max_redirects)
+    }
+}
+
+fn websocket_deadline(timeout: std::time::Duration) -> Result<tokio::time::Instant, ClientError> {
+    std::time::Instant::now()
+        .checked_add(timeout)
+        .map(tokio::time::Instant::from_std)
+        .ok_or_else(|| ClientError::Config("websocket total_timeout is too large".into()))
+}
+
+fn websocket_timeout() -> ClientError {
+    ClientError::Transport("websocket exceeded total_timeout".into())
 }
 
 /// [`ConduitSocket`] over a wreq [`wreq::ws::WebSocket`]. Receives skip non-text
 /// frames (ping/pong/binary) so the caller only sees the JSON envelopes.
 struct WreqConduit {
     ws: wreq::ws::WebSocket,
+    deadline: Option<tokio::time::Instant>,
 }
 
 #[async_trait::async_trait]
 impl ConduitSocket for WreqConduit {
     async fn send_text(&mut self, text: String) -> Result<(), ClientError> {
-        self.ws
-            .send(wreq::ws::message::Message::text(text))
-            .await
-            .map_err(|e| ClientError::Transport(format!("websocket send: {e}")))
+        let send = self.ws.send(wreq::ws::message::Message::text(text));
+        let result = match self.deadline {
+            Some(deadline) => tokio::time::timeout_at(deadline, send)
+                .await
+                .map_err(|_| websocket_timeout())?,
+            None => send.await,
+        };
+        result.map_err(|e| ClientError::Transport(format!("websocket send: {e}")))
     }
 
     async fn recv_text(&mut self) -> Option<Result<String, ClientError>> {
         loop {
-            match self.ws.recv().await {
+            let recv = self.ws.recv();
+            let received = match self.deadline {
+                Some(deadline) => match tokio::time::timeout_at(deadline, recv).await {
+                    Ok(received) => received,
+                    Err(_) => return Some(Err(websocket_timeout())),
+                },
+                None => recv.await,
+            };
+            match received {
                 Some(Ok(msg)) => match msg.into_text() {
                     Ok(t) => return Some(Ok(t.as_str().to_string())),
                     // Non-text frame (ping/pong/binary/close) — skip and keep reading.

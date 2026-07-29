@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use http::{Request, Response, StatusCode};
 use serde_json::{Value, json};
 
-use super::{ClaudeWebChannel, auth, models};
+use super::{ClaudeWebChannel, auth, default_emulation, models};
 use crate::channel::{Channel, ChannelLogin, PrepareCtx, PreparedRequest};
 use crate::http::client::{ClientError, RespStream, UpstreamClient};
 use crate::protocol::{ContentGenerationKind, Operation, OperationKind};
@@ -63,6 +63,11 @@ fn preserves_full_browser_cookie_and_device_id() {
     assert_eq!(
         auth::normalize_cookie("sk-ant-sid02-example").as_deref(),
         Some("sk-ant-sid02-example")
+    );
+    assert_eq!(auth::cookie_header(&cookie), cookie);
+    assert_eq!(
+        auth::cookie_header("sk-ant-sid02-example"),
+        "sessionKey=sk-ant-sid02-example"
     );
 }
 
@@ -258,11 +263,8 @@ async fn live_tool_result_round_trip() {
     let device_id = std::env::var("CLAUDE_DEVICE_ID").ok();
     let channel = ClaudeWebChannel;
     let client: Arc<dyn UpstreamClient> = Arc::new(
-        crate::http::client::WreqClient::with_proxy_and_emulation(
-            None,
-            channel.default_emulation(),
-        )
-        .expect("browser client"),
+        crate::http::client::WreqClient::with_proxy_and_emulation(None, Some(default_emulation()))
+            .expect("browser client"),
     );
     let secret = match organization {
         Some(organization) => json!({
@@ -271,7 +273,19 @@ async fn live_tool_result_round_trip() {
             "capabilities":["chat"],
             "device_id":device_id.unwrap_or_else(crate::util::rand::uuid_v4)
         }),
-        None => channel.cookie_exchange(&client, &cookie).await.unwrap(),
+        None => {
+            let settings = Value::Null;
+            channel
+                .cookie_exchange(
+                    &client,
+                    crate::channel::CookieExchangeCtx {
+                        provider_settings: &settings,
+                        cookie: &cookie,
+                    },
+                )
+                .await
+                .unwrap()
+        }
     };
     let settings = json!({"timezone":"Asia/Singapore"});
     let headers = http::HeaderMap::new();

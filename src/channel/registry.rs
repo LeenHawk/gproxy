@@ -9,8 +9,16 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::channel::bulletins;
-use crate::channel::{Channel, ChannelLogin};
+use crate::channel::registration::RegisteredChannel;
+use crate::channel::{Channel, ChannelCatalogEntry, ChannelLogin, ChannelSource};
+
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ChannelRegistryError {
+    #[error("channel `{0}` is already registered")]
+    DuplicateChannel(&'static str),
+    #[error("channel login `{0}` is already registered")]
+    DuplicateLogin(&'static str),
+}
 
 /// Registry of channel adapters keyed by `Channel::id` (== `Provider.channel`).
 ///
@@ -21,6 +29,9 @@ use crate::channel::{Channel, ChannelLogin};
 pub struct ChannelRegistry {
     map: HashMap<&'static str, Arc<dyn Channel>>,
     login: HashMap<&'static str, Arc<dyn ChannelLogin>>,
+    source: HashMap<&'static str, ChannelSource>,
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    emulation: HashMap<&'static str, crate::channel::emulation::EmulationFactory>,
 }
 
 impl ChannelRegistry {
@@ -35,7 +46,32 @@ impl ChannelRegistry {
         for (id, lg) in builtin_logins() {
             login.insert(id, lg);
         }
-        Self { map, login }
+        let source = map.keys().map(|id| (*id, ChannelSource::Builtin)).collect();
+        #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+        let emulation = crate::channel::emulation::builtin().into_iter().collect();
+        Self {
+            map,
+            login,
+            source,
+            #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+            emulation,
+        }
+    }
+
+    /// Build the built-in registry and apply compile-time external
+    /// registrations. External registration is native-only and feature-gated;
+    /// without it this is identical to [`with_builtin`](Self::with_builtin).
+    pub fn with_builtin_and_linked() -> Result<Self, ChannelRegistryError> {
+        let registry = Self::with_builtin();
+        #[cfg(not(target_arch = "wasm32"))]
+        let registry = {
+            let mut registry = registry;
+            for constructor in crate::channel::registration::CHANNEL_REGISTRATIONS {
+                registry.register(constructor())?;
+            }
+            registry
+        };
+        Ok(registry)
     }
 
     /// Look up a channel by id.
@@ -48,14 +84,55 @@ impl ChannelRegistry {
         self.login.get(id).cloned()
     }
 
-    /// Test-only: build the full built-in set plus one extra (or overriding)
-    /// channel under `id`. Lets integration tests drive paths no built-in
-    /// channel exercises (e.g. a channel whose `refresh` succeeds).
-    #[cfg(test)]
-    pub fn with_channel(id: &'static str, channel: Arc<dyn Channel>) -> Self {
-        let mut reg = Self::with_builtin();
-        reg.map.insert(id, channel);
-        reg
+    /// Metadata for every channel compiled into this binary, sorted by id.
+    pub fn catalog(&self) -> Vec<ChannelCatalogEntry> {
+        let mut entries = self
+            .map
+            .iter()
+            .map(|(id, channel)| {
+                let source = self
+                    .source
+                    .get(id)
+                    .copied()
+                    .unwrap_or(ChannelSource::External);
+                let mut metadata = match source {
+                    ChannelSource::Builtin => crate::channel::metadata::builtin(channel.as_ref()),
+                    ChannelSource::External => channel.metadata(),
+                };
+                metadata.id = (*id).to_string();
+                ChannelCatalogEntry { source, metadata }
+            })
+            .collect::<Vec<_>>();
+        entries.sort_by(|a, b| a.metadata.id.cmp(&b.metadata.id));
+        entries
+    }
+
+    /// Resolve a root-owned built-in TLS/HTTP impersonation profile.
+    #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
+    pub fn default_emulation(&self, id: &str) -> Option<wreq::Emulation> {
+        self.emulation.get(id).map(|factory| factory())
+    }
+
+    /// Register one externally supplied channel and its optional login adapter.
+    /// Registration is startup-only; duplicate IDs are rejected rather than
+    /// depending on linker order or silently replacing a built-in channel.
+    pub fn register(
+        &mut self,
+        registration: RegisteredChannel,
+    ) -> Result<(), ChannelRegistryError> {
+        let id = registration.channel.id();
+        if self.map.contains_key(id) {
+            return Err(ChannelRegistryError::DuplicateChannel(id));
+        }
+        if registration.login.is_some() && self.login.contains_key(id) {
+            return Err(ChannelRegistryError::DuplicateLogin(id));
+        }
+        self.map.insert(id, registration.channel);
+        self.source.insert(id, ChannelSource::External);
+        if let Some(login) = registration.login {
+            self.login.insert(id, login);
+        }
+        Ok(())
     }
 }
 
@@ -64,48 +141,48 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
     vec![
         // ── API-key ──
         #[cfg(feature = "channel-openai")]
-        Arc::new(bulletins::openai::OpenAiChannel),
+        Arc::new(crate::channel::bulletins::openai::OpenAiChannel),
         #[cfg(feature = "channel-azure")]
-        Arc::new(bulletins::azure::AzureChannel),
+        Arc::new(crate::channel::bulletins::azure::AzureChannel),
         #[cfg(feature = "channel-aws-bedrock")]
-        Arc::new(bulletins::aws_bedrock::AwsBedrockChannel),
+        Arc::new(crate::channel::bulletins::aws_bedrock::AwsBedrockChannel),
         #[cfg(feature = "channel-openrouter")]
-        Arc::new(bulletins::openrouter::OpenRouterChannel),
+        Arc::new(crate::channel::bulletins::openrouter::OpenRouterChannel),
         #[cfg(feature = "channel-deepseek")]
-        Arc::new(bulletins::deepseek::DeepSeekChannel),
+        Arc::new(crate::channel::bulletins::deepseek::DeepSeekChannel),
         #[cfg(feature = "channel-groq")]
-        Arc::new(bulletins::groq::GroqChannel),
+        Arc::new(crate::channel::bulletins::groq::GroqChannel),
         #[cfg(feature = "channel-nvidia")]
-        Arc::new(bulletins::nvidia::NvidiaChannel),
+        Arc::new(crate::channel::bulletins::nvidia::NvidiaChannel),
         #[cfg(feature = "channel-vercel")]
-        Arc::new(bulletins::vercel::VercelChannel),
+        Arc::new(crate::channel::bulletins::vercel::VercelChannel),
         #[cfg(feature = "channel-custom")]
-        Arc::new(bulletins::custom::CustomChannel),
+        Arc::new(crate::channel::bulletins::custom::CustomChannel),
         #[cfg(feature = "channel-claudeapi")]
-        Arc::new(bulletins::claudeapi::ClaudeApiChannel),
+        Arc::new(crate::channel::bulletins::claudeapi::ClaudeApiChannel),
         #[cfg(feature = "channel-aistudio")]
-        Arc::new(bulletins::aistudio::AiStudioChannel),
+        Arc::new(crate::channel::bulletins::aistudio::AiStudioChannel),
         #[cfg(feature = "channel-vertexexpress")]
-        Arc::new(bulletins::vertexexpress::VertexExpressChannel),
+        Arc::new(crate::channel::bulletins::vertexexpress::VertexExpressChannel),
         // ── OAuth / envelope ──
         #[cfg(feature = "channel-vertex")]
-        Arc::new(bulletins::vertex::VertexChannel),
+        Arc::new(crate::channel::bulletins::vertex::VertexChannel),
         #[cfg(feature = "channel-geminicli")]
-        Arc::new(bulletins::geminicli::GeminiCliChannel),
+        Arc::new(crate::channel::bulletins::geminicli::GeminiCliChannel),
         #[cfg(feature = "channel-antigravity")]
-        Arc::new(bulletins::antigravity::AntigravityChannel),
+        Arc::new(crate::channel::bulletins::antigravity::AntigravityChannel),
         #[cfg(feature = "channel-grokbuild")]
-        Arc::new(bulletins::grokbuild::GrokBuildChannel),
+        Arc::new(crate::channel::bulletins::grokbuild::GrokBuildChannel),
         #[cfg(feature = "channel-claudecode")]
-        Arc::new(bulletins::claudecode::ClaudeCodeChannel),
+        Arc::new(crate::channel::bulletins::claudecode::ClaudeCodeChannel),
         #[cfg(feature = "channel-codex")]
-        Arc::new(bulletins::codex::CodexChannel),
+        Arc::new(crate::channel::bulletins::codex::CodexChannel),
         #[cfg(feature = "channel-kiro")]
-        Arc::new(bulletins::kiro::KiroChannel),
+        Arc::new(crate::channel::bulletins::kiro::KiroChannel),
         #[cfg(feature = "channel-copilotcli")]
-        Arc::new(bulletins::copilotcli::CopilotCliChannel),
+        Arc::new(crate::channel::bulletins::copilotcli::CopilotCliChannel),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
-        Arc::new(bulletins::claudeweb::ClaudeWebChannel),
+        Arc::new(crate::channel::bulletins::claudeweb::ClaudeWebChannel),
     ]
 }
 
@@ -114,38 +191,44 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
 fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
     vec![
         #[cfg(feature = "channel-codex")]
-        ("codex", Arc::new(bulletins::codex::CodexChannel)),
+        (
+            "codex",
+            Arc::new(crate::channel::bulletins::codex::CodexChannel),
+        ),
         #[cfg(feature = "channel-claudecode")]
         (
             "claudecode",
-            Arc::new(bulletins::claudecode::ClaudeCodeChannel),
+            Arc::new(crate::channel::bulletins::claudecode::ClaudeCodeChannel),
         ),
         #[cfg(feature = "channel-geminicli")]
         (
             "geminicli",
-            Arc::new(bulletins::geminicli::GeminiCliChannel),
+            Arc::new(crate::channel::bulletins::geminicli::GeminiCliChannel),
         ),
         #[cfg(feature = "channel-antigravity")]
         (
             "antigravity",
-            Arc::new(bulletins::antigravity::AntigravityChannel),
+            Arc::new(crate::channel::bulletins::antigravity::AntigravityChannel),
         ),
         #[cfg(feature = "channel-grokbuild")]
         (
             "grokbuild",
-            Arc::new(bulletins::grokbuild::GrokBuildChannel),
+            Arc::new(crate::channel::bulletins::grokbuild::GrokBuildChannel),
         ),
         #[cfg(feature = "channel-kiro")]
-        ("kiro", Arc::new(bulletins::kiro::KiroChannel)),
+        (
+            "kiro",
+            Arc::new(crate::channel::bulletins::kiro::KiroChannel),
+        ),
         #[cfg(feature = "channel-copilotcli")]
         (
             "copilotcli",
-            Arc::new(bulletins::copilotcli::CopilotCliChannel),
+            Arc::new(crate::channel::bulletins::copilotcli::CopilotCliChannel),
         ),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
         (
             "claudeweb",
-            Arc::new(bulletins::claudeweb::ClaudeWebChannel),
+            Arc::new(crate::channel::bulletins::claudeweb::ClaudeWebChannel),
         ),
     ]
 }
@@ -153,43 +236,5 @@ fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
 impl Default for ChannelRegistry {
     fn default() -> Self {
         Self::with_builtin()
-    }
-}
-
-#[cfg(all(test, not(target_arch = "wasm32"), feature = "upstream-wreq"))]
-mod emulation_tests {
-    use super::builtin_channels;
-    use crate::http::client::WreqClient;
-
-    /// Every impersonation channel's opt-in built-in `default_emulation` must
-    /// build a real wreq client. BoringSSL validates the cipher/curve/sigalg
-    /// token strings only at client-build time (not `TlsOptions::build`), so
-    /// this is the test that catches a bad token in a channel's `fingerprint.rs`.
-    #[test]
-    fn channel_default_emulations_build() {
-        let expected = [
-            "claudecode",
-            "codex",
-            "geminicli",
-            "antigravity",
-            "kiro",
-            "copilotcli",
-            "claudeweb",
-        ];
-        let mut found = Vec::new();
-        for ch in builtin_channels() {
-            if let Some(emu) = ch.default_emulation() {
-                WreqClient::with_proxy_and_emulation(None, Some(emu)).unwrap_or_else(|e| {
-                    panic!("{}: default_emulation client build failed: {e}", ch.id())
-                });
-                found.push(ch.id());
-            }
-        }
-        for id in expected {
-            assert!(
-                found.contains(&id),
-                "{id} should expose a default_emulation"
-            );
-        }
     }
 }
