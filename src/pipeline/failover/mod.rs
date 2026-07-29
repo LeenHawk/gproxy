@@ -340,8 +340,15 @@ pub async fn run_failover(
                 .await;
             }
             let Materialized { body, settle, .. } = mat?;
-            if let Some(settle) = settle {
-                settle::settle_body(settle.ctx, &settle.body, settle.stream).await;
+            if let Some(s) = settle {
+                // §17: settle (usage extract + reconcile + usage INSERT) must
+                // not delay the client-visible response — detach it, mirroring
+                // the streaming StreamGuard. wasm has no detached tasks, so the
+                // inline await is the platform cost there.
+                #[cfg(not(target_arch = "wasm32"))]
+                tokio::spawn(async move { settle::settle_body(s.ctx, &s.body, s.stream).await });
+                #[cfg(target_arch = "wasm32")]
+                settle::settle_body(s.ctx, &s.body, s.stream).await;
             }
             if plan.is_transform() || plan.is_aggregate_stream() {
                 // converted bytes no longer match the upstream framing
@@ -370,11 +377,22 @@ pub async fn run_failover(
                 (_, _, body) => body,
             };
             // §17: embeddings / image generation are provider-shaped (not
-            // content-generation) so `capture` skipped them — settle them inline
-            // from the buffered JSON (a no-op for every other op).
+            // content-generation) so `capture` skipped them — settle them from
+            // the buffered JSON, detached on native so the write never delays
+            // the response (inline on wasm: no detached tasks there).
             if status.is_success()
+                && settle::provider::billable(ctx.op)
                 && let ResponseBody::Full(b) = &body
             {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let (state, ctx, cand, b) =
+                        (state.clone(), ctx.clone(), cand.clone(), b.clone());
+                    tokio::spawn(
+                        async move { settle::provider::settle(&state, &ctx, &cand, &b).await },
+                    );
+                }
+                #[cfg(target_arch = "wasm32")]
                 settle::provider::settle(state, ctx, cand, b).await;
             }
             return Ok(ExecOutcome {
