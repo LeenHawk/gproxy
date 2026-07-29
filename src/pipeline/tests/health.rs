@@ -40,6 +40,7 @@ fn openai_ctx(model: &str) -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }
@@ -338,6 +339,7 @@ async fn subscription_channel_main_pool_429_cools_credential_scoped_limit_stays_
             identity: None,
             op: None,
             stream: false,
+            body_model: None,
             route_name: None,
             pending_micros: 0,
         }

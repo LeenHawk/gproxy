@@ -39,6 +39,7 @@ fn models_ctx(api_key: &str) -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }

@@ -35,6 +35,10 @@ pub struct RequestCtx {
     pub identity: Option<Arc<KeyIdentity>>,
     pub op: Option<OperationKey>,
     pub stream: bool,
+    /// Body `"model"` captured by classify's single body parse (`None` = the
+    /// body carries no model or was never parsed — GETs, websocket upgrades).
+    /// Downstream steps read this instead of re-parsing the body.
+    pub body_model: Option<String>,
     pub route_name: Option<String>,
     /// §17 pre-deducted quota pending (micro-dollars), set by `execute` after
     /// authz passes; settle refunds this exact amount. 0 = no pre-deduct.
@@ -56,4 +60,6 @@ pub struct Candidate {
 pub struct Classified {
     pub op: OperationKey,
     pub stream: bool,
+    /// Body `"model"` from the same single classify-time body parse.
+    pub body_model: Option<String>,
 }

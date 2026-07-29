@@ -22,6 +22,7 @@ fn openai_stream_ctx(request_id: &str, model: &str) -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }

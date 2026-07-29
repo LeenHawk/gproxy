@@ -19,38 +19,41 @@ pub fn classify(
     headers: &HeaderMap,
     body: &Bytes,
 ) -> Result<Classified, PipelineError> {
+    // ONE tolerant body parse per request: every downstream consumer (routing
+    // preprocess, transform memo, rule filters, local count) reads the peeked
+    // model from `Classified`/`RequestCtx` instead of re-parsing the body.
+    let (body_stream, body_model) = if method == Method::POST && !body.is_empty() {
+        peek_body(body)
+    } else {
+        (false, None)
+    };
     let (op, stream) = match (method.as_str(), path) {
-        ("POST", "/v1/chat/completions") => {
-            let stream = peek_stream(body);
+        ("POST", "/v1/chat/completions") => (
+            OperationKey::content_generation(
+                content_operation(body_stream),
+                CGK::OpenAiChatCompletions,
+            ),
+            body_stream,
+        ),
+        ("POST", "/v1/responses") => {
+            let websocket = headers.contains_key(RESPONSES_WEBSOCKET_CLASSIFY_HEADER);
+            let stream = websocket || body_stream;
             (
                 OperationKey::content_generation(
                     content_operation(stream),
-                    CGK::OpenAiChatCompletions,
-                ),
-                stream,
-            )
-        }
-        ("POST", "/v1/responses") => {
-            let websocket = headers.contains_key(RESPONSES_WEBSOCKET_CLASSIFY_HEADER);
-            (
-                OperationKey::content_generation(
-                    content_operation(websocket || peek_stream(body)),
                     if websocket {
                         CGK::OpenAiResponsesWebSocket
                     } else {
                         CGK::OpenAiResponses
                     },
                 ),
-                websocket || peek_stream(body),
-            )
-        }
-        ("POST", "/v1/messages") => {
-            let stream = peek_stream(body);
-            (
-                OperationKey::content_generation(content_operation(stream), CGK::ClaudeMessages),
                 stream,
             )
         }
+        ("POST", "/v1/messages") => (
+            OperationKey::content_generation(content_operation(body_stream), CGK::ClaudeMessages),
+            body_stream,
+        ),
         ("POST", "/v1/messages/count_tokens") => (
             OperationKey::provider(Operation::CountTokens, Prov::Claude),
             false,
@@ -93,7 +96,11 @@ pub fn classify(
         },
         _ => return Err(PipelineError::UnsupportedPath),
     };
-    Ok(Classified { op, stream })
+    Ok(Classified {
+        op,
+        stream,
+        body_model,
+    })
 }
 
 const fn content_operation(stream: bool) -> Operation {
@@ -164,17 +171,25 @@ fn gemini_suffix(path: &str) -> Option<(OperationKey, bool)> {
     }
 }
 
-/// Minimal body peek for the `"stream"` flag (NOT a full protocol deserialize).
-/// Tolerant: a type error elsewhere in the body must not flip the flag, and a
-/// non-bool `stream` is treated as absent.
-pub(crate) fn peek_stream(body: &Bytes) -> bool {
-    serde_json::from_slice::<serde_json::Value>(body)
-        .ok()
-        .and_then(|v| v.get("stream").and_then(serde_json::Value::as_bool))
-        .unwrap_or(false)
+/// Minimal single-parse body peek for the `"stream"` flag and `"model"` field
+/// (NOT a full protocol deserialize). Tolerant: a type error elsewhere in the
+/// body must not flip the flag, and a non-bool `stream` / non-string `model`
+/// is treated as absent.
+fn peek_body(body: &Bytes) -> (bool, Option<String>) {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return (false, None);
+    };
+    let stream = v
+        .get("stream")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let model = v.get("model").and_then(|m| m.as_str().map(str::to_string));
+    (stream, model)
 }
 
-/// Minimal body peek for the `"model"` field (tolerant, as above).
+/// Minimal body peek for the `"model"` field (tolerant, as above). Prefer
+/// `ctx.body_model` — this is the fallback for contexts built without
+/// [`classify`] (tests, direct pipeline entry).
 pub(crate) fn peek_model(body: &Bytes) -> Option<String> {
     serde_json::from_slice::<serde_json::Value>(body)
         .ok()
