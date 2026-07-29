@@ -9,7 +9,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::channel::bulletins;
 use crate::channel::registration::RegisteredChannel;
 use crate::channel::{Channel, ChannelCatalogEntry, ChannelLogin, ChannelSource};
 
@@ -142,48 +141,48 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
     vec![
         // ── API-key ──
         #[cfg(feature = "channel-openai")]
-        Arc::new(bulletins::openai::OpenAiChannel),
+        Arc::new(crate::channel::bulletins::openai::OpenAiChannel),
         #[cfg(feature = "channel-azure")]
-        Arc::new(bulletins::azure::AzureChannel),
+        Arc::new(crate::channel::bulletins::azure::AzureChannel),
         #[cfg(feature = "channel-aws-bedrock")]
-        Arc::new(bulletins::aws_bedrock::AwsBedrockChannel),
+        Arc::new(crate::channel::bulletins::aws_bedrock::AwsBedrockChannel),
         #[cfg(feature = "channel-openrouter")]
-        Arc::new(bulletins::openrouter::OpenRouterChannel),
+        Arc::new(crate::channel::bulletins::openrouter::OpenRouterChannel),
         #[cfg(feature = "channel-deepseek")]
-        Arc::new(bulletins::deepseek::DeepSeekChannel),
+        Arc::new(crate::channel::bulletins::deepseek::DeepSeekChannel),
         #[cfg(feature = "channel-groq")]
-        Arc::new(bulletins::groq::GroqChannel),
+        Arc::new(crate::channel::bulletins::groq::GroqChannel),
         #[cfg(feature = "channel-nvidia")]
-        Arc::new(bulletins::nvidia::NvidiaChannel),
+        Arc::new(crate::channel::bulletins::nvidia::NvidiaChannel),
         #[cfg(feature = "channel-vercel")]
-        Arc::new(bulletins::vercel::VercelChannel),
+        Arc::new(crate::channel::bulletins::vercel::VercelChannel),
         #[cfg(feature = "channel-custom")]
-        Arc::new(bulletins::custom::CustomChannel),
+        Arc::new(crate::channel::bulletins::custom::CustomChannel),
         #[cfg(feature = "channel-claudeapi")]
-        Arc::new(bulletins::claudeapi::ClaudeApiChannel),
+        Arc::new(crate::channel::bulletins::claudeapi::ClaudeApiChannel),
         #[cfg(feature = "channel-aistudio")]
-        Arc::new(bulletins::aistudio::AiStudioChannel),
+        Arc::new(crate::channel::bulletins::aistudio::AiStudioChannel),
         #[cfg(feature = "channel-vertexexpress")]
-        Arc::new(bulletins::vertexexpress::VertexExpressChannel),
+        Arc::new(crate::channel::bulletins::vertexexpress::VertexExpressChannel),
         // ── OAuth / envelope ──
         #[cfg(feature = "channel-vertex")]
-        Arc::new(bulletins::vertex::VertexChannel),
+        Arc::new(crate::channel::bulletins::vertex::VertexChannel),
         #[cfg(feature = "channel-geminicli")]
-        Arc::new(bulletins::geminicli::GeminiCliChannel),
+        Arc::new(crate::channel::bulletins::geminicli::GeminiCliChannel),
         #[cfg(feature = "channel-antigravity")]
-        Arc::new(bulletins::antigravity::AntigravityChannel),
+        Arc::new(crate::channel::bulletins::antigravity::AntigravityChannel),
         #[cfg(feature = "channel-grokbuild")]
-        Arc::new(bulletins::grokbuild::GrokBuildChannel),
+        Arc::new(crate::channel::bulletins::grokbuild::GrokBuildChannel),
         #[cfg(feature = "channel-claudecode")]
-        Arc::new(bulletins::claudecode::ClaudeCodeChannel),
+        Arc::new(crate::channel::bulletins::claudecode::ClaudeCodeChannel),
         #[cfg(feature = "channel-codex")]
-        Arc::new(bulletins::codex::CodexChannel),
+        Arc::new(crate::channel::bulletins::codex::CodexChannel),
         #[cfg(feature = "channel-kiro")]
-        Arc::new(bulletins::kiro::KiroChannel),
+        Arc::new(crate::channel::bulletins::kiro::KiroChannel),
         #[cfg(feature = "channel-copilotcli")]
-        Arc::new(bulletins::copilotcli::CopilotCliChannel),
+        Arc::new(crate::channel::bulletins::copilotcli::CopilotCliChannel),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
-        Arc::new(bulletins::claudeweb::ClaudeWebChannel),
+        Arc::new(crate::channel::bulletins::claudeweb::ClaudeWebChannel),
     ]
 }
 
@@ -192,38 +191,44 @@ fn builtin_channels() -> Vec<Arc<dyn Channel>> {
 fn builtin_logins() -> Vec<(&'static str, Arc<dyn ChannelLogin>)> {
     vec![
         #[cfg(feature = "channel-codex")]
-        ("codex", Arc::new(bulletins::codex::CodexChannel)),
+        (
+            "codex",
+            Arc::new(crate::channel::bulletins::codex::CodexChannel),
+        ),
         #[cfg(feature = "channel-claudecode")]
         (
             "claudecode",
-            Arc::new(bulletins::claudecode::ClaudeCodeChannel),
+            Arc::new(crate::channel::bulletins::claudecode::ClaudeCodeChannel),
         ),
         #[cfg(feature = "channel-geminicli")]
         (
             "geminicli",
-            Arc::new(bulletins::geminicli::GeminiCliChannel),
+            Arc::new(crate::channel::bulletins::geminicli::GeminiCliChannel),
         ),
         #[cfg(feature = "channel-antigravity")]
         (
             "antigravity",
-            Arc::new(bulletins::antigravity::AntigravityChannel),
+            Arc::new(crate::channel::bulletins::antigravity::AntigravityChannel),
         ),
         #[cfg(feature = "channel-grokbuild")]
         (
             "grokbuild",
-            Arc::new(bulletins::grokbuild::GrokBuildChannel),
+            Arc::new(crate::channel::bulletins::grokbuild::GrokBuildChannel),
         ),
         #[cfg(feature = "channel-kiro")]
-        ("kiro", Arc::new(bulletins::kiro::KiroChannel)),
+        (
+            "kiro",
+            Arc::new(crate::channel::bulletins::kiro::KiroChannel),
+        ),
         #[cfg(feature = "channel-copilotcli")]
         (
             "copilotcli",
-            Arc::new(bulletins::copilotcli::CopilotCliChannel),
+            Arc::new(crate::channel::bulletins::copilotcli::CopilotCliChannel),
         ),
         #[cfg(all(feature = "channel-claudeweb", not(target_arch = "wasm32")))]
         (
             "claudeweb",
-            Arc::new(bulletins::claudeweb::ClaudeWebChannel),
+            Arc::new(crate::channel::bulletins::claudeweb::ClaudeWebChannel),
         ),
     ]
 }
