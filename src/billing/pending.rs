@@ -138,15 +138,17 @@ pub async fn refund(cache: &dyn CacheBackend, scopes: &[(Scope, i64)], micros: i
 
 /// Best-effort: a failed adjust is logged by the backend and self-heals via
 /// the pending TTL (admission already failed closed if the backend is down).
+/// Scopes adjust in parallel — one RTT round on remote counter backends.
 async fn adjust(cache: &dyn CacheBackend, scopes: &[(Scope, i64)], delta: i64) {
     if delta == 0 {
         return;
     }
-    for &(scope, scope_id) in scopes {
+    futures_util::future::join_all(scopes.iter().map(|&(scope, scope_id)| async move {
         let _ = cache
             .incr(&key(scope, scope_id), delta, Some(PENDING_TTL))
             .await;
-    }
+    }))
+    .await;
 }
 
 #[cfg(test)]

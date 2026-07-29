@@ -140,60 +140,80 @@ pub fn provider_model_permitted(
     check_provider_model_permission(cp, identity, provider, model).is_ok()
 }
 
-/// user → team → org; first exceeded rule wins. Incr-then-check: the
-/// rejected request is still counted (cheap, deterministic — no read-modify-
-/// write race, at the cost of rejected requests consuming budget). A counter
-/// backend failure refuses the request (fail-closed) — enforced limits must
-/// not silently vanish with the cache.
+/// One matching rate-limit budget, materialized for the parallel incr pass.
+struct LimitCheck {
+    key: String,
+    /// 1 for request counters; 0 for the read-only token budget (settle-time
+    /// reconciliation feeds `rlt:*`).
+    delta: i64,
+    ttl: Duration,
+    limit: i64,
+    retry_after_secs: u64,
+}
+
+/// user → team → org; first exceeded rule (in chain order) wins. Incr-then-
+/// check: the rejected request is still counted (cheap, deterministic — no
+/// read-modify-write race, at the cost of rejected requests consuming budget
+/// on EVERY matching counter — the incrs run in parallel, so a tripped rule
+/// no longer spares its siblings). One parallel round instead of N serial
+/// RTTs on remote counter backends. A counter backend failure refuses the
+/// request (fail-closed) — enforced limits must not silently vanish with the
+/// cache.
 async fn precheck_limits(
     plan: &AuthorizationPlan,
     cache: &dyn CacheBackend,
     now_unix: i64,
 ) -> Result<(), PipelineError> {
+    let mut checks: Vec<LimitCheck> = Vec::new();
     for rows in &plan.rate_limits {
         for row in rows
             .iter()
             .filter(|r| glob::matches(&r.route_pattern, &plan.name))
         {
             if let Some(limit) = row.rpm {
-                let key = format!("rl:{}:m{}", row.id, now_unix / MINUTE);
-                let count = cache
-                    .incr(&key, 1, Some(Duration::from_secs(120)))
-                    .await
-                    .map_err(|_| PipelineError::CounterUnavailable)?;
-                if count > limit {
-                    return Err(PipelineError::RateLimited {
-                        retry_after_secs: (MINUTE - now_unix % MINUTE) as u64,
-                    });
-                }
+                checks.push(LimitCheck {
+                    key: format!("rl:{}:m{}", row.id, now_unix / MINUTE),
+                    delta: 1,
+                    ttl: Duration::from_secs(120),
+                    limit,
+                    retry_after_secs: (MINUTE - now_unix % MINUTE) as u64,
+                });
             }
             if let Some(limit) = row.rpd {
-                let key = format!("rl:{}:d{}", row.id, now_unix / DAY);
-                let count = cache
-                    .incr(&key, 1, Some(Duration::from_secs(48 * 3600)))
-                    .await
-                    .map_err(|_| PipelineError::CounterUnavailable)?;
-                if count > limit {
-                    return Err(PipelineError::RateLimited {
-                        retry_after_secs: (DAY - now_unix % DAY) as u64,
-                    });
-                }
+                checks.push(LimitCheck {
+                    key: format!("rl:{}:d{}", row.id, now_unix / DAY),
+                    delta: 1,
+                    ttl: Duration::from_secs(48 * 3600),
+                    limit,
+                    retry_after_secs: (DAY - now_unix % DAY) as u64,
+                });
             }
             if let Some(limit) = row.total_tokens {
-                // Read-only precheck of the daily token budget; settle-time
-                // reconciliation (M6 §17) increments `rlt:*` with each
-                // request's actual total tokens.
-                let key = format!("rlt:{}:d{}", row.id, now_unix / DAY);
-                let count = cache
-                    .incr(&key, 0, Some(Duration::from_secs(48 * 3600)))
-                    .await
-                    .map_err(|_| PipelineError::CounterUnavailable)?;
-                if count > limit {
-                    return Err(PipelineError::RateLimited {
-                        retry_after_secs: (DAY - now_unix % DAY) as u64,
-                    });
-                }
+                checks.push(LimitCheck {
+                    key: format!("rlt:{}:d{}", row.id, now_unix / DAY),
+                    delta: 0,
+                    ttl: Duration::from_secs(48 * 3600),
+                    limit,
+                    retry_after_secs: (DAY - now_unix % DAY) as u64,
+                });
             }
+        }
+    }
+    if checks.is_empty() {
+        return Ok(());
+    }
+    let counts = futures_util::future::join_all(
+        checks
+            .iter()
+            .map(|c| cache.incr(&c.key, c.delta, Some(c.ttl))),
+    )
+    .await;
+    for (check, count) in checks.iter().zip(counts) {
+        let count = count.map_err(|_| PipelineError::CounterUnavailable)?;
+        if count > check.limit {
+            return Err(PipelineError::RateLimited {
+                retry_after_secs: check.retry_after_secs,
+            });
         }
     }
     Ok(())
@@ -214,11 +234,20 @@ pub(crate) async fn precheck_quota(
     cache: &dyn CacheBackend,
     est_micros: i64,
 ) -> Result<(), PipelineError> {
-    for entry in &plan.entries {
+    if plan.entries.is_empty() {
+        return Ok(());
+    }
+    // All scope pendings read in parallel (one RTT round on remote backends).
+    let reads = futures_util::future::join_all(
+        plan.entries
+            .iter()
+            .map(|entry| pending::read(cache, entry.scope, entry.scope_id)),
+    )
+    .await;
+    for (entry, in_flight) in plan.entries.iter().zip(reads) {
         // In-flight pending unreadable → the quota can't be checked → refuse
         // (fail-closed), consistent with precheck_limits.
-        let in_flight = pending::read(cache, entry.scope, entry.scope_id)
-            .await
+        let in_flight = in_flight
             .map_err(|_| PipelineError::CounterUnavailable)?
             .max(0);
         let exhausted =
@@ -352,140 +381,5 @@ pub(crate) async fn authorize(
 mod outage_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32"), feature = "cache-memory"))]
-mod tests {
-    use std::sync::Arc;
-
-    use super::*;
-    use crate::store::cache::MemoryCache;
-    use crate::store::persistence::records::{Org, Quota, RateLimit, User, UserKey};
-
-    fn test_identity() -> KeyIdentity {
-        KeyIdentity {
-            user_key: UserKey {
-                id: 1,
-                user_id: 1,
-                api_key_ciphertext: String::new(),
-                api_key_digest: "d".into(),
-                label: None,
-                enabled: true,
-                created_at: 0,
-                updated_at: 0,
-            },
-            user: User {
-                id: 1,
-                name: "u".into(),
-                org_id: 10,
-                team_id: None,
-                password: None,
-                enabled: true,
-                is_admin: false,
-                created_at: 0,
-                updated_at: 0,
-            },
-        }
-    }
-
-    fn org(enabled: bool) -> Org {
-        Org {
-            id: 10,
-            name: "o".into(),
-            enabled,
-            description: None,
-            created_at: 0,
-            updated_at: 0,
-        }
-    }
-
-    #[tokio::test]
-    async fn org_level_grant_unions_down() {
-        let identity = test_identity();
-        let mut cp = ControlPlaneSnapshot::empty(1);
-
-        // No org row at all → deny (secure default).
-        assert!(matches!(
-            check_permission(&cp, &identity, "claude-main"),
-            Err(PipelineError::Forbidden)
-        ));
-
-        cp.orgs_by_id.insert(10, Arc::new(org(true)));
-        // Org enabled but no permission rows anywhere → still deny.
-        assert!(matches!(
-            check_permission(&cp, &identity, "claude-main"),
-            Err(PipelineError::Forbidden)
-        ));
-
-        cp.permissions_by_scope
-            .insert((Scope::Org, 10), Arc::new(vec!["claude-*".into()]));
-        assert!(check_permission(&cp, &identity, "claude-main").is_ok());
-        assert!(matches!(
-            check_permission(&cp, &identity, "gpt-x"),
-            Err(PipelineError::Forbidden)
-        ));
-    }
-
-    #[tokio::test]
-    async fn quota_admission_is_estimate_aware() {
-        let identity = test_identity();
-        let mut cp = ControlPlaneSnapshot::empty(1);
-        // $10 total, $9 used → $1.00 (= 1_000_000 micro-dollars) remaining.
-        cp.quotas_by_scope.insert(
-            (Scope::User, 1),
-            Arc::new(Quota {
-                id: 1,
-                scope: Scope::User,
-                scope_id: 1,
-                quota_total: "10".parse().unwrap(),
-                cost_used: "9".parse().unwrap(),
-                created_at: 0,
-                updated_at: 0,
-            }),
-        );
-        let cache = MemoryCache::new();
-        let plan = prepare_quota(&cp, &identity);
-
-        // An estimate that exactly fits the remainder is admitted.
-        assert!(precheck_quota(&plan, &cache, 1_000_000).await.is_ok());
-        // Regression: an estimate over the remainder is rejected up front
-        // (previously admitted and blew through the quota).
-        assert!(matches!(
-            precheck_quota(&plan, &cache, 1_000_001).await,
-            Err(PipelineError::QuotaExceeded)
-        ));
-        // est = 0 reduces to the plain exhaustion check: remaining > 0 admits.
-        assert!(precheck_quota(&plan, &cache, 0).await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn rpm_trips_and_retry_after() {
-        let identity = test_identity();
-        let mut cp = ControlPlaneSnapshot::empty(1);
-        cp.rate_limits_by_scope.insert(
-            (Scope::User, 1),
-            Arc::new(vec![RateLimit {
-                id: 7,
-                scope: Scope::User,
-                scope_id: 1,
-                route_pattern: "*".into(),
-                rpm: Some(2),
-                rpd: None,
-                total_tokens: None,
-                created_at: 0,
-                updated_at: 0,
-            }]),
-        );
-        let cache = MemoryCache::new();
-        let plan = prepare_limits(&cp, &identity, "claude-main");
-        let now = 1_000_000;
-        for _ in 0..2 {
-            precheck_limits(&plan, &cache, now)
-                .await
-                .expect("under limit");
-        }
-        match precheck_limits(&plan, &cache, now).await {
-            Err(PipelineError::RateLimited { retry_after_secs }) => {
-                assert!((1..=60).contains(&retry_after_secs));
-            }
-            other => panic!("expected RateLimited, got {other:?}"),
-        }
-    }
-}
+#[path = "authz/tests.rs"]
+mod tests;
