@@ -35,17 +35,19 @@ use crate::http::client::UpstreamClient;
 /// Begin a social (GitHub / Google) device-code login — see [`social::device_start`].
 pub(super) async fn device_start(
     client: &Arc<dyn UpstreamClient>,
+    settings: &Value,
     params: &Value,
 ) -> Result<DeviceInit, ChannelError> {
-    social::device_start(client, params).await
+    social::device_start(client, settings, params).await
 }
 
 /// Poll a pending social device-code login — see [`social::device_poll`].
 pub(super) async fn device_poll(
     client: &Arc<dyn UpstreamClient>,
+    settings: &Value,
     device_code: &str,
 ) -> Result<DevicePoll, ChannelError> {
-    social::device_poll(client, device_code).await
+    social::device_poll(client, settings, device_code).await
 }
 
 /// User-agent the captured `kiro-cli-chat` auth requests send; harmless on the

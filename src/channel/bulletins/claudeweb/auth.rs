@@ -57,7 +57,7 @@ pub(super) fn device_id(secret: &Value) -> Option<&str> {
 }
 
 pub(super) fn cookie_header(session_key: &str) -> String {
-    if session_key.trim_start().starts_with("sessionKey=") {
+    if cookie_value(session_key, "sessionKey").is_some() {
         session_key.trim().to_owned()
     } else {
         format!("sessionKey={}", session_key.trim())

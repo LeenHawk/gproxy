@@ -85,12 +85,10 @@ pub(super) fn request(
     }
     request
         .extensions_mut()
-        .insert(crate::http::client::TransportOptions {
-            total_timeout: Some(std::time::Duration::from_secs(30)),
-            max_redirects: Some(21),
-            http_version: Some(http::Version::HTTP_11),
-            omit_body: false,
-        });
+        .insert(super::axios::transport_options(
+            std::time::Duration::from_secs(30),
+            false,
+        ));
     Ok(request)
 }
 

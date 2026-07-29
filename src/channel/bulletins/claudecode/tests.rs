@@ -129,7 +129,7 @@ fn prepare_injects_oauth_and_stainless() {
         headers: &headers,
         body: Bytes::from_static(b"{\"model\":\"claude-sonnet-4\"}"),
     };
-    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http();
+    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http().unwrap();
 
     assert_eq!(
         req.uri().to_string(),
@@ -218,7 +218,7 @@ fn anthropic_beta_oauth_first_then_client_deduped() {
         headers: &headers,
         body: Bytes::from_static(b"{\"messages\":[]}"),
     };
-    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http();
+    let req = ClaudeCodeChannel.prepare(ctx).unwrap().into_http().unwrap();
     assert_eq!(
         req.headers().get("anthropic-beta").unwrap(),
         "oauth-2025-04-20,feat-x,feat-y"
@@ -249,7 +249,8 @@ fn count_tokens_skips_cch_metadata_injection() {
                 body: body.clone(),
             })
             .unwrap()
-            .into_http();
+            .into_http()
+            .unwrap();
         serde_json::from_slice::<Value>(req.body()).unwrap()
     };
     let count = prepare("/v1/messages/count_tokens");

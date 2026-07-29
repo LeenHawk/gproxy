@@ -28,6 +28,7 @@ fn prepare(op: OperationKey, model: &str, body: Bytes, stream: bool) -> http::Re
         })
         .unwrap()
         .into_http()
+        .unwrap()
 }
 
 #[test]

@@ -45,7 +45,7 @@ fn prepare_wraps_envelope_and_builds_v1internal() {
         "/v1beta/models/gemini-2.5-pro:generateContent",
         br#"{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}"#,
     );
-    let req = GeminiCliChannel.prepare(ctx).unwrap().into_http();
+    let req = GeminiCliChannel.prepare(ctx).unwrap().into_http().unwrap();
     assert_eq!(
         req.uri().to_string(),
         "https://cloudcode-pa.googleapis.com/v1internal:generateContent"
@@ -76,7 +76,7 @@ fn prepare_wraps_envelope_and_builds_v1internal() {
         "/v1beta/models/gemini-2.5-pro:streamGenerateContent",
         br#"{"contents":[]}"#,
     );
-    let req = GeminiCliChannel.prepare(ctx).unwrap().into_http();
+    let req = GeminiCliChannel.prepare(ctx).unwrap().into_http().unwrap();
     assert_eq!(
         req.uri().to_string(),
         "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
@@ -103,7 +103,7 @@ fn list_models_builds_retrieve_user_quota() {
         headers: &headers,
         body: Bytes::new(),
     };
-    let req = GeminiCliChannel.prepare(ctx).unwrap().into_http();
+    let req = GeminiCliChannel.prepare(ctx).unwrap().into_http().unwrap();
     assert_eq!(req.method(), Method::POST);
     assert_eq!(
         req.uri().to_string(),

@@ -168,6 +168,7 @@ mod tests {
             })
             .unwrap()
             .into_http()
+            .unwrap()
     }
 
     #[test]

@@ -289,7 +289,7 @@ mod tests {
             headers: &headers,
             body: Bytes::from_static(b"{\"model\":\"gpt-4o\"}"),
         };
-        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http();
+        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http().unwrap();
 
         assert_eq!(
             req.uri().to_string(),
@@ -339,7 +339,7 @@ mod tests {
             headers: &headers,
             body: Bytes::new(),
         };
-        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http();
+        let req = CopilotCliChannel.prepare(ctx).unwrap().into_http().unwrap();
         assert_eq!(req.method(), Method::GET);
         assert_eq!(
             req.uri().to_string(),

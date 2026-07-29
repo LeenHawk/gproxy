@@ -8,68 +8,106 @@ use js_sys::{Array, Uint8Array, global};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{AbortSignal, Headers, Request, RequestInit, Response, WorkerGlobalScope};
+use web_sys::{
+    AbortSignal, Headers, Request, RequestInit, RequestRedirect, Response, WorkerGlobalScope,
+};
 
 use super::{ClientError, UpstreamClient};
 
 #[wasm_bindgen(inline_js = r#"
-export async function gproxyResponsesWebSocketRoundTrip(url, headerEntries, frame) {
+export async function gproxyResponsesWebSocketRoundTrip(
+  url, headerEntries, frame, noRedirect, timeoutMs
+) {
   const headers = new Headers();
   for (const pair of headerEntries) {
     headers.append(pair[0], pair[1]);
   }
   headers.set("Upgrade", "websocket");
 
-  const response = await fetch(url, { method: "GET", headers });
-  const socket = response.webSocket;
-  if (!socket) {
-    throw new Error(`websocket upgrade failed with status ${response.status}`);
-  }
-
-  if (typeof socket.accept === "function") {
-    socket.accept();
-  }
-
+  const controller = new AbortController();
   const decoder = new TextDecoder();
   const messages = [];
   const terminal = new Set(["response.completed", "response.done", "response.failed", "error"]);
+  let socket = null;
+  let timer = null;
+  let timedOut = false;
 
-  return await new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      try { socket.close(); } catch (_) {}
-      resolve(messages);
-    };
-    const fail = (message) => {
-      if (settled) return;
-      settled = true;
-      try { socket.close(); } catch (_) {}
-      reject(new Error(message));
-    };
+  const roundTrip = (async () => {
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      redirect: noRedirect ? "manual" : "follow",
+      signal: controller.signal,
+    });
+    socket = response.webSocket;
+    if (!socket) {
+      throw new Error(`websocket upgrade failed with status ${response.status}`);
+    }
+    if (typeof socket.accept === "function") {
+      socket.accept();
+    }
 
-    socket.addEventListener("message", (event) => {
-      const text = typeof event.data === "string" ? event.data : decoder.decode(event.data);
-      messages.push(text);
-      let kind = null;
-      try { kind = JSON.parse(text)?.type ?? null; } catch (_) {}
-      if (terminal.has(kind)) {
-        finish();
+    return await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve(messages);
+      };
+      const fail = (message) => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(message));
+      };
+
+      socket.addEventListener("message", (event) => {
+        const text = typeof event.data === "string" ? event.data : decoder.decode(event.data);
+        messages.push(text);
+        let kind = null;
+        try { kind = JSON.parse(text)?.type ?? null; } catch (_) {}
+        if (terminal.has(kind)) {
+          finish();
+        }
+      });
+      socket.addEventListener("close", () => {
+        if (settled) return;
+        fail("websocket closed before terminal response");
+      });
+      socket.addEventListener("error", () => fail("websocket error"));
+
+      if (frame != null) {
+        try {
+          socket.send(frame);
+        } catch (error) {
+          fail(error?.message ?? String(error));
+        }
       }
     });
-    socket.addEventListener("close", () => {
-      if (settled) return;
-      fail("websocket closed before terminal response");
-    });
-    socket.addEventListener("error", () => fail("websocket error"));
+  })();
 
-    try {
-      socket.send(frame);
-    } catch (error) {
-      fail(error?.message ?? String(error));
+  try {
+    if (timeoutMs < 0) {
+      return await roundTrip;
     }
-  });
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+        try { socket?.close(); } catch (_) {}
+        reject(new Error(`websocket exceeded ${timeoutMs}ms total_timeout`));
+      }, timeoutMs);
+    });
+    return await Promise.race([roundTrip, timeout]);
+  } catch (error) {
+    if (timedOut) {
+      throw new Error(`websocket exceeded ${timeoutMs}ms total_timeout`);
+    }
+    throw error;
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+    controller.abort();
+    try { socket?.close(); } catch (_) {}
+  }
 }
 "#)]
 extern "C" {
@@ -77,7 +115,9 @@ extern "C" {
     async fn responses_websocket_round_trip(
         url: String,
         header_entries: Array,
-        frame: String,
+        frame: Option<String>,
+        no_redirect: bool,
+        timeout_ms: f64,
     ) -> Result<JsValue, JsValue>;
 }
 
@@ -107,6 +147,7 @@ async fn fetch_raw(
 ) -> Result<(http::StatusCode, http::HeaderMap, Response), ClientError> {
     let (mut parts, body_bytes) = req.into_parts();
     let transport = parts.extensions.remove::<super::TransportOptions>();
+    super::validate_fetch_options(transport.as_ref())?;
 
     let js_headers = Headers::new().map_err(js_err)?;
     for (name, value) in &parts.headers {
@@ -119,16 +160,20 @@ async fn fetch_raw(
     let init = RequestInit::new();
     init.set_method(parts.method.as_str());
     init.set_headers_headers(&js_headers);
+    if transport
+        .as_ref()
+        .is_some_and(|options| options.max_redirects == Some(0))
+    {
+        init.set_redirect(RequestRedirect::Manual);
+    }
     let timeout_signal = transport
+        .as_ref()
         .and_then(|options| options.total_timeout)
         .map(|timeout| AbortSignal::timeout_with_f64(timeout.as_secs_f64() * 1000.0));
     if let Some(signal) = timeout_signal.as_ref() {
         init.set_signal(Some(signal));
     }
-    if parts.method != http::Method::GET
-        && parts.method != http::Method::HEAD
-        && !body_bytes.is_empty()
-    {
+    if super::fetch_sends_body(&parts.method, transport.as_ref()) && !body_bytes.is_empty() {
         let body = Uint8Array::from(body_bytes.as_ref());
         init.set_body_opt_u8_array(Some(&body));
     }
@@ -227,12 +272,10 @@ impl UpstreamClient for FetchClient {
         &self,
         req: http::Request<Bytes>,
     ) -> Result<http::Response<Bytes>, ClientError> {
-        let (parts, body) = req.into_parts();
-        let frame = String::from_utf8(body.to_vec()).map_err(|error| {
-            ClientError::Transport(format!(
-                "responses websocket request is not UTF-8 JSON: {error}"
-            ))
-        })?;
+        let (mut parts, body) = req.into_parts();
+        let transport = parts.extensions.remove::<super::TransportOptions>();
+        super::validate_fetch_options(transport.as_ref())?;
+        let frame = super::fetch_websocket_frame(body, transport.as_ref())?;
         let header_entries = Array::new();
         for (name, value) in &parts.headers {
             let value = value
@@ -244,9 +287,22 @@ impl UpstreamClient for FetchClient {
             header_entries.push(&pair);
         }
 
-        let messages = responses_websocket_round_trip(parts.uri.to_string(), header_entries, frame)
-            .await
-            .map_err(js_err)?;
+        let no_redirect = transport
+            .as_ref()
+            .is_some_and(|options| options.max_redirects == Some(0));
+        let timeout_ms = transport
+            .as_ref()
+            .and_then(|options| options.total_timeout)
+            .map_or(-1.0, |timeout| timeout.as_secs_f64() * 1000.0);
+        let messages = responses_websocket_round_trip(
+            parts.uri.to_string(),
+            header_entries,
+            frame,
+            no_redirect,
+            timeout_ms,
+        )
+        .await
+        .map_err(js_err)?;
         let messages: Array = messages
             .dyn_into()
             .map_err(|_| ClientError::Transport("websocket result was not an array".into()))?;

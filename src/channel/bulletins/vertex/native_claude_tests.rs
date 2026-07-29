@@ -46,6 +46,7 @@ fn prepare(path: &str, model: &str, body: Bytes, headers: &HeaderMap) -> Request
         })
         .unwrap()
         .into_http()
+        .unwrap()
 }
 
 #[test]

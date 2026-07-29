@@ -313,7 +313,7 @@ async fn fetch_models_with(
     let mut attempt = 0;
     loop {
         attempt += 1;
-        // Re-prepare each attempt (`into_http` consumes the request); cheap.
+        // Re-prepare each attempt because sending consumes the request; cheap.
         let prepared = channel.prepare(PrepareCtx {
             secret,
             provider_settings: settings,
@@ -327,8 +327,8 @@ async fn fetch_models_with(
             body: Bytes::new(),
         })?;
 
-        let resp = client
-            .send(prepared.into_http())
+        let resp = prepared
+            .send_buffered(Arc::clone(client))
             .await
             .map_err(|e| ModelsError::Upstream(e.to_string()))?;
         let status = resp.status();

@@ -3,6 +3,20 @@
 use bytes::Bytes;
 
 /// Per-request transport behavior carried through [`http::Request::extensions`].
+///
+/// All request entrypoints consume these options, including WebSocket ones. The
+/// built-in native wreq transport enforces redirect/version policy on the
+/// WebSocket handshake; a WebSocket `total_timeout` remains in force for the
+/// socket's sends and receives. A native WebSocket handshake never sends the
+/// request body, independently of `omit_body`.
+///
+/// The built-in Fetch transport enforces `total_timeout`, `omit_body`, and
+/// `max_redirects = Some(0)`. For its terminal WebSocket round trip, the timeout
+/// covers both Fetch and socket use, while `omit_body` suppresses the initial
+/// application frame. Fetch cannot select an HTTP version or guarantee an exact
+/// positive redirect bound, so it returns [`ClientError::Config`] when either
+/// unsupported constraint is set; callers may leave those fields as `None` to
+/// use the host Fetch policy.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TransportOptions {
     pub total_timeout: Option<std::time::Duration>,

@@ -20,7 +20,6 @@ use super::auth;
 use crate::channel::ChannelError;
 use crate::channel::http_util::{build_request, exact_url, join_url};
 use crate::channel::usage::{UsageCredits, UsageSnapshot, UsageWindow};
-use crate::http::client::TransportOptions;
 
 const USAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -43,12 +42,8 @@ pub(super) fn request(
         }
     };
     let mut req = build_request(Method::GET, uri, HeaderMap::new(), Bytes::new())?;
-    req.extensions_mut().insert(TransportOptions {
-        total_timeout: Some(USAGE_TIMEOUT),
-        max_redirects: Some(21),
-        http_version: Some(http::Version::HTTP_11),
-        omit_body: true,
-    });
+    req.extensions_mut()
+        .insert(super::axios::transport_options(USAGE_TIMEOUT, true));
     let bearer = HeaderValue::from_str(&format!("Bearer {access_token}"))
         .map_err(|e| ChannelError::InvalidCredential(format!("bad access_token: {e}")))?;
     let h = req.headers_mut();

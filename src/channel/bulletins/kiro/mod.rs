@@ -173,7 +173,7 @@ impl ChannelLogin for KiroChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: crate::channel::DeviceStartCtx<'_>,
     ) -> Result<DeviceInit, ChannelError> {
-        auth::device_start(client, ctx.params).await
+        auth::device_start(client, ctx.provider_settings, ctx.params).await
     }
 
     async fn device_poll(
@@ -181,7 +181,7 @@ impl ChannelLogin for KiroChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: crate::channel::DevicePollCtx<'_>,
     ) -> Result<DevicePoll, ChannelError> {
-        auth::device_poll(client, ctx.device_code).await
+        auth::device_poll(client, ctx.provider_settings, ctx.device_code).await
     }
 }
 

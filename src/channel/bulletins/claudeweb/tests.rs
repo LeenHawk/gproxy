@@ -64,6 +64,11 @@ fn preserves_full_browser_cookie_and_device_id() {
         auth::normalize_cookie("sk-ant-sid02-example").as_deref(),
         Some("sk-ant-sid02-example")
     );
+    assert_eq!(auth::cookie_header(&cookie), cookie);
+    assert_eq!(
+        auth::cookie_header("sk-ant-sid02-example"),
+        "sessionKey=sk-ant-sid02-example"
+    );
 }
 
 #[test]
