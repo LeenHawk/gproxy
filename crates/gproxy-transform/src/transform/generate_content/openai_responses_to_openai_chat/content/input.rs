@@ -117,6 +117,22 @@ fn easy_message_to_chat_message(
     })
 }
 
+/// Flattens replayed assistant history (`output_text` / `refusal`) into plain text.
+/// A refusal is tagged rather than inlined bare, so the routed model can tell it
+/// apart from ordinary assistant prose.
+fn message_output_parts_text(parts: Vec<openai::ResponseMessageOutputContentPart>) -> String {
+    parts
+        .into_iter()
+        .map(|part| match part {
+            openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
+            openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
+                format!("[refusal: {refusal}]")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
 fn easy_input_content_to_chat_content(
     content: openai::ResponseEasyInputContent,
 ) -> openai::ChatContent {
@@ -125,6 +141,11 @@ fn easy_input_content_to_chat_content(
         openai::ResponseEasyInputContent::Parts(parts) => {
             response_input_parts_to_chat_content(parts)
         }
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            openai::ChatContent::Text(message_output_parts_text(parts))
+        }
+        // Array with an unrecognized part tag: salvage the parts we do understand.
+        openai::ResponseEasyInputContent::Raw(parts) => openai::ChatContent::Text(openai::ResponseEasyInputContent::raw_parts_text(&parts)),
     }
 }
 
@@ -136,6 +157,11 @@ fn easy_input_content_to_chat_text_content(
         openai::ResponseEasyInputContent::Parts(parts) => {
             response_input_parts_to_chat_text_content(parts)
         }
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            openai::ChatTextContent::Text(message_output_parts_text(parts))
+        }
+        // Array with an unrecognized part tag: salvage the parts we do understand.
+        openai::ResponseEasyInputContent::Raw(parts) => openai::ChatTextContent::Text(openai::ResponseEasyInputContent::raw_parts_text(&parts)),
     }
 }
 
@@ -144,6 +170,9 @@ fn easy_input_content_to_chat_assistant_content(
 ) -> openai::ChatAssistantContent {
     match content {
         openai::ResponseEasyInputContent::Text(text) => openai::ChatAssistantContent::Text(text),
+        openai::ResponseEasyInputContent::OutputParts(parts) => {
+            openai::ChatAssistantContent::Text(message_output_parts_text(parts))
+        }
         openai::ResponseEasyInputContent::Parts(parts) => openai::ChatAssistantContent::Parts(
             parts
                 .into_iter()
@@ -164,6 +193,8 @@ fn easy_input_content_to_chat_assistant_content(
                 })
                 .collect(),
         ),
+        // Array with an unrecognized part tag: salvage the parts we do understand.
+        openai::ResponseEasyInputContent::Raw(parts) => openai::ChatAssistantContent::Text(openai::ResponseEasyInputContent::raw_parts_text(&parts)),
     }
 }
 

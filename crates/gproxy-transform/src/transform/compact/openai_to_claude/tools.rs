@@ -235,6 +235,28 @@ fn tool_output_part_to_claude(
             }
             _ => None,
         }),
+        // Opaque codex round-trip payload; leave a marker rather than dropping it, so
+        // the tool result does not look empty to the routed model.
+        openai::ResponseToolOutputContentPart::EncryptedContent { .. } => {
+            Some(claude::ToolResultContentBlock::Text(claude::TextBlock {
+                text: "[encrypted content omitted]".to_owned(),
+                type_: claude::TextBlockType::Text,
+                cache_control: None,
+                citations: None,
+                extra: Default::default(),
+            }))
+        }
+        openai::ResponseToolOutputContentPart::Refusal { refusal, .. } => {
+            Some(claude::ToolResultContentBlock::Text(claude::TextBlock {
+                text: format!("[refusal: {refusal}]"),
+                type_: claude::TextBlockType::Text,
+                cache_control: None,
+                citations: None,
+                extra: Default::default(),
+            }))
+        }
+        // Unknown content-part tag: skip this part, keep the rest of the message.
+        openai::ResponseToolOutputContentPart::Unknown => None,
     }
 }
 

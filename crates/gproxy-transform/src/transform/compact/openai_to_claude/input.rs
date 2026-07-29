@@ -137,6 +137,23 @@ fn easy_input_content_to_blocks(
     match content {
         openai::ResponseEasyInputContent::Text(text) => text_block(text).into_iter().collect(),
         openai::ResponseEasyInputContent::Parts(parts) => input_parts_to_blocks(parts),
+        // Replayed assistant history (`output_text` / `refusal`) flattened to text.
+        openai::ResponseEasyInputContent::OutputParts(parts) => text_block(
+            parts
+                .into_iter()
+                .map(|part| match part {
+                    openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
+                    openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
+                        format!("[refusal: {refusal}]")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(""),
+        )
+        .into_iter()
+        .collect(),
+        // Array with an unrecognized part tag: salvage the parts we do understand.
+        openai::ResponseEasyInputContent::Raw(parts) => text_block(openai::ResponseEasyInputContent::raw_parts_text(&parts)).into_iter().collect(),
     }
 }
 

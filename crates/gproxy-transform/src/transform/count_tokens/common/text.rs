@@ -39,6 +39,20 @@ fn openai_easy_content_text(content: openai::ResponseEasyInputContent) -> String
     match content {
         openai::ResponseEasyInputContent::Text(text) => text,
         openai::ResponseEasyInputContent::Parts(parts) => response_input_parts_text(parts),
+        // Replayed assistant history (`output_text` / `refusal`) counts as its text,
+        // matching the tagged form the transform actually emits.
+        openai::ResponseEasyInputContent::OutputParts(parts) => parts
+            .into_iter()
+            .map(|part| match part {
+                openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
+                openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
+                    format!("[refusal: {refusal}]")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(""),
+        // Array with an unrecognized part tag: salvage the parts we do understand.
+        openai::ResponseEasyInputContent::Raw(parts) => openai::ResponseEasyInputContent::raw_parts_text(&parts),
     }
 }
 

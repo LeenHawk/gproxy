@@ -38,6 +38,25 @@ pub(super) fn response_output_to_chat_content(
                         );
                         None
                     }
+                    // Opaque codex round-trip payload. No routed model can read it, but
+                    // dropping it silently makes the tool look like it returned nothing,
+                    // which invites the model to re-run the call — leave a marker.
+                    openai::ResponseToolOutputContentPart::EncryptedContent { .. } => {
+                        Some(openai::ChatTextContentPart::Text {
+                            text: "[encrypted content omitted]".to_owned(),
+                            prompt_cache_breakpoint: None,
+                            extra: Default::default(),
+                        })
+                    }
+                    openai::ResponseToolOutputContentPart::Refusal { refusal, .. } => {
+                        Some(openai::ChatTextContentPart::Text {
+                            text: format!("[refusal: {refusal}]"),
+                            prompt_cache_breakpoint: None,
+                            extra: Default::default(),
+                        })
+                    }
+                    // Unknown content-part tag: skip this part, keep the rest of the message.
+                    openai::ResponseToolOutputContentPart::Unknown => None,
                 })
                 .collect(),
         ),

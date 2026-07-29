@@ -50,14 +50,27 @@ impl<'de> Deserialize<'de> for ResponseItem {
                 .map_err(de::Error::custom)?;
 
         match item_type {
+            // A *known* item type whose payload this build cannot parse — e.g. a
+            // content-part tag introduced by a newer client — must not fail the whole
+            // request. Fall back to `Unknown`, which keeps the raw JSON intact, instead
+            // of bubbling up as `did not match any variant of untagged enum ResponseInput`
+            // (a hard 422 that takes down every request in the conversation).
             ResponseItemType::Known(ResponseItemTypeKnown::Message) => {
-                serde_json::from_value(value)
-                    .map(Self::Message)
-                    .map_err(de::Error::custom)
+                match serde_json::from_value::<ResponseMessageItem>(value.clone()) {
+                    Ok(message) => Ok(Self::Message(message)),
+                    Err(_) => serde_json::from_value(value)
+                        .map(Self::Unknown)
+                        .map_err(de::Error::custom),
+                }
             }
-            ResponseItemType::Known(_) => serde_json::from_value(value)
-                .map(Self::Typed)
-                .map_err(de::Error::custom),
+            ResponseItemType::Known(_) => {
+                match serde_json::from_value::<TypedResponseItem>(value.clone()) {
+                    Ok(typed) => Ok(Self::Typed(typed)),
+                    Err(_) => serde_json::from_value(value)
+                        .map(Self::Unknown)
+                        .map_err(de::Error::custom),
+                }
+            }
             ResponseItemType::Unknown(_) => serde_json::from_value(value)
                 .map(Self::Unknown)
                 .map_err(de::Error::custom),
