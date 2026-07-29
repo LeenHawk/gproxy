@@ -11,6 +11,13 @@ server.
 ```toml
 [dependencies]
 gproxy-channel-api = { version = "2", features = ["external-channels"] }
+linkme = "0.3"
 ```
 
-See the GPROXY `adding-a-channel` guide for a complete adapter and custom binary.
+The registration slice is native-only. Use the API release and package source
+that match the GPROXY source or tag linked by the custom runner; two copies from
+different Cargo sources have separate registration slices.
+
+See the [Adding a Channel](https://gproxy.leenhawk.com/guides/adding-a-channel/)
+guide and the checked `examples/external-channel/` workspace for a complete
+adapter, link-retention test, and custom binary.

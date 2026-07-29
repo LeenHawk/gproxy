@@ -3,10 +3,11 @@ title: Installation
 description: Install GPROXY v2 from a release binary, Docker image, source build, or edge bundle.
 ---
 
-GPROXY v2 is a single Rust crate that builds one native binary named `gproxy`.
-The same crate also builds the edge WebAssembly runtime. The React console is
-not a separate service in the native build: after `console/` is built, its
-static files are synced into `assets/console/` and embedded in the binary.
+GPROXY v2's root Rust application package builds one native binary named
+`gproxy` and the edge WebAssembly runtime. The workspace also contains reusable
+libraries and compile-time channel extension contracts. The React console is not
+a separate service in the native build: after `console/` is built, its static
+files are synced into `assets/console/` and embedded in the binary.
 
 Choose the installation path that matches how you want to run it.
 

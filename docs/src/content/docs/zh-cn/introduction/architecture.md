@@ -3,36 +3,43 @@ title: 架构概览
 description: GPROXY v2 当前运行时架构和请求生命周期。
 ---
 
-GPROXY v2 是一个 Rust crate，但有两个运行时出口：
+GPROXY v2 是一个 Rust workspace，中心是一个 AGPL 应用 package，并提供两个运行时出口：
 
-- `src/main.rs` 中的 native binary，由 Axum 和 native upstream client 提供服务；
+- `src/main.rs` 中的 native binary，复用 `src/native.rs` 的标准 CLI/bootstrap entrypoint，
+  由 Axum 和 native upstream client 提供服务；
 - `src/lib.rs` / `src/http/edge/` 中的 wasm library entry，用于 edge 平台 bundle。
 
-它仍然是分层设计。和 v1 的区别是打包方式，不是工程纪律：v2 在一个仓库里继续分离
-protocol type、transform、请求编排、channel、storage、admin 和部署边界。
+四个 MIT workspace library 分别提供可复用的 protocol、transform、tokenization 和 Channel
+extension contract。root 应用仍保持分层，在一个仓库里分离 protocol type、transform、请求
+编排、Channel、storage、admin 和部署边界。
 
 ## 仓库布局
 
 ```text
 .
-|-- Cargo.toml              # 一个 crate：lib + bin
+|-- Cargo.toml              # root 应用 package 和 workspace
 |-- src/
-|   |-- main.rs             # native CLI、config、AppState、Axum server
+|   |-- main.rs             # 官方 native 薄入口
+|   |-- native.rs           # 可复用的标准 CLI/bootstrap entrypoint
 |   |-- lib.rs              # shared module surface 和 wasm export
 |   |-- app/                # bootstrap、snapshot、import/export、v1 migration
-|   |-- protocol/           # Operation taxonomy 和 provider wire model
-|   |-- transform/          # 按 operation 组织的协议转换
 |   |-- process/            # provider rule-set 编译与应用
 |   |-- channel/            # 上游适配器和 registry
 |   |-- pipeline/           # 请求生命周期编排
 |   |-- http/               # native server、edge adapter、admin API dispatcher
 |   |-- store/              # cache 和 persistence backend
 |   `-- admin/ billing/ credentials/ health/ tokenize/ selfupdate/ usage/
+|-- crates/
+|   |-- gproxy-channel-api/ # 稳定 Channel extension contract
+|   |-- gproxy-protocol/    # Operation taxonomy 和 wire model
+|   |-- gproxy-transform/   # 按 operation 组织的协议转换
+|   `-- gproxy-tokenize/    # 可复用 tokenization library
+|-- examples/
+|   `-- external-channel/   # 外部 Channel crate 和自定义 runner
 |-- console/                # React 控制台，独立构建
 |-- assets/console/         # 生成的 console embed 目标
 |-- deploy/                 # edge 和平台打包入口
-|-- docs/                   # Starlight 文档网站
-`-- dev-docs/               # 开发者/source 笔记，用作参考材料
+`-- docs/                   # Starlight 文档网站
 ```
 
 ## 请求生命周期
@@ -82,8 +89,23 @@ v2 不把 provider family 当成主要文档和代码模型。中心概念是：
   wire model 之间转换。
 - **Process** 在 transform 之后、channel 看到请求之前应用配置化请求改写规则。engine 应保持宽松；
   provider-specific preset 应优先放在配置和 console 里，除非 runtime 真正需要新 primitive。
-- **Channel** 负责上游访问：endpoint、auth、request prepare、response disposition、可选 stream
-  decode、OAuth refresh、usage endpoint 和 native TLS/HTTP2 profile。
+- **Channel** 负责 provider-specific 上游访问：endpoint 与 auth injection、request prepare 与
+  shaping、response disposition、可选 stream decoding、OAuth refresh/login 和 usage parsing。
+  host 独占 secret persistence/encryption、refresh lease、proxy resolution、request capture、
+  transport 实现和内置 TLS/HTTP profile。
+
+### 编译时 Channel Extension
+
+内置 adapter 和 native 编译时外部 crate 实现相同的
+`gproxy-channel-api::Channel` contract。native 启动时先建立显式内置 registry，再从
+`linkme` distributed slice 收集静态链接的 constructor；重复 id 会让启动失败。需要鉴权的
+`GET /admin/channels` 返回 runtime catalog，让 Console 能发现当前 executable 实际编译的
+Channel。
+
+外部注册不是 dynamic plugin ABI。extension 是可信的同进程 Rust 代码，薄自定义 binary 在
+调用 `gproxy::native::run_cli()` 前负责保留对应 crate。edge build 只使用显式内置 registry，
+不收集 native registration slice。完整 contract 见
+[添加 Channel](/zh-cn/guides/adding-a-channel/)。
 
 ## AppState 与快照
 
@@ -98,10 +120,10 @@ client，以及 libSQL/Turso、REST 风格共享存储等平台友好的 persist
 
 | 运行时 | 边界 |
 | --- | --- |
-| Native | CLI/env config、Axum server、内嵌 console assets、native wreq client pool、可选 self-update。 |
-| Edge | wasm entry、fetch adapter、平台环境；默认不嵌入 console binary assets。 |
-| Console | `console/` 中的 React SPA；构建产物同步到 `assets/console/` 给 native embedding。 |
-| Documentation | `docs/` 中的 Starlight 站点；开发/source 笔记放在 `dev-docs/`。 |
+| Native | CLI/env config、Axum server、内置加编译时外部 Channel registry、内嵌 console assets、native wreq client pool、可选 self-update。 |
+| Edge | wasm entry、内置 Channel registry、fetch adapter、平台环境；默认不嵌入 console binary assets。 |
+| Console | `console/` 中的 React SPA；读取 runtime Channel catalog，并把构建产物同步到 `assets/console/` 给 native embedding。 |
+| Documentation | `docs/` 中的 Starlight 站点。 |
 
 ## 稳定代码引用索引
 
@@ -116,7 +138,7 @@ client，以及 libSQL/Turso、REST 风格共享存储等平台友好的 persist
 | `§4` | 共享 admin API contract 和 DTO。 |
 | `§5` | 端到端请求生命周期和 pipeline 边界。 |
 | `§6`、`§6.1` | Operation-first transform 和 provider rule processing。 |
-| `§6.3` | Channel registry、本地 operation 和请求编排。 |
+| `§6.3` | Channel contract 与启动期 registry，包括内置 Channel 和 native 编译时外部注册；本地 operation 与请求编排。 |
 | `§6.4` | 上游 disposition 和有界 failover。 |
 | `§7.2` | 控制面 snapshot、热重载和 invalidation。 |
 | `§7.4` | 生效的上游 proxy、TLS fingerprint 和 HTTP transport。 |
@@ -145,6 +167,7 @@ client，以及 libSQL/Turso、REST 风格共享存储等平台友好的 persist
 ## 下一步
 
 - 在[供应商与通道](/zh-cn/guides/providers/)中配置上游。
+- 在[添加 Channel](/zh-cn/guides/adding-a-channel/)中实现内置或外部 adapter。
 - 在[模型与别名](/zh-cn/guides/models/)中理解对外模型路由。
 - 在[发行版构建](/zh-cn/deployment/release-build/)和
   [Edge Wasm](/zh-cn/deployment/edge/)中部署 native 与 edge build。

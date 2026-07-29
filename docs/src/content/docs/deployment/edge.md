@@ -3,7 +3,7 @@ title: Edge Wasm Deployment
 description: Deploy prebuilt GPROXY v2 WebAssembly bundles to supported edge platforms.
 ---
 
-The edge runtime is the same single Rust crate compiled as a
+The edge runtime is the root Rust application library compiled as a
 `wasm32-unknown-unknown` library with `--no-default-features --features edge`.
 Platform entry code loads wasm-bindgen glue, calls Rust `init(...)` to build
 `AppState`, and forwards each request to the wasm `fetch` path.
@@ -148,6 +148,11 @@ dispatcher, and protocol logic where possible, but a few native-only APIs return
 
 - `/admin/update/*`
 - `/admin/login-flows/cookie`
+
+Native compile-time external channel registration is also unavailable on edge.
+The `linkme` registration slice is native-only; an adapter intended for edge
+must be integrated into the explicit built-in channel set and included in the
+Wasm build.
 
 Live credential usage and rate-limit reset-credit operations use the edge fetch
 transport. Upstream SSE is relayed as a real streaming `ReadableStream` on all
