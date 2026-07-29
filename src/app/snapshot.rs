@@ -30,6 +30,11 @@ pub struct ControlPlaneSnapshot {
     pub keys_by_digest: HashMap<String, Arc<KeyIdentity>>,
     /// provider id → ENABLED credential pool.
     pub credentials_by_provider: HashMap<i64, Vec<Arc<Credential>>>,
+    /// credential id → effective TLS fingerprint PAIRED with its client-pool
+    /// hash, resolved (credential override, else provider default) and hashed
+    /// once per rebuild (§7.4) — attempts read this instead of re-hashing the
+    /// fingerprint JSON per candidate.
+    pub tls_by_credential: HashMap<i64, Arc<crate::channel::resolve::TlsTarget>>,
     /// provider id → models.
     pub models_by_provider: HashMap<i64, Vec<Arc<ProviderModel>>>,
     /// Enabled pricing rules, sorted by resolver rank at lookup time.
@@ -120,6 +125,7 @@ impl ControlPlaneSnapshot {
             aliases_by_provider: HashMap::new(),
             keys_by_digest: HashMap::new(),
             credentials_by_provider: HashMap::new(),
+            tls_by_credential: HashMap::new(),
             models_by_provider: HashMap::new(),
             price_rules: Arc::new(Vec::new()),
             exposed_models_by_provider: HashMap::new(),
@@ -217,6 +223,14 @@ impl ControlPlaneSnapshot {
                 .into_iter()
                 .map(Arc::new)
                 .collect::<Vec<_>>();
+            // §7.4: effective TLS fingerprint + pool hash, resolved & hashed
+            // ONCE here — the pair stays together so attempts never mix a
+            // stale fingerprint with a newer hash.
+            for cred in &creds {
+                if let Some(t) = crate::channel::resolve::resolve_tls_target(cred, &provider) {
+                    snap.tls_by_credential.insert(cred.id, Arc::new(t));
+                }
+            }
             let models = models_by_provider
                 .remove(&pid)
                 .unwrap_or_default()
