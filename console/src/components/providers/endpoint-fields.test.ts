@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { channelMeta } from "@/lib/channel-meta";
 import { isValidEndpointUrl } from "./endpoint-fields";
 import { assembleSettings, initSettingsState } from "./settings-fields";
 
@@ -13,18 +14,19 @@ describe("endpoint settings", () => {
         unknown_kind: "https://api.example/unknown",
       },
     };
-    const state = initSettingsState(base, "custom");
+    const meta = channelMeta("custom");
+    const state = initSettingsState(base, meta);
 
     expect(state.endpoints).toEqual([
       { kind: "openai_responses", url: " https://api.example/v1/responses " },
     ]);
     expect(state.baseUrl).toBe("https://fallback.example");
-    expect(assembleSettings(base, state, "custom")).toEqual({
+    expect(assembleSettings(base, state, "custom", meta)).toEqual({
       base_url: "https://fallback.example",
       untouched: { enabled: true },
       endpoints: { openai_responses: "https://api.example/v1/responses" },
     });
-    expect(initSettingsState({ endpoints: [] }, "custom").endpoints).toEqual([]);
+    expect(initSettingsState({ endpoints: [] }, meta).endpoints).toEqual([]);
   });
 
   it("accepts HTTP path placeholders and rejects non-absolute URLs", () => {
@@ -36,24 +38,26 @@ describe("endpoint settings", () => {
   });
 
   it("stores custom magic cache switches independently", () => {
-    const state = initSettingsState({ enable_magic_cache: true }, "custom");
+    const meta = channelMeta("custom");
+    const state = initSettingsState({ enable_magic_cache: true }, meta);
     state.enableOpenAiMagicCache = true;
     state.enableClaudeMagicCache = false;
 
-    expect(assembleSettings({ enable_magic_cache: true }, state, "custom")).toEqual({
+    expect(assembleSettings({ enable_magic_cache: true }, state, "custom", meta)).toEqual({
       enable_openai_magic_cache: true,
     });
   });
 
   it("stores default or ordered Claude fallback routing without a legacy switch", () => {
-    const state = initSettingsState({}, "claudeapi");
+    const meta = channelMeta("claudeapi");
+    const state = initSettingsState({}, meta);
     state.enableClaudeFableFallback = true;
-    expect(assembleSettings({}, state, "claudeapi")).toEqual({
+    expect(assembleSettings({}, state, "claudeapi", meta)).toEqual({
       claude_fable_fallbacks: "default",
     });
 
     state.claudeFableFallbackModels = ["claude-opus-5", "claude-opus-4-8", "claude-opus-5"];
-    expect(assembleSettings({}, state, "claudeapi")).toEqual({
+    expect(assembleSettings({}, state, "claudeapi", meta)).toEqual({
       claude_fable_fallbacks: ["claude-opus-5", "claude-opus-4-8"],
     });
   });

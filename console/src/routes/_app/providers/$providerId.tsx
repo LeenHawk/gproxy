@@ -29,7 +29,7 @@ function ProviderDetailLayout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: provider } = useSuspenseQuery(providerQuery(id));
-  const meta = useChannelMeta(provider.channel);
+  const { meta } = useChannelMeta(provider.channel);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const removal = useMutation({

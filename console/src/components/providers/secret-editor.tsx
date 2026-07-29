@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface SecretEditorProps {
-  meta?: ChannelMeta;
+  meta: ChannelMeta;
   /** Raw editor text. api_key family: bare key string. Others: JSON text. */
   value: string;
   onChange: (text: string) => void;
@@ -13,11 +13,10 @@ interface SecretEditorProps {
 }
 
 /** Returns the plaintext secret_json for submission, or null when invalid/empty. */
-export function buildSecret(meta: ChannelMeta | undefined, text: string): unknown | null {
+export function buildSecret(meta: ChannelMeta, text: string): unknown | null {
   const trimmed = text.trim();
   if (trimmed === "") return null;
-  // Unknown channels render the api_key input — keep serialization consistent.
-  if (!meta || meta.family === "api_key") return { api_key: trimmed };
+  if (meta.family === "api_key") return { api_key: trimmed };
   const parsed = parseJsonText(trimmed);
   if (!parsed.ok) return null;
   if (meta.family === "service_account") {
@@ -28,8 +27,7 @@ export function buildSecret(meta: ChannelMeta | undefined, text: string): unknow
   return parsed.value;
 }
 
-export function secretTemplateText(meta: ChannelMeta | undefined): string {
-  if (!meta) return "";
+export function secretTemplateText(meta: ChannelMeta): string {
   if (meta.family === "api_key") {
     const template = meta.secretTemplate;
     if (typeof template !== "object" || template === null || Array.isArray(template)) return "";
@@ -41,7 +39,7 @@ export function secretTemplateText(meta: ChannelMeta | undefined): string {
 
 export function SecretEditor({ meta, value, onChange, editing }: SecretEditorProps) {
   const { t } = useTranslation("providers");
-  const family = meta?.family ?? "api_key";
+  const family = meta.family;
 
   const label =
     family === "api_key" ? t("secret.apiKey")

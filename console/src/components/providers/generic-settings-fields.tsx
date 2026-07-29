@@ -9,11 +9,33 @@ interface GenericSettingsFieldsProps {
   onChange: (values: Record<string, unknown>) => void;
 }
 
+const RESERVED_SETTING_KEYS = new Set([
+  "base_url",
+  "endpoints",
+  "circuit_breaker",
+  "auto_refresh_models",
+]);
+
+/** Shared controls own reserved keys; the first declaration owns every other key. */
+export function genericSettingFields(
+  fields: readonly ChannelSettingField[],
+): ChannelSettingField[] {
+  const seen = new Set(RESERVED_SETTING_KEYS);
+  return fields.filter((field) => {
+    if (seen.has(field.key)) return false;
+    seen.add(field.key);
+    return true;
+  });
+}
+
 function fieldValue(
   field: ChannelSettingField,
   values: Record<string, unknown>,
 ): unknown {
-  return values[field.key] === undefined ? field.default : values[field.key];
+  const value = values[field.key] === undefined ? field.default : values[field.key];
+  return field.control === "boolean" && field.required === true && typeof value !== "boolean"
+    ? false
+    : value;
 }
 
 function inputValue(field: ChannelSettingField, value: unknown): string {

@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { api } from "./http";
+import { api, ApiError } from "./http";
 
 export interface ChannelSettingFieldDto {
   key: string;
@@ -23,8 +23,15 @@ export interface ChannelCatalogDto {
   usage: boolean;
 }
 
+export function isLegacyChannelCatalogError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 404 || error.status === 405);
+}
+
 export const channelsQuery = queryOptions({
   queryKey: ["channels"],
   queryFn: () => api<ChannelCatalogDto[]>("/admin/channels"),
-  staleTime: Infinity,
+  staleTime: 60_000,
+  refetchOnMount: true,
+  refetchOnWindowFocus: true,
+  retry: (failureCount, error) => !isLegacyChannelCatalogError(error) && failureCount < 1,
 });

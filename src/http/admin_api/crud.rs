@@ -29,6 +29,12 @@ pub(super) async fn create_provider_seeded(
 ) -> Result<Resp, ApiError> {
     guard_admin(state, parts).await?;
     let input: ProviderInput = json_body(body)?;
+    if state.channels.get(&input.channel).is_none() {
+        return Err(ApiError::BadRequest(format!(
+            "unknown channel `{}`",
+            input.channel
+        )));
+    }
     let is_create = input.id.is_none();
     if let Some(id) = input.id {
         let existing = state

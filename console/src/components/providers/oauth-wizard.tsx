@@ -8,7 +8,7 @@ import {
 } from "@/api/login-flows";
 import type { CredentialView } from "@/api/credentials";
 import type { ChannelMeta, LoginMode } from "@/lib/channel-meta";
-import { extractSessionKey, validateCallbackUrl } from "@/lib/oauth-input";
+import { normalizeCookieInput, validateCallbackUrl } from "@/lib/oauth-input";
 import type { Provider } from "@/api/providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,10 +31,10 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
   const [credLabel, setCredLabel] = useState("");
   // Kiro has four credential methods that span both the device and authcode
   // flows, so it gets its own picker instead of the generic mode tabs.
-  const isKiro = provider.channel === "kiro";
+  const isKiro = meta.source === "builtin" && provider.channel === "kiro";
   // Geminicli's two modes are both authcode but differ in redirect + paste UI
   // (callback URL vs bare code), so it gets a dedicated toggle.
-  const isGemini = provider.channel === "geminicli";
+  const isGemini = meta.source === "builtin" && provider.channel === "geminicli";
 
   const finish = (credential: CredentialView) => {
     void queryClient.invalidateQueries({ queryKey: ["providers", provider.id, "credentials"] });
@@ -64,7 +64,9 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
         <>
           {mode === "authcode" && <AuthcodeFlow provider={provider} credLabel={credLabel} onDone={finish} startParams={meta.loginParams} />}
           {mode === "device" && <DeviceFlow provider={provider} credLabel={credLabel} onDone={finish} />}
-          {mode === "cookie" && <CookieFlow provider={provider} credLabel={credLabel} onDone={finish} />}
+          {mode === "cookie" && (
+            <CookieFlow provider={provider} meta={meta} credLabel={credLabel} onDone={finish} />
+          )}
         </>
       )}
     </div>
@@ -374,11 +376,15 @@ function DeviceFlow({
   );
 }
 
-function CookieFlow({ provider, credLabel, onDone }: FlowProps) {
+function CookieFlow({
+  provider, meta, credLabel, onDone,
+}: FlowProps & { meta: ChannelMeta }) {
   const { t } = useTranslation("providers");
   const [pasted, setPasted] = useState("");
   const [touched, setTouched] = useState(false);
-  const cookie = extractSessionKey(pasted);
+  const cookie = normalizeCookieInput(pasted, meta);
+  const isClaudeBuiltin = meta.source === "builtin"
+    && (meta.id === "claudecode" || meta.id === "claudeweb");
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -396,13 +402,15 @@ function CookieFlow({ provider, credLabel, onDone }: FlowProps) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label htmlFor="w-cookie">{t("wizard.cookieLabel")}</Label>
+        <Label htmlFor="w-cookie">
+          {t(isClaudeBuiltin ? "wizard.cookieLabel" : "wizard.cookieGenericLabel")}
+        </Label>
         <Textarea id="w-cookie" rows={3} value={pasted} spellCheck={false} autoComplete="off"
           onChange={(e) => setPasted(e.target.value)} onBlur={() => setTouched(true)} />
         <p className={touched && pasted.trim() !== "" && cookie === null ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
           {touched && pasted.trim() !== "" && cookie === null
-            ? t("wizard.cookieInvalid")
-            : t("wizard.cookieHint")}
+            ? t(isClaudeBuiltin ? "wizard.cookieInvalid" : "wizard.cookieGenericInvalid")
+            : t(isClaudeBuiltin ? "wizard.cookieHint" : "wizard.cookieGenericHint")}
         </p>
       </div>
       {mutation.isError && <p className="text-sm text-destructive">{t("wizard.failed")}</p>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractSessionKey, validateCallbackUrl } from "./oauth-input";
+import { normalizeCookieInput, validateCallbackUrl } from "./oauth-input";
 
 const AUTH = "https://claude.ai/oauth/authorize?client_id=x&state=abc&code_challenge=y";
 
@@ -22,16 +22,26 @@ describe("validateCallbackUrl", () => {
   });
 });
 
-describe("extractSessionKey", () => {
-  it("extracts from a full Cookie header dump", () => {
-    expect(extractSessionKey("foo=1; sessionKey=sk-ant-sid01-AAA; bar=2")).toBe("sessionKey=sk-ant-sid01-AAA");
+describe("normalizeCookieInput", () => {
+  const claude = { id: "claudeweb", source: "builtin" } as const;
+
+  it("preserves a complete Claude Cookie header", () => {
+    expect(normalizeCookieInput(
+      "Cookie: cf_clearance=clear; sessionKey=sk-ant-sid01-AAA; __cf_bm=bm",
+      claude,
+    )).toBe("cf_clearance=clear; sessionKey=sk-ant-sid01-AAA; __cf_bm=bm");
   });
-  it("accepts sessionKey=… directly and bare sk-ant values", () => {
-    expect(extractSessionKey("sessionKey=sk-ant-sid01-BBB")).toBe("sessionKey=sk-ant-sid01-BBB");
-    expect(extractSessionKey("sk-ant-sid01-CCC")).toBe("sessionKey=sk-ant-sid01-CCC");
+  it("accepts sessionKey directly and normalizes a bare Claude session key", () => {
+    expect(normalizeCookieInput("sessionKey=sk-ant-sid01-BBB", claude)).toBe("sessionKey=sk-ant-sid01-BBB");
+    expect(normalizeCookieInput("sk-ant-sid01-CCC", claude)).toBe("sessionKey=sk-ant-sid01-CCC");
   });
-  it("rejects input without a sessionKey", () => {
-    expect(extractSessionKey("foo=1; bar=2")).toBeNull();
-    expect(extractSessionKey("")).toBeNull();
+  it("rejects a Claude input without a sessionKey", () => {
+    expect(normalizeCookieInput("foo=1; bar=2", claude)).toBeNull();
+    expect(normalizeCookieInput("", claude)).toBeNull();
+  });
+  it("accepts an external channel's nonempty cookie as opaque text", () => {
+    const external = { id: "acme", source: "external" } as const;
+    expect(normalizeCookieInput("opaque signed cookie", external)).toBe("opaque signed cookie");
+    expect(normalizeCookieInput("Cookie: signed=value", external)).toBe("Cookie: signed=value");
   });
 });

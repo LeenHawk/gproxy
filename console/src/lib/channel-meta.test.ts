@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChannelCatalogDto } from "@/api/channels";
-import { CHANNELS, mergeChannelCatalog } from "./channel-meta";
+import { mergeChannelCatalog } from "./channel-meta";
 
 function catalogEntry(overrides: Partial<ChannelCatalogDto> = {}): ChannelCatalogDto {
   return {
@@ -19,30 +19,43 @@ function catalogEntry(overrides: Partial<ChannelCatalogDto> = {}): ChannelCatalo
 }
 
 describe("mergeChannelCatalog", () => {
-  it("uses the static catalog when the remote catalog is unavailable", () => {
-    expect(mergeChannelCatalog(undefined)).toBe(CHANNELS);
-  });
-
   it("keeps a successful empty remote catalog empty", () => {
     expect(mergeChannelCatalog([])).toEqual([]);
   });
 
-  it("overlays built-in behavior while retaining remote identity metadata", () => {
+  it("keeps runtime capabilities authoritative for built-in channels", () => {
     const [merged] = mergeChannelCatalog([catalogEntry({
       display_name: "OpenAI Platform",
       provider_family: "gemini",
       credential_family: "oauth_tokens",
       login_modes: ["cookie"],
+      settings_fields: [{ key: "runtime_only", control: "boolean", required: true }],
+      secret_template: { runtime_token: "" },
       endpoint_kinds: ["external_kind"],
       usage: true,
     })]);
 
     expect(merged.displayName).toBe("OpenAI Platform");
     expect(merged.providerFamily).toBe("gemini");
-    expect(merged.family).toBe("api_key");
-    expect(merged.loginModes).toEqual([]);
-    expect(merged.endpointKinds).toContain("openai_responses");
-    expect(merged.usage).toBe(false);
+    expect(merged.family).toBe("oauth_tokens");
+    expect(merged.loginModes).toEqual(["cookie"]);
+    expect(merged.settingsFields).toEqual([
+      { key: "runtime_only", control: "boolean", required: true },
+    ]);
+    expect(merged.secretTemplate).toEqual({ runtime_token: "" });
+    expect(merged.endpointKinds).toEqual(["external_kind"]);
+    expect(merged.usage).toBe(true);
+  });
+
+  it("adds only UI hints to authoritative built-in metadata", () => {
+    const [merged] = mergeChannelCatalog([catalogEntry({
+      id: "aws-bedrock",
+      display_name: "Bedrock Runtime",
+      credential_family: "oauth_tokens",
+    })]);
+
+    expect(merged.family).toBe("oauth_tokens");
+    expect(merged.hintKey).toBe("bedrockApiKeyHint");
   });
 
   it("normalizes external channels entirely from remote metadata", () => {

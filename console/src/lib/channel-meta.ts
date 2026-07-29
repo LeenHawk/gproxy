@@ -168,20 +168,16 @@ function normalizeRemote(entry: ChannelCatalogDto): ChannelMeta {
   };
 }
 
-export function mergeChannelCatalog(remote: ChannelCatalogDto[] | undefined): ChannelMeta[] {
-  if (remote === undefined) return CHANNELS;
+export function mergeChannelCatalog(remote: ChannelCatalogDto[]): ChannelMeta[] {
   return remote.map((entry) => {
     const normalized = normalizeRemote(entry);
     const overlay = entry.source === "builtin" ? channelMeta(entry.id) : undefined;
-    return overlay
-      ? {
-          ...normalized,
-          ...overlay,
-          source: normalized.source,
-          displayName: normalized.displayName,
-          providerFamily: normalized.providerFamily,
-        }
-      : normalized;
+    if (!overlay) return normalized;
+    return {
+      ...normalized,
+      hintKey: overlay.hintKey,
+      loginParams: overlay.loginParams,
+    };
   });
 }
 
