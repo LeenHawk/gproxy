@@ -44,6 +44,9 @@ gproxy-transform = { path = "crates/gproxy-transform", version = "2.1.6" }
 getrandom = "0.4"
 http = "1"
 httpdate = "1"
+# SIMD-accelerated substring search for multipart boundary scanning (already
+# in the tree via regex/aho-corasick; pinned here as a direct dep).
+memchr = "2"
 regex = "1"
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto", "use_pem"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }
