@@ -258,17 +258,39 @@ pub async fn run_failover(
                 multi_step,
             } = outcome;
             let latency_ms = send_ms.map(|ms| ms as i64).unwrap_or(0);
-            // §8-D upstream response capture is gated here; the guard/return
-            // value carries it. `materialize` runs BEFORE `log_upstream` so the
-            // non-streaming upstream body can be folded into the same INSERT.
-            let up_cap = {
+            // A direct successful stream needs its row id before its body is
+            // exposed. Custom streams own their exact per-call guards inside
+            // `CapturingClient`; buffered responses are folded into the later
+            // INSERT as before.
+            let direct_stream_capture = {
                 let ls = state.cp().log_settings.clone();
-                (ls.enable_upstream_log && ls.enable_upstream_log_body).then(|| {
-                    UpstreamRespCapture {
-                        state: state.clone(),
-                        request_id: ctx.request_id.clone(),
-                    }
+                !multi_step
+                    && matches!(&source, BodySource::Streaming(_))
+                    && ls.enable_upstream_log
+                    && ls.enable_upstream_log_body
+            };
+            let up_cap = if direct_stream_capture {
+                capture::start_upstream_stream(
+                    state,
+                    ctx,
+                    cand,
+                    capture::UpstreamWire {
+                        status,
+                        latency_ms,
+                        url: &sent_url,
+                        method: &method,
+                        sent_headers: sent_headers.as_ref(),
+                        sent_body: &sent_body,
+                        resp_body: None,
+                    },
+                )
+                .await
+                .map(|capture_id| UpstreamRespCapture {
+                    state: state.clone(),
+                    capture_id,
                 })
+            } else {
+                None
             };
             // The attempt reached the provider and is being relayed; log its
             // upstream row EVEN IF response materialization fails afterwards
@@ -323,7 +345,7 @@ pub async fn run_failover(
             // A `multi_step` (Custom) exchange already logged each of its calls
             // inline via the `CapturingClient`, so there is no single aggregate
             // row to write here — skip it (its `sent_url` is empty anyway).
-            if !multi_step {
+            if !multi_step && !direct_stream_capture {
                 capture::log_upstream(
                     state,
                     ctx,

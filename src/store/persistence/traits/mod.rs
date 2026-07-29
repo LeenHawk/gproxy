@@ -223,7 +223,7 @@ persistence_backend! {
     UsagePersistence::update_downstream_response => update_downstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
     UsagePersistence::append_upstream_request => append_upstream_request(input: UpstreamRequestInput) -> anyhow::Result<UpstreamRequest>;
     UsagePersistence::list_upstream_requests => list_upstream_requests(request_id: &str) -> anyhow::Result<Vec<UpstreamRequest>>;
-    UsagePersistence::update_upstream_response => update_upstream_response(request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
+    UsagePersistence::update_upstream_response_by_id => update_upstream_response_by_id(capture_id: i64, request_id: &str, response_body: Option<String>) -> anyhow::Result<()>;
     UsagePersistence::clear_request_logs => clear_request_logs() -> anyhow::Result<()>;
     UsagePersistence::delete_usage => delete_usage(id: i64) -> anyhow::Result<bool>;
     UsagePersistence::set_enabled => set_enabled(entity: AdminEntity, id: i64, enabled: bool) -> anyhow::Result<bool>;

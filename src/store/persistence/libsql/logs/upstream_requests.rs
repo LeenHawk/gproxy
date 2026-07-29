@@ -5,7 +5,7 @@ use crate::store::persistence::libsql::row::{
     Row, col_i64, col_opt_i64, col_opt_json, col_opt_str, col_str,
 };
 use crate::store::persistence::libsql::util::{
-    arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query, query_one,
+    arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query,
 };
 use crate::store::persistence::records::{UpstreamRequest, UpstreamRequestInput};
 
@@ -67,22 +67,28 @@ pub async fn append(
         .await
         .map_err(|e| anyhow::anyhow!("libsql insert upstream_request: {e}"))?;
 
-    let id = last_rowid(&qr)?;
-    query_one(
-        client,
-        &format!("SELECT {COLS} FROM upstream_requests WHERE id = ?"),
-        &[arg_integer(id)],
-    )
-    .await?
-    .as_ref()
-    .map(decode)
-    .ok_or_else(|| anyhow::anyhow!("upstream_request vanished after append"))?
+    Ok(UpstreamRequest {
+        id: last_rowid(&qr)?,
+        request_id: input.request_id,
+        at: input.at,
+        provider_id: input.provider_id,
+        credential_id: input.credential_id,
+        url: input.url,
+        method: input.method,
+        status: input.status,
+        latency_ms: input.latency_ms,
+        headers_json: input.headers_json,
+        body: input.body,
+        response_body: input.response_body,
+        created_at: now,
+        updated_at: now,
+    })
 }
 
 pub async fn list(client: &LibsqlClient, request_id: &str) -> anyhow::Result<Vec<UpstreamRequest>> {
     query(
         client,
-        &format!("SELECT {COLS} FROM upstream_requests WHERE request_id = ?"),
+        &format!("SELECT {COLS} FROM upstream_requests WHERE request_id = ? ORDER BY id ASC"),
         &[arg_text(request_id)],
     )
     .await?
@@ -91,20 +97,23 @@ pub async fn list(client: &LibsqlClient, request_id: &str) -> anyhow::Result<Vec
     .collect()
 }
 
-/// Backfill `response_body` (and `updated_at`) on rows matching `request_id`.
-/// No-op when no row matches.
+/// Atomically backfill one captured transport call. No-op when either identity
+/// field no longer matches (for example, retention removed and reused its id).
 pub async fn update_response_body(
     client: &LibsqlClient,
+    capture_id: i64,
     request_id: &str,
     response_body: Option<String>,
 ) -> anyhow::Result<()> {
     let now = now_secs();
     exec(
         client,
-        "UPDATE upstream_requests SET response_body = ?, updated_at = ? WHERE request_id = ?",
+        "UPDATE upstream_requests SET response_body = ?, updated_at = ? \
+         WHERE id = ? AND request_id = ?",
         &[
             arg_opt_text(response_body.as_deref()),
             arg_integer(now),
+            arg_integer(capture_id),
             arg_text(request_id),
         ],
     )

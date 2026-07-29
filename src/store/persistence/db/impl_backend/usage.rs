@@ -103,13 +103,19 @@ impl UsagePersistence for DbPersistence {
     ) -> anyhow::Result<Vec<UpstreamRequest>> {
         ops::logs::upstream_requests::list(&self.conn, request_id).await
     }
-    async fn update_upstream_response(
+    async fn update_upstream_response_by_id(
         &self,
+        capture_id: i64,
         request_id: &str,
         response_body: Option<String>,
     ) -> anyhow::Result<()> {
-        ops::logs::upstream_requests::update_response_body(&self.conn, request_id, response_body)
-            .await
+        ops::logs::upstream_requests::update_response_body(
+            &self.conn,
+            capture_id,
+            request_id,
+            response_body,
+        )
+        .await
     }
     async fn clear_request_logs(&self) -> anyhow::Result<()> {
         let txn = self.conn.begin().await?;

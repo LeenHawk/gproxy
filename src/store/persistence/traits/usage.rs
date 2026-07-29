@@ -59,8 +59,10 @@ pub trait UsagePersistence {
         &self,
         request_id: &str,
     ) -> anyhow::Result<Vec<UpstreamRequest>>;
-    async fn update_upstream_response(
+    /// Backfill one streaming capture selected by its returned row identity.
+    async fn update_upstream_response_by_id(
         &self,
+        capture_id: i64,
         request_id: &str,
         response_body: Option<String>,
     ) -> anyhow::Result<()>;
@@ -168,12 +170,19 @@ impl UsagePersistence for dyn super::PersistenceBackend + '_ {
     ) -> anyhow::Result<Vec<UpstreamRequest>> {
         super::PersistenceBackend::list_upstream_requests(self, request_id).await
     }
-    async fn update_upstream_response(
+    async fn update_upstream_response_by_id(
         &self,
+        capture_id: i64,
         request_id: &str,
         response_body: Option<String>,
     ) -> anyhow::Result<()> {
-        super::PersistenceBackend::update_upstream_response(self, request_id, response_body).await
+        super::PersistenceBackend::update_upstream_response_by_id(
+            self,
+            capture_id,
+            request_id,
+            response_body,
+        )
+        .await
     }
     async fn clear_request_logs(&self) -> anyhow::Result<()> {
         super::PersistenceBackend::clear_request_logs(self).await
