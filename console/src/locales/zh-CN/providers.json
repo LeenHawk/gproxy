@@ -142,9 +142,19 @@
       "title": "批量导入凭证",
       "textareaLabel": "API Key 列表（每行一个）",
       "textareaHint": "每行一个 key。可选格式：key,label 或 key<Tab>label。以 # 开头的行忽略。",
+      "jsonLabel": "凭证 JSON（数组 / 单个对象 / 每行一个对象）",
+      "jsonHint": "粘贴 JSON 数组、单个对象，或每行一个对象（JSONL）。每个对象即凭证 secret；也可用 {\"label\": \"...\", \"secret\": {...}} 包一层。",
+      "upload": "上传 JSON 文件",
+      "fileItems": "{{count}} 条",
+      "removeFile": "移除文件",
+      "err": {
+        "invalid_json": "{{source}}：JSON 无效",
+        "invalid_secret": "{{source}}：不是有效的凭证 secret"
+      },
+      "errMore": "…还有 {{count}} 个问题",
       "import": "导入 {{count}} 个",
-      "importing": "导入中 {{done}}/{{total}}…",
-      "summary": "已创建 {{created}} 个，失败 {{failed}} 个，跳过重复 {{dupes}} 个",
+      "importing": "正在导入 {{total}} 个…",
+      "summary": "已创建 {{created}} 个，已存在 {{existing}} 个，失败 {{failed}} 个，跳过重复行 {{dupes}} 个",
       "close": "关闭",
       "empty": "没有有效行"
     }

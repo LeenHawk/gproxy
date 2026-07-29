@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
 import { useChannelMeta } from "@/hooks/use-channel-catalog";
+import { bulkModeFor } from "@/lib/credential-bulk-parse";
 
 function credName(c: CredentialView, fallback: string): string {
   return c.label ?? fallback;
@@ -132,18 +133,16 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
                 {t("creds.oauth")}
               </Button>
             )}
-            {meta?.family === "api_key" && (
-              <Button
-                variant="outline"
-                disabled={!canMutate}
-                onClick={() => {
-                  if (!canMutate) return;
-                  setBulkOpen(true);
-                }}
-              >
-                {t("creds.bulk.button")}
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              disabled={!canMutate}
+              onClick={() => {
+                if (!canMutate) return;
+                setBulkOpen(true);
+              }}
+            >
+              {t("creds.bulk.button")}
+            </Button>
             <Button disabled={!canMutate} onClick={openCreate}>
               <Plus className="size-4" aria-hidden />
               {t("creds.manual")}
@@ -279,13 +278,16 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         title={t("creds.bulk.title")}
-        description={t("creds.bulk.textareaHint")}
+        description={meta && bulkModeFor(meta.family) === "json"
+          ? t("creds.bulk.jsonHint")
+          : t("creds.bulk.textareaHint")}
         wide
       >
-        {canMutate && (
+        {canMutate && meta && (
           <CredentialBulkImport
             key={bulkOpen ? "open" : "closed"}
             providerId={provider.id}
+            meta={meta}
             metadataAuthoritative={catalogState.authoritative}
             onClose={() => setBulkOpen(false)}
           />

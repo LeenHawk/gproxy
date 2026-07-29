@@ -142,9 +142,19 @@
       "title": "Bulk import credentials",
       "textareaLabel": "API keys (one per line)",
       "textareaHint": "One key per line. Optional: key,label or key<TAB>label. Lines starting with # are ignored.",
+      "jsonLabel": "Credential JSON (array, single object, or one object per line)",
+      "jsonHint": "Paste a JSON array, a single object, or one object per line (JSONL). Each object is the credential secret; optionally wrap as {\"label\": \"...\", \"secret\": {...}}.",
+      "upload": "Upload JSON files",
+      "fileItems": "{{count}} item(s)",
+      "removeFile": "Remove file",
+      "err": {
+        "invalid_json": "{{source}}: invalid JSON",
+        "invalid_secret": "{{source}}: not a valid credential secret"
+      },
+      "errMore": "…and {{count}} more issue(s)",
       "import": "Import {{count}} key(s)",
-      "importing": "Importing {{done}}/{{total}}…",
-      "summary": "Created {{created}}, failed {{failed}}, skipped {{dupes}} duplicate(s)",
+      "importing": "Importing {{total}} key(s)…",
+      "summary": "Created {{created}}, already existed {{existing}}, failed {{failed}}, skipped {{dupes}} duplicate line(s)",
       "close": "Close",
       "empty": "No valid lines"
     }

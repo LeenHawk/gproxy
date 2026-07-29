@@ -137,6 +137,31 @@ export function upsertCredential(providerId: number, input: CredentialUpsert): P
   });
 }
 
+export interface CredentialImportItemResult {
+  index: number;
+  status: "created" | "existing" | "error";
+  id?: number;
+  error?: string;
+}
+
+export interface CredentialImportOutcome {
+  created: number;
+  existing: number;
+  failed: number;
+  results: CredentialImportItemResult[];
+}
+
+/** Batch create-only import — one request; per-item results in input order. */
+export function importCredentials(
+  providerId: number,
+  items: CredentialUpsert[],
+): Promise<CredentialImportOutcome> {
+  return api<CredentialImportOutcome>(`/admin/providers/${providerId}/credentials/import`, {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
 export function deleteCredential(id: number): Promise<void> {
   return api<void>(`/admin/credentials/${id}`, { method: "DELETE" });
 }

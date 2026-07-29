@@ -17,10 +17,17 @@ pub(crate) async fn plan_credential_upsert(
 ) -> Result<CredentialUpsertPlan, ApiError> {
     if body.id.is_none()
         && let Some(plain) = &body.secret_json
-        && let Some(existing) = find_existing_api_key(state, provider_id, &body.kind, plain).await?
+        && let Some(existing) = find_existing_token(state, provider_id, &body.kind, plain).await?
     {
         return Ok(CredentialUpsertPlan::Existing(existing));
     }
+
+    // Auto-name on create when the caller supplied no label; updates keep the
+    // caller's label verbatim (None clears, matching plain upsert semantics).
+    let name = match (&body.label, body.id, &body.secret_json) {
+        (None, None, Some(plain)) => crate::credentials::label::auto_label(&body.kind, plain),
+        _ => body.label.clone(),
+    };
 
     let secret_json = match (&body.secret_json, body.id) {
         (Some(plain), _) => state.cipher.seal(plain).map_err(internal)?,
@@ -44,7 +51,7 @@ pub(crate) async fn plan_credential_upsert(
     Ok(CredentialUpsertPlan::Upsert(CredentialInput {
         id: body.id,
         provider_id,
-        name: body.label,
+        name,
         kind: body.kind,
         secret_json,
         weight: body.weight,
@@ -56,16 +63,26 @@ pub(crate) async fn plan_credential_upsert(
     }))
 }
 
-async fn find_existing_api_key(
+/// Field carrying the bare token for single-token credential kinds. JSON
+/// families (oauth/service-account) have no stable dedupe key and return None.
+fn token_field(kind: &str) -> Option<&'static str> {
+    match kind {
+        "api_key" => Some("api_key"),
+        "github_token" => Some("github_token"),
+        _ => None,
+    }
+}
+
+async fn find_existing_token(
     state: &AppState,
     provider_id: i64,
     kind: &str,
     plain: &Value,
 ) -> Result<Option<Credential>, ApiError> {
-    if kind != "api_key" {
+    let Some(field) = token_field(kind) else {
         return Ok(None);
-    }
-    let Some(api_key) = plaintext_api_key(plain) else {
+    };
+    let Some(token) = plaintext_token(field, plain) else {
         return Ok(None);
     };
 
@@ -75,7 +92,7 @@ async fn find_existing_api_key(
         .await
         .map_err(internal)?;
     for credential in credentials {
-        if credential.kind != "api_key" {
+        if credential.kind != kind {
             continue;
         }
         let opened = match state.cipher.open(&credential.secret_json) {
@@ -84,12 +101,12 @@ async fn find_existing_api_key(
                 tracing::warn!(
                     credential_id = credential.id,
                     error = %e,
-                    "credential secret open failed during api-key duplicate check"
+                    "credential secret open failed during token duplicate check"
                 );
                 continue;
             }
         };
-        if plaintext_api_key(&opened) == Some(api_key) {
+        if plaintext_token(field, &opened) == Some(token) {
             return Ok(Some(credential));
         }
     }
@@ -97,13 +114,10 @@ async fn find_existing_api_key(
     Ok(None)
 }
 
-fn plaintext_api_key(secret: &Value) -> Option<&str> {
+fn plaintext_token<'a>(field: &str, secret: &'a Value) -> Option<&'a str> {
     match secret {
         Value::String(s) => non_empty(s),
-        Value::Object(obj) => obj
-            .get("api_key")
-            .and_then(Value::as_str)
-            .and_then(non_empty),
+        Value::Object(obj) => obj.get(field).and_then(Value::as_str).and_then(non_empty),
         _ => None,
     }
 }
