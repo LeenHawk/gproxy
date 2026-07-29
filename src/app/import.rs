@@ -200,10 +200,15 @@ pub async fn import_bundle(
         n += 1;
     }
     for c in bundle.credentials {
+        // Auto-name unlabeled credentials from the plaintext secret (same rule
+        // as the admin API); deterministic, so re-importing stays idempotent.
+        let name = c
+            .label
+            .or_else(|| crate::credentials::label::auto_label(&c.kind, &c.secret_json));
         db.upsert_credential(CredentialInput {
             id: c.id,
             provider_id: c.provider_id,
-            name: c.label,
+            name,
             kind: c.kind,
             secret_json: cipher.seal(&c.secret_json)?,
             weight: c.weight,

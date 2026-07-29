@@ -204,7 +204,9 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
     login::clear(state.cache.as_ref(), &req.login_session_id).await;
 
     let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-    let name = req.name.or_else(|| label_from_secret(&secret));
+    let name = req
+        .name
+        .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
     let cred = seal_create(state, provider_id, name, sealed)
         .await
         .map_err(|_| bad())?;
@@ -292,7 +294,9 @@ async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<
         Ok(DevicePoll::Ready(secret)) => {
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
             let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
-            let name = session.name.or_else(|| label_from_secret(&secret));
+            let name = session
+                .name
+                .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
             let cred = seal_create(state, session.provider_id, name, sealed)
                 .await
                 .map_err(|_| bad())?;
@@ -350,7 +354,9 @@ async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp,
         .cipher
         .seal(&secret)
         .map_err(|_| ApiError::BadRequest("cookie login failed".into()))?;
-    let name = req.name.or_else(|| label_from_secret(&secret));
+    let name = req
+        .name
+        .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
     let credential = seal_create(state, req.provider_id, name, sealed).await?;
     Resp::json(200, &credential)
 }
@@ -360,23 +366,6 @@ async fn cookie(_state: &AppState, _parts: &Request, _body: &Bytes) -> Result<Re
     Err(ApiError::NotImplemented(
         "cookie login requires the native browser-TLS build; unavailable on edge".into(),
     ))
-}
-
-fn label_from_secret(secret: &serde_json::Value) -> Option<String> {
-    let email = secret
-        .get("user_email")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())?;
-    let tier = secret
-        .get("rate_limit_tier")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty());
-    Some(match tier {
-        Some(tier) => format!("{email} {tier}"),
-        None => email.to_string(),
-    })
 }
 
 fn provider_settings(

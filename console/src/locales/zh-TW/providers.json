@@ -142,9 +142,19 @@
       "title": "批量匯入憑證",
       "textareaLabel": "API Key 清單（每行一個）",
       "textareaHint": "每行一個 key。可選格式：key,label 或 key<Tab>label。以 # 開頭的行忽略。",
+      "jsonLabel": "憑證 JSON（陣列 / 單一物件 / 每行一個物件）",
+      "jsonHint": "貼上 JSON 陣列、單一物件，或每行一個物件（JSONL）。每個物件即憑證 secret；也可用 {\"label\": \"...\", \"secret\": {...}} 包一層。",
+      "upload": "上傳 JSON 檔案",
+      "fileItems": "{{count}} 條",
+      "removeFile": "移除檔案",
+      "err": {
+        "invalid_json": "{{source}}：JSON 無效",
+        "invalid_secret": "{{source}}：不是有效的憑證 secret"
+      },
+      "errMore": "…還有 {{count}} 個問題",
       "import": "匯入 {{count}} 個",
-      "importing": "匯入中 {{done}}/{{total}}…",
-      "summary": "已建立 {{created}} 個，失敗 {{failed}} 個，跳過重複 {{dupes}} 個",
+      "importing": "正在匯入 {{total}} 個…",
+      "summary": "已建立 {{created}} 個，已存在 {{existing}} 個，失敗 {{failed}} 個，跳過重複行 {{dupes}} 個",
       "close": "關閉",
       "empty": "沒有有效行"
     }

@@ -12,6 +12,7 @@ pub(crate) mod auth;
 pub(crate) mod authz;
 pub(crate) mod batch;
 mod channels;
+pub(crate) mod credential_import;
 pub(crate) mod credential_ops;
 pub mod crud;
 mod host;
@@ -332,6 +333,13 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
         return Some(r);
     }
 
+    // Batch credential import (POST /admin/providers/{pid}/credentials/import).
+    // Must come BEFORE special so its 5-seg arm is not shadowed later; disjoint
+    // from special's GET 5-seg arm by method.
+    if let Some(r) = credential_import::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
     // 6. Special admin CRUD (user-keys / users / credentials) with server-side
     //    crypto: key gen + seal, password hash, secret seal, redaction.
     //    Must come BEFORE the identity arm (step 7) and AFTER nested (step 2)
@@ -433,6 +441,7 @@ fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
         | ["admin", "logs", _, "downstream" | "upstream"] => Some("GET,HEAD"),
         ["admin", "credentials", _, "rate-limit-reset-credit"]
         | ["admin", "providers", _, "routing-rules", "reset"] => Some("POST"),
+        ["admin", "providers", _, "credentials", "import"] => Some("POST"),
         ["admin", "providers", _, "credentials", _] => Some("GET,HEAD"),
         [
             "user",

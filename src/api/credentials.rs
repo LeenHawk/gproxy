@@ -64,6 +64,33 @@ fn default_true() -> bool {
     true
 }
 
+/// Batch import request: create-only items (an `id` in any item is rejected
+/// per-item). Each item is sealed and deduplicated like a single upsert.
+#[derive(serde::Deserialize)]
+pub struct CredentialImportRequest {
+    pub items: Vec<CredentialUpsert>,
+}
+
+/// Per-item import outcome. `status` is `created` | `existing` | `error`.
+#[derive(serde::Serialize)]
+pub struct CredentialImportItem {
+    pub index: usize,
+    pub status: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Whole-batch import summary plus per-item results (same order as request).
+#[derive(serde::Serialize)]
+pub struct CredentialImportOutcome {
+    pub created: usize,
+    pub existing: usize,
+    pub failed: usize,
+    pub results: Vec<CredentialImportItem>,
+}
+
 /// Write-side credential shape. `secret_json` is PLAINTEXT (sealed by the
 /// handler): required on create, optional on update (omit to keep the stored
 /// sealed value). `id = None` creates, `Some(id)` updates.
