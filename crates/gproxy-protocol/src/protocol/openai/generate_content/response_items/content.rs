@@ -17,6 +17,15 @@ pub enum ResponseOutput {
 pub enum ResponseEasyInputContent {
     Text(String),
     Parts(Vec<ResponseInputContentPart>),
+    /// Replayed assistant history. The upstream spec describes easy-input content as
+    /// "Can also contain previous assistant responses"; clients like Codex CLI replay
+    /// assistant turns as `output_text` / `refusal` parts without `id` / `status`, which
+    /// routes them here instead of `ResponseOutputMessageItem`.
+    ///
+    /// Must stay declared after [`Self::Parts`]: the untagged dispatch relies on the
+    /// `input_*` and `output_text` / `refusal` tag sets being disjoint, so ordinary
+    /// input bodies keep matching `Parts` first.
+    OutputParts(Vec<ResponseMessageOutputContentPart>),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

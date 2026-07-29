@@ -191,4 +191,46 @@ mod tests {
         assert_eq!(back["role"], "user", "{back}");
         assert_eq!(back, flat);
     }
+
+    /// Regression (#146): Codex CLI replays assistant turns without `id` / `status`,
+    /// carrying `output_text` parts. They must decode as easy-input `OutputParts`
+    /// and round-trip unchanged instead of failing the whole request.
+    #[test]
+    fn replayed_assistant_history_decodes_as_easy_input_output_parts() {
+        let replayed = serde_json::json!({
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "hello"}]
+        });
+        let item: ResponseItem = serde_json::from_value(replayed.clone()).unwrap();
+        let ResponseItem::Message(ResponseMessageItem::EasyInput(message)) = &item else {
+            panic!("expected EasyInput, got: {item:?}");
+        };
+        assert!(
+            matches!(&message.content, ResponseEasyInputContent::OutputParts(parts) if parts.len() == 1),
+            "expected OutputParts: {:?}",
+            message.content
+        );
+        assert_eq!(serde_json::to_value(&item).unwrap(), replayed);
+    }
+
+    /// Guard: ordinary input parts must keep matching `Parts`, not be swallowed
+    /// by the `OutputParts` arm added after it.
+    #[test]
+    fn easy_input_text_parts_still_decode_as_input_parts() {
+        let body = serde_json::json!({
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "input_text", "text": "hi"}]
+        });
+        let item: ResponseItem = serde_json::from_value(body).unwrap();
+        let ResponseItem::Message(ResponseMessageItem::EasyInput(message)) = &item else {
+            panic!("expected EasyInput, got: {item:?}");
+        };
+        assert!(
+            matches!(&message.content, ResponseEasyInputContent::Parts(parts) if parts.len() == 1),
+            "expected Parts: {:?}",
+            message.content
+        );
+    }
 }
