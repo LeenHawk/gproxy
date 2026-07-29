@@ -16,12 +16,31 @@ macro_rules! extensible_string_enum {
             }
         }
 
+        impl $outer {
+            /// Wire string of this value (known rename or the raw unknown).
+            pub fn as_str(&self) -> &str {
+                match self {
+                    Self::Known(known) => known.as_str(),
+                    Self::Unknown(other) => other,
+                }
+            }
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
         pub enum $known {
             $(
                 #[serde(rename = $wire)]
                 $variant,
             )+
+        }
+
+        impl $known {
+            /// Wire string of this variant (identical to the serde rename).
+            pub fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $wire,)+
+                }
+            }
         }
     };
 }

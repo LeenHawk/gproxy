@@ -46,7 +46,7 @@ let back_ctx = TransformContext::new(target, source);
 let inbound_body = dispatch::response_bytes(back, &back_ctx, upstream_body)?;
 
 // Streaming converts one decoded SSE frame at a time, same reverse pair.
-let inbound_event = dispatch::stream_event_value(back, &back_ctx, upstream_event)?;
+let inbound_event = dispatch::stream_event(back, &back_ctx, upstream_frame_data)?;
 ```
 
 ## Design

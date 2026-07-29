@@ -4,11 +4,10 @@ mod buffered;
 mod responses;
 mod synthesize;
 
-use serde_json::Value;
-
 use super::common::sse::{SseDecoder, SseFrame};
 use super::{TransformContext, TransformPair, dispatch};
 use crate::protocol::ContentGenerationKind;
+use crate::protocol::openai::ResponseStreamEvent;
 
 use responses::ResponsesStreamState;
 
@@ -60,7 +59,7 @@ impl SseTransformer {
         }
         if let Some(responses) = self.responses.as_mut() {
             for event in responses.finish() {
-                out.extend_from_slice(encode_frame(self.inbound, &event).as_bytes());
+                encode_responses_event(&event, &mut out);
             }
         }
         if self.inbound == ContentGenerationKind::OpenAiChatCompletions {
@@ -79,22 +78,19 @@ impl SseTransformer {
         if frame.data.trim() == "[DONE]" {
             return;
         }
-        let event: Value = match serde_json::from_str(&frame.data) {
-            Ok(value) => value,
-            Err(_) => {
-                self.skipped += 1;
-                return;
+        match dispatch::stream_event(self.pair, &self.ctx, &frame.data) {
+            Ok(dispatch::StreamEventOut::Encoded { event, data }) => {
+                encode_frame(self.inbound, event.as_deref(), &data, out);
             }
-        };
-        match dispatch::stream_event_value(self.pair, &self.ctx, event) {
-            Ok(converted) => {
-                let events = if let Some(responses) = self.responses.as_mut() {
-                    responses.push(converted)
+            Ok(dispatch::StreamEventOut::Responses(event)) => {
+                if let Some(responses) = self.responses.as_mut() {
+                    for event in responses.push(*event) {
+                        encode_responses_event(&event, out);
+                    }
                 } else {
-                    vec![converted]
-                };
-                for event in events {
-                    out.extend_from_slice(encode_frame(self.inbound, &event).as_bytes());
+                    // Defensive: Responses events only occur with a Responses
+                    // inbound, where the aggregation state is always present.
+                    encode_responses_event(&event, out);
                 }
             }
             Err(_) => self.skipped += 1,
@@ -102,20 +98,27 @@ impl SseTransformer {
     }
 }
 
-/// Encode one converted event in the inbound wire format.
-fn encode_frame(kind: ContentGenerationKind, value: &Value) -> String {
+/// Encode one converted event in the inbound wire format. Claude and Responses
+/// inbound streams carry named SSE events (missing names fall back to
+/// "message", as before the typed path); chat and Gemini are data-only.
+fn encode_frame(kind: ContentGenerationKind, event: Option<&str>, data: &str, out: &mut Vec<u8>) {
     use ContentGenerationKind as K;
-    let data = value.to_string();
-    match kind {
+    let frame = match kind {
         K::ClaudeMessages | K::OpenAiResponses | K::OpenAiResponsesWebSocket => {
-            let name = value
-                .get("type")
-                .and_then(Value::as_str)
-                .unwrap_or("message");
-            SseFrame::event(name, data).encode()
+            SseFrame::event(event.unwrap_or("message"), data)
         }
-        K::OpenAiChatCompletions | K::GeminiGenerateContent => SseFrame::data(data).encode(),
-    }
+        K::OpenAiChatCompletions | K::GeminiGenerateContent => SseFrame::data(data),
+    };
+    out.extend_from_slice(frame.encode().as_bytes());
+}
+
+/// Serialize + encode one Responses event as a named SSE frame.
+fn encode_responses_event(event: &ResponseStreamEvent, out: &mut Vec<u8>) {
+    let Ok(data) = serde_json::to_string(event) else {
+        return;
+    };
+    let frame = SseFrame::event(event.event_name().unwrap_or("message"), data);
+    out.extend_from_slice(frame.encode().as_bytes());
 }
 
 #[cfg(test)]

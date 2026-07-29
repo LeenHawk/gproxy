@@ -1,10 +1,11 @@
 //! Content-generation dispatch arms: the 12 pairs wired in M2, including
 //! per-event stream conversion.
 
-use serde_json::Value;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
-use super::{not_wired, run, run_ok, run_value};
-use crate::protocol::{ContentGenerationKind, OperationKey};
+use super::{StreamEventOut, not_wired, run, run_ok};
+use crate::protocol::{ContentGenerationKind, OperationKey, claude, openai};
 use crate::transform::generate_content as gc;
 use crate::transform::{TransformContext, TransformError, TransformPair};
 
@@ -262,105 +263,159 @@ pub(super) fn response_bytes(
     }
 }
 
-pub(super) fn stream_event_value(
+pub(super) fn stream_event(
     pair: TransformPair,
     ctx: &TransformContext,
-    event: Value,
-) -> Result<Value, TransformError> {
+    data: &str,
+) -> Result<StreamEventOut, TransformError> {
     use TransformPair as P;
     match pair {
-        P::ClaudeMessagesToGeminiGenerateContent => run_value(
+        P::ClaudeMessagesToGeminiGenerateContent => to_plain(
             gc::claude_messages_to_gemini_generate_content::stream_event,
             ctx,
-            event,
+            data,
         ),
         P::ClaudeMessagesToOpenAiChat => {
-            run_value(gc::claude_messages_to_openai_chat::stream_event, ctx, event)
+            to_plain(gc::claude_messages_to_openai_chat::stream_event, ctx, data)
         }
-        P::ClaudeMessagesToOpenAiResponses => run_value(
+        P::ClaudeMessagesToOpenAiResponses => to_responses(
             gc::claude_messages_to_openai_responses::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::GeminiGenerateContentToClaudeMessages => run_value(
+        P::GeminiGenerateContentToClaudeMessages => to_claude(
             gc::gemini_generate_content_to_claude_messages::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::GeminiGenerateContentToOpenAiChat => run_value(
+        P::GeminiGenerateContentToOpenAiChat => to_plain(
             gc::gemini_generate_content_to_openai_chat::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::GeminiGenerateContentToOpenAiResponses => run_value(
+        P::GeminiGenerateContentToOpenAiResponses => to_responses(
             gc::gemini_generate_content_to_openai_responses::stream_event,
             ctx,
-            event,
+            data,
         ),
         P::OpenAiChatToClaudeMessages => {
-            run_value(gc::openai_chat_to_claude_messages::stream_event, ctx, event)
+            to_claude(gc::openai_chat_to_claude_messages::stream_event, ctx, data)
         }
-        P::OpenAiChatToGeminiGenerateContent => run_value(
+        P::OpenAiChatToGeminiGenerateContent => to_plain(
             gc::openai_chat_to_gemini_generate_content::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::OpenAiChatToOpenAiResponses => run_value(
-            gc::openai_chat_to_openai_responses::stream_event,
-            ctx,
-            event,
-        ),
+        P::OpenAiChatToOpenAiResponses => {
+            to_responses(gc::openai_chat_to_openai_responses::stream_event, ctx, data)
+        }
         P::OpenAiResponsesToOpenAiResponsesWebSocket
         | P::OpenAiResponsesWebSocketToOpenAiResponses => {
-            run_value(gc::openai_responses_websocket::identity_result, ctx, event)
+            to_responses(|event, _| Ok(event), ctx, data)
         }
         P::OpenAiChatToOpenAiResponsesWebSocket => stream_via_openai_responses(
             gc::openai_chat_to_openai_responses::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::OpenAiResponsesWebSocketToOpenAiChat => stream_from_openai_responses(
+        P::OpenAiResponsesWebSocketToOpenAiChat => to_plain(
             gc::openai_responses_to_openai_chat::stream_event,
-            ctx,
-            event,
+            &responses_to_target_ctx(ctx),
+            data,
         ),
         P::ClaudeMessagesToOpenAiResponsesWebSocket => stream_via_openai_responses(
             gc::claude_messages_to_openai_responses::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::OpenAiResponsesWebSocketToClaudeMessages => stream_from_openai_responses(
+        P::OpenAiResponsesWebSocketToClaudeMessages => to_claude(
             gc::openai_responses_to_claude_messages::stream_event,
-            ctx,
-            event,
+            &responses_to_target_ctx(ctx),
+            data,
         ),
         P::GeminiGenerateContentToOpenAiResponsesWebSocket => stream_via_openai_responses(
             gc::gemini_generate_content_to_openai_responses::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::OpenAiResponsesWebSocketToGeminiGenerateContent => stream_from_openai_responses(
+        P::OpenAiResponsesWebSocketToGeminiGenerateContent => to_plain(
             gc::openai_responses_to_gemini_generate_content::stream_event,
-            ctx,
-            event,
+            &responses_to_target_ctx(ctx),
+            data,
         ),
-        P::OpenAiResponsesToClaudeMessages => run_value(
+        P::OpenAiResponsesToClaudeMessages => to_claude(
             gc::openai_responses_to_claude_messages::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::OpenAiResponsesToGeminiGenerateContent => run_value(
+        P::OpenAiResponsesToGeminiGenerateContent => to_plain(
             gc::openai_responses_to_gemini_generate_content::stream_event,
             ctx,
-            event,
+            data,
         ),
-        P::OpenAiResponsesToOpenAiChat => run_value(
-            gc::openai_responses_to_openai_chat::stream_event,
-            ctx,
-            event,
-        ),
+        P::OpenAiResponsesToOpenAiChat => {
+            to_plain(gc::openai_responses_to_openai_chat::stream_event, ctx, data)
+        }
         other => Err(not_wired(other)),
     }
+}
+
+/// Decode + convert one stream event on the typed path (no `Value` legs).
+fn run_stream<S: DeserializeOwned, T>(
+    f: impl Fn(S, &TransformContext) -> Result<T, TransformError>,
+    ctx: &TransformContext,
+    data: &str,
+) -> Result<T, TransformError> {
+    let input: S = serde_json::from_str(data).map_err(|e| TransformError::InvalidInput {
+        reason: format!("decode stream event: {e}"),
+    })?;
+    f(input, ctx)
+}
+
+fn encode<T: Serialize>(event: Option<String>, out: &T) -> Result<StreamEventOut, TransformError> {
+    let data = serde_json::to_string(out).map_err(|e| TransformError::Serialization {
+        reason: e.to_string(),
+    })?;
+    Ok(StreamEventOut::Encoded { event, data })
+}
+
+/// Inbound wire is chat/gemini: data-only frames, no SSE event name.
+fn to_plain<S: DeserializeOwned, T: Serialize>(
+    f: impl Fn(S, &TransformContext) -> Result<T, TransformError>,
+    ctx: &TransformContext,
+    data: &str,
+) -> Result<StreamEventOut, TransformError> {
+    encode(None, &run_stream(f, ctx, data)?)
+}
+
+/// Inbound wire is Claude Messages: named SSE events.
+fn to_claude<S: DeserializeOwned>(
+    f: impl Fn(S, &TransformContext) -> Result<claude::StreamEvent, TransformError>,
+    ctx: &TransformContext,
+    data: &str,
+) -> Result<StreamEventOut, TransformError> {
+    let out = run_stream(f, ctx, data)?;
+    encode(out.event_name().map(str::to_owned), &out)
+}
+
+/// Inbound wire is Responses (HTTP or WebSocket): hand the typed event to the
+/// caller's aggregation state machine.
+fn to_responses<S: DeserializeOwned>(
+    f: impl Fn(S, &TransformContext) -> Result<openai::ResponseStreamEvent, TransformError>,
+    ctx: &TransformContext,
+    data: &str,
+) -> Result<StreamEventOut, TransformError> {
+    Ok(StreamEventOut::Responses(Box::new(run_stream(
+        f, ctx, data,
+    )?)))
+}
+
+fn stream_via_openai_responses<S: DeserializeOwned>(
+    f: impl Fn(S, &TransformContext) -> Result<openai::ResponseStreamEvent, TransformError>,
+    ctx: &TransformContext,
+    data: &str,
+) -> Result<StreamEventOut, TransformError> {
+    to_responses(f, &source_to_responses_ctx(ctx), data)
 }
 
 fn responses_key(ctx: &TransformContext, source: bool) -> OperationKey {
@@ -428,28 +483,4 @@ where
     T: serde::Serialize,
 {
     run(f, &responses_to_target_ctx(ctx), body)
-}
-
-fn stream_via_openai_responses<S, T>(
-    f: impl Fn(S, &TransformContext) -> Result<T, TransformError>,
-    ctx: &TransformContext,
-    event: Value,
-) -> Result<Value, TransformError>
-where
-    S: serde::de::DeserializeOwned,
-    T: serde::Serialize,
-{
-    run_value(f, &source_to_responses_ctx(ctx), event)
-}
-
-fn stream_from_openai_responses<S, T>(
-    f: impl Fn(S, &TransformContext) -> Result<T, TransformError>,
-    ctx: &TransformContext,
-    event: Value,
-) -> Result<Value, TransformError>
-where
-    S: serde::de::DeserializeOwned,
-    T: serde::Serialize,
-{
-    run_value(f, &responses_to_target_ctx(ctx), event)
 }

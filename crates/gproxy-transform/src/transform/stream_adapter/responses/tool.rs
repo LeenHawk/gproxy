@@ -1,4 +1,11 @@
-use serde_json::{Value, json};
+//! Tool-call item state (function / custom) and its synthetic events.
+
+use crate::protocol::openai::{
+    Extra, KnownResponseStreamEvent as KnownEvent, ResponseItem, ResponseItemLifecycleStatus,
+    ResponseOutputItem, ResponseStreamEvent, TypedResponseItem,
+};
+
+use super::known;
 
 #[derive(Default)]
 pub(super) struct ResponsesToolItemState {
@@ -23,67 +30,118 @@ impl ResponsesToolItemState {
         self.kind.get_or_insert(kind);
         self.output_index.get_or_insert(index);
     }
-    pub(super) fn note_item(&mut self, item: &Value) {
+
+    pub(super) fn note_item(&mut self, item: &TypedResponseItem) {
+        match item {
+            TypedResponseItem::FunctionCall {
+                arguments,
+                call_id,
+                name,
+                id,
+                ..
+            } => self.note_item_parts(id.as_deref(), call_id, name, arguments),
+            TypedResponseItem::CustomToolCall {
+                call_id,
+                input,
+                name,
+                id,
+                ..
+            } => self.note_item_parts(id.as_deref(), call_id, name, input),
+            _ => {}
+        }
+    }
+
+    fn note_item_parts(&mut self, id: Option<&str>, call_id: &str, name: &str, input: &str) {
         if self.item_id.is_none() {
-            self.item_id = item.get("id").and_then(Value::as_str).map(str::to_owned);
+            self.item_id = id.map(str::to_owned);
         }
         if self.call_id.is_none() {
-            self.call_id = item
-                .get("call_id")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            self.call_id = Some(call_id.to_owned());
         }
         if self.name.is_none() {
-            self.name = item.get("name").and_then(Value::as_str).map(str::to_owned);
+            self.name = Some(name.to_owned());
         }
         if self.input.is_empty() {
-            let field = match self.kind {
-                Some(ResponsesToolKind::Function) => "arguments",
-                Some(ResponsesToolKind::Custom) => "input",
-                None => return,
-            };
-            if let Some(input) = item.get(field).and_then(Value::as_str) {
-                self.input.push_str(input);
-            }
+            self.input.push_str(input);
         }
     }
-    pub(super) fn note_event_item_id(&mut self, event: &Value) {
+
+    pub(super) fn note_event_item_id(&mut self, item_id: &str) {
         if self.item_id.is_none() {
-            self.item_id = event
-                .get("item_id")
-                .and_then(Value::as_str)
-                .map(str::to_owned);
+            self.item_id = Some(item_id.to_owned());
         }
     }
+
+    /// Backfill the delta/done event's `item_id` from the recorded item id.
+    pub(super) fn rewrite_event_item_id(&self, item_id: &mut String) {
+        if let Some(id) = self.item_id.as_deref()
+            && item_id.as_str() != id
+        {
+            id.clone_into(item_id);
+        }
+    }
+
     pub(super) fn can_finish(&self) -> bool {
         self.kind.is_some()
             && self.item_id.is_some()
             && self.call_id.is_some()
             && self.name.is_some()
     }
-    pub(super) fn input_done_event(&self) -> Value {
+
+    pub(super) fn input_done_event(&self) -> ResponseStreamEvent {
         match self.kind.expect("tool kind checked by can_finish") {
-            ResponsesToolKind::Function => {
-                json!({"type":"response.function_call_arguments.done","output_index":self.output_index(),"item_id":self.item_id(),"name":self.name(),"arguments":self.input})
-            }
-            ResponsesToolKind::Custom => {
-                json!({"type":"response.custom_tool_call_input.done","output_index":self.output_index(),"item_id":self.item_id(),"input":self.input})
-            }
+            ResponsesToolKind::Function => known(KnownEvent::ResponseFunctionCallArgumentsDone {
+                arguments: self.input.clone(),
+                item_id: self.item_id().to_owned(),
+                name: self.name().to_owned(),
+                output_index: self.output_index(),
+                sequence_number: None,
+                extra: Extra::new(),
+            }),
+            ResponsesToolKind::Custom => known(KnownEvent::ResponseCustomToolCallInputDone {
+                input: self.input.clone(),
+                item_id: self.item_id().to_owned(),
+                output_index: self.output_index(),
+                sequence_number: None,
+                extra: Extra::new(),
+            }),
         }
     }
-    pub(super) fn item_done_event(&self) -> Value {
-        json!({"type":"response.output_item.done","output_index":self.output_index(),"item":self.item("completed")})
+
+    pub(super) fn item_done_event(&self) -> ResponseStreamEvent {
+        known(KnownEvent::ResponseOutputItemDone {
+            item: Box::new(self.completed_item()),
+            output_index: self.output_index(),
+            sequence_number: None,
+            extra: Extra::new(),
+        })
     }
-    pub(super) fn item(&self, status: &str) -> Value {
-        match self.kind.expect("tool kind checked by can_finish") {
-            ResponsesToolKind::Function => {
-                json!({"id":self.item_id(),"type":"function_call","status":status,"call_id":self.call_id(),"name":self.name(),"arguments":self.input})
-            }
-            ResponsesToolKind::Custom => {
-                json!({"id":self.item_id(),"type":"custom_tool_call","call_id":self.call_id(),"name":self.name(),"input":self.input})
-            }
-        }
+
+    pub(super) fn completed_item(&self) -> ResponseOutputItem {
+        let item = match self.kind.expect("tool kind checked by can_finish") {
+            ResponsesToolKind::Function => TypedResponseItem::FunctionCall {
+                arguments: self.input.clone(),
+                call_id: self.call_id().to_owned(),
+                name: self.name().to_owned(),
+                id: Some(self.item_id().to_owned()),
+                caller: None,
+                namespace: None,
+                status: Some(ResponseItemLifecycleStatus::Completed),
+                extra: Extra::new(),
+            },
+            ResponsesToolKind::Custom => TypedResponseItem::CustomToolCall {
+                call_id: self.call_id().to_owned(),
+                input: self.input.clone(),
+                name: self.name().to_owned(),
+                id: Some(self.item_id().to_owned()),
+                caller: None,
+                namespace: None,
+                extra: Extra::new(),
+            },
+        };
+        ResponseOutputItem(ResponseItem::Typed(item))
     }
+
     fn item_id(&self) -> &str {
         self.item_id.as_deref().unwrap_or("item_0")
     }

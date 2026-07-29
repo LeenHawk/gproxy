@@ -81,7 +81,10 @@ fn stream_decoder_backfills_function_call_in_completed_output() {
     });
     let completed = json!({
         "type": "response.completed",
-        "response": { "id": "resp_1", "object": "response", "status": "completed", "output": [] }
+        "response": {
+            "id": "resp_1", "object": "response", "created_at": 0,
+            "status": "completed", "output": []
+        }
     });
     let upstream = format!(
         "event: response.output_item.done\ndata: {item}\n\n\
