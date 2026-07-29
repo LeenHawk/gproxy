@@ -83,6 +83,7 @@ async fn prepared_candidates_survive_snapshot_swap() {
             crate::pipeline::classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)
                 .unwrap();
         ctx.op = Some(classified.op);
+        ctx.body_model = classified.body_model;
         crate::pipeline::candidate::prepare(&cp, &ctx, classified.op).unwrap()
     };
     state
@@ -136,6 +137,7 @@ async fn scoped_variant_suffix_strips_to_base() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };

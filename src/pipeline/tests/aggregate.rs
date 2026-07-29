@@ -52,6 +52,7 @@ async fn non_stream_client_collapses_forced_stream() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };
@@ -131,6 +132,7 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };

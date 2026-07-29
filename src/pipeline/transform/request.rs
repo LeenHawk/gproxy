@@ -34,9 +34,12 @@ pub struct AttemptMemo {
 }
 
 impl AttemptMemo {
-    fn inbound_model(&mut self, body: &Bytes) -> Option<String> {
+    /// The inbound body model, resolved once per request: classify's peek
+    /// (`ctx.body_model`) is the fast path; the tolerant re-parse only covers
+    /// contexts built without classify (tests, direct pipeline entry).
+    pub(crate) fn inbound_model(&mut self, ctx: &RequestCtx) -> Option<String> {
         self.inbound_model
-            .get_or_insert_with(|| peek_model(body))
+            .get_or_insert_with(|| ctx.body_model.clone().or_else(|| peek_model(&ctx.body)))
             .clone()
     }
 }
@@ -70,8 +73,7 @@ pub fn request_parts(
             // (models GETs) carry nothing to peek or patch.
             let model_rewrite = op.operation.has_request_body()
                 && !cand.upstream_model_id.is_empty()
-                && memo.inbound_model(&ctx.body).as_deref()
-                    != Some(cand.upstream_model_id.as_str());
+                && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str());
             if model_rewrite {
                 // Gemini carries the model (+ stream flag) in the PATH; every
                 // other family carries it in the body — content AND non-content
@@ -147,7 +149,7 @@ pub fn request_parts(
                         let source_in_body = body_carries_model(source.kind);
                         let inbound = if (source_in_body || body_carries_model(target.kind))
                             && !cand.upstream_model_id.is_empty()
-                            && memo.inbound_model(&ctx.body).as_deref()
+                            && memo.inbound_model(ctx).as_deref()
                                 != Some(cand.upstream_model_id.as_str())
                         {
                             patch_body(&ctx.body, Some(&cand.upstream_model_id), None, false)?
@@ -201,7 +203,7 @@ pub fn request_parts(
             let source_in_body = body_carries_model(source.kind);
             let inbound = if (source_in_body || body_carries_model(target.kind))
                 && !cand.upstream_model_id.is_empty()
-                && memo.inbound_model(&ctx.body).as_deref() != Some(cand.upstream_model_id.as_str())
+                && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str())
             {
                 patch_body(&ctx.body, Some(&cand.upstream_model_id), None, false)?
             } else {
@@ -254,7 +256,7 @@ pub fn request_parts(
             let source_in_body = body_carries_model(source.kind);
             let inbound = if (source_in_body || body_carries_model(target.kind))
                 && !cand.upstream_model_id.is_empty()
-                && memo.inbound_model(&ctx.body).as_deref() != Some(cand.upstream_model_id.as_str())
+                && memo.inbound_model(ctx).as_deref() != Some(cand.upstream_model_id.as_str())
             {
                 patch_body(&ctx.body, Some(&cand.upstream_model_id), None, false)?
             } else {
@@ -306,7 +308,7 @@ pub fn request_parts(
         // (body model, else path-embedded model — e.g. `*-thinking` patterns
         // keyed on the requested variant), falling back to the member model.
         let filter_model = memo
-            .inbound_model(&ctx.body)
+            .inbound_model(ctx)
             .or_else(|| crate::pipeline::classify::path_model_id(&ctx.path))
             .unwrap_or_else(|| cand.upstream_model_id.clone());
         let mut headers = ctx.headers.clone();

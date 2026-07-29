@@ -21,6 +21,7 @@ async fn aggregated_models_lists_aliases_and_routes() {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     };
@@ -63,6 +64,7 @@ fn count_ctx(model: &str) -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }
@@ -128,6 +130,7 @@ fn scoped_models_ctx() -> RequestCtx {
         identity: None,
         op: None,
         stream: false,
+        body_model: None,
         route_name: None,
         pending_micros: 0,
     }

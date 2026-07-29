@@ -3,7 +3,7 @@
 //! this step; provider-scoped aliases are applied after the provider is known.
 
 use crate::app::snapshot::ControlPlaneSnapshot;
-use crate::pipeline::classify::{path_model_id, peek_model};
+use crate::pipeline::classify::path_model_id;
 use crate::pipeline::context::RequestCtx;
 use crate::pipeline::error::PipelineError;
 
@@ -22,8 +22,10 @@ pub fn apply_global_alias(cp: &ControlPlaneSnapshot, model: &str) -> String {
     apply_aliases(cp, "*", model).unwrap_or_else(|| model.to_owned())
 }
 
+/// Body model (classify's single peek) falling back to the path-embedded
+/// model. Runs post-classify, so no body re-parse happens here.
 pub fn requested_model(ctx: &RequestCtx) -> Option<String> {
-    peek_model(&ctx.body).or_else(|| path_model_id(&ctx.path))
+    ctx.body_model.clone().or_else(|| path_model_id(&ctx.path))
 }
 
 fn apply_aliases(cp: &ControlPlaneSnapshot, provider: &str, model: &str) -> Option<String> {

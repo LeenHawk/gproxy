@@ -275,7 +275,8 @@ pub async fn run_failover(
             // (a 2xx whose cross-protocol transform errors must still leave an
             // upstream trace). Borrow `upstream_raw` from the Ok arm; `?` below
             // propagates a materialize error only after the row is written.
-            let rule_filter_model = crate::pipeline::classify::peek_model(&ctx.body)
+            let rule_filter_model = memo
+                .inbound_model(ctx)
                 .or_else(|| crate::pipeline::classify::path_model_id(&ctx.path))
                 .unwrap_or_else(|| cand.upstream_model_id.clone());
             let response_rules = rules.as_deref().map(|rules| ResponseRuleCtx {

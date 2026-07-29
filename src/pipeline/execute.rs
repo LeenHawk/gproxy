@@ -71,6 +71,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         let classified = classify::classify(&ctx.method, &ctx.path, &ctx.headers, &ctx.body)?;
         ctx.op = Some(classified.op);
         ctx.stream = classified.stream;
+        ctx.body_model = classified.body_model;
         span.record("op", tracing::field::debug(classified.op.operation));
         span.record("kind", tracing::field::debug(classified.op.kind));
 

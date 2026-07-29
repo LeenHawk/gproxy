@@ -64,8 +64,11 @@ fn local_count(
     cand: &Candidate,
     family: Provider,
 ) -> ExecOutcome {
-    // pre-variant-strip name is fine for tokenizer selection
-    let model = classify::peek_model(&ctx.body)
+    // pre-variant-strip name is fine for tokenizer selection; `body_model` is
+    // classify's single peek — no body re-parse here
+    let model = ctx
+        .body_model
+        .clone()
         .or_else(|| classify::path_model_id(&ctx.path))
         .unwrap_or_else(|| cand.upstream_model_id.clone());
     let map = cand.provider.settings_json.get("tokenizer_map");
