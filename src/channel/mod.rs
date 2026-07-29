@@ -1,5 +1,6 @@
 //! Channel implementations and root-owned registry/runtime integration.
 
+#[cfg(any(feature = "channel-aws-bedrock", feature = "channel-kiro"))]
 pub(crate) mod aws_eventstream;
 pub mod bulletins;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
@@ -10,6 +11,11 @@ pub(crate) mod metadata;
 pub mod oauth;
 pub mod registry;
 pub mod resolve;
+#[cfg(any(
+    feature = "channel-codex",
+    feature = "channel-grokbuild",
+    feature = "channel-openai"
+))]
 pub mod responses_websocket;
 pub mod settings;
 pub mod shaping;

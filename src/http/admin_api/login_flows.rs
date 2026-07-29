@@ -17,10 +17,11 @@ use crate::api::login::{
     LoginStartRequest, LoginStartResponse,
 };
 use crate::app::AppState;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::channel::CookieExchangeCtx;
 use crate::channel::oauth;
 use crate::channel::{
-    AuthCodeExchangeCtx, AuthCodeStartCtx, ChannelError, CookieExchangeCtx, DevicePoll,
-    DevicePollCtx, DeviceStartCtx,
+    AuthCodeExchangeCtx, AuthCodeStartCtx, ChannelError, DevicePoll, DevicePollCtx, DeviceStartCtx,
 };
 use crate::store::persistence::records::CredentialInput;
 
