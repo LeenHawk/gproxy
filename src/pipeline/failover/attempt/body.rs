@@ -36,7 +36,7 @@ pub(in crate::pipeline::failover) struct BufferedSettle {
 /// `Some` only when upstream response-body logging is enabled.
 pub(in crate::pipeline::failover) struct UpstreamRespCapture {
     pub state: AppState,
-    pub request_id: String,
+    pub capture_id: crate::pipeline::capture::UpstreamCaptureId,
 }
 
 pub(in crate::pipeline::failover) struct ResponseRuleCtx<'a> {
@@ -111,9 +111,18 @@ pub(in crate::pipeline::failover) async fn materialize(
         }
         BodySource::Streaming(st) => {
             if !status.is_success() {
-                // Streamed error: undecoded passthrough, no upstream capture.
+                // Streamed errors stay undecoded, but still tee the raw body
+                // into the exact upstream capture row when logging is enabled.
+                let st = crate::pipeline::stream::into_byte_stream(st);
+                let st = match upstream {
+                    Some(cap) => crate::pipeline::stream::capture_raw_stream(
+                        st,
+                        crate::pipeline::stream::RawCaptureGuard::new(cap.state, cap.capture_id),
+                    ),
+                    None => st,
+                };
                 return Ok(Materialized {
-                    body: ResponseBody::Stream(crate::pipeline::stream::into_byte_stream(st)),
+                    body: ResponseBody::Stream(st),
                     upstream_raw: None,
                     settle: None,
                 });
@@ -153,7 +162,7 @@ pub(in crate::pipeline::failover) async fn materialize(
             let st = match upstream {
                 Some(cap) => crate::pipeline::stream::capture_raw_stream(
                     st,
-                    crate::pipeline::stream::RawCaptureGuard::new(cap.state, cap.request_id),
+                    crate::pipeline::stream::RawCaptureGuard::new(cap.state, cap.capture_id),
                 ),
                 None => st,
             };

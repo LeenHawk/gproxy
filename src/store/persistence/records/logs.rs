@@ -63,8 +63,9 @@ pub struct UpstreamRequest {
     #[serde(default)]
     pub headers_json: Option<Value>,
     pub body: Option<String>,
-    /// Captured upstream (provider) response body (§8-D), post channel-decode /
-    /// pre cross-protocol transform; `None` when logging is off.
+    /// Captured upstream response body (§8-D). Direct streams capture after
+    /// channel decode; custom exchanges capture the exact transport-call bytes.
+    /// Both are before any pipeline cross-protocol response transform.
     #[serde(default)]
     pub response_body: Option<String>,
     /// Unix seconds.
@@ -88,7 +89,7 @@ pub struct UpstreamRequestInput {
     pub headers_json: Option<Value>,
     pub body: Option<String>,
     /// Captured upstream response body folded into the same INSERT for
-    /// non-streaming responses (streaming backfills via `update_upstream_response`).
+    /// non-streaming responses (streaming backfills by the returned row id).
     #[serde(default)]
     pub response_body: Option<String>,
 }

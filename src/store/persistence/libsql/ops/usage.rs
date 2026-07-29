@@ -98,12 +98,19 @@ impl UsagePersistence for LibsqlPersistence {
     ) -> anyhow::Result<Vec<UpstreamRequest>> {
         logs::upstream_requests::list(&self.client, request_id).await
     }
-    async fn update_upstream_response(
+    async fn update_upstream_response_by_id(
         &self,
+        capture_id: i64,
         request_id: &str,
         response_body: Option<String>,
     ) -> anyhow::Result<()> {
-        logs::upstream_requests::update_response_body(&self.client, request_id, response_body).await
+        logs::upstream_requests::update_response_body(
+            &self.client,
+            capture_id,
+            request_id,
+            response_body,
+        )
+        .await
     }
     async fn clear_request_logs(&self) -> anyhow::Result<()> {
         self.client

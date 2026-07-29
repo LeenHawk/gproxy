@@ -1,9 +1,11 @@
 //! Streaming response tail (§6.4, D4): body-side conversion invoked by
 //! `failover`; it does not iterate candidates or call `classify`.
 
+use crate::app::AppState;
 use crate::http::client::{ByteStreamDecoder, RespStream};
+use crate::pipeline::capture::UpstreamCaptureId;
 use crate::pipeline::outcome::ByteStream;
-use crate::pipeline::settle::StreamGuard;
+use crate::pipeline::settle::{RelayBuffer, StreamGuard};
 use crate::transform::stream_adapter::SseTransformer;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -356,29 +358,20 @@ pub fn instrument_error_frame(
     ))
 }
 
-/// Buffers post-decode upstream response bytes for a streaming response and, on
-/// EOF or client drop, backfills `upstream_requests.response_body` (§8-D, bounded
-/// by `RelayBuffer`'s ~4MB cap).
+/// Buffers bytes at the caller-selected seam and, on EOF/drop, backfills one
+/// `upstream_requests.response_body` row (§8-D; bounded by `RelayBuffer`).
 pub struct RawCaptureGuard {
-    inner: Option<(
-        crate::app::AppState,
-        String,
-        crate::pipeline::settle::RelayBuffer,
-    )>,
+    inner: Option<(AppState, UpstreamCaptureId, RelayBuffer)>,
 }
 
 impl RawCaptureGuard {
-    pub fn new(state: crate::app::AppState, request_id: String) -> Self {
+    pub(crate) fn new(state: AppState, capture_id: UpstreamCaptureId) -> Self {
         Self {
-            inner: Some((
-                state,
-                request_id,
-                crate::pipeline::settle::RelayBuffer::new(),
-            )),
+            inner: Some((state, capture_id, RelayBuffer::new())),
         }
     }
 
-    fn push(&mut self, chunk: &bytes::Bytes) {
+    pub(crate) fn push(&mut self, chunk: &bytes::Bytes) {
         if let Some((_, _, buf)) = self.inner.as_mut() {
             buf.push(chunk.clone());
         }
@@ -386,15 +379,17 @@ impl RawCaptureGuard {
 
     /// Spawn the gated backfill of the buffered upstream response body.
     fn flush(&mut self) {
-        if let Some((state, rid, buf)) = self.inner.take() {
+        if let Some((state, capture_id, buf)) = self.inner.take() {
             let bytes = buf.concat_for_log();
             #[cfg(not(target_arch = "wasm32"))]
             tokio::spawn(async move {
-                crate::pipeline::capture::record_upstream_response(&state, &rid, &bytes).await;
+                crate::pipeline::capture::record_upstream_response(&state, capture_id, &bytes)
+                    .await;
             });
             #[cfg(target_arch = "wasm32")]
             wasm_bindgen_futures::spawn_local(async move {
-                crate::pipeline::capture::record_upstream_response(&state, &rid, &bytes).await;
+                crate::pipeline::capture::record_upstream_response(&state, capture_id, &bytes)
+                    .await;
             });
         }
     }
@@ -406,9 +401,10 @@ impl Drop for RawCaptureGuard {
     }
 }
 
-/// Tee post-decode upstream chunks into `guard` while passing them through
-/// unchanged. Spliced AFTER the channel decoder and BEFORE any protocol
-/// transform, so it sees the provider's response in its native wire shape.
+/// Tee upstream chunks into `guard` while passing them through unchanged. Direct
+/// attempts splice this after channel decode; custom exchanges splice it at the
+/// exact transport call so parked or otherwise wrapped streams retain their row
+/// correlation.
 pub fn capture_raw_stream(s: ByteStream, guard: RawCaptureGuard) -> ByteStream {
     use futures_util::StreamExt;
 
@@ -495,5 +491,15 @@ mod tests {
             synthetic_keepalive(K::GeminiGenerateContent, SyntheticTransport::GeminiJson),
             bytes::Bytes::from_static(b"\n")
         );
+    }
+
+    #[test]
+    fn relay_buffer_bounds_one_oversized_chunk() {
+        let mut buffer = RelayBuffer::new();
+        buffer.push(Bytes::from(vec![b'x'; 5 << 20]));
+        let logged = buffer.concat_for_log();
+
+        assert!(logged.len() < 5 << 20);
+        assert!(String::from_utf8_lossy(&logged).starts_with("…[truncated:"));
     }
 }

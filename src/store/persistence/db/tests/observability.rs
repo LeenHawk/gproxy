@@ -227,6 +227,78 @@ async fn downstream_logs_filter_by_time_and_usage_dimensions() {
 }
 
 #[tokio::test]
+async fn upstream_stream_backfill_targets_returned_row_id_in_call_order() {
+    let db = mem().await;
+    let mut inserted = Vec::new();
+    for (url, response_body) in [
+        ("https://upstream.test/step-1", Some("first")),
+        ("https://upstream.test/step-2", Some("second")),
+        ("https://upstream.test/stream", None),
+    ] {
+        inserted.push(
+            db.append_upstream_request(UpstreamRequestInput {
+                request_id: "shared-request".into(),
+                at: 100,
+                provider_id: Some(1),
+                credential_id: Some(2),
+                url: url.into(),
+                method: "POST".into(),
+                status: 200,
+                latency_ms: 3,
+                headers_json: None,
+                body: None,
+                response_body: response_body.map(str::to_owned),
+            })
+            .await
+            .unwrap(),
+        );
+    }
+
+    let stream_capture_id = inserted[2].id;
+    db.update_upstream_response_by_id(
+        stream_capture_id,
+        "different-request",
+        Some("wrong body".into()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.list_upstream_requests("shared-request").await.unwrap()[2].response_body,
+        None,
+        "mismatched request id must make backfill a no-op"
+    );
+
+    db.update_upstream_response_by_id(
+        stream_capture_id,
+        "shared-request",
+        Some("stream body".into()),
+    )
+    .await
+    .unwrap();
+
+    let rows = db.list_upstream_requests("shared-request").await.unwrap();
+    assert_eq!(
+        rows.iter().map(|row| row.id).collect::<Vec<_>>(),
+        inserted.iter().map(|row| row.id).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        rows.iter().map(|row| row.url.as_str()).collect::<Vec<_>>(),
+        vec![
+            "https://upstream.test/step-1",
+            "https://upstream.test/step-2",
+            "https://upstream.test/stream",
+        ]
+    );
+    assert_eq!(rows[0].response_body.as_deref(), Some("first"));
+    assert_eq!(rows[1].response_body.as_deref(), Some("second"));
+    assert_eq!(
+        rows[2].response_body.as_deref(),
+        Some("stream body"),
+        "backfill must target only the returned capture id"
+    );
+}
+
+#[tokio::test]
 async fn audit_log_round_trip() {
     let db = mem().await;
     let delete = db
