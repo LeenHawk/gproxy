@@ -14,30 +14,63 @@ use crate::protocol::Provider as Family;
 use crate::usage::{Ended, NormalizedUsage, UsageSource};
 
 pub(super) async fn count_and_record(ctx: SettleCtx, text: String, ended: Ended) {
-    let (usage, source) = ladder(&ctx, &text).await;
+    let (usage, source) = ladder(&ctx, text).await;
     record(&ctx, usage, source, ended).await;
 }
 
 /// §17 counting ladder: gpt family → local tiktoken; claude/gemini upstream
 /// family → upstream count endpoint (bounded concurrency + timeout, same
 /// effective provider client, never the user pipeline); anything else / failure
-/// → local chain (vocab → chars/2).
-pub(super) async fn ladder(ctx: &SettleCtx, text: &str) -> (NormalizedUsage, UsageSource) {
+/// → local chain (vocab → chars/2). The local chain is CPU-bound BPE encoding
+/// of the full request + produced text (tens of ms for long chats), so on
+/// native it runs on the blocking pool — never on an async worker whose other
+/// streams it would stall.
+pub(super) async fn ladder(ctx: &SettleCtx, text: String) -> (NormalizedUsage, UsageSource) {
     #[cfg(not(target_arch = "wasm32"))]
-    if !crate::tokenize::is_gpt_family(&ctx.model)
-        && matches!(ctx.upstream_family, Family::Claude | Family::Gemini)
-        && let Some(u) = upstream_count(ctx, text).await
     {
-        return (u, UsageSource::Counted);
+        if !crate::tokenize::is_gpt_family(&ctx.model)
+            && matches!(ctx.upstream_family, Family::Claude | Family::Gemini)
+            && let Some(u) = upstream_count(ctx, &text).await
+        {
+            return (u, UsageSource::Counted);
+        }
+        let state = ctx.state.clone();
+        let model = ctx.model.clone();
+        let map = ctx.provider.settings_json.get("tokenizer_map").cloned();
+        let request_body = ctx.request_body.clone();
+        match tokio::task::spawn_blocking(move || {
+            local_ladder(&state, &model, map.as_ref(), &request_body, &text)
+        })
+        .await
+        {
+            Ok(counted) => counted,
+            Err(e) => {
+                tracing::warn!(error = %e, "settle count task failed; recording zero estimate");
+                (NormalizedUsage::default(), UsageSource::Estimated)
+            }
+        }
     }
-    local_ladder(ctx, text)
+    #[cfg(target_arch = "wasm32")]
+    local_ladder(
+        &ctx.state,
+        &ctx.model,
+        ctx.provider.settings_json.get("tokenizer_map"),
+        &ctx.request_body,
+        &text,
+    )
 }
 
 /// Local chain: input from the captured request body, output from the
-/// produced text wrapped as a single user message.
-fn local_ladder(ctx: &SettleCtx, text: &str) -> (NormalizedUsage, UsageSource) {
-    let map = ctx.provider.settings_json.get("tokenizer_map");
-    let input = local_count(&ctx.state, &ctx.model, map, &ctx.request_body);
+/// produced text wrapped as a single user message. Pure CPU — callers on
+/// native run this via `spawn_blocking`.
+fn local_ladder(
+    state: &AppState,
+    model: &str,
+    map: Option<&Value>,
+    request_body: &[u8],
+    text: &str,
+) -> (NormalizedUsage, UsageSource) {
+    let input = local_count(state, model, map, request_body);
     let output = if text.is_empty() {
         0
     } else {
@@ -45,10 +78,10 @@ fn local_ladder(ctx: &SettleCtx, text: &str) -> (NormalizedUsage, UsageSource) {
             "messages": [{ "role": "user", "content": text }]
         }))
         .unwrap_or_default();
-        local_count(&ctx.state, &ctx.model, map, &body)
+        local_count(state, model, map, &body)
     };
     // tiktoken is exact for gpt families; everything else is an estimate
-    let source = if cfg!(feature = "count-local") && crate::tokenize::is_gpt_family(&ctx.model) {
+    let source = if cfg!(feature = "count-local") && crate::tokenize::is_gpt_family(model) {
         UsageSource::Counted
     } else {
         UsageSource::Estimated
