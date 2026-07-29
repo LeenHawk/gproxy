@@ -134,5 +134,13 @@ data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choic
     assert!(text.contains("event: response.output_item.done"));
     assert!(text.contains(r#""arguments":"{\"text\":\"hello\"}""#));
     assert!(!text.contains(r#""item_id":"fc_0""#));
-    assert!(text.contains(r#""output":[{"arguments":"{\"text\":\"hello\"}""#));
+    let completed = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter_map(|data| serde_json::from_str::<Value>(data).ok())
+        .find(|value| value["type"] == "response.completed")
+        .expect("response.completed frame");
+    let item = &completed["response"]["output"][0];
+    assert_eq!(item["type"], "function_call");
+    assert_eq!(item["arguments"], "{\"text\":\"hello\"}");
 }

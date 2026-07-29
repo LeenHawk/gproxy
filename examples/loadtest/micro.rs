@@ -113,8 +113,8 @@ fn run_pair<S, T>(
     );
 }
 
-fn leg<R>(label: &str, mut f: impl FnMut() -> R) {
-    let ns = bench(|| f());
+fn leg<R>(label: &str, f: impl FnMut() -> R) {
+    let ns = bench(f);
     println!("  {label:<22} {ns:>8.0} ns/op");
 }
 

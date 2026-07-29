@@ -58,10 +58,6 @@ pub fn identity(value: Value, _ctx: &TransformContext) -> Value {
     value
 }
 
-pub fn identity_result(value: Value, _ctx: &TransformContext) -> Result<Value, TransformError> {
-    Ok(value)
-}
-
 /// Convert a downstream `response.create` WebSocket text frame into the JSON
 /// body for an internal `POST /v1/responses` request.
 ///

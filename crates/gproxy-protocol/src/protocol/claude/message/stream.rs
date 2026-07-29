@@ -14,6 +14,16 @@ pub enum StreamEvent {
     Unknown(TypedObject),
 }
 
+impl StreamEvent {
+    /// SSE event name: the wire `type` of this event, if any.
+    pub fn event_name(&self) -> Option<&str> {
+        match self {
+            Self::Known(event) => Some(event.event_name()),
+            Self::Unknown(object) => Some(object.type_.as_str()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum KnownStreamEvent {
@@ -69,6 +79,22 @@ pub enum KnownStreamEvent {
         #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
         extra: JsonObject,
     },
+}
+
+impl KnownStreamEvent {
+    /// SSE event name: the exact serde rename of this variant.
+    pub fn event_name(&self) -> &'static str {
+        match self {
+            Self::MessageStart { .. } => "message_start",
+            Self::ContentBlockStart { .. } => "content_block_start",
+            Self::ContentBlockDelta { .. } => "content_block_delta",
+            Self::ContentBlockStop { .. } => "content_block_stop",
+            Self::MessageDelta { .. } => "message_delta",
+            Self::MessageStop { .. } => "message_stop",
+            Self::Ping { .. } => "ping",
+            Self::Error { .. } => "error",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -158,4 +184,30 @@ pub struct StreamError {
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: JsonObject,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: `event_name()` must equal the serialized `type` tag.
+    #[test]
+    fn event_name_matches_serialized_type_tag() {
+        let events: Vec<StreamEvent> = [
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}"#,
+            r#"{"type":"message_stop"}"#,
+            r#"{"type":"some_future_event","x":1}"#,
+        ]
+        .iter()
+        .map(|raw| serde_json::from_str(raw).unwrap())
+        .collect();
+        for event in events {
+            let value = serde_json::to_value(&event).unwrap();
+            assert_eq!(
+                event.event_name(),
+                value.get("type").and_then(serde_json::Value::as_str),
+                "{value}"
+            );
+        }
+    }
 }
