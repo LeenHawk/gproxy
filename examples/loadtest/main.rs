@@ -11,6 +11,7 @@
 mod bench;
 mod matrix;
 mod metrics;
+mod micro;
 mod mock;
 mod seed;
 
@@ -26,6 +27,7 @@ struct Args {
     smoke: bool,
     matrix: bool,
     ramp: bool,
+    micro: bool,
     concurrency: usize,
     duration: u64,
     events: usize,
@@ -36,13 +38,14 @@ struct Args {
 
 const USAGE: &str = "usage: loadtest --smoke | --matrix [--concurrency C] [--duration SECS] \
                      | --ramp --inbound W --upstream W [--stream] [--duration SECS] \
-                     [--events N]   (W = chat|responses|claude|gemini)";
+                     | --micro   [--events N]   (W = chat|responses|claude|gemini)";
 
 fn parse_args() -> Result<Args, String> {
     let mut args = Args {
         smoke: false,
         matrix: false,
         ramp: false,
+        micro: false,
         concurrency: 64,
         duration: 3,
         events: 100,
@@ -57,6 +60,7 @@ fn parse_args() -> Result<Args, String> {
             "--smoke" => args.smoke = true,
             "--matrix" => args.matrix = true,
             "--ramp" => args.ramp = true,
+            "--micro" => args.micro = true,
             "--stream" => args.stream = true,
             "--concurrency" => {
                 args.concurrency = value("--concurrency")?
@@ -78,7 +82,7 @@ fn parse_args() -> Result<Args, String> {
             other => return Err(format!("unknown arg: {other}")),
         }
     }
-    if !(args.smoke || args.matrix || args.ramp) {
+    if !(args.smoke || args.matrix || args.ramp || args.micro) {
         return Err("pick a mode".into());
     }
     Ok(args)
@@ -93,6 +97,10 @@ async fn main() {
             std::process::exit(2);
         }
     };
+    if args.micro {
+        micro::run();
+        return;
+    }
     let mock = Arc::new(MockUpstream::new(args.events));
     let (state, _dir) = seed::build_state(mock).await;
 
