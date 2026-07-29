@@ -345,10 +345,22 @@ impl AppState {
         let global_proxy = self.upstream_proxy_url();
         let proxy =
             crate::channel::resolve::effective_proxy(credential, provider, global_proxy.as_deref());
-        let spoof_emulation = self.cp().spoof_emulation;
-        let fingerprint = crate::channel::resolve::effective_tls_fingerprint(credential, provider);
-        if let Some(fp) = fingerprint.as_ref() {
-            self.client_pool.for_target(proxy.as_deref(), Some(fp))
+        // §7.4: fingerprint + pool hash come PAIRED from the CURRENT snapshot
+        // (resolved & hashed at rebuild) — one HashMap read per attempt instead
+        // of a fingerprint deep-clone + canonicalize + blake3. A credential
+        // whose fingerprint vanished in a newer snapshot simply resolves to
+        // the spoof/default client (config changes apply immediately). Guard
+        // scoped to the lookup.
+        let (spoof_emulation, tls) = {
+            let cp = self.cp();
+            (
+                cp.spoof_emulation,
+                cp.tls_by_credential.get(&credential.id).cloned(),
+            )
+        };
+        if let Some(t) = tls.as_deref() {
+            self.client_pool
+                .for_target_hashed(proxy.as_deref(), &t.hash, &t.fingerprint)
         } else if spoof_emulation {
             if let Some(emu) = self.channels.default_emulation(channel.id()) {
                 self.client_pool
