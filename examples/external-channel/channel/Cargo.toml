@@ -1,0 +1,15 @@
+[package]
+name = "gproxy-example-channel"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Minimal compile-time external channel for GPROXY"
+publish = false
+
+[dependencies]
+gproxy-channel-api = {
+    path = "../../../crates/gproxy-channel-api",
+    features = ["external-channels"],
+}
+http = "1"
+linkme = "0.3"

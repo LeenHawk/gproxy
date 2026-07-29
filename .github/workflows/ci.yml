@@ -122,11 +122,24 @@ jobs:
       - name: Format check
         run: cargo fmt --all --check
 
+      - name: External channel example format check
+        run: cargo fmt --manifest-path examples/external-channel/Cargo.toml --all --check
+
       - name: Clippy (deny warnings)
         run: cargo clippy --features full --all-targets -- -D warnings
 
+      - name: External channel example Clippy
+        env:
+          CARGO_TARGET_DIR: target/external-channel
+        run: cargo clippy --manifest-path examples/external-channel/Cargo.toml --workspace --all-targets -- -D warnings
+
       - name: Tests
         run: cargo test --features full
+
+      - name: External channel registration test
+        env:
+          CARGO_TARGET_DIR: target/external-channel
+        run: cargo test --manifest-path examples/external-channel/Cargo.toml -p gproxy-example-channel-bin --test linked_registration
 
       # Canonical edge build: lib-only, no default features, edge feature, wasm
       # target (the native deps must NOT leak into the worker).
