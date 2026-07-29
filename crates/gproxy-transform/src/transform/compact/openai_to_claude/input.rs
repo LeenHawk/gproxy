@@ -137,6 +137,7 @@ fn easy_input_content_to_blocks(
     match content {
         openai::ResponseEasyInputContent::Text(text) => text_block(text).into_iter().collect(),
         openai::ResponseEasyInputContent::Parts(parts) => input_parts_to_blocks(parts),
+        openai::ResponseEasyInputContent::OutputParts(parts) => output_parts_to_blocks(parts),
     }
 }
 
