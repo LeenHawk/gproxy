@@ -1896,6 +1896,7 @@ dependencies = [
  "js-sys",
  "jsonwebtoken",
  "linkme",
+ "memchr",
  "mime_guess",
  "redis",
  "regex",
