@@ -260,7 +260,9 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
     );
 
     // Tokenizer registry (§6.3): vocab storage rides the persistence backend;
-    // only the download toggle is seeded here from instance settings.
+    // only the download toggle is seeded here from instance settings. Preheat
+    // parses the bundled vocab off the request path (first count would
+    // otherwise pay ~100ms inline).
     #[cfg(feature = "count-local")]
     {
         let enabled = PersistenceBackend::list_instance_settings(state.persistence.as_ref())
@@ -268,6 +270,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
             .first()
             .is_some_and(|s| s.enable_tokenizer_download);
         state.tokenizers.set_download_enabled(enabled);
+        state.tokenizers.preheat();
     }
 
     // Multi-instance: listen for cross-instance config invalidation (redis only;

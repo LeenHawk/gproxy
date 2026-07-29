@@ -321,7 +321,7 @@ async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         let text = frames::produced_text(ctx.usage_kind, &frames);
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let (usage, source) = ladder(&ctx, &text).await;
+            let (usage, source) = ladder(&ctx, text).await;
             record(&ctx, usage, source, ended).await;
         }
         #[cfg(target_arch = "wasm32")]

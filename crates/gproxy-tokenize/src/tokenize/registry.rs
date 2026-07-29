@@ -30,6 +30,25 @@ static DEEPSEEK: &[u8] = include_bytes!("../../assets/tokenizers/deepseek-v4-pro
 /// Names the bundled vocab answers to.
 const BUNDLED_NAMES: &[&str] = &["deepseek", "deepseek-v4-pro"];
 
+/// Bundled vocab, parsed AT MOST ONCE per process. Parsing the 6.3MB JSON
+/// costs ~100ms; the `OnceLock` both caches the result and dedupes concurrent
+/// first accesses (losers wait on the same init instead of re-parsing).
+/// `None` is sticky on a parse failure — the asset is compile-time fixed, so
+/// retrying cannot succeed.
+static BUNDLED: std::sync::OnceLock<Option<Arc<Tokenizer>>> = std::sync::OnceLock::new();
+
+fn bundled_tokenizer() -> Option<Arc<Tokenizer>> {
+    BUNDLED
+        .get_or_init(|| match Tokenizer::from_bytes(DEEPSEEK) {
+            Ok(t) => Some(Arc::new(t)),
+            Err(e) => {
+                tracing::error!(error = %e, "bundled tokenizer failed to parse");
+                None
+            }
+        })
+        .clone()
+}
+
 /// Where a vocab comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VocabSource {
@@ -106,13 +125,26 @@ impl TokenizerRegistry {
             return Some(Arc::clone(&t));
         }
         if BUNDLED_NAMES.contains(&name) {
-            let tok = Arc::new(Tokenizer::from_bytes(DEEPSEEK).ok()?);
+            let tok = bundled_tokenizer()?;
             for n in BUNDLED_NAMES {
                 self.loaded.insert((*n).to_owned(), Arc::clone(&tok));
             }
             return Some(tok);
         }
         None
+    }
+
+    /// Fire-and-forget warm-up of the bundled vocab on the blocking pool, so
+    /// the first count request never pays the parse inline. Call once at boot.
+    pub fn preheat(&self) {
+        let loaded = Arc::clone(&self.loaded);
+        tokio::task::spawn_blocking(move || {
+            if let Some(tok) = bundled_tokenizer() {
+                for n in BUNDLED_NAMES {
+                    loaded.insert((*n).to_owned(), Arc::clone(&tok));
+                }
+            }
+        });
     }
 
     /// Fire-and-forget load pipeline, deduped per name: hydrate from the
