@@ -105,7 +105,8 @@ Anthropic 服务端回退；请改用 provider 级路由或客户端回退。模
 配置而保留。值为字符串
 `"default"` 时使用 Anthropic 按拒绝类别维护的默认路由；也可填写一至三个按顺序尝试的模型
 ID。GPROXY 会分别为默认路由和显式链加入 `server-side-fallback-2026-07-01` 或
-`server-side-fallback-2026-06-01`。请求本身已有的 `fallbacks` 始终优先。
+`server-side-fallback-2026-06-01`。请求本身已有的 `fallbacks` 始终优先。对于已知不接受
+Anthropic 服务端 `fallbacks` 参数的模型，GPROXY 会跳过该设置；未知及未来模型默认仍可使用。
 
 OpenRouter 会把同一设置转换成自身的模型路由 `fallbacks` 数组，而不使用 Anthropic beta。
 由于 OpenRouter 没有 Anthropic `"default"` 的等价模式，该值会转换成显式 Claude Opus 4.8

@@ -13,6 +13,24 @@ const OPUS_48: &str = "claude-opus-4-8";
 pub const SERVER_SIDE_FALLBACK_BETA: &str = "server-side-fallback-2026-06-01";
 pub const DEFAULT_FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 
+/// Models known not to accept Anthropic's server-side `fallbacks` parameter.
+/// Substring matching covers provider namespaces and dated variants.
+const FALLBACK_UNSUPPORTED_MODELS: &[&str] = &[
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+    "claude-opus-4-5",
+    "claude-sonnet-4-5",
+    "claude-opus-4-1",
+    "claude-sonnet-4-0",
+    "claude-sonnet-4-20",
+    "claude-opus-4-0",
+    "claude-opus-4-20",
+    "claude-3-haiku",
+];
+
 /// Ensure the request carries the configured server-side fallback routing plus
 /// the matching beta header.
 ///
@@ -23,6 +41,17 @@ pub fn apply_claude_fallback(
     headers: &mut HeaderMap,
     configured: &ClaudeFableFallbacks,
 ) {
+    if body
+        .get("model")
+        .and_then(Value::as_str)
+        .is_some_and(|model| {
+            FALLBACK_UNSUPPORTED_MODELS
+                .iter()
+                .any(|model_id| model.contains(model_id))
+        })
+    {
+        return;
+    }
     if let Some(beta) = apply(body, configured, true) {
         anthropic_beta::strip_beta_tokens(
             headers,
@@ -232,19 +261,26 @@ mod tests {
     }
 
     #[test]
-    fn applies_to_non_fable_models() {
-        let mut body = json!({
-            "model": "claude-sonnet-4-6",
-            "messages": [],
-            "max_tokens": 32
-        });
-        let mut headers = HeaderMap::new();
-
+    fn skips_models_without_server_side_fallback_support() {
         let configured = ClaudeFableFallbacks::Models(vec![OPUS_48.to_owned()]);
-        apply_claude_fallback(&mut body, &mut headers, &configured);
+        for model in [
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-6",
+            "claude-opus-4-6",
+            "anthropic/claude-opus-4-8",
+        ] {
+            let mut body = json!({
+                "model": model,
+                "messages": [],
+                "max_tokens": 32
+            });
+            let mut headers = HeaderMap::new();
 
-        assert_eq!(body["fallbacks"], json!([{ "model": "claude-opus-4-8" }]));
-        assert_eq!(header_value(&headers), SERVER_SIDE_FALLBACK_BETA);
+            apply_claude_fallback(&mut body, &mut headers, &configured);
+
+            assert!(body.get("fallbacks").is_none(), "model: {model}");
+            assert!(headers.get("anthropic-beta").is_none(), "model: {model}");
+        }
     }
 
     #[test]

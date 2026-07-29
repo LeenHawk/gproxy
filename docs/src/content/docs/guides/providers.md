@@ -138,7 +138,9 @@ configurations. Use the string `"default"` for Anthropic's category-aware
 default routing, or an ordered array of one to three model IDs. GPROXY adds
 `server-side-fallback-2026-07-01` for default routing and
 `server-side-fallback-2026-06-01` for an explicit chain. Caller-provided
-`fallbacks` remain authoritative.
+`fallbacks` remain authoritative. Models known not to accept Anthropic's
+server-side `fallbacks` parameter are skipped; unknown and future models remain
+eligible by default.
 
 OpenRouter uses the same setting for its own model-routing `fallbacks` array,
 not Anthropic's beta. Because OpenRouter has no equivalent to Anthropic's
