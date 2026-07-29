@@ -38,10 +38,13 @@ function parseLines(text: string): { lines: ParsedLine[]; dupes: number } {
 
 export interface CredentialBulkImportProps {
   providerId: number;
+  metadataAuthoritative: boolean;
   onClose: () => void;
 }
 
-export function CredentialBulkImport({ providerId, onClose }: CredentialBulkImportProps) {
+export function CredentialBulkImport({
+  providerId, metadataAuthoritative, onClose,
+}: CredentialBulkImportProps) {
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
 
@@ -64,6 +67,7 @@ export function CredentialBulkImport({ providerId, onClose }: CredentialBulkImpo
   const isEmpty = preview.length === 0;
 
   async function runImport() {
+    if (!metadataAuthoritative) return;
     const { lines, dupes } = parseLines(text);
     if (lines.length === 0) return;
 
@@ -171,7 +175,13 @@ export function CredentialBulkImport({ providerId, onClose }: CredentialBulkImpo
         ) : (
           <>
             <Button variant="outline" onClick={onClose} disabled={busy}>{t("creds.bulk.close")}</Button>
-            <Button disabled={busy || isEmpty} onClick={() => { void runImport(); }}>
+            <Button
+              disabled={busy || isEmpty || !metadataAuthoritative}
+              onClick={() => {
+                if (!metadataAuthoritative) return;
+                void runImport();
+              }}
+            >
               {busy
                 ? t("creds.bulk.importing", { done, total })
                 : isEmpty

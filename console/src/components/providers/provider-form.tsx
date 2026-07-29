@@ -16,8 +16,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   SettingsFields, type SettingsState, initSettingsState, assembleSettings,
+  validateSettingsState,
 } from "./settings-fields";
-import { isValidEndpointUrl } from "./endpoint-fields";
 import { TlsFingerprintField } from "./tls-fingerprint-field";
 import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
@@ -31,52 +31,89 @@ const STRATEGIES = ["round_robin", "sticky"] as const;
 export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
-  const catalog = useChannelCatalog();
+  const catalogState = useChannelCatalog();
+  const catalog = catalogState.catalog;
   const editing = provider !== undefined;
 
   const [name, setName] = useState(provider?.name ?? "");
   const [label, setLabel] = useState(provider?.label ?? "");
   const [channel, setChannel] = useState(provider?.channel ?? catalog[0]?.id ?? "");
-  const selectedMeta = channelMeta(channel, catalog)
-    ?? (editing ? channelMeta(channel) : undefined);
+  const selectedMeta = channelMeta(channel, catalog);
+  const catalogMessageKey = catalogState.availability === "ready"
+    ? "catalog.metadataUnavailable"
+    : `catalog.${catalogState.availability}`;
   const [strategy, setStrategy] = useState(provider?.credential_strategy ?? "round_robin");
   const [proxyUrl, setProxyUrl] = useState(provider?.proxy_url ?? "");
   const [enabled, setEnabled] = useState(provider?.enabled ?? true);
   const [settings, setSettings] = useState<SettingsState>(() =>
-    initSettingsState(provider?.settings_json, channel, selectedMeta),
+    initSettingsState(provider?.settings_json, selectedMeta),
+  );
+  const [settingsMetaResolved, setSettingsMetaResolved] = useState(
+    catalogState.authoritative && selectedMeta !== undefined,
   );
   const [tls, setTls] = useState<unknown>(provider?.tls_fingerprint ?? null);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (editing || selectedMeta) return;
+    if (editing || selectedMeta || catalogState.availability !== "ready") return;
     const next = catalog[0];
     const nextChannel = next?.id ?? "";
     if (channel === nextChannel) return;
     setChannel(nextChannel);
-    setSettings(initSettingsState(undefined, nextChannel, next));
-  }, [catalog, channel, editing, selectedMeta]);
+    setSettings(initSettingsState(undefined, next));
+    setSettingsMetaResolved(next !== undefined);
+  }, [catalog, catalogState.availability, channel, editing, selectedMeta]);
+
+  useEffect(() => {
+    if (settingsMetaResolved || !catalogState.authoritative || !selectedMeta) return;
+    setSettings(initSettingsState(provider?.settings_json, selectedMeta));
+    setSettingsMetaResolved(true);
+  }, [
+    catalogState.authoritative,
+    channel,
+    provider?.settings_json,
+    selectedMeta,
+    settingsMetaResolved,
+  ]);
 
   const mutation = useMutation({
     mutationFn: () => {
+      if (!catalogState.authoritative) {
+        throw new ApiError(0, "bad_request", t(catalogMessageKey));
+      }
       if (!name.trim()) throw new ApiError(0, "bad_request", t("form.required"));
-      if (!editing && !selectedMeta) {
-        throw new ApiError(0, "bad_request", t("form.required"));
+      if (!selectedMeta) {
+        throw new ApiError(0, "bad_request", t("catalog.metadataUnavailable"));
       }
-      if (channel === "custom" && !settings.baseUrl.trim() && settings.endpoints.length === 0) {
-        throw new ApiError(0, "bad_request", t("form.baseUrlOrEndpointRequired"));
+      const settingsError = validateSettingsState(settings, selectedMeta);
+      if (settingsError === "base_url_required") {
+        throw new ApiError(0, "bad_request", t("form.baseUrlRequired"));
       }
-      if (channel === "azure" && !settings.baseUrl.trim() && settings.endpoints.length === 0) {
-        throw new ApiError(0, "bad_request", t("form.azureBaseUrlOrEndpointRequired"));
+      if (settingsError === "endpoints_required") {
+        throw new ApiError(0, "bad_request", t("form.endpointsRequired"));
       }
-      const endpointKinds = new Set(settings.endpoints.map((row) => row.kind));
-      if (
-        endpointKinds.size !== settings.endpoints.length
-        || settings.endpoints.some((row) => !row.kind || !isValidEndpointUrl(row.url))
-      ) {
+      if (settingsError === "endpoints_invalid") {
         throw new ApiError(0, "bad_request", t("endpoints.invalid"));
       }
-
+      if (settingsError === "circuit_breaker_invalid") {
+        throw new ApiError(0, "bad_request", t("form.circuitBreakerInvalid"));
+      }
+      if (
+        selectedMeta.source === "builtin"
+        && channel === "custom"
+        && !settings.baseUrl.trim()
+        && settings.endpoints.length === 0
+      ) {
+        throw new ApiError(0, "bad_request", t("form.baseUrlOrEndpointRequired"));
+      }
+      if (
+        selectedMeta.source === "builtin"
+        && channel === "azure"
+        && !settings.baseUrl.trim()
+        && settings.endpoints.length === 0
+      ) {
+        throw new ApiError(0, "bad_request", t("form.azureBaseUrlOrEndpointRequired"));
+      }
       const settings_json = assembleSettings(provider?.settings_json, settings, channel, selectedMeta);
 
       const tlsPayload: { tls_fingerprint?: unknown } = {};
@@ -118,6 +155,13 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
         mutation.mutate();
       }}
     >
+      {!catalogState.authoritative && (
+        <p className={catalogState.availability === "error"
+          ? "text-sm text-destructive"
+          : "text-sm text-muted-foreground"}>
+          {t(catalogMessageKey)}
+        </p>
+      )}
       <div className="grid gap-2">
         <Label htmlFor="p-name">{t("fields.name")}</Label>
         <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -131,11 +175,12 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
         <Label>{t("fields.channel")}</Label>
         <Select
           value={channel}
-          disabled={editing || catalog.length === 0}
+          disabled={editing || !catalogState.authoritative || catalog.length === 0}
           onValueChange={(value) => {
             const meta = channelMeta(value, catalog);
             setChannel(value);
-            setSettings(initSettingsState(provider?.settings_json, value, meta));
+            setSettings(initSettingsState(provider?.settings_json, meta));
+            setSettingsMetaResolved(meta !== undefined);
           }}
         >
           <SelectTrigger><SelectValue /></SelectTrigger>
@@ -160,6 +205,9 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
           </SelectContent>
         </Select>
         {editing && <p className="text-xs text-muted-foreground">{t("form.channelLocked")}</p>}
+        {!selectedMeta && (
+          <p className="text-xs text-destructive">{t("catalog.metadataUnavailable")}</p>
+        )}
       </div>
       <div className="grid gap-2">
         <Label>{t("fields.strategy")}</Label>
@@ -192,7 +240,14 @@ export function ProviderForm({ provider, onSaved }: ProviderFormProps) {
         <Switch id="p-enabled" checked={enabled} onCheckedChange={setEnabled} />
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
-      <Button type="submit" disabled={mutation.isPending || (!editing && !selectedMeta)}>
+      <Button
+        type="submit"
+        disabled={
+          mutation.isPending
+          || !selectedMeta
+          || !catalogState.authoritative
+        }
+      >
         {editing ? t("form.edit") : t("form.create")}
       </Button>
     </form>

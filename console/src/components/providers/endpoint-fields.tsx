@@ -17,6 +17,7 @@ export interface EndpointRow {
 interface EndpointFieldsProps {
   endpointKinds: readonly EndpointKind[];
   rows: EndpointRow[];
+  required?: boolean;
   onChange: (rows: EndpointRow[]) => void;
 }
 
@@ -42,7 +43,7 @@ export function isValidEndpointUrl(input: string): boolean {
   }
 }
 
-export function EndpointFields({ endpointKinds, rows, onChange }: EndpointFieldsProps) {
+export function EndpointFields({ endpointKinds, rows, required = false, onChange }: EndpointFieldsProps) {
   const { t } = useTranslation("providers");
   if (endpointKinds.length === 0) return null;
 
@@ -53,9 +54,12 @@ export function EndpointFields({ endpointKinds, rows, onChange }: EndpointFields
     onChange(rows.map((row, i) => i === index ? { ...row, ...next } : row));
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-2" role="group" aria-required={required}>
       <div className="flex items-center justify-between gap-3">
-        <Label>{t("endpoints.title")}</Label>
+        <Label>
+          {t("endpoints.title")}
+          {required ? ` (${t("form.required")})` : ""}
+        </Label>
         <Button
           type="button"
           variant="outline"
@@ -75,7 +79,11 @@ export function EndpointFields({ endpointKinds, rows, onChange }: EndpointFields
               value={row.kind}
               onValueChange={(kind) => update(index, { kind: kind as EndpointKind })}
             >
-              <SelectTrigger className="w-full" aria-label={t("endpoints.kind")}>
+              <SelectTrigger
+                className="w-full"
+                aria-label={t("endpoints.kind")}
+                aria-required={required}
+              >
                 <SelectValue placeholder={t("endpoints.kindPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
@@ -95,6 +103,7 @@ export function EndpointFields({ endpointKinds, rows, onChange }: EndpointFields
               onChange={(event) => update(index, { url: event.target.value })}
               placeholder={t("endpoints.urlPlaceholder")}
               aria-label={t("endpoints.url")}
+              required={required}
             />
             <Button
               type="button"

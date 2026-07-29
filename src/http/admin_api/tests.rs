@@ -163,6 +163,25 @@ async fn channel_catalog_is_guarded_and_sorted() {
         .collect::<Vec<_>>();
     assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
     assert!(entries.iter().all(|entry| entry["source"] == "builtin"));
+
+    if let Some(custom) = entries.iter().find(|entry| entry["id"] == "custom") {
+        let kinds = custom["endpoint_kinds"].as_array().unwrap();
+        assert!(kinds.iter().any(|kind| kind == "openai_count_tokens"));
+        assert!(
+            kinds
+                .iter()
+                .any(|kind| kind == "gemini_stream_generate_content")
+        );
+    }
+    if let Some(codex) = entries.iter().find(|entry| entry["id"] == "codex") {
+        assert_eq!(codex["secret_template"]["account_id"], "");
+    }
+    if let Some(claudeweb) = entries.iter().find(|entry| entry["id"] == "claudeweb") {
+        assert_eq!(
+            claudeweb["secret_template"],
+            serde_json::json!({ "cookie": "", "account_uuid": "" })
+        );
+    }
 }
 
 #[tokio::test]
@@ -385,6 +404,22 @@ async fn providers_duplicate_name_is_409() {
         .await
         .expect_err("duplicate");
     assert_eq!(err.status(), http::StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn providers_reject_unknown_channel_before_persistence() {
+    let (state, _dir) = state_with(vec![]).await;
+    let admin_id = seed_user(&state, "admin-channel", true).await;
+    let cookie = cookie_for(&state, admin_id).await;
+    let mut body: serde_json::Value = serde_json::from_slice(&provider_body("invalid")).unwrap();
+    body["channel"] = "not-compiled-in".into();
+
+    let request = parts("POST", "/admin/providers", Some(&cookie), None);
+    let error = run(&state, &request, body.to_string().as_bytes())
+        .await
+        .expect_err("unknown channel");
+    assert_eq!(error.status(), http::StatusCode::BAD_REQUEST);
+    assert!(state.persistence.list_providers().await.unwrap().is_empty());
 }
 
 #[tokio::test]

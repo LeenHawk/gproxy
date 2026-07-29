@@ -15,7 +15,8 @@ import { ProxyConnectivityTest } from "@/components/proxy-connectivity-test";
 
 interface CredentialFormProps {
   providerId: number;
-  meta?: ChannelMeta;
+  meta: ChannelMeta;
+  metadataAuthoritative: boolean;
   /** undefined = create */
   credential?: CredentialView;
   onSaved: () => void;
@@ -26,7 +27,9 @@ function intOrNull(v: string): number | null {
   return v.trim() !== "" && Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export function CredentialForm({ providerId, meta, credential, onSaved }: CredentialFormProps) {
+export function CredentialForm({
+  providerId, meta, metadataAuthoritative, credential, onSaved,
+}: CredentialFormProps) {
   const { t } = useTranslation("providers");
   const { t: tc } = useTranslation("common"); // json.invalid lives in common
   const queryClient = useQueryClient();
@@ -43,12 +46,7 @@ export function CredentialForm({ providerId, meta, credential, onSaved }: Creden
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (editing) return;
-    setSecretText((current) => current === "" ? secretTemplateText(meta) : current);
-  }, [editing, meta]);
-
-  useEffect(() => {
-    if (!editing || !credential.has_secret || !meta) return;
+    if (!editing || !credential.has_secret) return;
     const family = meta.family;
     revealSecret(credential.id).then((secret) => {
       if (family === "api_key") {
@@ -58,10 +56,13 @@ export function CredentialForm({ providerId, meta, credential, onSaved }: Creden
         setSecretText(JSON.stringify(secret, null, 2));
       }
     }).catch(() => { /* keep empty — user can still type */ });
-  }, [editing, credential?.id, credential?.has_secret, meta?.family]);
+  }, [editing, credential?.id, credential?.has_secret, meta.family]);
 
   const mutation = useMutation({
     mutationFn: () => {
+      if (!metadataAuthoritative) {
+        throw new ApiError(0, "bad_request", t("catalog.metadataUnavailable"));
+      }
       const secret = buildSecret(meta, secretText);
       if (!editing && secret === null) {
         throw new ApiError(0, "bad_request", tc("json.invalid"));
@@ -77,7 +78,7 @@ export function CredentialForm({ providerId, meta, credential, onSaved }: Creden
       return upsertCredential(providerId, {
         id: credential?.id ?? null,
         label: label.trim() === "" ? null : label.trim(),
-        kind: credential?.kind ?? meta?.family ?? "api_key",
+        kind: credential?.kind ?? meta.family,
         ...(secret !== null ? { secret_json: secret } : {}),
         weight: intOrNull(weight) ?? 100,
         rpm_limit: intOrNull(rpm),
@@ -137,7 +138,7 @@ export function CredentialForm({ providerId, meta, credential, onSaved }: Creden
         <Switch id="c-enabled" checked={enabled} onCheckedChange={setEnabled} />
       </div>
       {formError && <p className="text-sm text-destructive">{formError}</p>}
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" disabled={mutation.isPending || !metadataAuthoritative}>
         {editing ? t("creds.edit") : t("creds.add")}
       </Button>
     </form>

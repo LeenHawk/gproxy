@@ -15,7 +15,9 @@ GPROXY.
 ## Built-in Channels
 
 Native builds include every channel below. Edge builds exclude the consumer-web
-channels that require multi-step WebSocket sessions. Current built-in channel ids are:
+channels that require multi-step WebSocket sessions. Cookie login for Claude is
+native-only; an edge runtime does not advertise that login mode. Current built-in
+channel ids are:
 
 | Channel id | Typical use |
 | --- | --- |
@@ -34,6 +36,19 @@ so an external entry appears in the provider selector from its
 `Channel::metadata()` result without editing the static Console list. See
 [Adding a Channel](/guides/adding-a-channel/) for the compile-time integration
 contract.
+
+The successful runtime catalog is authoritative for the exact executable,
+including credential family, login modes, endpoint kinds, secret template, and
+usage support. The Console adds only UI hints for known built-ins. If a confirmed
+older backend returns 404 or 405 for the catalog endpoint, the Console uses its
+static list only to describe existing built-in providers. This fallback is
+display-only: provider creation and saving, manual credential creation and
+editing, OAuth, and bulk credential import stay disabled. Usage viewing and
+metadata-independent delete or batch actions remain available. Loading applies
+only before the first successful catalog response; cached authoritative metadata
+remains usable during background refetches. Other catalog failures are shown
+separately and can be retried. The Admin API also rejects provider create or
+update requests whose channel is not registered in the running executable.
 
 Every channel declares a routing surface as `(Operation, OperationKind) ->
 RoutingDecision`. That is the source for the provider's default
@@ -171,6 +186,19 @@ Common `settings_json` values are available as fields in the console:
 | `enable_openai_magic_cache` | Recognize GPROXY cache trigger strings on OpenAI Chat/Responses targets and write explicit OpenAI breakpoints. Available for OpenAI, Azure, Amazon Bedrock, Codex, OpenRouter, Vercel, and custom endpoints. |
 | `enable_claude_magic_cache` | Recognize GPROXY cache trigger strings on Claude Messages targets and write `cache_control`. Available for Azure, Amazon Bedrock, Claude API, Claude Code, OpenRouter, Vercel, and custom endpoints. |
 | `claude_fable_fallbacks` | Retry Claude model refusals with `"default"` Anthropic routing or an ordered array of one to three models. Supported on Claude API-like channels and as an explicit model chain on OpenRouter. |
+
+For external-channel forms, the shared Console controls reserve `base_url`,
+`endpoints`, `circuit_breaker`, and `auto_refresh_models`. If external metadata
+also declares one of those keys, the shared control owns it and the duplicate
+generic field is omitted, so the key is rendered and serialized exactly once.
+Those controls honor metadata defaults. Object defaults for `endpoints` and
+`circuit_breaker` are initialized only when valid and no persisted value exists.
+When marked required, `base_url` must be nonempty, `endpoints` must contain at
+least one valid exact URL, and `circuit_breaker` must contain positive integer
+values for both `consecutive_failures` and `cooldown_secs` before a provider can
+be saved. Unrecognized persisted settings are preserved. Other external setting
+declarations are rendered generically; duplicate declarations use the first
+field.
 
 See [Prompt Caching](/guides/claude-caching/) before enabling magic-string
 caching, especially for OpenAI's model and TTL requirements.

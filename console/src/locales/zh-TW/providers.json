@@ -8,6 +8,14 @@
     "models": "模型"
   },
   "sideNav": { "all": "全部供應商" },
+  "catalog": {
+    "loading": "正在從目前執行檔載入 Channel...",
+    "error": "無法載入執行階段 Channel 目錄。",
+    "legacy": "此舊版後端不提供執行階段 Channel 目錄。舊版中繼資料僅供顯示；已停用 Provider 儲存以及憑證建立、編輯、OAuth 和批量匯入。",
+    "empty": "目前執行檔沒有註冊任何 Channel。",
+    "metadataUnavailable": "此 Channel 的權威中繼資料無法使用，已停用 Provider 儲存以及憑證建立、編輯、OAuth 和批量匯入。",
+    "retry": "重試"
+  },
   "fields": {
     "name": "路由名稱",
     "nameHint": "用於存取 /{provider}/v1/*，其中 {provider} 替換為此路由名稱。",
@@ -19,7 +27,7 @@
     "baseUrl": "Base URL",
     "apiVersion": "圖片 API 版本",
     "region": "AWS 區域",
-    "circuitBreaker": "熔斷器（選填）",
+    "circuitBreaker": "熔斷器",
     "consecutiveFailures": "連續失敗次數",
     "cooldownSecs": "冷卻時間（秒）",
     "autoRefreshModels": "模型清單請求時自動拉取",
@@ -52,6 +60,9 @@
     "baseUrlHint": "未設定精確端點覆寫時，使用此位址作為請求前綴。",
     "baseUrlOrEndpointRequired": "custom 通道必須填寫 Base URL 或至少一個端點。",
     "azureBaseUrlOrEndpointRequired": "Azure 通道必須填寫資源 Base URL 或至少一個精確端點。",
+    "baseUrlRequired": "此 Channel 必須填寫 Base URL。",
+    "endpointsRequired": "此 Channel 至少需要一個有效端點。",
+    "circuitBreakerInvalid": "熔斷器的兩個欄位都必須是正整數。",
     "apiVersionHint": "Azure deployment-bound 圖片介面需要此版本；留空使用 2025-04-01-preview。",
     "bedrockRegionHint": "用於選擇 Amazon Bedrock 區域端點；留空使用 us-east-1。",
     "autoRefreshModelsHint": "用戶端查詢模型清單時請求此通道。關閉後只讀取已持久化模型；模型清單路由設為 local 時也不會請求上游。",
@@ -182,8 +193,11 @@
     "kiroRegion": "區域",
     "kiroStartUrlHint": "你所在組織的 AWS 存取入口網址(https://….awsapps.com/start)。",
     "cookieLabel": "claude.ai Cookie",
-    "cookieHint": "貼上完整 Cookie 標頭或僅 sessionKey=…;只會使用 sessionKey。",
-    "cookieInvalid": "貼上的內容中找不到 sessionKey。"
+    "cookieHint": "貼上完整 Cookie Header 或僅 sessionKey=...；完整 Header 會保留 Cloudflare 等其他 Cookie。",
+    "cookieInvalid": "貼上的內容中找不到 sessionKey。",
+    "cookieGenericLabel": "Cookie 憑證",
+    "cookieGenericHint": "貼上此 Channel 所需的不透明 Cookie 值。",
+    "cookieGenericInvalid": "請輸入非空 Cookie 值。"
   },
   "health": {
     "title": "健康",

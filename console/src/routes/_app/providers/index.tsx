@@ -38,7 +38,8 @@ function ProvidersPage() {
   const { t } = useTranslation("providers");
   const navigate = useNavigate();
   const { data: providers, isPending } = useQuery(providersQuery);
-  const catalog = useChannelCatalog();
+  const catalogState = useChannelCatalog();
+  const catalog = catalogState.catalog;
   const [createOpen, setCreateOpen] = useState(false);
 
   const rows = providers ?? [];
@@ -68,12 +69,43 @@ function ProvidersPage() {
           <Button variant="outline" onClick={() => batch.setMode(!batch.mode)}>
             {batch.mode ? t("batch.cancel", { ns: "common" }) : t("batch.select", { ns: "common" })}
           </Button>
-          <Button disabled={catalog.length === 0} onClick={() => setCreateOpen(true)}>
+          <Button
+            disabled={!catalogState.authoritative || catalog.length === 0}
+            onClick={() => {
+              if (!catalogState.authoritative || catalog.length === 0) return;
+              setCreateOpen(true);
+            }}
+          >
             <Plus className="size-4" aria-hidden />
             <span className="hidden sm:inline">{t("new")}</span>
           </Button>
         </div>
       </div>
+
+      {catalogState.availability !== "ready" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+          <span className={catalogState.availability === "error" ? "text-destructive" : "text-muted-foreground"}>
+            {t(`catalog.${catalogState.availability}`)}
+            {catalogState.availability === "error" && catalogState.error instanceof Error
+              ? ` ${catalogState.error.message}`
+              : ""}
+          </span>
+          {catalogState.availability !== "loading" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={catalogState.isFetching}
+              onClick={() => { void catalogState.refetch(); }}
+            >
+              {t("catalog.retry")}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {catalogState.availability === "ready" && catalog.length === 0 && (
+        <p className="text-sm text-muted-foreground">{t("catalog.empty")}</p>
+      )}
 
       {isPending ? (
         <div className="grid gap-2" aria-busy="true">

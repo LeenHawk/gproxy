@@ -26,17 +26,29 @@ pub fn builtin(channel: &dyn Channel) -> ChannelMetadata {
                 json!({ "access_token": "", "refresh_token": "", "project_id": "" });
             metadata.usage = true;
         }
-        "claudecode" => oauth(
-            &mut metadata,
-            &[LoginMode::Authcode, LoginMode::Cookie],
-            true,
-        ),
-        "claudeweb" => oauth(&mut metadata, &[LoginMode::Cookie], true),
-        "codex" => oauth(
-            &mut metadata,
-            &[LoginMode::Authcode, LoginMode::Device],
-            true,
-        ),
+        "claudecode" => {
+            #[cfg(not(target_arch = "wasm32"))]
+            oauth(
+                &mut metadata,
+                &[LoginMode::Authcode, LoginMode::Cookie],
+                true,
+            );
+            #[cfg(target_arch = "wasm32")]
+            oauth(&mut metadata, &[LoginMode::Authcode], true);
+        }
+        "claudeweb" => {
+            oauth(&mut metadata, &[LoginMode::Cookie], true);
+            metadata.secret_template = json!({ "cookie": "", "account_uuid": "" });
+        }
+        "codex" => {
+            oauth(
+                &mut metadata,
+                &[LoginMode::Authcode, LoginMode::Device],
+                true,
+            );
+            metadata.secret_template =
+                json!({ "access_token": "", "refresh_token": "", "account_id": "" });
+        }
         "grokbuild" => oauth(&mut metadata, &[LoginMode::Device], true),
         "kiro" => oauth(
             &mut metadata,
@@ -142,6 +154,27 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_responses",
             "claude_messages",
             "openai_embeddings",
+        ],
+        "custom" => &[
+            "openai_list_models",
+            "claude_list_models",
+            "gemini_list_models",
+            "openai_get_model",
+            "claude_get_model",
+            "gemini_get_model",
+            "openai_count_tokens",
+            "claude_count_tokens",
+            "gemini_count_tokens",
+            "openai_chat_completions",
+            "openai_responses",
+            "claude_messages",
+            "gemini_generate_content",
+            "gemini_stream_generate_content",
+            "openai_embeddings",
+            "gemini_embeddings",
+            "image_generations",
+            "image_edits",
+            "openai_compact",
         ],
         "claudeapi" => &[
             "openai_list_models",
