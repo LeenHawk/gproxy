@@ -13,6 +13,7 @@ use super::content::{
 use super::tools::{
     chat_tool_call_to_claude, chat_tool_choice_to_claude, chat_tools_to_claude,
     default_web_search_tool, normalized_tool_id, parse_json_object, tool_use_block,
+    tools_activate_programmatic_calling,
 };
 
 pub fn request(
@@ -163,6 +164,14 @@ pub fn request(
         tools.push(default_web_search_tool());
     }
 
+    // `parallel_tool_calls: false` maps to `disable_parallel_tool_use: true`, which
+    // Anthropic rejects when the request activates programmatic tool calling — drop
+    // it rather than fail the whole request (see `tools_activate_programmatic_calling`).
+    let parallel_tool_calls = match input.parallel_tool_calls {
+        Some(false) if tools_activate_programmatic_calling(&tools) => None,
+        other => other,
+    };
+
     #[allow(deprecated)]
     let output = claude::CreateMessageRequestBody {
         model: model.into(),
@@ -186,7 +195,7 @@ pub fn request(
         system: system_prompt(system_blocks),
         temperature: input.temperature,
         thinking: common::openai_reasoning_to_claude(input.reasoning_effort),
-        tool_choice: chat_tool_choice_to_claude(input.tool_choice, input.parallel_tool_calls),
+        tool_choice: chat_tool_choice_to_claude(input.tool_choice, parallel_tool_calls),
         tools: if tools.is_empty() { None } else { Some(tools) },
         top_k: None,
         top_p: input.top_p,
@@ -366,5 +375,93 @@ mod tests {
         let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
         assert_eq!(output["output_config"]["effort"], "max");
         assert_eq!(output["thinking"]["type"], "adaptive");
+    }
+
+    /// Regression: Anthropic rejects `disable_parallel_tool_use: true` together with
+    /// programmatic tool calling (activated here by the 2026-generation web_search
+    /// server tool), so the flag must be dropped — but kept when no PTC tool is present.
+    #[test]
+    fn drops_disable_parallel_tool_use_when_web_search_activates_ptc() {
+        let base = json!({
+            "model": "claude-opus-4-8",
+            "messages": [{"role": "user", "content": "hi"}],
+            "parallel_tool_calls": false,
+            "tool_choice": "auto",
+            "tools": [{"type": "function", "function": {"name": "echo", "parameters": {"type": "object"}}}]
+        });
+
+        let mut with_search = base.clone();
+        with_search["web_search_options"] = json!({});
+        let input = serde_json::from_value(with_search).unwrap();
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert!(
+            output["tool_choice"]
+                .get("disable_parallel_tool_use")
+                .is_none(),
+            "{}",
+            output["tool_choice"]
+        );
+
+        let input = serde_json::from_value(base).unwrap();
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        assert_eq!(output["tool_choice"]["disable_parallel_tool_use"], true);
+    }
+
+    /// Regression: Anthropic requires `mid_conv_system` to be the LAST content
+    /// block(s) of a turn. When user content follows a mid-conversation system
+    /// message (codex `<model_switch>` on `exec resume`), the system block must
+    /// downgrade to plain text in original order — not be reordered after the text.
+    #[test]
+    fn mid_conv_system_followed_by_user_text_downgrades_in_order() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-opus-4-8",
+            "messages": [
+                {"role": "user", "content": "turn one"},
+                {"role": "assistant", "content": "reply one"},
+                {"role": "developer", "content": "<model_switch>switch</model_switch>"},
+                {"role": "user", "content": "turn two"}
+            ]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        let blocks = output["messages"][2]["content"].as_array().unwrap();
+        let kinds: Vec<(&str, &str)> = blocks
+            .iter()
+            .map(|b| {
+                (
+                    b["type"].as_str().unwrap(),
+                    b["text"].as_str().unwrap_or_default(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                ("text", "<model_switch>switch</model_switch>"),
+                ("text", "turn two")
+            ],
+            "{blocks:?}"
+        );
+    }
+
+    /// Control: a mid-conversation system message that IS the last content of the
+    /// turn keeps the `mid_conv_system` form.
+    #[test]
+    fn trailing_mid_conv_system_is_preserved() {
+        let input = serde_json::from_value(json!({
+            "model": "claude-opus-4-8",
+            "messages": [
+                {"role": "user", "content": "turn one"},
+                {"role": "assistant", "content": "reply one"},
+                {"role": "developer", "content": "note"}
+            ]
+        }))
+        .unwrap();
+
+        let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
+        let blocks = output["messages"][2]["content"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1, "{blocks:?}");
+        assert_eq!(blocks[0]["type"], "mid_conv_system", "{blocks:?}");
     }
 }
