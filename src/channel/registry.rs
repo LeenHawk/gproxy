@@ -65,14 +65,13 @@ impl ChannelRegistry {
     pub fn with_builtin_and_linked() -> Result<Self, ChannelRegistryError> {
         let registry = Self::with_builtin();
         #[cfg(not(target_arch = "wasm32"))]
-        {
+        let registry = {
             let mut registry = registry;
             for constructor in crate::channel::registration::CHANNEL_REGISTRATIONS {
                 registry.register(constructor())?;
             }
-            return Ok(registry);
-        }
-        #[cfg(target_arch = "wasm32")]
+            registry
+        };
         Ok(registry)
     }
 
