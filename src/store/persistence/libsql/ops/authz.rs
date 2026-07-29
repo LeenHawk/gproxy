@@ -14,6 +14,9 @@ impl AuthzPersistence for LibsqlPersistence {
     ) -> anyhow::Result<Vec<RoutePermission>> {
         authz::route_permissions::list(&self.client, scope, scope_id).await
     }
+    async fn list_all_route_permissions(&self) -> anyhow::Result<Vec<RoutePermission>> {
+        authz::route_permissions::list_all(&self.client).await
+    }
     async fn upsert_route_permission(
         &self,
         input: RoutePermissionInput,
@@ -30,6 +33,9 @@ impl AuthzPersistence for LibsqlPersistence {
     ) -> anyhow::Result<Vec<RateLimit>> {
         authz::rate_limits::list(&self.client, scope, scope_id).await
     }
+    async fn list_all_rate_limits(&self) -> anyhow::Result<Vec<RateLimit>> {
+        authz::rate_limits::list_all(&self.client).await
+    }
     async fn upsert_rate_limit(&self, input: RateLimitInput) -> anyhow::Result<RateLimit> {
         authz::rate_limits::upsert(&self.client, input).await
     }
@@ -38,6 +44,9 @@ impl AuthzPersistence for LibsqlPersistence {
     }
     async fn get_quota(&self, scope: Scope, scope_id: i64) -> anyhow::Result<Option<Quota>> {
         authz::quotas::get(&self.client, scope, scope_id).await
+    }
+    async fn list_all_quotas(&self) -> anyhow::Result<Vec<Quota>> {
+        authz::quotas::list_all(&self.client).await
     }
     async fn upsert_quota(&self, input: QuotaInput) -> anyhow::Result<Quota> {
         authz::quotas::upsert(&self.client, input).await

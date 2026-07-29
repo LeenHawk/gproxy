@@ -51,6 +51,14 @@ pub async fn list(client: &LibsqlClient, provider_id: i64) -> anyhow::Result<Vec
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<RoutingRule>> {
+    query(client, &format!("SELECT {COLS} FROM routing_rules"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn upsert(client: &LibsqlClient, input: RoutingRuleInput) -> anyhow::Result<RoutingRule> {
     let now = now_secs();
 

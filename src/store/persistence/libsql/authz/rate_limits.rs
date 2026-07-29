@@ -52,6 +52,14 @@ pub async fn list(
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<RateLimit>> {
+    query(client, &format!("SELECT {COLS} FROM rate_limits"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn upsert(client: &LibsqlClient, input: RateLimitInput) -> anyhow::Result<RateLimit> {
     let now = now_secs();
 

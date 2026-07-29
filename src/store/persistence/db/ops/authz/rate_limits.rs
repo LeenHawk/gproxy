@@ -36,6 +36,15 @@ pub async fn list(
         .collect()
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<RateLimit>> {
+    rate_limit::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect()
+}
+
 pub async fn upsert(conn: &DatabaseConnection, input: RateLimitInput) -> anyhow::Result<RateLimit> {
     let now = crate::store::persistence::db::ops::now_secs();
 

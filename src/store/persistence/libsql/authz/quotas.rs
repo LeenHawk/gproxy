@@ -2,7 +2,9 @@
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
 use crate::store::persistence::libsql::row::{Row, col_decimal, col_i64, col_str};
-use crate::store::persistence::libsql::util::{arg_opt_i64, exec, last_rowid, now_secs, query_one};
+use crate::store::persistence::libsql::util::{
+    arg_opt_i64, exec, last_rowid, now_secs, query, query_one,
+};
 use crate::store::persistence::records::{Quota, QuotaInput, Scope};
 
 const COLS: &str = "id, scope, scope_id, quota_total, cost_used, created_at, updated_at";
@@ -45,6 +47,14 @@ pub async fn get(
     .as_ref()
     .map(decode)
     .transpose()
+}
+
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<Quota>> {
+    query(client, &format!("SELECT {COLS} FROM quotas"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
 }
 
 pub async fn upsert(client: &LibsqlClient, input: QuotaInput) -> anyhow::Result<Quota> {

@@ -36,6 +36,15 @@ pub async fn list(conn: &DatabaseConnection, rule_set_id: i64) -> anyhow::Result
         .collect()
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<Rule>> {
+    rule::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect()
+}
+
 pub async fn get(conn: &DatabaseConnection, id: i64) -> anyhow::Result<Option<Rule>> {
     rule::Entity::find_by_id(id)
         .one(conn)

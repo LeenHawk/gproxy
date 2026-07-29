@@ -44,6 +44,14 @@ pub async fn list(client: &LibsqlClient, org_id: i64) -> anyhow::Result<Vec<Team
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<Team>> {
+    query(client, &format!("SELECT {COLS} FROM teams"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn upsert(client: &LibsqlClient, input: TeamInput) -> anyhow::Result<Team> {
     let now = now_secs();
 

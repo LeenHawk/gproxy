@@ -48,6 +48,18 @@ pub async fn list(
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<RoutePermission>> {
+    query(
+        client,
+        &format!("SELECT {COLS} FROM route_permissions"),
+        &[],
+    )
+    .await?
+    .iter()
+    .map(decode)
+    .collect()
+}
+
 pub async fn upsert(
     client: &LibsqlClient,
     input: RoutePermissionInput,

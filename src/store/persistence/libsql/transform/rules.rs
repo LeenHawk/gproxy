@@ -51,6 +51,14 @@ pub async fn list(client: &LibsqlClient, rule_set_id: i64) -> anyhow::Result<Vec
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<Rule>> {
+    query(client, &format!("SELECT {COLS} FROM rules"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn upsert(client: &LibsqlClient, input: RuleInput) -> anyhow::Result<Rule> {
     let now = now_secs();
     let config = serde_json::to_string(&input.config_json)?;
