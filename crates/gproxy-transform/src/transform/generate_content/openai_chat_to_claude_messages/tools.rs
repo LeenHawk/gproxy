@@ -191,6 +191,37 @@ pub(super) fn default_web_search_tool() -> claude::Tool {
     ))
 }
 
+/// Anthropic rejects `tool_choice.disable_parallel_tool_use: true` when the request
+/// activates programmatic tool calling: 2026-generation server tools
+/// (`web_search`/`web_fetch` `2026xxxx`) and tools carrying `allowed_callers` trigger
+/// it; 2025-generation server tools and plain custom tools do not, and
+/// `disable_parallel_tool_use: false` is always accepted. Probed against
+/// api.anthropic.com (claude-opus-4-8, 2026-07-29).
+pub(super) fn tools_activate_programmatic_calling(tools: &[claude::Tool]) -> bool {
+    tools.iter().any(|tool| match tool {
+        claude::Tool::WebSearch(
+            claude::WebSearchTool::WebSearch20260209(_)
+            | claude::WebSearchTool::WebSearch20260318(_),
+        )
+        | claude::Tool::WebFetch(
+            claude::WebFetchTool::WebFetch20260209(_)
+            | claude::WebFetchTool::WebFetch20260309(_)
+            | claude::WebFetchTool::WebFetch20260318(_),
+        )
+        | claude::Tool::Command(
+            claude::CommandTool::CodeExecution20250825(_)
+            | claude::CommandTool::CodeExecution20260120(_)
+            | claude::CommandTool::CodeExecution20260521(_),
+        ) => true,
+        claude::Tool::Custom(custom) => custom
+            .common
+            .allowed_callers
+            .as_ref()
+            .is_some_and(|callers| !callers.is_empty()),
+        _ => false,
+    })
+}
+
 pub(super) fn chat_tool_choice_to_claude(
     choice: Option<openai::ChatToolChoice>,
     parallel_tool_calls: Option<bool>,
