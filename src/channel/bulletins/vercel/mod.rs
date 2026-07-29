@@ -263,7 +263,8 @@ mod tests {
                 body: shaped,
             })
             .unwrap()
-            .into_http();
+            .into_http()
+            .unwrap();
 
         assert_eq!(
             req.headers().get("anthropic-beta").unwrap(),

@@ -94,6 +94,51 @@ async fn channel_refresh_receives_provider_settings() {
 }
 
 #[tokio::test]
+async fn social_device_flow_uses_provider_auth_base() {
+    let settings = json!({ "auth_base_url": "https://private-auth.example/" });
+    let params = json!({ "login_provider": "google" });
+    let start_client = mock(json!({
+        "deviceCode": "device-1",
+        "userCode": "user-1",
+        "verificationUri": "https://verify.example",
+    }));
+    let dyn_start: Arc<dyn UpstreamClient> = start_client.clone();
+
+    KiroChannel
+        .device_start(
+            &dyn_start,
+            crate::channel::DeviceStartCtx {
+                provider_settings: &settings,
+                params: &params,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        start_client.seen.lock().unwrap()[0],
+        "https://private-auth.example/oauth/device/authorization"
+    );
+
+    let poll_client = mock(json!({ "status": "authorization_pending" }));
+    let dyn_poll: Arc<dyn UpstreamClient> = poll_client.clone();
+    let poll = KiroChannel
+        .device_poll(
+            &dyn_poll,
+            crate::channel::DevicePollCtx {
+                provider_settings: &settings,
+                device_code: "device-1",
+            },
+        )
+        .await
+        .unwrap();
+    assert!(matches!(poll, DevicePoll::Pending));
+    assert_eq!(
+        poll_client.seen.lock().unwrap()[0],
+        "https://private-auth.example/oauth/device/poll"
+    );
+}
+
+#[tokio::test]
 async fn sso_authcode_start_registers_and_builds_authorize_url() {
     let client = mock(json!({ "clientId": "reg-cid", "clientSecret": "reg-secret" }));
     let dyn_client: Arc<dyn UpstreamClient> = client.clone();
@@ -196,7 +241,7 @@ fn request_build() {
         headers: &headers,
         body: Bytes::from_static(br#"{"input":"hello kiro"}"#),
     };
-    let req = KiroChannel.prepare(ctx).unwrap().into_http();
+    let req = KiroChannel.prepare(ctx).unwrap().into_http().unwrap();
 
     assert_eq!(req.uri().to_string(), "https://runtime.us-east-1.kiro.dev/");
     assert_eq!(req.headers().get("authorization").unwrap(), "Bearer tok");

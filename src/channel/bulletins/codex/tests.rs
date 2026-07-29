@@ -140,7 +140,8 @@ fn magic_cache_breakpoint_survives_codex_normalization() {
             body: shaped,
         })
         .unwrap()
-        .into_http();
+        .into_http()
+        .unwrap();
     let value: Value = serde_json::from_slice(prepared.body()).unwrap();
     assert_eq!(
         value["input"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
@@ -288,7 +289,8 @@ fn prepare_url_body_and_headers() {
             body: body.clone(),
         })
         .unwrap()
-        .into_http();
+        .into_http()
+        .unwrap();
     assert_eq!(request.body(), &body, "prepare must preserve body bytes");
     assert_eq!(
         request.uri().to_string(),
@@ -322,7 +324,8 @@ fn model_list_request_carries_client_version() {
             body: Bytes::new(),
         })
         .unwrap()
-        .into_http();
+        .into_http()
+        .unwrap();
     assert_eq!(
         request.uri().to_string(),
         format!(
@@ -364,7 +367,8 @@ fn forwards_codex_client_headers() {
             body: Bytes::from_static(br#"{"input":"hi"}"#),
         })
         .unwrap()
-        .into_http();
+        .into_http()
+        .unwrap();
     assert_eq!(request.headers()["session-id"], id);
     assert_eq!(request.headers()["thread-id"], id);
     assert_eq!(request.headers()["x-client-request-id"], id);

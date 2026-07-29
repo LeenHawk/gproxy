@@ -6,6 +6,20 @@ use http::{HeaderValue, Request};
 
 use crate::http::client::TransportOptions;
 
+pub(super) fn transport_options(
+    total_timeout: std::time::Duration,
+    omit_body: bool,
+) -> TransportOptions {
+    TransportOptions {
+        total_timeout: Some(total_timeout),
+        // Fetch cannot guarantee these Node transport constraints. Leaving them
+        // unset on edge selects the documented host policy instead of failing.
+        max_redirects: (!cfg!(target_arch = "wasm32")).then_some(21),
+        http_version: (!cfg!(target_arch = "wasm32")).then_some(http::Version::HTTP_11),
+        omit_body,
+    }
+}
+
 pub(super) fn apply(request: &mut Request<Bytes>, timeout_secs: u64, omit_body: bool) {
     let headers = request.headers_mut();
     headers.insert(
@@ -17,12 +31,10 @@ pub(super) fn apply(request: &mut Request<Bytes>, timeout_secs: u64, omit_body: 
         HeaderValue::from_static("gzip, compress, deflate, br"),
     );
     headers.insert(USER_AGENT, HeaderValue::from_static("axios/1.13.6"));
-    request.extensions_mut().insert(TransportOptions {
-        total_timeout: Some(std::time::Duration::from_secs(timeout_secs)),
-        max_redirects: Some(21),
-        http_version: Some(http::Version::HTTP_11),
+    request.extensions_mut().insert(transport_options(
+        std::time::Duration::from_secs(timeout_secs),
         omit_body,
-    });
+    ));
 }
 
 #[cfg(test)]

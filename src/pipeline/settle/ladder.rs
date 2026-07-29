@@ -178,7 +178,7 @@ async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Option<u64>
         .upstream_client_for_credential(&ctx.channel, &ctx.credential, &ctx.provider)
         .map_err(|e| tracing::warn!(error = %e, "settle count: resolve upstream client failed"))
         .ok()?;
-    let resp = tokio::time::timeout(COUNT_TIMEOUT, client.send(prepared.into_http()))
+    let resp = tokio::time::timeout(COUNT_TIMEOUT, prepared.send_buffered(client))
         .await
         .ok()?
         .ok()?;

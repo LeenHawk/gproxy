@@ -27,6 +27,7 @@ fn prepare(op: OperationKey, model: &str, path: &str, query: Option<&str>) -> ht
         })
         .unwrap()
         .into_http()
+        .unwrap()
 }
 
 #[test]
@@ -147,7 +148,8 @@ fn shapes_claude_magic_cache_without_unsupported_fallback() {
             body: shaped,
         })
         .unwrap()
-        .into_http();
+        .into_http()
+        .unwrap();
     assert_eq!(
         req.uri().to_string(),
         "https://resource.services.ai.azure.com/anthropic/v1/messages"
@@ -248,7 +250,8 @@ fn exact_image_endpoint_keeps_its_static_api_version() {
             body: Bytes::new(),
         })
         .unwrap()
-        .into_http();
+        .into_http()
+        .unwrap();
     assert_eq!(
         req.uri().to_string(),
         "https://images.example/generate?api-version=custom"

@@ -305,7 +305,11 @@ mod tests {
             headers: &headers,
             body: Bytes::from_static(br#"{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}"#),
         };
-        let req = AntigravityChannel.prepare(ctx).unwrap().into_http();
+        let req = AntigravityChannel
+            .prepare(ctx)
+            .unwrap()
+            .into_http()
+            .unwrap();
 
         // Distinct from geminicli: code-assist path + Antigravity UA/client wiring.
         assert_eq!(
@@ -355,7 +359,11 @@ mod tests {
             headers: &headers,
             body: Bytes::new(),
         };
-        let req = AntigravityChannel.prepare(ctx).unwrap().into_http();
+        let req = AntigravityChannel
+            .prepare(ctx)
+            .unwrap()
+            .into_http()
+            .unwrap();
 
         // Redirected to the bespoke Code Assist fetchAvailableModels POST.
         assert_eq!(req.method(), Method::POST);
