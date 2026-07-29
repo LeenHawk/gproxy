@@ -24,7 +24,7 @@
     "lucide-react": "^1.27.0",
     "radix-ui": "^1.6.2",
     "react": "^19.2.8",
-    "react-dom": "^19.2.7",
+    "react-dom": "^19.2.8",
     "react-hook-form": "^7.81.0",
     "react-i18next": "^17.0.9",
     "recharts": "^3.10.1",
