@@ -48,6 +48,14 @@ pub async fn list(client: &LibsqlClient, route_id: i64) -> anyhow::Result<Vec<Ro
     .collect()
 }
 
+pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<RouteMember>> {
+    query(client, &format!("SELECT {COLS} FROM route_members"), &[])
+        .await?
+        .iter()
+        .map(decode)
+        .collect()
+}
+
 pub async fn upsert(client: &LibsqlClient, input: RouteMemberInput) -> anyhow::Result<RouteMember> {
     let now = now_secs();
 

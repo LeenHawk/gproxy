@@ -27,6 +27,9 @@ impl IdentityPersistence for DbPersistence {
     async fn list_teams(&self, org_id: i64) -> anyhow::Result<Vec<Team>> {
         ops::identity::teams::list(&self.conn, org_id).await
     }
+    async fn list_all_teams(&self) -> anyhow::Result<Vec<Team>> {
+        ops::identity::teams::list_all(&self.conn).await
+    }
     async fn get_team(&self, id: i64) -> anyhow::Result<Option<Team>> {
         ops::identity::teams::get(&self.conn, id).await
     }
@@ -55,6 +58,9 @@ impl IdentityPersistence for DbPersistence {
 
     async fn list_user_keys(&self, user_id: i64) -> anyhow::Result<Vec<UserKey>> {
         ops::identity::user_keys::list(&self.conn, user_id).await
+    }
+    async fn list_all_user_keys(&self) -> anyhow::Result<Vec<UserKey>> {
+        ops::identity::user_keys::list_all(&self.conn).await
     }
     async fn get_user_key(&self, id: i64) -> anyhow::Result<Option<UserKey>> {
         ops::identity::user_keys::get(&self.conn, id).await

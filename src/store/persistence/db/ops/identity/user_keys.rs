@@ -30,6 +30,15 @@ pub async fn list(conn: &DatabaseConnection, user_id: i64) -> anyhow::Result<Vec
         .collect())
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<UserKey>> {
+    Ok(user_key::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect())
+}
+
 pub async fn get(conn: &DatabaseConnection, id: i64) -> anyhow::Result<Option<UserKey>> {
     Ok(user_key::Entity::find_by_id(id)
         .one(conn)

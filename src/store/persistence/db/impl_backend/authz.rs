@@ -15,6 +15,9 @@ impl AuthzPersistence for DbPersistence {
     ) -> anyhow::Result<Vec<RoutePermission>> {
         ops::authz::route_permissions::list(&self.conn, scope, scope_id).await
     }
+    async fn list_all_route_permissions(&self) -> anyhow::Result<Vec<RoutePermission>> {
+        ops::authz::route_permissions::list_all(&self.conn).await
+    }
     async fn upsert_route_permission(
         &self,
         input: RoutePermissionInput,
@@ -31,6 +34,9 @@ impl AuthzPersistence for DbPersistence {
     ) -> anyhow::Result<Vec<RateLimit>> {
         ops::authz::rate_limits::list(&self.conn, scope, scope_id).await
     }
+    async fn list_all_rate_limits(&self) -> anyhow::Result<Vec<RateLimit>> {
+        ops::authz::rate_limits::list_all(&self.conn).await
+    }
     async fn upsert_rate_limit(&self, input: RateLimitInput) -> anyhow::Result<RateLimit> {
         ops::authz::rate_limits::upsert(&self.conn, input).await
     }
@@ -39,6 +45,9 @@ impl AuthzPersistence for DbPersistence {
     }
     async fn get_quota(&self, scope: Scope, scope_id: i64) -> anyhow::Result<Option<Quota>> {
         ops::authz::quotas::get(&self.conn, scope, scope_id).await
+    }
+    async fn list_all_quotas(&self) -> anyhow::Result<Vec<Quota>> {
+        ops::authz::quotas::list_all(&self.conn).await
     }
     async fn upsert_quota(&self, input: QuotaInput) -> anyhow::Result<Quota> {
         ops::authz::quotas::upsert(&self.conn, input).await

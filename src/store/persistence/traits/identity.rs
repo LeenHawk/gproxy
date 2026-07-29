@@ -12,6 +12,7 @@ pub trait IdentityPersistence {
     async fn delete_org(&self, id: i64) -> anyhow::Result<bool>;
 
     async fn list_teams(&self, org_id: i64) -> anyhow::Result<Vec<Team>>;
+    async fn list_all_teams(&self) -> anyhow::Result<Vec<Team>>;
     async fn get_team(&self, id: i64) -> anyhow::Result<Option<Team>>;
     async fn upsert_team(&self, input: TeamInput) -> anyhow::Result<Team>;
     async fn delete_team(&self, id: i64) -> anyhow::Result<bool>;
@@ -23,6 +24,7 @@ pub trait IdentityPersistence {
     async fn delete_user(&self, id: i64) -> anyhow::Result<bool>;
 
     async fn list_user_keys(&self, user_id: i64) -> anyhow::Result<Vec<UserKey>>;
+    async fn list_all_user_keys(&self) -> anyhow::Result<Vec<UserKey>>;
     async fn get_user_key(&self, id: i64) -> anyhow::Result<Option<UserKey>>;
     async fn find_user_key_by_digest(&self, digest: &str) -> anyhow::Result<Option<UserKey>>;
     async fn upsert_user_key(&self, input: UserKeyInput) -> anyhow::Result<UserKey>;

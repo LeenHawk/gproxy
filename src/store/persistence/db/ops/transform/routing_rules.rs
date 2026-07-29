@@ -33,6 +33,15 @@ pub async fn list(conn: &DatabaseConnection, provider_id: i64) -> anyhow::Result
         .collect())
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<RoutingRule>> {
+    Ok(routing_rule::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect())
+}
+
 pub async fn get(conn: &DatabaseConnection, id: i64) -> anyhow::Result<Option<RoutingRule>> {
     Ok(routing_rule::Entity::find_by_id(id)
         .one(conn)

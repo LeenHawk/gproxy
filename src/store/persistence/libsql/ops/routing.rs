@@ -26,6 +26,9 @@ impl RoutingPersistence for LibsqlPersistence {
     async fn list_route_members(&self, route_id: i64) -> anyhow::Result<Vec<RouteMember>> {
         routing::route_members::list(&self.client, route_id).await
     }
+    async fn list_all_route_members(&self) -> anyhow::Result<Vec<RouteMember>> {
+        routing::route_members::list_all(&self.client).await
+    }
     async fn upsert_route_member(&self, input: RouteMemberInput) -> anyhow::Result<RouteMember> {
         routing::route_members::upsert(&self.client, input).await
     }
@@ -47,6 +50,9 @@ impl RoutingPersistence for LibsqlPersistence {
 
     async fn list_routing_rules(&self, provider_id: i64) -> anyhow::Result<Vec<RoutingRule>> {
         transform::routing_rules::list(&self.client, provider_id).await
+    }
+    async fn list_all_routing_rules(&self) -> anyhow::Result<Vec<RoutingRule>> {
+        transform::routing_rules::list_all(&self.client).await
     }
     async fn get_routing_rule(&self, id: i64) -> anyhow::Result<Option<RoutingRule>> {
         transform::routing_rules::get(&self.client, id).await
@@ -82,6 +88,9 @@ impl RoutingPersistence for LibsqlPersistence {
     async fn list_rules(&self, rule_set_id: i64) -> anyhow::Result<Vec<Rule>> {
         transform::rules::list(&self.client, rule_set_id).await
     }
+    async fn list_all_rules(&self) -> anyhow::Result<Vec<Rule>> {
+        transform::rules::list_all(&self.client).await
+    }
     async fn get_rule(&self, id: i64) -> anyhow::Result<Option<Rule>> {
         transform::rules::get(&self.client, id).await
     }
@@ -96,6 +105,9 @@ impl RoutingPersistence for LibsqlPersistence {
         provider_id: i64,
     ) -> anyhow::Result<Vec<ProviderRuleSet>> {
         transform::provider_rule_sets::list(&self.client, provider_id).await
+    }
+    async fn list_all_provider_rule_sets(&self) -> anyhow::Result<Vec<ProviderRuleSet>> {
+        transform::provider_rule_sets::list_all(&self.client).await
     }
     async fn upsert_provider_rule_set(
         &self,

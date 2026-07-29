@@ -40,6 +40,15 @@ pub async fn list(conn: &DatabaseConnection, provider_id: i64) -> anyhow::Result
         .collect()
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<Credential>> {
+    credential::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect()
+}
+
 pub async fn get(conn: &DatabaseConnection, id: i64) -> anyhow::Result<Option<Credential>> {
     credential::Entity::find_by_id(id)
         .one(conn)

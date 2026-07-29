@@ -27,6 +27,9 @@ impl RoutingPersistence for DbPersistence {
     async fn list_route_members(&self, route_id: i64) -> anyhow::Result<Vec<RouteMember>> {
         ops::routing::route_members::list(&self.conn, route_id).await
     }
+    async fn list_all_route_members(&self) -> anyhow::Result<Vec<RouteMember>> {
+        ops::routing::route_members::list_all(&self.conn).await
+    }
     async fn upsert_route_member(&self, input: RouteMemberInput) -> anyhow::Result<RouteMember> {
         ops::routing::route_members::upsert(&self.conn, input).await
     }
@@ -48,6 +51,9 @@ impl RoutingPersistence for DbPersistence {
 
     async fn list_routing_rules(&self, provider_id: i64) -> anyhow::Result<Vec<RoutingRule>> {
         ops::transform::routing_rules::list(&self.conn, provider_id).await
+    }
+    async fn list_all_routing_rules(&self) -> anyhow::Result<Vec<RoutingRule>> {
+        ops::transform::routing_rules::list_all(&self.conn).await
     }
     async fn get_routing_rule(&self, id: i64) -> anyhow::Result<Option<RoutingRule>> {
         ops::transform::routing_rules::get(&self.conn, id).await
@@ -77,6 +83,9 @@ impl RoutingPersistence for DbPersistence {
     async fn list_rules(&self, rule_set_id: i64) -> anyhow::Result<Vec<Rule>> {
         ops::transform::rules::list(&self.conn, rule_set_id).await
     }
+    async fn list_all_rules(&self) -> anyhow::Result<Vec<Rule>> {
+        ops::transform::rules::list_all(&self.conn).await
+    }
     async fn get_rule(&self, id: i64) -> anyhow::Result<Option<Rule>> {
         ops::transform::rules::get(&self.conn, id).await
     }
@@ -91,6 +100,9 @@ impl RoutingPersistence for DbPersistence {
         provider_id: i64,
     ) -> anyhow::Result<Vec<ProviderRuleSet>> {
         ops::transform::provider_rule_sets::list(&self.conn, provider_id).await
+    }
+    async fn list_all_provider_rule_sets(&self) -> anyhow::Result<Vec<ProviderRuleSet>> {
+        ops::transform::provider_rule_sets::list_all(&self.conn).await
     }
     async fn upsert_provider_rule_set(
         &self,

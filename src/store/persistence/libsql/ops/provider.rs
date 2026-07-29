@@ -28,6 +28,9 @@ impl ProviderPersistence for LibsqlPersistence {
     async fn list_credentials(&self, provider_id: i64) -> anyhow::Result<Vec<Credential>> {
         provider::credentials::list(&self.client, provider_id).await
     }
+    async fn list_all_credentials(&self) -> anyhow::Result<Vec<Credential>> {
+        provider::credentials::list_all(&self.client).await
+    }
     async fn get_credential(&self, id: i64) -> anyhow::Result<Option<Credential>> {
         provider::credentials::get(&self.client, id).await
     }
@@ -94,6 +97,9 @@ impl ProviderPersistence for LibsqlPersistence {
 
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>> {
         provider::provider_models::list(&self.client, provider_id).await
+    }
+    async fn list_all_provider_models(&self) -> anyhow::Result<Vec<ProviderModel>> {
+        provider::provider_models::list_all(&self.client).await
     }
     async fn upsert_provider_model(
         &self,

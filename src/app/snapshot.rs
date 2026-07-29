@@ -5,7 +5,7 @@
 //! M2/M3 extend THIS struct + [`ControlPlaneSnapshot::build`], never a parallel
 //! snapshot.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use regex::Regex;
@@ -15,7 +15,7 @@ use crate::process::CompiledRule;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::{
     Alias, Credential, Org, PriceRule, Provider, ProviderModel, Quota, RateLimit, Route,
-    RouteMember, Scope, Team, User, UserKey,
+    RouteMember, RoutePermission, Scope, Team, User, UserKey,
 };
 use crate::transform::routing::{CompiledRoutingRule, RoutingRuleSpec};
 
@@ -139,32 +139,87 @@ impl ControlPlaneSnapshot {
         }
     }
 
-    /// Full reload from persistence (boot + invalidation). On wasm the backend
-    /// trait is `?Send`, so this future is non-Send — await it directly, never
-    /// on a `Send`-requiring spawn.
+    /// Full reload from persistence (boot + invalidation). Every table is
+    /// fetched whole in ONE parallel read round and grouped in memory — the
+    /// former per-parent query pattern cost O(providers×4 + routes + users +
+    /// scopes×3) SERIAL round trips, which dominated edge cold starts (each
+    /// query is an independent HTTP call there). On wasm the backend trait is
+    /// `?Send`, so this future is non-Send — await it directly, never on a
+    /// `Send`-requiring spawn.
     pub async fn build(db: &dyn PersistenceBackend, version: u64) -> anyhow::Result<Self> {
         let mut snap = Self::empty(version);
 
+        let (
+            providers,
+            credentials,
+            provider_models,
+            routing_rules,
+            provider_rule_sets,
+            rule_sets,
+            rules,
+            price_rules,
+            routes,
+            route_members,
+            aliases,
+            users,
+            user_keys,
+            orgs,
+            teams,
+            permissions,
+            rate_limits,
+            quotas,
+            instance_settings,
+        ) = futures_util::try_join!(
+            db.list_providers(),
+            db.list_all_credentials(),
+            db.list_all_provider_models(),
+            db.list_all_routing_rules(),
+            db.list_all_provider_rule_sets(),
+            db.list_rule_sets(),
+            db.list_all_rules(),
+            db.list_price_rules(),
+            db.list_routes(),
+            db.list_all_route_members(),
+            db.list_aliases(),
+            db.list_users(),
+            db.list_all_user_keys(),
+            db.list_orgs(),
+            db.list_all_teams(),
+            db.list_all_route_permissions(),
+            db.list_all_rate_limits(),
+            db.list_all_quotas(),
+            db.list_instance_settings(),
+        )?;
+
         // rule sets compile once; providers attach by id below
+        let mut rules_by_set = group_by(rules, |r| r.rule_set_id);
         let mut compiled_sets: HashMap<i64, Vec<CompiledRule>> = HashMap::new();
-        for set in db.list_rule_sets().await?.into_iter().filter(|s| s.enabled) {
-            let rules = db.list_rules(set.id).await?;
+        for set in rule_sets.into_iter().filter(|s| s.enabled) {
+            let rules = rules_by_set.remove(&set.id).unwrap_or_default();
             compiled_sets.insert(set.id, crate::process::compile_rules(&rules));
         }
 
         // providers + their credentials/models
-        for provider in db.list_providers().await? {
+        let mut creds_by_provider = group_by(credentials.into_iter().filter(|c| c.enabled), |c| {
+            c.provider_id
+        });
+        let mut models_by_provider = group_by(provider_models, |m| m.provider_id);
+        let mut routing_by_provider = group_by(routing_rules, |r| r.provider_id);
+        let mut attachments_by_provider =
+            group_by(provider_rule_sets.into_iter().filter(|a| a.enabled), |a| {
+                a.provider_id
+            });
+        for provider in providers {
             let pid = provider.id;
-            let creds = db
-                .list_credentials(pid)
-                .await?
+            let creds = creds_by_provider
+                .remove(&pid)
+                .unwrap_or_default()
                 .into_iter()
-                .filter(|c| c.enabled)
                 .map(Arc::new)
                 .collect::<Vec<_>>();
-            let models = db
-                .list_provider_models(pid)
-                .await?
+            let models = models_by_provider
+                .remove(&pid)
+                .unwrap_or_default()
                 .into_iter()
                 .map(Arc::new)
                 .collect::<Vec<_>>();
@@ -180,7 +235,7 @@ impl ControlPlaneSnapshot {
             }
             snap.models_by_provider.insert(pid, models);
 
-            let routing = db.list_routing_rules(pid).await?;
+            let routing = routing_by_provider.remove(&pid).unwrap_or_default();
             let routing_specs = routing
                 .iter()
                 .map(|r| RoutingRuleSpec {
@@ -201,8 +256,7 @@ impl ControlPlaneSnapshot {
                     .insert(pid, Arc::new(compiled));
             }
 
-            let mut attachments = db.list_provider_rule_sets(pid).await?;
-            attachments.retain(|a| a.enabled);
+            let mut attachments = attachments_by_provider.remove(&pid).unwrap_or_default();
             attachments.sort_by_key(|a| a.sort_order);
             let mut prov_rules: Vec<CompiledRule> = Vec::new();
             for a in &attachments {
@@ -221,19 +275,15 @@ impl ControlPlaneSnapshot {
             snap.providers_by_id.insert(pid, provider);
         }
 
-        let price_rules = db
-            .list_price_rules()
-            .await?
-            .into_iter()
-            .filter(|r| r.enabled)
-            .collect::<Vec<_>>();
-        snap.price_rules = Arc::new(price_rules);
+        snap.price_rules = Arc::new(price_rules.into_iter().filter(|r| r.enabled).collect());
 
         // routes (enabled only — a disabled route must vanish from routing AND
         // from the model list) + members (sorted).
-        for route in db.list_routes().await?.into_iter().filter(|r| r.enabled) {
-            let mut members = db.list_route_members(route.id).await?;
-            members.retain(|m| m.enabled);
+        let mut members_by_route = group_by(route_members.into_iter().filter(|m| m.enabled), |m| {
+            m.route_id
+        });
+        for route in routes.into_iter().filter(|r| r.enabled) {
+            let mut members = members_by_route.remove(&route.id).unwrap_or_default();
             members.sort_by(|a, b| a.tier.cmp(&b.tier).then(b.weight.cmp(&a.weight)));
             let name = route.name.clone();
             snap.routes_by_name
@@ -242,7 +292,7 @@ impl ControlPlaneSnapshot {
 
         // model aliases, grouped by global/provider scope and compiled once.
         let mut aliases_by_provider: HashMap<String, Vec<CompiledAlias>> = HashMap::new();
-        for alias in db.list_aliases().await?.into_iter().filter(|a| a.enabled) {
+        for alias in aliases.into_iter().filter(|a| a.enabled) {
             match CompiledAlias::try_from(alias) {
                 Some(rule) => aliases_by_provider
                     .entry(rule.provider.clone())
@@ -261,12 +311,13 @@ impl ControlPlaneSnapshot {
 
         // users (enabled) + their keys (enabled), indexed by digest;
         // collect ids for the authz scope universe below.
+        let mut keys_by_user = group_by(user_keys.into_iter().filter(|k| k.enabled), |k| k.user_id);
         let mut user_ids: Vec<i64> = Vec::new();
-        for user in db.list_users().await?.into_iter().filter(|u| u.enabled) {
+        for user in users.into_iter().filter(|u| u.enabled) {
             user_ids.push(user.id);
-            let keys = db.list_user_keys(user.id).await?;
+            let keys = keys_by_user.remove(&user.id).unwrap_or_default();
             let user = Arc::new(user);
-            for key in keys.into_iter().filter(|k| k.enabled) {
+            for key in keys {
                 let digest = key.api_key_digest.clone();
                 let identity = Arc::new(KeyIdentity {
                     user_key: key,
@@ -276,11 +327,19 @@ impl ControlPlaneSnapshot {
             }
         }
 
-        load_authz(db, &mut snap, &user_ids).await?;
+        load_authz(
+            &mut snap,
+            orgs,
+            teams,
+            &user_ids,
+            permissions,
+            rate_limits,
+            quotas,
+        );
 
         // Instance usage/log toggles — single row in practice; `.first()`
         // mirrors the tokenizer-download seeding in main.
-        if let Some(s) = db.list_instance_settings().await?.first() {
+        if let Some(s) = instance_settings.first() {
             snap.log_settings = LogSettings {
                 enable_usage: s.enable_usage,
                 enable_upstream_log: s.enable_upstream_log,
@@ -296,6 +355,19 @@ impl ControlPlaneSnapshot {
 
         Ok(snap)
     }
+}
+
+/// Group whole-table child rows by their parent id (insertion order kept
+/// within each group — the backends return primary-key order).
+fn group_by<T>(
+    items: impl IntoIterator<Item = T>,
+    key: impl Fn(&T) -> i64,
+) -> HashMap<i64, Vec<T>> {
+    let mut map: HashMap<i64, Vec<T>> = HashMap::new();
+    for item in items {
+        map.entry(key(&item)).or_default().push(item);
+    }
+    map
 }
 
 /// Snapshot-compiled model alias rule. `regex` is anchored as a full match.
@@ -332,52 +404,57 @@ impl CompiledAlias {
     }
 }
 
-/// Load orgs, teams, and the authz scope universe (permissions / rate limits /
-/// quotas) into `snap`. Separated to keep `build` within size limits.
-async fn load_authz(
-    db: &dyn PersistenceBackend,
+/// Index orgs, teams, and the authz scope universe (permissions / rate limits
+/// / quotas) into `snap` from the prefetched whole-table rows. Rows outside
+/// the scope universe (orgs + teams + ENABLED users) are dropped, matching
+/// the former per-scope query behaviour. Separated to keep `build` within
+/// size limits.
+fn load_authz(
     snap: &mut ControlPlaneSnapshot,
+    orgs: Vec<Org>,
+    teams: Vec<Team>,
     user_ids: &[i64],
-) -> anyhow::Result<()> {
-    let orgs = db.list_orgs().await?;
-    let mut org_ids: Vec<i64> = Vec::with_capacity(orgs.len());
-    let mut team_ids: Vec<i64> = Vec::new();
-
+    permissions: Vec<RoutePermission>,
+    rate_limits: Vec<RateLimit>,
+    quotas: Vec<Quota>,
+) {
+    let mut universe: HashSet<(Scope, i64)> = HashSet::new();
     for org in orgs {
-        org_ids.push(org.id);
-        let teams = db.list_teams(org.id).await?;
-        for team in teams {
-            team_ids.push(team.id);
-            snap.teams_by_id.insert(team.id, Arc::new(team));
-        }
+        universe.insert((Scope::Org, org.id));
         snap.orgs_by_id.insert(org.id, Arc::new(org));
     }
+    for team in teams {
+        universe.insert((Scope::Team, team.id));
+        snap.teams_by_id.insert(team.id, Arc::new(team));
+    }
+    universe.extend(user_ids.iter().map(|&id| (Scope::User, id)));
 
-    // Build the full scope universe: orgs + teams + (enabled) users.
-    let mut scopes: Vec<(Scope, i64)> =
-        Vec::with_capacity(org_ids.len() + team_ids.len() + user_ids.len());
-    scopes.extend(org_ids.iter().map(|&id| (Scope::Org, id)));
-    scopes.extend(team_ids.iter().map(|&id| (Scope::Team, id)));
-    scopes.extend(user_ids.iter().map(|&id| (Scope::User, id)));
-
-    for (scope, id) in scopes {
-        let perms = db.list_route_permissions(scope, id).await?;
-        if !perms.is_empty() {
-            let patterns: Vec<String> = perms.into_iter().map(|p| p.route_pattern).collect();
-            snap.permissions_by_scope
-                .insert((scope, id), Arc::new(patterns));
-        }
-
-        let limits = db.list_rate_limits(scope, id).await?;
-        if !limits.is_empty() {
-            snap.rate_limits_by_scope
-                .insert((scope, id), Arc::new(limits));
-        }
-
-        if let Some(quota) = db.get_quota(scope, id).await? {
-            snap.quotas_by_scope.insert((scope, id), Arc::new(quota));
+    let mut patterns: HashMap<(Scope, i64), Vec<String>> = HashMap::new();
+    for p in permissions {
+        if universe.contains(&(p.scope, p.scope_id)) {
+            patterns
+                .entry((p.scope, p.scope_id))
+                .or_default()
+                .push(p.route_pattern);
         }
     }
+    snap.permissions_by_scope = patterns
+        .into_iter()
+        .map(|(k, v)| (k, Arc::new(v)))
+        .collect();
 
-    Ok(())
+    let mut limits: HashMap<(Scope, i64), Vec<RateLimit>> = HashMap::new();
+    for l in rate_limits {
+        if universe.contains(&(l.scope, l.scope_id)) {
+            limits.entry((l.scope, l.scope_id)).or_default().push(l);
+        }
+    }
+    snap.rate_limits_by_scope = limits.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
+
+    for q in quotas {
+        if universe.contains(&(q.scope, q.scope_id)) {
+            snap.quotas_by_scope
+                .insert((q.scope, q.scope_id), Arc::new(q));
+        }
+    }
 }

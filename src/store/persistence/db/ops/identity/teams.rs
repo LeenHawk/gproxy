@@ -28,6 +28,15 @@ pub async fn list(conn: &DatabaseConnection, org_id: i64) -> anyhow::Result<Vec<
         .collect())
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<Team>> {
+    Ok(team::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect())
+}
+
 pub async fn get(conn: &DatabaseConnection, id: i64) -> anyhow::Result<Option<Team>> {
     Ok(team::Entity::find_by_id(id).one(conn).await?.map(to_record))
 }

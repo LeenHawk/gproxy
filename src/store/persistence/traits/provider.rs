@@ -14,6 +14,7 @@ pub trait ProviderPersistence {
     async fn delete_provider(&self, id: i64) -> anyhow::Result<bool>;
 
     async fn list_credentials(&self, provider_id: i64) -> anyhow::Result<Vec<Credential>>;
+    async fn list_all_credentials(&self) -> anyhow::Result<Vec<Credential>>;
     async fn get_credential(&self, id: i64) -> anyhow::Result<Option<Credential>>;
     async fn upsert_credential(&self, input: CredentialInput) -> anyhow::Result<Credential>;
     async fn update_credential_secret_if_current(
@@ -48,6 +49,7 @@ pub trait ProviderPersistence {
     async fn delete_credential_model_status(&self, id: i64) -> anyhow::Result<bool>;
 
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>>;
+    async fn list_all_provider_models(&self) -> anyhow::Result<Vec<ProviderModel>>;
     async fn upsert_provider_model(
         &self,
         input: ProviderModelInput,
@@ -79,6 +81,9 @@ impl ProviderPersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn list_credentials(&self, provider_id: i64) -> anyhow::Result<Vec<Credential>> {
         super::PersistenceBackend::list_credentials(self, provider_id).await
+    }
+    async fn list_all_credentials(&self) -> anyhow::Result<Vec<Credential>> {
+        super::PersistenceBackend::list_all_credentials(self).await
     }
     async fn get_credential(&self, id: i64) -> anyhow::Result<Option<Credential>> {
         super::PersistenceBackend::get_credential(self, id).await
@@ -145,6 +150,9 @@ impl ProviderPersistence for dyn super::PersistenceBackend + '_ {
     }
     async fn list_provider_models(&self, provider_id: i64) -> anyhow::Result<Vec<ProviderModel>> {
         super::PersistenceBackend::list_provider_models(self, provider_id).await
+    }
+    async fn list_all_provider_models(&self) -> anyhow::Result<Vec<ProviderModel>> {
+        super::PersistenceBackend::list_all_provider_models(self).await
     }
     async fn upsert_provider_model(
         &self,

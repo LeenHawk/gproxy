@@ -32,6 +32,15 @@ pub async fn list(
         .collect())
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<ProviderRuleSet>> {
+    Ok(provider_rule_set::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect())
+}
+
 pub async fn upsert(
     conn: &DatabaseConnection,
     input: ProviderRuleSetInput,

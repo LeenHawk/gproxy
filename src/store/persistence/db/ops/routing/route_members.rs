@@ -31,6 +31,15 @@ pub async fn list(conn: &DatabaseConnection, route_id: i64) -> anyhow::Result<Ve
         .collect())
 }
 
+pub async fn list_all(conn: &DatabaseConnection) -> anyhow::Result<Vec<RouteMember>> {
+    Ok(route_member::Entity::find()
+        .all(conn)
+        .await?
+        .into_iter()
+        .map(to_record)
+        .collect())
+}
+
 pub async fn upsert(
     conn: &DatabaseConnection,
     input: RouteMemberInput,
