@@ -58,17 +58,28 @@ impl SseDecoder {
     /// Append a chunk and return all complete (blank-line-terminated) frames.
     /// SSE is text by definition; genuinely invalid UTF-8 is replaced lossily,
     /// while an incomplete trailing sequence waits for the next chunk.
+    ///
+    /// Frames are parsed by BORROWING slices of the buffer behind an advancing
+    /// cursor; consumed bytes are drained once at the end. (The former
+    /// per-frame `drain(..).collect::<String>()` walked the frame char by char
+    /// AND memmoved the buffer tail per frame — the top CPU hotspot of every
+    /// streaming profile.)
     pub fn push(&mut self, chunk: &[u8]) -> Vec<SseFrame> {
         self.utf8.decode_into(chunk, &mut self.buf);
         if self.buf.contains('\r') {
             self.buf = self.buf.replace("\r\n", "\n");
         }
         let mut frames = Vec::new();
-        while let Some(pos) = self.buf.find("\n\n") {
-            let raw: String = self.buf.drain(..pos + 2).collect();
-            if let Some(frame) = parse_frame(&raw) {
+        let mut cursor = 0;
+        while let Some(pos) = self.buf[cursor..].find("\n\n") {
+            let end = cursor + pos + 2;
+            if let Some(frame) = parse_frame(&self.buf[cursor..end]) {
                 frames.push(frame);
             }
+            cursor = end;
+        }
+        if cursor > 0 {
+            self.buf.drain(..cursor);
         }
         frames
     }
