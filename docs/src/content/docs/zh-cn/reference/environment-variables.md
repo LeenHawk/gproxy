@@ -45,7 +45,7 @@ route、alias、权限、quota、pricing、转换规则和实例设置都存放�
 | --- | --- | --- |
 | `GPROXY_ADMIN_USER` | `admin` | 首启 bootstrap 和恢复覆盖使用的 admin 用户名。 |
 | `GPROXY_ADMIN_PASSWORD` | 空 | 设置后，每次启动都会强制 upsert/reset 这个 admin 用户。密码必须满足 admin API 的同一强度策略。恢复完成后应移除。未设置且 users 表为空时，GPROXY 会创建带随机密码和管理员 API key 的 admin，并将两者只打印一次。 |
-| `GPROXY_BOOTSTRAP_CHANNELS` | 空 | 逗号分隔的内置 channel id；启动时为所选 channel 创建启用的 provider 和默认 routing rules。已有同 channel provider 时保持不变。等价 CLI 参数是可重复的 `--bootstrap-channel`。 |
+| `GPROXY_BOOTSTRAP_CHANNELS` | 空 | 逗号分隔的当前 binary 已注册 channel id；启动时为所选 channel 创建启用的 provider 和默认 routing rules。已有同 channel provider 时保持不变。等价 CLI 参数是可重复的 `--bootstrap-channel`。 |
 | `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | 空 | 把该 API key 分配给指定管理员，并按 digest 幂等处理。原生安装器只把新生成的 key 传给首次启动进程并显示一次；不要把该明文变量长期写入启动项。 |
 
 `gproxy generate-key` 会在不初始化 persistence 的情况下输出一个 CSPRNG 生成的

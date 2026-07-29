@@ -11,6 +11,9 @@ readme = "README.md"
 keywords = ["llm", "proxy", "provider", "channel", "api"]
 categories = ["api-bindings", "web-programming"]
 
+[package.metadata.docs.rs]
+features = ["external-channels"]
+
 [features]
 external-channels = ["dep:linkme"]
 

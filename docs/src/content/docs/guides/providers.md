@@ -28,6 +28,13 @@ channels that require multi-step WebSocket sessions. Current built-in channel id
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth, device-code, cookie, or envelope-style agent channels. |
 | `claudeweb` | Claude consumer web backend via a claude.ai session cookie (native only). |
 
+This table describes the official builds. A custom native binary can also link
+external channel crates. The Console reads the authenticated runtime catalog,
+so an external entry appears in the provider selector from its
+`Channel::metadata()` result without editing the static Console list. See
+[Adding a Channel](/guides/adding-a-channel/) for the compile-time integration
+contract.
+
 Every channel declares a routing surface as `(Operation, OperationKind) ->
 RoutingDecision`. That is the source for the provider's default
 `routing_rules` rows. Request behavior is therefore described by operation

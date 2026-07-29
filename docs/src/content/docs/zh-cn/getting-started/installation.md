@@ -3,9 +3,10 @@ title: 安装
 description: 通过 release 二进制、Docker 镜像、源码构建或 edge bundle 安装 GPROXY v2。
 ---
 
-GPROXY v2 是一个单 Rust crate，native 产物是名为 `gproxy` 的二进制。同一个 crate
-也可以编译成 edge WebAssembly runtime。native 形态下，React Console 不是独立服务：
-构建 `console/` 后，静态文件会同步到 `assets/console/`，再被编进二进制。
+GPROXY v2 的 root Rust 应用 package 会构建名为 `gproxy` 的 native binary 和 edge
+WebAssembly runtime；workspace 还包含可复用 library 与编译时 Channel extension contract。
+native 形态下，React Console 不是独立服务：构建 `console/` 后，静态文件会同步到
+`assets/console/`，再被编进二进制。
 
 按部署形态选择安装方式。
 

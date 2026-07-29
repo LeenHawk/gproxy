@@ -141,7 +141,7 @@ Ops endpoints (`/healthz`, `/version`, `/metrics`) are admin-gated.
 - **[Quick start](https://gproxy.leenhawk.com/getting-started/quick-start/)**
 - **[Prompt caching](https://gproxy.leenhawk.com/guides/claude-caching/)**
 - **[Edge deployment](https://gproxy.leenhawk.com/deployment/edge/)**
-- **[Adding a channel](https://gproxy.leenhawk.com/guides/adding-a-channel/)**
+- **[Adding a channel or external crate](https://gproxy.leenhawk.com/guides/adding-a-channel/)**
 
 ## Star History
 

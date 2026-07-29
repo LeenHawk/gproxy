@@ -25,6 +25,11 @@ native 构建包含下表全部渠道；需要多阶段 WebSocket 会话的消�
 | `codex`, `claudecode`, `geminicli`, `antigravity`, `grokbuild`, `kiro`, `copilotcli` | OAuth、device-code、cookie 或 envelope 类型的 agent channel。 |
 | `claudeweb` | 通过 claude.ai 会话 cookie 接入 Claude 消费版 web 后端（仅 native）。 |
 
+上表描述官方 build。自定义 native binary 还可以链接外部 Channel crate。Console 会读取需要
+鉴权的 runtime catalog，因此外部项会根据 `Channel::metadata()` 出现在 Provider selector 中，
+不需要修改 Console 静态列表。编译时集成 contract 见
+[添加 Channel](/zh-cn/guides/adding-a-channel/)。
+
 每个 channel 都声明 `(Operation, OperationKind) -> RoutingDecision` 的能力表。provider 的默认 `routing_rules` 由这张表生成。因此 v2 的协议能力按 Operation 组织，而不是按 OpenAI / Claude / Gemini provider 家族分桶。
 
 ### Azure 渠道

@@ -127,7 +127,7 @@ curl http://127.0.0.1:8787/v1/chat/completions \
 - **[快速开始](https://gproxy.leenhawk.com/zh-cn/getting-started/quick-start/)**
 - **[提示缓存](https://gproxy.leenhawk.com/zh-cn/guides/claude-caching/)**
 - **[边缘部署](https://gproxy.leenhawk.com/zh-cn/deployment/edge/)**
-- **[新增 Channel](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
+- **[新增 Channel 或外部 crate](https://gproxy.leenhawk.com/zh-cn/guides/adding-a-channel/)**
 
 ## Star History
 
