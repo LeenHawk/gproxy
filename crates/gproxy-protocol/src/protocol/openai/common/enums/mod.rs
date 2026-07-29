@@ -1,10 +1,19 @@
 macro_rules! extensible_string_enum {
     ($outer:ident, $known:ident { $($variant:ident => $wire:literal),+ $(,)? }) => {
-        #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
         #[serde(untagged)]
         pub enum $outer {
             Known($known),
             Unknown(String),
+        }
+
+        // Manual Deserialize: a known-variant miss falls back to `Unknown`
+        // without ever formatting an unknown-variant error (see
+        // `protocol::extensible`).
+        impl<'de> serde::Deserialize<'de> for $outer {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                crate::protocol::extensible::deserialize_extensible(d, Self::Known, Self::Unknown)
+            }
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

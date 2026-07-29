@@ -33,11 +33,19 @@ pub struct FallbackCreditTokenConfig {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum FallbackCreditMode {
     Known(FallbackCreditModeKnown),
     Unknown(String),
+}
+
+// Manual Deserialize: unknown values fall back without formatting an
+// unknown-variant error (see `protocol::extensible`).
+impl<'de> serde::Deserialize<'de> for FallbackCreditMode {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        crate::protocol::extensible::deserialize_extensible(d, Self::Known, Self::Unknown)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
