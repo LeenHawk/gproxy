@@ -27,6 +27,17 @@ pub fn request(
     let implicit_cache_mode =
         common::openai_cache_mode_is_implicit(input.prompt_cache_options.as_ref());
     let mid_conv_supported = common::supports_mid_conv_system(&model);
+    // Index of the last non-system message. System/developer messages AFTER it
+    // form the trailing run: when downgrading (pre-Opus-4.8), those must become
+    // user turns — a trailing assistant turn is prefill, which newer models
+    // reject and which no OpenAI client means by a trailing system message.
+    let last_non_system_index = input.messages.iter().rposition(|message| {
+        !matches!(
+            message,
+            openai::ChatCompletionMessageParam::Developer { .. }
+                | openai::ChatCompletionMessageParam::System { .. }
+        )
+    });
     let mut messages = Vec::new();
     let mut system_blocks = Vec::new();
     let mut seen_non_system = false;
@@ -55,12 +66,16 @@ pub fn request(
                 } else {
                     // Pre-Opus-4.8 models reject mid_conv_system ("role
                     // 'system' is not supported on this model") — downgrade to
-                    // a plain assistant turn.
-                    push_claude_blocks(
-                        &mut messages,
-                        claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
-                        blocks,
-                    );
+                    // a plain assistant turn. Trailing system messages become
+                    // user turns instead: ending on assistant would be an
+                    // accidental prefill (rejected by models without prefill
+                    // support, e.g. Opus 4.6+).
+                    let role = if last_non_system_index.is_some_and(|last| index > last) {
+                        claude::MessageRoleKnown::User
+                    } else {
+                        claude::MessageRoleKnown::Assistant
+                    };
+                    push_claude_blocks(&mut messages, claude::MessageRole::Known(role), blocks);
                 }
             }
             openai::ChatCompletionMessageParam::User { content, .. } => {
@@ -334,6 +349,7 @@ mod tests {
                     {"role": "system", "content": "sys"},
                     {"role": "user", "content": "hi"},
                     {"role": "system", "content": "mid"},
+                    {"role": "user", "content": "more"},
                 ],
             }))
             .unwrap();
@@ -341,25 +357,11 @@ mod tests {
         };
 
         let old = convert("claude-sonnet-4-5");
-        let last = old.messages.last().unwrap();
+        assert_eq!(old.messages.len(), 3);
         assert_eq!(
-            last.role,
+            old.messages[1].role,
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
         );
-
-        let new = convert("claude-opus-4-8");
-        let last = new.messages.last().unwrap();
-        assert_eq!(
-            last.role,
-            claude::MessageRole::Known(claude::MessageRoleKnown::User)
-        );
-        let claude::StringOrArray::Array(blocks) = &last.content else {
-            panic!("expected block content");
-        };
-        assert!(matches!(
-            blocks.last().unwrap(),
-            claude::ContentBlockParam::MidConversationSystem(_)
-        ));
     }
 
     #[test]
