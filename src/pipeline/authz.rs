@@ -13,6 +13,7 @@ use crate::pipeline::error::PipelineError;
 use crate::store::cache::CacheBackend;
 use crate::store::persistence::records::{Quota, RateLimit, Scope};
 use crate::util::glob;
+use crate::util::timewindow;
 
 const MINUTE: i64 = 60;
 const DAY: i64 = 86_400;
@@ -233,10 +234,14 @@ pub(crate) async fn precheck_quota(
     plan: &QuotaPlan,
     cache: &dyn CacheBackend,
     est_micros: i64,
+    now_unix: i64,
 ) -> Result<(), PipelineError> {
     if plan.entries.is_empty() {
         return Ok(());
     }
+    let day_key = timewindow::day_key(now_unix);
+    let week_key = timewindow::week_key(now_unix);
+    let month_key = timewindow::month_key(now_unix);
     // All scope pendings read in parallel (one RTT round on remote backends).
     let reads = futures_util::future::join_all(
         plan.entries
@@ -250,12 +255,36 @@ pub(crate) async fn precheck_quota(
         let in_flight = in_flight
             .map_err(|_| PipelineError::CounterUnavailable)?
             .max(0);
-        let exhausted =
-            entry.quota.cost_used + pending::micros_to_cost(in_flight) >= entry.quota.quota_total;
-        let overshoots = entry.quota.cost_used
-            + pending::micros_to_cost(in_flight + est_micros.max(0))
-            > entry.quota.quota_total;
-        if exhausted || overshoots {
+        let pending_cost = pending::micros_to_cost(in_flight);
+        let projected_cost = pending::micros_to_cost(in_flight + est_micros.max(0));
+        let exceeds = |used, limit| used + pending_cost >= limit || used + projected_cost > limit;
+        let quota = &entry.quota;
+        let day_used = if quota.day_anchor == day_key {
+            quota.day_used
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+        let week_used = if quota.week_anchor == week_key {
+            quota.week_used
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+        let month_used = if quota.month_anchor == month_key {
+            quota.month_used
+        } else {
+            rust_decimal::Decimal::ZERO
+        };
+        if exceeds(quota.cost_used, quota.quota_total)
+            || quota
+                .quota_daily
+                .is_some_and(|limit| exceeds(day_used, limit))
+            || quota
+                .quota_weekly
+                .is_some_and(|limit| exceeds(week_used, limit))
+            || quota
+                .quota_monthly
+                .is_some_and(|limit| exceeds(month_used, limit))
+        {
             return Err(PipelineError::QuotaExceeded);
         }
     }

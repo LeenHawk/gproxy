@@ -45,6 +45,9 @@
   "limits": {
     "quota": "Quota",
     "costUsed": "Used",
+    "dailyLimit": "Daily limit",
+    "weeklyLimit": "Weekly limit",
+    "monthlyLimit": "Monthly limit",
     "rpm": "RPM",
     "rpd": "RPD",
     "totalTokens": "Total tokens",

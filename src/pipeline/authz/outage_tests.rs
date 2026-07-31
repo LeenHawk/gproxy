@@ -112,7 +112,16 @@ async fn counter_outage_fails_closed() {
             scope: Scope::User,
             scope_id: 1,
             quota_total: "10".parse().unwrap(),
+            quota_daily: None,
+            quota_weekly: None,
+            quota_monthly: None,
             cost_used: "0".parse().unwrap(),
+            day_used: Default::default(),
+            day_anchor: 0,
+            week_used: Default::default(),
+            week_anchor: 0,
+            month_used: Default::default(),
+            month_anchor: 0,
             created_at: 0,
             updated_at: 0,
         }),
@@ -124,7 +133,7 @@ async fn counter_outage_fails_closed() {
         Err(PipelineError::CounterUnavailable)
     ));
     assert!(matches!(
-        precheck_quota(&quota, &DownCache, 0).await,
+        precheck_quota(&quota, &DownCache, 0, 0).await,
         Err(PipelineError::CounterUnavailable)
     ));
 }

@@ -7,8 +7,8 @@ export interface RoutePermission { id: number; scope: Scope; scope_id: number; r
 export interface RoutePermissionInput { id?: number | null; scope: Scope; scope_id: number; route_pattern: string; }
 export interface RateLimit { id: number; scope: Scope; scope_id: number; route_pattern: string; rpm: number | null; rpd: number | null; total_tokens: number | null; created_at: number; updated_at: number; }
 export interface RateLimitInput { id?: number | null; scope: Scope; scope_id: number; route_pattern: string; rpm?: number | null; rpd?: number | null; total_tokens?: number | null; }
-export interface Quota { id: number; scope: Scope; scope_id: number; quota_total: string; cost_used: string; created_at: number; updated_at: number; }
-export interface QuotaInput { id?: number | null; scope: Scope; scope_id: number; quota_total: string; cost_used: string; }
+export interface Quota { id: number; scope: Scope; scope_id: number; quota_total: string; quota_daily: string | null; quota_weekly: string | null; quota_monthly: string | null; cost_used: string; day_used: string; day_anchor: number; week_used: string; week_anchor: number; month_used: string; month_anchor: number; created_at: number; updated_at: number; }
+export interface QuotaInput { id?: number | null; scope: Scope; scope_id: number; quota_total: string; quota_daily?: string | null; quota_weekly?: string | null; quota_monthly?: string | null; cost_used: string; }
 
 const q = (scope: Scope, scopeId: number) => `?scope=${scope}&scope_id=${scopeId}`;
 

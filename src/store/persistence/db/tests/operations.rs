@@ -274,6 +274,9 @@ async fn quota_decimal_exact_round_trip() {
             scope: Scope::User,
             scope_id: 42,
             quota_total,
+            quota_daily: None,
+            quota_weekly: None,
+            quota_monthly: None,
             cost_used,
         })
         .await
@@ -300,6 +303,9 @@ async fn add_quota_cost_accumulates() {
         scope: Scope::User,
         scope_id: 7,
         quota_total: Decimal::from(100),
+        quota_daily: Some(Decimal::from(10)),
+        quota_weekly: Some(Decimal::from(20)),
+        quota_monthly: Some(Decimal::from(30)),
         cost_used: Decimal::ZERO,
     })
     .await
@@ -319,6 +325,48 @@ async fn add_quota_cost_accumulates() {
         .expect("get")
         .expect("present");
     assert_eq!(q.cost_used, "3.0".parse::<Decimal>().unwrap());
+    assert_eq!(q.day_used, "3.0".parse::<Decimal>().unwrap());
+    assert_eq!(q.day_anchor, crate::util::timewindow::day_key(q.updated_at));
+    assert_eq!(q.week_used, "3.0".parse::<Decimal>().unwrap());
+    assert_eq!(
+        q.week_anchor,
+        crate::util::timewindow::week_key(q.updated_at)
+    );
+    assert_eq!(q.month_used, "3.0".parse::<Decimal>().unwrap());
+    assert_eq!(
+        q.month_anchor,
+        crate::util::timewindow::month_key(q.updated_at)
+    );
+
+    use sea_orm::ConnectionTrait;
+    db.conn
+        .execute_unprepared(
+            "UPDATE quotas SET day_used='99', day_anchor=-1, week_used='99', \
+             week_anchor=-1, month_used='99', month_anchor=-1 WHERE id=1",
+        )
+        .await
+        .expect("seed stale windows");
+    db.add_quota_cost(Scope::User, 7, delta)
+        .await
+        .expect("reset stale windows");
+    let q = db
+        .get_quota(Scope::User, 7)
+        .await
+        .expect("get")
+        .expect("present");
+    assert_eq!(q.cost_used, "4.5".parse::<Decimal>().unwrap());
+    assert_eq!(q.day_used, delta);
+    assert_eq!(q.week_used, delta);
+    assert_eq!(q.month_used, delta);
+    assert_eq!(q.day_anchor, crate::util::timewindow::day_key(q.updated_at));
+    assert_eq!(
+        q.week_anchor,
+        crate::util::timewindow::week_key(q.updated_at)
+    );
+    assert_eq!(
+        q.month_anchor,
+        crate::util::timewindow::month_key(q.updated_at)
+    );
 
     // Absent row → Ok, no-op.
     db.add_quota_cost(Scope::Org, 999, delta)

@@ -47,6 +47,43 @@ pub(super) async fn usage(client: &LibsqlClient) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub(super) async fn quotas(client: &LibsqlClient) -> anyhow::Result<()> {
+    let qr = client
+        .execute("PRAGMA table_info(quotas)", &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql inspect quotas columns failed: {e}"))?;
+    let cols = qr
+        .rows
+        .iter()
+        .map(|row| col_str(row, 1))
+        .collect::<anyhow::Result<HashSet<_>>>()?;
+    if cols.is_empty() {
+        return Ok(());
+    }
+    for (column, definition) in [
+        ("quota_daily", "TEXT"),
+        ("quota_weekly", "TEXT"),
+        ("quota_monthly", "TEXT"),
+        ("day_used", "TEXT NOT NULL DEFAULT '0'"),
+        ("day_anchor", "INTEGER NOT NULL DEFAULT 0"),
+        ("week_used", "TEXT NOT NULL DEFAULT '0'"),
+        ("week_anchor", "INTEGER NOT NULL DEFAULT 0"),
+        ("month_used", "TEXT NOT NULL DEFAULT '0'"),
+        ("month_anchor", "INTEGER NOT NULL DEFAULT 0"),
+    ] {
+        if !cols.contains(column) {
+            client
+                .execute(
+                    &format!("ALTER TABLE quotas ADD COLUMN {column} {definition}"),
+                    &[],
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("libsql repair quotas add {column}: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 pub(super) async fn price_rules(client: &LibsqlClient) -> anyhow::Result<()> {
     let cols = price_rule_columns(client).await?;
     if cols.is_empty() {

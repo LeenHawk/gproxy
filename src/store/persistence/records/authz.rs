@@ -91,8 +91,26 @@ pub struct Quota {
     pub scope_id: i64,
     #[serde(with = "rust_decimal::serde::str")]
     pub quota_total: Decimal,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_daily: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_weekly: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_monthly: Option<Decimal>,
     #[serde(with = "rust_decimal::serde::str")]
     pub cost_used: Decimal,
+    #[serde(default, with = "rust_decimal::serde::str")]
+    pub day_used: Decimal,
+    #[serde(default)]
+    pub day_anchor: i64,
+    #[serde(default, with = "rust_decimal::serde::str")]
+    pub week_used: Decimal,
+    #[serde(default)]
+    pub week_anchor: i64,
+    #[serde(default, with = "rust_decimal::serde::str")]
+    pub month_used: Decimal,
+    #[serde(default)]
+    pub month_anchor: i64,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -105,6 +123,12 @@ pub struct QuotaInput {
     pub scope_id: i64,
     #[serde(with = "rust_decimal::serde::str")]
     pub quota_total: Decimal,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_daily: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_weekly: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quota_monthly: Option<Decimal>,
     #[serde(with = "rust_decimal::serde::str")]
     pub cost_used: Decimal,
 }

@@ -68,6 +68,9 @@ pub(super) fn quota_to_input(r: Quota) -> QuotaInput {
         scope: r.scope,
         scope_id: r.scope_id,
         quota_total: r.quota_total,
+        quota_daily: r.quota_daily,
+        quota_weekly: r.quota_weekly,
+        quota_monthly: r.quota_monthly,
         cost_used: r.cost_used,
     }
 }

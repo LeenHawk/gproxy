@@ -111,6 +111,9 @@ pub fn to_bundle(data: &V1Data, cipher: &V1Cipher) -> anyhow::Result<Bundle> {
             scope: Scope::User,
             scope_id: q.user_id,
             quota_total: dec(q.quota),
+            quota_daily: None,
+            quota_weekly: None,
+            quota_monthly: None,
             cost_used: dec(q.cost_used),
         });
     }

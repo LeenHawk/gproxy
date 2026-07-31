@@ -82,7 +82,16 @@ async fn quota_admission_is_estimate_aware() {
             scope: Scope::User,
             scope_id: 1,
             quota_total: "10".parse().unwrap(),
+            quota_daily: None,
+            quota_weekly: None,
+            quota_monthly: None,
             cost_used: "9".parse().unwrap(),
+            day_used: Default::default(),
+            day_anchor: 0,
+            week_used: Default::default(),
+            week_anchor: 0,
+            month_used: Default::default(),
+            month_anchor: 0,
             created_at: 0,
             updated_at: 0,
         }),
@@ -91,15 +100,55 @@ async fn quota_admission_is_estimate_aware() {
     let plan = prepare_quota(&cp, &identity);
 
     // An estimate that exactly fits the remainder is admitted.
-    assert!(precheck_quota(&plan, &cache, 1_000_000).await.is_ok());
+    assert!(precheck_quota(&plan, &cache, 1_000_000, 0).await.is_ok());
     // Regression: an estimate over the remainder is rejected up front
     // (previously admitted and blew through the quota).
     assert!(matches!(
-        precheck_quota(&plan, &cache, 1_000_001).await,
+        precheck_quota(&plan, &cache, 1_000_001, 0).await,
         Err(PipelineError::QuotaExceeded)
     ));
     // est = 0 reduces to the plain exhaustion check: remaining > 0 admits.
-    assert!(precheck_quota(&plan, &cache, 0).await.is_ok());
+    assert!(precheck_quota(&plan, &cache, 0, 0).await.is_ok());
+}
+
+#[tokio::test]
+async fn daily_quota_uses_only_the_current_window() {
+    let identity = test_identity();
+    let now = 10 * DAY;
+    let mut quota = Quota {
+        id: 1,
+        scope: Scope::User,
+        scope_id: 1,
+        quota_total: "100".parse().unwrap(),
+        quota_daily: Some("5".parse().unwrap()),
+        quota_weekly: None,
+        quota_monthly: None,
+        cost_used: "1".parse().unwrap(),
+        day_used: "5".parse().unwrap(),
+        day_anchor: timewindow::day_key(now),
+        week_used: Default::default(),
+        week_anchor: 0,
+        month_used: Default::default(),
+        month_anchor: 0,
+        created_at: 0,
+        updated_at: 0,
+    };
+    let cache = MemoryCache::new();
+    let mut cp = ControlPlaneSnapshot::empty(1);
+    cp.quotas_by_scope
+        .insert((Scope::User, 1), Arc::new(quota.clone()));
+    assert!(matches!(
+        precheck_quota(&prepare_quota(&cp, &identity), &cache, 0, now).await,
+        Err(PipelineError::QuotaExceeded)
+    ));
+
+    quota.day_anchor -= 1;
+    cp.quotas_by_scope.insert((Scope::User, 1), Arc::new(quota));
+    assert!(
+        precheck_quota(&prepare_quota(&cp, &identity), &cache, 0, now)
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
