@@ -24,7 +24,9 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_gemini(
             gemini::ServiceTierKnown::Standard
         }
         openai::ServiceTier::Flex => gemini::ServiceTierKnown::Flex,
-        openai::ServiceTier::Priority => gemini::ServiceTierKnown::Priority,
+        openai::ServiceTier::Fast | openai::ServiceTier::Priority => {
+            gemini::ServiceTierKnown::Priority
+        }
         openai::ServiceTier::Scale => gemini::ServiceTierKnown::Standard,
     };
     Some(gemini::ServiceTier::Known(tier))
@@ -55,9 +57,10 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_claude(
         openai::ServiceTier::Default | openai::ServiceTier::OnDemand => {
             claude::RequestServiceTierKnown::StandardOnly
         }
-        openai::ServiceTier::Flex | openai::ServiceTier::Scale | openai::ServiceTier::Priority => {
-            claude::RequestServiceTierKnown::Auto
-        }
+        openai::ServiceTier::Fast
+        | openai::ServiceTier::Flex
+        | openai::ServiceTier::Scale
+        | openai::ServiceTier::Priority => claude::RequestServiceTierKnown::Auto,
     };
     Some(claude::RequestServiceTier::Known(service_tier))
 }

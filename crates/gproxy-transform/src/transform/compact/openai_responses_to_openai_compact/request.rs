@@ -26,6 +26,7 @@ fn service_tier_to_compact(service_tier: openai::ServiceTier) -> openai::Compact
         openai::ServiceTier::Default | openai::ServiceTier::OnDemand => {
             openai::CompactServiceTier::Default
         }
+        openai::ServiceTier::Fast => openai::CompactServiceTier::Fast,
         openai::ServiceTier::Flex => openai::CompactServiceTier::Flex,
         openai::ServiceTier::Priority => openai::CompactServiceTier::Priority,
         // `scale` has no compact equivalent; fall back to auto.

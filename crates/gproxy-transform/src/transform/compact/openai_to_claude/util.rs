@@ -17,9 +17,9 @@ pub(super) fn compact_service_tier_to_claude(
     let service_tier = match service_tier? {
         openai::CompactServiceTier::Auto => claude::RequestServiceTierKnown::Auto,
         openai::CompactServiceTier::Default => claude::RequestServiceTierKnown::StandardOnly,
-        openai::CompactServiceTier::Flex | openai::CompactServiceTier::Priority => {
-            claude::RequestServiceTierKnown::Auto
-        }
+        openai::CompactServiceTier::Fast
+        | openai::CompactServiceTier::Flex
+        | openai::CompactServiceTier::Priority => claude::RequestServiceTierKnown::Auto,
     };
     Some(claude::RequestServiceTier::Known(service_tier))
 }

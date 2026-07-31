@@ -131,6 +131,8 @@ pub enum CompactServiceTier {
     Auto,
     #[serde(rename = "default")]
     Default,
+    #[serde(rename = "fast")]
+    Fast,
     #[serde(rename = "flex")]
     Flex,
     #[serde(rename = "priority")]

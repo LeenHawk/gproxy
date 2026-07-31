@@ -29,6 +29,7 @@ extensible_string_enum!(ReasoningMode, ReasoningModeKnown {
 strict_string_enum!(ServiceTier {
     Auto => "auto",
     Default => "default",
+    Fast => "fast",
     Flex => "flex",
     Scale => "scale",
     Priority => "priority",

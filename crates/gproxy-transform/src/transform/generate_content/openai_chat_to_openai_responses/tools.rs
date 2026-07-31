@@ -91,6 +91,8 @@ pub(super) fn tool_output_item(
                 output,
                 id: None,
                 caller: None,
+                name: None,
+                namespace: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 created_by: None,
                 extra: Default::default(),
