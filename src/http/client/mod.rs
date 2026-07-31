@@ -1,10 +1,10 @@
 //! Outbound HTTP implementations for the host-owned channel transport.
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use crate::channel::transport::ConduitSocket;
 pub use crate::channel::transport::{
     ByteStreamDecoder, ClientError, RespStream, TransportOptions, UpstreamClient,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use crate::channel::transport::{ConduitFrame, ConduitSocket};
 
 #[cfg(any(target_arch = "wasm32", test))]
 fn validate_fetch_options(options: Option<&TransportOptions>) -> Result<(), ClientError> {

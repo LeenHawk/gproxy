@@ -86,6 +86,10 @@ pub fn classify(
             OperationKey::provider(Operation::ListModels, Prov::Gemini),
             false,
         ),
+        ("GET", "/v1/realtime" | "/v1/live") => (
+            OperationKey::provider(Operation::ConnectRealtime, Prov::OpenAi),
+            true,
+        ),
         ("GET", p) => match get_model(p, headers) {
             Some(key) => (key, false),
             None => return Err(PipelineError::UnsupportedPath),

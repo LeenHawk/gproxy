@@ -140,6 +140,7 @@ impl Channel for CodexChannel {
             unsupported(CreateEmbedding, pv(P::OpenAi)),
             unsupported(CreateEmbedding, pv(P::Gemini)),
             pass(CompactContent, pv(P::OpenAi)),
+            pass(ConnectRealtime, pv(P::OpenAi)),
         ]
     }
 

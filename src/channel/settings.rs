@@ -40,6 +40,7 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
         (O::EditImage, _) => "image_edits",
         (O::CompactContent, _) => "openai_compact",
         (O::CreateConversation, _) => "openai_conversations",
+        (O::ConnectRealtime, _) => "openai_realtime",
         (O::GenerateContent | O::StreamGenerateContent, _) => {
             unreachable!("content operations must carry a content kind")
         }

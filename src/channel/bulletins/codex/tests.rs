@@ -1,4 +1,5 @@
 mod auth;
+mod realtime;
 
 use std::sync::Arc;
 

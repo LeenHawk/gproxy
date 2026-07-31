@@ -7,7 +7,7 @@ use bytes::Bytes;
 use crate::config::{UPSTREAM_CONNECT_TIMEOUT, UPSTREAM_READ_TIMEOUT, UPSTREAM_TOTAL_TIMEOUT};
 
 use super::proxy_url::normalize_proxy_url;
-use super::{ClientError, ConduitSocket, RespStream, UpstreamClient};
+use super::{ClientError, ConduitFrame, ConduitSocket, RespStream, UpstreamClient};
 
 /// Default upstream User-Agent for requests that don't set one and aren't
 /// emulating a captured client. API-key channels (openai/deepseek/…) forward no
@@ -269,8 +269,8 @@ fn websocket_timeout() -> ClientError {
     ClientError::Transport("websocket exceeded total_timeout".into())
 }
 
-/// [`ConduitSocket`] over a wreq [`wreq::ws::WebSocket`]. Receives skip non-text
-/// frames (ping/pong/binary) so the caller only sees the JSON envelopes.
+/// [`ConduitSocket`] over a wreq [`wreq::ws::WebSocket`]. The frame API preserves
+/// text, binary, and close frames; the compatibility text API skips binary.
 struct WreqConduit {
     ws: wreq::ws::WebSocket,
     deadline: Option<tokio::time::Instant>,
@@ -279,7 +279,56 @@ struct WreqConduit {
 #[async_trait::async_trait]
 impl ConduitSocket for WreqConduit {
     async fn send_text(&mut self, text: String) -> Result<(), ClientError> {
-        let send = self.ws.send(wreq::ws::message::Message::text(text));
+        self.send_message(wreq::ws::message::Message::text(text))
+            .await
+    }
+
+    async fn send_binary(&mut self, bytes: Bytes) -> Result<(), ClientError> {
+        self.send_message(wreq::ws::message::Message::binary(bytes))
+            .await
+    }
+
+    async fn recv_text(&mut self) -> Option<Result<String, ClientError>> {
+        loop {
+            match self.recv_frame().await? {
+                Ok(ConduitFrame::Text(text)) => return Some(Ok(text)),
+                Ok(ConduitFrame::Binary(_)) => continue,
+                Ok(ConduitFrame::Close) => return None,
+                Err(error) => return Some(Err(error)),
+            }
+        }
+    }
+
+    async fn recv_frame(&mut self) -> Option<Result<ConduitFrame, ClientError>> {
+        loop {
+            let message = match self.recv_message().await? {
+                Ok(message) => message,
+                Err(error) => return Some(Err(error)),
+            };
+            use wreq::ws::message::Message;
+            match message {
+                Message::Text(text) => {
+                    return Some(Ok(ConduitFrame::Text(text.as_str().to_owned())));
+                }
+                Message::Binary(bytes) => return Some(Ok(ConduitFrame::Binary(bytes))),
+                Message::Close(_) => return Some(Ok(ConduitFrame::Close)),
+                Message::Ping(_) | Message::Pong(_) => continue,
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<(), ClientError> {
+        self.send_message(wreq::ws::message::Message::close(None))
+            .await
+    }
+}
+
+impl WreqConduit {
+    async fn send_message(
+        &mut self,
+        message: wreq::ws::message::Message,
+    ) -> Result<(), ClientError> {
+        let send = self.ws.send(message);
         let result = match self.deadline {
             Some(deadline) => tokio::time::timeout_at(deadline, send)
                 .await
@@ -289,27 +338,21 @@ impl ConduitSocket for WreqConduit {
         result.map_err(|e| ClientError::Transport(format!("websocket send: {e}")))
     }
 
-    async fn recv_text(&mut self) -> Option<Result<String, ClientError>> {
-        loop {
-            let recv = self.ws.recv();
-            let received = match self.deadline {
-                Some(deadline) => match tokio::time::timeout_at(deadline, recv).await {
-                    Ok(received) => received,
-                    Err(_) => return Some(Err(websocket_timeout())),
-                },
-                None => recv.await,
-            };
-            match received {
-                Some(Ok(msg)) => match msg.into_text() {
-                    Ok(t) => return Some(Ok(t.as_str().to_string())),
-                    // Non-text frame (ping/pong/binary/close) — skip and keep reading.
-                    Err(_) => continue,
-                },
-                Some(Err(e)) => {
-                    return Some(Err(ClientError::Transport(format!("websocket recv: {e}"))));
-                }
-                None => return None,
-            }
+    async fn recv_message(&mut self) -> Option<Result<wreq::ws::message::Message, ClientError>> {
+        let recv = self.ws.recv();
+        let received = match self.deadline {
+            Some(deadline) => match tokio::time::timeout_at(deadline, recv).await {
+                Ok(received) => received,
+                Err(_) => return Some(Err(websocket_timeout())),
+            },
+            None => recv.await,
+        };
+        match received {
+            Some(Ok(message)) => Some(Ok(message)),
+            Some(Err(error)) => Some(Err(ClientError::Transport(format!(
+                "websocket recv: {error}"
+            )))),
+            None => None,
         }
     }
 }

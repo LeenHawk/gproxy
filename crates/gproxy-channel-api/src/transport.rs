@@ -54,12 +54,34 @@ pub type RespStream =
 pub type RespStream =
     std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, ClientError>>>>;
 
+/// One application frame received from an upstream WebSocket.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub enum ConduitFrame {
+    Text(String),
+    Binary(Bytes),
+    Close,
+}
+
 /// An open upstream WebSocket (native only), kept minimal and object-safe.
 #[cfg(not(target_arch = "wasm32"))]
 #[async_trait::async_trait]
 pub trait ConduitSocket: Send {
     async fn send_text(&mut self, text: String) -> Result<(), ClientError>;
+    async fn send_binary(&mut self, _bytes: Bytes) -> Result<(), ClientError> {
+        Err(ClientError::Config(
+            "binary upstream websocket frames not supported by this client".into(),
+        ))
+    }
     async fn recv_text(&mut self) -> Option<Result<String, ClientError>>;
+    async fn recv_frame(&mut self) -> Option<Result<ConduitFrame, ClientError>> {
+        self.recv_text()
+            .await
+            .map(|result| result.map(ConduitFrame::Text))
+    }
+    async fn close(&mut self) -> Result<(), ClientError> {
+        Ok(())
+    }
 }
 
 /// Host-owned upstream capability. Implementations apply the resolved proxy,

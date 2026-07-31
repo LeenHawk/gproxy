@@ -70,6 +70,11 @@ pub fn request_target(target: OperationKey, model: &str, stream: bool) -> Reques
         (Operation::EditImage, _) => RequestTarget::post("/v1/images/edits"),
         (Operation::CompactContent, _) => RequestTarget::post("/v1/responses/compact"),
         (Operation::CreateConversation, _) => RequestTarget::post("/v1/conversations"),
+        (Operation::ConnectRealtime, _) => RequestTarget {
+            method: HttpMethod::Get,
+            path: "/v1/realtime".to_owned(),
+            query: Some(format!("model={model}")),
+        },
         // Content ops never carry a bare Provider kind (constructor
         // invariant); synthesize the provider's content path defensively.
         (Operation::GenerateContent | Operation::StreamGenerateContent, p) => {

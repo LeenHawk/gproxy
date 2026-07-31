@@ -81,7 +81,8 @@
     "edit_image": "Edit Image",
     "create_embedding": "Create Embedding",
     "compact_content": "Compact Content",
-    "create_conversation": "Create Conversation"
+    "create_conversation": "Create Conversation",
+    "connect_realtime": "Connect Realtime"
   },
   "implementation": {
     "passthrough": "Passthrough",
