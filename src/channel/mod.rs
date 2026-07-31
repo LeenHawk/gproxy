@@ -9,6 +9,7 @@ pub mod envelope;
 pub mod http_util;
 pub(crate) mod metadata;
 pub mod oauth;
+pub mod realtime_websocket;
 pub mod registry;
 pub mod resolve;
 #[cfg(any(

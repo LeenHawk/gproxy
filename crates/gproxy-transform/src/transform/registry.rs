@@ -104,7 +104,8 @@ pub fn resolve(
         Operation::CompactContent
         | Operation::CreateImage
         | Operation::EditImage
-        | Operation::CreateConversation => Err(TransformError::unsupported_pair(source, target)),
+        | Operation::CreateConversation
+        | Operation::ConnectRealtime => Err(TransformError::unsupported_pair(source, target)),
     }
 }
 

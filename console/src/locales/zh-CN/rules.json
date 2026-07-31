@@ -81,7 +81,8 @@
     "edit_image": "编辑图像",
     "create_embedding": "创建嵌入",
     "compact_content": "压缩内容",
-    "create_conversation": "创建对话"
+    "create_conversation": "创建对话",
+    "connect_realtime": "连接实时会话"
   },
   "implementation": {
     "passthrough": "直通",

@@ -40,6 +40,14 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
     }
     let path = parts.uri.path().to_string();
 
+    if crate::channel::realtime_websocket::is_ingress_path(&path) {
+        return bridge::text_response(
+            501,
+            "text/plain",
+            b"OpenAI Realtime WebSocket passthrough is not supported on edge",
+        );
+    }
+
     // Operational endpoints share the admin auth used by /admin/*.
     match path.as_str() {
         "/healthz" => {
@@ -132,6 +140,15 @@ pub async fn responses_websocket_frame(
 
     let parts = ws_request_metadata_to_parts(&req)?;
     let path = parts.uri.path().to_string();
+    if crate::channel::realtime_websocket::is_ingress_path(&path) {
+        return Ok(bridge::messages_to_js_array(vec![
+            crate::http::responses_ws::WsFrameError::plain(
+                ::http::StatusCode::NOT_IMPLEMENTED,
+                "OpenAI Realtime WebSocket passthrough is not supported on edge",
+            )
+            .to_frame(),
+        ]));
+    }
     if !crate::http::responses_ws::is_responses_websocket_path(&path) {
         return Ok(bridge::messages_to_js_array(vec![
             crate::http::responses_ws::WsFrameError::plain(

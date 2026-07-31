@@ -97,6 +97,7 @@
       "gemini_count_tokens": "Gemini Token 計數",
       "openai_chat_completions": "OpenAI Chat Completions",
       "openai_responses": "OpenAI Responses",
+      "openai_realtime": "OpenAI 即時 WebSocket",
       "claude_messages": "Claude Messages",
       "gemini_generate_content": "Gemini 內容生成",
       "gemini_stream_generate_content": "Gemini 串流內容生成",

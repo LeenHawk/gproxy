@@ -17,6 +17,8 @@ pub mod local_ops;
 pub mod model_catalog;
 pub mod outcome;
 pub mod preprocess;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod realtime;
 pub mod route;
 pub mod settle;
 pub mod stream;

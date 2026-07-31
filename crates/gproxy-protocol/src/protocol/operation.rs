@@ -25,6 +25,7 @@ pub enum OperationGroup {
     Embeddings,
     Compact,
     Conversation,
+    Realtime,
 }
 
 /// Provider-neutral operation name.
@@ -45,6 +46,7 @@ pub enum Operation {
     CreateEmbedding,
     CompactContent,
     CreateConversation,
+    ConnectRealtime,
 }
 
 impl Operation {
@@ -58,12 +60,16 @@ impl Operation {
             Self::CreateEmbedding => OperationGroup::Embeddings,
             Self::CompactContent => OperationGroup::Compact,
             Self::CreateConversation => OperationGroup::Conversation,
+            Self::ConnectRealtime => OperationGroup::Realtime,
         }
     }
 
     /// Whether requests of this operation carry a JSON body.
     pub const fn has_request_body(self) -> bool {
-        !matches!(self, Self::ListModels | Self::GetModel)
+        !matches!(
+            self,
+            Self::ListModels | Self::GetModel | Self::ConnectRealtime
+        )
     }
 }
 

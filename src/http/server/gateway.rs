@@ -43,7 +43,12 @@ async fn handle(
     scoped: bool,
 ) -> Response {
     if let Some(OptionalWsUpgrade(ws)) = ws {
-        return handle_websocket(state, ws, req, scoped);
+        return handle_websocket(state, ws, req, scoped).await;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    if crate::http::realtime_ws::is_path(req.uri().path()) {
+        return (StatusCode::UPGRADE_REQUIRED, "websocket upgrade required").into_response();
     }
 
     let (parts, body) = req.into_parts();
@@ -64,8 +69,29 @@ async fn handle(
     }
 }
 
-fn handle_websocket(state: AppState, ws: WebSocketUpgrade, req: Request, scoped: bool) -> Response {
+async fn handle_websocket(
+    state: AppState,
+    ws: WebSocketUpgrade,
+    req: Request,
+    scoped: bool,
+) -> Response {
     let path = req.uri().path();
+    #[cfg(not(target_arch = "wasm32"))]
+    if crate::http::realtime_ws::is_path(path) {
+        if scoped != crate::http::realtime_ws::is_scoped_path(path) {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+        let (parts, _body) = req.into_parts();
+        let ctx = match build_ctx(parts, bytes::Bytes::new(), scoped) {
+            Ok(ctx) => ctx,
+            Err(error) => return error.into_response(),
+        };
+        let session = match crate::pipeline::realtime::open(&state, ctx).await {
+            Ok(session) => session,
+            Err(error) => return error.into_response(),
+        };
+        return ws.on_upgrade(move |socket| crate::http::realtime_ws::relay(socket, session));
+    }
     if !crate::http::responses_ws::is_responses_websocket_path(path)
         || scoped != crate::http::responses_ws::is_scoped_responses_websocket_path(path)
     {

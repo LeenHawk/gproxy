@@ -16,6 +16,17 @@ const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
     forward_query: &[],
 };
 
+const REALTIME_FORWARD_HEADERS: &[&str] = &[
+    "openai-beta",
+    "openai-alpha",
+    "openai-organization",
+    "openai-project",
+    "x-session-id",
+    "session-id",
+    "thread-id",
+    "originator",
+];
+
 pub struct OpenAiChannel;
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
@@ -90,17 +101,30 @@ impl Channel for OpenAiChannel {
                 pv(P::OpenAi),
             ),
             pass(CompactContent, pv(P::OpenAi)),
+            pass(ConnectRealtime, pv(P::OpenAi)),
         ]
     }
 
     fn prepare(&self, ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelError> {
-        let websocket = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
-        let (mut req, key) = common::build_request(ctx, &DEFAULTS)?;
+        let responses_ws = crate::channel::responses_websocket::is_target(&ctx.method, ctx.path);
+        let realtime_ws = crate::channel::realtime_websocket::is_target(&ctx.method, ctx.path);
+        let (mut req, key) = if realtime_ws {
+            crate::channel::realtime_websocket::build_api_key_request(
+                ctx,
+                &DEFAULTS,
+                REALTIME_FORWARD_HEADERS,
+            )?
+        } else {
+            common::build_request(ctx, &DEFAULTS)?
+        };
         auth::apply(&mut req, &key)?;
-        if websocket {
+        if responses_ws {
             crate::channel::responses_websocket::apply_beta(req.headers_mut());
             *req.uri_mut() = crate::channel::responses_websocket::websocket_uri(req.uri())?;
             return crate::channel::responses_websocket::prepare(req);
+        }
+        if realtime_ws {
+            *req.uri_mut() = crate::channel::responses_websocket::websocket_uri(req.uri())?;
         }
         Ok(PreparedRequest::new(req))
     }
@@ -220,6 +244,39 @@ mod tests {
             };
             assert_eq!(target.kind, OperationKind::ContentGeneration(target_kind));
         }
+    }
+
+    #[test]
+    fn normal_openai_request_drops_realtime_only_headers() {
+        let secret = json!({ "api_key": "sk-test" });
+        let settings = json!({});
+        let mut headers = HeaderMap::new();
+        headers.insert("openai-beta", "feature=v1".parse().unwrap());
+        headers.insert("openai-alpha", "quicksilver=v2".parse().unwrap());
+        headers.insert("x-session-id", "realtime-session".parse().unwrap());
+        let request = OpenAiChannel
+            .prepare(PrepareCtx {
+                secret: &secret,
+                provider_settings: &settings,
+                op: crate::protocol::OperationKey::content_generation(
+                    Operation::GenerateContent,
+                    Kind::OpenAiResponses,
+                ),
+                stream: false,
+                upstream_model_id: "gpt-test",
+                method: Method::POST,
+                path: "/v1/responses",
+                query: None,
+                headers: &headers,
+                body: Bytes::new(),
+            })
+            .unwrap()
+            .into_http()
+            .unwrap();
+
+        assert_eq!(request.headers()["openai-beta"], "feature=v1");
+        assert!(request.headers().get("openai-alpha").is_none());
+        assert!(request.headers().get("x-session-id").is_none());
     }
 
     #[cfg(not(target_arch = "wasm32"))]

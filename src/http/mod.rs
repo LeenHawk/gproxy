@@ -8,6 +8,8 @@ pub mod client;
 pub(crate) mod cors;
 pub(crate) mod egress;
 pub(crate) mod ops;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod realtime_ws;
 pub(crate) mod responses_ws;
 pub mod server;
 
