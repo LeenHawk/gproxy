@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { findDefaultPriceRule } from "@/lib/default-price-rules";
 
 const GLOBAL = "__global__";
 
@@ -64,6 +65,18 @@ export function PriceRuleForm({
   const [imagePrice, setImagePrice] = useState(() => decimalField(rule?.image_price));
   const [formError, setFormError] = useState<string | null>(null);
   const matchOptions = [...new Set(modelMatchOptions.map((v) => v.trim()).filter((v) => v !== ""))];
+  const defaultPriceRule = findDefaultPriceRule(modelMatch);
+
+  const applyDefaultPrices = () => {
+    if (!defaultPriceRule) return;
+    setInputPrice(defaultPriceRule.input_price);
+    setOutputPrice(defaultPriceRule.output_price);
+    setCacheReadPrice(defaultPriceRule.cache_read_price);
+    setCacheCreation5mPrice(defaultPriceRule.cache_creation_5m_price);
+    setCacheCreation30mPrice(defaultPriceRule.cache_creation_30m_price);
+    setCacheCreation1hPrice(defaultPriceRule.cache_creation_1h_price);
+    setImagePrice(defaultPriceRule.image_price);
+  };
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -143,7 +156,14 @@ export function PriceRuleForm({
       </div>
 
       <div className="grid gap-3">
-        <Label>{t("form.prices")}</Label>
+        <div className="flex items-center justify-between gap-3">
+          <Label>{t("form.prices")}</Label>
+          {defaultPriceRule && (
+            <Button type="button" variant="outline" size="sm" onClick={applyDefaultPrices}>
+              {t("form.applyDefaults")}
+            </Button>
+          )}
+        </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="grid gap-2">
             <Label htmlFor="price-input">{t("form.inputPrice")}</Label>

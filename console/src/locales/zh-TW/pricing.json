@@ -56,6 +56,7 @@
     "matchType": "命中方式",
     "modelMatch": "模型",
     "prices": "價格",
+    "applyDefaults": "套用預設價格",
     "inputPrice": "輸入 / 每百萬 tokens",
     "outputPrice": "輸出 / 每百萬 tokens",
     "cacheReadPrice": "快取讀取 / 每百萬 tokens",

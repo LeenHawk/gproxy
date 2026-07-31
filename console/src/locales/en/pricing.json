@@ -56,6 +56,7 @@
     "matchType": "Match type",
     "modelMatch": "Model",
     "prices": "Prices",
+    "applyDefaults": "Apply default price",
     "inputPrice": "Input / 1M tokens",
     "outputPrice": "Output / 1M tokens",
     "cacheReadPrice": "Cache read / 1M tokens",
