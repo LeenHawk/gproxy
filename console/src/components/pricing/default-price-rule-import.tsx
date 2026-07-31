@@ -5,31 +5,17 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@/api/http";
 import { upsertPriceRule, type PriceRule, type PriceRuleInput } from "@/api/price-rules";
-import openrouterPriceRules from "@/data/openrouter-price-rules.json";
 import { EntityDialog } from "@/components/entity-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_RULES } from "@/lib/default-price-rules";
 import { cn } from "@/lib/utils";
-
-type PriceRuleDraft = Omit<PriceRuleInput, "id">;
-
-interface PriceRuleBundle {
-  schema_version: number;
-  price_rules: PriceRuleDraft[];
-}
 
 interface ImportError {
   model: string;
   error: string;
 }
-
-const DEFAULT_BUNDLE = openrouterPriceRules as PriceRuleBundle;
-const DEFAULT_RULES = DEFAULT_BUNDLE.price_rules.map((rule) => ({
-  ...rule,
-  provider_id: null,
-  match_type: "contains" as const,
-}));
 
 function ruleKey(rule: Pick<PriceRuleInput, "provider_id" | "match_type" | "model_match">): string {
   return [
