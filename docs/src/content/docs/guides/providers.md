@@ -85,6 +85,31 @@ recognize the shared GPROXY trigger strings on each target protocol and insert
 the matching native marker. Anthropic server-side fallback is not available on
 Microsoft Foundry, so the Azure channel does not inject `fallbacks`.
 
+### DeepSeek channel
+
+The `deepseek` channel supports DeepSeek's native OpenAI-compatible Responses
+API in both non-streaming and HTTP/SSE streaming modes. Clients call GPROXY's
+normal `POST /v1/responses` endpoint; the channel maps it to DeepSeek's
+documented `POST https://api.deepseek.com/responses` endpoint and authenticates
+with `Authorization: Bearer`. Responses WebSocket clients are bridged to that
+HTTP/SSE endpoint because DeepSeek documents HTTP streaming, not a WebSocket
+Responses transport. `settings_json.endpoints.openai_responses` remains
+available as an exact URL override.
+
+DeepSeek's current official documentation says Responses supports only
+`deepseek-v4-flash`; `deepseek-v4-pro` support is planned for early August 2026.
+The API is stateless: `previous_response_id`, `conversation`, storage, and
+background execution are unsupported. It supports
+text/reasoning, function calls, server-side web search, and the `apply_patch`
+custom tool used by Codex, but not image or file input. Other unsupported
+Responses parameters and item types are generally ignored. See DeepSeek's
+[Responses guide](https://api-docs.deepseek.com/guides/responses_api) for the
+current compatibility table.
+
+Providers created before this capability was added retain their stored routing
+rules. Reset the provider's routing defaults to opt in to all native Responses
+and WebSocket-bridge routes.
+
 ### Amazon Bedrock channel
 
 The `aws-bedrock` channel uses an Amazon Bedrock API key stored as

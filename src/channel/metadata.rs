@@ -132,6 +132,7 @@ fn endpoint_kinds(id: &str) -> &'static [&'static str] {
             "openai_list_models",
             "openai_get_model",
             "openai_chat_completions",
+            "openai_responses",
             "claude_messages",
         ],
         "groq" => &[

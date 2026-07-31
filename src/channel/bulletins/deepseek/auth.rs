@@ -1,8 +1,9 @@
 //! DeepSeek auth + path selection.
 //!
-//! DeepSeek exposes an Anthropic-compatible endpoint under
-//! `/anthropic/v1/messages`. That surface wants `x-api-key` (like the real
-//! Anthropic API); everything else on the host uses `Authorization: Bearer`.
+//! DeepSeek documents its Responses endpoint without GPROXY's public `/v1`
+//! prefix and its Anthropic-compatible endpoint under `/anthropic/v1/messages`.
+//! The Anthropic surface wants `x-api-key` (like the real Anthropic API);
+//! everything else uses `Authorization: Bearer`.
 
 use bytes::Bytes;
 use http::Request;
@@ -16,15 +17,18 @@ use crate::channel::bulletins::common;
 const CLAUDE_MESSAGES_PATH: &str = "/v1/messages";
 /// DeepSeek's Anthropic-compatible upstream path.
 const ANTHROPIC_MESSAGES_PATH: &str = "/anthropic/v1/messages";
+/// GPROXY's public OpenAI Responses path.
+const OPENAI_RESPONSES_PATH: &str = "/v1/responses";
+/// DeepSeek's documented Responses path.
+const DEEPSEEK_RESPONSES_PATH: &str = "/responses";
 
-/// Map an inbound provider-relative path to DeepSeek's upstream path. The
-/// Claude-messages passthrough is rehomed under the `/anthropic` prefix; every
-/// other path is upstream-native already.
+/// Map GPROXY's public Claude Messages and OpenAI Responses paths to DeepSeek's
+/// documented upstream paths; every other path is already accepted upstream.
 pub(super) fn upstream_path(path: &str) -> &str {
-    if path == CLAUDE_MESSAGES_PATH {
-        ANTHROPIC_MESSAGES_PATH
-    } else {
-        path
+    match path {
+        CLAUDE_MESSAGES_PATH => ANTHROPIC_MESSAGES_PATH,
+        OPENAI_RESPONSES_PATH => DEEPSEEK_RESPONSES_PATH,
+        _ => path,
     }
 }
 

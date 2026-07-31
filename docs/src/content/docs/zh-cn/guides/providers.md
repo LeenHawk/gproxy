@@ -64,6 +64,25 @@ Chat/Responses 插入原生 `prompt_cache_breakpoint`，或给 Claude Messages �
 GPROXY 触发字符串只在对应目标协议中被删除，并在原位置插入原生缓存断点。Microsoft
 Foundry 不提供 Anthropic 服务端回退，因此 Azure channel 不会注入 `fallbacks`。
 
+### DeepSeek 渠道
+
+`deepseek` channel 已支持 DeepSeek 原生 OpenAI-compatible Responses API，包括非流式与
+HTTP/SSE 流式调用。客户端仍调用 GPROXY 标准的 `POST /v1/responses`；channel 会将其映射到
+DeepSeek 官方的 `POST https://api.deepseek.com/responses`，并使用
+`Authorization: Bearer` 鉴权。DeepSeek 官方只说明了 HTTP 流式接口，未说明 Responses
+WebSocket transport，因此 GPROXY 会把 Responses WebSocket 客户端桥接到该 HTTP/SSE 接口。
+仍可通过 `settings_json.endpoints.openai_responses` 配置精确 URL 覆盖。
+
+DeepSeek 当前官方文档说明 Responses 仅支持 `deepseek-v4-flash`，`deepseek-v4-pro`
+计划于 2026 年 8 月初支持。该接口无状态，不支持
+`previous_response_id`、`conversation`、服务端存储与后台执行；支持文本/思维链、function
+call、服务端联网搜索，以及 Codex 使用的 `apply_patch` custom tool，但不支持图片和文件输入。
+其他不支持的 Responses 参数与 item 类型通常会被静默忽略。最新兼容表见 DeepSeek
+[Responses 指南](https://api-docs.deepseek.com/zh-cn/guides/responses_api)。
+
+在此能力加入前创建的 provider 会保留数据库中已有的路由规则。若要启用全部原生 Responses
+与 WebSocket bridge route，请重置该 provider 的默认路由。
+
 ### Amazon Bedrock 渠道
 
 `aws-bedrock` channel 使用 Amazon Bedrock API key，凭据保存为 `{"api_key":"..."}`。这里应

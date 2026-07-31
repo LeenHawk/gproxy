@@ -1,7 +1,7 @@
 //! DeepSeek channel.
 //!
-//! Two upstream auth surfaces share one host:
-//! - OpenAI-compatible `/chat/completions` (+ models) use
+//! Three upstream API surfaces share one host:
+//! - OpenAI-compatible `/chat/completions`, `/responses` (+ models) use
 //!   `Authorization: Bearer`.
 //! - The Anthropic-compatible `/anthropic/v1/messages` endpoint (reached by the
 //!   `cg(ClaudeMessages)` passthrough) uses `x-api-key` — [`auth`] rehomes the
@@ -66,12 +66,7 @@ impl Channel for DeepSeekChannel {
             local(CountTokens, pv(P::Gemini)),
             // === Generate content (non-stream) ===
             pass(GenerateContent, cg(OpenAiChatCompletions)),
-            xform(
-                GenerateContent,
-                cg(OpenAiResponses),
-                GenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
+            pass(GenerateContent, cg(OpenAiResponses)),
             pass(GenerateContent, cg(ClaudeMessages)),
             xform(
                 GenerateContent,
@@ -81,12 +76,7 @@ impl Channel for DeepSeekChannel {
             ),
             // === Generate content (stream) ===
             pass(StreamGenerateContent, cg(OpenAiChatCompletions)),
-            xform(
-                StreamGenerateContent,
-                cg(OpenAiResponses),
-                StreamGenerateContent,
-                cg(OpenAiChatCompletions),
-            ),
+            pass(StreamGenerateContent, cg(OpenAiResponses)),
             pass(StreamGenerateContent, cg(ClaudeMessages)),
             xform(
                 StreamGenerateContent,
@@ -102,7 +92,8 @@ impl Channel for DeepSeekChannel {
                 cg(OpenAiChatCompletions),
             ),
         ];
-        routes.extend(responses_ws_to(cg(OpenAiChatCompletions)));
+        // DeepSeek documents HTTP/SSE Responses, not Responses WebSocket.
+        routes.extend(responses_ws_to(cg(OpenAiResponses)));
         routes
     }
 
@@ -141,58 +132,4 @@ impl Channel for DeepSeekChannel {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use http::Method;
-    use serde_json::json;
-
-    fn prepare(path: &str) -> http::Request<Bytes> {
-        let secret = json!({ "api_key": "sk-deepseek" });
-        let settings = json!({});
-        let headers = HeaderMap::new();
-        DeepSeekChannel
-            .prepare(PrepareCtx {
-                secret: &secret,
-                provider_settings: &settings,
-                op: crate::protocol::OperationKey::content_generation(
-                    crate::protocol::Operation::GenerateContent,
-                    crate::protocol::ContentGenerationKind::OpenAiChatCompletions,
-                ),
-                stream: false,
-                upstream_model_id: "deepseek-chat",
-                method: Method::POST,
-                path,
-                query: None,
-                headers: &headers,
-                body: Bytes::from_static(b"{}"),
-            })
-            .unwrap()
-            .into_http()
-            .unwrap()
-    }
-
-    #[test]
-    fn claude_messages_path_rehomed_with_x_api_key() {
-        let req = prepare("/v1/messages");
-        assert_eq!(
-            req.uri().to_string(),
-            "https://api.deepseek.com/anthropic/v1/messages"
-        );
-        assert_eq!(req.headers().get("x-api-key").unwrap(), "sk-deepseek");
-        assert!(req.headers().get("authorization").is_none());
-    }
-
-    #[test]
-    fn openai_chat_path_uses_bearer() {
-        let req = prepare("/v1/chat/completions");
-        assert_eq!(
-            req.uri().to_string(),
-            "https://api.deepseek.com/v1/chat/completions"
-        );
-        assert_eq!(
-            req.headers().get("authorization").unwrap(),
-            "Bearer sk-deepseek"
-        );
-        assert!(req.headers().get("x-api-key").is_none());
-    }
-}
+mod tests;
