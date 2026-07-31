@@ -81,6 +81,10 @@ pub enum TypedResponseItem {
         #[serde(skip_serializing_if = "Option::is_none")]
         caller: Option<ResponseCaller>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        namespace: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<ResponseItemLifecycleStatus>,
         #[serde(skip_serializing_if = "Option::is_none")]
         created_by: Option<String>,

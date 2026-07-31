@@ -242,7 +242,9 @@ fn openai_service_tier_to_claude_speed(
     service_tier: Option<openai::ServiceTier>,
 ) -> Option<claude::Speed> {
     match service_tier {
-        Some(openai::ServiceTier::Priority) => Some(claude::Speed::Known(claude::SpeedKnown::Fast)),
+        Some(openai::ServiceTier::Fast | openai::ServiceTier::Priority) => {
+            Some(claude::Speed::Known(claude::SpeedKnown::Fast))
+        }
         _ => None,
     }
 }

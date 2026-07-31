@@ -31,6 +31,7 @@ extensible_string_enum!(ResponseErrorCode, ResponseErrorCodeKnown {
     EmptyImageFile => "empty_image_file",
     FailedToDownloadImage => "failed_to_download_image",
     ImageFileNotFound => "image_file_not_found",
+    DataResidencyMismatch => "data_residency_mismatch",
 });
 
 strict_string_enum!(ResponseItemLifecycleStatus {

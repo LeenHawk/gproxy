@@ -48,6 +48,7 @@ fn compact_service_tier_to_response(
     match service_tier {
         openai::CompactServiceTier::Auto => openai::ServiceTier::Auto,
         openai::CompactServiceTier::Default => openai::ServiceTier::Default,
+        openai::CompactServiceTier::Fast => openai::ServiceTier::Fast,
         openai::CompactServiceTier::Flex => openai::ServiceTier::Flex,
         openai::CompactServiceTier::Priority => openai::ServiceTier::Priority,
     }
