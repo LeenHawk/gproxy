@@ -1,13 +1,16 @@
 //! Quota ops for the libSQL edge backend. Unique per `(scope, scope_id)`.
 
 use crate::store::libsql::{LibsqlClient, arg_integer, arg_text};
-use crate::store::persistence::libsql::row::{Row, col_decimal, col_i64, col_str};
+use crate::store::persistence::libsql::row::{Row, col_decimal, col_i64, col_opt_str, col_str};
 use crate::store::persistence::libsql::util::{
-    arg_opt_i64, exec, last_rowid, now_secs, query, query_one,
+    arg_opt_i64, arg_opt_text, exec, last_rowid, now_secs, query, query_one,
 };
 use crate::store::persistence::records::{Quota, QuotaInput, Scope};
+use crate::util::timewindow;
 
-const COLS: &str = "id, scope, scope_id, quota_total, cost_used, created_at, updated_at";
+const COLS: &str = "id, scope, scope_id, quota_total, quota_daily, quota_weekly, \
+    quota_monthly, cost_used, day_used, day_anchor, week_used, week_anchor, \
+    month_used, month_anchor, created_at, updated_at";
 
 fn decode(row: &Row) -> anyhow::Result<Quota> {
     Ok(Quota {
@@ -15,9 +18,18 @@ fn decode(row: &Row) -> anyhow::Result<Quota> {
         scope: Scope::parse(&col_str(row, 1)?)?,
         scope_id: col_i64(row, 2)?,
         quota_total: col_decimal(row, 3)?,
-        cost_used: col_decimal(row, 4)?,
-        created_at: col_i64(row, 5)?,
-        updated_at: col_i64(row, 6)?,
+        quota_daily: col_opt_str(row, 4)?.map(|v| v.parse()).transpose()?,
+        quota_weekly: col_opt_str(row, 5)?.map(|v| v.parse()).transpose()?,
+        quota_monthly: col_opt_str(row, 6)?.map(|v| v.parse()).transpose()?,
+        cost_used: col_decimal(row, 7)?,
+        day_used: col_decimal(row, 8)?,
+        day_anchor: col_i64(row, 9)?,
+        week_used: col_decimal(row, 10)?,
+        week_anchor: col_i64(row, 11)?,
+        month_used: col_decimal(row, 12)?,
+        month_anchor: col_i64(row, 13)?,
+        created_at: col_i64(row, 14)?,
+        updated_at: col_i64(row, 15)?,
     })
 }
 
@@ -59,6 +71,9 @@ pub async fn list_all(client: &LibsqlClient) -> anyhow::Result<Vec<Quota>> {
 
 pub async fn upsert(client: &LibsqlClient, input: QuotaInput) -> anyhow::Result<Quota> {
     let now = now_secs();
+    let quota_daily = input.quota_daily.map(|v| v.to_string());
+    let quota_weekly = input.quota_weekly.map(|v| v.to_string());
+    let quota_monthly = input.quota_monthly.map(|v| v.to_string());
 
     // Enforce uniqueness on (scope, scope_id).
     if let Some(existing) = get(client, input.scope, input.scope_id).await?
@@ -79,12 +94,16 @@ pub async fn upsert(client: &LibsqlClient, input: QuotaInput) -> anyhow::Result<
             // INSERT branch below (seed/import to an absent id) still honors input.
             client
                 .execute(
-                    "UPDATE quotas SET scope=?, scope_id=?, quota_total=?, updated_at=? \
+                    "UPDATE quotas SET scope=?, scope_id=?, quota_total=?, quota_daily=?, \
+                     quota_weekly=?, quota_monthly=?, updated_at=? \
                      WHERE id=?",
                     &[
                         arg_text(input.scope.as_str()),
                         arg_integer(input.scope_id),
                         arg_text(&input.quota_total.to_string()),
+                        arg_opt_text(quota_daily.as_deref()),
+                        arg_opt_text(quota_weekly.as_deref()),
+                        arg_opt_text(quota_monthly.as_deref()),
                         arg_integer(now),
                         arg_integer(id),
                     ],
@@ -105,13 +124,18 @@ pub async fn upsert(client: &LibsqlClient, input: QuotaInput) -> anyhow::Result<
             let qr = client
                 .execute(
                     "INSERT INTO quotas \
-                     (id, scope, scope_id, quota_total, cost_used, created_at, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (id, scope, scope_id, quota_total, quota_daily, quota_weekly, quota_monthly, \
+                      cost_used, day_used, day_anchor, week_used, week_anchor, month_used, \
+                      month_anchor, created_at, updated_at) \
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, '0', 0, '0', 0, '0', 0, ?, ?)",
                     &[
                         arg_opt_i64(maybe_id),
                         arg_text(input.scope.as_str()),
                         arg_integer(input.scope_id),
                         arg_text(&input.quota_total.to_string()),
+                        arg_opt_text(quota_daily.as_deref()),
+                        arg_opt_text(quota_weekly.as_deref()),
+                        arg_opt_text(quota_monthly.as_deref()),
                         arg_text(&input.cost_used.to_string()),
                         arg_integer(now),
                         arg_integer(now),
@@ -175,10 +199,15 @@ pub async fn add_cost(
     delta: rust_decimal::Decimal,
 ) -> anyhow::Result<()> {
     const CAS_RETRIES: u32 = 5;
+    let now = now_secs();
+    let day_key = timewindow::day_key(now);
+    let week_key = timewindow::week_key(now);
+    let month_key = timewindow::month_key(now);
     for _ in 0..CAS_RETRIES {
         let Some(row) = query_one(
             client,
-            "SELECT id, cost_used FROM quotas WHERE scope = ? AND scope_id = ?",
+            "SELECT id, cost_used, day_used, day_anchor, week_used, week_anchor, \
+             month_used, month_anchor FROM quotas WHERE scope = ? AND scope_id = ?",
             &[arg_text(scope.as_str()), arg_integer(scope_id)],
         )
         .await?
@@ -188,12 +217,26 @@ pub async fn add_cost(
         let id = col_i64(&row, 0)?;
         let raw = col_str(&row, 1)?;
         let updated = raw.parse::<rust_decimal::Decimal>()? + delta;
+        let (day_anchor, day_used) =
+            timewindow::accumulate(col_i64(&row, 3)?, &col_str(&row, 2)?, day_key, delta)?;
+        let (week_anchor, week_used) =
+            timewindow::accumulate(col_i64(&row, 5)?, &col_str(&row, 4)?, week_key, delta)?;
+        let (month_anchor, month_used) =
+            timewindow::accumulate(col_i64(&row, 7)?, &col_str(&row, 6)?, month_key, delta)?;
         let n = exec(
             client,
-            "UPDATE quotas SET cost_used = ?, updated_at = ? WHERE id = ? AND cost_used = ?",
+            "UPDATE quotas SET cost_used = ?, day_used = ?, day_anchor = ?, \
+             week_used = ?, week_anchor = ?, month_used = ?, month_anchor = ?, updated_at = ? \
+             WHERE id = ? AND cost_used = ?",
             &[
                 arg_text(&updated.to_string()),
-                arg_integer(now_secs()),
+                arg_text(&day_used.to_string()),
+                arg_integer(day_anchor),
+                arg_text(&week_used.to_string()),
+                arg_integer(week_anchor),
+                arg_text(&month_used.to_string()),
+                arg_integer(month_anchor),
+                arg_integer(now),
                 arg_integer(id),
                 arg_text(&raw),
             ],

@@ -217,7 +217,8 @@ impl CandidateRequest {
         identity: &KeyIdentity,
         stream: bool,
     ) -> Result<Admitted, PipelineError> {
-        authz::authorize(&self.authorization, state.cache.as_ref(), unix_now()).await?;
+        let now = unix_now();
+        authz::authorize(&self.authorization, state.cache.as_ref(), now).await?;
         let candidates = match &self.source {
             CandidateSource::Route(route) => {
                 balance::candidates(
@@ -247,7 +248,7 @@ impl CandidateRequest {
             .copied()
             .max()
             .unwrap_or(0);
-        authz::precheck_quota(&self.quota, state.cache.as_ref(), est_micros).await?;
+        authz::precheck_quota(&self.quota, state.cache.as_ref(), est_micros, now).await?;
         let quota_scopes = if est_micros > 0 {
             authz::prepared_quota_scopes(&self.quota)
         } else {

@@ -52,11 +52,14 @@
 //! ```
 
 mod claude_fallback;
+mod quota_windows;
 
 use claude_fallback::{
     MYSQL_SQL as CLAUDE_FALLBACK_MYSQL_SQL, POSTGRES_SQL as CLAUDE_FALLBACK_POSTGRES_SQL,
     SQLITE_SQL as CLAUDE_FALLBACK_SQLITE_SQL,
 };
+use quota_windows::SQLITE_SQL as QUOTA_SQLITE_SQL;
+use quota_windows::{MYSQL_SQL as QUOTA_MYSQL_SQL, POSTGRES_SQL as QUOTA_POSTGRES_SQL};
 
 /// The version stamped for the auto-created baseline schema. Migrations in
 /// [`MIGRATIONS`] must use versions strictly greater than this.
@@ -421,6 +424,15 @@ pub const MIGRATIONS: &[Migration] = &[
             mysql: CLAUDE_FALLBACK_MYSQL_SQL,
         },
     },
+    Migration {
+        version: 17,
+        description: "quotas: optional daily, weekly, and monthly spend windows",
+        sql: MigrationSql::ByDialect {
+            sqlite: QUOTA_SQLITE_SQL,
+            postgres: QUOTA_POSTGRES_SQL,
+            mysql: QUOTA_MYSQL_SQL,
+        },
+    },
 ];
 
 /// Migrations with `version > current`, in ascending order — the work a runner
@@ -446,49 +458,5 @@ pub fn latest_version() -> i64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn pending_filters_and_orders_by_version() {
-        // From a fresh baseline stamp, every listed migration is pending.
-        let all = pending(BASELINE_VERSION);
-        assert_eq!(
-            all.iter().map(|m| m.version).collect::<Vec<_>>(),
-            MIGRATIONS.iter().map(|m| m.version).collect::<Vec<_>>(),
-        );
-        // Versions are strictly ascending and all above the baseline.
-        let mut prev = BASELINE_VERSION;
-        for m in &all {
-            assert!(m.version > prev, "versions must strictly ascend");
-            assert!(m.version > BASELINE_VERSION, "must be above baseline");
-            prev = m.version;
-        }
-        // Already at the top → nothing pending. This is also what a fresh DB
-        // is stamped with: nothing may replay against the just-created schema.
-        let top = MIGRATIONS
-            .iter()
-            .map(|m| m.version)
-            .max()
-            .unwrap_or(BASELINE_VERSION);
-        assert_eq!(latest_version(), top);
-        assert!(pending(latest_version()).is_empty());
-        assert!(MIN_COMPATIBLE_DATA_VERSION <= latest_version());
-    }
-
-    #[test]
-    fn postgres_max_version_query_widens_legacy_integer_tables() {
-        assert_eq!(
-            select_max_version_sql(MigrationDialect::Postgres),
-            "SELECT CAST(COALESCE(MAX(version), 0) AS BIGINT) AS v FROM schema_migrations"
-        );
-        assert_eq!(
-            select_max_version_sql(MigrationDialect::Sqlite),
-            SELECT_MAX_VERSION
-        );
-        assert_eq!(
-            select_max_version_sql(MigrationDialect::MySql),
-            SELECT_MAX_VERSION
-        );
-    }
-}
+#[path = "migrations/tests.rs"]
+mod tests;

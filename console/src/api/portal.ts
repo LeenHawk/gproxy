@@ -6,10 +6,10 @@ import type { RoutePermission, RateLimit, Quota } from "./authz";
 import type { UserKeyView } from "./identity";
 
 export interface UserMe { id: number; name: string; is_admin: boolean; org_id: number; org_name?: string | null; team_id: number | null; team_name?: string | null; }
-// F7a returns Effective<T> = { source, ...flattened rule fields } — mirror as intersections:
+// F7a returns Effective<T> = { source, ...flattened rule fields } — add its source discriminator:
 export type EffPermission = RoutePermission & { source: "user" | "team" | "org" };
 export type EffRateLimit = RateLimit & { source: "user" | "team" | "org" };
-export type EffQuota = Quota & { source: "user" | "team" | "org" };
+export interface EffQuota extends Quota { source: "user" | "team" | "org"; }
 
 // distinct queryKey — NOT ["session"] (main.tsx 401-bounce is scoped to that)
 export const portalSessionQuery = queryOptions({

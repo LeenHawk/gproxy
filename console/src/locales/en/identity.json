@@ -34,7 +34,9 @@
     "rateLimits": "Rate limits", "rateLimitsHint": "Per-scope limits; the strictest of org/team/user applies.",
     "addRateLimit": "Add rate limit", "rpm": "RPM", "rpd": "RPD", "totalTokens": "Total tokens", "noRateLimits": "No rate limits for this scope.",
     "quota": "Quota", "quotaHint": "Cost ceiling for this scope (decimal). cost_used is accumulated by billing.",
-    "quotaTotal": "Quota total", "costUsed": "Used", "setQuota": "Set quota", "clearQuota": "Clear quota", "noQuota": "No quota set.",
+    "quotaTotal": "Quota total", "dailyLimit": "Daily limit", "weeklyLimit": "Weekly limit", "monthlyLimit": "Monthly limit",
+    "windowQuotaHint": "Daily, weekly, and monthly limits are optional; leave blank to unset.",
+    "costUsed": "Used", "setQuota": "Set quota", "clearQuota": "Clear quota", "noQuota": "No quota set.",
     "deletePermission": "Delete permission", "deleteRateLimit": "Delete rate limit",
     "deletePermissionConfirm": "Delete this route permission?", "deleteRateLimitConfirm": "Delete this rate limit?",
     "deleteQuotaConfirm": "Clear the quota for this scope?"

@@ -23,6 +23,8 @@ use super::entities::tokenize::tokenizer_vocab;
 use super::entities::transform::{provider_rule_set, routing_rule, rule, rule_set};
 use super::entities::usage::{usage, usage_rollup};
 
+mod repair_quota;
+
 pub(super) async fn create_all(conn: &DatabaseConnection) -> anyhow::Result<()> {
     let backend = conn.get_database_backend();
     let schema = Schema::new(backend);
@@ -196,6 +198,9 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
 
     for m in pending(current) {
         for sql in m.sql_for(dialect) {
+            if added_column_exists(conn, dialect, sql).await? {
+                continue;
+            }
             conn.execute_unprepared(sql).await?;
         }
         record_version(conn, m.version).await?;
@@ -203,7 +208,29 @@ pub(super) async fn run_migrations(conn: &DatabaseConnection) -> anyhow::Result<
     repair_price_rules_schema(conn, dialect).await?;
     repair_usage_schema(conn, dialect).await?;
     repair_instance_settings_schema(conn, dialect).await?;
+    repair_quota::run(conn, dialect).await?;
     Ok(())
+}
+
+/// `create_all` may have created a previously absent table at the current
+/// shape before an older stamped database replays its pending migrations.
+async fn added_column_exists(
+    conn: &DatabaseConnection,
+    dialect: MigrationDialect,
+    sql: &str,
+) -> anyhow::Result<bool> {
+    let words = sql.split_whitespace().collect::<Vec<_>>();
+    if words.len() < 6
+        || !words[0].eq_ignore_ascii_case("ALTER")
+        || !words[1].eq_ignore_ascii_case("TABLE")
+        || !words[3].eq_ignore_ascii_case("ADD")
+        || !words[4].eq_ignore_ascii_case("COLUMN")
+    {
+        return Ok(false);
+    }
+    Ok(table_columns(conn, dialect, words[2])
+        .await?
+        .contains(words[5]))
 }
 
 async fn repair_instance_settings_schema(

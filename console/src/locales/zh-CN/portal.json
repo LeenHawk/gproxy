@@ -45,6 +45,9 @@
   "limits": {
     "quota": "配额",
     "costUsed": "已用",
+    "dailyLimit": "日限额",
+    "weeklyLimit": "周限额",
+    "monthlyLimit": "月限额",
     "rpm": "每分钟请求数",
     "rpd": "每日请求数",
     "totalTokens": "总 Token 数",

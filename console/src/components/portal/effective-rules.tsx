@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EffQuota, EffRateLimit, EffPermission } from "@/api/portal";
+import { effectiveWindowUsed, type QuotaWindow } from "@/lib/quota-window";
 
 // Source badge: color + text (dual-channel a11y)
 const SOURCE_CLASS: Record<string, string> = {
@@ -21,6 +22,33 @@ function SourceBadge({ source, label }: { source: string; label: string }) {
 
 // ── Quota ──────────────────────────────────────────────────────────────
 interface QuotaSectionProps { data: EffQuota[] | undefined; isPending: boolean; }
+
+const QUOTA_WINDOWS = [
+  { window: "day", limit: "quota_daily", label: "dailyLimit" },
+  { window: "week", limit: "quota_weekly", label: "weeklyLimit" },
+  { window: "month", limit: "quota_monthly", label: "monthlyLimit" },
+] as const satisfies ReadonlyArray<{ window: QuotaWindow; limit: keyof EffQuota; label: string }>;
+
+function quotaPercent(used: string, limit: string) {
+  const numericLimit = parseFloat(limit);
+  const numericUsed = parseFloat(used);
+  return numericLimit > 0 ? Math.min(1, Math.max(0, numericUsed / numericLimit)) * 100 : 0;
+}
+
+function WindowQuotaProgress({ label, used, limit }: { label: string; used: string; limit: string }) {
+  const pct = quotaPercent(used, limit);
+  return (
+    <div className="grid gap-1.5 border-l pl-3">
+      <div className="text-sm">
+        <span className="text-muted-foreground">{label}: </span>
+        <span className="font-mono">{used}</span>
+        {" / "}
+        <span className="font-mono">{limit}</span>
+      </div>
+      <Progress value={pct} aria-label={`${pct.toFixed(0)}%`} />
+    </div>
+  );
+}
 
 export function EffectiveQuotaSection({ data, isPending }: QuotaSectionProps) {
   const { t } = useTranslation("portal");
@@ -46,7 +74,7 @@ export function EffectiveQuotaSection({ data, isPending }: QuotaSectionProps) {
         const used = parseFloat(q.cost_used);
         const pct = total > 0 ? Math.min(1, Math.max(0, used / total)) * 100 : 0;
         return (
-          <li key={`${q.source}-${q.id}`} className="grid gap-1.5">
+          <li key={`${q.source}-${q.id}`} className="grid gap-2">
             <div className="flex items-center justify-between text-sm">
               <span>
                 <span className="text-muted-foreground">{t("limits.costUsed")}: </span>
@@ -57,6 +85,17 @@ export function EffectiveQuotaSection({ data, isPending }: QuotaSectionProps) {
               <SourceBadge source={q.source} label={t(`limits.source.${q.source}`)} />
             </div>
             <Progress value={total > 0 ? pct : 0} aria-label={`${pct.toFixed(0)}%`} />
+            {QUOTA_WINDOWS.map(({ window, limit, label }) => {
+              const configuredLimit = q[limit];
+              return configuredLimit !== null && typeof configuredLimit === "string" ? (
+                <WindowQuotaProgress
+                  key={window}
+                  label={t(`limits.${label}`)}
+                  used={effectiveWindowUsed(q, window)}
+                  limit={configuredLimit}
+                />
+              ) : null;
+            })}
           </li>
         );
       })}

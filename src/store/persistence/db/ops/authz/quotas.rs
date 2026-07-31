@@ -5,6 +5,7 @@ use sea_orm::sea_query::Expr;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use crate::store::persistence::records::{Quota, QuotaInput, Scope};
+use crate::util::timewindow;
 
 use crate::store::persistence::db::entities::authz::quota;
 
@@ -14,7 +15,16 @@ fn to_record(m: quota::Model) -> anyhow::Result<Quota> {
         scope: Scope::parse(&m.scope)?,
         scope_id: m.scope_id,
         quota_total: m.quota_total.parse::<rust_decimal::Decimal>()?,
+        quota_daily: m.quota_daily.map(|v| v.parse()).transpose()?,
+        quota_weekly: m.quota_weekly.map(|v| v.parse()).transpose()?,
+        quota_monthly: m.quota_monthly.map(|v| v.parse()).transpose()?,
         cost_used: m.cost_used.parse::<rust_decimal::Decimal>()?,
+        day_used: m.day_used.parse()?,
+        day_anchor: m.day_anchor,
+        week_used: m.week_used.parse()?,
+        week_anchor: m.week_anchor,
+        month_used: m.month_used.parse()?,
+        month_anchor: m.month_anchor,
         created_at: m.created_at,
         updated_at: m.updated_at,
     })
@@ -81,6 +91,9 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
                 am.scope = Set(input.scope.as_str().to_owned());
                 am.scope_id = Set(input.scope_id);
                 am.quota_total = Set(input.quota_total.to_string());
+                am.quota_daily = Set(input.quota_daily.map(|v| v.to_string()));
+                am.quota_weekly = Set(input.quota_weekly.map(|v| v.to_string()));
+                am.quota_monthly = Set(input.quota_monthly.map(|v| v.to_string()));
                 // cost_used is billing-owned (accumulated via add_cost). An admin
                 // edit of an EXISTING quota must NOT clobber it — keep the stored
                 // value (am.cost_used stays Set to `existing` from `.into()`).
@@ -97,7 +110,16 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
                     scope: Set(input.scope.as_str().to_owned()),
                     scope_id: Set(input.scope_id),
                     quota_total: Set(input.quota_total.to_string()),
+                    quota_daily: Set(input.quota_daily.map(|v| v.to_string())),
+                    quota_weekly: Set(input.quota_weekly.map(|v| v.to_string())),
+                    quota_monthly: Set(input.quota_monthly.map(|v| v.to_string())),
                     cost_used: Set(input.cost_used.to_string()),
+                    day_used: Set("0".to_owned()),
+                    day_anchor: Set(0),
+                    week_used: Set("0".to_owned()),
+                    week_anchor: Set(0),
+                    month_used: Set("0".to_owned()),
+                    month_anchor: Set(0),
                     created_at: Set(now),
                     updated_at: Set(now),
                 }
@@ -111,7 +133,16 @@ pub async fn upsert(conn: &DatabaseConnection, input: QuotaInput) -> anyhow::Res
             scope: Set(input.scope.as_str().to_owned()),
             scope_id: Set(input.scope_id),
             quota_total: Set(input.quota_total.to_string()),
+            quota_daily: Set(input.quota_daily.map(|v| v.to_string())),
+            quota_weekly: Set(input.quota_weekly.map(|v| v.to_string())),
+            quota_monthly: Set(input.quota_monthly.map(|v| v.to_string())),
             cost_used: Set(input.cost_used.to_string()),
+            day_used: Set("0".to_owned()),
+            day_anchor: Set(0),
+            week_used: Set("0".to_owned()),
+            week_anchor: Set(0),
+            month_used: Set("0".to_owned()),
+            month_anchor: Set(0),
             created_at: Set(now),
             updated_at: Set(now),
         }
@@ -144,6 +175,9 @@ pub async fn add_cost(
 ) -> anyhow::Result<()> {
     const CAS_RETRIES: u32 = 5;
     let now = crate::store::persistence::db::ops::now_secs();
+    let day_key = timewindow::day_key(now);
+    let week_key = timewindow::week_key(now);
+    let month_key = timewindow::month_key(now);
     for _ in 0..CAS_RETRIES {
         let Some(existing) = quota::Entity::find()
             .filter(quota::Column::Scope.eq(scope.as_str()))
@@ -154,8 +188,27 @@ pub async fn add_cost(
             return Ok(()); // no quota row → nothing to charge
         };
         let updated = existing.cost_used.parse::<rust_decimal::Decimal>()? + delta;
+        let (day_anchor, day_used) =
+            timewindow::accumulate(existing.day_anchor, &existing.day_used, day_key, delta)?;
+        let (week_anchor, week_used) =
+            timewindow::accumulate(existing.week_anchor, &existing.week_used, week_key, delta)?;
+        let (month_anchor, month_used) = timewindow::accumulate(
+            existing.month_anchor,
+            &existing.month_used,
+            month_key,
+            delta,
+        )?;
         let res = quota::Entity::update_many()
             .col_expr(quota::Column::CostUsed, Expr::value(updated.to_string()))
+            .col_expr(quota::Column::DayUsed, Expr::value(day_used.to_string()))
+            .col_expr(quota::Column::DayAnchor, Expr::value(day_anchor))
+            .col_expr(quota::Column::WeekUsed, Expr::value(week_used.to_string()))
+            .col_expr(quota::Column::WeekAnchor, Expr::value(week_anchor))
+            .col_expr(
+                quota::Column::MonthUsed,
+                Expr::value(month_used.to_string()),
+            )
+            .col_expr(quota::Column::MonthAnchor, Expr::value(month_anchor))
             .col_expr(quota::Column::UpdatedAt, Expr::value(now))
             .filter(quota::Column::Id.eq(existing.id))
             .filter(quota::Column::CostUsed.eq(existing.cost_used.clone()))

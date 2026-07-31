@@ -4,7 +4,7 @@
 //! bools/timestamps are INTEGER; strings/decimals/JSON are TEXT; blobs BLOB.
 
 use crate::store::libsql::LibsqlClient;
-use crate::store::persistence::libsql::row::col_i64;
+use crate::store::persistence::libsql::row::{col_i64, col_str};
 use crate::store::persistence::migrations::{
     CREATE_MIGRATIONS_TABLE, MigrationDialect, SELECT_MAX_VERSION, latest_version, pending,
 };
@@ -215,7 +215,16 @@ const TABLES: &[&str] = &[
         scope TEXT NOT NULL, \
         scope_id INTEGER NOT NULL, \
         quota_total TEXT NOT NULL, \
+        quota_daily TEXT, \
+        quota_weekly TEXT, \
+        quota_monthly TEXT, \
         cost_used TEXT NOT NULL, \
+        day_used TEXT NOT NULL DEFAULT '0', \
+        day_anchor INTEGER NOT NULL DEFAULT 0, \
+        week_used TEXT NOT NULL DEFAULT '0', \
+        week_anchor INTEGER NOT NULL DEFAULT 0, \
+        month_used TEXT NOT NULL DEFAULT '0', \
+        month_anchor INTEGER NOT NULL DEFAULT 0, \
         created_at INTEGER NOT NULL, \
         updated_at INTEGER NOT NULL, \
         UNIQUE(scope, scope_id))",
@@ -378,6 +387,9 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
 
     for m in pending(current) {
         for sql in m.sql_for(MigrationDialect::Sqlite) {
+            if added_column_exists(client, sql).await? {
+                continue;
+            }
             exec((*sql).to_string()).await?;
         }
         record_version(client, m.version).await?;
@@ -385,7 +397,30 @@ async fn run_migrations(client: &LibsqlClient) -> anyhow::Result<()> {
     repair::price_rules(client).await?;
     repair::usage(client).await?;
     repair::instance_settings(client).await?;
+    repair::quotas(client).await?;
     Ok(())
+}
+
+async fn added_column_exists(client: &LibsqlClient, sql: &str) -> anyhow::Result<bool> {
+    let words = sql.split_whitespace().collect::<Vec<_>>();
+    if words.len() < 6
+        || !words[0].eq_ignore_ascii_case("ALTER")
+        || !words[1].eq_ignore_ascii_case("TABLE")
+        || !words[3].eq_ignore_ascii_case("ADD")
+        || !words[4].eq_ignore_ascii_case("COLUMN")
+    {
+        return Ok(false);
+    }
+    let rows = client
+        .execute(&format!("PRAGMA table_info({})", words[2]), &[])
+        .await
+        .map_err(|e| anyhow::anyhow!("libsql inspect migration column failed: {e}"))?;
+    for row in &rows.rows {
+        if col_str(row, 1)? == words[5] {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 async fn record_version(client: &LibsqlClient, version: i64) -> anyhow::Result<()> {
