@@ -248,7 +248,7 @@ impl ChannelLogin for AntigravityChannel {
         Ok(Some(AuthCodeStart {
             authorize_url,
             redirect_uri,
-            extra: None,
+            extra: auth::authcode_extra(ctx.params),
         }))
     }
 
@@ -257,7 +257,15 @@ impl ChannelLogin for AntigravityChannel {
         client: &Arc<dyn UpstreamClient>,
         ctx: crate::channel::AuthCodeExchangeCtx<'_>,
     ) -> Result<Value, ChannelError> {
-        auth::authcode_exchange(client, ctx.code, ctx.verifier, ctx.redirect_uri).await
+        let project_hint = auth::exchange_project_hint(ctx.extra);
+        auth::authcode_exchange(
+            client,
+            ctx.code,
+            ctx.verifier,
+            ctx.redirect_uri,
+            project_hint,
+        )
+        .await
     }
 }
 
@@ -266,6 +274,54 @@ mod tests {
     use super::*;
     use http::{HeaderMap, Method};
     use serde_json::json;
+
+    struct NoopUpstream;
+
+    #[async_trait::async_trait]
+    impl UpstreamClient for NoopUpstream {
+        async fn send(
+            &self,
+            _request: http::Request<Bytes>,
+        ) -> Result<http::Response<Bytes>, crate::http::client::ClientError> {
+            Err(crate::http::client::ClientError::Transport("noop".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn authcode_start_stashes_normalized_param_project_hint() {
+        let client: Arc<dyn UpstreamClient> = Arc::new(NoopUpstream);
+        let params = json!({ "project_id": "  operator-project  " });
+        let settings = json!({});
+        let started = AntigravityChannel
+            .authcode_start(
+                &client,
+                crate::channel::AuthCodeStartCtx {
+                    provider_settings: &settings,
+                    params: &params,
+                    redirect_uri: "",
+                    state: "state-secret",
+                    pkce_challenge: "challenge-secret",
+                },
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            started.extra,
+            Some(json!({ "project_id": "operator-project" }))
+        );
+    }
+
+    #[test]
+    fn exchange_reads_normalized_hint_and_blank_start_param_is_ignored() {
+        assert_eq!(auth::authcode_extra(&json!({ "project_id": "  " })), None);
+        let extra = json!({ "project_id": "  operator-project  " });
+        assert_eq!(
+            auth::exchange_project_hint(Some(&extra)),
+            Some("operator-project")
+        );
+    }
 
     #[test]
     fn prepare_wraps_envelope_antigravity_ua() {
