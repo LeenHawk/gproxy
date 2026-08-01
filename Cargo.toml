@@ -132,7 +132,7 @@ http-body-util = "0.1"
 # Production builds compile only the backends they use; dev builds use
 # `--all-features` (or `full`). default = native zero-extra-dep baseline.
 [features]
-default = ["cache-memory", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels"]
+default = ["cache-memory", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "migrate-file", "channels"]
 
 # cache backends (native)
 cache-memory = []
@@ -143,6 +143,9 @@ persist-db = ["dep:sea-orm"]
 # read-only sqlx sqlite reader; the write path reuses `persist-db`. Shipped in the
 # default/full feature sets so a v2 binary dropped in place auto-migrates v1 data.
 migrate-v1 = ["dep:sqlx", "persist-db"]
+# MIGRATE-FILE (temporary 2.x bridge, remove in 2.3): one-shot 2.0.x JSON-file
+# backend migration. The write path reuses `persist-db`.
+migrate-file = ["persist-db"]
 # outbound transport (native)
 upstream-wreq = ["dep:wreq", "dep:wreq-util"]
 # local token counting: tiktoken + HF tokenizers registry (native only)
@@ -204,7 +207,7 @@ channel-vertex = []
 channel-vertexexpress = []
 
 # dev convenience: all native backends
-full = ["cache-memory", "cache-redis", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "channels"]
+full = ["cache-memory", "cache-redis", "persist-db", "upstream-wreq", "count-local", "migrate-v1", "migrate-file", "channels"]
 
 
 [profile.release]

@@ -116,6 +116,25 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
         }
     }
 
+    // MIGRATE-FILE (temporary 2.x bridge, remove in 2.3): run after the v1
+    // adopter so a legacy SQLite database wins first. The file migrator then
+    // imports only when that target still has no providers or routes.
+    #[cfg(feature = "migrate-file")]
+    if cli.command.is_none() {
+        let PersistenceConfig::Db { dsn } = &config.persistence;
+        let channels = gproxy::channel::registry::ChannelRegistry::with_builtin_and_linked()?;
+        if let Some(report) = gproxy::app::migrate_file::maybe_migrate_on_boot(
+            &config.update_data_dir,
+            dsn,
+            cipher.as_ref(),
+            &channels,
+        )
+        .await?
+        {
+            tracing::warn!(?report, "file → db migration complete");
+        }
+    }
+
     // Persistence is built next — the import subcommand and first-boot hook
     // both need it before the (optional) cache backend is started.
     let persistence: Arc<dyn PersistenceBackend> = match &config.persistence {

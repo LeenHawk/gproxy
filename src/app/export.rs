@@ -139,7 +139,10 @@ pub async fn export_bundle(
 /// cipher stored the envelope JSON serialized to a string. So: parse the column
 /// as JSON — if it is an envelope object, `open` it (the plaintext is a JSON
 /// string holding the bare key); otherwise the column already IS the bare key.
-fn user_key_to_import(key: UserKey, cipher: &dyn SecretCipher) -> anyhow::Result<UserKeyImport> {
+pub(crate) fn user_key_to_import(
+    key: UserKey,
+    cipher: &dyn SecretCipher,
+) -> anyhow::Result<UserKeyImport> {
     let api_key = match serde_json::from_str::<Value>(&key.api_key_ciphertext) {
         Ok(v) if is_envelope(&v) => match cipher.open(&v)? {
             Value::String(s) => s,
@@ -158,7 +161,7 @@ fn user_key_to_import(key: UserKey, cipher: &dyn SecretCipher) -> anyhow::Result
 
 /// Decrypt a credential's `secret_json` to plaintext for the export bundle
 /// (`label` re-maps from the `name` column, the import shape's field).
-fn credential_to_import(
+pub(crate) fn credential_to_import(
     cred: Credential,
     cipher: &dyn SecretCipher,
 ) -> anyhow::Result<CredentialImport> {
