@@ -55,7 +55,13 @@ pub(super) const BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
 /// `gemini-2.5-pro`), which the real CLI embeds. See
 /// `docs/agent-tls-fingerprints.md` §5. Some Code Assist paths key off this.
 pub(super) fn user_agent(model: &str) -> String {
-    format!("GeminiCLI-tui/0.46.0/{model} (linux; x64; terminal) google-api-nodejs-client/9.15.1")
+    let model = model.trim();
+    let suffix = if model.is_empty() {
+        String::new()
+    } else {
+        format!("/{model}")
+    };
+    format!("GeminiCLI-tui/0.46.0{suffix} (linux; x64; terminal) google-api-nodejs-client/9.15.1")
 }
 /// `x-goog-api-client` on the model path is just the Node runtime tag (the real
 /// CLI sends `gl-node/<nodeversion>`, no genai-sdk prefix).
@@ -116,16 +122,20 @@ pub(super) async fn authcode_exchange(
     let access_token = secret_str(&secret, "access_token")
         .ok_or_else(|| ChannelError::Build("token response missing access_token".into()))?
         .to_owned();
-    let project_id = oauth::resolve_google_project_id(
+    let resolution = oauth::resolve_google_project(
         client,
         BASE_URL,
         &access_token,
         code_assist_metadata(None),
         "legacy-tier",
         None,
+        Some(&user_agent("")),
     )
     .await?;
-    secret["project_id"] = Value::String(project_id);
+    secret["project_id"] = Value::String(resolution.project_id);
+    if let Some(tier) = resolution.subscription_tier {
+        secret["rate_limit_tier"] = Value::String(tier);
+    }
     if let Some(email) = oauth::google_user_email(client, &access_token).await {
         secret["user_email"] = Value::String(email);
     }
@@ -155,7 +165,7 @@ pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
 }
 
 /// The Code Assist `project_id`. Resolved at login by [`authcode_exchange`]
-/// (via `resolve_google_project_id`) and required on every request, so a
+/// (via `resolve_google_project`) and required on every request, so a
 /// credential that somehow lacks it cannot address the API.
 pub(super) fn project_id(secret: &Value) -> Result<&str, ChannelError> {
     secret_str(secret, "project_id")
@@ -257,6 +267,13 @@ pub(super) fn apply(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_agent_includes_model_only_when_present() {
+        assert!(user_agent("gemini-2.5-pro").contains("/gemini-2.5-pro (linux"));
+        assert!(user_agent("").contains("/0.46.0 (linux"));
+        assert!(!user_agent("").contains("/0.46.0/ (linux"));
+    }
 
     /// The headless / code-only authorize URL: empty redirect_uri falls back to
     /// the Gemini CLI's own no-browser redirect, and the URL carries the public

@@ -1,5 +1,6 @@
 //! Antigravity auth — Google OAuth2 `refresh_token` grant against
-//! `oauth2.googleapis.com/token`; base `https://cloudcode-pa.googleapis.com`.
+//! `oauth2.googleapis.com/token`; base
+//! `https://daily-cloudcode-pa.googleapis.com`.
 //! Same Code Assist envelope and `/v1internal:` shape as `geminicli` (see
 //! [`crate::channel::envelope`]); differs only in the OAuth client_id/secret
 //! and the User-Agent.
@@ -39,8 +40,9 @@ pub(super) const DEFAULT_REDIRECT_URI: &str = "http://localhost:51121/oauth-call
 /// superset of geminicli's, adding cclog / experimentsandconfigs / aicode).
 pub(super) const OAUTH_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/cclog https://www.googleapis.com/auth/experimentsandconfigs https://www.googleapis.com/auth/aicode";
 
-/// Code Assist API host (non-regional). Both verbs live under `/v1internal:`.
-pub(super) const BASE_URL: &str = "https://cloudcode-pa.googleapis.com";
+/// Antigravity's daily Code Assist host. This is distinct from Gemini CLI's
+/// non-daily `cloudcode-pa` host; all Antigravity internal verbs use it.
+pub(super) const BASE_URL: &str = "https://daily-cloudcode-pa.googleapis.com";
 
 /// User-Agent the Antigravity app sends; some Code Assist paths key behaviour
 /// off it (this is what distinguishes the channel from `geminicli` upstream).
@@ -101,16 +103,20 @@ pub(super) async fn authcode_exchange(
     let access_token = secret_str(&secret, "access_token")
         .ok_or_else(|| ChannelError::Build("token response missing access_token".into()))?
         .to_owned();
-    let project_id = oauth::resolve_google_project_id(
+    let resolution = oauth::resolve_google_project(
         client,
         BASE_URL,
         &access_token,
         code_assist_metadata(),
         "LEGACY",
         None,
+        Some(USER_AGENT_VALUE),
     )
     .await?;
-    secret["project_id"] = Value::String(project_id);
+    secret["project_id"] = Value::String(resolution.project_id);
+    if let Some(tier) = resolution.subscription_tier {
+        secret["rate_limit_tier"] = Value::String(tier);
+    }
     if let Some(email) = oauth::google_user_email(client, &access_token).await {
         secret["user_email"] = Value::String(email);
     }
@@ -133,7 +139,7 @@ pub(super) fn access_token(secret: &Value) -> Result<&str, ChannelError> {
 }
 
 /// The Code Assist `project_id`. Resolved at login by [`authcode_exchange`]
-/// (via `resolve_google_project_id`) and required on every request, so a
+/// (via `resolve_google_project`) and required on every request, so a
 /// credential that somehow lacks it cannot address the API.
 pub(super) fn project_id(secret: &Value) -> Result<&str, ChannelError> {
     secret_str(secret, "project_id")
