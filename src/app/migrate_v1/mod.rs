@@ -26,6 +26,8 @@ use crate::store::persistence::DbPersistence;
 use cipher::V1Cipher;
 use read::V1Data;
 
+pub(crate) use crate::app::migration::sqlite_path_from_dsn;
+
 /// Per-table counts of what was migrated (for logging / dry-run output).
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Report {
@@ -241,18 +243,6 @@ async fn sniff(path: &Path) -> anyhow::Result<Schema> {
     };
     pool.close().await;
     Ok(schema)
-}
-
-/// Extract the filesystem path from a `sqlite:` DSN; `None` for `:memory:` or a
-/// non-sqlite dsn (postgres/mysql have no v1 file to adopt).
-fn sqlite_path_from_dsn(dsn: &str) -> Option<PathBuf> {
-    let rest = dsn.strip_prefix("sqlite:")?;
-    let rest = rest.strip_prefix("//").unwrap_or(rest);
-    let path = rest.split('?').next().unwrap_or(rest);
-    if path.is_empty() || path.starts_with(':') || path == "memory:" {
-        return None;
-    }
-    Some(PathBuf::from(path))
 }
 
 fn sqlite_dsn(path: &Path) -> anyhow::Result<String> {

@@ -10,6 +10,10 @@ use std::path::PathBuf;
 pub enum PersistenceKind {
     /// SeaORM-backed database — supports multi-instance.
     Db,
+    // MIGRATE-FILE (temporary 2.x bridge, remove in 2.3): hidden drop-in alias
+    // retained so old `--persistence file` launch scripts reach the boot migrator.
+    #[cfg_attr(not(target_arch = "wasm32"), value(hide = true))]
+    File,
 }
 
 /// Validated cache configuration. Illegal states (e.g. Redis without URL)
@@ -78,6 +82,20 @@ impl PersistenceConfig {
                     }
                 },
             }),
+            // MIGRATE-FILE (temporary 2.x bridge, remove in 2.3): the old file
+            // backend is gone; deliberately ignore `dsn` and adopt the standard
+            // SQLite target beside the legacy JSON tables.
+            PersistenceKind::File => {
+                let path = std::path::absolute(data_dir.join("gproxy.db"))
+                    .map_err(|e| anyhow::anyhow!("resolve default db path: {e}"))?;
+                tracing::warn!(
+                    target = %path.display(),
+                    "the `file` persistence backend was removed; falling back to the default SQLite database and legacy data will be migrated automatically; this alias will be removed in 2.3"
+                );
+                Ok(Self::Db {
+                    dsn: format!("sqlite://{}?mode=rwc", path.display()),
+                })
+            }
         }
     }
 }
