@@ -29,12 +29,17 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
   const modes = meta.loginModes;
   const [mode, setMode] = useState<LoginMode>(modes[0] ?? "authcode");
   const [credLabel, setCredLabel] = useState("");
+  const [projectId, setProjectId] = useState("");
   // Kiro has four credential methods that span both the device and authcode
   // flows, so it gets its own picker instead of the generic mode tabs.
   const isKiro = meta.source === "builtin" && provider.channel === "kiro";
   // Geminicli's two modes are both authcode but differ in redirect + paste UI
   // (callback URL vs bare code), so it gets a dedicated toggle.
   const isGemini = meta.source === "builtin" && provider.channel === "geminicli";
+  const isAntigravity = meta.source === "builtin" && provider.channel === "antigravity";
+  const authcodeParams = isAntigravity && projectId.trim() !== ""
+    ? { ...meta.loginParams, project_id: projectId.trim() }
+    : meta.loginParams;
 
   const finish = (credential: CredentialView) => {
     void queryClient.invalidateQueries({ queryKey: ["providers", provider.id, "credentials"] });
@@ -56,13 +61,21 @@ export function OAuthWizard({ provider, meta, onDone }: OAuthWizardProps) {
         <Label htmlFor="w-name">{t("wizard.credName")}</Label>
         <Input id="w-name" value={credLabel} onChange={(e) => setCredLabel(e.target.value)} />
       </div>
+      {isAntigravity && (
+        <div className="grid gap-2">
+          <Label htmlFor="w-gcp-project">{t("wizard.gcpProjectId")}</Label>
+          <Input id="w-gcp-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}
+            placeholder="my-gcp-project" spellCheck={false} autoComplete="off" />
+          <p className="text-xs text-muted-foreground">{t("wizard.gcpProjectIdHint")}</p>
+        </div>
+      )}
       {isKiro ? (
         <KiroWizard provider={provider} credLabel={credLabel} onDone={finish} />
       ) : isGemini ? (
         <GeminiWizard provider={provider} credLabel={credLabel} onDone={finish} />
       ) : (
         <>
-          {mode === "authcode" && <AuthcodeFlow provider={provider} credLabel={credLabel} onDone={finish} startParams={meta.loginParams} />}
+          {mode === "authcode" && <AuthcodeFlow provider={provider} credLabel={credLabel} onDone={finish} startParams={authcodeParams} />}
           {mode === "device" && <DeviceFlow provider={provider} credLabel={credLabel} onDone={finish} />}
           {mode === "cookie" && (
             <CookieFlow provider={provider} meta={meta} credLabel={credLabel} onDone={finish} />

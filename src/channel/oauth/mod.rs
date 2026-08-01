@@ -138,10 +138,9 @@ pub fn google_authorize_url(
 
 /// Exchange a Google authcode (+PKCE verifier) for the plaintext secret
 /// `{access_token, refresh_token?, expires_at_ms}`, shared by `geminicli` and
-/// `antigravity`. NOTE: `project_id` is NOT obtained here — Code Assist project
-/// resolution (`loadCodeAssist` / `onboardUser`) is a separate step; the minted
-/// secret carries tokens but no `project_id`, which the operator sets later (or
-/// a follow-up adds resolution) before the channel can address the API.
+/// `antigravity`. NOTE: `project_id` is NOT obtained by this token helper — each
+/// channel performs Code Assist project resolution (`loadCodeAssist` /
+/// `onboardUser`) as the following step before returning the minted secret.
 pub async fn google_authcode_exchange(
     client: &Arc<dyn UpstreamClient>,
     token_url: &str,
@@ -259,6 +258,10 @@ pub async fn resolve_google_project(
     let project_id = project
         .or_else(|| existing.map(ToOwned::to_owned))
         .ok_or_else(|| {
+            tracing::warn!(
+                "automatic code assist project resolution returned no project after onboarding; \
+                 no project hint was supplied"
+            );
             ChannelError::Build(
                 "code assist project resolution returned no project (onboarding may be pending — \
                  retry or set project_id)"

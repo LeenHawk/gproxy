@@ -5,12 +5,10 @@
 //! [`crate::channel::envelope`]); differs only in the OAuth client_id/secret
 //! and the User-Agent.
 //!
-//! The login-time authorization-code + PKCE flow (6 scopes, remote-paste login,
-//! `project_id` resolution via `loadCodeAssist` / `onboardUser`) is an M10
-//! concern; this module covers only the per-request access-token use and the
-//! refresh the pipeline drives. `project_id` is therefore expected to already
-//! be present in the decrypted secret — a credential without it errors in
-//! `prepare`.
+//! The login-time authorization-code + PKCE flow resolves `project_id` via
+//! `loadCodeAssist` / `onboardUser`, optionally using an operator-provided GCP
+//! project hint. `project_id` is expected in the decrypted secret afterward — a
+//! credential without it errors in `prepare`.
 
 use std::sync::Arc;
 
@@ -80,15 +78,35 @@ pub(super) fn authcode_start(redirect_uri: &str, state: &str, challenge: &str) -
     (url, redirect_uri.to_string())
 }
 
+/// Build the channel-owned authcode session payload. Only the normalized
+/// operator hint is retained server-side; it is not added to OAuth state.
+pub(super) fn authcode_extra(params: &Value) -> Option<Value> {
+    project_hint_in(params).map(|project_id| serde_json::json!({ "project_id": project_id }))
+}
+
+/// Read the project hint retained by [`authcode_extra`] for token exchange.
+pub(super) fn exchange_project_hint(extra: Option<&Value>) -> Option<&str> {
+    extra.and_then(project_hint_in)
+}
+
+fn project_hint_in(value: &Value) -> Option<&str> {
+    value
+        .get("project_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|project_id| !project_id.is_empty())
+}
+
 /// Exchange a Google authcode (+PKCE verifier) for the plaintext secret. Same
-/// `project_id` caveat as `geminicli`: the minted secret carries tokens but NO
-/// `project_id` (Code Assist `loadCodeAssist` / `onboardUser` is a separate
-/// step), so the operator must set it before `prepare` can address the API.
+/// as `geminicli`, the minted token is augmented with the Code Assist project
+/// resolved by `loadCodeAssist` / `onboardUser`. `project_hint` is the optional
+/// operator-owned GCP project retained in the server-side login session.
 pub(super) async fn authcode_exchange(
     client: &Arc<dyn UpstreamClient>,
     code: &str,
     verifier: &str,
     redirect_uri: &str,
+    project_hint: Option<&str>,
 ) -> Result<Value, ChannelError> {
     let mut secret = oauth::google_authcode_exchange(
         client,
@@ -109,7 +127,7 @@ pub(super) async fn authcode_exchange(
         &access_token,
         code_assist_metadata(),
         "LEGACY",
-        None,
+        project_hint,
         Some(USER_AGENT_VALUE),
     )
     .await?;

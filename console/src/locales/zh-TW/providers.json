@@ -178,6 +178,8 @@
       "cookie": "Cookie"
     },
     "credName": "憑證顯示名稱(選填)",
+    "gcpProjectId": "GCP Project ID（選填）",
+    "gcpProjectIdHint": "Antigravity 無法自動找到專案時，請填寫你自己的 GCP 專案 ID。",
     "start": "開始",
     "starting": "啟動中…",
     "openAuthorize": "開啟授權頁面",
