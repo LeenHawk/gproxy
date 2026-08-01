@@ -178,22 +178,33 @@ pub async fn google_authcode_exchange(
     Ok(secret)
 }
 
-/// Resolve a Google Code Assist `project_id` via `v1internal:loadCodeAssist`,
+/// A Code Assist project resolved during Google OAuth login.
+pub struct GoogleProjectResolution {
+    pub project_id: String,
+    /// Normalized entitlement (`free`, `pro`, or `ultra`) when loadCodeAssist
+    /// reports a paid/current tier.
+    pub subscription_tier: Option<String>,
+}
+
+/// Resolve a Google Code Assist project via `v1internal:loadCodeAssist`,
 /// falling back to `v1internal:onboardUser`. Shared by `geminicli` and
 /// `antigravity`, which differ only in `metadata` (ideType/pluginType, optional
-/// `duetProject`) and `tier_id` (`legacy-tier` vs `LEGACY`). `existing` (an
+/// `duetProject`) and fallback `tier_id` (`legacy-tier` vs `LEGACY`). When
+/// loadCodeAssist advertises a default allowed tier, that server-provided id is
+/// used for onboarding instead. `existing` (an
 /// operator-set project) is sent as `cloudaicompanionProject` and used as the
 /// last-resort fallback. The `onboardUser` long-running operation is read once
 /// (not polled across `sleep`, to stay wasm-compilable); a still-pending
 /// onboarding without an immediate project falls back to `existing` or errors.
-pub async fn resolve_google_project_id(
+pub async fn resolve_google_project(
     client: &Arc<dyn UpstreamClient>,
     base_url: &str,
     access_token: &str,
     metadata: serde_json::Value,
     tier_id: &str,
     existing: Option<&str>,
-) -> Result<String, ChannelError> {
+    user_agent: Option<&str>,
+) -> Result<GoogleProjectResolution, ChannelError> {
     use serde_json::json;
     let base = base_url.trim_end_matches('/');
     let existing = existing.map(str::trim).filter(|s| !s.is_empty());
@@ -208,16 +219,22 @@ pub async fn resolve_google_project_id(
         &format!("{base}/v1internal:loadCodeAssist"),
         access_token,
         &load_body,
+        user_agent,
     )
     .await?;
+    let subscription_tier = google_subscription_tier(&loaded);
     if let Some(p) = loaded
         .get("cloudaicompanionProject")
         .and_then(google_project_from_value)
     {
-        return Ok(p);
+        return Ok(GoogleProjectResolution {
+            project_id: p,
+            subscription_tier,
+        });
     }
 
     // onboardUser (long-running op; read the immediate response)
+    let tier_id = google_default_tier(&loaded).unwrap_or(tier_id);
     let mut onboard_body = json!({ "tierId": tier_id, "metadata": metadata });
     if let Some(p) = existing {
         onboard_body["cloudaicompanionProject"] = json!(p);
@@ -227,6 +244,7 @@ pub async fn resolve_google_project_id(
         &format!("{base}/v1internal:onboardUser"),
         access_token,
         &onboard_body,
+        user_agent,
     )
     .await?;
     let project = onboarded
@@ -238,7 +256,7 @@ pub async fn resolve_google_project_id(
                 .get("cloudaicompanionProject")
                 .and_then(google_project_from_value)
         });
-    project
+    let project_id = project
         .or_else(|| existing.map(ToOwned::to_owned))
         .ok_or_else(|| {
             ChannelError::Build(
@@ -246,7 +264,41 @@ pub async fn resolve_google_project_id(
                  retry or set project_id)"
                     .into(),
             )
-        })
+        })?;
+    Ok(GoogleProjectResolution {
+        project_id,
+        subscription_tier,
+    })
+}
+
+fn google_default_tier(payload: &serde_json::Value) -> Option<&str> {
+    payload
+        .get("allowedTiers")?
+        .as_array()?
+        .iter()
+        .find(|tier| tier.get("isDefault").and_then(serde_json::Value::as_bool) == Some(true))?
+        .get("id")?
+        .as_str()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+}
+
+fn google_subscription_tier(payload: &serde_json::Value) -> Option<String> {
+    let tier_id = |key| {
+        payload
+            .get(key)
+            .and_then(|tier| tier.get("id"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+    };
+    let raw = tier_id("paidTier").or_else(|| tier_id("currentTier"))?;
+    let normalized = match raw.to_ascii_lowercase().as_str() {
+        "g1-ultra-tier" | "ws-ai-ultra-business-tier" => "ultra",
+        "free-tier" => "free",
+        _ => "pro",
+    };
+    Some(normalized.to_owned())
 }
 
 /// Extract a Code Assist project id from a value that is either the bare id
@@ -267,13 +319,18 @@ async fn post_json_bearer(
     url: &str,
     bearer: &str,
     body: &serde_json::Value,
+    user_agent: Option<&str>,
 ) -> Result<serde_json::Value, ChannelError> {
     let bytes = serde_json::to_vec(body)
         .map_err(|e| ChannelError::Build(format!("code assist body serialize: {e}")))?;
-    let req = http::Request::post(url)
+    let mut builder = http::Request::post(url)
         .header(http::header::AUTHORIZATION, format!("Bearer {bearer}"))
         .header(http::header::CONTENT_TYPE, "application/json")
-        .header(http::header::ACCEPT, "application/json")
+        .header(http::header::ACCEPT, "application/json");
+    if let Some(user_agent) = user_agent {
+        builder = builder.header(http::header::USER_AGENT, user_agent);
+    }
+    let req = builder
         .body(bytes::Bytes::from(bytes))
         .map_err(|e| ChannelError::Build(format!("code assist request build: {e}")))?;
     let resp = client
@@ -370,6 +427,29 @@ mod tests {
             verifier
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        );
+    }
+
+    #[test]
+    fn parses_default_and_subscription_tiers() {
+        let payload = serde_json::json!({
+            "paidTier": {"id": "g1-ultra-tier"},
+            "currentTier": {"id": "free-tier"},
+            "allowedTiers": [
+                {"id": "LEGACY"},
+                {"id": "standard-tier", "isDefault": true}
+            ]
+        });
+        assert_eq!(google_default_tier(&payload), Some("standard-tier"));
+        assert_eq!(google_subscription_tier(&payload).as_deref(), Some("ultra"));
+
+        let empty_paid = serde_json::json!({
+            "paidTier": {"id": " "},
+            "currentTier": {"id": "free-tier"}
+        });
+        assert_eq!(
+            google_subscription_tier(&empty_paid).as_deref(),
+            Some("free")
         );
     }
 }

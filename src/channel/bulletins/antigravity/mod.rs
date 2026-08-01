@@ -17,6 +17,7 @@ mod auth;
 #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
 mod fingerprint;
 mod model_list;
+mod usage;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -221,25 +222,7 @@ impl Channel for AntigravityChannel {
         secret: &Value,
         settings: &Value,
     ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
-        let access_token = auth::access_token(secret)?;
-        let project_id = auth::project_id(secret)?;
-        match crate::channel::settings::endpoint_by_key(settings, "usage", "") {
-            Some(url) => envelope::user_quota_request_at(
-                &url,
-                access_token,
-                project_id,
-                auth::USER_AGENT_VALUE,
-            ),
-            None => {
-                let base = settings
-                    .get("base_url")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|base| !base.is_empty())
-                    .unwrap_or(auth::BASE_URL);
-                envelope::user_quota_request(base, access_token, project_id, auth::USER_AGENT_VALUE)
-            }
-        }
+        usage::request(secret, settings)
     }
 
     fn parse_usage(
@@ -248,7 +231,7 @@ impl Channel for AntigravityChannel {
         _headers: &http::HeaderMap,
         body: &Bytes,
     ) -> Option<crate::channel::UsageSnapshot> {
-        envelope::parse_user_quota(status, body)
+        usage::parse(status, body)
     }
 }
 
@@ -314,7 +297,7 @@ mod tests {
         // Distinct from geminicli: code-assist path + Antigravity UA/client wiring.
         assert_eq!(
             req.uri().to_string(),
-            "https://cloudcode-pa.googleapis.com/v1internal:generateContent"
+            "https://daily-cloudcode-pa.googleapis.com/v1internal:generateContent"
         );
         assert_eq!(
             req.headers().get("authorization").unwrap(),
@@ -369,7 +352,7 @@ mod tests {
         assert_eq!(req.method(), Method::POST);
         assert_eq!(
             req.uri().to_string(),
-            "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
+            "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
         );
         assert_eq!(
             req.headers().get("authorization").unwrap(),
