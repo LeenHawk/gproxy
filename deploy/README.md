@@ -24,6 +24,7 @@ copy it to a platform-local `_shared.js` before packaging.
 | `UPSTASH_URL` | No | Upstash Redis cache URL. |
 | `UPSTASH_TOKEN` | No | Upstash access token. |
 | `GPROXY_MASTER_KEY` | No | Standard base64 32-byte sealed-secret key. |
+| `GPROXY_LOG` | No | Edge console level: `off`, `error`, `warn`, `info` (default), `debug`, or `trace`. |
 
 Run build scripts from the repository root. Run provider CLIs from their own
 `deploy/<provider>/` directories unless that provider's notes say otherwise.

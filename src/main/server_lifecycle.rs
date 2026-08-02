@@ -5,8 +5,17 @@ use gproxy::app::AppState;
 pub(crate) fn init_tracing() {
     use tracing_subscriber::EnvFilter;
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let json =
+        std::env::var("GPROXY_LOG_FORMAT").is_ok_and(|value| value.eq_ignore_ascii_case("json"));
     // Embedders own the global subscriber when they installed one first.
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
+    let _ = if json {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(filter)
+            .try_init()
+    } else {
+        tracing_subscriber::fmt().with_env_filter(filter).try_init()
+    };
 }
 
 pub(crate) async fn serve(state: AppState, bind: std::net::SocketAddr) -> anyhow::Result<()> {

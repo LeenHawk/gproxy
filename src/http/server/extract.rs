@@ -12,6 +12,17 @@ use crate::pipeline::error::PipelineError;
 /// mode the leading `/{provider}` segment is stripped so `path` is `/v1/...` in
 /// both modes.
 pub fn build_ctx(parts: Parts, body: Bytes, scoped: bool) -> Result<RequestCtx, PipelineError> {
+    build_ctx_with_request_id(parts, body, scoped, crate::http::telemetry::request_id())
+}
+
+/// [`build_ctx`] with an id allocated by the HTTP boundary before body reading,
+/// so early failures and the eventual response share one correlation id.
+pub(crate) fn build_ctx_with_request_id(
+    parts: Parts,
+    body: Bytes,
+    scoped: bool,
+    request_id: String,
+) -> Result<RequestCtx, PipelineError> {
     let query = parts.uri.query().map(|q| q.to_string());
     let raw_path = parts.uri.path();
 
@@ -35,7 +46,7 @@ pub fn build_ctx(parts: Parts, body: Bytes, scoped: bool) -> Result<RequestCtx, 
     };
 
     Ok(RequestCtx {
-        request_id: gen_request_id(),
+        request_id,
         method: parts.method,
         path,
         query,
@@ -49,12 +60,6 @@ pub fn build_ctx(parts: Parts, body: Bytes, scoped: bool) -> Result<RequestCtx, 
         route_name: None,
         pending_micros: 0,
     })
-}
-
-/// Per-request correlation id (§15.1): a ULID — lexicographically sortable by
-/// creation time, unique + opaque on both native and edge.
-fn gen_request_id() -> String {
-    crate::util::id::ulid()
 }
 
 #[cfg(test)]

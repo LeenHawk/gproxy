@@ -17,7 +17,13 @@ pub(super) async fn reconcile(ctx: &SettleCtx, usage: &NormalizedUsage, cost: De
 
     // Exact refund of the pre-deduct — same amount, never recomputed. (If a
     // crash loses this, the 15-minute pending TTL self-heals.)
-    pending::refund(cache, &ctx.quota_scopes, ctx.pending_micros).await;
+    pending::refund(
+        cache,
+        &ctx.quota_scopes,
+        ctx.pending_micros,
+        &ctx.request_id,
+    )
+    .await;
 
     // Persist actual cost on every scope that has a quota row. The increment is
     // atomic per row (`add_quota_cost`): the M6 read-modify-write lost-update
@@ -26,7 +32,14 @@ pub(super) async fn reconcile(ctx: &SettleCtx, usage: &NormalizedUsage, cost: De
         let db = ctx.state.persistence.as_ref();
         for &(scope, scope_id) in &ctx.quota_scopes {
             if let Err(e) = db.add_quota_cost(scope, scope_id, cost).await {
-                tracing::warn!(request_id = %ctx.request_id, error = %e, "quota reconcile write failed");
+                tracing::warn!(
+                    request_id = %ctx.request_id,
+                    scope = scope.as_str(),
+                    scope_id,
+                    operation = "add_quota_cost",
+                    error = %e,
+                    "quota reconcile write failed"
+                );
             }
         }
     }
@@ -39,14 +52,34 @@ pub(super) async fn reconcile(ctx: &SettleCtx, usage: &NormalizedUsage, cost: De
         // M3 seam: authz precheck reads the daily `rlt:{row_id}:d{day}` budget.
         for id in &ctx.token_rlt_ids {
             let key = format!("rlt:{id}:d{}", now / 86_400);
-            let _ = cache
+            if let Err(error) = cache
                 .incr(&key, total, Some(Duration::from_secs(48 * 3600)))
-                .await;
+                .await
+            {
+                tracing::warn!(
+                    request_id = %ctx.request_id,
+                    scope = "rate_limit",
+                    scope_id = id,
+                    operation = "increment_token_counter",
+                    error = %error,
+                    "settle token counter update failed"
+                );
+            }
         }
         // M4 seam: failover's per-credential tpm budget reads `ctpm:{id}:m{min}`.
         let key = format!("ctpm:{}:m{}", ctx.credential.id, now / 60);
-        let _ = cache
+        if let Err(error) = cache
             .incr(&key, total, Some(Duration::from_secs(120)))
-            .await;
+            .await
+        {
+            tracing::warn!(
+                request_id = %ctx.request_id,
+                scope = "credential",
+                scope_id = ctx.credential.id,
+                operation = "increment_token_counter",
+                error = %error,
+                "settle token counter update failed"
+            );
+        }
     }
 }

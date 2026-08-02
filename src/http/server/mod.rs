@@ -77,6 +77,9 @@ pub fn router(state: AppState) -> Router {
                 &state.config.cors_origins,
             ));
         }
+        // Final gateway envelope: responses produced before handlers run (for
+        // example CORS preflight) still receive correlation + completion.
+        gateway = gateway.layer(axum::middleware::from_fn(ensure_gateway_request_id));
         router = router.merge(gateway);
         // /healthz, /version and /metrics sit behind the SAME admin gate as
         // /admin/* (session cookie or an admin user's API key) — no ops endpoint
@@ -97,6 +100,31 @@ pub fn router(state: AppState) -> Router {
     }
 
     router.with_state(state)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn ensure_gateway_request_id(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let request_id = crate::http::telemetry::request_id();
+    let started_ms = crate::util::time::unix_now_ms();
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    let mut response = next.run(request).await;
+    if response.headers().contains_key("x-gproxy-request-id") {
+        return response;
+    }
+    crate::http::telemetry::complete_early(
+        &request_id,
+        method.as_str(),
+        &path,
+        response.status(),
+        started_ms,
+        None,
+    );
+    crate::http::telemetry::insert_request_id(response.headers_mut(), &request_id);
+    response
 }
 
 /// Convert target-independent ops response data to axum's body type.
@@ -128,13 +156,34 @@ async fn require_ops_admin(
 /// Map a shed (overloaded) gateway request to a 503; any other middleware error
 /// to a 500. Used by the §16.2 load-shed layer.
 #[cfg(not(target_arch = "wasm32"))]
-async fn handle_overload(err: tower::BoxError) -> axum::http::StatusCode {
+async fn handle_overload(
+    method: axum::http::Method,
+    uri: axum::http::Uri,
+    err: tower::BoxError,
+) -> axum::response::Response {
     use axum::http::StatusCode;
-    if err.is::<tower::load_shed::error::Overloaded>() {
-        StatusCode::SERVICE_UNAVAILABLE
+    use axum::response::IntoResponse as _;
+
+    let (status, message) = if err.is::<tower::load_shed::error::Overloaded>() {
+        (StatusCode::SERVICE_UNAVAILABLE, "gateway overloaded")
     } else {
-        StatusCode::INTERNAL_SERVER_ERROR
-    }
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "gateway middleware failed",
+        )
+    };
+    let request_id = crate::http::telemetry::request_id();
+    let mut response = (status, message).into_response();
+    crate::http::telemetry::complete_early(
+        &request_id,
+        method.as_str(),
+        uri.path(),
+        status,
+        crate::util::time::unix_now_ms(),
+        Some(message),
+    );
+    crate::http::telemetry::insert_request_id(response.headers_mut(), &request_id);
+    response
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

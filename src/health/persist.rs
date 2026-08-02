@@ -10,8 +10,20 @@
 use std::sync::Arc;
 
 use crate::store::persistence::PersistenceBackend;
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::Instrument as _;
+
+pub struct CredentialTransition {
+    pub request_id: Option<String>,
+    pub credential_id: i64,
+    pub channel: String,
+    pub kind: &'static str,
+    pub json: serde_json::Value,
+    pub last_error: Option<String>,
+}
 
 pub struct CredentialModelTransition {
+    pub request_id: Option<String>,
     pub credential_id: i64,
     pub channel: String,
     pub model_id: String,
@@ -27,12 +39,17 @@ pub struct CredentialModelTransition {
 pub fn persist_credential_transition(
     persistence: Arc<dyn PersistenceBackend>,
     instance_id: u64,
-    credential_id: i64,
-    channel: String,
-    kind: &'static str,
-    mut json: serde_json::Value,
-    last_error: Option<String>,
+    transition: CredentialTransition,
 ) {
+    let CredentialTransition {
+        request_id,
+        credential_id,
+        channel,
+        kind,
+        mut json,
+        last_error,
+    } = transition;
+    let log_channel = channel.clone();
     if let Some(obj) = json.as_object_mut() {
         obj.insert("instance_id".into(), serde_json::json!(instance_id));
     }
@@ -45,11 +62,21 @@ pub fn persist_credential_transition(
         checked_at: Some(crate::util::time::unix_now()),
         last_error,
     };
-    tokio::spawn(async move {
-        if let Err(e) = persistence.upsert_credential_status(input).await {
-            tracing::warn!(error = %e, credential_id, "credential health persist failed");
+    let span = tracing::Span::current();
+    tokio::spawn(
+        async move {
+            if let Err(e) = persistence.upsert_credential_status(input).await {
+                tracing::warn!(
+                    request_id = %request_id.as_deref().unwrap_or(""),
+                    credential_id,
+                    channel = %log_channel,
+                    error = %e,
+                    "credential health persist failed"
+                );
+            }
         }
-    });
+        .instrument(span),
+    );
 }
 
 /// Persist one health transition scoped to the final upstream model id.
@@ -60,6 +87,7 @@ pub fn persist_credential_model_transition(
     transition: CredentialModelTransition,
 ) {
     let CredentialModelTransition {
+        request_id,
         credential_id,
         channel,
         model_id,
@@ -67,6 +95,8 @@ pub fn persist_credential_model_transition(
         mut json,
         last_error,
     } = transition;
+    let log_channel = channel.clone();
+    let upstream_model = model_id.clone();
     if let Some(obj) = json.as_object_mut() {
         obj.insert("instance_id".into(), serde_json::json!(instance_id));
     }
@@ -80,11 +110,22 @@ pub fn persist_credential_model_transition(
         checked_at: Some(crate::util::time::unix_now()),
         last_error,
     };
-    tokio::spawn(async move {
-        if let Err(e) = persistence.upsert_credential_model_status(input).await {
-            tracing::warn!(error = %e, credential_id, "credential model health persist failed");
+    let span = tracing::Span::current();
+    tokio::spawn(
+        async move {
+            if let Err(e) = persistence.upsert_credential_model_status(input).await {
+                tracing::warn!(
+                    request_id = %request_id.as_deref().unwrap_or(""),
+                    credential_id,
+                    channel = %log_channel,
+                    upstream_model = %upstream_model,
+                    error = %e,
+                    "credential model health persist failed"
+                );
+            }
         }
-    });
+        .instrument(span),
+    );
 }
 
 /// Edge: §16.3 persistence is skipped — the wasm runtime has no detached
@@ -93,11 +134,7 @@ pub fn persist_credential_model_transition(
 pub fn persist_credential_transition(
     _persistence: Arc<dyn PersistenceBackend>,
     _instance_id: u64,
-    _credential_id: i64,
-    _channel: String,
-    _kind: &'static str,
-    _json: serde_json::Value,
-    _last_error: Option<String>,
+    _transition: CredentialTransition,
 ) {
 }
 

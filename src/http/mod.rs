@@ -12,6 +12,7 @@ pub(crate) mod ops;
 pub(crate) mod realtime_ws;
 pub(crate) mod responses_ws;
 pub mod server;
+pub(crate) mod telemetry;
 
 // Cross-target admin/portal business implementation and route dispatcher.
 // Native axum and the wasm edge entry are both framework adapters around it.

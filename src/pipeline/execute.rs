@@ -19,40 +19,60 @@ use crate::protocol::Operation;
 /// span (§15.2) carrying `request_id` and — recorded as they resolve —
 /// `op` / `kind` / `route` / `provider`.
 pub async fn execute(state: &AppState, ctx: RequestCtx) -> Result<ExecOutcome, PipelineError> {
+    let started_ms = crate::util::time::unix_now_ms();
     let span = tracing::info_span!(
         "request",
         request_id = %ctx.request_id,
-        op = tracing::field::Empty,
+        method = %ctx.method,
+        path = %ctx.path,
+        model = tracing::field::Empty,
+        stream = tracing::field::Empty,
+        operation = tracing::field::Empty,
         kind = tracing::field::Empty,
         route = tracing::field::Empty,
         provider = tracing::field::Empty,
+        status = tracing::field::Empty,
+        duration_ms = tracing::field::Empty,
     );
     // §8-D downstream capture: snapshot the inbound wire facts BEFORE run()
     // (the ingress blacklist strips client creds in place); the row is written
     // below once the final status is known. None when the toggle is off.
     let downstream = capture::downstream_precapture(state, &ctx);
-    let result = run(state, ctx).instrument(span).await;
-    if let Some(cap) = downstream {
-        // §8-D response body (fold-in for non-streaming; streamed bodies are
-        // backfilled by `settle` since they aren't materialized here).
-        let want_body = state.cp().log_settings.enable_downstream_log_body;
-        let (status, resp_body): (http::StatusCode, Option<bytes::Bytes>) = match &result {
-            Ok(o) => {
-                let b = match &o.body {
-                    ResponseBody::Stream(_) => None,
-                    ResponseBody::Full(b) if want_body => Some(b.clone()),
-                    ResponseBody::Full(_) => None,
-                };
-                (o.status, b)
-            }
-            Err(e) => (
-                e.status(),
-                want_body.then(|| bytes::Bytes::from(e.error_body_json())),
-            ),
+    async move {
+        let result = run(state, ctx).await;
+        if let Some(cap) = downstream {
+            // §8-D response body (fold-in for non-streaming; streamed bodies are
+            // backfilled by `settle` since they aren't materialized here).
+            let want_body = state.cp().log_settings.enable_downstream_log_body;
+            let (status, resp_body): (http::StatusCode, Option<bytes::Bytes>) = match &result {
+                Ok(o) => {
+                    let b = match &o.body {
+                        ResponseBody::Stream(_) => None,
+                        ResponseBody::Full(b) if want_body => Some(b.clone()),
+                        ResponseBody::Full(_) => None,
+                    };
+                    (o.status, b)
+                }
+                Err(e) => (
+                    e.status(),
+                    want_body.then(|| bytes::Bytes::from(e.error_body_json())),
+                ),
+            };
+            capture::log_downstream(state, cap, status, resp_body.as_deref()).await;
+        }
+        let (status, error) = match &result {
+            Ok(outcome) => (outcome.status, None),
+            Err(error) => (error.status(), Some(error.to_string())),
         };
-        capture::log_downstream(state, cap, status, resp_body.as_deref()).await;
+        crate::http::telemetry::complete_current(
+            status,
+            crate::http::telemetry::elapsed_ms(started_ms),
+            error.as_deref(),
+        );
+        result
     }
-    result
+    .instrument(span)
+    .await
 }
 
 /// Inner orchestrator (§6.3). Sequences the already-separated steps for both
@@ -72,8 +92,14 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         ctx.op = Some(classified.op);
         ctx.stream = classified.stream;
         ctx.body_model = classified.body_model;
-        span.record("op", tracing::field::debug(classified.op.operation));
+        span.record("operation", tracing::field::debug(classified.op.operation));
         span.record("kind", tracing::field::debug(classified.op.kind));
+        span.record("stream", classified.stream);
+        if let Some(model) = ctx.body_model.as_deref() {
+            span.record("model", model);
+        } else if let Some(model) = classify::path_model_id(&ctx.path) {
+            span.record("model", model.as_str());
+        }
 
         if matches!(ctx.mode, RoutingMode::Aggregated)
             && matches!(
@@ -126,7 +152,13 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     } else {
         est_micros
     };
-    pending::charge(state.cache.as_ref(), &quota_scopes, pending_micros).await;
+    pending::charge(
+        state.cache.as_ref(),
+        &quota_scopes,
+        pending_micros,
+        &ctx.request_id,
+    )
+    .await;
     ctx.pending_micros = pending_micros;
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -149,7 +181,13 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
     // or a relayed permanent 4xx — must refund here. A crash in between
     // self-heals via the 15-minute pending TTL.
     if !matches!(&result, Ok(o) if o.status.is_success()) {
-        pending::refund(state.cache.as_ref(), &quota_scopes, pending_micros).await;
+        pending::refund(
+            state.cache.as_ref(),
+            &quota_scopes,
+            pending_micros,
+            &ctx.request_id,
+        )
+        .await;
     }
 
     // Edge pass-through streams are live. A synthetic stream still waits for

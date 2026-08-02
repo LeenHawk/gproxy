@@ -86,6 +86,44 @@ impl RefreshOrchestrator {
         if !force && !channel.needs_refresh(&opened) {
             return Ok(opened);
         }
+        let mode = if force { "forced" } else { "lazy" };
+        tracing::debug!(
+            credential_id = credential.id,
+            channel = channel.id(),
+            mode,
+            "credential.refresh.started"
+        );
+        let result = self
+            .ensure_fresh_inner(deps, channel, credential, opened, force)
+            .await;
+        match &result {
+            Ok(_) => tracing::debug!(
+                credential_id = credential.id,
+                channel = channel.id(),
+                mode,
+                "credential.refresh.succeeded"
+            ),
+            Err(error) => {
+                tracing::warn!(
+                    credential_id = credential.id,
+                    channel = channel.id(),
+                    mode,
+                    error_kind = channel_error_kind(error),
+                    "credential.refresh.failed"
+                );
+            }
+        }
+        result
+    }
+
+    async fn ensure_fresh_inner(
+        &self,
+        deps: RefreshDeps<'_>,
+        channel: &Arc<dyn Channel>,
+        credential: &Credential,
+        opened: Value,
+        force: bool,
+    ) -> Result<Value, ChannelError> {
         let lock = self.locks.for_credential(credential.id);
         let _guard = lock.lock().await;
         // Loser re-check (single-flight): re-read the credential + re-open. Two
@@ -106,9 +144,11 @@ impl RefreshOrchestrator {
                 ChannelError::Build("credential changed or disabled during refresh".into())
             })?;
         if !force && !channel.needs_refresh(&current.secret) {
+            peer_reused(credential, channel, "local_single_flight");
             return Ok(current.secret);
         }
         if force && current.secret != opened {
+            peer_reused(credential, channel, "local_single_flight");
             return Ok(current.secret);
         }
         // Cross-instance single-flight: the local mutex above serialises this
@@ -148,6 +188,7 @@ impl RefreshOrchestrator {
                 })?;
             if (!force && !channel.needs_refresh(&peer.secret)) || (force && peer.secret != opened)
             {
+                peer_reused(credential, channel, "distributed_wait");
                 return Ok(peer.secret);
             }
         }
@@ -200,7 +241,8 @@ async fn refresh_under_lease(
                         "credential refresh lease lost; finishing with CAS writeback"
                     );
                     let result = operation.await;
-                    return recover_after_lost_lease(deps, credential, opened, result).await;
+                    return recover_after_lost_lease(deps, channel, credential, opened, result)
+                        .await;
                 }
             }
         }
@@ -209,6 +251,7 @@ async fn refresh_under_lease(
 
 async fn recover_after_lost_lease(
     deps: &RefreshDeps<'_>,
+    channel: &Arc<dyn Channel>,
     credential: &Credential,
     opened: &Value,
     result: Result<Value, ChannelError>,
@@ -223,6 +266,7 @@ async fn recover_after_lost_lease(
             .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
             && peer.secret != *opened
         {
+            peer_reused(credential, channel, "lost_lease_recovery");
             return Ok(peer.secret);
         }
         if attempt < COMPROMISED_RESULT_RETRIES {
@@ -269,7 +313,7 @@ async fn refresh_and_persist(
         .map_err(|e| ChannelError::Build(format!("seal refreshed secret: {e}")))?;
     let original_secret = current.secret.clone();
     let mut expected = current;
-    for _ in 0..3 {
+    for attempt in 1..=3 {
         let updated = writeback(
             deps.persistence,
             credential,
@@ -286,6 +330,12 @@ async fn refresh_and_persist(
             .await;
             return Ok(fresh);
         }
+        tracing::debug!(
+            credential_id = credential.id,
+            channel = channel.id(),
+            attempt,
+            "credential.refresh.cas_conflict"
+        );
         let Some(peer) = reread_open_enabled(deps.persistence, deps.cipher, credential)
             .await
             .map_err(|e| ChannelError::Build(format!("reread credential: {e}")))?
@@ -295,6 +345,7 @@ async fn refresh_and_persist(
             ));
         };
         if peer.secret != original_secret {
+            peer_reused(credential, channel, "cas_conflict");
             return Ok(peer.secret);
         }
         expected = peer;
@@ -302,6 +353,25 @@ async fn refresh_and_persist(
     Err(ChannelError::Transient(
         "credential kept changing during refresh writeback".into(),
     ))
+}
+
+fn peer_reused(credential: &Credential, channel: &Arc<dyn Channel>, source: &'static str) {
+    tracing::debug!(
+        credential_id = credential.id,
+        channel = channel.id(),
+        source,
+        "credential.refresh.peer_reused"
+    );
+}
+
+fn channel_error_kind(error: &ChannelError) -> &'static str {
+    match error {
+        ChannelError::MissingSetting(_) => "missing_setting",
+        ChannelError::InvalidCredential(_) => "invalid_credential",
+        ChannelError::Unsupported(_) => "unsupported",
+        ChannelError::Build(_) => "build_or_persistence",
+        ChannelError::Transient(_) => "transient",
+    }
 }
 
 struct OpenCredential {

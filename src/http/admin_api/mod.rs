@@ -16,7 +16,10 @@ pub(crate) mod credential_import;
 pub(crate) mod credential_ops;
 pub mod crud;
 mod host;
+mod login_callback;
 pub(crate) mod login_flows;
+mod login_telemetry;
+mod methods;
 pub(crate) mod nested;
 pub(crate) mod observability;
 mod pagination;
@@ -174,13 +177,28 @@ pub(crate) fn query<T: DeserializeOwned>(parts: &Request) -> Result<T, ApiError>
 
 /// Map a persistence error to a 500 (the cause is logged, not leaked).
 pub(crate) fn internal<E: std::fmt::Display>(e: E) -> ApiError {
-    ApiError::Internal(e.to_string())
+    let error = e.to_string();
+    let safe = crate::http::telemetry::redact_url_query(&error);
+    tracing::warn!(error = %safe, "admin API internal error");
+    ApiError::Internal(error)
 }
 
 /// Write an audit log entry. Direct `await` keeps the behavior available on
 /// edge runtimes where spawning is unavailable.
 pub(crate) async fn audit(state: &AppState, input: AuditLogInput) {
-    let _ = state.persistence.append_audit_log(input).await;
+    let action = input.action.clone();
+    let target = input.target.clone();
+    let status = input.status;
+    if let Err(error) = state.persistence.append_audit_log(input).await {
+        let error = crate::http::telemetry::redact_url_query(&error.to_string()).into_owned();
+        tracing::warn!(
+            action,
+            target,
+            status,
+            error = %error,
+            "admin audit log append failed"
+        );
+    }
 }
 
 // ── Dispatcher ────────────────────────────────────────────────────────────────
@@ -376,82 +394,11 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
         (&Method::GET, ["admin", "me"]) => admin_me(state, parts).await,
         (&Method::GET, ["user", "me"]) => user_me(state, parts).await,
         _ => {
-            return allowed_methods(segs.as_slice())
+            return methods::allowed_methods(segs.as_slice())
                 .map(|allow| Ok(Resp::method_not_allowed(allow)));
         }
     };
     Some(r)
-}
-
-fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
-    match segments {
-        ["admin", "login" | "logout"] => Some("POST"),
-        ["admin", "me" | "channels"] => Some("GET,HEAD"),
-        ["admin", "autostart"] => Some("GET,HEAD,PUT"),
-        [
-            "admin",
-            "orgs" | "providers" | "routes" | "aliases" | "price-rules" | "rule-sets"
-            | "instance-settings" | "users",
-        ] => Some("GET,HEAD,POST"),
-        [
-            "admin",
-            "usage-summary"
-            | "usage-rollups"
-            | "credential-statuses"
-            | "credential-model-statuses"
-            | "tls-presets",
-        ] => Some("GET,HEAD"),
-        ["admin", "usage" | "logs" | "audit"] => Some("GET,HEAD,DELETE"),
-        ["admin", "batch", _] => Some("POST"),
-        [
-            "admin",
-            "orgs" | "providers" | "routes" | "aliases" | "price-rules" | "rule-sets" | "users",
-            _,
-        ] => Some("GET,HEAD,DELETE"),
-        [
-            "admin",
-            "credentials" | "user-keys" | "teams" | "provider-models" | "route-members" | "rules"
-            | "routing-rules" | "provider-rule-sets" | "route-permissions" | "rate-limits"
-            | "quotas",
-            _,
-        ] => Some("DELETE"),
-        ["admin", "route-permissions" | "rate-limits" | "quotas"] => Some("GET,HEAD,POST"),
-        ["admin", "login-flows", "start" | "complete" | "cookie"] => Some("POST"),
-        ["admin", "login-flows", "device", "start" | "poll"] => Some("POST"),
-        ["admin", "update", "check" | "status"] => Some("GET,HEAD"),
-        ["admin", "update", "apply"] => Some("POST"),
-        ["admin", "connectivity", "test"] => Some("POST"),
-        ["admin", "orgs", _, "teams"]
-        | [
-            "admin",
-            "providers",
-            _,
-            "models" | "credentials" | "routing-rules" | "rule-sets",
-        ]
-        | ["admin", "routes", _, "members"]
-        | ["admin", "rule-sets", _, "rules"]
-        | ["admin", "users", _, "keys"] => Some("GET,HEAD,POST"),
-        ["admin", "providers", _, "upstream-models"]
-        | [
-            "admin",
-            "credentials",
-            _,
-            "status" | "model-statuses" | "secret" | "usage",
-        ]
-        | ["admin", "logs", _, "downstream" | "upstream"] => Some("GET,HEAD"),
-        ["admin", "credentials", _, "rate-limit-reset-credit"]
-        | ["admin", "providers", _, "routing-rules", "reset"] => Some("POST"),
-        ["admin", "providers", _, "credentials", "import"] => Some("POST"),
-        ["admin", "providers", _, "credentials", _] => Some("GET,HEAD"),
-        [
-            "user",
-            "me" | "usage" | "usage-rollups" | "quota" | "rate-limits" | "route-permissions",
-        ] => Some("GET,HEAD"),
-        ["user", "keys"] => Some("GET,HEAD,POST"),
-        ["user", "keys", _] => Some("PATCH,DELETE"),
-        ["user", "change-password"] => Some("POST"),
-        _ => None,
-    }
 }
 
 // ── Handlers (auth guard first, then logic) ───────────────────────────────────

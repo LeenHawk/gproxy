@@ -19,8 +19,27 @@ use super::{bridge, init};
 // the runtime global during module initialisation.
 #[wasm_bindgen(js_name = gproxyFetch)]
 pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
+    let request_id = crate::http::telemetry::request_id();
+    let started_ms = crate::util::time::unix_now_ms();
+    let inbound_method = req.method();
+    let inbound_path = req
+        .url()
+        .parse::<Uri>()
+        .map(|uri| uri.path().to_owned())
+        .unwrap_or_default();
     let Some(state) = init::state() else {
-        return bridge::service_unavailable("GPROXY edge not initialised: call init() first");
+        complete_early(
+            &request_id,
+            &inbound_method,
+            &inbound_path,
+            ::http::StatusCode::SERVICE_UNAVAILABLE,
+            started_ms,
+            "edge not initialised",
+        );
+        return bridge::service_unavailable(
+            "GPROXY edge not initialised: call init() first",
+            &request_id,
+        );
     };
 
     // §7.2 lazy snapshot refresh: edge has no pub/sub listener, so poll the
@@ -30,21 +49,46 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
     // Body cap (shared with native's DefaultBodyLimit): reject via
     // content-length before buffering when the header is present.
     if content_length_exceeds(&req, crate::config::MAX_BODY_BYTES) {
-        return bridge::payload_too_large();
+        complete_early(
+            &request_id,
+            &inbound_method,
+            &inbound_path,
+            ::http::StatusCode::PAYLOAD_TOO_LARGE,
+            started_ms,
+            "request body too large",
+        );
+        return bridge::payload_too_large(&request_id);
     }
     let (parts, body) = ws_request_to_parts(req).await?;
     // Re-check actual buffered length because content-length can be absent or
     // incorrect. Both paths produce a clean 413 rather than a JS exception.
     if body.len() > crate::config::MAX_BODY_BYTES {
-        return bridge::payload_too_large();
+        complete_early(
+            &request_id,
+            &inbound_method,
+            &inbound_path,
+            ::http::StatusCode::PAYLOAD_TOO_LARGE,
+            started_ms,
+            "request body too large",
+        );
+        return bridge::payload_too_large(&request_id);
     }
     let path = parts.uri.path().to_string();
 
     if crate::channel::realtime_websocket::is_ingress_path(&path) {
-        return bridge::text_response(
+        complete_early(
+            &request_id,
+            &inbound_method,
+            &path,
+            ::http::StatusCode::NOT_IMPLEMENTED,
+            started_ms,
+            "realtime websocket unsupported on edge",
+        );
+        return bridge::text_response_with_request_id(
             501,
             "text/plain",
             b"OpenAI Realtime WebSocket passthrough is not supported on edge",
+            &request_id,
         );
     }
 
@@ -106,14 +150,28 @@ pub async fn fetch(req: web_sys::Request) -> Result<Response, JsValue> {
         || path.starts_with("/v1/")
         || path == "/v1beta"
         || path.starts_with("/v1beta/"));
-    let ctx = match crate::http::server::extract::build_ctx(parts, body, scoped) {
+    let ctx = match crate::http::server::extract::build_ctx_with_request_id(
+        parts,
+        body,
+        scoped,
+        request_id.clone(),
+    ) {
         Ok(c) => c,
-        Err(e) => return bridge::error_to_ws(&e),
+        Err(error) => {
+            complete_early(
+                &request_id,
+                &inbound_method,
+                &path,
+                error.status(),
+                started_ms,
+                &error.to_string(),
+            );
+            return bridge::error_to_ws(&error, &request_id);
+        }
     };
-    let request_id = ctx.request_id.clone();
     match crate::pipeline::execute(state, ctx).await {
         Ok(outcome) => bridge::outcome_to_ws(outcome, &request_id),
-        Err(e) => bridge::error_to_ws(&e),
+        Err(error) => bridge::error_to_ws(&error, &request_id),
     }
 }
 
@@ -233,4 +291,22 @@ fn request_builder_for(req: &web_sys::Request) -> Result<::http::request::Builde
 
 fn js_err(e: impl std::fmt::Debug) -> JsValue {
     JsValue::from_str(&format!("{e:?}"))
+}
+
+fn complete_early(
+    request_id: &str,
+    method: &str,
+    path: &str,
+    status: ::http::StatusCode,
+    started_ms: u64,
+    error: &str,
+) {
+    crate::http::telemetry::complete_early(
+        request_id,
+        method,
+        path,
+        status,
+        started_ms,
+        Some(error),
+    );
 }

@@ -12,6 +12,8 @@ use crate::app::AppState;
 use crate::pipeline::context::{Candidate, RequestCtx};
 use crate::store::persistence::records::{DownstreamRequestInput, UpstreamRequestInput};
 use crate::util::time::unix_now;
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::Instrument as _;
 
 mod client;
 mod redaction;
@@ -102,6 +104,7 @@ pub struct UpstreamWire<'a> {
 pub(crate) struct UpstreamCaptureId {
     row_id: i64,
     request_id: String,
+    provider_id: i64,
 }
 
 /// Append the final (returned-to-client) upstream attempt's wire facts if
@@ -144,9 +147,17 @@ async fn insert_upstream_raw(
         Ok(row) => Some(UpstreamCaptureId {
             row_id: row.id,
             request_id: row.request_id,
+            provider_id,
         }),
         Err(e) => {
-            tracing::warn!(error = %e, "request-capture log write failed");
+            tracing::warn!(
+                request_id,
+                row_type = "upstream",
+                provider_id,
+                credential_id,
+                error = %e,
+                "upstream request-capture write failed"
+            );
             None
         }
     }
@@ -209,26 +220,50 @@ enum Row {
 
 async fn persist(state: &AppState, row: Row) {
     async fn write(db: &dyn crate::store::persistence::PersistenceBackend, row: Row) {
-        let result = match row {
+        match row {
             Row::Downstream(input) => {
-                crate::store::persistence::PersistenceBackend::append_downstream_request(db, input)
+                let request_id = input.request_id.clone();
+                if let Err(error) =
+                    crate::store::persistence::PersistenceBackend::append_downstream_request(
+                        db, input,
+                    )
                     .await
-                    .map(|_| ())
+                {
+                    tracing::warn!(
+                        request_id,
+                        row_type = "downstream",
+                        error = %error,
+                        "downstream request-capture write failed"
+                    );
+                }
             }
             Row::Upstream(input) => {
-                crate::store::persistence::PersistenceBackend::append_upstream_request(db, input)
+                let request_id = input.request_id.clone();
+                let provider_id = input.provider_id;
+                let credential_id = input.credential_id;
+                if let Err(error) =
+                    crate::store::persistence::PersistenceBackend::append_upstream_request(
+                        db, input,
+                    )
                     .await
-                    .map(|_| ())
+                {
+                    tracing::warn!(
+                        request_id,
+                        row_type = "upstream",
+                        ?provider_id,
+                        ?credential_id,
+                        error = %error,
+                        "upstream request-capture write failed"
+                    );
+                }
             }
-        };
-        if let Err(e) = result {
-            tracing::warn!(error = %e, "request-capture log write failed");
         }
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
         let persistence = std::sync::Arc::clone(&state.persistence);
-        tokio::spawn(async move { write(persistence.as_ref(), row).await });
+        let span = tracing::Span::current();
+        tokio::spawn(async move { write(persistence.as_ref(), row).await }.instrument(span));
     }
     #[cfg(target_arch = "wasm32")]
     write(state.persistence.as_ref(), row).await;
@@ -270,28 +305,48 @@ enum RespRow {
 
 async fn persist_response(state: &AppState, row: RespRow) {
     async fn write(db: &dyn crate::store::persistence::PersistenceBackend, row: RespRow) {
-        let result = match row {
+        match row {
             RespRow::Downstream(rid, body) => {
-                crate::store::persistence::PersistenceBackend::update_downstream_response(
-                    db,
-                    &rid,
-                    Some(body),
-                )
-                .await
+                if let Err(error) =
+                    crate::store::persistence::PersistenceBackend::update_downstream_response(
+                        db,
+                        &rid,
+                        Some(body),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        request_id = rid,
+                        row_type = "downstream",
+                        error = %error,
+                        "downstream response-capture write failed"
+                    );
+                }
             }
             RespRow::Upstream(capture_id, body) => {
-                let UpstreamCaptureId { row_id, request_id } = capture_id;
-                crate::store::persistence::PersistenceBackend::update_upstream_response_by_id(
-                    db,
+                let UpstreamCaptureId {
                     row_id,
-                    &request_id,
-                    Some(body),
-                )
-                .await
+                    request_id,
+                    provider_id,
+                } = capture_id;
+                if let Err(error) =
+                    crate::store::persistence::PersistenceBackend::update_upstream_response_by_id(
+                        db,
+                        row_id,
+                        &request_id,
+                        Some(body),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        request_id,
+                        row_type = "upstream",
+                        provider_id,
+                        error = %error,
+                        "upstream response-capture write failed"
+                    );
+                }
             }
-        };
-        if let Err(e) = result {
-            tracing::warn!(error = %e, "response-capture log write failed");
         }
     }
     write(state.persistence.as_ref(), row).await;

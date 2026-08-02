@@ -108,7 +108,7 @@ pub(super) async fn attempt(
         Ok(p) => p,
         Err(e) => {
             // Prepare failures count against health like transient errors.
-            health_hooks::record_failure(state, cand);
+            health_hooks::record_failure(state, &ctx.request_id, cand);
             return Err(PipelineError::Channel(e));
         }
     };
@@ -153,7 +153,7 @@ pub(super) async fn attempt(
         match state.upstream_client_for_credential(channel, &cand.credential, &cand.provider) {
             Ok(c) => c,
             Err(e) => {
-                health_hooks::record_failure(state, cand);
+                health_hooks::record_failure(state, &ctx.request_id, cand);
                 settle::audit_failure(
                     state,
                     &ctx.request_id,
@@ -165,7 +165,8 @@ pub(super) async fn attempt(
                         latency_ms: 0,
                         error: &e.to_string(),
                     },
-                );
+                )
+                .await;
                 return Err(PipelineError::Transport(e.to_string()));
             }
         };
@@ -216,7 +217,7 @@ pub(super) async fn attempt(
     let (status, headers, source) = match send_result {
         Ok(t) => t,
         Err(e) => {
-            health_hooks::record_failure(state, cand);
+            health_hooks::record_failure(state, &ctx.request_id, cand);
             settle::audit_failure(
                 state,
                 &ctx.request_id,
@@ -228,7 +229,8 @@ pub(super) async fn attempt(
                     latency_ms: 0,
                     error: &e,
                 },
-            );
+            )
+            .await;
             return Err(PipelineError::Transport(e));
         }
     };
@@ -262,7 +264,7 @@ pub(super) async fn attempt(
 /// §14.5 refresh failure handling at the lazy pre-use seam: cool the credential
 /// (auth-dead semantics) + persist the edge + audit, mirroring an AuthDead
 /// classification so a bad refresh removes the credential from rotation.
-pub(super) fn refresh_failed(
+pub(super) async fn refresh_failed(
     state: &AppState,
     ctx: &RequestCtx,
     cand: &Candidate,
@@ -276,6 +278,7 @@ pub(super) fn refresh_failed(
     if !matches!(e, crate::channel::ChannelError::Transient(_)) {
         health_hooks::record_credential_attempt(
             state,
+            Some(&ctx.request_id),
             &cand.provider,
             &cand.credential,
             &Disposition::AuthDead,
@@ -292,7 +295,8 @@ pub(super) fn refresh_failed(
             latency_ms: 0,
             error: &format!("refresh failed: {e}"),
         },
-    );
+    )
+    .await;
 }
 
 /// One upstream send → uniform `(status, headers, BodySource)`.

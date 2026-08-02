@@ -73,13 +73,15 @@ Release workflow 还会设置内部编译期变量 `GPROXY_BUILD_CHANNEL`；未�
 | --- | --- | --- |
 | `DATABASE_SECRET_KEY` | 空 | 仅用于 v1 迁移。如果旧 v1 数据库使用该 key 加密 secret，v1 reader 会先用它解密，再按 `GPROXY_MASTER_KEY` 重新密封到 v2。 |
 | `RUST_LOG` | `info` | native 日志使用的标准 `tracing_subscriber` filter。 |
+| `GPROXY_LOG_FORMAT` | `text` | native 日志输出格式：`text` 或逐行 `json`；不改变 `RUST_LOG` 的过滤语义。 |
 | `GPROXY_AUTOSTART` | 桌面首次运行默认为 `on` | 设为 `off` 可阻止首次运行注册用户级登录启动项。Docker 镜像已设为 `off`；之后可在 Console 设置中修改。 |
 
 ## Edge wrapper
 
 wasm edge 入口不走 `clap`，由平台 wrapper 传入配置。当前部署模板会把
 Turso/libSQL 数据库 URL/token 传给 wasm 持久化后端，可选传入 Upstash
-cache URL/token，也可传入 `GPROXY_MASTER_KEY` 打开密封 secret。具体变量名
+cache URL/token，也可传入 `GPROXY_MASTER_KEY` 打开密封 secret。`GPROXY_LOG`
+可设为 `off`、`error`、`warn`、`info`（默认）、`debug` 或 `trace`。具体变量名
 由平台 wrapper 决定，请以 edge 部署页面为准。
 
 ## 示例

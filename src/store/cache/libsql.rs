@@ -72,7 +72,7 @@ impl LibsqlCache {
 impl CacheBackend for LibsqlCache {
     async fn get(&self, key: &str) -> Option<Vec<u8>> {
         let now = Self::now_ms();
-        let result = self
+        let result = match self
             .client
             .execute(
                 "SELECT v FROM gproxy_kv \
@@ -80,7 +80,17 @@ impl CacheBackend for LibsqlCache {
                 &[arg_text(key), arg_integer(now)],
             )
             .await
-            .ok()?;
+        {
+            Ok(result) => result,
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    operation = "get",
+                    "libsql cache read failed"
+                );
+                return None;
+            }
+        };
         let cell = result.rows.into_iter().next()?.into_iter().next()?;
         // Hrana: BLOB → {"type":"blob","base64":"..."}, TEXT → {"type":"text","value":"..."}
         hrana_value_to_bytes(&cell)
@@ -108,10 +118,17 @@ impl CacheBackend for LibsqlCache {
     }
 
     async fn delete(&self, key: &str) {
-        let _ = self
+        if let Err(error) = self
             .client
             .execute("DELETE FROM gproxy_kv WHERE k = ?", &[arg_text(key)])
-            .await;
+            .await
+        {
+            tracing::warn!(
+                error = %error,
+                operation = "delete",
+                "libsql cache delete failed"
+            );
+        }
     }
 
     async fn incr(
@@ -204,7 +221,8 @@ impl CacheBackend for LibsqlCache {
 
     async fn extend_lock(&self, key: &str, owner: &str, ttl: Duration) -> bool {
         let ttl_ms = ttl.as_millis().max(1) as i64;
-        self.client
+        match self
+            .client
             .execute(
                 "UPDATE gproxy_kv SET expires_ms = \
                    CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) + ? \
@@ -214,17 +232,34 @@ impl CacheBackend for LibsqlCache {
                 &[arg_integer(ttl_ms), arg_text(key), arg_text(owner)],
             )
             .await
-            .is_ok_and(|result| !result.rows.is_empty())
+        {
+            Ok(result) => !result.rows.is_empty(),
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    operation = "extend_lock",
+                    "libsql cache lock extension failed"
+                );
+                false
+            }
+        }
     }
 
     async fn unlock(&self, key: &str, owner: &str) {
-        let _ = self
+        if let Err(error) = self
             .client
             .execute(
                 "DELETE FROM gproxy_kv WHERE k = ? AND v = ?",
                 &[arg_text(key), arg_text(owner)],
             )
-            .await;
+            .await
+        {
+            tracing::warn!(
+                error = %error,
+                operation = "unlock",
+                "libsql cache unlock failed"
+            );
+        }
     }
 }
 

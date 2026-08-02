@@ -3,8 +3,6 @@
 //! Semaphore(4) + 5s timeout, same effective provider client, no user quota/authz);
 //! anything else / failure → local chain (vocab → chars/2).
 
-#[cfg(not(target_arch = "wasm32"))]
-use bytes::Bytes;
 use serde_json::{Value, json};
 
 use super::{SettleCtx, record};
@@ -30,9 +28,17 @@ pub(super) async fn ladder(ctx: &SettleCtx, text: String) -> (NormalizedUsage, U
     {
         if !crate::tokenize::is_gpt_family(&ctx.model)
             && matches!(ctx.upstream_family, Family::Claude | Family::Gemini)
-            && let Some(u) = upstream_count(ctx, &text).await
         {
-            return (u, UsageSource::Counted);
+            match super::upstream_count::count(ctx, &text).await {
+                Ok(usage) => return (usage, UsageSource::Counted),
+                Err(reason) => tracing::warn!(
+                    request_id = %ctx.request_id,
+                    provider = %ctx.provider.name,
+                    upstream_model = %ctx.model,
+                    reason,
+                    "upstream token count failed; using local estimate"
+                ),
+            }
         }
         let state = ctx.state.clone();
         let model = ctx.model.clone();
@@ -45,7 +51,13 @@ pub(super) async fn ladder(ctx: &SettleCtx, text: String) -> (NormalizedUsage, U
         {
             Ok(counted) => counted,
             Err(e) => {
-                tracing::warn!(error = %e, "settle count task failed; recording zero estimate");
+                tracing::warn!(
+                    request_id = %ctx.request_id,
+                    provider = %ctx.provider.name,
+                    upstream_model = %ctx.model,
+                    error = %e,
+                    "settle count task failed; recording zero estimate"
+                );
                 (NormalizedUsage::default(), UsageSource::Estimated)
             }
         }
@@ -106,99 +118,4 @@ fn local_count(state: &AppState, model: &str, map: Option<&Value>, body: &[u8]) 
         let _ = state;
         crate::tokenize::count(model, body, map, ())
     }
-}
-
-// ── upstream count endpoint (native only) ────────────────────────────────────
-
-/// Global concurrency gate for settle-time upstream counts.
-#[cfg(not(target_arch = "wasm32"))]
-static COUNT_GATE: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
-#[cfg(not(target_arch = "wasm32"))]
-const COUNT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-
-/// Count input (original upstream request body) and output (produced text as
-/// one user message) via the provider's count endpoint, through `channel.prepare`
-/// + the same effective provider client — no pipeline, no user quota/authz. The
-///   sealed secret is opened HERE and dropped on return.
-#[cfg(not(target_arch = "wasm32"))]
-async fn upstream_count(ctx: &SettleCtx, text: &str) -> Option<NormalizedUsage> {
-    let gate = COUNT_GATE.get_or_init(|| tokio::sync::Semaphore::new(4));
-    let _permit = gate.acquire().await.ok()?;
-    let secret = ctx
-        .state
-        .cipher
-        .open(&ctx.credential.secret_json)
-        .map_err(|e| tracing::warn!(error = %e, "settle count: secret open failed"))
-        .ok()?;
-    let input = count_once(ctx, &secret, ctx.request_body.clone()).await?;
-    let output = if text.is_empty() {
-        0
-    } else {
-        count_once(
-            ctx,
-            &secret,
-            output_count_body(ctx.upstream_family, &ctx.model, text),
-        )
-        .await?
-    };
-    Some(NormalizedUsage {
-        input,
-        output,
-        ..Default::default()
-    })
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Option<u64> {
-    use crate::protocol::{Operation, OperationKey};
-    let key = OperationKey::provider(Operation::CountTokens, ctx.upstream_family);
-    let target = crate::protocol::request_target(key, &ctx.model, false);
-    let mut headers = http::HeaderMap::new();
-    headers.insert(
-        http::header::CONTENT_TYPE,
-        http::HeaderValue::from_static("application/json"),
-    );
-    let prepared = ctx
-        .channel
-        .prepare(crate::channel::PrepareCtx {
-            secret,
-            provider_settings: &ctx.provider.settings_json,
-            op: key,
-            stream: false,
-            upstream_model_id: &ctx.model,
-            method: target.method.into(),
-            path: &target.path,
-            query: target.query.as_deref(),
-            headers: &headers,
-            body,
-        })
-        .ok()?;
-    let client = ctx
-        .state
-        .upstream_client_for_credential(&ctx.channel, &ctx.credential, &ctx.provider)
-        .map_err(|e| tracing::warn!(error = %e, "settle count: resolve upstream client failed"))
-        .ok()?;
-    let resp = tokio::time::timeout(COUNT_TIMEOUT, prepared.send_buffered(client))
-        .await
-        .ok()?
-        .ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-    let v: Value = serde_json::from_slice(resp.body()).ok()?;
-    // claude `input_tokens` / gemini `totalTokens` (openai never reaches here)
-    v.get("input_tokens")
-        .or_else(|| v.get("totalTokens"))
-        .and_then(Value::as_u64)
-}
-
-/// Family-shaped count body for the PRODUCED text as one user message.
-#[cfg(not(target_arch = "wasm32"))]
-fn output_count_body(family: Family, model: &str, text: &str) -> Bytes {
-    let v = match family {
-        Family::Claude => json!({"model": model, "messages": [{"role": "user", "content": text}]}),
-        Family::Gemini => json!({"contents": [{"role": "user", "parts": [{"text": text}]}]}),
-        Family::OpenAi => json!({"model": model, "input": text}),
-    };
-    Bytes::from(serde_json::to_vec(&v).expect("json! serializes"))
 }

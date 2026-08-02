@@ -47,7 +47,9 @@ pub async fn init(
     master_key: Option<String>,
     admin_user: String,
     admin_password: String,
+    log_filter: Option<String>,
 ) -> Result<(), JsValue> {
+    super::telemetry::init(log_filter.as_deref());
     if STATE.get().is_some() {
         return Ok(());
     }
@@ -121,13 +123,21 @@ pub async fn init(
     // the counter, creating it at 0 when absent). An unreadable stamp
     // baselines at 0 — the first successful poll then rebuilds once (safe
     // direction).
-    SEEN_CFG_VERSION.store(
-        cache
-            .incr(crate::store::cache::CONFIG_VERSION_KEY, 0, None)
-            .await
-            .unwrap_or(0),
-        Ordering::Relaxed,
-    );
+    let initial_version = match cache
+        .incr(crate::store::cache::CONFIG_VERSION_KEY, 0, None)
+        .await
+    {
+        Ok(version) => version,
+        Err(error) => {
+            tracing::warn!(
+                operation = "read_config_version",
+                error = %error,
+                "edge config-version baseline read failed"
+            );
+            0
+        }
+    };
+    SEEN_CFG_VERSION.store(initial_version, Ordering::Relaxed);
     LAST_POLL_MS.store(js_sys::Date::now() as u64, Ordering::Relaxed);
 
     let _ = STATE.set(AppState::new(
@@ -163,7 +173,14 @@ pub(super) async fn refresh_snapshot_if_stale(state: &AppState) {
         Ok(v) => v,
         // Stamp unreadable: keep serving the current snapshot; the next poll
         // window retries.
-        Err(_) => return,
+        Err(error) => {
+            tracing::warn!(
+                operation = "read_config_version",
+                error = %error,
+                "edge config-version poll failed"
+            );
+            return;
+        }
     };
     if version == SEEN_CFG_VERSION.load(Ordering::Relaxed) {
         return;

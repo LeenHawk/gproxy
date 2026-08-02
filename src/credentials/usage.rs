@@ -49,13 +49,19 @@ pub async fn fetch_usage(
         .persistence
         .get_credential(credential_id)
         .await
-        .map_err(|e| UsageError::Upstream(e.to_string()))?
+        .map_err(|e| {
+            warn_persistence(credential_id, "fetch_usage.get_credential", &e);
+            UsageError::Upstream(e.to_string())
+        })?
         .ok_or(UsageError::CredentialNotFound)?;
     let provider = state
         .persistence
         .get_provider(credential.provider_id)
         .await
-        .map_err(|e| UsageError::Upstream(e.to_string()))?
+        .map_err(|e| {
+            warn_persistence(credential_id, "fetch_usage.get_provider", &e);
+            UsageError::Upstream(e.to_string())
+        })?
         .ok_or(UsageError::ProviderNotFound)?;
     let channel = state
         .channels
@@ -68,6 +74,13 @@ pub async fn fetch_usage(
     let opened = match state.cipher.open(&credential.secret_json) {
         Ok(opened) => opened,
         Err(e) => {
+            tracing::warn!(
+                credential_id,
+                channel = %provider.channel,
+                operation = "fetch_usage.decrypt",
+                error_kind = "decrypt",
+                "credential usage operation failed"
+            );
             record(state, &provider, &credential, &Disposition::AuthDead);
             return Err(UsageError::Decrypt(e.to_string()));
         }
@@ -88,6 +101,7 @@ pub async fn fetch_usage(
     let client = match resolve_client(state, &channel, &credential, &provider) {
         Ok(client) => client,
         Err(e) => {
+            warn_usage_error(&provider, &credential, "fetch_usage.client", &e);
             record(state, &provider, &credential, &Disposition::Transient);
             return Err(e);
         }
@@ -112,7 +126,7 @@ pub async fn fetch_usage(
             }
         }
     }
-    finish(state, &provider, &credential, result)
+    finish(state, &provider, &credential, "fetch_usage", result)
 }
 
 /// Consume one earned upstream rate-limit reset credit for a credential.
@@ -131,13 +145,19 @@ pub async fn consume_rate_limit_reset_credit(
         .persistence
         .get_credential(credential_id)
         .await
-        .map_err(|e| UsageError::Upstream(e.to_string()))?
+        .map_err(|e| {
+            warn_persistence(credential_id, "reset_credit.get_credential", &e);
+            UsageError::Upstream(e.to_string())
+        })?
         .ok_or(UsageError::CredentialNotFound)?;
     let provider = state
         .persistence
         .get_provider(credential.provider_id)
         .await
-        .map_err(|e| UsageError::Upstream(e.to_string()))?
+        .map_err(|e| {
+            warn_persistence(credential_id, "reset_credit.get_provider", &e);
+            UsageError::Upstream(e.to_string())
+        })?
         .ok_or(UsageError::ProviderNotFound)?;
     let channel = state
         .channels
@@ -147,6 +167,13 @@ pub async fn consume_rate_limit_reset_credit(
     let opened = match state.cipher.open(&credential.secret_json) {
         Ok(opened) => opened,
         Err(e) => {
+            tracing::warn!(
+                credential_id,
+                channel = %provider.channel,
+                operation = "reset_credit.decrypt",
+                error_kind = "decrypt",
+                "credential usage operation failed"
+            );
             record(state, &provider, &credential, &Disposition::AuthDead);
             return Err(UsageError::Decrypt(e.to_string()));
         }
@@ -170,6 +197,7 @@ pub async fn consume_rate_limit_reset_credit(
     let client = match resolve_client(state, &channel, &credential, &provider) {
         Ok(client) => client,
         Err(e) => {
+            warn_usage_error(&provider, &credential, "reset_credit.client", &e);
             record(state, &provider, &credential, &Disposition::Transient);
             return Err(e);
         }
@@ -212,7 +240,43 @@ pub async fn consume_rate_limit_reset_credit(
             }
         }
     }
-    finish(state, &provider, &credential, result)
+    finish(state, &provider, &credential, "reset_credit", result)
+}
+
+fn warn_persistence(credential_id: i64, operation: &'static str, error: &impl std::fmt::Display) {
+    let error = crate::http::telemetry::redact_url_query(&error.to_string()).into_owned();
+    tracing::warn!(
+        credential_id,
+        operation,
+        error = %error,
+        "credential usage persistence failed"
+    );
+}
+
+fn warn_usage_error(
+    provider: &Provider,
+    credential: &Credential,
+    operation: &'static str,
+    error: &UsageError,
+) {
+    let (error_kind, status) = match error {
+        UsageError::Status(status) => ("status", *status),
+        UsageError::Channel(_) => ("channel", 0),
+        UsageError::Decrypt(_) => ("decrypt", 0),
+        UsageError::Upstream(_) => ("transport", 0),
+        UsageError::Unsupported => ("unsupported", 0),
+        UsageError::CredentialNotFound => ("credential_not_found", 0),
+        UsageError::ProviderNotFound => ("provider_not_found", 0),
+        UsageError::UnknownChannel(_) => ("unknown_channel", 0),
+    };
+    tracing::warn!(
+        credential_id = credential.id,
+        channel = %provider.channel,
+        operation,
+        status,
+        error_kind,
+        "credential usage operation failed"
+    );
 }
 
 fn refresh_failure_disposition(error: &ChannelError) -> Disposition {
@@ -231,6 +295,7 @@ fn record(
 ) {
     crate::pipeline::health_hooks::record_credential_attempt(
         state,
+        None,
         provider,
         credential,
         disposition,

@@ -77,27 +77,16 @@ impl PipelineError {
 
     /// Client-facing JSON error body. Variants whose `Display` embeds
     /// upstream/internal detail (URLs, transport causes, possibly proxy info)
-    /// collapse to a generic message and log the real cause server-side
-    /// (CWE-209); the rest reveal nothing sensitive. Shared by the native axum
-    /// [`IntoResponse`] and the edge fetch entry, so both surfaces redact
-    /// identically.
+    /// collapse to a generic message (CWE-209); the rest reveal nothing
+    /// sensitive. The request boundary records the real cause with its request
+    /// id before rendering. Shared by the native axum [`IntoResponse`] and the
+    /// edge fetch entry, so both surfaces redact identically.
     pub fn error_json(&self) -> String {
-        if matches!(
-            self,
-            PipelineError::Channel(_)
-                | PipelineError::Transport(_)
-                | PipelineError::AllAttemptsFailed
-                | PipelineError::TransformResponse(_)
-        ) {
-            tracing::warn!(error = %self, "upstream request failed");
-        }
         self.error_body_json()
     }
 
-    /// The client-facing JSON error body WITHOUT logging side effects. Byte-for-
-    /// byte identical to what [`error_json`](Self::error_json) emits; used by
-    /// `execute` to capture the downstream response body without firing the
-    /// `tracing::warn` a second time (the real render site already logs it).
+    /// The client-facing JSON error body. Byte-for-byte identical to what
+    /// [`error_json`](Self::error_json) emits; kept separate for capture callers.
     pub fn error_body_json(&self) -> String {
         let message = match self {
             PipelineError::Channel(_)
