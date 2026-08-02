@@ -25,6 +25,8 @@ interface RequestDrawerProps {
   requestId: string | null;
 }
 
+const MAX_BODY_DISPLAY_CHARS = 512 * 1024;
+
 function statusVariant(status: number): "default" | "secondary" | "destructive" | "outline" {
   if (status >= 500) return "destructive";
   if (status >= 400) return "outline";
@@ -32,12 +34,24 @@ function statusVariant(status: number): "default" | "secondary" | "destructive" 
   return "outline";
 }
 
-function JsonCollapsible({ label, data }: { label: string; data: unknown }) {
+function JsonCollapsible({
+  label,
+  data,
+  maxDisplayChars,
+}: {
+  label: string;
+  data: unknown;
+  maxDisplayChars?: number;
+}) {
   const { t } = useTranslation("common");
   const [copied, setCopied] = useState(false);
 
   if (data == null) return null;
   const text = typeof data === "string" ? data : (JSON.stringify(data, null, 2) ?? String(data));
+  const truncated = maxDisplayChars != null && text.length > maxDisplayChars;
+  const displayText = truncated
+    ? `${text.slice(0, maxDisplayChars)}\n\n[${t("json.truncated", { count: maxDisplayChars })}]`
+    : text;
 
   async function copyText() {
     try {
@@ -74,7 +88,7 @@ function JsonCollapsible({ label, data }: { label: string; data: unknown }) {
       </div>
       <CollapsibleContent>
         <pre className="mt-1 max-h-48 overflow-auto rounded-md bg-muted p-2 text-xs font-mono">
-          {text}
+          {displayText}
         </pre>
       </CollapsibleContent>
     </Collapsible>
@@ -143,10 +157,10 @@ export function RequestDrawer({ open, onOpenChange, requestId }: RequestDrawerPr
                   </div>
                   <JsonCollapsible label={t("logs.headers")} data={req.headers_json} />
                   {req.body != null && (
-                    <JsonCollapsible label={t("logs.body")} data={req.body} />
+                    <JsonCollapsible label={t("logs.body")} data={req.body} maxDisplayChars={MAX_BODY_DISPLAY_CHARS} />
                   )}
                   {req.response_body != null && (
-                    <JsonCollapsible label={t("logs.responseBody")} data={req.response_body} />
+                    <JsonCollapsible label={t("logs.responseBody")} data={req.response_body} maxDisplayChars={MAX_BODY_DISPLAY_CHARS} />
                   )}
                 </div>
               ))}
@@ -175,10 +189,10 @@ export function RequestDrawer({ open, onOpenChange, requestId }: RequestDrawerPr
                     </div>
                     <JsonCollapsible label={t("logs.headers")} data={req.headers_json} />
                     {req.body != null && (
-                      <JsonCollapsible label={t("logs.body")} data={req.body} />
+                      <JsonCollapsible label={t("logs.body")} data={req.body} maxDisplayChars={MAX_BODY_DISPLAY_CHARS} />
                     )}
                     {req.response_body != null && (
-                      <JsonCollapsible label={t("logs.responseBody")} data={req.response_body} />
+                      <JsonCollapsible label={t("logs.responseBody")} data={req.response_body} maxDisplayChars={MAX_BODY_DISPLAY_CHARS} />
                     )}
                   </div>
                 ))}

@@ -62,6 +62,7 @@ pub struct LogQuery {
     pub route_name: Option<String>,
     pub before_id: Option<i64>,
     pub limit: u64,
+    pub include_bodies: bool,
 }
 
 /// Filters for the admin audit-log explorer.

@@ -75,6 +75,8 @@ pub(crate) struct LogsQuery {
     pub limit: Option<u64>,
     pub page: Option<String>,
     pub page_size: Option<String>,
+    #[serde(default)]
+    pub include_bodies: bool,
 }
 
 /// Route an observability request to its handler.
@@ -317,6 +319,7 @@ async fn list_logs(state: &AppState, parts: &Request) -> Result<Resp, ApiError> 
         route_name: q.route_name,
         before_id: q.before_id,
         limit,
+        include_bodies: q.include_bodies,
     };
     if let Some(page) = page {
         let result = state

@@ -3,7 +3,7 @@
 use sea_orm::ActiveValue::{NotSet, Set};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, QueryTrait, Select,
+    QueryOrder, QuerySelect, QueryTrait, Select, sea_query::Expr,
 };
 
 use crate::store::persistence::records::{DownstreamRequest, DownstreamRequestInput};
@@ -80,14 +80,15 @@ pub async fn query(
     conn: &DatabaseConnection,
     q: &LogQuery,
 ) -> anyhow::Result<Vec<DownstreamRequest>> {
-    filtered(q, true)
+    let rows = projected(filtered(q, true), q.include_bodies)
         .order_by_desc(downstream_request::Column::Id)
         .limit(q.limit)
         .all(conn)
         .await?
         .into_iter()
         .map(to_record)
-        .collect()
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 pub async fn query_page(
@@ -96,7 +97,7 @@ pub async fn query_page(
     page: &PageQuery,
 ) -> anyhow::Result<PageResult<DownstreamRequest>> {
     let total = filtered(q, false).count(conn).await?;
-    let items = filtered(q, false)
+    let items = projected(filtered(q, false), q.include_bodies)
         .order_by_desc(downstream_request::Column::Id)
         .offset(page.offset)
         .limit(page.limit)
@@ -106,6 +107,33 @@ pub async fn query_page(
         .map(to_record)
         .collect::<anyhow::Result<Vec<_>>>()?;
     Ok(PageResult { items, total })
+}
+
+fn projected(
+    select: Select<downstream_request::Entity>,
+    include_bodies: bool,
+) -> Select<downstream_request::Entity> {
+    if include_bodies {
+        return select;
+    }
+
+    use downstream_request::Column as D;
+    select
+        .select_only()
+        .columns([
+            D::Id,
+            D::RequestId,
+            D::At,
+            D::Method,
+            D::Path,
+            D::Query,
+            D::Status,
+            D::CreatedAt,
+            D::UpdatedAt,
+        ])
+        .expr_as(Expr::value(Option::<String>::None), D::HeadersJson)
+        .expr_as(Expr::value(Option::<String>::None), D::Body)
+        .expr_as(Expr::value(Option::<String>::None), D::ResponseBody)
 }
 
 fn filtered(q: &LogQuery, include_cursor: bool) -> Select<downstream_request::Entity> {
