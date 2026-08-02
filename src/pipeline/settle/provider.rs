@@ -1,11 +1,11 @@
 //! §17 settlement for the provider-shaped billable ops that are NOT
-//! content-generation: embeddings and image generation. These are always
-//! non-streaming single-JSON responses, so they settle inline from the buffered
-//! body (no counting ladder, no stream guard). The content-generation settle
-//! path ([`super::SettleCtx`]) is untouched.
+//! content-generation: compact content, embeddings, and image generation. These
+//! are always non-streaming single-JSON responses, so they settle inline from
+//! the buffered body (no counting ladder, no stream guard). The
+//! content-generation settle path ([`super::SettleCtx`]) is untouched.
 //!
-//! Pricing: embeddings reuse the per-million-token `input` rate (the response's
-//! `usage.prompt_tokens`); images are billed per image from the matching price
+//! Pricing: compact content and embeddings use the per-million-token rates from
+//! their response `usage`; images are billed per image from the matching price
 //! rule (counted from the response `data` array).
 
 use bytes::Bytes;
@@ -19,23 +19,29 @@ use crate::protocol::{Operation, OperationKey, Provider as Family};
 use crate::usage::{Ended, NormalizedUsage, UsageSource, extract};
 use crate::util::time::unix_now;
 
-/// Whether this op settles here (embeddings / image generation). Lets the
+/// Whether this op settles here (compact / embeddings / images). Lets the
 /// caller skip spawning a settle task for every other buffered success.
 pub(crate) fn billable(op: Option<OperationKey>) -> bool {
     matches!(
         op.map(|o| o.operation),
-        Some(Operation::CreateEmbedding | Operation::CreateImage | Operation::EditImage)
+        Some(
+            Operation::CompactContent
+                | Operation::CreateEmbedding
+                | Operation::CreateImage
+                | Operation::EditImage
+        )
     )
 }
 
-/// Settle a successful embedding / image response. No-op for any other
+/// Settle a successful compact / embedding / image response. No-op for any other
 /// operation (the caller invokes this for every successful buffered response;
 /// content-generation, models and count ops return early here).
 pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate, body: &Bytes) {
     let Some(op) = ctx.op else { return };
     let is_embedding = matches!(op.operation, Operation::CreateEmbedding);
+    let is_compact = matches!(op.operation, Operation::CompactContent);
     let is_image = matches!(op.operation, Operation::CreateImage | Operation::EditImage);
-    if !is_embedding && !is_image {
+    if !is_embedding && !is_compact && !is_image {
         return;
     }
 
@@ -66,7 +72,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
             None
         }
     };
-    let (usage, cost) = if is_embedding {
+    let (usage, cost, source) = if is_embedding || is_compact {
         let extracted = parsed
             .as_ref()
             .and_then(|v| extract::from_response(Family::OpenAi, v));
@@ -75,11 +81,17 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
                 request_id = %ctx.request_id,
                 provider = %cand.provider.name,
                 upstream_model = %cand.upstream_model_id,
-                "embedding usage missing; using zero usage"
+                operation = if is_compact { "compact_content" } else { "create_embedding" },
+                "provider usage missing; using zero usage"
             );
         }
+        let source = if is_compact && extracted.is_none() {
+            UsageSource::Estimated
+        } else {
+            UsageSource::Upstream
+        };
         let usage = extracted.unwrap_or_default();
-        (usage, price::cost(&usage, &pricing))
+        (usage, price::cost(&usage, &pricing), source)
     } else {
         // Images: bill per image in the response `data` array.
         let count = parsed
@@ -98,6 +110,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
         (
             NormalizedUsage::default(),
             Decimal::from(count.unwrap_or(0)) * pricing.image,
+            UsageSource::Upstream,
         )
     };
 
@@ -119,7 +132,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
         usage: &usage,
         cost,
         latency_ms: 0,
-        source: UsageSource::Upstream,
+        source,
         ended: Ended::Complete,
     };
     // §8-E: `enable_usage` gates the usage row only — the reconcile below
@@ -127,7 +140,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
     if state.cp().log_settings.enable_usage
         && let Err(e) = billing::record_success(state.persistence.as_ref(), rec).await
     {
-        tracing::warn!(request_id = %ctx.request_id, error = %e, "embedding/image settle write failed");
+        tracing::warn!(request_id = %ctx.request_id, error = %e, "provider settle write failed");
     }
     // §17 reconcile, symmetric with the content-generation path: refund the
     // pre-deducted pending (charged in `execute`), then persist the actual cost
@@ -146,7 +159,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
                 .add_quota_cost(*scope, *scope_id, cost)
                 .await
             {
-                tracing::warn!(request_id = %ctx.request_id, error = %e, "embedding/image quota write failed");
+                tracing::warn!(request_id = %ctx.request_id, error = %e, "provider quota write failed");
             }
         }
     }
@@ -154,7 +167,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
         request_id = %ctx.request_id,
         provider = %cand.provider.name,
         upstream_model = %cand.upstream_model_id,
-        usage_source = "upstream",
+        usage_source = %source,
         ended = "complete",
         tokens = usage.total(),
         cost = %cost,

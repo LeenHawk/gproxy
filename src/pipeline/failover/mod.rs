@@ -432,7 +432,7 @@ pub async fn run_failover(
                 )),
                 (_, _, body) => body,
             };
-            // §17: embeddings / image generation are provider-shaped (not
+            // §17: compact / embeddings / images are provider-shaped (not
             // content-generation) so `capture` skipped them — settle them from
             // the buffered JSON, detached on native so the write never delays
             // the response (inline on wasm: no detached tasks there).

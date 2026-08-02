@@ -120,6 +120,49 @@ async fn transformed_buffered_settles_provider_usage_before_response_conversion(
     assert_eq!(row.output_tokens, 500);
 }
 
+#[tokio::test]
+async fn compact_content_settles_usage() {
+    let compact_response = json!({
+        "id": "resp-compact-1",
+        "created_at": 0,
+        "object": "response.compaction",
+        "output": [],
+        "usage": {
+            "input_tokens": 1200,
+            "output_tokens": 80,
+            "total_tokens": 1280,
+            "input_tokens_details": { "cached_tokens": 200 },
+            "output_tokens_details": { "reasoning_tokens": 20 }
+        }
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&compact_response).unwrap()),
+        vec![],
+    ));
+    let (state, _dir) = state_with(Arc::clone(&fake)).await;
+    let mut ctx = openai_stream_ctx("bill-compact", "claude-test");
+    ctx.path = "/v1/responses/compact".into();
+    ctx.body = Bytes::from(
+        serde_json::to_vec(&json!({
+            "model": "claude-test",
+            "input": [{ "role": "user", "content": "compact this" }]
+        }))
+        .unwrap(),
+    );
+
+    crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("pipeline ok");
+
+    let row = wait_usage(&state).await;
+    assert_eq!(row.request_id, "bill-compact");
+    assert_eq!(row.operation, "compact_content");
+    assert_eq!(row.usage_source, "upstream");
+    assert_eq!(row.input_tokens, 1000);
+    assert_eq!(row.cache_read_tokens, 200);
+    assert_eq!(row.output_tokens, 80);
+}
+
 /// GPT-5.6+ cache writes (`prompt_tokens_details.cache_write_tokens`) must
 /// survive both the settle path and the openai→claude response conversion.
 #[tokio::test]

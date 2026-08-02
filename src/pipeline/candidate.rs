@@ -290,6 +290,7 @@ fn estimate(cp: &ControlPlaneSnapshot, ctx: &RequestCtx, provider_id: i64, model
     match op.operation {
         Operation::GenerateContent
         | Operation::StreamGenerateContent
+        | Operation::CompactContent
         | Operation::CreateEmbedding => {
             let pricing = pending::model_pricing(cp, provider_id, model_id);
             pending::estimate_micros(&pricing, ctx.body.len())
