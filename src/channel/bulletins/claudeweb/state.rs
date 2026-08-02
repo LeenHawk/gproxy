@@ -223,7 +223,7 @@ fn cleanup(meta: StreamMeta) {
             "{}/api/organizations/{}/chat_conversations/{}",
             meta.base, meta.organization, meta.conversation
         );
-        let Ok(mut request) = http::Request::delete(url).body(Bytes::new()) else {
+        let Ok(mut request) = http::Request::delete(&url).body(Bytes::new()) else {
             return;
         };
         if super::auth::apply_browser_headers(
@@ -234,8 +234,18 @@ fn cleanup(meta: StreamMeta) {
         )
         .and_then(|()| super::auth::apply_device_header(&mut request, meta.device_id.as_deref()))
         .is_ok()
+            && let Err(error) = meta.client.send(request).await
         {
-            let _ = meta.client.send(request).await;
+            let url = crate::http::telemetry::redact_url_query(&url);
+            let error = error.to_string();
+            let error = crate::http::telemetry::redact_url_query(&error);
+            tracing::warn!(
+                organization = %meta.organization,
+                conversation = %meta.conversation,
+                url = %url,
+                error = %error,
+                "claudeweb temporary conversation cleanup failed"
+            );
         }
     });
 }
