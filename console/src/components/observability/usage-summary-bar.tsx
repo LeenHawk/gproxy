@@ -10,6 +10,12 @@ function cost(value: string): string {
   return `$${(parseFloat(value) || 0).toFixed(5)}`;
 }
 
+function cacheHitRate(summary: UsageSummary): string {
+  const totalInput = summary.input_tokens + summary.cache_read_tokens;
+  if (totalInput === 0) return "—";
+  return `${((summary.cache_read_tokens / totalInput) * 100).toFixed(1)}%`;
+}
+
 interface UsageSummaryBarProps {
   summary?: UsageSummary;
   pending?: boolean;
@@ -43,6 +49,10 @@ export function UsageSummaryBar({ summary, pending = false }: UsageSummaryBarPro
       label: t("usage.columns.cacheRead"),
       value: summary && count(summary.cache_read_tokens),
     },
+    {
+      label: t("usage.cacheHitRate"),
+      value: summary && cacheHitRate(summary),
+    },
     { label: t("usage.columns.cost"), value: summary && cost(summary.cost) },
   ];
 
@@ -52,7 +62,7 @@ export function UsageSummaryBar({ summary, pending = false }: UsageSummaryBarPro
       aria-label={t("usage.summary")}
       aria-busy={pending}
     >
-      <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8">
+      <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9">
         {metrics.map((metric) => (
           <div key={metric.label} className="min-w-0 border-r border-b px-3 py-2.5">
             <dt className="min-h-8 text-xs leading-4 text-muted-foreground lg:min-h-12 xl:min-h-8">

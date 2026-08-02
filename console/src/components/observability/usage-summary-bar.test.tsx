@@ -23,13 +23,25 @@ describe("UsageSummaryBar", () => {
     const html = renderToStaticMarkup(<UsageSummaryBar summary={summary} />);
 
     expect(html).toContain("grid-cols-2");
-    expect(html).toContain("lg:grid-cols-8");
+    expect(html).toContain("lg:grid-cols-9");
     expect(html).toContain("1,234");
     expect(html).toContain("2,345");
     expect(html).toContain("5m");
     expect(html).toContain("30m");
     expect(html).toContain("1h");
     expect(html).toContain("7,890");
+    expect(html).toContain("66.1%");
     expect(html).toContain("$1.23457");
+  });
+
+  it("shows a dash when the cache hit rate has no input", () => {
+    const html = renderToStaticMarkup(
+      <UsageSummaryBar
+        summary={{ ...summary, input_tokens: 0, cache_read_tokens: 0 }}
+      />,
+    );
+
+    expect(html).toContain("usage.cacheHitRate");
+    expect(html).toContain("—");
   });
 });

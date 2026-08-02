@@ -42,6 +42,8 @@
     },
     "empty": "No usage records match the current filters.",
     "summary": "Usage summary",
+    "cacheHitRate": "Cache hit rate",
+    "columnToggle": "Columns",
     "presets": {
       "all": "All",
       "1h": "1h",

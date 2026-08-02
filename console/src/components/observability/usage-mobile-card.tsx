@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { Usage } from "@/api/usage";
 import { Badge } from "@/components/ui/badge";
+import { EndpointBadges } from "./endpoint-badges";
 
 export function formatUsageTimestamp(unixSecs: number): string {
   return new Date(unixSecs * 1000).toLocaleString(undefined, {
@@ -28,12 +29,7 @@ export function UsageMobileCard({ usage, providerLabel }: UsageMobileCardProps) 
     <div className="grid gap-3">
       <div className="grid gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-xs">
-            {usage.operation}
-            {usage.kind && usage.kind !== usage.operation && (
-              <span className="text-muted-foreground"> / {usage.kind}</span>
-            )}
-          </span>
+          <EndpointBadges kind={usage.kind} operation={usage.operation} />
           <span className="tabular-nums text-xs">
             ${parseFloat(usage.cost || "0").toFixed(5)}
           </span>
