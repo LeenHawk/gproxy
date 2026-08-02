@@ -5,24 +5,20 @@ import { useTranslation } from "react-i18next";
 import {
   usagePageQuery,
   usageSummaryQuery,
-  type Usage,
   type UsageFilter,
 } from "@/api/usage";
 import { providersQuery } from "@/api/providers";
-import { DataTable, type DataColumn } from "@/components/data-table";
+import { DataTable } from "@/components/data-table";
 import { Pagination } from "@/components/pagination";
 import { UsageFilters } from "@/components/observability/usage-filters";
 import { UsageSummaryBar } from "@/components/observability/usage-summary-bar";
-import {
-  formatUsageTimestamp,
-  UsageMobileCard,
-} from "@/components/observability/usage-mobile-card";
+import { UsageMobileCard } from "@/components/observability/usage-mobile-card";
+import { useUsageColumns } from "@/components/observability/usage-columns";
 import { RequestDrawer } from "@/components/observability/request-drawer";
 import { ClearAllButton } from "@/components/observability/clear-all-button";
 import { AuditTab } from "@/components/observability/audit-tab";
 import { LogsTab } from "@/components/observability/logs-tab";
 import { BatchToolbar } from "@/components/batch-toolbar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +47,7 @@ function UsagePage() {
     () => new Map((providers ?? []).map((p) => [p.id, p.label ?? p.name])),
     [providers],
   );
+  const usageCols = useUsageColumns(providerMap);
 
   const { data, isFetching, isPending } = useQuery(usagePageQuery(filter, page));
   const { data: summary, isPending: summaryPending } = useQuery(
@@ -72,95 +69,6 @@ function UsagePage() {
     setPage(1);
     setFilter(next);
   }
-
-  const usageCols: DataColumn<Usage>[] = [
-    {
-      key: "at",
-      header: t("usage.columns.at"),
-      cell: (r) => (
-        <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-          {formatUsageTimestamp(r.at)}
-        </span>
-      ),
-    },
-    {
-      key: "operation",
-      header: t("usage.columns.operation"),
-      cell: (r) => (
-        <span className="font-mono text-xs">
-          {r.operation}
-          {r.kind && r.kind !== r.operation && (
-            <span className="text-muted-foreground"> / {r.kind}</span>
-          )}
-        </span>
-      ),
-    },
-    {
-      key: "model",
-      header: t("usage.columns.model"),
-      cell: (r) => <span className="font-mono text-xs">{r.model ?? "—"}</span>,
-    },
-    {
-      key: "provider",
-      header: t("usage.columns.provider"),
-      cell: (r) =>
-        r.provider_id != null
-          ? (providerMap.get(r.provider_id) ?? `#${r.provider_id}`)
-          : "—",
-    },
-    {
-      key: "tokens",
-      header: `${t("usage.columns.inputTokens")} / ${t("usage.columns.outputTokens")}`,
-      cell: (r) => (
-        <span className="tabular-nums text-xs">
-          {r.input_tokens} / {r.output_tokens}
-        </span>
-      ),
-    },
-    {
-      key: "cache",
-      header: `${t("usage.columns.cacheWrite")} (5m/1h)`,
-      cell: (r) => (
-        <span className="tabular-nums text-xs">
-          {r.cache_creation_5m_tokens} / {r.cache_creation_1h_tokens}
-        </span>
-      ),
-    },
-    {
-      key: "cache30m",
-      header: `${t("usage.columns.cacheWrite")} (30m)`,
-      cell: (r) => <span className="tabular-nums text-xs">{r.cache_creation_30m_tokens}</span>,
-    },
-    {
-      key: "cacheRead",
-      header: t("usage.columns.cacheRead"),
-      cell: (r) => <span className="tabular-nums text-xs">{r.cache_read_tokens}</span>,
-    },
-    {
-      key: "cost",
-      header: t("usage.columns.cost"),
-      cell: (r) => (
-        <span className="tabular-nums text-xs">
-          ${parseFloat(r.cost || "0").toFixed(5)}
-        </span>
-      ),
-    },
-    {
-      key: "latency",
-      header: t("usage.columns.latency"),
-      cell: (r) => <span className="tabular-nums text-xs">{r.latency_ms}ms</span>,
-    },
-    {
-      key: "badges",
-      header: "",
-      cell: (r) => (
-        <div className="flex gap-1">
-          <Badge variant="outline" className="text-xs">{r.usage_source}</Badge>
-          <Badge variant="secondary" className="text-xs">{r.ended}</Badge>
-        </div>
-      ),
-    },
-  ];
 
   return (
     <div className="grid gap-4 p-4 md:p-6">
@@ -208,6 +116,11 @@ function UsagePage() {
               rows={rows}
               rowKey={(r) => r.id}
               empty={t("usage.empty")}
+              columnToggle={{
+                storageKey: "gproxy.usage.columns",
+                label: t("usage.columnToggle"),
+                defaultHidden: ["cache30m"],
+              }}
               onRowClick={batch.mode ? undefined : (r) => openRid(r.request_id)}
               selection={batch.mode ? {
                 selectedIds: batch.selected,

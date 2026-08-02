@@ -42,6 +42,8 @@
     },
     "empty": "当前筛选条件下暂无用量记录。",
     "summary": "用量汇总",
+    "cacheHitRate": "缓存命中率",
+    "columnToggle": "显示列",
     "presets": {
       "all": "全部",
       "1h": "1 小时",
