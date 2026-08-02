@@ -7,14 +7,19 @@
 //! ideal; hard cap respected). Quota/counter reconciliation lives in
 //! [`reconcile`]; the counting ladder in [`ladder`]; frames in [`frames`].
 
+mod audit;
 pub(crate) mod frames;
 mod ladder;
 pub(crate) mod provider;
 mod reconcile;
+#[cfg(not(target_arch = "wasm32"))]
+mod upstream_count;
 
 use ladder::count_and_record;
 #[cfg(not(target_arch = "wasm32"))]
 use ladder::ladder;
+
+pub use audit::{FailedAttempt, audit_failure};
 
 use std::sync::Arc;
 
@@ -266,6 +271,15 @@ impl StreamGuard {
         }
     }
 
+    pub(crate) fn request_id(&self) -> &str {
+        &self
+            .inner
+            .as_ref()
+            .expect("settle guard is active")
+            .0
+            .request_id
+    }
+
     /// Explicit normal end — settles `Complete` without delaying native EOF.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn finish(mut self) {
@@ -353,6 +367,18 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
     // the usage row may be idempotently skipped, but the settle path runs
     // exactly once per request (StreamGuard / inline), so this never doubles.
     reconcile::reconcile(ctx, &usage, cost).await;
+    tracing::debug!(
+        request_id = %ctx.request_id,
+        provider = %ctx.provider.name,
+        upstream_model = %ctx.model,
+        usage_source = %source,
+        ended = %ended,
+        input_tokens = usage.input,
+        output_tokens = usage.output,
+        tokens = usage.total(),
+        cost = %cost,
+        "usage settled"
+    );
     // §8-E: `enable_usage` gates the RECORDING only — reconcile above is
     // billing correctness (pending refund / quota feed) and always runs.
     if !ctx.state.cp().log_settings.enable_usage {
@@ -380,55 +406,6 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
     if let Err(e) = billing::record_success(ctx.state.persistence.as_ref(), rec).await {
         tracing::warn!(request_id = %ctx.request_id, error = %e, "usage settle write failed");
     }
-}
-
-/// One failed failover attempt's wire facts, for the audit row.
-pub struct FailedAttempt<'a> {
-    pub url: &'a str,
-    pub method: &'a str,
-    pub status: i64,
-    pub latency_ms: i64,
-    pub error: &'a str,
-}
-
-/// Audit one failed failover attempt (`upstream_requests`, never billed).
-/// Gated by `enable_upstream_log` (§8-D/§8-E). Fire-and-forget on native;
-/// skipped on wasm (no detached tasks).
-pub fn audit_failure(state: &AppState, request_id: &str, cand: &Candidate, a: FailedAttempt<'_>) {
-    if !state.cp().log_settings.enable_upstream_log {
-        return;
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let persistence = Arc::clone(&state.persistence);
-        let (provider_id, credential_id) = (cand.provider.id, cand.credential.id);
-        let (status, latency_ms) = (a.status, a.latency_ms);
-        let at = unix_now();
-        let (request_id, url, method, error) = (
-            request_id.to_owned(),
-            a.url.to_owned(),
-            a.method.to_owned(),
-            a.error.to_owned(),
-        );
-        tokio::spawn(async move {
-            let rec = billing::FailureRecord {
-                request_id: &request_id,
-                at,
-                provider_id: Some(provider_id),
-                credential_id: Some(credential_id),
-                url: &url,
-                method: &method,
-                status,
-                latency_ms,
-                error: &error,
-            };
-            if let Err(e) = billing::record_failure(persistence.as_ref(), rec).await {
-                tracing::warn!(error = %e, "failed-attempt audit write failed");
-            }
-        });
-    }
-    #[cfg(target_arch = "wasm32")]
-    let _ = (state, request_id, cand, a);
 }
 
 /// snake_case wire string of a serde unit-enum value.

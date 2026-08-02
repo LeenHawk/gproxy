@@ -114,7 +114,7 @@ async fn open_candidates(
         {
             Ok(secret) => secret,
             Err(error) => {
-                health_hooks::record_failure(state, &candidate);
+                health_hooks::record_failure(state, &ctx.request_id, &candidate);
                 last_error = Some(PipelineError::Channel(error));
                 continue;
             }
@@ -124,6 +124,7 @@ async fn open_candidates(
             Ok(socket) => {
                 health_hooks::record_attempt(
                     state,
+                    &ctx.request_id,
                     &candidate,
                     &crate::channel::Disposition::Success,
                     None,
@@ -137,7 +138,7 @@ async fn open_candidates(
                 });
             }
             Err(error) => {
-                health_hooks::record_failure(state, &candidate);
+                health_hooks::record_failure(state, &ctx.request_id, &candidate);
                 last_error = Some(error);
             }
         }

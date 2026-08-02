@@ -11,6 +11,7 @@ export const OPTIONAL_EDGE_ENV = Object.freeze([
   "UPSTASH_URL",
   "UPSTASH_TOKEN",
   "GPROXY_MASTER_KEY",
+  "GPROXY_LOG",
 ]);
 
 function readEnv(getEnv, name) {
@@ -39,6 +40,7 @@ export function initGproxy(init, getEnv) {
     env.GPROXY_MASTER_KEY,
     env.GPROXY_ADMIN_USER,
     env.GPROXY_ADMIN_PASSWORD,
+    env.GPROXY_LOG,
   );
 }
 

@@ -78,6 +78,7 @@ The release workflow also sets the internal build-time
 | --- | --- | --- |
 | `DATABASE_SECRET_KEY` | Empty | v1 migration-only key name. If a legacy v1 database stored encrypted secrets, the v1 migration reader uses this key to decrypt them before re-sealing under `GPROXY_MASTER_KEY`. |
 | `RUST_LOG` | `info` | Standard `tracing_subscriber` filter used by native logging. |
+| `GPROXY_LOG_FORMAT` | `text` | Native log output format: `text` or newline-delimited `json`. This does not change `RUST_LOG` filtering. |
 | `GPROXY_AUTOSTART` | `on` on the first desktop run | Set to `off` to prevent first-run registration of a per-user login startup entry. Docker images set this to `off`. Later changes are made in Console Settings. |
 
 ## Edge wrappers
@@ -85,7 +86,9 @@ The release workflow also sets the internal build-time
 The wasm edge entry points are configured by the platform wrapper rather than
 by `clap`. Current deployment templates pass a Turso/libSQL database URL and
 token to the wasm persistence backend, optionally pass an Upstash cache URL and
-token, and can pass `GPROXY_MASTER_KEY` for sealed secrets. Check the edge
+token, and can pass `GPROXY_MASTER_KEY` for sealed secrets. `GPROXY_LOG` sets
+the console level to `off`, `error`, `warn`, `info` (default), `debug`, or
+`trace`. Check the edge
 deployment page for the exact platform variable names because they are wrapper
 specific.
 

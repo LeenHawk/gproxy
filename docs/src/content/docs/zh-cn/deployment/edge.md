@@ -41,6 +41,7 @@ edge runtime 不能直连本地 SQLite、PostgreSQL、MySQL 或 Redis。v2 edge 
 | `UPSTASH_URL` | 否 | Upstash Redis cache；缺省时回退到 libSQL KV。 |
 | `UPSTASH_TOKEN` | 否 | Upstash token。 |
 | `GPROXY_MASTER_KEY` | 否 | 标准 base64 32 字节 sealed secret key。 |
+| `GPROXY_LOG` | 否 | Console 日志级别：`off`、`error`、`warn`、`info`（默认）、`debug` 或 `trace`。 |
 
 这些值应放在平台 secret 或环境变量系统中，不要写进 bundle。
 

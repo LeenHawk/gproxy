@@ -25,6 +25,8 @@ use crate::channel::{
 };
 use crate::store::persistence::records::CredentialInput;
 
+use super::login_callback::parse_callback;
+use super::login_telemetry::{channel_error_kind, warn_flow_failure};
 use super::{Request, Resp, json_body, segments};
 
 /// Dispatch `/admin/login-flows/*`.
@@ -203,11 +205,14 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
     // even if local sealing or persistence subsequently fails.
     login::clear(state.cache.as_ref(), &req.login_session_id).await;
 
-    let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
+    let sealed = state.cipher.seal(&secret).map_err(|_| {
+        warn_flow_failure(&session.channel, provider_id, "seal", 0, "crypto");
+        bad()
+    })?;
     let name = req
         .name
         .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
-    let cred = seal_create(state, provider_id, name, sealed)
+    let cred = seal_create(state, provider_id, &session.channel, name, sealed)
         .await
         .map_err(|_| bad())?;
     Resp::json(200, &cred)
@@ -239,7 +244,16 @@ async fn device_start(state: &AppState, parts: &Request, body: &Bytes) -> Result
             },
         )
         .await
-        .map_err(|_| ApiError::BadRequest("channel has no device login".into()))?;
+        .map_err(|error| {
+            warn_flow_failure(
+                &req.channel,
+                req.provider_id,
+                "device_start",
+                0,
+                channel_error_kind(&error),
+            );
+            ApiError::BadRequest("channel has no device login".into())
+        })?;
     let sid = login::device_start(
         state.cache.as_ref(),
         login::DeviceSession {
@@ -293,11 +307,20 @@ async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<
         Ok(DevicePoll::Pending) => Resp::json(200, &serde_json::json!({ "status": "pending" })),
         Ok(DevicePoll::Ready(secret)) => {
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
-            let sealed = state.cipher.seal(&secret).map_err(|_| bad())?;
+            let sealed = state.cipher.seal(&secret).map_err(|_| {
+                warn_flow_failure(
+                    &session.channel,
+                    session.provider_id,
+                    "device_poll.seal",
+                    0,
+                    "crypto",
+                );
+                bad()
+            })?;
             let name = session
                 .name
                 .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
-            let cred = seal_create(state, session.provider_id, name, sealed)
+            let cred = seal_create(state, session.provider_id, &session.channel, name, sealed)
                 .await
                 .map_err(|_| bad())?;
             Resp::json(
@@ -305,7 +328,18 @@ async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<
                 &serde_json::json!({ "status": "ready", "credential": cred }),
             )
         }
-        Ok(DevicePoll::Denied) | Err(_) => {
+        Ok(DevicePoll::Denied) => {
+            login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
+            Err(bad())
+        }
+        Err(error) => {
+            warn_flow_failure(
+                &session.channel,
+                session.provider_id,
+                "device_poll",
+                0,
+                channel_error_kind(&error),
+            );
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
             Err(bad())
         }
@@ -347,17 +381,23 @@ async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp,
         )
         .await
         .map_err(|error| {
-            tracing::warn!(channel = %req.channel, %error, "cookie login exchange failed");
+            warn_flow_failure(
+                &req.channel,
+                req.provider_id,
+                "cookie_exchange",
+                0,
+                channel_error_kind(&error),
+            );
             ApiError::BadRequest("cookie login failed".into())
         })?;
-    let sealed = state
-        .cipher
-        .seal(&secret)
-        .map_err(|_| ApiError::BadRequest("cookie login failed".into()))?;
+    let sealed = state.cipher.seal(&secret).map_err(|_| {
+        warn_flow_failure(&req.channel, req.provider_id, "seal", 0, "crypto");
+        ApiError::BadRequest("cookie login failed".into())
+    })?;
     let name = req
         .name
         .or_else(|| crate::credentials::label::auto_label("oauth", &secret));
-    let credential = seal_create(state, req.provider_id, name, sealed).await?;
+    let credential = seal_create(state, req.provider_id, &req.channel, name, sealed).await?;
     Resp::json(200, &credential)
 }
 
@@ -394,6 +434,7 @@ fn provider_settings(
 async fn seal_create(
     state: &AppState,
     provider_id: i64,
+    channel: &str,
     name: Option<String>,
     sealed: serde_json::Value,
 ) -> Result<crate::api::credentials::CredentialView, ApiError> {
@@ -414,52 +455,19 @@ async fn seal_create(
         .persistence
         .upsert_credential(input)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(|error| {
+            let safe = crate::http::telemetry::redact_url_query(&error.to_string()).into_owned();
+            tracing::warn!(
+                channel,
+                provider_id,
+                operation = "create_credential",
+                status = 0u16,
+                error_kind = "persistence",
+                error = %safe,
+                "login flow credential creation failed"
+            );
+            ApiError::Internal(error.to_string())
+        })?;
     invalidate(state).await;
     Ok(crate::api::credentials::CredentialView::from(cred))
-}
-
-/// Pull `code` + `state` out of a callback URL's query string. No external URL
-/// dep: `http::Uri` splits off the query, then a manual `&`/`=` walk with
-/// percent-decoding. Both params are required (replicated from native login.rs).
-fn parse_callback(callback_url: &str) -> Option<(String, String)> {
-    let uri: http::Uri = callback_url.parse().ok()?;
-    let query = uri.query()?;
-    let mut code = None;
-    let mut state = None;
-    for pair in query.split('&') {
-        let (k, v) = pair.split_once('=')?;
-        match k {
-            "code" => code = Some(pct_decode(v)),
-            "state" => state = Some(pct_decode(v)),
-            _ => {}
-        }
-    }
-    Some((code?, state?))
-}
-
-/// Percent-decode a query value (`+` → space, `%XX` → byte). Lossy on invalid
-/// UTF-8; malformed `%` escapes are kept verbatim.
-fn pct_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'+' => out.push(b' '),
-            b'%' if i + 2 < bytes.len() => {
-                let hi = (bytes[i + 1] as char).to_digit(16);
-                let lo = (bytes[i + 2] as char).to_digit(16);
-                if let (Some(hi), Some(lo)) = (hi, lo) {
-                    out.push((hi * 16 + lo) as u8);
-                    i += 3;
-                    continue;
-                }
-                out.push(b'%');
-            }
-            b => out.push(b),
-        }
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }

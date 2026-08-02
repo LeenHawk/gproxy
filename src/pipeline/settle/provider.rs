@@ -53,12 +53,32 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
         (pricing, scopes)
     };
 
-    let parsed: Option<Value> = serde_json::from_slice(body).ok();
+    let parsed: Option<Value> = match serde_json::from_slice(body) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            tracing::warn!(
+                request_id = %ctx.request_id,
+                provider = %cand.provider.name,
+                upstream_model = %cand.upstream_model_id,
+                error = %error,
+                "billable provider response JSON parse failed; using zero usage"
+            );
+            None
+        }
+    };
     let (usage, cost) = if is_embedding {
-        let usage = parsed
+        let extracted = parsed
             .as_ref()
-            .and_then(|v| extract::from_response(Family::OpenAi, v))
-            .unwrap_or_default();
+            .and_then(|v| extract::from_response(Family::OpenAi, v));
+        if parsed.is_some() && extracted.is_none() {
+            tracing::warn!(
+                request_id = %ctx.request_id,
+                provider = %cand.provider.name,
+                upstream_model = %cand.upstream_model_id,
+                "embedding usage missing; using zero usage"
+            );
+        }
+        let usage = extracted.unwrap_or_default();
         (usage, price::cost(&usage, &pricing))
     } else {
         // Images: bill per image in the response `data` array.
@@ -66,11 +86,18 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
             .as_ref()
             .and_then(|v| v.get("data"))
             .and_then(Value::as_array)
-            .map(|a| a.len() as u64)
-            .unwrap_or(0);
+            .map(|a| a.len() as u64);
+        if parsed.is_some() && count.is_none() {
+            tracing::warn!(
+                request_id = %ctx.request_id,
+                provider = %cand.provider.name,
+                upstream_model = %cand.upstream_model_id,
+                "image count unavailable; using zero image cost"
+            );
+        }
         (
             NormalizedUsage::default(),
-            Decimal::from(count) * pricing.image,
+            Decimal::from(count.unwrap_or(0)) * pricing.image,
         )
     };
 
@@ -105,7 +132,13 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
     // §17 reconcile, symmetric with the content-generation path: refund the
     // pre-deducted pending (charged in `execute`), then persist the actual cost
     // into each quota row. `refund` is a no-op when nothing was pre-deducted.
-    billing::pending::refund(state.cache.as_ref(), &quota_scopes, ctx.pending_micros).await;
+    billing::pending::refund(
+        state.cache.as_ref(),
+        &quota_scopes,
+        ctx.pending_micros,
+        &ctx.request_id,
+    )
+    .await;
     if cost > Decimal::ZERO {
         for (scope, scope_id) in &quota_scopes {
             if let Err(e) = state
@@ -117,4 +150,14 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
             }
         }
     }
+    tracing::debug!(
+        request_id = %ctx.request_id,
+        provider = %cand.provider.name,
+        upstream_model = %cand.upstream_model_id,
+        usage_source = "upstream",
+        ended = "complete",
+        tokens = usage.total(),
+        cost = %cost,
+        "provider usage settled"
+    );
 }

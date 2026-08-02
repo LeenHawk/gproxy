@@ -7,8 +7,8 @@ fn js_err(e: impl std::fmt::Debug) -> JsValue {
 }
 
 /// Build a 503 (init-not-called) plain-text response.
-pub(super) fn service_unavailable(msg: &str) -> Result<Response, JsValue> {
-    text_response(503, "text/plain", msg.as_bytes())
+pub(super) fn service_unavailable(msg: &str, request_id: &str) -> Result<Response, JsValue> {
+    text_response_with_request_id(503, "text/plain", msg.as_bytes(), request_id)
 }
 
 /// Convert the cross-target admin/portal response into a WinterCG response.
@@ -39,8 +39,8 @@ pub(super) fn unauthorized() -> Result<Response, JsValue> {
 }
 
 /// Build the 413 for an over-cap request body.
-pub(super) fn payload_too_large() -> Result<Response, JsValue> {
-    text_response(413, "text/plain", b"request body too large")
+pub(super) fn payload_too_large(request_id: &str) -> Result<Response, JsValue> {
+    text_response_with_request_id(413, "text/plain", b"request body too large", request_id)
 }
 
 /// Build a response with a single `Content-Type` header and a body.
@@ -56,11 +56,34 @@ pub(super) fn text_response(
     js_response(status, &headers, body)
 }
 
+/// Build a plain response carrying the gateway correlation id.
+pub(super) fn text_response_with_request_id(
+    status: u16,
+    content_type: &str,
+    body: &[u8],
+    request_id: &str,
+) -> Result<Response, JsValue> {
+    let headers = Headers::new().map_err(js_err)?;
+    headers
+        .append("content-type", content_type)
+        .map_err(js_err)?;
+    headers
+        .append("x-gproxy-request-id", request_id)
+        .map_err(js_err)?;
+    js_response(status, &headers, body)
+}
+
 /// Render a pipeline error to a JSON response, redacted identically to native.
-pub(super) fn error_to_ws(e: &crate::pipeline::error::PipelineError) -> Result<Response, JsValue> {
+pub(super) fn error_to_ws(
+    e: &crate::pipeline::error::PipelineError,
+    request_id: &str,
+) -> Result<Response, JsValue> {
     let headers = Headers::new().map_err(js_err)?;
     headers
         .append("content-type", "application/json")
+        .map_err(js_err)?;
+    headers
+        .append("x-gproxy-request-id", request_id)
         .map_err(js_err)?;
     if let Some(secs) = e.retry_after_secs() {
         headers

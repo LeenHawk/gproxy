@@ -10,6 +10,7 @@ mod bridge;
 mod dispatch;
 pub(crate) mod http;
 mod init;
+mod telemetry;
 
 pub use dispatch::{fetch, responses_websocket_frame};
 pub use init::init;

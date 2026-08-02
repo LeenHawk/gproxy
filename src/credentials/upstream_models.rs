@@ -59,7 +59,16 @@ pub async fn fetch_models(
         provider_id,
     )
     .await
-    .map_err(|e| ModelsError::Internal(e.to_string()))?
+    .map_err(|e| {
+        let error = crate::http::telemetry::redact_url_query(&e.to_string()).into_owned();
+        tracing::warn!(
+            provider_id,
+            operation = "get_provider",
+            error = %error,
+            "upstream model pull persistence failed"
+        );
+        ModelsError::Internal(e.to_string())
+    })?
     .ok_or(ModelsError::ProviderNotFound)?;
     let channel = state
         .channels
@@ -80,7 +89,17 @@ pub async fn fetch_models(
         provider_id,
     )
     .await
-    .map_err(|e| ModelsError::Internal(e.to_string()))?
+    .map_err(|e| {
+        let error = crate::http::telemetry::redact_url_query(&e.to_string()).into_owned();
+        tracing::warn!(
+            provider_id,
+            channel = %provider.channel,
+            operation = "list_credentials",
+            error = %error,
+            "upstream model pull persistence failed"
+        );
+        ModelsError::Internal(e.to_string())
+    })?
     .into_iter()
     .filter(|c| c.enabled)
     .collect::<Vec<_>>();
@@ -114,7 +133,10 @@ pub async fn fetch_models(
                 succeeded = true;
                 merge_models(&mut models, &mut model_indexes, pulled);
             }
-            CredentialPull::Next(err) => last_err = Some(err),
+            CredentialPull::Next(err) => {
+                warn_pull_failure(&provider, credential.id, &err);
+                last_err = Some(err);
+            }
         }
     }
 
@@ -229,11 +251,6 @@ async fn fetch_models_for_credential(
                     )
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        credential_id = cand.credential.id,
-                        error = %e,
-                        "forced refresh after model-list AuthDead failed; skipping credential"
-                    );
                     let transient = matches!(&e, ChannelError::Transient(_));
                     let disposition = if transient {
                         Disposition::Transient
@@ -284,7 +301,40 @@ fn finish_http_result(
 }
 
 fn record_credential_attempt(state: &AppState, cand: &Candidate, disposition: &Disposition) {
-    health_hooks::record_credential_attempt(state, &cand.provider, &cand.credential, disposition);
+    health_hooks::record_credential_attempt(
+        state,
+        None,
+        &cand.provider,
+        &cand.credential,
+        disposition,
+    );
+}
+
+fn warn_pull_failure(
+    provider: &crate::store::persistence::records::Provider,
+    credential_id: i64,
+    error: &ModelsError,
+) {
+    let (error_kind, status) = match error {
+        ModelsError::Status(status) => ("status", *status),
+        ModelsError::Channel(_) => ("channel", 0),
+        ModelsError::Decrypt(_) => ("decrypt", 0),
+        ModelsError::Upstream(_) => ("transport", 0),
+        ModelsError::Internal(_) => ("persistence", 0),
+        ModelsError::UnknownChannel(_) => ("unknown_channel", 0),
+        ModelsError::ProviderNotFound => ("provider_not_found", 0),
+        ModelsError::NoCredential => ("no_credential", 0),
+        ModelsError::NoAvailableCredential => ("no_available_credential", 0),
+    };
+    tracing::warn!(
+        provider_id = provider.id,
+        provider = %provider.name,
+        channel = %provider.channel,
+        credential_id,
+        status,
+        error_kind,
+        "upstream model pull failed for credential"
+    );
 }
 
 enum ModelPullResult {

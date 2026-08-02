@@ -37,7 +37,11 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                         break "downstream_closed";
                     }
                     Err(error) => {
-                        tracing::debug!(error = %error, "realtime downstream relay ended");
+                        tracing::debug!(
+                            request_id = %session.request_id,
+                            error = %error,
+                            "realtime downstream relay ended"
+                        );
                         let _ = session.socket.close().await;
                         let _ = downstream.send(Message::Close(None)).await;
                         break "downstream_error";
@@ -52,7 +56,11 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                         break "upstream_closed";
                     }
                     Err(error) => {
-                        tracing::debug!(error = %error, "realtime upstream relay ended");
+                        tracing::debug!(
+                            request_id = %session.request_id,
+                            error = %error,
+                            "realtime upstream relay ended"
+                        );
                         let _ = session.socket.close().await;
                         let _ = downstream.send(Message::Close(None)).await;
                         break "upstream_error";
@@ -65,9 +73,9 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
         request_id = %session.request_id,
         provider = %session.provider,
         channel = %session.channel,
-        model = %session.model,
+        upstream_model = %session.model,
         duration_ms = started.elapsed().as_millis() as u64,
-        terminal,
+        ended = terminal,
         "realtime session ended"
     );
 }

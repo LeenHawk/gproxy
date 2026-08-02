@@ -120,7 +120,13 @@ impl RedisCache {
 impl CacheBackend for RedisCache {
     async fn get(&self, key: &str) -> Option<Vec<u8>> {
         let mut cm = self.cm.clone();
-        cm.get::<_, Option<Vec<u8>>>(key).await.ok().flatten()
+        match cm.get::<_, Option<Vec<u8>>>(key).await {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(error = %error, operation = "get", "redis cache read failed");
+                None
+            }
+        }
     }
 
     async fn set(
@@ -149,7 +155,9 @@ impl CacheBackend for RedisCache {
 
     async fn delete(&self, key: &str) {
         let mut cm = self.cm.clone();
-        let _: Result<u64, _> = cm.del(key).await;
+        if let Err(error) = cm.del::<_, u64>(key).await {
+            tracing::warn!(error = %error, operation = "delete", "redis cache delete failed");
+        }
     }
 
     /// Atomically increment `key` by `delta`. TTL is applied only on creation.
@@ -295,7 +303,17 @@ impl CacheBackend for RedisCache {
             .arg(ttl.as_millis().max(1) as u64)
             .invoke_async(&mut cm)
             .await;
-        matches!(result, Ok(1))
+        match result {
+            Ok(value) => value == 1,
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    operation = "extend_lock",
+                    "redis cache lock extension failed"
+                );
+                false
+            }
+        }
     }
 
     /// Release only when this caller still owns the lock.
@@ -305,7 +323,18 @@ impl CacheBackend for RedisCache {
             "if redis.call('GET', KEYS[1]) == ARGV[1] then \
              return redis.call('DEL', KEYS[1]) else return 0 end",
         );
-        let _: redis::RedisResult<i64> = script.key(key).arg(owner).invoke_async(&mut cm).await;
+        if let Err(error) = script
+            .key(key)
+            .arg(owner)
+            .invoke_async::<i64>(&mut cm)
+            .await
+        {
+            tracing::warn!(
+                error = %error,
+                operation = "unlock",
+                "redis cache unlock failed"
+            );
+        }
     }
 }
 

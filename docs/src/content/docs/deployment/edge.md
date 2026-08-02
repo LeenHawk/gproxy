@@ -48,6 +48,7 @@ edge uses HTTP-accessible services:
 | `UPSTASH_URL` | No | Upstash Redis cache; falls back to libSQL KV when absent. |
 | `UPSTASH_TOKEN` | No | Upstash token. |
 | `GPROXY_MASTER_KEY` | No | Standard base64 32-byte key for sealed secrets. |
+| `GPROXY_LOG` | No | Console log level: `off`, `error`, `warn`, `info` (default), `debug`, or `trace`. |
 
 Set these as platform secrets or environment variables. Do not bake them into a
 bundle.

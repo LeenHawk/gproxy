@@ -20,9 +20,7 @@ pub(crate) fn metadata(outcome: &ExecOutcome, request_id: &str) -> ResponseMetad
             HeaderValue::from_static("text/event-stream"),
         );
     }
-    if let Ok(value) = HeaderValue::from_str(request_id) {
-        headers.insert("x-gproxy-request-id", value);
-    }
+    crate::http::telemetry::insert_request_id(&mut headers, request_id);
 
     ResponseMetadata {
         status: outcome.status,

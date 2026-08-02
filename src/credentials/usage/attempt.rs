@@ -107,6 +107,7 @@ pub(super) fn finish<T>(
     state: &AppState,
     provider: &Provider,
     credential: &Credential,
+    operation: &'static str,
     result: Result<T, UsageFailure>,
 ) -> Result<T, UsageError> {
     match result {
@@ -115,6 +116,7 @@ pub(super) fn finish<T>(
             Ok(value)
         }
         Err(failure) => {
+            super::warn_usage_error(provider, credential, operation, &failure.error);
             if let Some(disposition) = &failure.disposition {
                 super::record(state, provider, credential, disposition);
             }

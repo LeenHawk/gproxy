@@ -2,7 +2,6 @@
 //! `Channel::classify` is called. Stream & non-stream share the loop and differ
 //! only at the body tail (D4). M2: the transform plan (passthrough vs
 //! cross-protocol) is resolved PER candidate, before `prepare`.
-//!
 //! M7a: a lazy pre-use refresh (refresh only if the channel says the secret is
 //! stale) sits before each attempt, and an AuthDead classification triggers a
 //! single forced refresh + replay of the SAME candidate. A per-request retry
@@ -10,14 +9,15 @@
 //! (prepare → send → classify, body materialization) live in [`attempt`].
 
 mod attempt;
+mod budget;
+mod fallback;
+mod telemetry;
 
 pub use attempt::BodySource;
 use attempt::{
     AttemptOutcome, Materialized, ResponseRuleCtx, UpstreamRespCapture, attempt, materialize,
     refresh_failed,
 };
-
-use std::time::Duration;
 
 use crate::app::AppState;
 use crate::channel::Disposition;
@@ -31,7 +31,7 @@ use crate::pipeline::local_ops;
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::pipeline::settle;
 use crate::pipeline::transform::{self as transform_step, AttemptMemo, TransformPlan};
-use crate::protocol::{Operation, OperationKind};
+use crate::protocol::OperationKind;
 
 /// Iterate candidates until one succeeds or returns a permanent error. The
 /// channel AND the transform plan are resolved PER candidate (a route's members
@@ -53,10 +53,10 @@ pub async fn run_failover(
     let max_attempts = state.config.max_attempts;
     let mut attempts: u32 = 0;
 
-    for cand in candidates {
+    for (candidate_index, cand) in candidates.iter().enumerate() {
         if attempts >= max_attempts {
             tracing::warn!(
-                attempts,
+                attempt = attempts,
                 max_attempts,
                 "failover budget exhausted; stopping with last error"
             );
@@ -99,7 +99,7 @@ pub async fn run_failover(
         // §3.3 per-credential rpm/tpm budget — a budget skip is not a health
         // failure (the key is fine, just busy this minute). It is also not a
         // candidate ATTEMPT (no upstream call), so the retry budget is untouched.
-        if budget_exhausted(state, cand).await {
+        if budget::exhausted(state, cand).await {
             last_err = Some(PipelineError::Transport(
                 "credential rpm budget exhausted".into(),
             ));
@@ -148,7 +148,7 @@ pub async fn run_failover(
         {
             Ok(v) => v,
             Err(e) => {
-                refresh_failed(state, ctx, cand, &e);
+                refresh_failed(state, ctx, cand, &e).await;
                 last_err = Some(PipelineError::Channel(e));
                 continue;
             }
@@ -156,6 +156,7 @@ pub async fn run_failover(
 
         // One candidate attempt (counts against the budget).
         attempts += 1;
+        let has_next = candidate_index + 1 < candidates.len() && attempts < max_attempts;
         let outcome = match attempt(
             state,
             ctx,
@@ -170,6 +171,8 @@ pub async fn run_failover(
         {
             Ok(o) => o,
             Err(e) => {
+                let error = e.to_string();
+                telemetry::attempt_error(ctx, cand, attempts, max_attempts, &error, has_next);
                 last_err = Some(e);
                 continue;
             }
@@ -184,6 +187,8 @@ pub async fn run_failover(
             && cand.credential.kind != "api_key"
             && refreshed_creds.insert(cand.credential.id)
         {
+            let error = format!("upstream {} ({:?})", outcome.status, outcome.disposition);
+            telemetry::forced_refresh_retry(ctx, cand, attempts, max_attempts, &outcome, &error);
             match state
                 .ensure_fresh_credential(
                     &channel,
@@ -209,24 +214,38 @@ pub async fn run_failover(
                     .await
                     {
                         Ok(o) => o,
-                        // Retry transport/prepare failure already audited + health
-                        // recorded inside `attempt`; just advance.
                         Err(e) => {
+                            let error = e.to_string();
+                            telemetry::attempt_error(
+                                ctx,
+                                cand,
+                                attempts,
+                                max_attempts,
+                                &error,
+                                has_next,
+                            );
                             last_err = Some(e);
                             continue;
                         }
                     }
                 }
-                // Refresh is a credential-wide operation. Its failure blocks
-                // the credential globally; do not additionally infer a
-                // credential-model failure from the original response.
                 Err(e) => {
                     tracing::warn!(
                         credential_id = cand.credential.id,
                         error = %e,
                         "forced refresh after AuthDead failed; cooling credential"
                     );
-                    refresh_failed(state, ctx, cand, &e);
+                    refresh_failed(state, ctx, cand, &e).await;
+                    let error = e.to_string();
+                    telemetry::outcome_failed(
+                        ctx,
+                        cand,
+                        (attempts, max_attempts),
+                        &outcome,
+                        &error,
+                        has_next,
+                        false,
+                    );
                     last_err = Some(PipelineError::Channel(e));
                     continue;
                 }
@@ -234,13 +253,27 @@ pub async fn run_failover(
         } else {
             outcome
         };
-
         // §3.2/§16.3 disposition → health (+ edge-persisted credential edges),
         // recorded EXACTLY ONCE per logical candidate on the FINAL disposition.
         // A still-AuthDead final cools the credential 600s (health_hooks).
-        health_hooks::record_attempt(state, cand, &outcome.disposition, outcome.send_ms);
+        health_hooks::record_attempt(
+            state,
+            &ctx.request_id,
+            cand,
+            &outcome.disposition,
+            outcome.send_ms,
+        );
 
         if !outcome.disposition.should_failover() {
+            telemetry::selected(
+                ctx,
+                cand,
+                attempts,
+                max_attempts,
+                outcome.status.as_u16(),
+                &outcome.disposition,
+                outcome.send_ms.unwrap_or(0.0),
+            );
             // Success, or a Permanent 4xx the client should see — return it.
             // §17: billing context is captured BEFORE the body is handed out
             // (content-generation successes only; capture needs no snapshot
@@ -427,6 +460,16 @@ pub async fn run_failover(
         }
 
         // AuthDead / RateLimited / Transient → drop this attempt, try the next.
+        let error = format!("upstream {} ({:?})", outcome.status, outcome.disposition);
+        telemetry::outcome_failed(
+            ctx,
+            cand,
+            (attempts, max_attempts),
+            &outcome,
+            &error,
+            has_next,
+            true,
+        );
         settle::audit_failure(
             state,
             &ctx.request_id,
@@ -436,55 +479,12 @@ pub async fn run_failover(
                 method: outcome.method.as_str(),
                 status: i64::from(outcome.status.as_u16()),
                 latency_ms: outcome.send_ms.map(|ms| ms as i64).unwrap_or(0),
-                error: &format!("upstream {} ({:?})", outcome.status, outcome.disposition),
+                error: &error,
             },
-        );
-        last_err = Some(PipelineError::Transport(format!(
-            "upstream {} ({:?})",
-            outcome.status, outcome.disposition
-        )));
+        )
+        .await;
+        last_err = Some(PipelineError::Transport(error));
     }
 
-    // §6.3 count fallback: count must not fail just because upstreams did —
-    // answer locally (the first candidate supplies provider settings).
-    if ctx.op.expect("classified").operation == Operation::CountTokens
-        && let Some(cand) = candidates.first()
-        && let Some(o) = local_ops::serve_local(state, &state.cp(), ctx, cand)
-    {
-        tracing::warn!("all upstream count attempts failed; serving local count fallback");
-        return Ok(o);
-    }
-
-    Err(last_err.unwrap_or(PipelineError::AllAttemptsFailed))
-}
-
-/// Per-credential minute budgets (§3.3), incr-then-check on the shared cache
-/// (same off-by-one semantics as authz). rpm increments per attempt; tpm is
-/// read-only here — settle-time reconciliation (M6 §17) feeds `ctpm:*` with
-/// each request's actual total tokens. The two counters run in parallel (one
-/// RTT round on remote backends). A counter backend failure counts as
-/// exhausted (fail-closed): a configured budget must not vanish with the cache.
-async fn budget_exhausted(state: &AppState, cand: &Candidate) -> bool {
-    let bucket = crate::util::time::unix_now() / 60;
-    let ttl = Some(Duration::from_secs(120));
-    let rpm = async {
-        match cand.credential.rpm_limit {
-            Some(limit) => {
-                let key = format!("crpm:{}:m{bucket}", cand.credential.id);
-                !matches!(state.cache.incr(&key, 1, ttl).await, Ok(n) if n <= limit)
-            }
-            None => false,
-        }
-    };
-    let tpm = async {
-        match cand.credential.tpm_limit {
-            Some(limit) => {
-                let key = format!("ctpm:{}:m{bucket}", cand.credential.id);
-                !matches!(state.cache.incr(&key, 0, ttl).await, Ok(n) if n <= limit)
-            }
-            None => false,
-        }
-    };
-    let (rpm_exhausted, tpm_exhausted) = futures_util::join!(rpm, tpm);
-    rpm_exhausted || tpm_exhausted
+    fallback::finish(state, ctx, candidates, last_err, attempts, max_attempts)
 }

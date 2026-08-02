@@ -100,7 +100,7 @@ fn warn_unparsable(row: &ProviderModel) -> (bool, Vec<String>) {
     tracing::warn!(
         model_row = row.id,
         provider_id = row.provider_id,
-        model_id = %row.model_id,
+        upstream_model = %row.model_id,
         "unparsable variants_json; treating as no variants"
     );
     (true, Vec::new())

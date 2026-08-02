@@ -1,12 +1,15 @@
 //! Streaming response tail (§6.4, D4): body-side conversion invoked by
 //! `failover`; it does not iterate candidates or call `classify`.
 
-use crate::app::AppState;
 use crate::http::client::{ByteStreamDecoder, RespStream};
-use crate::pipeline::capture::UpstreamCaptureId;
 use crate::pipeline::outcome::ByteStream;
-use crate::pipeline::settle::{RelayBuffer, StreamGuard};
+use crate::pipeline::settle::StreamGuard;
 use crate::transform::stream_adapter::SseTransformer;
+#[cfg(not(target_arch = "wasm32"))]
+use tracing::Instrument as _;
+
+mod raw_capture;
+pub use raw_capture::{RawCaptureGuard, capture_raw_stream};
 
 #[cfg(not(target_arch = "wasm32"))]
 const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
@@ -55,49 +58,74 @@ pub fn synthetic_outcome(
         crate::protocol::OperationKind::Provider(_) => unreachable!("synthetic content stream"),
     };
     let transport = synthetic_transport(&ctx);
+    let request_id = ctx.request_id.clone();
     let (tx, rx) = mpsc::channel(8);
-    tokio::spawn(async move {
-        let work = crate::pipeline::failover::run_failover(&state, &ctx, &candidates);
-        tokio::pin!(work);
-        let mut interval = tokio::time::interval(KEEPALIVE_INTERVAL);
-        interval.tick().await;
-        let result = loop {
-            tokio::select! {
-                result = &mut work => break result,
-                _ = interval.tick() => {
-                    let _ = tx.try_send(Ok(synthetic_keepalive(kind, transport)));
-                }
-            }
-        };
-
-        if !matches!(&result, Ok(outcome) if outcome.status.is_success()) {
-            crate::billing::pending::refund(state.cache.as_ref(), &quota_scopes, pending_micros)
-                .await;
-        }
-
-        match result {
-            Ok(outcome) if outcome.status.is_success() => match outcome.body {
-                crate::pipeline::outcome::ResponseBody::Full(body) => {
-                    let bytes = synthetic_final(kind, transport, &body).unwrap_or_else(|error| {
-                        tracing::warn!(error = %error, "failed to synthesize response stream");
-                        synthetic_error(kind, transport)
-                    });
-                    let _ = tx.send(Ok(bytes)).await;
-                }
-                crate::pipeline::outcome::ResponseBody::Stream(mut stream) => {
-                    use futures_util::StreamExt;
-                    while let Some(item) = stream.next().await {
-                        if tx.send(item).await.is_err() {
-                            break;
-                        }
+    let span = tracing::Span::current();
+    tokio::spawn(
+        async move {
+            let work = crate::pipeline::failover::run_failover(&state, &ctx, &candidates);
+            tokio::pin!(work);
+            let mut interval = tokio::time::interval(KEEPALIVE_INTERVAL);
+            interval.tick().await;
+            let result = loop {
+                tokio::select! {
+                    result = &mut work => break result,
+                    _ = interval.tick() => {
+                        let _ = tx.try_send(Ok(synthetic_keepalive(kind, transport)));
                     }
                 }
-            },
-            Ok(_) | Err(_) => {
-                let _ = tx.send(Ok(synthetic_error(kind, transport))).await;
+            };
+
+            if !matches!(&result, Ok(outcome) if outcome.status.is_success()) {
+                crate::billing::pending::refund(
+                    state.cache.as_ref(),
+                    &quota_scopes,
+                    pending_micros,
+                    &ctx.request_id,
+                )
+                .await;
+            }
+
+            match result {
+                Ok(outcome) if outcome.status.is_success() => match outcome.body {
+                    crate::pipeline::outcome::ResponseBody::Full(body) => {
+                        let bytes =
+                            synthetic_final(kind, transport, &body).unwrap_or_else(|error| {
+                                tracing::warn!(
+                                    request_id = %request_id,
+                                    error = %error,
+                                    "failed to synthesize response stream"
+                                );
+                                synthetic_error(kind, transport)
+                            });
+                        let _ = tx.send(Ok(bytes)).await;
+                    }
+                    crate::pipeline::outcome::ResponseBody::Stream(mut stream) => {
+                        use futures_util::StreamExt;
+                        while let Some(item) = stream.next().await {
+                            if tx.send(item).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                },
+                Ok(_) => {
+                    let _ = tx.send(Ok(synthetic_error(kind, transport))).await;
+                }
+                Err(error) => {
+                    let error =
+                        crate::http::telemetry::redact_url_query(&error.to_string()).into_owned();
+                    tracing::warn!(
+                        request_id = %request_id,
+                        error = %error,
+                        "synthetic stream pipeline failed"
+                    );
+                    let _ = tx.send(Ok(synthetic_error(kind, transport))).await;
+                }
             }
         }
-    });
+        .instrument(span),
+    );
 
     let stream = futures_util::stream::unfold(rx, |mut receiver| async move {
         receiver.recv().await.map(|item| (item, receiver))
@@ -277,12 +305,15 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
     struct State {
         inner: Option<ByteStream>,
         guard: Option<StreamGuard>,
+        request_id: String,
     }
 
+    let request_id = guard.request_id().to_owned();
     Box::pin(futures_util::stream::unfold(
         State {
             inner: Some(s),
             guard: Some(guard),
+            request_id,
         },
         |mut st| async move {
             let inner = st.inner.as_mut()?;
@@ -295,7 +326,11 @@ pub fn instrument_settle_stream(s: ByteStream, guard: StreamGuard) -> ByteStream
                 }
                 Some(Err(e)) => {
                     st.inner = None;
-                    tracing::warn!(error = %e, "upstream stream failed");
+                    tracing::warn!(
+                        request_id = %st.request_id,
+                        error = %e,
+                        "upstream stream failed"
+                    );
                     drop(st.guard.take()); // Drop settles Interrupted
                     Some((Err(e), st))
                 }
@@ -344,99 +379,14 @@ pub fn instrument_error_frame(
             let inner = st.inner.as_mut()?;
             match inner.next().await {
                 Some(Ok(chunk)) => Some((Ok(chunk), st)),
-                Some(Err(e)) => {
+                Some(Err(_)) => {
                     st.inner = None;
-                    tracing::warn!(error = %e, "upstream stream failed");
                     Some((
                         Ok(crate::pipeline::settle::frames::error_frame(st.kind)),
                         st,
                     ))
                 }
                 None => None,
-            }
-        },
-    ))
-}
-
-/// Buffers bytes at the caller-selected seam and, on EOF/drop, backfills one
-/// `upstream_requests.response_body` row (§8-D; bounded by `RelayBuffer`).
-pub struct RawCaptureGuard {
-    inner: Option<(AppState, UpstreamCaptureId, RelayBuffer)>,
-}
-
-impl RawCaptureGuard {
-    pub(crate) fn new(state: AppState, capture_id: UpstreamCaptureId) -> Self {
-        Self {
-            inner: Some((state, capture_id, RelayBuffer::new())),
-        }
-    }
-
-    pub(crate) fn push(&mut self, chunk: &bytes::Bytes) {
-        if let Some((_, _, buf)) = self.inner.as_mut() {
-            buf.push(chunk.clone());
-        }
-    }
-
-    /// Spawn the gated backfill of the buffered upstream response body.
-    fn flush(&mut self) {
-        if let Some((state, capture_id, buf)) = self.inner.take() {
-            let bytes = buf.concat_for_log();
-            #[cfg(not(target_arch = "wasm32"))]
-            tokio::spawn(async move {
-                crate::pipeline::capture::record_upstream_response(&state, capture_id, &bytes)
-                    .await;
-            });
-            #[cfg(target_arch = "wasm32")]
-            wasm_bindgen_futures::spawn_local(async move {
-                crate::pipeline::capture::record_upstream_response(&state, capture_id, &bytes)
-                    .await;
-            });
-        }
-    }
-}
-
-impl Drop for RawCaptureGuard {
-    fn drop(&mut self) {
-        self.flush();
-    }
-}
-
-/// Tee upstream chunks into `guard` while passing them through unchanged. Direct
-/// attempts splice this after channel decode; custom exchanges splice it at the
-/// exact transport call so parked or otherwise wrapped streams retain their row
-/// correlation.
-pub fn capture_raw_stream(s: ByteStream, guard: RawCaptureGuard) -> ByteStream {
-    use futures_util::StreamExt;
-
-    struct State {
-        inner: Option<ByteStream>,
-        guard: Option<RawCaptureGuard>,
-    }
-
-    Box::pin(futures_util::stream::unfold(
-        State {
-            inner: Some(s),
-            guard: Some(guard),
-        },
-        |mut st| async move {
-            let inner = st.inner.as_mut()?;
-            match inner.next().await {
-                Some(Ok(chunk)) => {
-                    if let Some(g) = st.guard.as_mut() {
-                        g.push(&chunk);
-                    }
-                    Some((Ok(chunk), st))
-                }
-                Some(Err(e)) => {
-                    st.inner = None;
-                    drop(st.guard.take()); // Drop::flush backfills the partial body
-                    Some((Err(e), st))
-                }
-                None => {
-                    st.inner = None;
-                    drop(st.guard.take()); // normal EOF: flush
-                    None
-                }
             }
         },
     ))
@@ -495,7 +445,7 @@ mod tests {
 
     #[test]
     fn relay_buffer_bounds_one_oversized_chunk() {
-        let mut buffer = RelayBuffer::new();
+        let mut buffer = crate::pipeline::settle::RelayBuffer::new();
         buffer.push(Bytes::from(vec![b'x'; 5 << 20]));
         let logged = buffer.concat_for_log();
 

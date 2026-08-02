@@ -44,16 +44,30 @@ impl UpstashCache {
     }
 
     async fn cmd(&self, args: &[Value]) -> Option<Value> {
-        let body = serde_json::to_string(args).ok()?;
-        let js_headers = Headers::new().map_err(js_err).ok()?;
+        let operation = args.first().and_then(Value::as_str).unwrap_or("unknown");
+        match self.cmd_inner(args).await {
+            Ok(value) => Some(value),
+            Err(error) => {
+                let error = crate::http::telemetry::redact_url_query(&error);
+                tracing::warn!(
+                    operation,
+                    error = %error,
+                    "upstash cache command failed"
+                );
+                None
+            }
+        }
+    }
+
+    async fn cmd_inner(&self, args: &[Value]) -> Result<Value, String> {
+        let body = serde_json::to_string(args).map_err(|error| error.to_string())?;
+        let js_headers = Headers::new().map_err(js_err)?;
         js_headers
             .append("Content-Type", "application/json")
-            .map_err(js_err)
-            .ok()?;
+            .map_err(js_err)?;
         js_headers
             .append("Authorization", &format!("Bearer {}", self.token))
-            .map_err(js_err)
-            .ok()?;
+            .map_err(js_err)?;
 
         let bytes = body.as_bytes();
         let arr = Uint8Array::new_with_length(bytes.len() as u32);
@@ -64,28 +78,26 @@ impl UpstashCache {
         init.set_headers_headers(&js_headers);
         init.set_body_opt_u8_array(Some(&arr));
 
-        let js_req = Request::new_with_str_and_init(&self.url, &init)
-            .map_err(js_err)
-            .ok()?;
+        let js_req = Request::new_with_str_and_init(&self.url, &init).map_err(js_err)?;
         let scope = global().unchecked_into::<WorkerGlobalScope>();
         let resp_val = JsFuture::from(scope.fetch_with_request(&js_req))
             .await
-            .map_err(js_err)
-            .ok()?;
+            .map_err(js_err)?;
         let js_resp: Response = resp_val.unchecked_into();
 
-        let buf_val = JsFuture::from(js_resp.array_buffer().map_err(js_err).ok()?)
+        let buf_val = JsFuture::from(js_resp.array_buffer().map_err(js_err)?)
             .await
-            .map_err(js_err)
-            .ok()?;
+            .map_err(js_err)?;
         let body_bytes = Uint8Array::new(&buf_val).to_vec();
 
-        let parsed: Value = serde_json::from_slice(&body_bytes).ok()?;
+        let parsed: Value = serde_json::from_slice(&body_bytes).map_err(|e| e.to_string())?;
         if let Some(err) = parsed.get("error") {
-            tracing::error!("upstash error: {err}");
-            return None;
+            return Err(format!("backend response error: {err}"));
         }
-        parsed.get("result").cloned()
+        parsed
+            .get("result")
+            .cloned()
+            .ok_or_else(|| "backend response missing result".to_owned())
     }
 }
 
@@ -94,7 +106,20 @@ impl CacheBackend for UpstashCache {
     async fn get(&self, key: &str) -> Option<Vec<u8>> {
         // Result is a JSON string; stored as base64.
         let result = self.cmd(&[json!("GET"), json!(key)]).await?;
-        b64::decode(result.as_str()?).ok()
+        if result.is_null() {
+            return None;
+        }
+        let Some(value) = result.as_str() else {
+            tracing::warn!(operation = "get", "upstash cache returned an invalid value");
+            return None;
+        };
+        match b64::decode(value) {
+            Ok(value) => Some(value),
+            Err(_) => {
+                tracing::warn!(operation = "get", "upstash cache returned invalid base64");
+                None
+            }
+        }
     }
 
     async fn set(
@@ -130,11 +155,16 @@ impl CacheBackend for UpstashCache {
         delta: i64,
         ttl: Option<Duration>,
     ) -> Result<i64, CounterError> {
-        let result = self.cmd(&[json!("INCRBY"), json!(key), json!(delta)]).await;
-        let new_val = match result.as_ref().and_then(Value::as_i64) {
+        let Some(result) = self.cmd(&[json!("INCRBY"), json!(key), json!(delta)]).await else {
+            return Err(CounterError);
+        };
+        let new_val = match result.as_i64() {
             Some(v) => v,
             None => {
-                tracing::error!("upstash incrby failed");
+                tracing::warn!(
+                    operation = "incr",
+                    "upstash cache returned an invalid counter"
+                );
                 return Err(CounterError);
             }
         };
@@ -172,7 +202,14 @@ impl CacheBackend for UpstashCache {
         match result {
             Some(Value::String(value)) if value == "OK" => LockAttempt::Acquired,
             Some(Value::Null) => LockAttempt::Busy,
-            _ => LockAttempt::Unavailable,
+            None => LockAttempt::Unavailable,
+            Some(_) => {
+                tracing::warn!(
+                    operation = "try_lock",
+                    "upstash cache returned an invalid lock result"
+                );
+                LockAttempt::Unavailable
+            }
         }
     }
 
@@ -188,7 +225,19 @@ impl CacheBackend for UpstashCache {
                 json!(ttl.as_millis().max(1) as u64),
             ])
             .await;
-        result.as_ref().and_then(Value::as_i64) == Some(1)
+        match result {
+            Some(value) => match value.as_i64() {
+                Some(result) => result == 1,
+                None => {
+                    tracing::warn!(
+                        operation = "extend_lock",
+                        "upstash cache returned an invalid lock result"
+                    );
+                    false
+                }
+            },
+            None => false,
+        }
     }
 
     async fn unlock(&self, key: &str, owner: &str) {

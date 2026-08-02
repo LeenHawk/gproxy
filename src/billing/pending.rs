@@ -127,26 +127,52 @@ pub async fn read(
 }
 
 /// Pre-deduct `micros` on every quota-bearing scope.
-pub async fn charge(cache: &dyn CacheBackend, scopes: &[(Scope, i64)], micros: i64) {
-    adjust(cache, scopes, micros).await;
+pub async fn charge(
+    cache: &dyn CacheBackend,
+    scopes: &[(Scope, i64)],
+    micros: i64,
+    request_id: &str,
+) {
+    adjust(cache, scopes, micros, request_id, "charge").await;
 }
 
 /// Refund the exact pre-deducted amount (never recomputed).
-pub async fn refund(cache: &dyn CacheBackend, scopes: &[(Scope, i64)], micros: i64) {
-    adjust(cache, scopes, -micros).await;
+pub async fn refund(
+    cache: &dyn CacheBackend,
+    scopes: &[(Scope, i64)],
+    micros: i64,
+    request_id: &str,
+) {
+    adjust(cache, scopes, -micros, request_id, "refund").await;
 }
 
 /// Best-effort: a failed adjust is logged by the backend and self-heals via
 /// the pending TTL (admission already failed closed if the backend is down).
 /// Scopes adjust in parallel — one RTT round on remote counter backends.
-async fn adjust(cache: &dyn CacheBackend, scopes: &[(Scope, i64)], delta: i64) {
+async fn adjust(
+    cache: &dyn CacheBackend,
+    scopes: &[(Scope, i64)],
+    delta: i64,
+    request_id: &str,
+    operation: &'static str,
+) {
     if delta == 0 {
         return;
     }
     futures_util::future::join_all(scopes.iter().map(|&(scope, scope_id)| async move {
-        let _ = cache
+        if let Err(error) = cache
             .incr(&key(scope, scope_id), delta, Some(PENDING_TTL))
-            .await;
+            .await
+        {
+            tracing::warn!(
+                request_id,
+                scope = scope.as_str(),
+                scope_id,
+                operation,
+                error = %error,
+                "pending billing counter update failed"
+            );
+        }
     }))
     .await;
 }

@@ -151,11 +151,21 @@ async fn verify_user(
     state: &AppState,
     req: &LoginRequest,
 ) -> Option<crate::store::persistence::records::User> {
-    let user = state
-        .persistence
-        .get_user_by_name(&req.username)
-        .await
-        .ok()??;
+    let user = match state.persistence.get_user_by_name(&req.username).await {
+        Ok(Some(user)) => user,
+        Ok(None) => return None,
+        Err(error) => {
+            let error = crate::http::telemetry::redact_url_query(&error.to_string()).into_owned();
+            tracing::warn!(
+                method = "POST",
+                path = "/admin/login",
+                operation = "get_user_by_name",
+                error = %error,
+                "admin login persistence lookup failed"
+            );
+            return None;
+        }
+    };
     if !user.enabled {
         return None;
     }

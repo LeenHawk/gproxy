@@ -13,10 +13,29 @@ use http::request::Parts;
 use crate::app::AppState;
 use crate::config::MAX_BODY_BYTES;
 use crate::http::responses_ws::{ResponsesWsRequestBase, WsFrameError};
-use crate::http::server::extract::build_ctx;
+use crate::http::server::extract::build_ctx_with_request_id;
+use crate::http::telemetry;
 use crate::pipeline;
 use crate::pipeline::outcome::{ExecOutcome, ResponseBody};
 use crate::transform::generate_content::openai_responses_websocket::ResponseWebSocketSseDecoder;
+
+struct RequestTrace {
+    request_id: String,
+    started_ms: u64,
+    method: http::Method,
+    path: String,
+}
+
+impl RequestTrace {
+    fn new(method: http::Method, path: String) -> Self {
+        Self {
+            request_id: telemetry::request_id(),
+            started_ms: crate::util::time::unix_now_ms(),
+            method,
+            path,
+        }
+    }
+}
 
 /// `/v1/{*rest}` — model name resolves to a route.
 pub async fn aggregated(
@@ -42,30 +61,41 @@ async fn handle(
     req: Request,
     scoped: bool,
 ) -> Response {
+    let trace = RequestTrace::new(req.method().clone(), req.uri().path().to_owned());
     if let Some(OptionalWsUpgrade(ws)) = ws {
-        return handle_websocket(state, ws, req, scoped).await;
+        return handle_websocket(state, ws, req, scoped, trace).await;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     if crate::http::realtime_ws::is_path(req.uri().path()) {
-        return (StatusCode::UPGRADE_REQUIRED, "websocket upgrade required").into_response();
+        return early_response(
+            (StatusCode::UPGRADE_REQUIRED, "websocket upgrade required").into_response(),
+            &trace,
+            Some("websocket upgrade required"),
+        );
     }
 
     let (parts, body) = req.into_parts();
     let bytes = match axum::body::to_bytes(body, MAX_BODY_BYTES).await {
         Ok(b) => b,
         Err(_) => {
-            return (StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response();
+            return early_response(
+                (StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response(),
+                &trace,
+                Some("request body too large"),
+            );
         }
     };
-    let ctx = match build_ctx(parts, bytes, scoped) {
+    let ctx = match build_ctx_with_request_id(parts, bytes, scoped, trace.request_id.clone()) {
         Ok(c) => c,
-        Err(e) => return e.into_response(),
+        Err(error) => {
+            let message = error.to_string();
+            return early_response(error.into_response(), &trace, Some(&message));
+        }
     };
-    let request_id = ctx.request_id.clone();
     match pipeline::execute(&state, ctx).await {
-        Ok(outcome) => egress(outcome, &request_id),
-        Err(e) => e.into_response(),
+        Ok(outcome) => egress(outcome, &trace.request_id),
+        Err(error) => pipeline_error_response(error, &trace.request_id),
     }
 }
 
@@ -74,32 +104,81 @@ async fn handle_websocket(
     ws: WebSocketUpgrade,
     req: Request,
     scoped: bool,
+    trace: RequestTrace,
 ) -> Response {
-    let path = req.uri().path();
     #[cfg(not(target_arch = "wasm32"))]
-    if crate::http::realtime_ws::is_path(path) {
-        if scoped != crate::http::realtime_ws::is_scoped_path(path) {
-            return StatusCode::NOT_FOUND.into_response();
+    if crate::http::realtime_ws::is_path(&trace.path) {
+        if scoped != crate::http::realtime_ws::is_scoped_path(&trace.path) {
+            return early_response(
+                StatusCode::NOT_FOUND.into_response(),
+                &trace,
+                Some("unsupported websocket path"),
+            );
         }
         let (parts, _body) = req.into_parts();
-        let ctx = match build_ctx(parts, bytes::Bytes::new(), scoped) {
+        let ctx = match build_ctx_with_request_id(
+            parts,
+            bytes::Bytes::new(),
+            scoped,
+            trace.request_id.clone(),
+        ) {
             Ok(ctx) => ctx,
-            Err(error) => return error.into_response(),
+            Err(error) => {
+                let message = error.to_string();
+                return early_response(error.into_response(), &trace, Some(&message));
+            }
         };
         let session = match crate::pipeline::realtime::open(&state, ctx).await {
             Ok(session) => session,
-            Err(error) => return error.into_response(),
+            Err(error) => {
+                let message = error.to_string();
+                return early_response(error.into_response(), &trace, Some(&message));
+            }
         };
-        return ws.on_upgrade(move |socket| crate::http::realtime_ws::relay(socket, session));
+        return early_response(
+            ws.on_upgrade(move |socket| crate::http::realtime_ws::relay(socket, session)),
+            &trace,
+            None,
+        );
     }
-    if !crate::http::responses_ws::is_responses_websocket_path(path)
-        || scoped != crate::http::responses_ws::is_scoped_responses_websocket_path(path)
+    if !crate::http::responses_ws::is_responses_websocket_path(&trace.path)
+        || scoped != crate::http::responses_ws::is_scoped_responses_websocket_path(&trace.path)
     {
-        return StatusCode::NOT_FOUND.into_response();
+        return early_response(
+            StatusCode::NOT_FOUND.into_response(),
+            &trace,
+            Some("unsupported websocket path"),
+        );
     }
     let (parts, _body) = req.into_parts();
     let base = ResponsesWsRequestBase::from_parts(&parts);
-    ws.on_upgrade(move |socket| serve_websocket(socket, state, base, scoped))
+    early_response(
+        ws.on_upgrade(move |socket| serve_websocket(socket, state, base, scoped)),
+        &trace,
+        None,
+    )
+}
+
+fn early_response(mut response: Response, trace: &RequestTrace, error: Option<&str>) -> Response {
+    telemetry::complete_early(
+        &trace.request_id,
+        trace.method.as_str(),
+        &trace.path,
+        response.status(),
+        trace.started_ms,
+        error,
+    );
+    telemetry::insert_request_id(response.headers_mut(), &trace.request_id);
+    response
+}
+
+fn pipeline_error_response(
+    error: crate::pipeline::error::PipelineError,
+    request_id: &str,
+) -> Response {
+    let mut response = error.into_response();
+    telemetry::insert_request_id(response.headers_mut(), request_id);
+    response
 }
 
 async fn serve_websocket(
@@ -246,7 +325,14 @@ where
         WebSocketUpgrade::from_request_parts(parts, state)
             .await
             .map(|ws| Some(Self(ws)))
-            .map_err(IntoResponse::into_response)
+            .map_err(|error| {
+                let trace = RequestTrace::new(parts.method.clone(), parts.uri.path().to_owned());
+                early_response(
+                    error.into_response(),
+                    &trace,
+                    Some("websocket upgrade rejected"),
+                )
+            })
     }
 }
 
