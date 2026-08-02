@@ -195,6 +195,7 @@ pub(crate) async fn run_update(
             channel,
             data_dir,
             client,
+            audit: None,
         };
         match action {
             UpdateAction::Check => {

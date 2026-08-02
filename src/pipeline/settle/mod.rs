@@ -409,7 +409,7 @@ async fn record(ctx: &SettleCtx, usage: NormalizedUsage, source: UsageSource, en
 }
 
 /// snake_case wire string of a serde unit-enum value.
-fn enum_str<T: serde::Serialize>(v: &T) -> String {
+pub(crate) fn enum_str<T: serde::Serialize>(v: &T) -> String {
     serde_json::to_value(v)
         .ok()
         .and_then(|v| v.as_str().map(str::to_owned))

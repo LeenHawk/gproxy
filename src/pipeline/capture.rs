@@ -16,10 +16,9 @@ use crate::util::time::unix_now;
 use tracing::Instrument as _;
 
 mod client;
-mod redaction;
 
+use crate::http::redaction::{body_string, headers_json, redact_query, warn_unless_redacted};
 pub use client::CapturingClient;
-use redaction::{body_string, headers_json, redact_query, warn_unless_redacted};
 
 /// The downstream wire facts, captured BEFORE the pipeline mutates the request
 /// (the ingress blacklist strips client creds in place); written after the

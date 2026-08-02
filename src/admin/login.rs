@@ -37,6 +37,9 @@ pub struct LoginSession {
     /// client creds), handed back to `authcode_exchange` at `complete`.
     #[serde(default)]
     pub extra: Option<serde_json::Value>,
+    /// Correlates all physical upstream calls made by this login flow.
+    #[serde(default)]
+    pub audit_request_id: Option<String>,
 }
 
 /// Stash a pending login → cache `login:{sid}` for [`LOGIN_TTL`]. Returns the
@@ -52,15 +55,27 @@ pub async fn start(
     redirect_uri: String,
     extra: Option<serde_json::Value>,
 ) -> Result<String, CacheError> {
+    start_session(
+        cache,
+        LoginSession {
+            channel,
+            provider_id,
+            verifier,
+            state,
+            redirect_uri,
+            extra,
+            audit_request_id: None,
+        },
+    )
+    .await
+}
+
+/// Stash a fully constructed login session, including upstream audit context.
+pub async fn start_session(
+    cache: &dyn CacheBackend,
+    session: LoginSession,
+) -> Result<String, CacheError> {
     let sid = crate::util::rand::uuid_v4();
-    let session = LoginSession {
-        channel,
-        provider_id,
-        verifier,
-        state,
-        redirect_uri,
-        extra,
-    };
     // Serialization of this fixed shape cannot fail.
     let bytes = serde_json::to_vec(&session).map_err(|_| CacheError)?;
     cache.set(&key(&sid), bytes, Some(LOGIN_TTL)).await?;
@@ -93,6 +108,8 @@ pub struct DeviceSession {
     pub device_code: String,
     pub provider_id: i64,
     pub name: Option<String>,
+    #[serde(default)]
+    pub audit_request_id: Option<String>,
 }
 
 /// Stash a pending device login → cache `login:{sid}` for [`DEVICE_TTL`].

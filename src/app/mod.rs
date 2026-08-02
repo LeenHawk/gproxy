@@ -51,7 +51,11 @@ impl crate::tokenize::TokenizerStore for TokenizerStoreAdapter {
 }
 
 #[cfg(feature = "count-local")]
-struct TokenizerClientAdapter(Arc<dyn UpstreamClient>);
+struct TokenizerClientAdapter {
+    inner: Arc<dyn UpstreamClient>,
+    persistence: Arc<dyn PersistenceBackend>,
+    snapshot: Arc<ArcSwap<ControlPlaneSnapshot>>,
+}
 
 #[cfg(feature = "count-local")]
 #[async_trait::async_trait]
@@ -60,7 +64,38 @@ impl crate::tokenize::TokenizerClient for TokenizerClientAdapter {
         &self,
         req: http::Request<bytes::Bytes>,
     ) -> anyhow::Result<http::Response<bytes::Bytes>> {
-        Ok(self.0.send(req).await?)
+        let at = crate::util::time::unix_now();
+        let repo = req
+            .uri()
+            .path()
+            .trim_start_matches('/')
+            .split_once("/resolve/")
+            .map_or("unknown", |(repo, _)| repo);
+        let audit = crate::http::utility_audit::UtilityAudit::new(
+            Arc::clone(&self.persistence),
+            format!("tokenizer:{repo}:{at}"),
+            &self.snapshot.load().log_settings,
+        );
+        let url = req.uri().to_string();
+        let method = req.method().to_string();
+        let started = std::time::Instant::now();
+        let result = self.inner.send(req).await;
+        if let Some(audit) = audit {
+            audit
+                .record(crate::http::utility_audit::UtilityAuditCall {
+                    at,
+                    url: &url,
+                    method: &method,
+                    status: result
+                        .as_ref()
+                        .map_or(0, |response| i64::from(response.status().as_u16())),
+                    latency_ms: started.elapsed().as_millis().min(i64::MAX as u128) as i64,
+                    body: None,
+                    force_query_redaction: false,
+                })
+                .await;
+        }
+        Ok(result?)
     }
 }
 
@@ -120,7 +155,11 @@ impl AppState {
         #[cfg(feature = "count-local")]
         let tokenizers = Arc::new(crate::tokenize::TokenizerRegistry::new(
             Arc::new(TokenizerStoreAdapter(Arc::clone(&persistence))),
-            Arc::new(TokenizerClientAdapter(Arc::clone(&upstream))),
+            Arc::new(TokenizerClientAdapter {
+                inner: Arc::clone(&upstream),
+                persistence: Arc::clone(&persistence),
+                snapshot: Arc::clone(&snapshot),
+            }),
         ));
         #[cfg(all(not(target_arch = "wasm32"), feature = "upstream-wreq"))]
         let client_pool = Arc::new(crate::http::client::ClientPool::new(Arc::clone(&upstream)));
@@ -166,6 +205,7 @@ impl AppState {
         let resolve_client = |secret: &serde_json::Value| {
             self.upstream_client_for_refresh(channel, credential, provider, secret)
         };
+        let log_settings = self.cp().log_settings.clone();
         self.refresh
             .ensure_fresh(
                 crate::credentials::refresh::RefreshDeps {
@@ -174,6 +214,9 @@ impl AppState {
                     cipher: self.cipher.as_ref(),
                     provider_settings: &provider.settings_json,
                     resolve_client: &resolve_client,
+                    enable_upstream_log: log_settings.enable_upstream_log,
+                    enable_upstream_log_body: log_settings.enable_upstream_log_body,
+                    disable_log_redaction: log_settings.disable_log_redaction,
                 },
                 channel,
                 credential,

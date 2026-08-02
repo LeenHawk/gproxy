@@ -63,6 +63,13 @@ async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Result<u64,
         .state
         .upstream_client_for_credential(&ctx.channel, &ctx.credential, &ctx.provider)
         .map_err(|_| "client_resolve")?;
+    let client = std::sync::Arc::new(crate::pipeline::capture::CapturingClient::new(
+        client,
+        ctx.state.clone(),
+        ctx.request_id.clone(),
+        ctx.provider.id,
+        ctx.credential.id,
+    ));
     let resp = tokio::time::timeout(COUNT_TIMEOUT, prepared.send_buffered(client))
         .await
         .map_err(|_| "timeout")?

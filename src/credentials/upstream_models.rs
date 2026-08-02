@@ -207,8 +207,10 @@ async fn fetch_models_for_credential(
             Ok(c) => c,
             Err(e) => return CredentialPull::Next(ModelsError::Upstream(e.to_string())),
         };
+    let audit = super::usage::audit_sequence(state, &cand.credential, "models");
+    let client = audit.wrap_client(client);
 
-    match fetch_models_with(
+    let outcome = match fetch_models_with(
         channel,
         family,
         &secret,
@@ -267,7 +269,13 @@ async fn fetch_models_for_credential(
             }
         }
         result => finish_http_result(state, cand, result),
-    }
+    };
+    let error = match &outcome {
+        CredentialPull::Success(_) => None,
+        CredentialPull::Next(error) => Some(error.to_string()),
+    };
+    audit.persist(error.as_deref()).await;
+    outcome
 }
 
 fn finish_http_result(

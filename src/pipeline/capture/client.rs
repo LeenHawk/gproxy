@@ -6,10 +6,10 @@ use bytes::Bytes;
 #[cfg(not(target_arch = "wasm32"))]
 use http::{HeaderMap, StatusCode};
 
-use super::redaction::body_string;
 use super::{UpstreamWire, insert_upstream_raw};
 use crate::app::AppState;
 use crate::http::client::{ClientError, UpstreamClient};
+use crate::http::redaction::body_string;
 use crate::util::time::unix_now_ms;
 
 #[cfg(not(target_arch = "wasm32"))]

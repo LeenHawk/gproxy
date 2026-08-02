@@ -51,6 +51,9 @@ pub struct RefreshDeps<'a> {
     pub cipher: &'a dyn SecretCipher,
     pub provider_settings: &'a Value,
     pub resolve_client: &'a RefreshClientResolver<'a>,
+    pub enable_upstream_log: bool,
+    pub enable_upstream_log_body: bool,
+    pub disable_log_redaction: bool,
 }
 
 /// Serialises refreshes per credential id so concurrent requests cannot rotate
@@ -297,7 +300,16 @@ async fn refresh_and_persist(
 
     let client = (deps.resolve_client)(&current.secret)
         .map_err(|e| ChannelError::Build(format!("resolve refresh client: {e}")))?;
-    let fresh = channel
+    let audit = super::audit::UpstreamAuditSequence::new(
+        "refresh",
+        deps.enable_upstream_log,
+        deps.persistence,
+        credential,
+        deps.enable_upstream_log_body,
+        deps.disable_log_redaction,
+    );
+    let client = audit.wrap_client(client);
+    let refresh_result = channel
         .refresh(
             &client,
             RefreshCtx {
@@ -305,7 +317,10 @@ async fn refresh_and_persist(
                 provider_settings: deps.provider_settings,
             },
         )
-        .await?;
+        .await;
+    let error = refresh_result.as_ref().err().map(ToString::to_string);
+    audit.persist(error.as_deref()).await;
+    let fresh = refresh_result?;
 
     let sealed = deps
         .cipher

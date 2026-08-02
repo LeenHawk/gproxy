@@ -9,6 +9,8 @@ use std::path::PathBuf;
 
 use bytes::Bytes;
 
+use crate::http::utility_audit::{AuditBody, UtilityAuditCall};
+
 use super::manifest::{Artifact, Manifest};
 use super::{Channel, UpdateContext, UpdateError};
 
@@ -33,10 +35,12 @@ fn manifest_url(repo: &str, channel: Channel) -> String {
 /// callers can treat "no update info" as a benign state rather than a 500.
 pub async fn fetch_manifest(ctx: &UpdateContext) -> Result<Manifest, UpdateError> {
     let url = manifest_url(&ctx.repo, ctx.channel);
-    let body = http_get(ctx, &url).await.map_err(|e| match e {
-        HttpGetError::NotFound => UpdateError::ManifestNotFound,
-        HttpGetError::Other(m) => UpdateError::Manifest(m),
-    })?;
+    let body = http_get(ctx, &url, DownloadKind::Manifest)
+        .await
+        .map_err(|e| match e {
+            HttpGetError::NotFound => UpdateError::ManifestNotFound,
+            HttpGetError::Other(m) => UpdateError::Manifest(m),
+        })?;
     let text =
         String::from_utf8(body.to_vec()).map_err(|e| UpdateError::Manifest(e.to_string()))?;
     Manifest::parse(&text).map_err(|e| UpdateError::Manifest(e.to_string()))
@@ -60,7 +64,7 @@ pub async fn download_artifact(
         .unwrap_or_else(|| "unverified".to_string());
     let staged = dir.join(format!("{prefix}.tmp"));
 
-    let body = http_get(ctx, &artifact.url)
+    let body = http_get(ctx, &artifact.url, DownloadKind::Artifact)
         .await
         .map_err(|e| UpdateError::Download(e.to_string()))?;
     std::fs::write(&staged, &body)?;
@@ -89,11 +93,21 @@ impl std::fmt::Display for HttpGetError {
 /// `objects.githubusercontent.com/...`, ~2-3 hops).
 const MAX_REDIRECTS: usize = 6;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DownloadKind {
+    Manifest,
+    Artifact,
+}
+
 /// GET a URL via the upstream client, **following redirects** (the shared proxy
 /// client does not follow them — and must not — so self-update follows them
 /// here). A 404 at the final hop maps to [`HttpGetError::NotFound`]; any other
 /// non-2xx (or transport error) maps to [`HttpGetError::Other`].
-async fn http_get(ctx: &UpdateContext, url: &str) -> Result<Bytes, HttpGetError> {
+async fn http_get(
+    ctx: &UpdateContext,
+    url: &str,
+    kind: DownloadKind,
+) -> Result<Bytes, HttpGetError> {
     let mut current = url.to_string();
     for _ in 0..=MAX_REDIRECTS {
         let req = http::Request::builder()
@@ -103,13 +117,53 @@ async fn http_get(ctx: &UpdateContext, url: &str) -> Result<Bytes, HttpGetError>
             .body(Bytes::new())
             .map_err(|e| HttpGetError::Other(e.to_string()))?;
 
-        let resp = ctx
-            .client
-            .send(req)
-            .await
-            .map_err(|e| HttpGetError::Other(format!("GET {current}: {e}")))?;
+        let at = crate::util::time::unix_now();
+        let started = std::time::Instant::now();
+        let resp = match ctx.client.send(req).await {
+            Ok(resp) => resp,
+            Err(error) => {
+                let latency_ms = elapsed_ms(started);
+                let message = format!("GET {current}: {error}");
+                audit_call(
+                    ctx,
+                    kind,
+                    DownloadAuditCall {
+                        at,
+                        url: &current,
+                        status: 0,
+                        latency_ms,
+                        response_body: None,
+                        error: Some(&message),
+                    },
+                )
+                .await;
+                return Err(HttpGetError::Other(message));
+            }
+        };
 
         let status = resp.status();
+        let latency_ms = elapsed_ms(started);
+        let response_body = (kind == DownloadKind::Manifest).then(|| resp.body().as_ref());
+        audit_call(
+            ctx,
+            kind,
+            DownloadAuditCall {
+                at,
+                url: &current,
+                status: status.as_u16(),
+                latency_ms,
+                response_body,
+                error: None,
+            },
+        )
+        .await;
+        if kind == DownloadKind::Artifact {
+            tracing::info!(
+                bytes = resp.body().len(),
+                status = status.as_u16(),
+                "self-update artifact HTTP response received"
+            );
+        }
         if status.is_redirection() {
             let location = resp
                 .headers()
@@ -140,6 +194,44 @@ async fn http_get(ctx: &UpdateContext, url: &str) -> Result<Bytes, HttpGetError>
     Err(HttpGetError::Other(format!(
         "too many redirects (>{MAX_REDIRECTS}) fetching {url}"
     )))
+}
+
+struct DownloadAuditCall<'a> {
+    at: i64,
+    url: &'a str,
+    status: u16,
+    latency_ms: i64,
+    response_body: Option<&'a [u8]>,
+    error: Option<&'a str>,
+}
+
+async fn audit_call(ctx: &UpdateContext, kind: DownloadKind, call: DownloadAuditCall<'_>) {
+    let Some(audit) = &ctx.audit else {
+        return;
+    };
+    let body = if kind == DownloadKind::Artifact {
+        None
+    } else if let Some(body) = call.response_body {
+        Some(AuditBody::Response(body))
+    } else {
+        call.error.map(AuditBody::Error)
+    };
+    audit
+        .inner
+        .record(UtilityAuditCall {
+            at: call.at,
+            url: call.url,
+            method: "GET",
+            status: i64::from(call.status),
+            latency_ms: call.latency_ms,
+            body,
+            force_query_redaction: kind == DownloadKind::Artifact,
+        })
+        .await;
+}
+
+fn elapsed_ms(started: std::time::Instant) -> i64 {
+    started.elapsed().as_millis().min(i64::MAX as u128) as i64
 }
 
 /// Resolve a `Location` value against the URL it came from. Absolute URLs are
