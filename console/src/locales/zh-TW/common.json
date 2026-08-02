@@ -97,7 +97,8 @@
   },
   "json": {
     "invalid": "JSON 無效",
-    "format": "格式化"
+    "format": "格式化",
+    "truncated": "內容已截斷，僅顯示前 {{count}} 個字元"
   },
   "batch": {
     "select": "批次",

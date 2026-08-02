@@ -65,7 +65,7 @@ export interface DownstreamRequest {
   path: string;
   query: string | null;
   status: number;
-  headers_json: unknown;
+  headers_json: unknown | null;
   body: string | null;
   response_body: string | null;
 }

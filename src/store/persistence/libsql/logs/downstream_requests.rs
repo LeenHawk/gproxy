@@ -10,6 +10,8 @@ use crate::store::persistence::{LogQuery, PageQuery, PageResult};
 
 const COLS: &str = "id, request_id, at, method, path, query, status, headers_json, body, \
      created_at, updated_at, response_body";
+const BODY_FREE_COLS: &str = "id, request_id, at, method, path, query, status, \
+     NULL AS headers_json, NULL AS body, created_at, updated_at, NULL AS response_body";
 
 fn decode(row: &Row) -> anyhow::Result<DownstreamRequest> {
     Ok(DownstreamRequest {
@@ -112,7 +114,10 @@ pub async fn update_response_body(
 /// Filtered rows across all requests, `id` DESC, keyset cursor `before_id`.
 pub async fn query(client: &LibsqlClient, q: &LogQuery) -> anyhow::Result<Vec<DownstreamRequest>> {
     let (where_sql, mut args) = filters(q, true);
-    let mut sql = format!("SELECT {COLS} FROM downstream_requests{where_sql}");
+    let mut sql = format!(
+        "SELECT {} FROM downstream_requests{where_sql}",
+        selected_columns(q.include_bodies)
+    );
     sql.push_str(" ORDER BY id DESC LIMIT ?");
     args.push(arg_integer(q.limit as i64));
     run_query(client, &sql, &args)
@@ -138,7 +143,8 @@ pub async fn query_page(
     let total = u64::try_from(col_i64(&count, 0)?)?;
 
     let sql = format!(
-        "SELECT {COLS} FROM downstream_requests{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?"
+        "SELECT {} FROM downstream_requests{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?",
+        selected_columns(q.include_bodies)
     );
     args.push(arg_integer(i64::try_from(page.limit)?));
     args.push(arg_integer(i64::try_from(page.offset)?));
@@ -148,6 +154,10 @@ pub async fn query_page(
         .map(decode)
         .collect::<anyhow::Result<Vec<_>>>()?;
     Ok(PageResult { items, total })
+}
+
+fn selected_columns(include_bodies: bool) -> &'static str {
+    if include_bodies { COLS } else { BODY_FREE_COLS }
 }
 
 fn filters(q: &LogQuery, include_cursor: bool) -> (String, Vec<serde_json::Value>) {
@@ -203,5 +213,14 @@ mod tests {
         assert!(sql.contains("at >= ?"));
         assert!(sql.contains("u.user_id = ?"));
         assert_eq!(args.len(), 2);
+        assert_eq!(
+            (selected_columns(false), selected_columns(true)),
+            (
+                "id, request_id, at, method, path, query, status, \
+                 NULL AS headers_json, NULL AS body, created_at, updated_at, NULL AS response_body",
+                "id, request_id, at, method, path, query, status, headers_json, body, \
+                 created_at, updated_at, response_body"
+            )
+        );
     }
 }

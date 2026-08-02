@@ -97,7 +97,8 @@
   },
   "json": {
     "invalid": "JSON 无效",
-    "format": "格式化"
+    "format": "格式化",
+    "truncated": "内容已截断，仅显示前 {{count}} 个字符"
   },
   "batch": {
     "select": "批量",

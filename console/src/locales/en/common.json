@@ -97,7 +97,8 @@
   },
   "json": {
     "invalid": "Invalid JSON",
-    "format": "Format"
+    "format": "Format",
+    "truncated": "Truncated; showing the first {{count}} characters"
   },
   "batch": {
     "select": "Batch",
