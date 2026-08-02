@@ -34,18 +34,54 @@ fn claudecode() -> Arc<dyn Channel> {
 
 #[tokio::test]
 async fn fetch_with_parses_real_channel_response() {
-    let client: Arc<dyn UpstreamClient> = Arc::new(CannedUpstream {
+    let raw_client: Arc<dyn UpstreamClient> = Arc::new(CannedUpstream {
         status: StatusCode::OK,
         body: br#"{"five_hour":{"utilization":27,"resets_at":"2026-06-12T16:20:00+00:00"},
                   "seven_day":{"utilization":95,"resets_at":"2026-06-16T08:00:00+00:00"}}"#,
     });
+    let db = crate::store::persistence::DbPersistence::connect("sqlite::memory:")
+        .await
+        .unwrap();
+    let credential = crate::store::persistence::records::Credential {
+        id: 7,
+        provider_id: 9,
+        name: None,
+        kind: "oauth".into(),
+        secret_json: json!({}),
+        weight: 1,
+        rpm_limit: None,
+        tpm_limit: None,
+        proxy_url: None,
+        tls_fingerprint: None,
+        enabled: true,
+        created_at: 0,
+        updated_at: 0,
+    };
+    let audit = crate::credentials::audit::UpstreamAuditSequence::new(
+        "usage",
+        true,
+        &db,
+        &credential,
+        true,
+        false,
+    );
+    let client = audit.wrap_client(raw_client);
     let secret = json!({ "access_token": "tok" });
     let snap = fetch_with(&claudecode(), &secret, &json!({}), &client)
         .await
         .expect("snapshot");
+    audit.persist(None).await;
     let names: Vec<&str> = snap.windows.iter().map(|w| w.name.as_str()).collect();
     assert_eq!(names, ["five_hour", "seven_day"]);
     assert_eq!(snap.windows[1].used_percent, Some(95.0));
+    let rows = crate::store::persistence::PersistenceBackend::list_upstream_requests(
+        &db,
+        audit.request_id(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].request_id.starts_with("usage:7:"));
 }
 
 #[tokio::test]

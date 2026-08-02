@@ -219,6 +219,27 @@ pub struct UpdateContext {
     pub data_dir: PathBuf,
     /// Proxy-aware HTTP transport (reuses the upstream client).
     pub client: Arc<dyn UpstreamClient>,
+    /// Optional server-owned audit sink. Standalone CLI updates leave this off.
+    pub audit: Option<UpdateAudit>,
+}
+
+/// Narrow persistence/settings handle for auditing an admin update operation.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone)]
+pub struct UpdateAudit {
+    pub(crate) inner: crate::http::utility_audit::UtilityAudit,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl UpdateAudit {
+    pub fn new(
+        persistence: Arc<dyn crate::store::persistence::PersistenceBackend>,
+        request_id: String,
+        settings: &crate::app::snapshot::LogSettings,
+    ) -> Option<Self> {
+        crate::http::utility_audit::UtilityAudit::new(persistence, request_id, settings)
+            .map(|inner| Self { inner })
+    }
 }
 
 /// Check the configured channel for an available update (§19.4). Pure decision

@@ -10,9 +10,12 @@ pub(crate) mod egress;
 pub(crate) mod ops;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) mod realtime_ws;
+pub(crate) mod redaction;
 pub(crate) mod responses_ws;
 pub mod server;
 pub(crate) mod telemetry;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod utility_audit;
 
 // Cross-target admin/portal business implementation and route dispatcher.
 // Native axum and the wasm edge entry are both framework adapters around it.

@@ -106,6 +106,8 @@ pub async fn fetch_usage(
             return Err(e);
         }
     };
+    let audit = audit_sequence(state, &credential, "usage");
+    let client = audit.wrap_client(client);
     let mut result = fetch_with(&channel, &secret, &provider.settings_json, &client).await;
     if result
         .as_ref()
@@ -120,12 +122,19 @@ pub async fn fetch_usage(
                 result = fetch_with(&channel, &secret, &provider.settings_json, &client).await;
             }
             Err(e) => {
+                let error = e.to_string();
+                audit.persist(Some(&error)).await;
                 let disposition = refresh_failure_disposition(&e);
                 record(state, &provider, &credential, &disposition);
                 return Err(UsageError::Channel(e));
             }
         }
     }
+    let error = result
+        .as_ref()
+        .err()
+        .map(|failure| failure.error.to_string());
+    audit.persist(error.as_deref()).await;
     finish(state, &provider, &credential, "fetch_usage", result)
 }
 
@@ -202,6 +211,8 @@ pub async fn consume_rate_limit_reset_credit(
             return Err(e);
         }
     };
+    let audit = audit_sequence(state, &credential, "usage");
+    let client = audit.wrap_client(client);
     let mut result = consume_reset_credit_with(
         &channel,
         &secret,
@@ -230,6 +241,8 @@ pub async fn consume_rate_limit_reset_credit(
                 .await;
             }
             Err(e) => {
+                let error = e.to_string();
+                audit.persist(Some(&error)).await;
                 record(
                     state,
                     &provider,
@@ -240,6 +253,11 @@ pub async fn consume_rate_limit_reset_credit(
             }
         }
     }
+    let error = result
+        .as_ref()
+        .err()
+        .map(|failure| failure.error.to_string());
+    audit.persist(error.as_deref()).await;
     finish(state, &provider, &credential, "reset_credit", result)
 }
 
@@ -314,4 +332,20 @@ pub(crate) fn resolve_client(
     state
         .upstream_client_for_credential(channel, credential, provider)
         .map_err(|e| UsageError::Upstream(format!("resolve usage client: {e}")))
+}
+
+pub(super) fn audit_sequence<'a>(
+    state: &'a AppState,
+    credential: &Credential,
+    purpose: &str,
+) -> super::audit::UpstreamAuditSequence<'a> {
+    let settings = state.cp().log_settings.clone();
+    super::audit::UpstreamAuditSequence::new(
+        purpose,
+        settings.enable_upstream_log,
+        state.persistence.as_ref(),
+        credential,
+        settings.enable_upstream_log_body,
+        settings.disable_log_redaction,
+    )
 }

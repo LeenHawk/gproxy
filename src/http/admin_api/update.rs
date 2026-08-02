@@ -74,13 +74,14 @@ fn edge_unavailable() -> Result<Resp, ApiError> {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
+    use std::sync::Arc;
     use std::time::Duration;
 
     use serde::Deserialize;
 
     use crate::app::update_status::UpdateStatus;
     use crate::selfupdate::{
-        self, ApplyOptions, Channel, DEFAULT_REPO, Restart, UpdateContext, UpdateError,
+        self, ApplyOptions, Channel, DEFAULT_REPO, Restart, UpdateAudit, UpdateContext, UpdateError,
     };
 
     use super::*;
@@ -112,6 +113,15 @@ mod native {
             channel,
             data_dir: state.config.update_data_dir.clone(),
             client,
+            audit: UpdateAudit::new(
+                Arc::clone(&state.persistence),
+                format!(
+                    "selfupdate:{}:{}",
+                    crate::util::time::unix_now(),
+                    crate::util::rand::uuid_v4()
+                ),
+                &state.cp().log_settings,
+            ),
         })
     }
 

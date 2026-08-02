@@ -6,6 +6,7 @@ use axum::extract::ws::{Message, WebSocket};
 
 use crate::http::client::{ConduitFrame, ConduitSocket};
 use crate::pipeline::realtime::RealtimeSession;
+use crate::usage::Ended;
 
 pub(crate) fn is_path(path: &str) -> bool {
     matches!(path, "/v1/realtime" | "/v1/live") || scoped_path(path)
@@ -34,7 +35,11 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                     Ok(Flow::Continue) => {}
                     Ok(Flow::Closed) => {
                         let _ = session.socket.close().await;
-                        break "downstream_closed";
+                        break ("downstream_closed", Ended::Complete);
+                    }
+                    Ok(Flow::Interrupted) => {
+                        let _ = session.socket.close().await;
+                        break ("downstream_eof", Ended::Interrupted);
                     }
                     Err(error) => {
                         tracing::debug!(
@@ -44,7 +49,7 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                         );
                         let _ = session.socket.close().await;
                         let _ = downstream.send(Message::Close(None)).await;
-                        break "downstream_error";
+                        break ("downstream_error", Ended::Interrupted);
                     }
                 }
             }
@@ -53,7 +58,11 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                     Ok(Flow::Continue) => {}
                     Ok(Flow::Closed) => {
                         let _ = downstream.send(Message::Close(None)).await;
-                        break "upstream_closed";
+                        break ("upstream_closed", Ended::Complete);
+                    }
+                    Ok(Flow::Interrupted) => {
+                        let _ = downstream.send(Message::Close(None)).await;
+                        break ("upstream_eof", Ended::Interrupted);
                     }
                     Err(error) => {
                         tracing::debug!(
@@ -63,26 +72,29 @@ pub(crate) async fn relay(mut downstream: WebSocket, mut session: RealtimeSessio
                         );
                         let _ = session.socket.close().await;
                         let _ = downstream.send(Message::Close(None)).await;
-                        break "upstream_error";
+                        break ("upstream_error", Ended::Interrupted);
                     }
                 }
             }
         }
     };
+    let duration_ms = i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX);
     tracing::info!(
         request_id = %session.request_id,
         provider = %session.provider,
         channel = %session.channel,
         upstream_model = %session.model,
-        duration_ms = started.elapsed().as_millis() as u64,
-        ended = terminal,
+        duration_ms,
+        ended = terminal.0,
         "realtime session ended"
     );
+    session.record_usage(duration_ms, terminal.1).await;
 }
 
 enum Flow {
     Continue,
     Closed,
+    Interrupted,
 }
 
 async fn forward_downstream(
@@ -100,7 +112,8 @@ async fn forward_downstream(
             .await
             .map(|_| Flow::Continue)
             .map_err(|error| error.to_string()),
-        Some(Ok(Message::Close(_))) | None => Ok(Flow::Closed),
+        Some(Ok(Message::Close(_))) => Ok(Flow::Closed),
+        None => Ok(Flow::Interrupted),
         Some(Ok(Message::Ping(_) | Message::Pong(_))) => Ok(Flow::Continue),
         Some(Err(error)) => Err(error.to_string()),
     }
@@ -121,7 +134,8 @@ async fn forward_upstream(
             .await
             .map(|_| Flow::Continue)
             .map_err(|error| error.to_string()),
-        Some(Ok(ConduitFrame::Close)) | None => Ok(Flow::Closed),
+        Some(Ok(ConduitFrame::Close)) => Ok(Flow::Closed),
+        None => Ok(Flow::Interrupted),
         Some(Err(error)) => Err(error.to_string()),
     }
 }

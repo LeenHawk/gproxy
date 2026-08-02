@@ -85,12 +85,14 @@ async fn autostart_set(
 #[cfg(not(target_arch = "wasm32"))]
 mod connectivity {
     use std::net::IpAddr;
+    use std::sync::Arc;
     use std::time::{Duration, Instant};
 
     use futures_util::StreamExt as _;
     use serde::{Deserialize, Serialize};
 
     use crate::http::client::ClientError;
+    use crate::http::utility_audit::{AuditBody, UtilityAudit, UtilityAuditCall};
 
     use super::*;
 
@@ -172,9 +174,18 @@ mod connectivity {
                 ));
             }
         };
+        let audit = UtilityAudit::new(
+            Arc::clone(&state.persistence),
+            format!(
+                "conncheck:{}:{}",
+                crate::util::time::unix_now(),
+                crate::util::rand::uuid_v4()
+            ),
+            &state.cp().log_settings,
+        );
         let (ipv4_result, ipv6_result) = tokio::join!(
-            probe(client.as_ref(), TRACE_V4_URL, false),
-            probe(client.as_ref(), TRACE_V6_URL, true),
+            probe(client.as_ref(), TRACE_V4_URL, false, audit.as_ref()),
+            probe(client.as_ref(), TRACE_V6_URL, true, audit.as_ref()),
         );
         let latency = ipv4_result
             .as_ref()
@@ -214,6 +225,7 @@ mod connectivity {
         client: &dyn crate::http::client::UpstreamClient,
         url: &'static str,
         expect_ipv6: bool,
+        audit: Option<&UtilityAudit>,
     ) -> Result<ProbeResponse, ProbeFailure> {
         let request = http::Request::builder()
             .method(Method::GET)
@@ -221,6 +233,7 @@ mod connectivity {
             .header(http::header::ACCEPT, "text/plain")
             .body(Bytes::new())
             .expect("Cloudflare trace URL is valid");
+        let at = crate::util::time::unix_now();
         let started = Instant::now();
         let probe = async {
             let (status, _, mut stream) = client.send_streaming(request).await?;
@@ -237,11 +250,13 @@ mod connectivity {
         };
         let (status, body) = match tokio::time::timeout(PROBE_TIMEOUT, probe).await {
             Err(_) => {
-                return Err(ProbeFailure {
+                let failure = ProbeFailure {
                     latency_ms: elapsed(started),
                     code: "timeout",
                     message: "connectivity test timed out".into(),
-                });
+                };
+                record_probe(audit, at, url, 0, &failure).await;
+                return Err(failure);
             }
             Ok(Err(error)) => {
                 let code = if matches!(error, ClientError::Config(_)) {
@@ -249,41 +264,56 @@ mod connectivity {
                 } else {
                     "transport"
                 };
-                return Err(ProbeFailure {
+                let failure = ProbeFailure {
                     latency_ms: elapsed(started),
                     code,
                     message: client_error(&error),
-                });
+                };
+                record_probe(audit, at, url, 0, &failure).await;
+                return Err(failure);
             }
             Ok(Ok(value)) => value,
         };
         let latency = elapsed(started);
-        if !status.is_success() {
+        let result = if !status.is_success() {
             let code = if status == http::StatusCode::PROXY_AUTHENTICATION_REQUIRED {
                 "proxy_auth"
             } else {
                 "http_status"
             };
-            return Err(ProbeFailure {
+            Err(ProbeFailure {
                 latency_ms: latency,
                 code,
                 message: format!("probe returned HTTP {}", status.as_u16()),
-            });
-        }
-        let trace = parse_trace(&body);
-        let Some(ip_text) = trace.ip else {
-            return Err(ProbeFailure {
-                latency_ms: latency,
-                code: "invalid_response",
-                message: "probe response did not contain a valid egress IP".into(),
-            });
+            })
+        } else {
+            validate_trace(&body, expect_ipv6, latency)
         };
+        let audit_body = match &result {
+            Ok(_) => Some(AuditBody::Response(body.as_slice())),
+            Err(error) => Some(AuditBody::Error(&error.message)),
+        };
+        record_call(audit, at, url, status.as_u16(), latency, audit_body).await;
+        result
+    }
+
+    fn validate_trace(
+        body: &[u8],
+        expect_ipv6: bool,
+        latency_ms: u64,
+    ) -> Result<ProbeResponse, ProbeFailure> {
+        let trace = parse_trace(body);
+        let ip_text = trace.ip.ok_or_else(|| ProbeFailure {
+            latency_ms,
+            code: "invalid_response",
+            message: "probe response did not contain a valid egress IP".into(),
+        })?;
         let ip: IpAddr = ip_text
             .parse()
             .expect("parse_trace only returns validated IP addresses");
         if ip.is_ipv6() != expect_ipv6 {
             return Err(ProbeFailure {
-                latency_ms: latency,
+                latency_ms,
                 code: "invalid_response",
                 message: "probe returned the wrong IP address family".into(),
             });
@@ -292,8 +322,49 @@ mod connectivity {
             ip: ip.to_string(),
             colo: trace.colo,
             location: trace.location,
-            latency_ms: latency,
+            latency_ms,
         })
+    }
+
+    async fn record_probe(
+        audit: Option<&UtilityAudit>,
+        at: i64,
+        url: &str,
+        status: u16,
+        failure: &ProbeFailure,
+    ) {
+        record_call(
+            audit,
+            at,
+            url,
+            status,
+            failure.latency_ms,
+            Some(AuditBody::Error(&failure.message)),
+        )
+        .await;
+    }
+
+    async fn record_call(
+        audit: Option<&UtilityAudit>,
+        at: i64,
+        url: &str,
+        status: u16,
+        latency_ms: u64,
+        body: Option<AuditBody<'_>>,
+    ) {
+        if let Some(audit) = audit {
+            audit
+                .record(UtilityAuditCall {
+                    at,
+                    url,
+                    method: "GET",
+                    status: i64::from(status),
+                    latency_ms: latency_ms.min(i64::MAX as u64) as i64,
+                    body,
+                    force_query_redaction: true,
+                })
+                .await;
+        }
     }
 
     fn resolve_proxy(

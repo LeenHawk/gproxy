@@ -1,5 +1,8 @@
 //! Admission and upstream handshake failover for Realtime passthrough sessions.
 
+mod handshake_audit;
+mod usage;
+
 use bytes::Bytes;
 use http::Method;
 
@@ -18,6 +21,7 @@ pub(crate) struct RealtimeSession {
     pub channel: String,
     pub model: String,
     pub request_id: String,
+    usage: usage::UsageContext,
 }
 
 pub(crate) async fn open(
@@ -129,12 +133,14 @@ async fn open_candidates(
                     &crate::channel::Disposition::Success,
                     None,
                 );
+                let usage = usage::UsageContext::capture(state, ctx, &candidate);
                 return Ok(RealtimeSession {
                     socket,
                     provider: candidate.provider.name.clone(),
                     channel: channel_id.to_owned(),
                     model: candidate.upstream_model_id.clone(),
                     request_id: ctx.request_id.clone(),
+                    usage,
                 });
             }
             Err(error) => {
@@ -181,11 +187,23 @@ async fn open_candidate(
             ));
         }
     };
-    let client = state
-        .upstream_client_for_credential(channel, &candidate.credential, &candidate.provider)
-        .map_err(|error| PipelineError::Transport(error.to_string()))?;
-    client
-        .open_websocket(request)
-        .await
-        .map_err(|error| PipelineError::Transport(error.to_string()))
+    let audit = handshake_audit::HandshakeAudit::capture(state, ctx, candidate, &request);
+    let (result, latency_ms) = match state.upstream_client_for_credential(
+        channel,
+        &candidate.credential,
+        &candidate.provider,
+    ) {
+        Ok(client) => {
+            let started = std::time::Instant::now();
+            let result = client.open_websocket(request).await;
+            let latency_ms = started.elapsed().as_millis().min(i64::MAX as u128) as i64;
+            (result, latency_ms)
+        }
+        Err(error) => (Err(error), 0),
+    };
+    let result = match audit {
+        Some(audit) => audit.record(state, result, latency_ms).await,
+        None => result,
+    };
+    result.map_err(|error| PipelineError::Transport(error.to_string()))
 }

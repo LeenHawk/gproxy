@@ -8,7 +8,11 @@
 use bytes::Bytes;
 use http::Method;
 
-use crate::admin::{guard::guard_admin, invalidate, login};
+use super::login_callback::parse_callback;
+use super::login_support::{audit_sequence, provider_settings, seal_create};
+use super::login_telemetry::{channel_error_kind, warn_flow_failure};
+use super::{Request, Resp, json_body, segments};
+use crate::admin::{guard::guard_admin, login};
 use crate::api::error::ApiError;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::api::login::CookieLoginRequest;
@@ -23,11 +27,6 @@ use crate::channel::oauth;
 use crate::channel::{
     AuthCodeExchangeCtx, AuthCodeStartCtx, ChannelError, DevicePoll, DevicePollCtx, DeviceStartCtx,
 };
-use crate::store::persistence::records::CredentialInput;
-
-use super::login_callback::parse_callback;
-use super::login_telemetry::{channel_error_kind, warn_flow_failure};
-use super::{Request, Resp, json_body, segments};
 
 /// Dispatch `/admin/login-flows/*`.
 ///
@@ -81,6 +80,9 @@ async fn start(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, 
     let login_client = state
         .upstream_client_for_provider_id(req.provider_id)
         .map_err(|_| ApiError::BadRequest("login client init failed".into()))?;
+    let audit = audit_sequence(state, &req.channel, req.provider_id, None);
+    let audit_request_id = audit.request_id().to_owned();
+    let login_client = audit.wrap_client(login_client);
     let started = channel
         .authcode_start(
             &login_client,
@@ -92,18 +94,24 @@ async fn start(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp, 
                 pkce_challenge: &challenge,
             },
         )
-        .await
+        .await;
+    let error = started.as_ref().err().map(ToString::to_string);
+    audit.persist(error.as_deref()).await;
+    let started = started
         .map_err(|e| ApiError::BadRequest(e.to_string()))?
         .ok_or_else(|| ApiError::BadRequest("channel has no authcode login".into()))?;
 
-    let sid = login::start(
+    let sid = login::start_session(
         state.cache.as_ref(),
-        req.channel,
-        req.provider_id,
-        verifier,
-        state_tok,
-        started.redirect_uri,
-        started.extra,
+        login::LoginSession {
+            channel: req.channel,
+            provider_id: req.provider_id,
+            verifier,
+            state: state_tok,
+            redirect_uri: started.redirect_uri,
+            extra: started.extra,
+            audit_request_id: Some(audit_request_id),
+        },
     )
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -172,6 +180,13 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
         })?;
     let provider_settings =
         provider_settings(state, Some(provider_id), &session.channel).map_err(|_| bad())?;
+    let audit = audit_sequence(
+        state,
+        &session.channel,
+        Some(provider_id),
+        session.audit_request_id.as_deref(),
+    );
+    let login_client = audit.wrap_client(login_client);
     let secret = channel
         .authcode_exchange(
             &login_client,
@@ -183,23 +198,25 @@ async fn complete(state: &AppState, parts: &Request, body: &Bytes) -> Result<Res
                 extra: session.extra.as_ref(),
             },
         )
-        .await
-        .map_err(|error| {
-            let error_kind = match &error {
-                ChannelError::MissingSetting(_) => "missing_setting",
-                ChannelError::InvalidCredential(_) => "invalid_credential",
-                ChannelError::Unsupported(_) => "unsupported",
-                ChannelError::Build(_) => "request_or_upstream",
-                ChannelError::Transient(_) => "transient",
-            };
-            tracing::warn!(
-                channel = %session.channel,
-                provider_id,
-                error_kind,
-                "authcode login exchange failed"
-            );
-            bad()
-        })?;
+        .await;
+    let error = secret.as_ref().err().map(ToString::to_string);
+    audit.persist(error.as_deref()).await;
+    let secret = secret.map_err(|error| {
+        let error_kind = match &error {
+            ChannelError::MissingSetting(_) => "missing_setting",
+            ChannelError::InvalidCredential(_) => "invalid_credential",
+            ChannelError::Unsupported(_) => "unsupported",
+            ChannelError::Build(_) => "request_or_upstream",
+            ChannelError::Transient(_) => "transient",
+        };
+        tracing::warn!(
+            channel = %session.channel,
+            provider_id,
+            error_kind,
+            "authcode login exchange failed"
+        );
+        bad()
+    })?;
 
     // The authorization code is consumed upstream at this point; prevent replay
     // even if local sealing or persistence subsequently fails.
@@ -235,6 +252,9 @@ async fn device_start(state: &AppState, parts: &Request, body: &Bytes) -> Result
     let login_client = state
         .upstream_client_for_provider_id(Some(req.provider_id))
         .map_err(|_| ApiError::BadRequest("device login client init failed".into()))?;
+    let audit = audit_sequence(state, &req.channel, Some(req.provider_id), None);
+    let audit_request_id = audit.request_id().to_owned();
+    let login_client = audit.wrap_client(login_client);
     let init = channel
         .device_start(
             &login_client,
@@ -243,17 +263,19 @@ async fn device_start(state: &AppState, parts: &Request, body: &Bytes) -> Result
                 params: &params,
             },
         )
-        .await
-        .map_err(|error| {
-            warn_flow_failure(
-                &req.channel,
-                req.provider_id,
-                "device_start",
-                0,
-                channel_error_kind(&error),
-            );
-            ApiError::BadRequest("channel has no device login".into())
-        })?;
+        .await;
+    let error = init.as_ref().err().map(ToString::to_string);
+    audit.persist(error.as_deref()).await;
+    let init = init.map_err(|error| {
+        warn_flow_failure(
+            &req.channel,
+            req.provider_id,
+            "device_start",
+            0,
+            channel_error_kind(&error),
+        );
+        ApiError::BadRequest("channel has no device login".into())
+    })?;
     let sid = login::device_start(
         state.cache.as_ref(),
         login::DeviceSession {
@@ -261,6 +283,7 @@ async fn device_start(state: &AppState, parts: &Request, body: &Bytes) -> Result
             device_code: init.device_code,
             provider_id: req.provider_id,
             name: req.name,
+            audit_request_id: Some(audit_request_id),
         },
     )
     .await
@@ -294,7 +317,14 @@ async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<
     let provider_settings =
         provider_settings(state, Some(session.provider_id), &session.channel).map_err(|_| bad())?;
 
-    match channel
+    let audit = audit_sequence(
+        state,
+        &session.channel,
+        Some(session.provider_id),
+        session.audit_request_id.as_deref(),
+    );
+    let login_client = audit.wrap_client(login_client);
+    let poll = channel
         .device_poll(
             &login_client,
             DevicePollCtx {
@@ -302,8 +332,10 @@ async fn device_poll(state: &AppState, parts: &Request, body: &Bytes) -> Result<
                 device_code: &session.device_code,
             },
         )
-        .await
-    {
+        .await;
+    let error = poll.as_ref().err().map(ToString::to_string);
+    audit.persist(error.as_deref()).await;
+    match poll {
         Ok(DevicePoll::Pending) => Resp::json(200, &serde_json::json!({ "status": "pending" })),
         Ok(DevicePoll::Ready(secret)) => {
             login::device_clear(state.cache.as_ref(), &req.login_session_id).await;
@@ -371,6 +403,8 @@ async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp,
         .map_err(|_| ApiError::BadRequest("cookie login client init failed".into()))?;
     let provider_settings = provider_settings(state, Some(req.provider_id), &req.channel)
         .map_err(|_| ApiError::BadRequest("cookie login provider does not match channel".into()))?;
+    let audit = audit_sequence(state, &req.channel, Some(req.provider_id), None);
+    let cookie_client = audit.wrap_client(cookie_client);
     let secret = channel
         .cookie_exchange(
             &cookie_client,
@@ -379,17 +413,19 @@ async fn cookie(state: &AppState, parts: &Request, body: &Bytes) -> Result<Resp,
                 cookie: &req.cookie,
             },
         )
-        .await
-        .map_err(|error| {
-            warn_flow_failure(
-                &req.channel,
-                req.provider_id,
-                "cookie_exchange",
-                0,
-                channel_error_kind(&error),
-            );
-            ApiError::BadRequest("cookie login failed".into())
-        })?;
+        .await;
+    let error = secret.as_ref().err().map(ToString::to_string);
+    audit.persist(error.as_deref()).await;
+    let secret = secret.map_err(|error| {
+        warn_flow_failure(
+            &req.channel,
+            req.provider_id,
+            "cookie_exchange",
+            0,
+            channel_error_kind(&error),
+        );
+        ApiError::BadRequest("cookie login failed".into())
+    })?;
     let sealed = state.cipher.seal(&secret).map_err(|_| {
         warn_flow_failure(&req.channel, req.provider_id, "seal", 0, "crypto");
         ApiError::BadRequest("cookie login failed".into())
@@ -406,68 +442,4 @@ async fn cookie(_state: &AppState, _parts: &Request, _body: &Bytes) -> Result<Re
     Err(ApiError::NotImplemented(
         "cookie login requires the native browser-TLS build; unavailable on edge".into(),
     ))
-}
-
-fn provider_settings(
-    state: &AppState,
-    provider_id: Option<i64>,
-    channel: &str,
-) -> Result<serde_json::Value, ApiError> {
-    let Some(provider_id) = provider_id else {
-        return Ok(serde_json::Value::Null);
-    };
-    let snapshot = state.cp();
-    let provider = snapshot
-        .providers_by_id
-        .get(&provider_id)
-        .ok_or_else(|| ApiError::NotFound("provider not found".into()))?;
-    if provider.channel != channel {
-        return Err(ApiError::BadRequest("provider channel mismatch".into()));
-    }
-    Ok(provider.settings_json.clone())
-}
-
-// ── Shared helpers ────────────────────────────────────────────────────────────
-
-/// Seal-then-persist: a pre-sealed secret + target provider/name → a redacted
-/// `CredentialView`. `kind="oauth"`, default weight, enabled; cache invalidated.
-async fn seal_create(
-    state: &AppState,
-    provider_id: i64,
-    channel: &str,
-    name: Option<String>,
-    sealed: serde_json::Value,
-) -> Result<crate::api::credentials::CredentialView, ApiError> {
-    let input = CredentialInput {
-        id: None,
-        provider_id,
-        name,
-        kind: "oauth".into(),
-        secret_json: sealed,
-        weight: 100,
-        rpm_limit: None,
-        tpm_limit: None,
-        proxy_url: None,
-        tls_fingerprint: None,
-        enabled: true,
-    };
-    let cred = state
-        .persistence
-        .upsert_credential(input)
-        .await
-        .map_err(|error| {
-            let safe = crate::http::telemetry::redact_url_query(&error.to_string()).into_owned();
-            tracing::warn!(
-                channel,
-                provider_id,
-                operation = "create_credential",
-                status = 0u16,
-                error_kind = "persistence",
-                error = %safe,
-                "login flow credential creation failed"
-            );
-            ApiError::Internal(error.to_string())
-        })?;
-    invalidate(state).await;
-    Ok(crate::api::credentials::CredentialView::from(cred))
 }
