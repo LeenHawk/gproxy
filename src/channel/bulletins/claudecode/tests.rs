@@ -443,7 +443,7 @@ fn shape_request_strips_sampling_and_context_1m_keeps_oauth() {
         "oauth-2025-04-20,context-1m-2025-08-07".parse().unwrap(),
     );
     let body = Bytes::from_static(
-        br#"{"model":"claude-opus-4-8","messages":[],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
+        br#"{"model":"claude-opus-4-8","messages":[{"role":"assistant","content":"prefix"}],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
     );
     let out = ClaudeCodeChannel.shape_request(body, &mut headers, &messages_ctx());
 
@@ -452,6 +452,7 @@ fn shape_request_strips_sampling_and_context_1m_keeps_oauth() {
     assert!(!map.contains_key("temperature"));
     assert!(!map.contains_key("top_p"));
     assert!(!map.contains_key("top_k"));
+    assert_eq!(value["messages"][0]["role"], "user");
     assert_eq!(headers.get("anthropic-beta").unwrap(), "oauth-2025-04-20");
 }
 

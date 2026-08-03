@@ -78,6 +78,7 @@ impl Channel for ClaudeCodeChannel {
         routing::table()
     }
 
+    /// Apply Claude request hygiene, including unsupported prefill coercion.
     fn shape_request(&self, body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
         request::shape(body, headers, ctx)
     }
