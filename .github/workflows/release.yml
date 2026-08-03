@@ -268,7 +268,18 @@ jobs:
       - name: Install UPX (windows)
         if: ${{ matrix.upx && matrix.os == 'windows' }}
         shell: pwsh
-        run: choco install upx -y
+        # choco can exit 0 even when the community feed times out and nothing
+        # gets installed (v2.2.4 died here on a 504) — verify upx actually
+        # resolves and retry before letting the job proceed.
+        run: |
+          foreach ($attempt in 1..3) {
+            choco install upx -y
+            if (Get-Command upx -ErrorAction SilentlyContinue) { exit 0 }
+            Write-Warning "upx unavailable after attempt $attempt; retrying in 30s"
+            Start-Sleep -Seconds 30
+          }
+          Write-Error "upx was not installed after 3 attempts"
+          exit 1
 
       - name: Install WiX Toolset (windows)
         if: ${{ matrix.os == 'windows' }}
