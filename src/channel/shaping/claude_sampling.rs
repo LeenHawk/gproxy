@@ -26,6 +26,9 @@ const SAMPLING_TOLERANT_MODELS: &[&str] = &[
     "claude-opus-4-0",
     "claude-opus-4-20", // dated: claude-opus-4-20250514
     // Legacy 3.x
+    // Claude 3 Opus is retired, but some accounts retain access; it tolerates
+    // sampling parameters because only Opus 4.7+ rejects them.
+    "claude-3-opus",
     "claude-3-haiku",
 ];
 
@@ -119,24 +122,23 @@ mod tests {
     // ── Other models: temperature present → strip top_p only ─────────
 
     #[test]
-    fn other_model_with_temperature_strips_top_p_only() {
-        let mut body = json!({
-            "model": "claude-sonnet-4-6",
-            "messages": [],
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "top_k": 40,
-        });
+    fn tolerant_models_with_temperature_strip_top_p_only() {
+        for model in ["claude-sonnet-4-6", "claude-3-opus-20240229"] {
+            let mut body = json!({
+                "model": model,
+                "messages": [],
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "top_k": 40,
+            });
 
-        strip_sampling_params(&mut body);
+            strip_sampling_params(&mut body);
 
-        let map = body.as_object().unwrap();
-        // temperature kept
-        assert!(map.contains_key("temperature"));
-        // top_p stripped
-        assert!(!map.contains_key("top_p"));
-        // top_k kept
-        assert!(map.contains_key("top_k"));
+            let map = body.as_object().unwrap();
+            assert!(map.contains_key("temperature"), "model: {model}");
+            assert!(!map.contains_key("top_p"), "model: {model}");
+            assert!(map.contains_key("top_k"), "model: {model}");
+        }
     }
 
     #[test]

@@ -7,7 +7,8 @@ use super::{auth, cch};
 use crate::channel::http_util::{allow_headers, build_request, join_url};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
-    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_prefill,
+    claude_sampling,
 };
 use crate::channel::{ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind};
@@ -35,6 +36,7 @@ pub(super) fn model_query(query: Option<&str>) -> String {
     }
 }
 
+/// Apply Claude body hygiene, including unsupported prefill coercion.
 pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) -> Bytes {
     if !is_claude_messages(ctx.op) {
         return body;
@@ -43,6 +45,7 @@ pub(super) fn shape(body: Bytes, headers: &mut http::HeaderMap, ctx: &ShapeCtx) 
     let body = shaping::with_json_body(body, |value| {
         claude_cache_control::sanitize_claude_body(value);
         claude_sampling::strip_sampling_params(value);
+        claude_prefill::coerce_trailing_prefill(value);
         if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
             claude_fallback::apply_claude_fallback(value, headers, fallbacks);
         }

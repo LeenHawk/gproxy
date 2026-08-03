@@ -9,17 +9,24 @@ use http::HeaderMap;
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
-    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling,
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_prefill,
+    claude_sampling,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
 
-/// Whether `op` targets the Claude-messages content-generation path (the only
-/// route that carries a Claude request body to shape).
+/// Whether `op` targets the native Claude Messages content-generation path.
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
         op.kind,
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    )
+}
+
+fn is_openai_chat(op: crate::protocol::OperationKey) -> bool {
+    matches!(
+        op.kind,
+        OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions)
     )
 }
 
@@ -101,10 +108,13 @@ impl Channel for ClaudeApiChannel {
         Ok(PreparedRequest::new(req))
     }
 
-    /// Claude request 整形: on the claude-messages content path, sanitize the
-    /// body (cache_control hygiene) + strip sampling params, and drop the
+    /// Claude request 整形: coerce unsupported trailing prefills, and on the
+    /// claude-messages path also apply cache/sampling hygiene and drop the
     /// `context-1m` beta token that upstream rejects.
     fn shape_request(&self, body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
+        if is_openai_chat(ctx.op) {
+            return shaping::with_json_body(body, claude_prefill::coerce_trailing_prefill);
+        }
         if !is_claude_messages(ctx.op) {
             return body;
         }
@@ -115,6 +125,7 @@ impl Channel for ClaudeApiChannel {
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
+            claude_prefill::coerce_trailing_prefill(v);
             if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
                 claude_fallback::apply_claude_fallback(v, headers, fallbacks);
             }
@@ -185,7 +196,7 @@ mod tests {
             HeaderValue::from_static("context-1m-2025-08-07,files-api-2025-04-14"),
         );
         let body = Bytes::from(
-            r#"{"model":"claude-opus-4-8","messages":[],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
+            r#"{"model":"claude-opus-4-8","messages":[{"role":"assistant","content":"prefix"}],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
         );
         let out = ClaudeApiChannel.shape_request(body, &mut headers, &messages_ctx());
 
@@ -194,6 +205,7 @@ mod tests {
         assert!(!map.contains_key("temperature"));
         assert!(!map.contains_key("top_p"));
         assert!(!map.contains_key("top_k"));
+        assert_eq!(v["messages"][0]["role"], "user");
         assert_eq!(
             headers.get("anthropic-beta").unwrap(),
             "files-api-2025-04-14"
@@ -201,13 +213,15 @@ mod tests {
     }
 
     #[test]
-    fn non_claude_messages_op_is_identity() {
+    fn openai_non_claude_model_is_preserved() {
         let mut headers = HeaderMap::new();
         headers.insert(
             "anthropic-beta",
             HeaderValue::from_static("context-1m-2025-08-07"),
         );
-        let body = Bytes::from(r#"{"model":"gpt","temperature":0.7}"#);
+        let body = Bytes::from(
+            r#"{"model":"gpt-4o","messages":[{"role":"assistant","content":"prefix"}],"temperature":0.7}"#,
+        );
         let ctx = ShapeCtx {
             op: OperationKey::content_generation(
                 Operation::GenerateContent,
@@ -218,12 +232,38 @@ mod tests {
             settings: &Value::Null,
         };
         let out = ClaudeApiChannel.shape_request(body.clone(), &mut headers, &ctx);
-        assert_eq!(out, body);
-        // header left untouched off-path
+        assert_eq!(
+            serde_json::from_slice::<Value>(&out).unwrap(),
+            serde_json::from_slice::<Value>(&body).unwrap()
+        );
+        // OpenAI-compatible shaping does not touch beta headers.
         assert_eq!(
             headers.get("anthropic-beta").unwrap(),
             "context-1m-2025-08-07"
         );
+    }
+
+    #[test]
+    fn openai_chat_coerces_new_claude_prefill_only() {
+        let mut headers = HeaderMap::new();
+        let body = Bytes::from(
+            r#"{"model":"claude-fable-5","messages":[{"role":"assistant","content":"prefix"}],"temperature":0.7}"#,
+        );
+        let ctx = ShapeCtx {
+            op: OperationKey::content_generation(
+                Operation::StreamGenerateContent,
+                ContentGenerationKind::OpenAiChatCompletions,
+            ),
+            stream: true,
+            status: StatusCode::OK,
+            settings: &Value::Null,
+        };
+
+        let out = ClaudeApiChannel.shape_request(body, &mut headers, &ctx);
+        let value: Value = serde_json::from_slice(&out).unwrap();
+
+        assert_eq!(value["messages"][0]["role"], "user");
+        assert_eq!(value["temperature"], 0.7);
     }
 
     #[test]

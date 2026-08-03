@@ -14,7 +14,9 @@ pub const SERVER_SIDE_FALLBACK_BETA: &str = "server-side-fallback-2026-06-01";
 pub const DEFAULT_FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 
 /// Models known not to accept Anthropic's server-side `fallbacks` parameter.
-/// Substring matching covers provider namespaces and dated variants.
+/// No Claude 3.x model supports it, including Claude 3 Opus where some accounts
+/// retain access. Substring matching with the broad `claude-3` entry also covers
+/// provider namespaces, dated variants, and dotted IDs such as `claude-3.5`.
 const FALLBACK_UNSUPPORTED_MODELS: &[&str] = &[
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -28,7 +30,7 @@ const FALLBACK_UNSUPPORTED_MODELS: &[&str] = &[
     "claude-sonnet-4-20",
     "claude-opus-4-0",
     "claude-opus-4-20",
-    "claude-3-haiku",
+    "claude-3",
 ];
 
 /// Ensure the request carries the configured server-side fallback routing plus
@@ -268,6 +270,7 @@ mod tests {
             "claude-sonnet-4-6",
             "claude-opus-4-6",
             "anthropic/claude-opus-4-8",
+            "claude-3-opus-20240229",
         ] {
             let mut body = json!({
                 "model": model,

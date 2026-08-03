@@ -9,7 +9,8 @@ use http::HeaderMap;
 use crate::channel::bulletins::common::{self, ApiKeyDefaults};
 use crate::channel::settings::RequestShapeSettings;
 use crate::channel::shaping::{
-    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_sampling, openai_cache,
+    self, claude_cache_control, claude_fallback, claude_magic_cache, claude_prefill,
+    claude_sampling, openai_cache,
 };
 use crate::channel::{Channel, ChannelError, PrepareCtx, PreparedRequest, ShapeCtx};
 use crate::protocol::{ContentGenerationKind, OperationKind, Provider};
@@ -109,7 +110,8 @@ impl Channel for VercelChannel {
         Ok(PreparedRequest::new(req))
     }
 
-    /// Provider-native cache shaping plus Claude endpoint hygiene.
+    /// Provider-native cache shaping plus Claude endpoint hygiene, including
+    /// unsupported trailing-prefill coercion.
     fn shape_request(&self, body: Bytes, headers: &mut HeaderMap, ctx: &ShapeCtx) -> Bytes {
         let settings = RequestShapeSettings::from_value(ctx.settings);
         if let Some(kind) = openai_cache::kind_for_operation(ctx.op) {
@@ -129,6 +131,7 @@ impl Channel for VercelChannel {
             }
             claude_cache_control::sanitize_claude_body(v);
             claude_sampling::strip_sampling_params(v);
+            claude_prefill::coerce_trailing_prefill(v);
             if let Some(fallbacks) = settings.claude_fable_fallbacks.as_ref() {
                 claude_fallback::apply_claude_fallback(v, headers, fallbacks);
             }
@@ -200,7 +203,7 @@ mod tests {
             HeaderValue::from_static("context-1m-2025-08-07"),
         );
         let body = Bytes::from(
-            r#"{"model":"claude-opus-4-8","messages":[],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
+            r#"{"model":"claude-opus-4-8","messages":[{"role":"assistant","content":"prefix"}],"temperature":0.7,"top_p":0.9,"top_k":40}"#,
         );
         let out = VercelChannel.shape_request(body, &mut headers, &messages_ctx());
 
@@ -209,6 +212,7 @@ mod tests {
         assert!(!map.contains_key("temperature"));
         assert!(!map.contains_key("top_p"));
         assert!(!map.contains_key("top_k"));
+        assert_eq!(v["messages"][0]["role"], "user");
         // sole token dropped → header removed entirely
         assert!(headers.get("anthropic-beta").is_none());
     }
