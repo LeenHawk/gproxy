@@ -12,8 +12,12 @@ pub(in crate::transform::generate_content) fn completion_usage_to_claude(
         .prompt_tokens_details
         .map(|details| (details.cached_tokens, details.cache_write_tokens))
         .unwrap_or((None, None));
+    let non_cached = usage
+        .prompt_tokens
+        .saturating_sub(cached_tokens.unwrap_or_default())
+        .saturating_sub(cache_write_tokens.unwrap_or_default());
     claude::Usage {
-        input_tokens: Some(u32_to_u64(usage.prompt_tokens)),
+        input_tokens: Some(u32_to_u64(non_cached)),
         output_tokens: Some(u32_to_u64(usage.completion_tokens)),
         cache_creation_input_tokens: cache_write_tokens.map(u32_to_u64),
         cache_read_input_tokens: cached_tokens.map(u32_to_u64),
@@ -55,10 +59,15 @@ pub(in crate::transform::generate_content) fn empty_claude_usage() -> claude::Us
 pub(in crate::transform::generate_content) fn claude_usage_to_completion(
     usage: claude::Usage,
 ) -> openai::CompletionUsage {
-    let prompt_tokens = usage.input_tokens.map(u64_to_u32).unwrap_or_default();
-    let completion_tokens = usage.output_tokens.map(u64_to_u32).unwrap_or_default();
     let cached_tokens = usage.cache_read_input_tokens.map(u64_to_u32);
     let cache_write_tokens = usage.cache_creation_total().map(u64_to_u32);
+    let prompt_tokens = usage
+        .input_tokens
+        .map(u64_to_u32)
+        .unwrap_or_default()
+        .saturating_add(cached_tokens.unwrap_or_default())
+        .saturating_add(cache_write_tokens.unwrap_or_default());
+    let completion_tokens = usage.output_tokens.map(u64_to_u32).unwrap_or_default();
     let reasoning_tokens = usage
         .output_tokens_details
         .map(|details| u64_to_u32(details.thinking_tokens));
