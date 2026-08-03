@@ -14,7 +14,10 @@ pub(super) struct ConverseStreamDecoder {
     parser: SmithyFrameParser,
     started: bool,
     stopped: bool,
+    message_stopped: bool,
+    metadata_seen: bool,
     stop_reason: Option<Value>,
+    usage: Option<Value>,
     blocks: BTreeSet<u64>,
     tools: BTreeMap<u64, ToolBlock>,
 }
@@ -32,7 +35,10 @@ impl ConverseStreamDecoder {
             parser: SmithyFrameParser::new(),
             started: false,
             stopped: false,
+            message_stopped: false,
+            metadata_seen: false,
             stop_reason: None,
+            usage: None,
             blocks: BTreeSet::new(),
             tools: BTreeMap::new(),
         }
@@ -90,9 +96,19 @@ impl ConverseStreamDecoder {
             }
             "messageStop" => {
                 self.stop_reason = frame.payload.get("stopReason").cloned();
+                self.message_stopped = true;
+                if self.metadata_seen {
+                    let usage = self.usage.take();
+                    self.finish_message(usage, out);
+                }
             }
             "metadata" => {
-                self.finish_message(frame.payload.get("usage").cloned(), out);
+                self.metadata_seen = true;
+                self.usage = frame.payload.get("usage").cloned();
+                if self.message_stopped {
+                    let usage = self.usage.take();
+                    self.finish_message(usage, out);
+                }
             }
             _ => {}
         }
@@ -112,7 +128,7 @@ impl ConverseStreamDecoder {
                     "id": format!("msg_{}", crate::util::id::ulid().to_ascii_lowercase()),
                     "type": "message", "role": "assistant", "model": "aws-bedrock",
                     "content": [], "stop_reason": null, "stop_sequence": null,
-                    "usage": { "input_tokens": 0, "output_tokens": 0 }
+                    "usage": {}
                 }
             }),
         );
@@ -125,7 +141,7 @@ impl ConverseStreamDecoder {
         self.stopped = true;
         let usage = usage
             .map(super::converse::usage)
-            .unwrap_or_else(|| json!({ "input_tokens": 0, "output_tokens": 0 }));
+            .unwrap_or_else(|| json!({}));
         push(
             out,
             "message_delta",
@@ -164,7 +180,8 @@ impl ChannelStreamDecoder for ConverseStreamDecoder {
                 }),
             );
         } else if self.started && !self.stopped {
-            self.finish_message(None, &mut out);
+            let usage = self.usage.take();
+            self.finish_message(usage, &mut out);
         }
         out
     }

@@ -16,7 +16,7 @@ fn content_block(value: Value, assistant: bool) -> Vec<Value> {
     let Value::Object(mut block) = value else {
         return Vec::new();
     };
-    let cached = block.remove("cache_control").is_some();
+    let cache_point = block.remove("cache_control").map(super::cache_point);
     let kind = block.get("type").and_then(Value::as_str).unwrap_or("text");
     let mapped = match kind {
         "text" => block.remove("text").map(|text| json!({ "text": text })),
@@ -32,8 +32,10 @@ fn content_block(value: Value, assistant: bool) -> Vec<Value> {
         _ => None,
     };
     let mut output: Vec<_> = mapped.into_iter().collect();
-    if cached && !output.is_empty() {
-        output.push(json!({ "cachePoint": { "type": "default" } }));
+    if let Some(cache_point) = cache_point
+        && !output.is_empty()
+    {
+        output.push(cache_point);
     }
     output
 }

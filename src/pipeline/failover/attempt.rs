@@ -41,8 +41,11 @@ pub(super) struct AttemptOutcome {
     pub(super) send_ms: Option<f64>,
     /// Absolute upstream URL actually sent (failed-attempt audit rows).
     pub(super) sent_url: String,
-    /// Upstream-shaped body actually sent (feeds the count ladder on success).
+    /// Upstream-shaped body actually sent (wire audit/logging).
     pub(super) sent_body: Bytes,
+    /// Target-protocol body before channel-specific wire shaping. Count-token
+    /// fallbacks reshape this body for the count endpoint.
+    pub(super) count_body: Bytes,
     /// Wire method (audit rows).
     pub(super) method: Method,
     /// Upstream request headers actually sent — captured only when the
@@ -87,6 +90,7 @@ pub(super) async fn attempt(
         status: StatusCode::OK,
         settings: &cand.provider.settings_json,
     };
+    let count_body = parts.body.clone();
     let mut req_headers = parts.headers.take().unwrap_or_else(|| ctx.headers.clone());
     parts.body = channel.shape_request(parts.body, &mut req_headers, &shape);
     parts.headers = Some(req_headers);
@@ -113,8 +117,8 @@ pub(super) async fn attempt(
         }
     };
 
-    // §17: capture what the wire actually carries — the sent body feeds the
-    // count ladder; the URL feeds failed-attempt audit rows. A `Direct` request
+    // §17: capture what the wire actually carries — the sent body and URL feed
+    // audit rows. A `Direct` request
     // carries this + is sent once. A `Custom` multi-step exchange has NO single
     // request — its `CapturingClient` logs each call — so the
     // audit fields are minimal and it carries the closure instead.
@@ -255,6 +259,7 @@ pub(super) async fn attempt(
         send_ms,
         sent_url,
         sent_body,
+        count_body,
         method,
         sent_headers,
         multi_step,

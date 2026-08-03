@@ -141,9 +141,10 @@ that supports it, such as `us.anthropic.claude-sonnet-4-6`.
 
 Claude `cache_control`, OpenAI `prompt_cache_breakpoint`, provider cache rules,
 and enabled magic strings become Bedrock Converse `cachePoint` blocks. Bedrock's
-cache read/write usage is mapped back to the downstream protocol. Bedrock does
-not expose the Claude 1-hour or OpenAI 30-minute TTL controls on `cachePoint`, so
-the Runtime model's default cache policy applies.
+cache read/write usage is mapped back to the downstream protocol. GPROXY forwards
+Claude `5m`/`1h` TTLs on `cachePoint`; whether a TTL is accepted depends on the
+selected Bedrock model, API, and Region. Unsupported or omitted TTLs use that
+model's Runtime default.
 
 The channel does not expose embeddings or image operations. Converse also does
 not represent every stateful Responses feature; hosted tools, background jobs,

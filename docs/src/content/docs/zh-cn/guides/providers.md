@@ -108,8 +108,9 @@ OpenAI、Claude 与 Gemini Count Tokens 使用 Runtime `/model/{modelId}/count-t
 `us.anthropic.claude-sonnet-4-6`。
 
 Claude `cache_control`、OpenAI `prompt_cache_breakpoint`、provider 缓存规则和已启用的 magic string
-都会转换为 Converse `cachePoint`；Bedrock 的缓存读写 usage 再转换回下游协议。`cachePoint` 没有
-Claude 1 小时或 OpenAI 30 分钟 TTL 的等价控制，因此使用 Runtime 模型的缺省缓存策略。
+都会转换为 Converse `cachePoint`；Bedrock 的缓存读写 usage 再转换回下游协议。GPROXY 会把
+Claude `5m`/`1h` TTL 转发到 `cachePoint`，实际是否接受取决于所选 Bedrock 模型、API 与 Region；
+不支持或未指定 TTL 时使用该模型的 Runtime 缺省策略。
 
 该 channel 不提供嵌入与图片操作；Converse 无法表达的 Responses hosted tool、后台任务与会话状态
 也不受支持。

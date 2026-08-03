@@ -19,6 +19,9 @@ pub fn from_response(family: Provider, body: &Value) -> Option<NormalizedUsage> 
     match family {
         Provider::Claude => {
             let usage = body.get("usage").filter(|u| u.is_object())?;
+            if !numeric(usage, "input_tokens") || !numeric(usage, "output_tokens") {
+                return None;
+            }
             Some(claude_usage(usage))
         }
         Provider::OpenAi => {
@@ -27,6 +30,9 @@ pub fn from_response(family: Provider, body: &Value) -> Option<NormalizedUsage> 
         }
         Provider::Gemini => {
             let meta = body.get("usageMetadata").filter(|m| m.is_object())?;
+            if !numeric(meta, "promptTokenCount") || !numeric(meta, "candidatesTokenCount") {
+                return None;
+            }
             Some(gemini_usage(meta))
         }
     }
@@ -37,7 +43,9 @@ pub fn from_response(family: Provider, body: &Value) -> Option<NormalizedUsage> 
 /// Walks the decoded SSE frames from the END backwards and returns the first
 /// frame yielding usage per the family's stream shape. The claude path merges
 /// `message_start` (input side, frame ~1, found by a forward scan) with the
-/// LAST `message_delta` carrying usage (cumulative output side).
+/// LAST `message_delta` carrying usage. Native Claude deltas normally contain
+/// only cumulative output; channel-normalized providers such as Bedrock can
+/// report the final input/cache side there as well.
 pub fn from_stream_frames(
     kind: ContentGenerationKind,
     frames: &[SseFrame],
@@ -68,7 +76,8 @@ pub fn from_stream_frames(
         ContentGenerationKind::GeminiGenerateContent => frames.iter().rev().find_map(|frame| {
             let json = frame_json(frame)?;
             let meta = json.get("usageMetadata").filter(|m| m.is_object())?;
-            Some(gemini_usage(meta))
+            (numeric(meta, "promptTokenCount") && numeric(meta, "candidatesTokenCount"))
+                .then(|| gemini_usage(meta))
         }),
     }
 }
@@ -80,6 +89,10 @@ fn frame_json(frame: &SseFrame) -> Option<Value> {
 /// Tolerant numeric field read: missing / non-numeric = 0.
 fn field(value: &Value, key: &str) -> u64 {
     value.get(key).and_then(Value::as_u64).unwrap_or(0)
+}
+
+fn numeric(value: &Value, key: &str) -> bool {
+    value.get(key).is_some_and(Value::is_u64)
 }
 
 /// Claude `usage` object. `input_tokens` already excludes cache parts (claude
@@ -108,9 +121,9 @@ fn claude_usage(usage: &Value) -> NormalizedUsage {
 
 /// OpenAI `usage` object, either wire shape (disjoint field names).
 fn openai_usage(usage: &Value) -> Option<NormalizedUsage> {
-    if usage.get("prompt_tokens").is_some() {
+    if numeric(usage, "prompt_tokens") && numeric(usage, "completion_tokens") {
         Some(openai_chat_usage(usage))
-    } else if usage.get("input_tokens").is_some() {
+    } else if numeric(usage, "input_tokens") && numeric(usage, "output_tokens") {
         Some(openai_responses_usage(usage))
     } else {
         None
@@ -178,11 +191,10 @@ fn gemini_usage(meta: &Value) -> NormalizedUsage {
     }
 }
 
-/// Claude stream: input side from `message_start` (forward scan — it is the
-/// first frame), cumulative output from the LAST `message_delta` with usage.
-/// If only one side is present, the extracted side still wins (partial beats
-/// none); `message_start` already carries an initial `output_tokens`, which
-/// stands when no delta arrived.
+/// Claude stream: start with input/cache from `message_start`, then overlay any
+/// input/cache fields explicitly carried by the LAST `message_delta` and take
+/// its cumulative output. A complete input/output pair is required so synthetic
+/// placeholder events cannot be mistaken for authoritative usage.
 fn claude_stream(frames: &[SseFrame]) -> Option<NormalizedUsage> {
     let start = frames.iter().find_map(|frame| {
         let json = frame_json(frame)?;
@@ -193,7 +205,7 @@ fn claude_stream(frames: &[SseFrame]) -> Option<NormalizedUsage> {
             .get("message")?
             .get("usage")
             .filter(|u| u.is_object())?;
-        Some(claude_usage(usage))
+        numeric(usage, "input_tokens").then(|| claude_usage(usage))
     });
     let delta = frames.iter().rev().find_map(|frame| {
         let json = frame_json(frame)?;
@@ -201,16 +213,40 @@ fn claude_stream(frames: &[SseFrame]) -> Option<NormalizedUsage> {
             return None;
         }
         let usage = json.get("usage").filter(|u| u.is_object())?;
-        Some(claude_usage(usage))
+        numeric(usage, "output_tokens").then(|| ClaudeStreamDelta {
+            usage: claude_usage(usage),
+            has_input: numeric(usage, "input_tokens"),
+            has_cache_read: numeric(usage, "cache_read_input_tokens"),
+            has_cache_creation: numeric(usage, "cache_creation_input_tokens")
+                || usage.get("cache_creation").is_some(),
+        })
     });
     match (start, delta) {
-        (Some(start), Some(delta)) => Some(NormalizedUsage {
-            output: delta.output,
-            ..start
-        }),
-        (Some(only), None) | (None, Some(only)) => Some(only),
+        (Some(mut start), Some(delta)) => {
+            start.output = delta.usage.output;
+            if delta.has_input {
+                start.input = delta.usage.input;
+            }
+            if delta.has_cache_read {
+                start.cache_read = delta.usage.cache_read;
+            }
+            if delta.has_cache_creation {
+                start.cache_creation_5m = delta.usage.cache_creation_5m;
+                start.cache_creation_1h = delta.usage.cache_creation_1h;
+            }
+            Some(start)
+        }
+        (Some(_), None) => None,
+        (None, Some(only)) => only.has_input.then_some(only.usage),
         (None, None) => None,
     }
+}
+
+struct ClaudeStreamDelta {
+    usage: NormalizedUsage,
+    has_input: bool,
+    has_cache_read: bool,
+    has_cache_creation: bool,
 }
 
 #[cfg(test)]
@@ -257,6 +293,45 @@ mod tests {
         assert_eq!(u.cache_creation_5m, 123);
         assert_eq!(u.cache_creation_1h, 0);
         assert_eq!(u.cache_creation(), 123);
+    }
+
+    #[test]
+    fn explicit_zero_usage_is_authoritative_but_placeholders_are_not() {
+        let zero = json!({"usage": {"input_tokens": 0, "output_tokens": 0}});
+        assert_eq!(
+            from_response(Provider::Claude, &zero),
+            Some(NormalizedUsage::default())
+        );
+        assert!(from_response(Provider::Claude, &json!({"usage": {}})).is_none());
+        assert_eq!(
+            from_response(
+                Provider::OpenAi,
+                &json!({"usage":{"prompt_tokens":0,"completion_tokens":0}}),
+            ),
+            Some(NormalizedUsage::default())
+        );
+        assert_eq!(
+            from_response(
+                Provider::Gemini,
+                &json!({"usageMetadata":{"promptTokenCount":0,"candidatesTokenCount":0}}),
+            ),
+            Some(NormalizedUsage::default())
+        );
+
+        let frames = vec![
+            SseFrame::event(
+                "message_start",
+                json!({"type":"message_start","message":{"usage":{"input_tokens":0,"output_tokens":0}}}).to_string(),
+            ),
+            SseFrame::event(
+                "message_delta",
+                json!({"type":"message_delta","usage":{"output_tokens":0}}).to_string(),
+            ),
+        ];
+        assert_eq!(
+            from_stream_frames(ContentGenerationKind::ClaudeMessages, &frames),
+            Some(NormalizedUsage::default())
+        );
     }
 
     #[test]

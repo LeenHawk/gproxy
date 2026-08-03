@@ -24,12 +24,18 @@ pub(in crate::pipeline::failover) struct Materialized {
     pub body: ResponseBody,
     pub upstream_raw: Option<Bytes>,
     pub settle: Option<BufferedSettle>,
+    pub provider_settle: Option<ProviderSettle>,
 }
 
 pub(in crate::pipeline::failover) struct BufferedSettle {
     pub ctx: settle::SettleCtx,
     pub body: Bytes,
     pub stream: bool,
+}
+
+pub(in crate::pipeline::failover) struct ProviderSettle {
+    pub body: Bytes,
+    pub family: crate::protocol::Provider,
 }
 
 /// What [`materialize`] needs to capture a streaming upstream response body.
@@ -102,11 +108,22 @@ pub(in crate::pipeline::failover) async fn materialize(
                 body: b.clone(),
                 stream: settle_stream,
             });
+            let provider_settle = ctx
+                .op
+                .is_some_and(|op| op.operation == crate::protocol::Operation::CompactContent)
+                .then(|| ProviderSettle {
+                    body: b.clone(),
+                    family: match shape.op.kind {
+                        crate::protocol::OperationKind::ContentGeneration(kind) => kind.provider(),
+                        crate::protocol::OperationKind::Provider(family) => family,
+                    },
+                });
             let body = materialize_buffered(channel, plan, ctx, status, b)?;
             Ok(Materialized {
                 body,
                 upstream_raw,
                 settle,
+                provider_settle,
             })
         }
         BodySource::Streaming(st) => {
@@ -125,6 +142,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     body: ResponseBody::Stream(st),
                     upstream_raw: None,
                     settle: None,
+                    provider_settle: None,
                 });
             }
             // Order: raw upstream → channel decoder (envelope/binary → canonical
@@ -173,6 +191,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     body: ResponseBody::Full(transform_step::aggregate_response_body(plan, agg)?),
                     upstream_raw: None,
                     settle: None,
+                    provider_settle: None,
                 });
             }
             let body = match transform_step::stream_transformer(plan) {
@@ -185,6 +204,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                 body,
                 upstream_raw: None,
                 settle: None,
+                provider_settle: None,
             })
         }
     }

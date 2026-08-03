@@ -100,7 +100,14 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
           "implementation": "transform_to", "dest_operation": "stream_generate_content",
           "dest_kind": "open_ai_responses", "sort_order": 0, "enabled": true }
     ]);
-    let bundle = bundle_with("routing_rules", rule);
+    let mut bundle: Value = serde_json::from_str(&bundle_with("routing_rules", rule)).unwrap();
+    bundle["price_rules"] = json!([{
+        "id": 1, "provider_id": 1, "match_type": "exact", "model_match": "gpt-test",
+        "input_price": "0", "output_price": "0", "cache_read_price": "0",
+        "cache_creation_5m_price": "0", "cache_creation_30m_price": "0",
+        "cache_creation_1h_price": "0", "image_price": "0.04", "enabled": true
+    }]);
+    let bundle = bundle.to_string();
 
     // The upstream "streams" a Responses event-stream whose final output item is
     // the generated image; the fake returns it as a buffered body.
@@ -143,15 +150,16 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
     assert_eq!(outcome.status, StatusCode::OK);
 
     // Upstream was force-streamed to the Responses endpoint with the image tool.
-    let seen = fake.seen.lock().unwrap();
-    assert!(seen[0].uri.contains("/responses"), "uri: {}", seen[0].uri);
-    let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
-    assert_eq!(up["stream"], true, "upstream forced to stream: {up}");
-    assert_eq!(
-        up["tools"][0]["type"], "image_generation",
-        "image tool injected: {up}"
-    );
-    drop(seen);
+    {
+        let seen = fake.seen.lock().unwrap();
+        assert!(seen[0].uri.contains("/responses"), "uri: {}", seen[0].uri);
+        let up: Value = serde_json::from_slice(&seen[0].body).unwrap();
+        assert_eq!(up["stream"], true, "upstream forced to stream: {up}");
+        assert_eq!(
+            up["tools"][0]["type"], "image_generation",
+            "image tool injected: {up}"
+        );
+    }
 
     // The client got a collapsed images response, not raw SSE.
     let ResponseBody::Full(b) = outcome.body else {
@@ -162,4 +170,6 @@ async fn non_stream_image_request_collapses_forced_responses_stream() {
         v["data"][0]["b64_json"], "AAAA",
         "collapsed image base64 surfaced: {v}"
     );
+    let usage = super::billing::wait_usage(&state).await;
+    assert_eq!(usage.cost, "0.04".parse().unwrap());
 }

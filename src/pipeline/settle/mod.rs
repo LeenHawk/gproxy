@@ -54,7 +54,7 @@ pub struct SettleCtx {
     /// Provider-native wire kind seen after channel shaping and before any
     /// response transform. Usage extraction is anchored to this shape.
     usage_kind: ContentGenerationKind,
-    /// Channel's native family — drives the upstream-count ladder rung.
+    /// Target wire family — drives the upstream-count ladder rung.
     /// (wasm: ladder is local-only, so this and `channel` are unread there.)
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     upstream_family: Family,
@@ -127,7 +127,7 @@ impl SettleCtx {
             kind: enum_str(&op.kind),
             model: cand.upstream_model_id.clone(),
             usage_kind,
-            upstream_family: channel.provider_family(),
+            upstream_family: usage_kind.provider(),
             request_body,
             pricing,
             channel: Arc::clone(channel),
