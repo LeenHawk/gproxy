@@ -23,5 +23,6 @@ export const upsertTeam = (orgId: number, i: TeamInput) => api<Team>(`/admin/org
 export const deleteTeam = (id: number) => api<void>(`/admin/teams/${id}`, { method: "DELETE" });
 export const upsertUser = (i: UserUpsert) => api<UserView>("/admin/users", { method: "POST", body: JSON.stringify(i) });
 export const deleteUser = (id: number) => api<void>(`/admin/users/${id}`, { method: "DELETE" });
-export const createUserKey = (userId: number, i: UserKeyUpsert) => api<UserKeyView>(`/admin/users/${userId}/keys`, { method: "POST", body: JSON.stringify(i) });
+export const upsertUserKey = (userId: number, i: UserKeyUpsert) => api<UserKeyView>(`/admin/users/${userId}/keys`, { method: "POST", body: JSON.stringify(i) });
+export const createUserKey = upsertUserKey;
 export const deleteUserKey = (id: number) => api<void>(`/admin/user-keys/${id}`, { method: "DELETE" });

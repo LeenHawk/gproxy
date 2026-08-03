@@ -8,7 +8,7 @@ import { ruleSetQuery, deleteRuleSet } from "@/api/rules";
 import { ApiError } from "@/api/http";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { RuleSetEditor } from "@/components/rules/rule-set-editor";
-import { Badge } from "@/components/ui/badge";
+import { RuleSetForm } from "@/components/rules/rule-set-form";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_app/rules/$ruleSetId")({
@@ -44,10 +44,7 @@ function RuleSetDetailPage() {
   return (
     <div className="grid gap-4 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">{ruleSet.name}</h1>
-          <Badge variant={ruleSet.enabled ? "secondary" : "outline"}>{ruleSet.enabled ? "on" : "off"}</Badge>
-        </div>
+        <h1 className="text-xl font-semibold">{ruleSet.name}</h1>
         <Button
           variant="ghost"
           size="sm"
@@ -58,11 +55,11 @@ function RuleSetDetailPage() {
         </Button>
       </div>
 
-      {ruleSet.description && (
-        <p className="text-sm text-muted-foreground">{ruleSet.description}</p>
-      )}
+      <div className="max-w-xl rounded-lg border p-4">
+        <RuleSetForm key={`${ruleSet.id}-${ruleSet.updated_at}-${ruleSet.enabled}`} ruleSet={ruleSet} />
+      </div>
 
-      <RuleSetEditor ruleSetId={id} />
+      <RuleSetEditor ruleSetId={id} showMetadata={false} />
 
       <ConfirmDangerous
         open={deleteRsOpen}

@@ -1,6 +1,19 @@
 {
   "title": "Rules",
   "subtitle": "Rule sets, transformation rules, and provider routing",
+  "workspace": {
+    "search": "Search rule sets…",
+    "selectAll": "Select all shown",
+    "selectHint": "Select a rule set to view its details."
+  },
+  "status": {
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "actions": {
+    "enable": "Enable rule set",
+    "disable": "Disable rule set"
+  },
   "tabs": {
     "routingRules": "Routing Rules",
     "ruleSets": "Rule Sets"

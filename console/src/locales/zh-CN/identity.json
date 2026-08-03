@@ -1,14 +1,17 @@
 {
   "orgs": {
     "title": "组织", "new": "新建组织", "empty": "还没有组织。",
-    "name": "名称", "description": "描述", "enabled": "启用",
+    "name": "名称", "description": "描述", "enabled": "启用", "enable": "启用组织", "disable": "禁用组织",
+    "search": "搜索组织…", "selectAll": "选择全部筛选结果", "selectHint": "选择组织以查看和编辑详情。",
+    "status": { "enabled": "已启用", "disabled": "已禁用" },
     "create": "创建组织", "edit": "编辑组织",
     "delete": "删除组织", "deleteConfirm": "删除组织「{{name}}」及其团队、用户和访问规则?",
-    "tabs": { "teams": "团队", "access": "访问控制" }
+    "tabs": { "profile": "资料", "teams": "团队", "access": "访问控制" }
   },
   "teams": {
     "add": "添加团队", "empty": "该组织下还没有团队。",
-    "name": "名称", "enabled": "启用", "edit": "编辑团队",
+    "name": "名称", "enabled": "启用", "enable": "启用团队", "disable": "禁用团队", "edit": "编辑团队",
+    "status": { "enabled": "已启用", "disabled": "已禁用" },
     "delete": "移除团队", "deleteConfirm": "移除团队「{{name}}」?",
     "access": "团队访问控制"
   },
@@ -17,14 +20,15 @@
     "name": "用户名", "org": "组织", "team": "团队", "noTeam": "— 无 —",
     "password": "密码", "passwordKeep": "留空则保留当前密码。",
     "passwordPolicy": "密码可选。", "hasPassword": "已设密码", "noPassword": "未设密码（禁止登录）",
-    "enabled": "启用", "isAdmin": "管理员",
+    "enabled": "启用", "enable": "启用用户", "disable": "禁用用户", "isAdmin": "管理员",
+    "search": "搜索用户…", "selectAll": "选择全部筛选结果", "selectHint": "选择用户以查看和编辑详情。",
     "create": "创建用户", "edit": "编辑用户",
     "delete": "删除用户", "deleteConfirm": "删除用户「{{name}}」及其 API 密钥和访问规则?",
-    "tabs": { "keys": "API 密钥", "access": "访问控制" }
+    "tabs": { "profile": "资料", "keys": "API 密钥", "access": "访问控制" }
   },
   "keys": {
     "title": "API 密钥", "add": "生成密钥", "empty": "还没有 API 密钥。",
-    "label": "显示名", "key": "API 密钥", "enabled": "启用",
+    "label": "显示名", "key": "API 密钥", "enabled": "启用", "enable": "启用密钥", "disable": "禁用密钥",
     "delete": "删除密钥", "deleteConfirm": "删除此 API 密钥？使用它的客户端将停止工作。",
     "rotateHint": "密钥不可编辑——轮换请生成新密钥后删除旧密钥。"
   },

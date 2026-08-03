@@ -21,7 +21,15 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 
-export function RuleSetEditor({ ruleSetId, providerId }: { ruleSetId: number; providerId?: number }) {
+export function RuleSetEditor({
+  ruleSetId,
+  providerId,
+  showMetadata = true,
+}: {
+  ruleSetId: number;
+  providerId?: number;
+  showMetadata?: boolean;
+}) {
   const { t } = useTranslation("rules");
   const { t: tCommon } = useTranslation("common");
   const qc = useQueryClient();
@@ -32,7 +40,12 @@ export function RuleSetEditor({ ruleSetId, providerId }: { ruleSetId: number; pr
 
   // Aggregate attachments across all providers (N+1, admin scale) for shared-impact.
   const attachQueries = useQueries({
-    queries: providers.map((p) => providerRuleSetsQuery(p.id)),
+    queries: providers.map((p) => ({
+      ...providerRuleSetsQuery(p.id),
+      // The workspace keeps these queries mounted; its detail observer must not
+      // turn route selection into another N+1 refetch.
+      staleTime: showMetadata ? undefined : Infinity,
+    })),
   });
   const allAttachments: ProviderRuleSet[] = attachQueries.flatMap((q) => q.data ?? []);
   const usage = computeRuleSetUsage(ruleSetId, allAttachments);
@@ -74,14 +87,16 @@ export function RuleSetEditor({ ruleSetId, providerId }: { ruleSetId: number; pr
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold">{ruleSet.name}</h3>
-          <Badge variant={ruleSet.enabled ? "secondary" : "outline"}>{ruleSet.enabled ? "on" : "off"}</Badge>
-          {usage.scope === "shared" && <Badge variant="outline">{t("usage.shared", { count: usage.providerIds.length })}</Badge>}
+      {showMetadata && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">{ruleSet.name}</h3>
+            <Badge variant={ruleSet.enabled ? "secondary" : "outline"}>{ruleSet.enabled ? "on" : "off"}</Badge>
+            {usage.scope === "shared" && <Badge variant="outline">{t("usage.shared", { count: usage.providerIds.length })}</Badge>}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setEditMeta(true)}><Pencil className="size-4" /></Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setEditMeta(true)}><Pencil className="size-4" /></Button>
-      </div>
+      )}
 
       {otherCount > 0 && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
@@ -128,9 +143,11 @@ export function RuleSetEditor({ ruleSetId, providerId }: { ruleSetId: number; pr
         </Button>
       </div>
 
-      <EntityDialog open={editMeta} onOpenChange={setEditMeta} title={ruleSet.name}>
-        <RuleSetForm ruleSet={ruleSet} onSaved={() => { setEditMeta(false); void qc.invalidateQueries({ queryKey: ["rule-sets", ruleSetId] }); }} />
-      </EntityDialog>
+      {showMetadata && (
+        <EntityDialog open={editMeta} onOpenChange={setEditMeta} title={ruleSet.name}>
+          <RuleSetForm ruleSet={ruleSet} onSaved={() => { setEditMeta(false); void qc.invalidateQueries({ queryKey: ["rule-sets", ruleSetId] }); }} />
+        </EntityDialog>
+      )}
       <EntityDialog open={addOpen} onOpenChange={setAddOpen} title={t("rule.add")} wide>
         <RuleForm ruleSetId={ruleSetId} modelOptions={modelOptions} onSaved={() => { setAddOpen(false); void invalidateRules(); }} />
       </EntityDialog>

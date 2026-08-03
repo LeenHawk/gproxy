@@ -11,12 +11,13 @@ import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
+import { useUserKeyToggle } from "./use-user-key-toggle";
 
 export function UserKeysTab({ user }: { user: UserView }) {
   const { t } = useTranslation("identity");
@@ -25,6 +26,7 @@ export function UserKeysTab({ user }: { user: UserView }) {
   const { data: keys, isPending } = useQuery(userKeysQuery(user.id));
   const rows = keys ?? [];
   const batch = useBatch("user-keys", ["users", user.id, "keys"]);
+  const toggle = useUserKeyToggle(user.id);
   const ids = rows.map((k) => k.id);
 
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -84,7 +86,15 @@ export function UserKeysTab({ user }: { user: UserView }) {
     {
       key: "enabled",
       header: t("keys.enabled"),
-      cell: (k) => <Badge variant={k.enabled ? "secondary" : "outline"}>{k.enabled ? "on" : "off"}</Badge>,
+      cell: (k) => (
+        <Switch
+          size="sm"
+          checked={k.enabled}
+          disabled={toggle.isPending}
+          aria-label={k.enabled ? t("keys.disable") : t("keys.enable")}
+          onCheckedChange={(enabled) => toggle.mutate({ key: k, enabled })}
+        />
+      ),
     },
     ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-16 text-right" } as DataColumn<UserKeyView>]),
   ];
@@ -127,7 +137,13 @@ export function UserKeysTab({ user }: { user: UserView }) {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm">{k.label ?? "—"}</span>
-                <Badge variant={k.enabled ? "secondary" : "outline"}>{k.enabled ? "on" : "off"}</Badge>
+                <Switch
+                  size="sm"
+                  checked={k.enabled}
+                  disabled={toggle.isPending}
+                  aria-label={k.enabled ? t("keys.disable") : t("keys.enable")}
+                  onCheckedChange={(enabled) => toggle.mutate({ key: k, enabled })}
+                />
               </div>
               <span className="break-all font-mono text-xs text-muted-foreground">{k.api_key}</span>
               {!batch.mode && actionsColumn(k)}

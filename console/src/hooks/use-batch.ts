@@ -51,7 +51,7 @@ export function useBatch(entity: string, invalidateKey: unknown[]) {
   const helpers = useMemo(
     () => ({
       toggleAllFor: (ids: Id[]) =>
-        setSelected((prev) => (prev.size >= ids.length ? new Set<Id>() : new Set(ids))),
+        setSelected((prev) => (ids.length > 0 && ids.every((id) => prev.has(id)) ? new Set<Id>() : new Set(ids))),
       allSelectedFor: (ids: Id[]) => ids.length > 0 && ids.every((id) => selected.has(id)),
     }),
     [selected],

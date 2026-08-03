@@ -1,6 +1,19 @@
 {
   "title": "规则",
   "subtitle": "规则集、转换规则与供应商路由",
+  "workspace": {
+    "search": "搜索规则集…",
+    "selectAll": "全选当前结果",
+    "selectHint": "选择一个规则集以查看详情。"
+  },
+  "status": {
+    "enabled": "已启用",
+    "disabled": "已停用"
+  },
+  "actions": {
+    "enable": "启用规则集",
+    "disable": "停用规则集"
+  },
   "tabs": {
     "routingRules": "路由规则",
     "ruleSets": "规则集"

@@ -1,6 +1,19 @@
 {
   "title": "規則",
   "subtitle": "規則集、轉換規則與供應商路由",
+  "workspace": {
+    "search": "搜尋規則集…",
+    "selectAll": "全選目前結果",
+    "selectHint": "選擇一個規則集以檢視詳細資料。"
+  },
+  "status": {
+    "enabled": "已啟用",
+    "disabled": "已停用"
+  },
+  "actions": {
+    "enable": "啟用規則集",
+    "disable": "停用規則集"
+  },
   "tabs": {
     "routingRules": "路由規則",
     "ruleSets": "規則集"

@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { Pencil, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { deleteUser, orgsQuery, teamsQuery, userQuery } from "@/api/identity";
 import { ApiError } from "@/api/http";
-import { EntityDialog } from "@/components/entity-dialog";
 import { ScopeAccessEditor } from "@/components/identity/scope-access-editor";
 import { UserForm } from "@/components/identity/user-form";
 import { UserKeysTab } from "@/components/identity/user-keys-tab";
@@ -16,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/users/$userId")({
+  validateSearch: (search: Record<string, unknown>): { tab: UserTab } => ({
+    tab: isUserTab(search.tab) ? search.tab : "profile",
+  }),
   loader: ({ context, params }) => {
     const id = Number(params.userId);
     if (Number.isNaN(id)) throw redirect({ to: "/users" });
@@ -29,11 +31,11 @@ function UserDetailPage() {
   const id = Number(userId);
   const { t } = useTranslation("identity");
   const { t: tc } = useTranslation("common");
+  const { tab } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: user } = useSuspenseQuery(userQuery(id));
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
 
   const { data: orgs } = useQuery(orgsQuery);
   const { data: teams } = useQuery(teamsQuery(user.org_id));
@@ -70,23 +72,28 @@ function UserDetailPage() {
             <span className="text-sm text-muted-foreground">/ {teamName}</span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-            <Pencil className="size-4" aria-hidden />
-            <span className="hidden sm:inline">{t("users.edit")}</span>
-          </Button>
-          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="size-4" aria-hidden />
-            <span className="hidden sm:inline">{t("users.delete")}</span>
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setDeleteOpen(true)}>
+          <Trash2 className="size-4" aria-hidden />
+          <span className="hidden sm:inline">{t("users.delete")}</span>
+        </Button>
       </div>
 
-      <Tabs defaultValue="keys">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          void navigate({ to: "/users/$userId", params: { userId }, search: { tab: value as UserTab }, replace: true });
+        }}
+      >
         <TabsList>
+          <TabsTrigger value="profile">{t("users.tabs.profile")}</TabsTrigger>
           <TabsTrigger value="keys">{t("users.tabs.keys")}</TabsTrigger>
           <TabsTrigger value="access">{t("users.tabs.access")}</TabsTrigger>
         </TabsList>
+        <TabsContent value="profile" className="max-w-xl pt-4">
+          <div className="rounded-lg border p-4">
+            <UserForm key={`${user.id}-${user.updated_at}`} user={user} onSaved={() => undefined} />
+          </div>
+        </TabsContent>
         <TabsContent value="keys" className="pt-2">
           <UserKeysTab user={user} />
         </TabsContent>
@@ -94,10 +101,6 @@ function UserDetailPage() {
           <ScopeAccessEditor scope="user" scopeId={user.id} />
         </TabsContent>
       </Tabs>
-
-      <EntityDialog open={editOpen} onOpenChange={setEditOpen} title={t("users.edit")}>
-        <UserForm user={user} onSaved={() => setEditOpen(false)} />
-      </EntityDialog>
 
       <ConfirmDangerous
         open={deleteOpen}
@@ -110,4 +113,10 @@ function UserDetailPage() {
       />
     </div>
   );
+}
+
+type UserTab = "profile" | "keys" | "access";
+
+function isUserTab(value: unknown): value is UserTab {
+  return value === "profile" || value === "keys" || value === "access";
 }
