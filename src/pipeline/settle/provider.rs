@@ -33,10 +33,35 @@ pub(crate) fn billable(op: Option<OperationKey>) -> bool {
     )
 }
 
+/// Detach provider-op settlement on native; edge request contexts must await it.
+pub(crate) async fn schedule(
+    state: &AppState,
+    ctx: &RequestCtx,
+    cand: &Candidate,
+    body: Bytes,
+    usage_family: Family,
+) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let (state, ctx, cand) = (state.clone(), ctx.clone(), cand.clone());
+        tokio::spawn(async move {
+            settle(&state, &ctx, &cand, &body, usage_family).await;
+        });
+    }
+    #[cfg(target_arch = "wasm32")]
+    settle(state, ctx, cand, &body, usage_family).await;
+}
+
 /// Settle a successful compact / embedding / image response. No-op for any other
 /// operation (the caller invokes this for every successful buffered response;
 /// content-generation, models and count ops return early here).
-pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate, body: &Bytes) {
+pub(crate) async fn settle(
+    state: &AppState,
+    ctx: &RequestCtx,
+    cand: &Candidate,
+    body: &Bytes,
+    usage_family: Family,
+) {
     let Some(op) = ctx.op else { return };
     let is_embedding = matches!(op.operation, Operation::CreateEmbedding);
     let is_compact = matches!(op.operation, Operation::CompactContent);
@@ -75,7 +100,7 @@ pub(crate) async fn settle(state: &AppState, ctx: &RequestCtx, cand: &Candidate,
     let (usage, cost, source) = if is_embedding || is_compact {
         let extracted = parsed
             .as_ref()
-            .and_then(|v| extract::from_response(Family::OpenAi, v));
+            .and_then(|v| extract::from_response(usage_family, v));
         if parsed.is_some() && extracted.is_none() {
             tracing::warn!(
                 request_id = %ctx.request_id,

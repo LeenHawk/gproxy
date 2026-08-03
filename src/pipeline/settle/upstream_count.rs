@@ -44,6 +44,16 @@ async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Result<u64,
         http::header::CONTENT_TYPE,
         http::HeaderValue::from_static("application/json"),
     );
+    let body = ctx.channel.shape_request(
+        body,
+        &mut headers,
+        &crate::channel::ShapeCtx {
+            op: key,
+            stream: false,
+            status: http::StatusCode::OK,
+            settings: &ctx.provider.settings_json,
+        },
+    );
     let prepared = ctx
         .channel
         .prepare(crate::channel::PrepareCtx {

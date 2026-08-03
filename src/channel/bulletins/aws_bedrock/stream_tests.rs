@@ -14,7 +14,7 @@ fn converse_events_become_claude_sse() {
         ("messageStop", r#"{"stopReason":"end_turn"}"#),
         (
             "metadata",
-            r#"{"usage":{"inputTokens":9,"outputTokens":4,"cacheReadInputTokens":2,"cacheWriteInputTokens":3}}"#,
+            r#"{"usage":{"inputTokens":9,"outputTokens":4,"totalTokens":13,"cacheReadInputTokens":2,"cacheWriteInputTokens":3,"cacheDetails":[{"inputTokens":1,"ttl":"5m"},{"inputTokens":2,"ttl":"1h"}]}}"#,
         ),
     ] {
         bytes.extend(build_frame(kind, payload.as_bytes()));
@@ -24,6 +24,18 @@ fn converse_events_become_claude_sse() {
     let mut output = decoder.push(&bytes[..split]);
     output.extend(decoder.push(&bytes[split..]));
     output.extend(decoder.finish());
+    let frames = crate::pipeline::settle::frames::decode(&output);
+    let usage = crate::usage::extract::from_stream_frames(
+        crate::protocol::ContentGenerationKind::ClaudeMessages,
+        &frames,
+    )
+    .unwrap();
+    assert_eq!(usage.input, 9);
+    assert_eq!(usage.output, 4);
+    assert_eq!(usage.cache_read, 2);
+    assert_eq!(usage.cache_creation_5m, 1);
+    assert_eq!(usage.cache_creation_1h, 2);
+
     let output = String::from_utf8(output).unwrap();
     assert!(output.contains("event: message_start"));
     assert!(output.contains("event: content_block_start"));
@@ -31,6 +43,60 @@ fn converse_events_become_claude_sse() {
     assert!(output.contains(r#""text":"OK""#));
     assert!(output.contains(r#""cache_read_input_tokens":2"#));
     assert!(output.contains("event: message_stop"));
+}
+
+#[test]
+fn missing_metadata_does_not_claim_zero_upstream_usage() {
+    let mut decoder = ConverseStreamDecoder::new();
+    let mut output = Vec::new();
+    for (kind, payload) in [
+        ("messageStart", r#"{"role":"assistant"}"#),
+        (
+            "contentBlockDelta",
+            r#"{"contentBlockIndex":0,"delta":{"text":"partial"}}"#,
+        ),
+        ("messageStop", r#"{"stopReason":"end_turn"}"#),
+    ] {
+        output.extend(decoder.push(&build_frame(kind, payload.as_bytes())));
+    }
+    output.extend(decoder.finish());
+
+    let frames = crate::pipeline::settle::frames::decode(&output);
+    assert!(
+        crate::usage::extract::from_stream_frames(
+            crate::protocol::ContentGenerationKind::ClaudeMessages,
+            &frames,
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn metadata_before_message_stop_is_deferred_and_preserved() {
+    let mut decoder = ConverseStreamDecoder::new();
+    let mut output = Vec::new();
+    for (kind, payload) in [
+        ("messageStart", r#"{"role":"assistant"}"#),
+        (
+            "metadata",
+            r#"{"usage":{"inputTokens":7,"outputTokens":3,"totalTokens":10}}"#,
+        ),
+        ("messageStop", r#"{"stopReason":"max_tokens"}"#),
+    ] {
+        output.extend(decoder.push(&build_frame(kind, payload.as_bytes())));
+    }
+    output.extend(decoder.finish());
+
+    let output_text = String::from_utf8(output.clone()).unwrap();
+    assert!(output_text.contains(r#""stop_reason":"max_tokens""#));
+    let frames = crate::pipeline::settle::frames::decode(&output);
+    let usage = crate::usage::extract::from_stream_frames(
+        crate::protocol::ContentGenerationKind::ClaudeMessages,
+        &frames,
+    )
+    .unwrap();
+    assert_eq!(usage.input, 7);
+    assert_eq!(usage.output, 3);
 }
 
 #[test]

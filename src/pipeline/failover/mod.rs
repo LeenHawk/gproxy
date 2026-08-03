@@ -283,6 +283,7 @@ pub async fn run_failover(
                 mut headers,
                 source,
                 sent_body,
+                count_body,
                 disposition,
                 send_ms,
                 sent_url,
@@ -353,7 +354,7 @@ pub async fn run_failover(
                             cand,
                             &channel,
                             kind,
-                            sent_body.clone(),
+                            count_body.clone(),
                             latency_ms,
                         )
                     })
@@ -395,7 +396,12 @@ pub async fn run_failover(
                 )
                 .await;
             }
-            let Materialized { body, settle, .. } = mat?;
+            let Materialized {
+                body,
+                settle,
+                provider_settle,
+                ..
+            } = mat?;
             if let Some(s) = settle {
                 // §17: settle (usage extract + reconcile + usage INSERT) must
                 // not delay the client-visible response — detach it, mirroring
@@ -432,24 +438,27 @@ pub async fn run_failover(
                 )),
                 (_, _, body) => body,
             };
-            // §17: compact / embeddings / images are provider-shaped (not
-            // content-generation) so `capture` skipped them — settle them from
-            // the buffered JSON, detached on native so the write never delays
-            // the response (inline on wasm: no detached tasks there).
+            let provider_usage = provider_settle
+                .map(|settle| (settle.body, settle.family))
+                .or_else(|| {
+                    if !settle::provider::billable(ctx.op) {
+                        return None;
+                    }
+                    let ResponseBody::Full(body) = &body else {
+                        return None;
+                    };
+                    let op = ctx.op?;
+                    let family = match op.kind {
+                        OperationKind::ContentGeneration(kind) => kind.provider(),
+                        OperationKind::Provider(family) => family,
+                    };
+                    Some((body.clone(), family))
+                });
             if status.is_success()
                 && settle::provider::billable(ctx.op)
-                && let ResponseBody::Full(b) = &body
+                && let Some((provider_body, usage_family)) = provider_usage
             {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let (state, ctx, cand, b) =
-                        (state.clone(), ctx.clone(), cand.clone(), b.clone());
-                    tokio::spawn(
-                        async move { settle::provider::settle(&state, &ctx, &cand, &b).await },
-                    );
-                }
-                #[cfg(target_arch = "wasm32")]
-                settle::provider::settle(state, ctx, cand, b).await;
+                settle::provider::schedule(state, ctx, cand, provider_body, usage_family).await;
             }
             return Ok(ExecOutcome {
                 status,

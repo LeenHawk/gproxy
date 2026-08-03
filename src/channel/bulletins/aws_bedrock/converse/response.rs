@@ -18,11 +18,7 @@ pub(super) fn convert(body: Bytes) -> Bytes {
         .into_iter()
         .filter_map(content_block)
         .collect::<Vec<_>>();
-    let usage = root.remove("usage").map(usage).unwrap_or_else(|| {
-        json!({
-            "input_tokens": 0, "output_tokens": 0
-        })
-    });
+    let usage = root.remove("usage").map(usage).unwrap_or_else(|| json!({}));
     Bytes::from(
         json!({
             "id": format!("msg_{}", crate::util::id::ulid().to_ascii_lowercase()),
@@ -72,13 +68,59 @@ fn content_block(value: Value) -> Option<Value> {
 
 pub(super) fn usage(value: Value) -> Value {
     let Value::Object(mut usage) = value else {
-        return json!({"input_tokens":0,"output_tokens":0});
+        return json!({});
     };
-    json!({
-        "input_tokens": usage.remove("inputTokens").unwrap_or(Value::from(0)),
-        "output_tokens": usage.remove("outputTokens").unwrap_or(Value::from(0)),
+    let cache_creation = cache_creation(&mut usage);
+    let (Some(input_tokens), Some(output_tokens)) = (
+        usage.remove("inputTokens").and_then(|value| value.as_u64()),
+        usage
+            .remove("outputTokens")
+            .and_then(|value| value.as_u64()),
+    ) else {
+        return json!({});
+    };
+    let mut mapped = json!({
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
         "cache_read_input_tokens": usage.remove("cacheReadInputTokens").unwrap_or(Value::from(0)),
         "cache_creation_input_tokens": usage.remove("cacheWriteInputTokens").unwrap_or(Value::from(0))
+    });
+    if let Some(cache_creation) = cache_creation {
+        mapped
+            .as_object_mut()
+            .expect("mapped usage is an object")
+            .insert("cache_creation".into(), cache_creation);
+    }
+    mapped
+}
+
+fn cache_creation(usage: &mut Map<String, Value>) -> Option<Value> {
+    let details = usage.remove("cacheDetails")?;
+    let details = details.as_array()?;
+    let mut five_minutes = 0u64;
+    let mut one_hour = 0u64;
+    let mut recognized = false;
+    for detail in details {
+        let Some(tokens) = detail.get("inputTokens").and_then(Value::as_u64) else {
+            continue;
+        };
+        match detail.get("ttl").and_then(Value::as_str) {
+            Some("5m") => {
+                five_minutes = five_minutes.saturating_add(tokens);
+                recognized = true;
+            }
+            Some("1h") => {
+                one_hour = one_hour.saturating_add(tokens);
+                recognized = true;
+            }
+            _ => {}
+        }
+    }
+    recognized.then(|| {
+        json!({
+            "ephemeral_5m_input_tokens": five_minutes,
+            "ephemeral_1h_input_tokens": one_hour
+        })
     })
 }
 

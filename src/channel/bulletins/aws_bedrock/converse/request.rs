@@ -84,7 +84,7 @@ fn tool(value: Value) -> Vec<Value> {
     let Value::Object(mut tool) = value else {
         return Vec::new();
     };
-    let cached = tool.remove("cache_control").is_some();
+    let cache_point = tool.remove("cache_control").map(super::cache_point);
     let Some(name) = tool.remove("name") else {
         return Vec::new();
     };
@@ -98,8 +98,8 @@ fn tool(value: Value) -> Vec<Value> {
         json!({ "json": tool.remove("input_schema").unwrap_or_else(|| json!({"type":"object"})) }),
     );
     let mut output = vec![json!({ "toolSpec": spec })];
-    if cached {
-        output.push(json!({ "cachePoint": { "type": "default" } }));
+    if let Some(cache_point) = cache_point {
+        output.push(cache_point);
     }
     output
 }

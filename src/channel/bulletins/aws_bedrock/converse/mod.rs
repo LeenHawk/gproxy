@@ -34,3 +34,14 @@ pub(super) fn stream_index(value: &serde_json::Value) -> u64 {
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0)
 }
+
+pub(super) fn cache_point(control: serde_json::Value) -> serde_json::Value {
+    let ttl = control
+        .get("ttl")
+        .and_then(serde_json::Value::as_str)
+        .filter(|ttl| matches!(*ttl, "5m" | "1h"));
+    match ttl {
+        Some(ttl) => serde_json::json!({ "cachePoint": { "type": "default", "ttl": ttl } }),
+        None => serde_json::json!({ "cachePoint": { "type": "default" } }),
+    }
+}

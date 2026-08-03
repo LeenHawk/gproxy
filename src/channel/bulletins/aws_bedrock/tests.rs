@@ -66,7 +66,7 @@ fn shapes_claude_messages_to_converse_and_back() {
         settings: &settings,
     };
     let request = AwsBedrockChannel.shape_request(Bytes::from_static(
-        br#"{"model":"x","max_tokens":8,"messages":[{"role":"user","content":[{"type":"text","text":"hello","cache_control":{"type":"ephemeral"}}]}],"tools":[{"name":"get_weather","description":"Get weather","input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],"tool_choice":{"type":"tool","name":"get_weather"}}"#,
+        br#"{"model":"x","max_tokens":8,"messages":[{"role":"user","content":[{"type":"text","text":"hello","cache_control":{"type":"ephemeral","ttl":"1h"}}]}],"tools":[{"name":"get_weather","description":"Get weather","input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],"tool_choice":{"type":"tool","name":"get_weather"}}"#,
     ), &mut HeaderMap::new(), &ctx);
     let request: Value = serde_json::from_slice(&request).unwrap();
     assert_eq!(request["inferenceConfig"]["maxTokens"], 8);
@@ -74,6 +74,10 @@ fn shapes_claude_messages_to_converse_and_back() {
     assert_eq!(
         request["messages"][0]["content"][1]["cachePoint"]["type"],
         "default"
+    );
+    assert_eq!(
+        request["messages"][0]["content"][1]["cachePoint"]["ttl"],
+        "1h"
     );
     assert_eq!(
         request["toolConfig"]["tools"][0]["toolSpec"]["name"],
@@ -85,13 +89,19 @@ fn shapes_claude_messages_to_converse_and_back() {
     );
 
     let response = AwsBedrockChannel.shape_response(Bytes::from_static(
-        br#"{"output":{"message":{"role":"assistant","content":[{"toolUse":{"toolUseId":"tool_1","name":"get_weather","input":{"city":"Paris"}}}]}},"stopReason":"tool_use","usage":{"inputTokens":9,"outputTokens":4}}"#,
+        br#"{"output":{"message":{"role":"assistant","content":[{"toolUse":{"toolUseId":"tool_1","name":"get_weather","input":{"city":"Paris"}}}]}},"stopReason":"tool_use","usage":{"inputTokens":9,"outputTokens":4,"totalTokens":13,"cacheReadInputTokens":2,"cacheWriteInputTokens":3,"cacheDetails":[{"inputTokens":1,"ttl":"5m"},{"inputTokens":2,"ttl":"1h"}]}}"#,
     ), &ctx);
     let response: Value = serde_json::from_slice(&response).unwrap();
     assert_eq!(response["type"], "message");
     assert_eq!(response["content"][0]["type"], "tool_use");
     assert_eq!(response["content"][0]["input"]["city"], "Paris");
     assert_eq!(response["usage"]["input_tokens"], 9);
+    let usage = crate::usage::extract::from_response(Provider::Claude, &response).unwrap();
+    assert_eq!(usage.input, 9);
+    assert_eq!(usage.output, 4);
+    assert_eq!(usage.cache_read, 2);
+    assert_eq!(usage.cache_creation_5m, 1);
+    assert_eq!(usage.cache_creation_1h, 2);
 }
 
 #[test]
@@ -104,7 +114,7 @@ fn count_tokens_uses_converse_input() {
         settings: &settings,
     };
     let body = AwsBedrockChannel.shape_request(
-        Bytes::from_static(br#"{"model":"x","messages":[{"role":"user","content":"hello"}]}"#),
+        Bytes::from_static(br#"{"model":"x","max_tokens":100,"temperature":0.7,"messages":[{"role":"user","content":"hello"}]}"#),
         &mut HeaderMap::new(),
         &ctx,
     );
@@ -113,6 +123,15 @@ fn count_tokens_uses_converse_input() {
         value["input"]["converse"]["messages"][0]["content"][0]["text"],
         "hello"
     );
+    assert!(value["input"]["converse"].get("inferenceConfig").is_none());
+}
+
+#[test]
+fn incomplete_bedrock_usage_is_not_treated_as_authoritative() {
+    let shaped = json!({
+        "usage": converse::usage(json!({ "outputTokens": 4 }))
+    });
+    assert!(crate::usage::extract::from_response(Provider::Claude, &shaped).is_none());
 }
 
 #[test]

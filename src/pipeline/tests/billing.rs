@@ -29,7 +29,7 @@ fn openai_stream_ctx(request_id: &str, model: &str) -> RequestCtx {
 }
 
 /// Settlement is detached (spawned) — poll until the usage row lands.
-async fn wait_usage(state: &AppState) -> Usage {
+pub(super) async fn wait_usage(state: &AppState) -> Usage {
     for _ in 0..200 {
         let rows = state.persistence.list_usages(10).await.expect("list");
         if let Some(row) = rows.into_iter().next() {
@@ -110,7 +110,7 @@ async fn transformed_buffered_settles_provider_usage_before_response_conversion(
         panic!("expected Full")
     };
     let returned: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(returned["usage"]["input_tokens"], 1000);
+    assert_eq!(returned["usage"]["input_tokens"], 400);
     assert_eq!(returned["usage"]["cache_read_input_tokens"], 600);
 
     let row = wait_usage(&state).await;
@@ -163,6 +163,63 @@ async fn compact_content_settles_usage() {
     assert_eq!(row.output_tokens, 80);
 }
 
+#[tokio::test]
+async fn transformed_compact_settles_target_usage_and_cache_ttl() {
+    let claude_response = json!({
+        "id": "msg-compact-1", "type": "message", "role": "assistant", "model": "claude-test",
+        "content": [{ "type": "text", "text": "summary" }],
+        "stop_reason": "end_turn", "stop_sequence": null,
+        "usage": {
+            "input_tokens": 100, "output_tokens": 20,
+            "cache_read_input_tokens": 60,
+            "cache_creation_input_tokens": 30,
+            "cache_creation": {
+                "ephemeral_5m_input_tokens": 10,
+                "ephemeral_1h_input_tokens": 20
+            }
+        }
+    });
+    let fake = Arc::new(FakeUpstream::new(
+        Bytes::from(serde_json::to_vec(&claude_response).unwrap()),
+        vec![],
+    ));
+    let (state, _dir) = state_with(Arc::clone(&fake)).await;
+    let mut ctx = openai_stream_ctx("bill-compact-target", "claude-direct");
+    ctx.path = "/v1/responses/compact".into();
+    ctx.body = Bytes::from(
+        serde_json::to_vec(&json!({
+            "model": "claude-direct",
+            "input": [{ "role": "user", "content": "compact this" }]
+        }))
+        .unwrap(),
+    );
+
+    let outcome = crate::pipeline::execute(&state, ctx)
+        .await
+        .expect("pipeline ok");
+    let ResponseBody::Full(body) = outcome.body else {
+        panic!("expected Full")
+    };
+    let returned: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(returned["usage"]["input_tokens"], 190);
+    assert_eq!(
+        returned["usage"]["input_tokens_details"]["cached_tokens"],
+        60
+    );
+    assert_eq!(
+        returned["usage"]["input_tokens_details"]["cache_write_tokens"],
+        30
+    );
+
+    let row = wait_usage(&state).await;
+    assert_eq!(row.input_tokens, 100);
+    assert_eq!(row.output_tokens, 20);
+    assert_eq!(row.cache_read_tokens, 60);
+    assert_eq!(row.cache_creation_5m_tokens, 10);
+    assert_eq!(row.cache_creation_30m_tokens, 0);
+    assert_eq!(row.cache_creation_1h_tokens, 20);
+}
+
 /// GPT-5.6+ cache writes (`prompt_tokens_details.cache_write_tokens`) must
 /// survive both the settle path and the openai→claude response conversion.
 #[tokio::test]
@@ -199,6 +256,7 @@ async fn openai_cache_write_settles_and_converts() {
         panic!("expected Full")
     };
     let returned: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(returned["usage"]["input_tokens"], 200);
     assert_eq!(returned["usage"]["cache_read_input_tokens"], 600);
     assert_eq!(returned["usage"]["cache_creation_input_tokens"], 200);
 

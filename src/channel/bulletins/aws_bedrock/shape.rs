@@ -13,9 +13,16 @@ pub(super) fn request(body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> 
         let Ok(value) = serde_json::from_slice::<Value>(&body) else {
             return body;
         };
-        return Bytes::from(
-            json!({ "input": { "converse": converse::request_value(value) } }).to_string(),
-        );
+        let mut value = converse::request_value(value);
+        if let Some(root) = value.as_object_mut() {
+            root.retain(|key, _| {
+                matches!(
+                    key.as_str(),
+                    "messages" | "system" | "toolConfig" | "additionalModelRequestFields"
+                )
+            });
+        }
+        return Bytes::from(json!({ "input": { "converse": value } }).to_string());
     }
     if ctx.op.kind != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
         return body;
