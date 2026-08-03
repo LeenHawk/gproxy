@@ -2,12 +2,18 @@
   "title": "Providers",
   "new": "New provider",
   "empty": "No providers yet — create one to start routing traffic.",
+  "workspace": {
+    "search": "Search providers…",
+    "selectAll": "Select all shown",
+    "selectHint": "Select a provider to view its details.",
+    "enable": "Enable provider",
+    "disable": "Disable provider"
+  },
   "tabs": {
     "settings": "Settings",
     "credentials": "Credentials",
     "models": "Models"
   },
-  "sideNav": { "all": "All providers" },
   "summary": {
     "credentialCount_one": "{{count}} credential",
     "credentialCount_other": "{{count}} credentials",

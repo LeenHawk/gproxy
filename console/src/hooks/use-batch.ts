@@ -3,12 +3,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@/api/http";
-import { batchOp, type BatchOp } from "@/api/batch";
+import { batchOp, type BatchOp, type BatchOutcome } from "@/api/batch";
 
 type Id = number | string;
 
+interface UseBatchOptions {
+  onSuccess?: (operation: BatchOp, ids: Id[], outcome: BatchOutcome) => void;
+}
+
 /** 选择模式状态 + 批量 mutation。`invalidateKey` 为成功后失效的 query key。 */
-export function useBatch(entity: string, invalidateKey: unknown[]) {
+export function useBatch(entity: string, invalidateKey: unknown[], options?: UseBatchOptions) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [mode, setModeRaw] = useState(false);
@@ -34,14 +38,18 @@ export function useBatch(entity: string, invalidateKey: unknown[]) {
   }, [setMode]);
 
   const mutation = useMutation({
-    mutationFn: (op: BatchOp) => batchOp(entity, op, [...selected]),
-    onSuccess: (out) => {
+    mutationFn: async (operation: BatchOp) => {
+      const ids = [...selected];
+      return { operation, ids, outcome: await batchOp(entity, operation, ids) };
+    },
+    onSuccess: ({ operation, ids, outcome }) => {
       void qc.invalidateQueries({ queryKey: invalidateKey });
-      if (out.errors.length > 0) {
-        toast.warning(t("batch.partial", { ok: out.affected, fail: out.errors.length }));
+      if (outcome.errors.length > 0) {
+        toast.warning(t("batch.partial", { ok: outcome.affected, fail: outcome.errors.length }));
       } else {
-        toast.success(t("batch.done", { count: out.affected }));
+        toast.success(t("batch.done", { count: outcome.affected }));
       }
+      options?.onSuccess?.(operation, ids, outcome);
       exit();
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : String(e)),
