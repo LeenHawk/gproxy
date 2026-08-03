@@ -1,8 +1,10 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { VerticalResizeHandle } from "@/components/vertical-resize-handle";
+import { useWorkspacePaneWidth } from "@/components/workspace/use-workspace-pane-width";
 
 type WorkspaceBatch<Id extends string | number> = {
   active: boolean;
@@ -18,6 +20,7 @@ type WorkspaceBatch<Id extends string | number> = {
 };
 
 export interface WorkspaceLayoutProps<T, Id extends string | number> {
+  storageKey: string;
   title: string;
   items: T[];
   selectedId: Id | "new" | null;
@@ -39,6 +42,7 @@ export interface WorkspaceLayoutProps<T, Id extends string | number> {
 
 /** Router-agnostic master/detail frame; callers own links, mutations, and route state. */
 export function WorkspaceLayout<T, Id extends string | number>({
+  storageKey,
   title,
   items,
   selectedId,
@@ -58,6 +62,7 @@ export function WorkspaceLayout<T, Id extends string | number>({
   children,
 }: WorkspaceLayoutProps<T, Id>) {
   const [query, setQuery] = useState("");
+  const pane = useWorkspacePaneWidth(storageKey);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     return needle
@@ -71,8 +76,9 @@ export function WorkspaceLayout<T, Id extends string | number>({
   return (
     <div className="flex min-h-[calc(100svh-3.5rem)]">
       <aside
+        style={{ "--workspace-pane-width": `${pane.width}px` } as CSSProperties}
         className={cn(
-          "w-full flex-col border-r bg-background md:sticky md:top-14 md:flex md:h-[calc(100svh-3.5rem)] md:w-72 md:shrink-0",
+          "w-full flex-col border-r bg-background md:sticky md:top-14 md:flex md:h-[calc(100svh-3.5rem)] md:w-[var(--workspace-pane-width)] md:shrink-0",
           hasDetail ? "hidden" : "flex",
         )}
       >
@@ -153,6 +159,15 @@ export function WorkspaceLayout<T, Id extends string | number>({
         </div>
         {batch?.active && batch.footer && <div className="border-t p-2">{batch.footer}</div>}
       </aside>
+
+      <VerticalResizeHandle
+        label={title}
+        width={pane.width}
+        minWidth={pane.minWidth}
+        maxWidth={pane.maxWidth}
+        onWidthChange={pane.setWidth}
+        onReset={pane.resetWidth}
+      />
 
       <section className={cn("min-w-0 flex-1", hasDetail ? "block" : "hidden md:block")}>
         {hasDetail ? (

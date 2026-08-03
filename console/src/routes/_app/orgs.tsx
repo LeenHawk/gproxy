@@ -5,10 +5,10 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@/api/http";
 import { orgsQuery, upsertOrg, type Org } from "@/api/identity";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { WorkspaceBatchBar } from "@/components/workspace/workspace-batch-bar";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 
 export const Route = createFileRoute("/_app/orgs")({
@@ -53,6 +53,7 @@ function OrgsWorkspace() {
 
   return (
     <WorkspaceLayout
+      storageKey="gproxy.workspace.orgs.width"
       title={t("orgs.title")}
       items={rows}
       selectedId={selectedId}
@@ -70,12 +71,10 @@ function OrgsWorkspace() {
         </Link>
       )}
       renderAction={(org) => (
-        <Switch
-          size="sm"
-          checked={org.enabled}
-          disabled={toggle.isPending}
-          aria-label={org.enabled ? t("orgs.disable") : t("orgs.enable")}
-          onCheckedChange={(enabled) => toggle.mutate({ org, enabled })}
+        <EnabledToggle
+          enabled={org.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) => toggle.mutate({ org, enabled })}
         />
       )}
       searchPlaceholder={t("orgs.search")}

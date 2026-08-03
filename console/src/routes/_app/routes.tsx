@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import { aliasesQuery } from "@/api/aliases";
 import { ApiError } from "@/api/http";
 import { routesQuery, upsertRoute, type Route as RouteRecord } from "@/api/routes";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { WorkspaceBatchBar } from "@/components/workspace/workspace-batch-bar";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 
 export const Route = createFileRoute("/_app/routes")({
@@ -64,6 +64,7 @@ function RoutesWorkspace() {
 
   return (
     <WorkspaceLayout
+      storageKey="gproxy.workspace.routes.width"
       title={t("title")}
       items={rows}
       selectedId={selectedId}
@@ -81,12 +82,10 @@ function RoutesWorkspace() {
         </Link>
       )}
       renderAction={(route) => (
-        <Switch
-          size="sm"
-          checked={route.enabled}
-          disabled={toggle.isPending}
-          aria-label={route.enabled ? t("disable") : t("enable")}
-          onCheckedChange={(enabled) => toggle.mutate({ route, enabled })}
+        <EnabledToggle
+          enabled={route.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) => toggle.mutate({ route, enabled })}
         />
       )}
       searchPlaceholder={t("search")}
