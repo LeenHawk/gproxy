@@ -13,6 +13,9 @@ use serde_json::Value;
 /// (e.g. `claude-opus-4-20250514`), because the dated ID drops the `-0`.
 const SAMPLING_TOLERANT_MODELS: &[&str] = &[
     // Current
+    // NOTE: claude-opus-4-6 is deliberately absent. The official docs claim
+    // only Opus 4.7+ rejects sampling parameters, but in practice the API
+    // rejects them on Opus 4.6 as well — do not add it back.
     "claude-sonnet-4-6",
     "claude-haiku-4-5",
     // Legacy 4.5
@@ -26,8 +29,8 @@ const SAMPLING_TOLERANT_MODELS: &[&str] = &[
     "claude-opus-4-0",
     "claude-opus-4-20", // dated: claude-opus-4-20250514
     // Legacy 3.x
-    // Claude 3 Opus is retired, but some accounts retain access; it tolerates
-    // sampling parameters because only Opus 4.7+ rejects them.
+    // Claude 3 Opus is retired, but some accounts retain access; it predates
+    // the sampling-parameter rejection of newer models.
     "claude-3-opus",
     "claude-3-haiku",
 ];
