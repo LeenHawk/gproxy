@@ -1,17 +1,16 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { DownloadCloud, Plus, Pencil, Trash2 } from "lucide-react";
+import { DownloadCloud, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { deletePriceRule, priceRulesQuery, type PriceRule } from "@/api/price-rules";
 import { providersQuery } from "@/api/providers";
 import { BatchToolbar } from "@/components/batch-toolbar";
-import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
 import { DefaultPriceRuleImport } from "@/components/pricing/default-price-rule-import";
 import { PriceRuleForm } from "@/components/pricing/price-rule-form";
-import { Badge } from "@/components/ui/badge";
+import { PricingTable } from "@/components/pricing/pricing-table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
@@ -46,78 +45,6 @@ function PricingPage() {
       setDeleting(null);
     },
   });
-
-  const columns: DataColumn<PriceRule>[] = [
-    {
-      key: "scope",
-      header: t("columns.scope"),
-      cell: (r) => (
-        <Badge variant={r.provider_id == null ? "outline" : "secondary"}>
-          {r.provider_id == null ? t("scope.global") : providerName.get(r.provider_id) ?? `#${r.provider_id}`}
-        </Badge>
-      ),
-    },
-    {
-      key: "match",
-      header: t("columns.match"),
-      cell: (r) => <span className="font-mono text-sm">{r.model_match}</span>,
-    },
-    {
-      key: "input_price",
-      header: t("columns.inputPrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.input_price}</span>,
-    },
-    {
-      key: "output_price",
-      header: t("columns.outputPrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.output_price}</span>,
-    },
-    {
-      key: "cache_read_price",
-      header: t("columns.cacheReadPrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_read_price}</span>,
-    },
-    {
-      key: "cache_creation_5m_price",
-      header: t("columns.cacheCreation5mPrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_creation_5m_price}</span>,
-    },
-    {
-      key: "cache_creation_30m_price",
-      header: t("columns.cacheCreation30mPrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_creation_30m_price}</span>,
-    },
-    {
-      key: "cache_creation_1h_price",
-      header: t("columns.cacheCreation1hPrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.cache_creation_1h_price}</span>,
-    },
-    {
-      key: "image_price",
-      header: t("columns.imagePrice"),
-      cell: (r) => <span className="font-mono text-xs tabular-nums">{r.image_price}</span>,
-    },
-    {
-      key: "enabled",
-      header: t("columns.status"),
-      cell: (r) => <Badge variant={r.enabled ? "secondary" : "outline"}>{r.enabled ? t("status.enabled") : t("status.disabled")}</Badge>,
-    },
-    ...(batch.mode ? [] : [{
-      key: "actions",
-      header: "",
-      cell: (r) => (
-        <div className="flex justify-end gap-1">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(r); }} aria-label={t("actions.edit")}>
-            <Pencil className="size-4" aria-hidden />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setDeleting(r.id); }} aria-label={t("actions.delete")}>
-            <Trash2 className="size-4" aria-hidden />
-          </Button>
-        </div>
-      ),
-      className: "w-24 text-right",
-    } as DataColumn<PriceRule>]),
-  ];
 
   if (isPending) {
     return (
@@ -155,12 +82,12 @@ function PricingPage() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
+      <PricingTable
         rows={rows}
-        rowKey={(r) => r.id}
-        empty={t("empty")}
-        onRowClick={batch.mode ? undefined : (r) => setEditing(r)}
+        providerNames={providerName}
+        batchMode={batch.mode}
+        onEdit={setEditing}
+        onDelete={setDeleting}
         selection={batch.mode ? {
           selectedIds: batch.selected,
           onToggle: batch.toggle,
@@ -168,26 +95,6 @@ function PricingPage() {
           allSelected: batch.allSelectedFor(rows.map((r) => r.id)),
           indeterminate: batch.selected.size > 0 && !batch.allSelectedFor(rows.map((r) => r.id)),
         } : undefined}
-        renderCard={(r) => (
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-sm">{r.model_match}</span>
-              <Badge variant={r.enabled ? "secondary" : "outline"}>{r.enabled ? t("status.enabled") : t("status.disabled")}</Badge>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {r.provider_id == null ? t("scope.global") : providerName.get(r.provider_id) ?? `#${r.provider_id}`}
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
-              <span>{t("columns.inputPrice")}: {r.input_price}</span>
-              <span>{t("columns.outputPrice")}: {r.output_price}</span>
-              <span>{t("columns.cacheReadPrice")}: {r.cache_read_price}</span>
-              <span>{t("columns.cacheCreation5mPrice")}: {r.cache_creation_5m_price}</span>
-              <span>{t("columns.cacheCreation30mPrice")}: {r.cache_creation_30m_price}</span>
-              <span>{t("columns.cacheCreation1hPrice")}: {r.cache_creation_1h_price}</span>
-              <span>{t("columns.imagePrice")}: {r.image_price}</span>
-            </div>
-          </div>
-        )}
       />
 
       {batch.mode && (

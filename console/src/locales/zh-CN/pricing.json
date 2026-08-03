@@ -33,7 +33,9 @@
     "cacheCreation30mPrice": "缓存创建 30m",
     "cacheCreation1hPrice": "缓存创建 1h",
     "imagePrice": "图片",
-    "status": "状态"
+    "status": "状态",
+    "actions": "操作",
+    "toggle": "列"
   },
   "scope": {
     "global": "全局",
@@ -49,7 +51,9 @@
   },
   "actions": {
     "edit": "编辑价格规则",
-    "delete": "删除价格规则"
+    "delete": "删除价格规则",
+    "enable": "启用价格规则",
+    "disable": "停用价格规则"
   },
   "form": {
     "scope": "范围",
