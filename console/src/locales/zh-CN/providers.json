@@ -8,6 +8,13 @@
     "models": "模型"
   },
   "sideNav": { "all": "全部供应商" },
+  "summary": {
+    "credentialCount_one": "{{count}} 个凭证",
+    "credentialCount_other": "{{count}} 个凭证",
+    "healthy": "健康",
+    "degraded": "部分异常",
+    "unhealthy": "异常"
+  },
   "catalog": {
     "loading": "正在从当前可执行文件加载 Channel...",
     "error": "无法加载运行时 Channel 目录。",

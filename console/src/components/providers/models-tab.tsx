@@ -14,9 +14,11 @@ import { EntityDialog } from "@/components/entity-dialog";
 import { PriceRuleForm } from "@/components/pricing/price-rule-form";
 import { ModelForm } from "@/components/providers/model-form";
 import { ModelPullDialog } from "@/components/providers/model-pull-dialog";
+import { useProviderModelToggle } from "@/components/providers/use-provider-model-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 import { parseVariantNames } from "@/lib/variant-sync";
 
@@ -32,7 +34,6 @@ function variantCount(v: unknown): number {
   }
   return parseVariantNames(v).length;
 }
-
 function modelPriceTargets(model: ProviderModel): string[] {
   return [...new Set([model.model_id, ...parseVariantNames(model.variants_json)])];
 }
@@ -45,7 +46,17 @@ export function ModelsTab({ provider }: { provider: Provider }) {
   const { data: priceRules = [] } = useQuery(priceRulesQuery);
   const rows = models ?? [];
   const batch = useBatch("provider-models", ["providers", provider.id, "models"]);
+  const toggle = useProviderModelToggle(provider.id);
   const ids = rows.map((m) => m.id);
+  const enabledSwitch = (model: ProviderModel) => (
+    <Switch
+      checked={model.enabled}
+      disabled={toggle.isPending}
+      aria-label={t("models.enabled")}
+      onClick={(event) => event.stopPropagation()}
+      onCheckedChange={(enabled) => toggle.mutate({ model, enabled })}
+    />
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ProviderModel | undefined>(undefined);
@@ -97,7 +108,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
       const n = variantCount(m.variants_json);
       return n > 0 ? <Badge variant="outline">+{n}</Badge> : <span className="text-muted-foreground">—</span>;
     } },
-    { key: "enabled", header: t("models.enabled"), cell: (m) => <Badge variant={m.enabled ? "secondary" : "outline"}>{m.enabled ? "on" : "off"}</Badge> },
+    { key: "enabled", header: t("models.enabled"), cell: enabledSwitch },
     ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-28 text-right" } as DataColumn<ProviderModel>]),
   ];
 
@@ -135,7 +146,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-sm">{m.model_id}</span>
-                <Badge variant={m.enabled ? "secondary" : "outline"}>{m.enabled ? "on" : "off"}</Badge>
+                {enabledSwitch(m)}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {m.display_name ? <span>{m.display_name}</span> : null}

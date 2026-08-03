@@ -13,8 +13,8 @@ use crate::admin::invalidate;
 use crate::api::error::ApiError;
 use crate::app::AppState;
 use crate::store::persistence::records::{
-    Alias, AliasInput, Org, OrgInput, PriceRule, PriceRuleInput, Provider, ProviderInput, Route,
-    RouteInput, RuleSet, RuleSetInput,
+    Alias, AliasInput, Org, OrgInput, PriceRule, PriceRuleInput, ProviderInput, Route, RouteInput,
+    RuleSet, RuleSetInput,
 };
 
 use super::{Request, Resp, internal, json_body, parse_i64, segments};
@@ -286,17 +286,6 @@ edge_crud!(
 );
 
 edge_crud!(
-    fn   dispatch_providers,
-    seg  "providers",
-    rec  Provider,
-    inp  ProviderInput,
-    list list_providers,
-    get  get(get_provider),
-    ups  upsert_provider,
-    del  delete_provider,
-);
-
-edge_crud!(
     fn   dispatch_routes,
     seg  "routes",
     rec  Route,
@@ -349,9 +338,6 @@ pub(super) async fn dispatch(
     body: &Bytes,
 ) -> Option<Result<Resp, ApiError>> {
     if let Some(r) = dispatch_orgs(state, parts, body).await {
-        return Some(r);
-    }
-    if let Some(r) = dispatch_providers(state, parts, body).await {
         return Some(r);
     }
     if let Some(r) = dispatch_routes(state, parts, body).await {

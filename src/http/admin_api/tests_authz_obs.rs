@@ -439,6 +439,7 @@ async fn credential_model_status_routes_are_separate_and_guarded() {
         let rows = parse_json(&resp);
         assert_eq!(rows.as_array().unwrap().len(), 1);
         assert_eq!(rows[0]["model_id"], "gpt-test");
+        assert_eq!(rows[0]["provider_id"], provider.id);
     }
 
     for path in [
@@ -451,6 +452,7 @@ async fn credential_model_status_routes_are_separate_and_guarded() {
         let rows = parse_json(&global);
         assert_eq!(rows.as_array().unwrap().len(), 1);
         assert!(rows[0].get("model_id").is_none());
+        assert_eq!(rows[0]["provider_id"], provider.id);
     }
 
     let error = run(

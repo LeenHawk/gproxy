@@ -99,6 +99,7 @@ export interface AuditLog {
 export interface CredentialStatus {
   id: number;
   credential_id: number;
+  provider_id: number | null;
   channel: string;
   health_kind: string;
   health_json: { state?: string; open_until?: number; reason?: string } | null;

@@ -36,6 +36,7 @@ export type HealthKind = "breaker" | "recovered" | "rate_limited" | "auth_dead";
 export interface CredentialStatus {
   id: number;
   credential_id: number;
+  provider_id: number | null;
   channel: string;
   health_kind: HealthKind | (string & {});
   health_json: { state?: string; open_until?: number; consecutive_failures?: number; reason?: string } | null;

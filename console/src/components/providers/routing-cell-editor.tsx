@@ -7,6 +7,8 @@ import {
 import { ApiError } from "@/api/http";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -23,6 +25,7 @@ export interface CellInitial {
   destKind: string | null;
   ruleId?: number;
   sortOrder?: number;
+  enabled?: boolean;
 }
 
 /** Edits the routing behavior of one (operation, kind) cell. In "add" mode the
@@ -45,6 +48,8 @@ export function RoutingCellEditor({
   const [implementation, setImplementation] = useState(initial.implementation);
   const [destOperation, setDestOperation] = useState(initial.destOperation ?? initial.operation);
   const [destKind, setDestKind] = useState(initial.destKind ?? "claude_messages");
+  const [sortOrder, setSortOrder] = useState(String(initial.sortOrder ?? 0));
+  const [enabled, setEnabled] = useState(initial.enabled ?? true);
   const [formError, setFormError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -57,8 +62,8 @@ export function RoutingCellEditor({
         implementation,
         dest_operation: implementation === "transform_to" ? destOperation : null,
         dest_kind: implementation === "transform_to" ? destKind : null,
-        sort_order: initial.sortOrder ?? 0,
-        enabled: true,
+        sort_order: Number(sortOrder),
+        enabled,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["providers", providerId, "routing-rules"] });
@@ -149,6 +154,24 @@ export function RoutingCellEditor({
           </div>
         </>
       )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="routing-sort-order">{t("rule.sortOrder")}</Label>
+          <Input
+            id="routing-sort-order"
+            type="number"
+            step="1"
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value)}
+            required
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2 self-end rounded-md border px-3 py-2">
+          <Label htmlFor="routing-enabled">{t("rule.enabled")}</Label>
+          <Switch id="routing-enabled" checked={enabled} onCheckedChange={setEnabled} />
+        </div>
+      </div>
 
       {formError && <p className="text-sm text-destructive">{formError}</p>}
       <Button type="submit" disabled={mutation.isPending}>{t("common.save")}</Button>
