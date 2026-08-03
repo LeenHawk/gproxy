@@ -11,11 +11,11 @@ import { TeamForm } from "@/components/identity/team-form";
 import { useTeamToggle } from "@/components/identity/use-team-toggle";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { EntityDialog } from "@/components/entity-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 
 export function TeamsTab({ org }: { org: Org }) {
@@ -53,12 +53,10 @@ export function TeamsTab({ org }: { org: Org }) {
       {team.enabled ? t("teams.status.enabled") : t("teams.status.disabled")}
     </Badge>
   ) : (
-    <Switch
-      size="sm"
-      checked={team.enabled}
-      disabled={toggle.isPending}
-      aria-label={team.enabled ? t("teams.disable") : t("teams.enable")}
-      onCheckedChange={(enabled) => toggle.mutate({ team, enabled })}
+    <EnabledToggle
+      enabled={team.enabled}
+      pending={toggle.isPending}
+      onToggle={(enabled) => toggle.mutate({ team, enabled })}
     />
   );
 

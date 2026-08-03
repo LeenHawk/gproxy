@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { RouteMember } from "@/api/routes";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { MemberNumberInput } from "@/components/routes/member-number-input";
 import type { MemberChanges } from "@/components/routes/use-route-member-update";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 
 interface InlineProps {
   member: RouteMember;
@@ -33,12 +33,10 @@ export function MemberEnabledField({ member, selecting, pending, onChange }: Inl
       {member.enabled ? t("status.enabled") : t("status.disabled")}
     </Badge>
   ) : (
-    <Switch
-      size="sm"
-      checked={member.enabled}
-      disabled={pending}
-      aria-label={member.enabled ? t("members.disable") : t("members.enable")}
-      onCheckedChange={(enabled) => onChange({ enabled })}
+    <EnabledToggle
+      enabled={member.enabled}
+      pending={pending}
+      onToggle={(enabled) => onChange({ enabled })}
     />
   );
 }

@@ -9,6 +9,7 @@ import { ApiError } from "@/api/http";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { EntityDialog } from "@/components/entity-dialog";
 import { CredentialBulkImport } from "@/components/providers/credential-bulk-import";
 import { CredentialForm } from "@/components/providers/credential-form";
@@ -19,7 +20,6 @@ import { useCredentialToggle } from "@/components/providers/use-credential-toggl
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 import { useChannelMeta } from "@/hooks/use-channel-catalog";
 import { bulkModeFor } from "@/lib/credential-bulk-parse";
@@ -113,12 +113,10 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
       </Badge>
     ) },
     { key: "enabled", header: t("fields.enabled"), cell: (c) => (
-      <Switch
-        checked={c.enabled}
-        disabled={toggle.isPending}
-        aria-label={t("fields.enabled")}
-        onClick={(event) => event.stopPropagation()}
-        onCheckedChange={(enabled) => toggle.mutate({ credential: c, enabled })}
+      <EnabledToggle
+        enabled={c.enabled}
+        pending={toggle.isPending}
+        onToggle={(enabled) => toggle.mutate({ credential: c, enabled })}
       />
     ) },
     { key: "health", header: t("health.title"), cell: (c) => <HealthBadge credentialId={c.id} /> },
@@ -200,12 +198,10 @@ export function CredentialsTab({ provider }: { provider: Provider }) {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{credName(c, t("creds.unnamed", { id: c.id }))}</span>
-                <Switch
-                  checked={c.enabled}
-                  disabled={toggle.isPending}
-                  aria-label={t("fields.enabled")}
-                  onClick={(event) => event.stopPropagation()}
-                  onCheckedChange={(enabled) => toggle.mutate({ credential: c, enabled })}
+                <EnabledToggle
+                  enabled={c.enabled}
+                  pending={toggle.isPending}
+                  onToggle={(enabled) => toggle.mutate({ credential: c, enabled })}
                 />
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

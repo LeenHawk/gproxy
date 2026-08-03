@@ -10,12 +10,12 @@ import { ApiError } from "@/api/http";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { EntityDialog } from "@/components/entity-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 import { useUserKeyToggle } from "./use-user-key-toggle";
 
@@ -87,12 +87,10 @@ export function UserKeysTab({ user }: { user: UserView }) {
       key: "enabled",
       header: t("keys.enabled"),
       cell: (k) => (
-        <Switch
-          size="sm"
-          checked={k.enabled}
-          disabled={toggle.isPending}
-          aria-label={k.enabled ? t("keys.disable") : t("keys.enable")}
-          onCheckedChange={(enabled) => toggle.mutate({ key: k, enabled })}
+        <EnabledToggle
+          enabled={k.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) => toggle.mutate({ key: k, enabled })}
         />
       ),
     },
@@ -137,12 +135,10 @@ export function UserKeysTab({ user }: { user: UserView }) {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm">{k.label ?? "—"}</span>
-                <Switch
-                  size="sm"
-                  checked={k.enabled}
-                  disabled={toggle.isPending}
-                  aria-label={k.enabled ? t("keys.disable") : t("keys.enable")}
-                  onCheckedChange={(enabled) => toggle.mutate({ key: k, enabled })}
+                <EnabledToggle
+                  enabled={k.enabled}
+                  pending={toggle.isPending}
+                  onToggle={(enabled) => toggle.mutate({ key: k, enabled })}
                 />
               </div>
               <span className="break-all font-mono text-xs text-muted-foreground">{k.api_key}</span>

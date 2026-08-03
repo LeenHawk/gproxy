@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 import type { CredentialModelStatus, CredentialStatus } from "@/api/usage";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { isCurrentCredentialStatus, unixNow } from "@/lib/credential-health";
 import { cn } from "@/lib/utils";
 
@@ -28,27 +27,22 @@ export function providerHealthLevels(
   return levels;
 }
 
-export function ProviderHealthDot({ level }: { level: HealthLevel }) {
+export function ProviderHealthBadge({ level }: { level: HealthLevel }) {
   const { t } = useTranslation("providers");
   const label = level === "healthy"
     ? t("summary.healthy")
     : level === "warning" ? t("summary.degraded") : t("summary.unhealthy");
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          role="img"
-          aria-label={label}
-          className={cn(
-            "inline-block size-2 shrink-0 rounded-full",
-            level === "healthy" && "bg-emerald-500",
-            level === "warning" && "bg-amber-500",
-            level === "danger" && "bg-red-500",
-          )}
-        />
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <span
+      className={cn(
+        "shrink-0 rounded-sm border px-1.5 py-0 text-[10px] font-medium leading-4",
+        level === "healthy" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+        level === "warning" && "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        level === "danger" && "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+      )}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -68,7 +62,7 @@ export function ProviderSummary({
       <span aria-hidden>·</span>
       <span className="shrink-0">{t("summary.credentialCount", { count: credentialCount })}</span>
       <span aria-hidden>·</span>
-      <ProviderHealthDot level={level} />
+      <ProviderHealthBadge level={level} />
     </span>
   );
 }

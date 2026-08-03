@@ -10,6 +10,7 @@ import { ApiError } from "@/api/http";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { EntityDialog } from "@/components/entity-dialog";
 import { PriceRuleForm } from "@/components/pricing/price-rule-form";
 import { ModelForm } from "@/components/providers/model-form";
@@ -18,7 +19,6 @@ import { useProviderModelToggle } from "@/components/providers/use-provider-mode
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 import { parseVariantNames } from "@/lib/variant-sync";
 
@@ -48,13 +48,11 @@ export function ModelsTab({ provider }: { provider: Provider }) {
   const batch = useBatch("provider-models", ["providers", provider.id, "models"]);
   const toggle = useProviderModelToggle(provider.id);
   const ids = rows.map((m) => m.id);
-  const enabledSwitch = (model: ProviderModel) => (
-    <Switch
-      checked={model.enabled}
-      disabled={toggle.isPending}
-      aria-label={t("models.enabled")}
-      onClick={(event) => event.stopPropagation()}
-      onCheckedChange={(enabled) => toggle.mutate({ model, enabled })}
+  const enabledToggle = (model: ProviderModel) => (
+    <EnabledToggle
+      enabled={model.enabled}
+      pending={toggle.isPending}
+      onToggle={(enabled) => toggle.mutate({ model, enabled })}
     />
   );
 
@@ -108,7 +106,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
       const n = variantCount(m.variants_json);
       return n > 0 ? <Badge variant="outline">+{n}</Badge> : <span className="text-muted-foreground">—</span>;
     } },
-    { key: "enabled", header: t("models.enabled"), cell: enabledSwitch },
+    { key: "enabled", header: t("models.enabled"), cell: enabledToggle },
     ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-28 text-right" } as DataColumn<ProviderModel>]),
   ];
 
@@ -146,7 +144,7 @@ export function ModelsTab({ provider }: { provider: Provider }) {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-sm">{m.model_id}</span>
-                {enabledSwitch(m)}
+                {enabledToggle(m)}
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {m.display_name ? <span>{m.display_name}</span> : null}

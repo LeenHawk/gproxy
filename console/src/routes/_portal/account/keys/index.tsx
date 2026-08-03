@@ -10,10 +10,9 @@ import { ApiError } from "@/api/http";
 import { MyKeysCreate } from "@/components/portal/my-keys-create";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
-import { Badge } from "@/components/ui/badge";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_portal/account/keys/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(myKeysQuery),
@@ -67,23 +66,15 @@ function MyKeysPage() {
     {
       key: "enabled",
       header: t("keys.enabled"),
-      cell: (k) => <Badge variant={k.enabled ? "secondary" : "outline"}>{k.enabled ? t("keys.enabled") : t("keys.disabled")}</Badge>,
-    },
-    {
-      key: "toggle",
-      header: "",
       cell: (k) => (
-        <Switch
-          size="sm"
-          checked={k.enabled}
-          aria-label={k.enabled ? t("keys.disable") : t("keys.enable")}
-          disabled={toggle.isPending}
-          onCheckedChange={(checked) =>
-            toggle.mutate({ id: k.id, label: k.label, enabled: checked })
+        <EnabledToggle
+          enabled={k.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) =>
+            toggle.mutate({ id: k.id, label: k.label, enabled })
           }
         />
       ),
-      className: "w-12",
     },
     {
       key: "actions",
@@ -132,21 +123,14 @@ function MyKeysPage() {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{k.label ?? "—"}</span>
-                <Badge variant={k.enabled ? "secondary" : "outline"}>
-                  {k.enabled ? t("keys.enabled") : t("keys.disabled")}
-                </Badge>
+                <EnabledToggle
+                  enabled={k.enabled}
+                  pending={toggle.isPending}
+                  onToggle={(enabled) => toggle.mutate({ id: k.id, label: k.label, enabled })}
+                />
               </div>
               <span className="break-all font-mono text-xs text-muted-foreground">{k.api_key}</span>
-              <div className="flex items-center justify-between">
-                <Switch
-                  size="sm"
-                  checked={k.enabled}
-                  aria-label={k.enabled ? t("keys.disable") : t("keys.enable")}
-                  disabled={toggle.isPending}
-                  onCheckedChange={(checked) =>
-                    toggle.mutate({ id: k.id, label: k.label, enabled: checked })
-                  }
-                />
+              <div className="flex items-center justify-end">
                 <Button
                   variant="ghost"
                   size="sm"

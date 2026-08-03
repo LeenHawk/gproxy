@@ -2,9 +2,9 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { PriceRule } from "@/api/price-rules";
 import { DataTable, type DataColumn, type DataTableSelection } from "@/components/data-table";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { usePriceRuleToggle } from "@/hooks/use-price-rule-toggle";
 
 interface PricingTableProps {
@@ -61,12 +61,10 @@ export function PricingTable({
       label: t("columns.status"),
       header: t("columns.status"),
       cell: (rule) => (
-        <Switch
-          checked={rule.enabled}
-          disabled={toggle.isPending}
-          aria-label={rule.enabled ? t("actions.disable") : t("actions.enable")}
-          onClick={(event) => event.stopPropagation()}
-          onCheckedChange={(enabled) => toggle.mutate({ rule, enabled })}
+        <EnabledToggle
+          enabled={rule.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) => toggle.mutate({ rule, enabled })}
         />
       ),
     },
@@ -104,12 +102,10 @@ export function PricingTable({
               <span className="truncate font-mono text-sm">{rule.model_match}</span>
               <Badge variant="outline" className="shrink-0 text-[10px]">{t(`match.${rule.match_type}`)}</Badge>
             </div>
-            <Switch
-              checked={rule.enabled}
-              disabled={toggle.isPending}
-              aria-label={rule.enabled ? t("actions.disable") : t("actions.enable")}
-              onClick={(event) => event.stopPropagation()}
-              onCheckedChange={(enabled) => toggle.mutate({ rule, enabled })}
+            <EnabledToggle
+              enabled={rule.enabled}
+              pending={toggle.isPending}
+              onToggle={(enabled) => toggle.mutate({ rule, enabled })}
             />
           </div>
           <div className="text-xs text-muted-foreground">

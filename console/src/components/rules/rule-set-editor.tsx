@@ -15,11 +15,11 @@ import { RULE_KIND_META, summarizeRuleConfig } from "./rule-kind-meta";
 import { RuleForm } from "./rule-form";
 import { RuleSetForm } from "./rule-set-form";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { EntityDialog } from "@/components/entity-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 
 export function RuleSetEditor({
   ruleSetId,
@@ -122,10 +122,10 @@ export function RuleSetEditor({
                     {r.filter_model_pattern ?? t("pipeline.allRequests")}
                   </span>
                 </button>
-                <Switch
-                  checked={r.enabled}
-                  onCheckedChange={(next) => toggleEnabled.mutate({ r, next })}
-                  aria-label={t("rule.enabled")}
+                <EnabledToggle
+                  enabled={r.enabled}
+                  pending={toggleEnabled.isPending}
+                  onToggle={(next) => toggleEnabled.mutate({ r, next })}
                 />
                 <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDelRule(r)}>
                   <Trash2 className="size-4" />
