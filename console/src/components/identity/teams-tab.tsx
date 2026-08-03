@@ -8,12 +8,14 @@ import { ApiError } from "@/api/http";
 import { BatchToolbar } from "@/components/batch-toolbar";
 import { ScopeAccessEditor } from "@/components/identity/scope-access-editor";
 import { TeamForm } from "@/components/identity/team-form";
+import { useTeamToggle } from "@/components/identity/use-team-toggle";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 
 export function TeamsTab({ org }: { org: Org }) {
@@ -23,6 +25,7 @@ export function TeamsTab({ org }: { org: Org }) {
   const { data: teams, isPending } = useQuery(teamsQuery(org.id));
   const rows = teams ?? [];
   const batch = useBatch("teams", ["orgs", org.id, "teams"]);
+  const toggle = useTeamToggle(org.id);
   const ids = rows.map((team) => team.id);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -45,6 +48,19 @@ export function TeamsTab({ org }: { org: Org }) {
 
   const openCreate = () => { setEditTarget(undefined); setFormOpen(true); };
   const openEdit = (team: Team) => { setEditTarget(team); setFormOpen(true); };
+  const enabledControl = (team: Team) => batch.mode ? (
+    <Badge variant={team.enabled ? "secondary" : "outline"}>
+      {team.enabled ? t("teams.status.enabled") : t("teams.status.disabled")}
+    </Badge>
+  ) : (
+    <Switch
+      size="sm"
+      checked={team.enabled}
+      disabled={toggle.isPending}
+      aria-label={team.enabled ? t("teams.disable") : t("teams.enable")}
+      onCheckedChange={(enabled) => toggle.mutate({ team, enabled })}
+    />
+  );
 
   const actionsColumn = (team: Team) => (
     <div className="flex items-center justify-end gap-1">
@@ -85,9 +101,7 @@ export function TeamsTab({ org }: { org: Org }) {
     {
       key: "enabled",
       header: t("teams.enabled"),
-      cell: (team) => (
-        <Badge variant={team.enabled ? "secondary" : "outline"}>{team.enabled ? "on" : "off"}</Badge>
-      ),
+      cell: enabledControl,
     },
     ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-32 text-right" } as DataColumn<Team>]),
   ];
@@ -127,7 +141,7 @@ export function TeamsTab({ org }: { org: Org }) {
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{team.name}</span>
-                <Badge variant={team.enabled ? "secondary" : "outline"}>{team.enabled ? "on" : "off"}</Badge>
+                {enabledControl(team)}
               </div>
               {!batch.mode && actionsColumn(team)}
             </div>

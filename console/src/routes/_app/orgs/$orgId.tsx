@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { deleteOrg, orgQuery } from "@/api/identity";
 import { ApiError } from "@/api/http";
+import { OrgForm } from "@/components/identity/org-form";
 import { ScopeAccessEditor } from "@/components/identity/scope-access-editor";
 import { TeamsTab } from "@/components/identity/teams-tab";
 import { ConfirmDangerous } from "@/components/confirm-dangerous";
@@ -14,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/orgs/$orgId")({
+  validateSearch: (search: Record<string, unknown>): { tab: OrgTab } => ({
+    tab: isOrgTab(search.tab) ? search.tab : "profile",
+  }),
   loader: ({ context, params }) => {
     const id = Number(params.orgId);
     if (Number.isNaN(id)) throw redirect({ to: "/orgs" });
@@ -27,6 +31,7 @@ function OrgDetailPage() {
   const id = Number(orgId);
   const { t } = useTranslation("identity");
   const { t: tc } = useTranslation("common");
+  const { tab } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: org } = useSuspenseQuery(orgQuery(id));
@@ -58,11 +63,27 @@ function OrgDetailPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="teams">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          void navigate({
+            to: "/orgs/$orgId",
+            params: { orgId },
+            search: { tab: value as OrgTab },
+            replace: true,
+          });
+        }}
+      >
         <TabsList>
+          <TabsTrigger value="profile">{t("orgs.tabs.profile")}</TabsTrigger>
           <TabsTrigger value="teams">{t("orgs.tabs.teams")}</TabsTrigger>
           <TabsTrigger value="access">{t("orgs.tabs.access")}</TabsTrigger>
         </TabsList>
+        <TabsContent value="profile" className="max-w-xl pt-4">
+          <div className="rounded-lg border p-4">
+            <OrgForm key={`${org.id}-${org.updated_at}`} org={org} onSaved={() => undefined} />
+          </div>
+        </TabsContent>
         <TabsContent value="teams" className="pt-2">
           <TeamsTab org={org} />
         </TabsContent>
@@ -82,4 +103,10 @@ function OrgDetailPage() {
       />
     </div>
   );
+}
+
+type OrgTab = "profile" | "teams" | "access";
+
+function isOrgTab(value: unknown): value is OrgTab {
+  return value === "profile" || value === "teams" || value === "access";
 }

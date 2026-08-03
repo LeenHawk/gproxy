@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_app/routes/$routeId")({
+  validateSearch: (search: Record<string, unknown>): { tab: RouteTab } => ({
+    tab: isRouteTab(search.tab) ? search.tab : "settings",
+  }),
   loader: ({ context, params }) => {
     const id = Number(params.routeId);
     if (Number.isNaN(id)) throw redirect({ to: "/routes" });
@@ -27,6 +30,7 @@ function RouteDetailPage() {
   const { routeId } = Route.useParams();
   const id = Number(routeId);
   const { t } = useTranslation("routes");
+  const { tab } = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: route } = useSuspenseQuery(routeQuery(id));
@@ -56,7 +60,17 @@ function RouteDetailPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="settings">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          void navigate({
+            to: "/routes/$routeId",
+            params: { routeId },
+            search: { tab: value as RouteTab },
+            replace: true,
+          });
+        }}
+      >
         <TabsList>
           <TabsTrigger value="settings">{t("tabs.settings")}</TabsTrigger>
           <TabsTrigger value="members">{t("tabs.members")}</TabsTrigger>
@@ -84,4 +98,10 @@ function RouteDetailPage() {
       />
     </div>
   );
+}
+
+type RouteTab = "settings" | "members" | "aliases";
+
+function isRouteTab(value: unknown): value is RouteTab {
+  return value === "settings" || value === "members" || value === "aliases";
 }

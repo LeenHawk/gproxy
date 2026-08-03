@@ -1,14 +1,17 @@
 {
   "orgs": {
     "title": "Organizations", "new": "New organization", "empty": "No organizations yet.",
-    "name": "Name", "description": "Description", "enabled": "Enabled",
+    "name": "Name", "description": "Description", "enabled": "Enabled", "enable": "Enable organization", "disable": "Disable organization",
+    "search": "Search organizations…", "selectAll": "Select all filtered organizations", "selectHint": "Select an organization to view and edit details.",
+    "status": { "enabled": "enabled", "disabled": "disabled" },
     "create": "Create organization", "edit": "Edit organization",
     "delete": "Delete organization", "deleteConfirm": "Delete organization \"{{name}}\" and its teams, users, and access rules?",
-    "tabs": { "teams": "Teams", "access": "Access" }
+    "tabs": { "profile": "Profile", "teams": "Teams", "access": "Access" }
   },
   "teams": {
     "add": "Add team", "empty": "No teams in this organization.",
-    "name": "Name", "enabled": "Enabled", "edit": "Edit team",
+    "name": "Name", "enabled": "Enabled", "enable": "Enable team", "disable": "Disable team", "edit": "Edit team",
+    "status": { "enabled": "enabled", "disabled": "disabled" },
     "delete": "Remove team", "deleteConfirm": "Remove team \"{{name}}\"?",
     "access": "Team access"
   },
@@ -17,14 +20,15 @@
     "name": "Name", "org": "Organization", "team": "Team", "noTeam": "— none —",
     "password": "Password", "passwordKeep": "Leave blank to keep the current password.",
     "passwordPolicy": "Optional password.", "hasPassword": "password set", "noPassword": "no password (login disabled)",
-    "enabled": "Enabled", "isAdmin": "Administrator",
+    "enabled": "Enabled", "enable": "Enable user", "disable": "Disable user", "isAdmin": "Administrator",
+    "search": "Search users…", "selectAll": "Select all filtered users", "selectHint": "Select a user to view and edit details.",
     "create": "Create user", "edit": "Edit user",
     "delete": "Delete user", "deleteConfirm": "Delete user \"{{name}}\" with its API keys and access rules?",
-    "tabs": { "keys": "API keys", "access": "Access" }
+    "tabs": { "profile": "Profile", "keys": "API keys", "access": "Access" }
   },
   "keys": {
     "title": "API keys", "add": "Generate key", "empty": "No API keys.",
-    "label": "Label", "key": "API key", "enabled": "Enabled",
+    "label": "Label", "key": "API key", "enabled": "Enabled", "enable": "Enable key", "disable": "Disable key",
     "delete": "Delete key", "deleteConfirm": "Delete this API key? Clients using it stop working.",
     "rotateHint": "Keys can't be edited — to rotate, generate a new one and delete the old."
   },

@@ -11,7 +11,8 @@ import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
 import { MemberForm } from "@/components/routes/member-form";
-import { Badge } from "@/components/ui/badge";
+import { MemberCard, MemberEnabledField, MemberIntegerField } from "@/components/routes/member-inline-fields";
+import { useRouteMemberUpdate, type MemberChanges } from "@/components/routes/use-route-member-update";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
@@ -24,6 +25,7 @@ export function MembersTab({ route }: { route: Route }) {
   const { data: providers } = useQuery(providersQuery);
   const rows = members ?? [];
   const batch = useBatch("route-members", ["routes", route.id, "members"]);
+  const update = useRouteMemberUpdate(route.id);
   const ids = rows.map((m) => m.id);
   const providerName = (id: number) => {
     const p = providers?.find((x) => x.id === id);
@@ -50,6 +52,12 @@ export function MembersTab({ route }: { route: Route }) {
     setEditTarget(undefined);
     setFormOpen(true);
   };
+  const inlineProps = (member: RouteMember) => ({
+    member,
+    selecting: batch.mode,
+    pending: update.isPending,
+    onChange: (changes: MemberChanges) => update.mutate({ member, changes }),
+  });
   const actionsColumn = (m: RouteMember) => (
     <div className="flex items-center justify-end gap-1">
       <Button
@@ -90,14 +98,20 @@ export function MembersTab({ route }: { route: Route }) {
       header: t("members.model"),
       cell: (m) => <span className="font-mono text-xs">{m.upstream_model_id}</span>,
     },
-    { key: "tier", header: t("members.tier"), cell: (m) => m.tier },
-    { key: "weight", header: t("members.weight"), cell: (m) => m.weight },
+    {
+      key: "tier",
+      header: t("members.tier"),
+      cell: (m) => <MemberIntegerField {...inlineProps(m)} field="tier" />,
+    },
+    {
+      key: "weight",
+      header: t("members.weight"),
+      cell: (m) => <MemberIntegerField {...inlineProps(m)} field="weight" />,
+    },
     {
       key: "enabled",
       header: t("fields.enabled"),
-      cell: (m) => (
-        <Badge variant={m.enabled ? "secondary" : "outline"}>{m.enabled ? "on" : "off"}</Badge>
-      ),
+      cell: (m) => <MemberEnabledField {...inlineProps(m)} />,
     },
     ...(batch.mode ? [] : [{ key: "actions", header: "", cell: actionsColumn, className: "w-20 text-right" } as DataColumn<RouteMember>]),
   ];
@@ -132,22 +146,7 @@ export function MembersTab({ route }: { route: Route }) {
             allSelected: batch.allSelectedFor(ids),
             indeterminate: batch.selected.size > 0 && !batch.allSelectedFor(ids),
           } : undefined}
-          renderCard={(m) => (
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{providerName(m.provider_id)}</span>
-                <Badge variant={m.enabled ? "secondary" : "outline"}>
-                  {m.enabled ? "on" : "off"}
-                </Badge>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-mono">{m.upstream_model_id}</span>
-                <span>tier {m.tier}</span>
-                <span>w{m.weight}</span>
-              </div>
-              {!batch.mode && actionsColumn(m)}
-            </div>
-          )}
+          renderCard={(m) => <MemberCard {...inlineProps(m)} providerName={providerName(m.provider_id)} actions={actionsColumn(m)} />}
         />
       )}
       {batch.mode && (
