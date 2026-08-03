@@ -14,6 +14,7 @@
     "settings": "Settings",
     "title": "Navigation",
     "openMenu": "Open menu",
+    "resize": "Resize navigation sidebar",
     "myAccount": "My Account",
     "adminConsole": "Admin Console",
     "collapse": "Collapse",
@@ -59,6 +60,10 @@
   "errors": {
     "network": "Network error — is the server reachable?",
     "internal": "Server error"
+  },
+  "status": {
+    "enabled": "Enabled",
+    "disabled": "Disabled"
   },
   "updateBanner": {
     "message": "GPROXY {{version}} is available.",

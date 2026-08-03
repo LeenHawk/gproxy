@@ -4,10 +4,12 @@ import { useTranslation } from "react-i18next";
 import { AreaSwitcher } from "@/components/shell/area-switcher";
 import { LocaleControls } from "@/components/locale-controls";
 import { NavList, NAV_ITEMS, type NavItem } from "@/components/shell/nav";
+import { useSidebarWidth } from "@/components/shell/use-sidebar-width";
 import { UserMenu } from "@/components/shell/user-menu";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { UpdateBanner } from "@/components/update/update-banner";
+import { VerticalResizeHandle } from "@/components/vertical-resize-handle";
 import { cn } from "@/lib/utils";
 
 type ShellFrom = "/_app" | "/_portal";
@@ -64,15 +66,14 @@ export function AppShell({
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
+  const sidebar = useSidebarWidth();
   const { t } = useTranslation();
   return (
     <div className="flex min-h-svh">
       {/* md+: collapsible sidebar (icon rail when collapsed, labelled when expanded) */}
       <aside
-        className={cn(
-          "sticky top-0 hidden h-svh shrink-0 flex-col border-r bg-background transition-[width] duration-200 md:flex",
-          collapsed ? "w-14" : "w-60",
-        )}
+        style={{ width: collapsed ? 56 : sidebar.width }}
+        className="sticky top-0 hidden h-svh shrink-0 flex-col border-r bg-background md:flex"
       >
         <Brand compact={collapsed} />
         <div className="flex-1 overflow-y-auto py-2">
@@ -103,6 +104,17 @@ export function AppShell({
           </div>
         </div>
       </aside>
+
+      {!collapsed && (
+        <VerticalResizeHandle
+          label={t("nav.resize")}
+          width={sidebar.width}
+          minWidth={sidebar.minWidth}
+          maxWidth={sidebar.maxWidth}
+          onWidthChange={sidebar.setWidth}
+          onReset={sidebar.resetWidth}
+        />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* top bar: mobile gets the drawer trigger; all sizes get controls */}
