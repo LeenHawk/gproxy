@@ -6,11 +6,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ApiError } from "@/api/http";
 import { orgsQuery, teamsQuery, upsertUser, usersQuery, type UserView } from "@/api/identity";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { WorkspaceBatchBar } from "@/components/workspace/workspace-batch-bar";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 
 export const Route = createFileRoute("/_app/users")({
@@ -66,6 +66,7 @@ function UsersWorkspace() {
 
   return (
     <WorkspaceLayout
+      storageKey="gproxy.workspace.users.width"
       title={t("users.title")}
       items={rows}
       selectedId={selectedId}
@@ -82,12 +83,10 @@ function UsersWorkspace() {
         <Link to="/users/$userId" params={{ userId: String(user.id) }} search={{ tab: "profile" }} className={className}>{content}</Link>
       )}
       renderAction={(user) => (
-        <Switch
-          size="sm"
-          checked={user.enabled}
-          disabled={toggle.isPending}
-          aria-label={user.enabled ? t("users.disable") : t("users.enable")}
-          onCheckedChange={(enabled) => toggle.mutate({ user, enabled })}
+        <EnabledToggle
+          enabled={user.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) => toggle.mutate({ user, enabled })}
         />
       )}
       searchPlaceholder={t("users.search")}

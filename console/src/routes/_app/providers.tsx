@@ -5,10 +5,10 @@ import { ArrowLeft, Plus, Plug } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { providersQuery } from "@/api/providers";
 import { credentialModelStatusesQuery, credentialStatusesQuery } from "@/api/usage";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { providerHealthLevels, ProviderSummary } from "@/components/providers/provider-summary";
 import { useProviderToggle } from "@/components/providers/use-provider-toggle";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { WorkspaceBatchBar } from "@/components/workspace/workspace-batch-bar";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { useBatch } from "@/hooks/use-batch";
@@ -48,6 +48,7 @@ function ProvidersWorkspace() {
 
   return (
     <WorkspaceLayout
+      storageKey="gproxy.workspace.providers.width"
       title={t("title")}
       items={rows}
       selectedId={selectedId}
@@ -71,13 +72,10 @@ function ProvidersWorkspace() {
         </Link>
       )}
       renderAction={(provider) => (
-        <Switch
-          size="sm"
-          checked={provider.enabled}
-          disabled={toggle.isPending}
-          aria-label={provider.enabled ? t("workspace.disable") : t("workspace.enable")}
-          onClick={(event) => event.stopPropagation()}
-          onCheckedChange={(enabled) => toggle.mutate({ provider, enabled })}
+        <EnabledToggle
+          enabled={provider.enabled}
+          pending={toggle.isPending}
+          onToggle={(enabled) => toggle.mutate({ provider, enabled })}
         />
       )}
       searchPlaceholder={t("workspace.search")}

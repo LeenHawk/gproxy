@@ -7,11 +7,11 @@ import { toast } from "sonner";
 import { ApiError } from "@/api/http";
 import { providersQuery } from "@/api/providers";
 import { cloneRuleSet, providerRuleSetsQuery, ruleSetsQuery, type RuleSet } from "@/api/rules";
+import { EnabledToggle } from "@/components/enabled-toggle";
 import { RuleSetUsageBadge } from "@/components/rules/rule-set-usage-badge";
 import { WorkspaceBatchBar } from "@/components/workspace/workspace-batch-bar";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { useBatch } from "@/hooks/use-batch";
 import { useRuleSetToggle } from "@/hooks/use-rule-set-toggle";
 import { computeRuleSetUsage } from "@/lib/rule-usage";
@@ -70,6 +70,7 @@ function RulesWorkspace() {
 
   return (
     <WorkspaceLayout
+      storageKey="gproxy.workspace.rules.width"
       title={t("title")}
       items={rows}
       selectedId={selectedId}
@@ -89,12 +90,10 @@ function RulesWorkspace() {
       )}
       renderAction={(ruleSet) => (
         <div className="flex items-center gap-1">
-          <Switch
-            size="sm"
-            checked={ruleSet.enabled}
-            disabled={toggle.isPending}
-            aria-label={ruleSet.enabled ? t("actions.disable") : t("actions.enable")}
-            onCheckedChange={(enabled) => toggle.mutate({ ruleSet, enabled })}
+          <EnabledToggle
+            enabled={ruleSet.enabled}
+            pending={toggle.isPending}
+            onToggle={(enabled) => toggle.mutate({ ruleSet, enabled })}
           />
           <Button
             size="icon-xs"
