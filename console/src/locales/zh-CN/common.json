@@ -14,6 +14,7 @@
     "settings": "设置",
     "title": "导航",
     "openMenu": "打开菜单",
+    "resize": "调整导航栏宽度",
     "myAccount": "我的账户",
     "adminConsole": "管理控制台",
     "collapse": "收起",
@@ -59,6 +60,10 @@
   "errors": {
     "network": "网络错误——服务是否可达?",
     "internal": "服务器错误"
+  },
+  "status": {
+    "enabled": "已启用",
+    "disabled": "已停用"
   },
   "updateBanner": {
     "message": "GPROXY {{version}} 已可更新。",
