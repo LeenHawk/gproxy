@@ -33,7 +33,9 @@
     "cacheCreation30mPrice": "快取建立 30m",
     "cacheCreation1hPrice": "快取建立 1h",
     "imagePrice": "圖片",
-    "status": "狀態"
+    "status": "狀態",
+    "actions": "操作",
+    "toggle": "欄"
   },
   "scope": {
     "global": "全域",
@@ -49,7 +51,9 @@
   },
   "actions": {
     "edit": "編輯價格規則",
-    "delete": "刪除價格規則"
+    "delete": "刪除價格規則",
+    "enable": "啟用價格規則",
+    "disable": "停用價格規則"
   },
   "form": {
     "scope": "範圍",
