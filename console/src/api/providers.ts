@@ -21,6 +21,10 @@ export interface Provider {
   updated_at: number;
 }
 
+export interface ProviderListItem extends Provider {
+  credential_count: number;
+}
+
 export interface ProviderInput {
   id?: number | null;
   name: string;
@@ -37,7 +41,7 @@ export interface ProviderInput {
 
 export const providersQuery = queryOptions({
   queryKey: ["providers"],
-  queryFn: () => api<Provider[]>("/admin/providers"),
+  queryFn: () => api<ProviderListItem[]>("/admin/providers"),
 });
 
 export const tlsPresetsQuery = queryOptions({

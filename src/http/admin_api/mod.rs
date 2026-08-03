@@ -26,6 +26,7 @@ pub(crate) mod observability;
 mod pagination;
 pub(crate) mod portal;
 mod portal_usage;
+mod provider_crud;
 pub(crate) mod provider_ops;
 pub(crate) mod settings;
 pub(crate) mod special;
@@ -313,7 +314,11 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
         return Some(r);
     }
 
-    // 1. Try standard CRUD entities (providers/routes/aliases/rule-sets/orgs).
+    if let Some(r) = provider_crud::dispatch(state, parts).await {
+        return Some(r);
+    }
+
+    // 1. Try standard CRUD entities (routes/aliases/rule-sets/orgs).
     if let Some(r) = crud::dispatch(state, parts, body).await {
         return Some(r);
     }

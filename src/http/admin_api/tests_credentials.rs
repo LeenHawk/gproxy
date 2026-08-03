@@ -92,4 +92,15 @@ async fn credentials_import_reports_created_existing_error_per_item() {
         "duplicate key resolves to the already-created credential"
     );
     assert_eq!(outcome["results"][2]["status"], "error");
+
+    let request = parts("GET", "/admin/providers", Some(&cookie), None);
+    let response = run(&state, &request, b"").await.expect("providers");
+    let providers = parse_json(&response);
+    let listed = providers
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|provider| provider["id"] == provider_id)
+        .unwrap();
+    assert_eq!(listed["credential_count"], 1);
 }

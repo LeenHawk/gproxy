@@ -8,6 +8,13 @@
     "models": "Models"
   },
   "sideNav": { "all": "All providers" },
+  "summary": {
+    "credentialCount_one": "{{count}} credential",
+    "credentialCount_other": "{{count}} credentials",
+    "healthy": "Healthy",
+    "degraded": "Degraded",
+    "unhealthy": "Unhealthy"
+  },
   "catalog": {
     "loading": "Loading channels from this executable...",
     "error": "The runtime channel catalog could not be loaded.",

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { providersQuery, type Provider } from "@/api/providers";
+import { providersQuery, type ProviderListItem } from "@/api/providers";
+import { credentialModelStatusesQuery, credentialStatusesQuery } from "@/api/usage";
 import { channelMeta, type ChannelMeta } from "@/lib/channel-meta";
 import { DataTable, type DataColumn } from "@/components/data-table";
 import { EntityDialog } from "@/components/entity-dialog";
@@ -14,16 +15,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useBatch } from "@/hooks/use-batch";
 import { useChannelCatalog } from "@/hooks/use-channel-catalog";
 import { BatchToolbar } from "@/components/batch-toolbar";
+import {
+  providerHealthLevels,
+  ProviderHealthDot,
+  ProviderSummary,
+} from "@/components/providers/provider-summary";
+import { useProviderToggle } from "@/components/providers/use-provider-toggle";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_app/providers/")({
   loader: ({ context }) => context.queryClient.ensureQueryData(providersQuery),
   component: ProvidersPage,
 });
-
-function EnabledBadge({ enabled }: { enabled: boolean }) {
-  return <Badge variant={enabled ? "secondary" : "outline"}>{enabled ? "on" : "off"}</Badge>;
-}
-
 function ChannelName({ id, meta }: { id: string; meta?: ChannelMeta }) {
   const displayName = meta?.displayName ?? id;
   return (
@@ -33,20 +36,26 @@ function ChannelName({ id, meta }: { id: string; meta?: ChannelMeta }) {
     </span>
   );
 }
-
 function ProvidersPage() {
   const { t } = useTranslation("providers");
   const navigate = useNavigate();
   const { data: providers, isPending } = useQuery(providersQuery);
+  const { data: statuses = [] } = useQuery(credentialStatusesQuery);
+  const { data: modelStatuses = [] } = useQuery(credentialModelStatusesQuery);
+  const health = useMemo(
+    () => providerHealthLevels(statuses, modelStatuses),
+    [statuses, modelStatuses],
+  );
   const catalogState = useChannelCatalog();
   const catalog = catalogState.catalog;
   const [createOpen, setCreateOpen] = useState(false);
 
   const rows = providers ?? [];
   const batch = useBatch("providers", ["providers"]);
+  const toggle = useProviderToggle();
   const ids = rows.map((p) => p.id);
 
-  const columns: DataColumn<Provider>[] = [
+  const columns: DataColumn<ProviderListItem>[] = [
     { key: "name", header: t("fields.name"), cell: (p) => (
       <span className="font-medium">{p.label ?? p.name}</span>
     ) },
@@ -58,7 +67,19 @@ function ProvidersPage() {
       return meta ? <Badge variant="outline">{t(`family.${meta.family}`)}</Badge> : null;
     } },
     { key: "strategy", header: t("fields.strategy"), cell: (p) => t(`strategy.${p.credential_strategy}`, { defaultValue: p.credential_strategy }) },
-    { key: "enabled", header: t("fields.enabled"), cell: (p) => <EnabledBadge enabled={p.enabled} /> },
+    { key: "credentials", header: t("tabs.credentials"), cell: (p) => p.credential_count },
+    { key: "health", header: t("health.title"), cell: (p) => (
+      <ProviderHealthDot level={health.get(p.id) ?? "healthy"} />
+    ) },
+    { key: "enabled", header: t("fields.enabled"), cell: (p) => (
+      <Switch
+        checked={p.enabled}
+        disabled={toggle.isPending}
+        aria-label={t("fields.enabled")}
+        onClick={(event) => event.stopPropagation()}
+        onCheckedChange={(enabled) => toggle.mutate({ provider: p, enabled })}
+      />
+    ) },
   ];
 
   return (
@@ -131,10 +152,20 @@ function ProvidersPage() {
               <div className="grid gap-1">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{p.label ?? p.name}</span>
-                  <EnabledBadge enabled={p.enabled} />
+                  <Switch
+                    checked={p.enabled}
+                    disabled={toggle.isPending}
+                    aria-label={t("fields.enabled")}
+                    onClick={(event) => event.stopPropagation()}
+                    onCheckedChange={(enabled) => toggle.mutate({ provider: p, enabled })}
+                  />
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <ChannelName id={p.channel} meta={meta} />
+                  <ProviderSummary
+                    channel={p.channel}
+                    credentialCount={p.credential_count}
+                    level={health.get(p.id) ?? "healthy"}
+                  />
                   {meta && <Badge variant="outline">{t(`family.${meta.family}`)}</Badge>}
                   <span>·</span>
                   <span>{t(`strategy.${p.credential_strategy}`, { defaultValue: p.credential_strategy })}</span>

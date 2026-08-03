@@ -1,8 +1,13 @@
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { providersQuery } from "@/api/providers";
+import { credentialModelStatusesQuery, credentialStatusesQuery } from "@/api/usage";
+import { providerHealthLevels, ProviderSummary } from "@/components/providers/provider-summary";
+import { useProviderToggle } from "@/components/providers/use-provider-toggle";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 /** 凭证最优先:数组顺序即导航顺序,credentials 同时是详情默认落点。 */
@@ -42,6 +47,13 @@ function SectionLinks({ providerId, pill }: { providerId: string; pill?: boolean
 export function ProviderSideNav({ currentId }: { currentId: number }) {
   const { t } = useTranslation("providers");
   const { data: providers } = useQuery(providersQuery);
+  const { data: statuses = [] } = useQuery(credentialStatusesQuery);
+  const { data: modelStatuses = [] } = useQuery(credentialModelStatusesQuery);
+  const health = useMemo(
+    () => providerHealthLevels(statuses, modelStatuses),
+    [statuses, modelStatuses],
+  );
+  const toggle = useProviderToggle();
   return (
     <aside className="sticky top-14 hidden h-[calc(100svh-3.5rem)] w-56 shrink-0 flex-col border-r md:flex">
       <Link
@@ -55,23 +67,55 @@ export function ProviderSideNav({ currentId }: { currentId: number }) {
         {(providers ?? []).map((p) =>
           p.id === currentId ? (
             <div key={p.id} className="grid gap-0.5">
-              <div className="truncate rounded-md px-3 py-1.5 text-sm font-medium">{p.label ?? p.name}</div>
+              <div className="grid gap-0.5 rounded-md px-3 py-1.5">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium">{p.label ?? p.name}</span>
+                  <Switch
+                    size="sm"
+                    checked={p.enabled}
+                    disabled={toggle.isPending}
+                    aria-label={t("fields.enabled")}
+                    onCheckedChange={(enabled) => toggle.mutate({ provider: p, enabled })}
+                  />
+                </div>
+                <ProviderSummary
+                  channel={p.channel}
+                  credentialCount={p.credential_count}
+                  level={health.get(p.id) ?? "healthy"}
+                />
+              </div>
               <div className="grid gap-0.5 pl-3">
                 <SectionLinks providerId={String(p.id)} />
               </div>
             </div>
           ) : (
-            <Link
+            <div
               key={p.id}
-              to="/providers/$providerId/credentials"
-              params={{ providerId: String(p.id) }}
               className={cn(
-                "truncate rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                "flex items-center gap-2 rounded-md pr-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 !p.enabled && "opacity-50",
               )}
             >
-              {p.label ?? p.name}
-            </Link>
+              <Link
+                to="/providers/$providerId/credentials"
+                params={{ providerId: String(p.id) }}
+                className="grid min-w-0 flex-1 gap-0.5 px-3 py-1.5"
+              >
+                <span className="truncate text-sm">{p.label ?? p.name}</span>
+                <ProviderSummary
+                  channel={p.channel}
+                  credentialCount={p.credential_count}
+                  level={health.get(p.id) ?? "healthy"}
+                />
+              </Link>
+              <Switch
+                size="sm"
+                checked={p.enabled}
+                disabled={toggle.isPending}
+                aria-label={t("fields.enabled")}
+                onCheckedChange={(enabled) => toggle.mutate({ provider: p, enabled })}
+              />
+            </div>
           ),
         )}
       </nav>
