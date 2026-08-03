@@ -248,17 +248,20 @@ pub(in crate::transform::generate_content) fn completion_usage_to_gemini(
     usage: Option<openai::CompletionUsage>,
 ) -> Option<gemini::UsageMetadata> {
     let usage = usage?;
+    let thoughts = usage
+        .completion_tokens_details
+        .and_then(|details| details.reasoning_tokens)
+        .map(u32_to_i32);
     Some(gemini::UsageMetadata {
         prompt_token_count: Some(u32_to_i32(usage.prompt_tokens)),
         cached_content_token_count: usage
             .prompt_tokens_details
             .and_then(|details| details.cached_tokens)
             .map(u32_to_i32),
-        candidates_token_count: Some(u32_to_i32(usage.completion_tokens)),
-        thoughts_token_count: usage
-            .completion_tokens_details
-            .and_then(|details| details.reasoning_tokens)
-            .map(u32_to_i32),
+        candidates_token_count: Some(
+            u32_to_i32(usage.completion_tokens).saturating_sub(thoughts.unwrap_or_default()),
+        ),
+        thoughts_token_count: thoughts,
         total_token_count: Some(u32_to_i32(usage.total_tokens)),
         tool_use_prompt_token_count: None,
         prompt_tokens_details: Vec::new(),
@@ -337,10 +340,12 @@ pub(in crate::transform::generate_content) fn gemini_usage_to_completion(
     usage: gemini::UsageMetadata,
 ) -> openai::CompletionUsage {
     let prompt_tokens = usage.prompt_token_count.map(i32_to_u32).unwrap_or_default();
+    let thoughts = usage.thoughts_token_count.map(i32_to_u32);
     let completion_tokens = usage
         .candidates_token_count
         .map(i32_to_u32)
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .saturating_add(thoughts.unwrap_or_default());
     let total_tokens = usage
         .total_token_count
         .map(i32_to_u32)
@@ -350,11 +355,11 @@ pub(in crate::transform::generate_content) fn gemini_usage_to_completion(
         completion_tokens,
         prompt_tokens,
         total_tokens,
-        completion_tokens_details: usage.thoughts_token_count.map(|tokens| {
+        completion_tokens_details: thoughts.map(|reasoning_tokens| {
             openai::CompletionTokensDetails {
                 accepted_prediction_tokens: None,
                 audio_tokens: None,
-                reasoning_tokens: Some(i32_to_u32(tokens)),
+                reasoning_tokens: Some(reasoning_tokens),
                 rejected_prediction_tokens: None,
                 extra: Default::default(),
             }
@@ -394,4 +399,25 @@ pub(in crate::transform::generate_content) fn gemini_index_to_chat_index(
 
 pub(in crate::transform::generate_content) fn chat_index_to_gemini_index(index: u32) -> i32 {
     u32_to_i32(index)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gemini_usage_roundtrip_keeps_thinking_as_output_subset() {
+        let completion = gemini_usage_to_completion(gemini::UsageMetadata {
+            prompt_token_count: Some(100),
+            candidates_token_count: Some(20),
+            thoughts_token_count: Some(5),
+            total_token_count: Some(125),
+            ..Default::default()
+        });
+        assert_eq!(completion.completion_tokens, 25);
+        let roundtrip = completion_usage_to_gemini(Some(completion)).unwrap();
+        assert_eq!(roundtrip.candidates_token_count, Some(20));
+        assert_eq!(roundtrip.thoughts_token_count, Some(5));
+        assert_eq!(roundtrip.total_token_count, Some(125));
+    }
 }

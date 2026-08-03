@@ -284,8 +284,17 @@ fn reasoning_to_claude_content(
 
 fn openai_usage_to_claude(usage: openai::ResponseUsage) -> claude::Usage {
     let details = usage.input_tokens_details;
+    let cached = details.as_ref().map_or(0, |details| details.cached_tokens);
+    let cache_write = details
+        .as_ref()
+        .map_or(0, |details| details.cache_write_tokens);
     claude::Usage {
-        input_tokens: Some(u64::from(usage.input_tokens)),
+        input_tokens: Some(u64::from(
+            usage
+                .input_tokens
+                .saturating_sub(cached)
+                .saturating_sub(cache_write),
+        )),
         output_tokens: Some(u64::from(usage.output_tokens)),
         cache_creation_input_tokens: details
             .as_ref()
@@ -303,5 +312,32 @@ fn openai_usage_to_claude(usage: openai::ResponseUsage) -> claude::Usage {
         service_tier: None,
         speed: None,
         extra: Default::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_usage_subtracts_cache_from_openai_input_total() {
+        let usage = openai_usage_to_claude(openai::ResponseUsage {
+            input_tokens: 100,
+            output_tokens: 20,
+            total_tokens: 120,
+            input_tokens_details: Some(openai::ResponseInputTokensDetails {
+                cached_tokens: 60,
+                cache_write_tokens: 10,
+                extra: Default::default(),
+            }),
+            output_tokens_details: openai::ResponseOutputTokensDetails {
+                reasoning_tokens: 5,
+                extra: Default::default(),
+            },
+            extra: Default::default(),
+        });
+        assert_eq!(usage.input_tokens, Some(30));
+        assert_eq!(usage.cache_read_input_tokens, Some(60));
+        assert_eq!(usage.cache_creation_input_tokens, Some(10));
     }
 }

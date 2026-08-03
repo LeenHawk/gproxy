@@ -78,18 +78,24 @@ fn gemini_finish_reason_to_claude(reason: gemini::FinishReason) -> claude::StopR
 
 fn gemini_usage_to_claude(usage: gemini::UsageMetadata) -> claude::Usage {
     let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
+    let cached = usage.cached_content_token_count.map(i32_to_u64);
+    let thoughts = usage.thoughts_token_count.map(i32_to_u64);
 
     claude::Usage {
-        input_tokens: usage.prompt_token_count.map(i32_to_u64),
-        output_tokens: usage.candidates_token_count.map(i32_to_u64),
+        input_tokens: usage
+            .prompt_token_count
+            .map(i32_to_u64)
+            .map(|tokens| tokens.saturating_sub(cached.unwrap_or_default())),
+        output_tokens: usage
+            .candidates_token_count
+            .map(i32_to_u64)
+            .map(|tokens| tokens.saturating_add(thoughts.unwrap_or_default())),
         cache_creation_input_tokens: None,
-        cache_read_input_tokens: usage.cached_content_token_count.map(i32_to_u64),
+        cache_read_input_tokens: cached,
         cache_creation: None,
-        output_tokens_details: usage.thoughts_token_count.map(|tokens| {
-            claude::OutputTokensDetails {
-                thinking_tokens: i32_to_u64(tokens),
-                extra: Default::default(),
-            }
+        output_tokens_details: thoughts.map(|thinking_tokens| claude::OutputTokensDetails {
+            thinking_tokens,
+            extra: Default::default(),
         }),
         server_tool_use: None,
         iterations: None,
@@ -128,4 +134,29 @@ fn empty_text_response() -> Vec<claude::ContentBlock> {
 
 fn i32_to_u64(value: i32) -> u64 {
     u64::try_from(value).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn usage_separates_cached_input_and_includes_thinking_in_output() {
+        let usage = gemini_usage_to_claude(gemini::UsageMetadata {
+            prompt_token_count: Some(100),
+            cached_content_token_count: Some(60),
+            candidates_token_count: Some(20),
+            thoughts_token_count: Some(5),
+            ..Default::default()
+        });
+        assert_eq!(usage.input_tokens, Some(40));
+        assert_eq!(usage.cache_read_input_tokens, Some(60));
+        assert_eq!(usage.output_tokens, Some(25));
+        assert_eq!(
+            usage
+                .output_tokens_details
+                .map(|details| details.thinking_tokens),
+            Some(5)
+        );
+    }
 }

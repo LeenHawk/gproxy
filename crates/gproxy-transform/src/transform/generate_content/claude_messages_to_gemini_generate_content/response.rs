@@ -52,12 +52,25 @@ fn claude_stop_reason_to_gemini(reason: claude::StopReason) -> gemini::FinishRea
 }
 
 fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
-    let prompt = usage.input_tokens.map(u64_to_i32);
+    let cache_creation = usage.cache_creation_total();
+    let prompt = (usage.input_tokens.is_some()
+        || usage.cache_read_input_tokens.is_some()
+        || cache_creation.is_some())
+    .then(|| {
+        u64_to_i32(
+            usage
+                .input_tokens
+                .unwrap_or_default()
+                .saturating_add(usage.cache_read_input_tokens.unwrap_or_default())
+                .saturating_add(cache_creation.unwrap_or_default()),
+        )
+    });
     let cached = usage.cache_read_input_tokens.map(u64_to_i32);
     let output = usage.output_tokens.map(u64_to_i32);
     let thoughts = usage
         .output_tokens_details
         .map(|details| u64_to_i32(details.thinking_tokens));
+    let candidates = output.map(|tokens| tokens.saturating_sub(thoughts.unwrap_or_default()));
     let total = prompt
         .unwrap_or_default()
         .saturating_add(output.unwrap_or_default());
@@ -65,7 +78,7 @@ fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
     gemini::UsageMetadata {
         prompt_token_count: prompt,
         cached_content_token_count: cached,
-        candidates_token_count: output,
+        candidates_token_count: candidates,
         tool_use_prompt_token_count: None,
         thoughts_token_count: thoughts,
         total_token_count: Some(total),
@@ -80,4 +93,35 @@ fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
 
 fn u64_to_i32(value: u64) -> i32 {
     i32::try_from(value).unwrap_or(i32::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn usage_does_not_duplicate_thinking_in_candidates() {
+        let usage = claude_usage_to_gemini(claude::Usage {
+            input_tokens: Some(40),
+            output_tokens: Some(25),
+            cache_creation_input_tokens: Some(10),
+            cache_read_input_tokens: Some(60),
+            cache_creation: None,
+            output_tokens_details: Some(claude::OutputTokensDetails {
+                thinking_tokens: 5,
+                extra: Default::default(),
+            }),
+            server_tool_use: None,
+            iterations: None,
+            inference_geo: None,
+            service_tier: None,
+            speed: None,
+            extra: Default::default(),
+        });
+        assert_eq!(usage.prompt_token_count, Some(110));
+        assert_eq!(usage.cached_content_token_count, Some(60));
+        assert_eq!(usage.candidates_token_count, Some(20));
+        assert_eq!(usage.thoughts_token_count, Some(5));
+        assert_eq!(usage.total_token_count, Some(135));
+    }
 }

@@ -148,10 +148,12 @@ pub(super) fn server_tool_name_to_string(name: &claude::ServerToolUseName) -> St
 }
 
 pub(super) fn claude_usage_to_openai(usage: claude::Usage) -> openai::ResponseUsage {
-    let input_tokens = u64_to_u32(usage.input_tokens.unwrap_or_default());
-    let output_tokens = u64_to_u32(usage.output_tokens.unwrap_or_default());
     let cached_tokens = usage.cache_read_input_tokens.map(u64_to_u32);
     let cache_write_tokens = usage.cache_creation_total().map(u64_to_u32);
+    let input_tokens = u64_to_u32(usage.input_tokens.unwrap_or_default())
+        .saturating_add(cached_tokens.unwrap_or_default())
+        .saturating_add(cache_write_tokens.unwrap_or_default());
+    let output_tokens = u64_to_u32(usage.output_tokens.unwrap_or_default());
     let reasoning_tokens = usage
         .output_tokens_details
         .map(|details| u64_to_u32(details.thinking_tokens))
