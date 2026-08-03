@@ -2,12 +2,18 @@
   "title": "供应商",
   "new": "新建供应商",
   "empty": "还没有供应商——创建一个开始路由流量。",
+  "workspace": {
+    "search": "搜索供应商…",
+    "selectAll": "全选当前结果",
+    "selectHint": "选择一个供应商以查看详情。",
+    "enable": "启用供应商",
+    "disable": "停用供应商"
+  },
   "tabs": {
     "settings": "设置",
     "credentials": "凭证",
     "models": "模型"
   },
-  "sideNav": { "all": "全部供应商" },
   "summary": {
     "credentialCount_one": "{{count}} 个凭证",
     "credentialCount_other": "{{count}} 个凭证",
