@@ -294,3 +294,22 @@ fn responses_normalizer_finish_flushes_tool_only_stream() {
     assert!(text.contains("response.output_item.done"));
     assert!(text.contains("response.completed"));
 }
+
+#[test]
+fn responses_normalizer_passthroughs_unparseable_frame_and_continues() {
+    let mut normalizer = ResponsesStreamNormalizer::new();
+    let input = concat!(
+        "event: response.created\n",
+        "data: {bad json}\n\n",
+        "event: response.output_text.delta\n",
+        "data: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"hello\",\"item_id\":\"msg_1\",\"output_index\":0}\n\n"
+    );
+
+    let mut out = normalizer.push(input.as_bytes()).unwrap();
+    assert!(out.starts_with(b"event: response.created\ndata: {bad json}\n\n"));
+    out.extend(normalizer.finish().unwrap());
+
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("response.output_text.delta"));
+    assert!(text.contains("response.completed"));
+}
