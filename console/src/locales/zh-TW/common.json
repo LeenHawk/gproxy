@@ -67,7 +67,8 @@
   },
   "updateBanner": {
     "message": "GPROXY {{version}} 已可更新。",
-    "action": "檢視更新"
+    "action": "檢視更新",
+    "whatsNew": "更新內容"
   },
   "proxyTest": {
     "action": "測試連線",

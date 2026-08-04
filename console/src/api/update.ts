@@ -6,6 +6,7 @@ export interface CheckReport {
   latest: string;
   available: boolean;
   notes_url: string | null;
+  notes?: string | null;
   safety?: UpdateSafetyRisk[];
   install_mode: "binary" | "android_apk";
 }

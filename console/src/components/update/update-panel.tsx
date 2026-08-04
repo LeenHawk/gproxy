@@ -15,6 +15,7 @@ import { ConfirmDangerous } from "@/components/confirm-dangerous";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReleaseNotesDialog } from "./release-notes-dialog";
 
 /** Self-update controls (check / status / apply). Rendered inside the Settings
  *  page's "Updates" tab. */
@@ -30,6 +31,7 @@ export function UpdatePanel() {
   const installingApk = checkData?.install_mode === "android_apk";
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [securityConfirmOpen, setSecurityConfirmOpen] = useState(false);
   const [securityWarning, setSecurityWarning] = useState("");
   const apply = useMutation({
@@ -104,7 +106,13 @@ export function UpdatePanel() {
                     </Badge>
                   </dd>
                 </div>
-                {checkData.notes_url && (
+                {checkData.notes != null ? (
+                  <div className="pt-1">
+                    <Button variant="link" className="h-auto p-0" onClick={() => setNotesOpen(true)}>
+                      {t("check.whatsNew")}
+                    </Button>
+                  </div>
+                ) : checkData.notes_url ? (
                   <div className="pt-1">
                     <a
                       href={checkData.notes_url}
@@ -115,7 +123,7 @@ export function UpdatePanel() {
                       {t("check.notes")}
                     </a>
                   </div>
-                )}
+                ) : null}
               </dl>
             )}
 
@@ -175,6 +183,15 @@ export function UpdatePanel() {
         onConfirm={() => apply.mutate(true)}
         pending={applying}
       />
+
+      {checkData?.notes != null && (
+        <ReleaseNotesDialog
+          open={notesOpen}
+          onOpenChange={setNotesOpen}
+          version={checkData.latest}
+          notes={checkData.notes}
+        />
+      )}
     </div>
   );
 }

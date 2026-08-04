@@ -67,7 +67,8 @@
   },
   "updateBanner": {
     "message": "GPROXY {{version}} is available.",
-    "action": "View update"
+    "action": "View update",
+    "whatsNew": "What's new"
   },
   "proxyTest": {
     "action": "Test connection",
