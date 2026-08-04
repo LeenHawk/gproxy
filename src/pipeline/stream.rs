@@ -222,7 +222,18 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
                 let inner = st.inner.as_mut()?;
                 match inner.next().await {
                     Some(Ok(chunk)) => {
-                        let out = st.t.push(&chunk);
+                        let out = match st.t.push(&chunk) {
+                            Ok(out) => out,
+                            Err(error) => {
+                                st.inner = None;
+                                return Some((
+                                    Err(crate::http::client::ClientError::Transport(
+                                        error.to_string(),
+                                    )),
+                                    st,
+                                ));
+                            }
+                        };
                         if out.is_empty() {
                             continue; // partial frame buffered; poll again
                         }
@@ -234,7 +245,17 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
                     }
                     None => {
                         st.inner = None;
-                        let tail = st.t.finish();
+                        let tail = match st.t.finish() {
+                            Ok(tail) => tail,
+                            Err(error) => {
+                                return Some((
+                                    Err(crate::http::client::ClientError::Transport(
+                                        error.to_string(),
+                                    )),
+                                    st,
+                                ));
+                            }
+                        };
                         if tail.is_empty() {
                             return None;
                         }

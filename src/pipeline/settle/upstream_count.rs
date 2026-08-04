@@ -38,7 +38,7 @@ pub(super) async fn count(ctx: &SettleCtx, text: &str) -> Result<NormalizedUsage
 
 async fn count_once(ctx: &SettleCtx, secret: &Value, body: Bytes) -> Result<u64, &'static str> {
     let key = OperationKey::provider(Operation::CountTokens, ctx.upstream_family);
-    let target = crate::protocol::request_target(key, &ctx.model, false);
+    let target = crate::protocol::request_target(key, &ctx.model, false).map_err(|_| "endpoint")?;
     let mut headers = http::HeaderMap::new();
     headers.insert(
         http::header::CONTENT_TYPE,

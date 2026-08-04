@@ -23,6 +23,14 @@ pub enum TransformError {
     Serialization {
         reason: String,
     },
+    StreamLimitExceeded {
+        limit: &'static str,
+        max_bytes: usize,
+        actual_bytes: usize,
+    },
+    UnexpectedEof {
+        reason: &'static str,
+    },
 }
 
 impl TransformError {
@@ -47,6 +55,15 @@ impl fmt::Display for TransformError {
             Self::Serialization { reason } => {
                 write!(f, "transform serialization failed: {reason}")
             }
+            Self::StreamLimitExceeded {
+                limit,
+                max_bytes,
+                actual_bytes,
+            } => write!(
+                f,
+                "stream {limit} limit exceeded: {actual_bytes} bytes (maximum {max_bytes})"
+            ),
+            Self::UnexpectedEof { reason } => write!(f, "unexpected stream EOF: {reason}"),
         }
     }
 }

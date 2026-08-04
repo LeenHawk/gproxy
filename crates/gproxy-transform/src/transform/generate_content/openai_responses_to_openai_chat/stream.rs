@@ -9,10 +9,9 @@ use super::usage::response_usage_to_chat;
 pub fn stream_event(
     input: openai::ResponseStreamEvent,
     ctx: &TransformContext,
-) -> Result<openai::ChatCompletionChunk, TransformError> {
+) -> Result<Vec<openai::ChatCompletionChunk>, TransformError> {
     let mut transform = StreamTransform::default();
-    let mut output = transform.push(input, ctx)?;
-    Ok(output.drain(..).next().unwrap_or_else(empty_unknown_chunk))
+    transform.push(input, ctx)
 }
 
 #[derive(Default)]
@@ -400,15 +399,6 @@ fn incomplete_reason_to_chat(reason: &openai::IncompleteReason) -> openai::ChatF
         openai::IncompleteReason::MaxOutputTokens => openai::ChatFinishReason::Length,
         openai::IncompleteReason::ContentFilter => openai::ChatFinishReason::ContentFilter,
     }
-}
-
-fn empty_unknown_chunk() -> openai::ChatCompletionChunk {
-    common::empty_chat_chunk(
-        "resp_unknown".to_owned(),
-        common::default_openai_model(),
-        0,
-        None,
-    )
 }
 
 fn non_empty(value: String) -> Option<String> {

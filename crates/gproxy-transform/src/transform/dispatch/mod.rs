@@ -1,6 +1,6 @@
 //! Bytes-level dispatch from a resolved [`TransformPair`] to its typed pair
-//! functions. [`content`] holds the 12 content-generation pairs (M2);
-//! [`other`] holds count_tokens/models/embeddings/images/compact (M2.5).
+//! functions. The private `content` module holds content-generation pairs;
+//! `other` holds count_tokens/models/embeddings/images/compact.
 //! Streaming is wired for content pairs only.
 
 mod content;
@@ -22,6 +22,7 @@ pub fn request_bytes(
     ctx: &TransformContext,
     body: &[u8],
 ) -> Result<Vec<u8>, TransformError> {
+    validate_pair(pair, ctx)?;
     if content::is_content(pair) {
         content::request_bytes(pair, ctx, body)
     } else {
@@ -36,6 +37,7 @@ pub fn response_bytes(
     ctx: &TransformContext,
     body: &[u8],
 ) -> Result<Vec<u8>, TransformError> {
+    validate_pair(pair, ctx)?;
     if content::is_content(pair) {
         content::response_bytes(pair, ctx, body)
     } else {
@@ -51,18 +53,62 @@ pub enum StreamEventOut {
     Responses(Box<crate::protocol::openai::ResponseStreamEvent>),
 }
 
+/// Stateful `0..N` stream-event converter for one resolved pair.
+///
+/// Create one converter per upstream response and retain it until
+/// [`finish`](Self::finish). This preserves pair-specific state such as tool
+/// call arguments split across multiple frames.
+pub struct StreamConverter {
+    inner: content::ContentStreamConverter,
+}
+
+impl StreamConverter {
+    pub fn new(pair: TransformPair, ctx: TransformContext) -> Result<Self, TransformError> {
+        validate_pair(pair, &ctx)?;
+        Ok(Self {
+            inner: content::ContentStreamConverter::new(pair, ctx)?,
+        })
+    }
+
+    /// Convert one decoded upstream event into zero or more inbound events.
+    pub fn push(&mut self, data: &str) -> Result<Vec<StreamEventOut>, TransformError> {
+        self.inner.push(data)
+    }
+
+    /// Flush pair-specific state into zero or more final inbound events.
+    pub fn finish(&mut self) -> Result<Vec<StreamEventOut>, TransformError> {
+        self.inner.finish()
+    }
+}
+
 /// Convert one decoded stream event (upstream wire JSON text → inbound event).
 /// Same reverse-pair convention as [`response_bytes`]. Only content-generation
-/// pairs stream; the other groups are buffered.
+/// pairs stream; the other groups are buffered. This convenience call retains
+/// no cross-frame state; use [`StreamConverter`] for an actual response stream.
 pub fn stream_event(
     pair: TransformPair,
     ctx: &TransformContext,
     data: &str,
-) -> Result<StreamEventOut, TransformError> {
+) -> Result<Vec<StreamEventOut>, TransformError> {
     if content::is_content(pair) {
-        content::stream_event(pair, ctx, data)
+        let mut converter = StreamConverter::new(pair, ctx.clone())?;
+        converter.push(data)
     } else {
         Err(not_wired(pair))
+    }
+}
+
+fn validate_pair(pair: TransformPair, ctx: &TransformContext) -> Result<(), TransformError> {
+    let resolved = super::resolve(ctx.source, ctx.target)?;
+    if resolved == pair {
+        Ok(())
+    } else {
+        Err(TransformError::InvalidInput {
+            reason: format!(
+                "transform pair {pair:?} does not match context {:?} -> {:?} (resolved {resolved:?})",
+                ctx.source, ctx.target
+            ),
+        })
     }
 }
 

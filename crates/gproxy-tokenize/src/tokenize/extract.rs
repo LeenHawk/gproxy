@@ -4,10 +4,28 @@
 use serde_json::Value;
 
 /// Keys whose string values are human text worth counting.
-const TEXT_KEYS: &[&str] = &["text", "content", "input", "instructions", "system"];
+const TEXT_KEYS: &[&str] = &[
+    "text",
+    "content",
+    "input",
+    "instructions",
+    "system",
+    "reasoning",
+    "reasoning_content",
+    "arguments",
+    "partial_json",
+];
 /// Keys whose non-string values (tool defs, structured system) are counted
 /// by serializing the whole subtree.
-const SERIALIZE_KEYS: &[&str] = &["tools", "tool_choice", "system"];
+const SERIALIZE_KEYS: &[&str] = &[
+    "tools",
+    "tool_choice",
+    "system",
+    "response_format",
+    "json_schema",
+    "schema",
+    "generation_config",
+];
 /// Keys whose array length approximates the message count.
 const MESSAGE_KEYS: &[&str] = &["messages", "contents", "input"];
 
@@ -17,13 +35,17 @@ const MESSAGE_KEYS: &[&str] = &["messages", "contents", "input"];
 /// Returns `(texts, message_count)` where `message_count` is the length of
 /// the largest `messages` / `contents` / `input` array found (0 if none).
 pub fn harvest(body: &[u8]) -> (Vec<String>, u64) {
-    let Ok(root) = serde_json::from_slice::<Value>(body) else {
-        return (Vec::new(), 0);
-    };
+    try_harvest(body).unwrap_or_default()
+}
+
+/// Fallible harvesting for callers that must distinguish malformed JSON from
+/// an intentionally empty request.
+pub fn try_harvest(body: &[u8]) -> Result<(Vec<String>, u64), serde_json::Error> {
+    let root = serde_json::from_slice::<Value>(body)?;
     let mut texts = Vec::new();
     let mut messages = 0u64;
     walk(&root, &mut texts, &mut messages);
-    (texts, messages)
+    Ok((texts, messages))
 }
 
 fn walk(value: &Value, texts: &mut Vec<String>, messages: &mut u64) {
@@ -61,7 +83,7 @@ fn walk(value: &Value, texts: &mut Vec<String>, messages: &mut u64) {
 
 #[cfg(test)]
 mod tests {
-    use super::harvest;
+    use super::{harvest, try_harvest};
 
     #[test]
     fn harvest_claude_body() {
@@ -95,5 +117,27 @@ mod tests {
         let (texts, messages) = harvest(body.as_bytes());
         assert_eq!(texts, ["Count these words."]);
         assert_eq!(messages, 0);
+    }
+
+    #[test]
+    fn invalid_json_is_explicit_on_fallible_path() {
+        assert!(try_harvest(br#"{"messages":["#).is_err());
+        assert_eq!(harvest(br#"{"messages":["#), (Vec::new(), 0));
+    }
+
+    #[test]
+    fn harvests_reasoning_arguments_and_schema() {
+        let body = serde_json::json!({
+            "messages": [{
+                "role": "assistant",
+                "reasoning_content": "think",
+                "tool_calls": [{"function": {"arguments": "{\"city\":\"Paris\"}"}}]
+            }],
+            "response_format": {"type": "json_schema", "json_schema": {"name": "answer"}}
+        });
+        let (texts, _) = try_harvest(body.to_string().as_bytes()).unwrap();
+        assert!(texts.iter().any(|text| text == "think"));
+        assert!(texts.iter().any(|text| text.contains("Paris")));
+        assert!(texts.iter().any(|text| text.contains("json_schema")));
     }
 }

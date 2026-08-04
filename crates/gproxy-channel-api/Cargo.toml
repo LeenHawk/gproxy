@@ -22,8 +22,8 @@ async-trait = "0.1"
 bytes = "1"
 futures-core = "0.3"
 futures-util = "0.3"
-gproxy-protocol = { path = "../gproxy-protocol", version = "2.2.6" }
-gproxy-transform = { path = "../gproxy-transform", version = "2.2.6" }
+gproxy-protocol = { path = "../gproxy-protocol", version = "=2.2.6" }
+gproxy-transform = { path = "../gproxy-transform", version = "=2.2.6" }
 http = "1"
 httpdate = "1"
 linkme = { version = "0.3", optional = true }

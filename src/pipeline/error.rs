@@ -31,6 +31,8 @@ pub enum PipelineError {
     Transport(String),
     #[error("request transform failed: {0}")]
     TransformRequest(crate::transform::TransformError),
+    #[error("endpoint synthesis failed: {0}")]
+    Endpoint(#[from] crate::protocol::EndpointError),
     #[error("response transform failed: {0}")]
     TransformResponse(crate::transform::TransformError),
     #[error("operation not supported by provider routing rules")]
@@ -56,7 +58,7 @@ impl PipelineError {
             NoMembers | NoCredentials => StatusCode::SERVICE_UNAVAILABLE,
             UnknownChannel(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Channel(_) | AllAttemptsFailed | Transport(_) => StatusCode::BAD_GATEWAY,
-            TransformRequest(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            TransformRequest(_) | Endpoint(_) => StatusCode::UNPROCESSABLE_ENTITY,
             TransformResponse(_) => StatusCode::BAD_GATEWAY,
             RuleUnsupported | LocalUnimplemented => StatusCode::NOT_IMPLEMENTED,
             Forbidden => StatusCode::FORBIDDEN,

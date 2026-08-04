@@ -33,7 +33,7 @@ let key = OperationKey::content_generation(
 assert_eq!(key.kind.provider(), Provider::Claude);
 
 // Method + path for this operation against the target provider.
-let target = request_target(key, "claude-sonnet-4-5", true);
+let target = request_target(key, "claude-sonnet-4-5", true)?;
 ```
 
 ## Layout
@@ -53,8 +53,12 @@ in [`gproxy-transform`](https://crates.io/crates/gproxy-transform).
 ## Compatibility
 
 The crate version tracks the GPROXY release it ships with, so a minor bump can
-carry additive wire-type changes. Pin an exact version if you depend on the
-enum surface staying byte-for-byte stable.
+carry additive wire-type changes. Lockstep GPROXY crates use exact dependency
+versions; downstreams should do the same when exhaustive enum matching or
+struct literals make additive changes source-incompatible.
+
+`request_target` accepts a raw model id, encodes it as one path/query component,
+and returns a structured error for inconsistent or unsupported combinations.
 
 ## License
 

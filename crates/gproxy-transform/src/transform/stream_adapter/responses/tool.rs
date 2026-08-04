@@ -82,10 +82,11 @@ impl ResponsesToolItemState {
     }
 
     pub(super) fn can_finish(&self) -> bool {
-        self.kind.is_some()
-            && self.item_id.is_some()
-            && self.call_id.is_some()
-            && self.name.is_some()
+        // Sparse streams can begin directly with an arguments delta, which
+        // carries neither call_id nor name. Preserve the arguments and close
+        // the item with the accessors' stable fallbacks instead of dropping
+        // the entire tool call at EOF.
+        self.kind.is_some() && self.item_id.is_some()
     }
 
     pub(super) fn input_done_event(&self) -> ResponseStreamEvent {

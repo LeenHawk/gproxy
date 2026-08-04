@@ -6,12 +6,31 @@ use super::super::common;
 pub fn stream_event(
     input: gemini::StreamGenerateContentChunk,
     ctx: &TransformContext,
-) -> Result<claude::StreamEvent, TransformError> {
-    let _ = ctx;
-    Ok(gemini_chunk_to_claude(input))
+) -> Result<Vec<claude::StreamEvent>, TransformError> {
+    StreamTransform.push(input, ctx)
 }
 
-fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> claude::StreamEvent {
+#[derive(Default)]
+pub struct StreamTransform;
+
+impl StreamTransform {
+    pub fn push(
+        &mut self,
+        input: gemini::StreamGenerateContentChunk,
+        _: &TransformContext,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        Ok(gemini_chunk_to_claude(input))
+    }
+
+    pub fn finish(
+        &mut self,
+        _: &TransformContext,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        Ok(Vec::new())
+    }
+}
+
+fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> Vec<claude::StreamEvent> {
     let usage = input.usage_metadata.map(|usage| {
         let service_tier = common::gemini_usage_service_tier_to_claude(usage.service_tier.clone());
         let mut usage =
@@ -27,41 +46,43 @@ fn gemini_chunk_to_claude(input: gemini::GenerateContentResponse) -> claude::Str
 
     if input.candidates.is_empty() {
         return if blocked {
-            message_delta(
+            vec![message_delta(
                 Some(claude::StopReason::Known(claude::StopReasonKnown::Refusal)),
                 usage,
-            )
+            )]
         } else if usage.is_some() {
-            message_delta(None, usage)
+            vec![message_delta(None, usage)]
         } else {
-            ping()
+            Vec::new()
         };
     }
 
-    let mut candidates = input.candidates.into_iter();
-    let Some(candidate) = candidates.next() else {
-        return ping();
-    };
-    let index = candidate.index.map(index_to_u64).unwrap_or_default();
-
-    if let Some(content) = candidate.content
-        && let Some(event) = gemini_content_to_claude(content, index)
-    {
-        return event;
+    let candidate_count = input.candidates.len();
+    let mut out = Vec::new();
+    for (fallback_index, candidate) in input.candidates.into_iter().enumerate() {
+        let index = candidate
+            .index
+            .map(index_to_u64)
+            .unwrap_or_else(|| u64::try_from(fallback_index).unwrap_or_default());
+        if let Some(content) = candidate.content {
+            out.extend(gemini_content_to_claude(content, index));
+        }
+        if let Some(finish_reason) = candidate.finish_reason {
+            out.push(message_delta(
+                Some(gemini_finish_to_claude_stop(finish_reason)),
+                (candidate_count == 1).then(|| usage.clone()).flatten(),
+            ));
+        }
     }
-
-    if let Some(finish_reason) = candidate.finish_reason {
-        return message_delta(Some(gemini_finish_to_claude_stop(finish_reason)), usage);
-    }
-
-    ping()
+    out
 }
 
-fn gemini_content_to_claude(content: gemini::Content, index: u64) -> Option<claude::StreamEvent> {
+fn gemini_content_to_claude(content: gemini::Content, index: u64) -> Vec<claude::StreamEvent> {
     content
         .parts
         .into_iter()
-        .find_map(|part| part_to_claude(part, index))
+        .filter_map(|part| part_to_claude(part, index))
+        .collect()
 }
 
 fn part_to_claude(part: gemini::Part, index: u64) -> Option<claude::StreamEvent> {
@@ -159,12 +180,6 @@ fn gemini_finish_to_claude_stop(reason: gemini::FinishReason) -> claude::StopRea
 
 fn index_to_u64(index: i32) -> u64 {
     u64::try_from(index).unwrap_or_default()
-}
-
-fn ping() -> claude::StreamEvent {
-    known(claude::KnownStreamEvent::Ping {
-        extra: Default::default(),
-    })
 }
 
 fn known(event: claude::KnownStreamEvent) -> claude::StreamEvent {

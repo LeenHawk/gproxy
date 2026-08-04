@@ -6,7 +6,7 @@
 use bytes::Bytes;
 
 use crate::pipeline::error::PipelineError;
-use crate::protocol::{OperationKey, OperationKind};
+use crate::protocol::OperationKey;
 use crate::transform::stream_adapter::SseTransformer;
 use crate::transform::{TransformContext, dispatch};
 
@@ -78,8 +78,8 @@ pub fn aggregate_response_body(plan: &TransformPlan, body: Bytes) -> Result<Byte
 }
 
 /// Build the streaming adapter for a Transform plan (None for passthrough).
-pub fn stream_transformer(plan: &TransformPlan) -> Option<SseTransformer> {
-    match plan {
+pub fn stream_transformer(plan: &TransformPlan) -> Result<Option<SseTransformer>, PipelineError> {
+    let transformer = match plan {
         TransformPlan::Passthrough | TransformPlan::Local => None,
         // Same-kind aggregate streams relay the target SSE verbatim (None);
         // cross-kind convert the target SSE to the inbound wire.
@@ -89,33 +89,26 @@ pub fn stream_transformer(plan: &TransformPlan) -> Option<SseTransformer> {
             target,
             ..
         } => {
-            let pair = (*response_pair)?;
-            let OperationKind::ContentGeneration(inbound) = source.kind else {
-                return None;
+            let Some(pair) = *response_pair else {
+                return Ok(None);
             };
-            Some(SseTransformer::new(
-                pair,
-                TransformContext::new(*target, *source),
-                inbound,
-            ))
+            Some(
+                SseTransformer::new(pair, TransformContext::new(*target, *source))
+                    .map_err(PipelineError::TransformResponse)?,
+            )
         }
         TransformPlan::Transform {
             response_pair,
             source,
             target,
             ..
-        } => {
-            let OperationKind::ContentGeneration(inbound) = source.kind else {
-                return None;
-            };
-            Some(SseTransformer::new(
-                *response_pair,
-                TransformContext::new(*target, *source),
-                inbound,
-            ))
-        }
+        } => Some(
+            SseTransformer::new(*response_pair, TransformContext::new(*target, *source))
+                .map_err(PipelineError::TransformResponse)?,
+        ),
         // The upstream response is a full JSON object, not SSE. It is encoded
         // by the response-to-stream synthesizer after materialization.
         TransformPlan::SynthesizeStream { .. } => None,
-    }
+    };
+    Ok(transformer)
 }

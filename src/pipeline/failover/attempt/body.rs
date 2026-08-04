@@ -186,7 +186,7 @@ pub(in crate::pipeline::failover) async fn materialize(
             };
             if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
                 let b = collect_byte_stream(st).await?;
-                let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b);
+                let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b)?;
                 return Ok(Materialized {
                     body: ResponseBody::Full(transform_step::aggregate_response_body(plan, agg)?),
                     upstream_raw: None,
@@ -194,7 +194,7 @@ pub(in crate::pipeline::failover) async fn materialize(
                     provider_settle: None,
                 });
             }
-            let body = match transform_step::stream_transformer(plan) {
+            let body = match transform_step::stream_transformer(plan)? {
                 None => ResponseBody::Stream(st),
                 Some(t) => {
                     ResponseBody::Stream(crate::pipeline::stream::transform_byte_stream(st, t))
@@ -238,7 +238,7 @@ fn materialize_buffered(
     // the buffered event-stream into one object, then convert the target wire
     // back to the inbound wire.
     if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
-        let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b);
+        let agg = aggregate_buffered_stream(channel, plan.target_kind(), &b)?;
         return Ok(ResponseBody::Full(transform_step::aggregate_response_body(
             plan, agg,
         )?));
@@ -248,9 +248,10 @@ fn materialize_buffered(
     }
     if ctx.stream {
         // buffered streaming (wasm): convert the whole SSE body
-        let t = transform_step::stream_transformer(plan).expect("transform plan");
+        let t = transform_step::stream_transformer(plan)?.expect("transform plan");
         Ok(ResponseBody::Full(Bytes::from(
-            crate::transform::stream_adapter::convert_buffered(t, &b),
+            crate::transform::stream_adapter::convert_buffered(t, &b)
+                .map_err(PipelineError::TransformResponse)?,
         )))
     } else {
         Ok(ResponseBody::Full(transform_step::response_body(plan, b)?))
@@ -266,14 +267,14 @@ fn aggregate_buffered_stream(
     channel: &Arc<dyn Channel>,
     kind: Option<ContentGenerationKind>,
     body: &Bytes,
-) -> Bytes {
+) -> Result<Bytes, PipelineError> {
     let Some(kind) = kind else {
-        return body.clone();
+        return Ok(body.clone());
     };
     let sse = decode_buffered_stream(channel, body);
-    Bytes::from(crate::transform::stream_adapter::aggregate_buffered(
-        kind, &sse,
-    ))
+    let aggregation = crate::transform::stream_adapter::aggregate_buffered(kind, &sse)
+        .map_err(PipelineError::TransformResponse)?;
+    Ok(Bytes::from(aggregation.body))
 }
 
 /// Run the channel's stream decoder over a whole buffered body (kiro Smithy

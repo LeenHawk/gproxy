@@ -1,23 +1,42 @@
 use super::{SseDecoder, SseTransformer};
 use crate::protocol::ContentGenerationKind;
+use crate::transform::TransformError;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BufferedDiagnostics {
+    pub decoded_frames: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BufferedAggregation {
+    pub body: Vec<u8>,
+    pub diagnostics: BufferedDiagnostics,
+}
 
 /// Convert a fully-buffered SSE body.
-pub fn convert_buffered(mut transformer: SseTransformer, body: &[u8]) -> Vec<u8> {
-    let mut out = transformer.push(body);
-    out.extend(transformer.finish());
-    out
+pub fn convert_buffered(
+    mut transformer: SseTransformer,
+    body: &[u8],
+) -> Result<Vec<u8>, TransformError> {
+    let mut out = transformer.push(body)?;
+    out.extend(transformer.finish()?);
+    Ok(out)
 }
 
 /// Collapse a provider SSE stream into one response JSON of the same wire kind.
-pub fn aggregate_buffered(kind: ContentGenerationKind, sse_body: &[u8]) -> Vec<u8> {
+pub fn aggregate_buffered(
+    kind: ContentGenerationKind,
+    sse_body: &[u8],
+) -> Result<BufferedAggregation, TransformError> {
     use crate::transform::generate_content::stream_to_response as s2r;
     use ContentGenerationKind as K;
 
     let mut decoder = SseDecoder::new();
-    let mut frames = decoder.push(sse_body);
-    if let Some(tail) = decoder.finish() {
+    let mut frames = decoder.try_push(sse_body)?;
+    if let Some(tail) = decoder.try_finish()? {
         frames.push(tail);
     }
+    let decoded_frames = frames.len();
     let datas: Vec<String> = frames
         .into_iter()
         .map(|frame| frame.data)
@@ -28,8 +47,20 @@ pub fn aggregate_buffered(kind: ContentGenerationKind, sse_body: &[u8]) -> Vec<u
         ($ty:ty, $aggregate:path) => {{
             let events = datas
                 .iter()
-                .filter_map(|data| serde_json::from_str::<$ty>(data).ok());
-            serde_json::to_vec(&$aggregate(events))
+                .enumerate()
+                .map(|(index, data)| {
+                    serde_json::from_str::<$ty>(data).map_err(|error| {
+                        TransformError::InvalidInput {
+                            reason: format!("decode buffered stream frame {index}: {error}"),
+                        }
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            serde_json::to_vec(&$aggregate(events.into_iter())).map_err(|error| {
+                TransformError::Serialization {
+                    reason: error.to_string(),
+                }
+            })
         }};
     }
 
@@ -50,6 +81,9 @@ pub fn aggregate_buffered(kind: ContentGenerationKind, sse_body: &[u8]) -> Vec<u
             crate::protocol::gemini::StreamGenerateContentChunk,
             s2r::gemini_generate_content::response
         ),
-    };
-    out.unwrap_or_else(|_| sse_body.to_vec())
+    }?;
+    Ok(BufferedAggregation {
+        body: out,
+        diagnostics: BufferedDiagnostics { decoded_frames },
+    })
 }

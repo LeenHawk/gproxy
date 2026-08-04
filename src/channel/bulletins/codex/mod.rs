@@ -222,12 +222,28 @@ struct CodexResponsesStreamDecoder {
 
 impl ChannelStreamDecoder for CodexResponsesStreamDecoder {
     fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
-        self.inner.push(chunk)
+        self.inner
+            .push(chunk)
+            .unwrap_or_else(normalizer_error_frame)
     }
 
     fn finish(&mut self) -> Vec<u8> {
-        self.inner.finish()
+        self.inner.finish().unwrap_or_else(normalizer_error_frame)
     }
+}
+
+fn normalizer_error_frame(error: crate::transform::TransformError) -> Vec<u8> {
+    crate::transform::common::sse::SseFrame::event(
+        "error",
+        serde_json::json!({
+            "type": "error",
+            "code": "invalid_upstream_stream",
+            "message": error.to_string(),
+        })
+        .to_string(),
+    )
+    .encode()
+    .into_bytes()
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

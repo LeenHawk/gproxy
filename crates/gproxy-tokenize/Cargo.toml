@@ -31,17 +31,19 @@ tracing = { version = "0.1", optional = true }
 
 [features]
 default = []
-count-local = [
+tiktoken = ["dep:tiktoken-rs"]
+hf-registry = [
     "dep:anyhow",
     "dep:async-trait",
     "dep:bytes",
     "dep:dashmap",
     "dep:http",
-    "dep:tiktoken-rs",
     "dep:tokenizers",
     "dep:tokio",
     "dep:tracing",
 ]
+bundled-fallback = ["hf-registry"]
+count-local = ["tiktoken", "hf-registry", "bundled-fallback"]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

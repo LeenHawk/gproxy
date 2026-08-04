@@ -6,13 +6,9 @@ use super::super::common;
 pub fn stream_event(
     input: gemini::StreamGenerateContentChunk,
     ctx: &TransformContext,
-) -> Result<openai::ResponseStreamEvent, TransformError> {
+) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
     let mut transform = StreamTransform;
-    let mut output = transform.push(input, ctx)?;
-    Ok(output
-        .drain(..)
-        .next()
-        .unwrap_or_else(default_response_in_progress))
+    transform.push(input, ctx)
 }
 
 #[derive(Default)]
@@ -314,15 +310,4 @@ fn reasoning_id(index: u32) -> String {
 
 fn known(event: openai::KnownResponseStreamEvent) -> openai::ResponseStreamEvent {
     openai::ResponseStreamEvent::Known(event)
-}
-
-fn default_response_in_progress() -> openai::ResponseStreamEvent {
-    response_lifecycle_event(
-        String::new(),
-        common::default_openai_model(),
-        None,
-        None,
-        openai::ResponseStatus::InProgress,
-        None,
-    )
 }

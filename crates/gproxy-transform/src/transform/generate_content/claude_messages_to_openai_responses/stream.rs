@@ -8,13 +8,9 @@ use super::super::common;
 pub fn stream_event(
     input: claude::StreamEvent,
     ctx: &TransformContext,
-) -> Result<openai::ResponseStreamEvent, TransformError> {
+) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
     let mut transform = StreamTransform::default();
-    let mut output = transform.push(input, ctx)?;
-    Ok(output
-        .drain(..)
-        .next()
-        .unwrap_or_else(default_response_in_progress))
+    transform.push(input, ctx)
 }
 
 #[derive(Default)]
@@ -239,14 +235,6 @@ fn output_item_added(output_index: u32, item: openai::ResponseItem) -> openai::R
     })
 }
 
-fn response_in_progress(
-    id: String,
-    model: openai::OpenAiModelId,
-    usage: Option<openai::CompletionUsage>,
-) -> openai::ResponseStreamEvent {
-    response_lifecycle_event(id, model, usage, openai::ResponseStatus::InProgress, None)
-}
-
 fn response_lifecycle_event(
     id: String,
     model: openai::OpenAiModelId,
@@ -376,12 +364,4 @@ fn index_to_u32(index: u64) -> u32 {
 
 fn known(event: openai::KnownResponseStreamEvent) -> openai::ResponseStreamEvent {
     openai::ResponseStreamEvent::Known(event)
-}
-
-fn default_response_in_progress() -> openai::ResponseStreamEvent {
-    response_in_progress(
-        "claude_event".to_owned(),
-        common::default_openai_model(),
-        None,
-    )
 }
