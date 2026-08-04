@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 /// this enum when declaring endpoint metadata or routing rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Provider {
     OpenAi,
     Claude,
@@ -17,6 +18,7 @@ pub enum Provider {
 /// Coarse operation family, used to organize protocol support by capability.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum OperationGroup {
     Models,
     CountTokens,
@@ -35,6 +37,7 @@ pub enum OperationGroup {
 /// represented by synthetic request/response types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Operation {
     ListModels,
     GetModel,
@@ -80,6 +83,7 @@ impl Operation {
 /// three provider families.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum OperationKind {
     ContentGeneration(ContentGenerationKind),
     Provider(Provider),
@@ -101,6 +105,7 @@ impl OperationKind {
 /// Content-generation wire formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ContentGenerationKind {
     OpenAiResponses,
     #[serde(rename = "open_ai_responses_websocket")]
@@ -124,9 +129,10 @@ impl ContentGenerationKind {
 
 /// Capability plus wire-format kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[non_exhaustive]
 pub struct OperationKey {
-    pub operation: Operation,
-    pub kind: OperationKind,
+    operation: Operation,
+    kind: OperationKind,
 }
 
 impl OperationKey {
@@ -156,6 +162,16 @@ impl OperationKey {
         self.operation.group()
     }
 
+    /// Return the capability operation protected by this key's invariant.
+    pub const fn operation(self) -> Operation {
+        self.operation
+    }
+
+    /// Return the provider wire-format kind protected by this key's invariant.
+    pub const fn kind(self) -> OperationKind {
+        self.kind
+    }
+
     pub const fn provider_family(self) -> Provider {
         self.kind.provider()
     }
@@ -175,9 +191,15 @@ impl OperationKey {
             Err(OperationKeyError { operation, kind })
         }
     }
+
+    #[cfg(test)]
+    pub(crate) const fn new_unchecked(operation: Operation, kind: OperationKind) -> Self {
+        Self { operation, kind }
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct OperationKeyError {
     pub operation: Operation,
     pub kind: OperationKind,
@@ -220,6 +242,7 @@ impl Operation {
 /// HTTP method for an upstream endpoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
+#[non_exhaustive]
 pub enum HttpMethod {
     Get,
     Post,
@@ -241,7 +264,10 @@ impl From<HttpMethod> for http::Method {
 }
 
 /// Provider endpoint metadata used by routing and protocol modules.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[non_exhaustive]
 pub struct Endpoint {
     pub operation_key: OperationKey,
     pub method: HttpMethod,

@@ -59,6 +59,7 @@ stage_release_files() {
     Cargo.lock \
     crates/gproxy-channel-api/Cargo.toml \
     crates/gproxy-protocol/Cargo.toml \
+    crates/gproxy-protocol-macros/Cargo.toml \
     crates/gproxy-tokenize/Cargo.toml \
     crates/gproxy-transform/Cargo.toml \
     "$NOTES"

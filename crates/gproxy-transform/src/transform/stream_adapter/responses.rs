@@ -41,7 +41,7 @@ impl ResponsesStreamNormalizer {
         let mut out = Vec::new();
         let frames = self
             .decoder
-            .try_push(chunk)
+            .push(chunk)
             .inspect_err(|_| self.failed = true)?;
         for frame in frames {
             if let Err(error) = self.normalize_into(frame, &mut out) {
@@ -59,7 +59,7 @@ impl ResponsesStreamNormalizer {
             });
         }
         let mut out = Vec::new();
-        if let Some(frame) = self.decoder.try_finish()? {
+        if let Some(frame) = self.decoder.finish()? {
             self.normalize_into(frame, &mut out)?;
         }
         for event in self.responses.finish() {
@@ -399,6 +399,9 @@ fn message_has_type(message: &ResponseMessageItem) -> bool {
         ResponseMessageItem::Output(_) => true,
         ResponseMessageItem::Input(input) => input.type_.is_some(),
         ResponseMessageItem::EasyInput(easy) => easy.type_.is_some(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -407,12 +410,15 @@ fn message_id(message: &ResponseMessageItem) -> Option<&str> {
         ResponseMessageItem::Output(output) => Some(&output.id),
         ResponseMessageItem::Input(input) => input.id.as_deref(),
         ResponseMessageItem::EasyInput(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 /// Fallback `response.completed` payload for streams that never sent one.
 fn fallback_completed_response() -> ResponseObject {
-    ResponseObject {
+    crate::protocol::wire!(ResponseObject {
         id: "resp_0".to_owned(),
         created_at: 0,
         background: None,
@@ -451,5 +457,5 @@ fn fallback_completed_response() -> ResponseObject {
         usage: None,
         user: None,
         extra: Extra::new(),
-    }
+    })
 }

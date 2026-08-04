@@ -11,15 +11,15 @@ pub fn response(
     let finish_reason = finish_reason(&input);
     let message = response_output_items_to_chat_message(input.output, input.output_text);
 
-    Ok(openai::ChatCompletionResponse {
+    Ok(crate::protocol::wire!(openai::ChatCompletionResponse {
         id: input.id,
-        choices: vec![openai::ChatCompletionChoice {
+        choices: vec![crate::protocol::wire!(openai::ChatCompletionChoice {
             finish_reason,
             index: 0,
             logprobs: None,
             message,
             extra: Default::default(),
-        }],
+        })],
         created: input.created_at,
         model: input.model.unwrap_or_else(default_model),
         object: openai::ChatCompletionObjectType::ChatCompletion,
@@ -28,7 +28,7 @@ pub fn response(
         system_fingerprint: None,
         usage: response_usage_to_chat(input.usage),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn finish_reason(response: &openai::ResponseObject) -> openai::ChatFinishReason {
@@ -52,6 +52,9 @@ fn finish_reason(response: &openai::ResponseObject) -> openai::ChatFinishReason 
         Some(openai::IncompleteReason::MaxOutputTokens) => openai::ChatFinishReason::Length,
         Some(openai::IncompleteReason::ContentFilter) => openai::ChatFinishReason::ContentFilter,
         None => openai::ChatFinishReason::Stop,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

@@ -15,7 +15,7 @@ pub(super) fn finish(
     attempts: u32,
     max_attempts: u32,
 ) -> Result<ExecOutcome, PipelineError> {
-    if ctx.op.expect("classified").operation == Operation::CountTokens
+    if ctx.op.expect("classified").operation() == Operation::CountTokens
         && let Some(candidate) = candidates.first()
         && let Some(outcome) = local_ops::serve_local(state, &state.cp(), ctx, candidate)
     {

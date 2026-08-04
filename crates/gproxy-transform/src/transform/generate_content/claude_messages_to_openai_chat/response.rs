@@ -8,15 +8,15 @@ pub fn response(
     input: claude::CreateMessageResponseBody,
     _: &TransformContext,
 ) -> Result<openai::ChatCompletionResponse, TransformError> {
-    Ok(openai::ChatCompletionResponse {
+    Ok(crate::protocol::wire!(openai::ChatCompletionResponse {
         id: input.id,
-        choices: vec![openai::ChatCompletionChoice {
+        choices: vec![crate::protocol::wire!(openai::ChatCompletionChoice {
             finish_reason: claude_stop_reason_to_chat(input.stop_reason),
             index: 0,
             logprobs: None,
             message: claude_response_blocks_to_chat_message(input.content),
             extra: Default::default(),
-        }],
+        })],
         created: 0,
         model: common::claude_model_string(input.model).into(),
         object: openai::ChatCompletionObjectType::ChatCompletion,
@@ -25,7 +25,7 @@ pub fn response(
         system_fingerprint: None,
         usage: Some(common::claude_usage_to_completion(input.usage)),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn claude_stop_reason_to_chat(reason: claude::StopReason) -> openai::ChatFinishReason {
@@ -47,6 +47,9 @@ fn claude_stop_reason_to_chat(reason: claude::StopReason) -> openai::ChatFinishR
             | claude::StopReasonKnown::Compaction,
         )
         | claude::StopReason::Unknown(_) => openai::ChatFinishReason::Stop,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -61,5 +64,8 @@ fn claude_usage_service_tier_to_openai(
             claude::UsageServiceTierKnown::Standard | claude::UsageServiceTierKnown::Batch,
         )
         | claude::UsageServiceTier::Unknown(_) => Some(openai::ServiceTier::Default),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

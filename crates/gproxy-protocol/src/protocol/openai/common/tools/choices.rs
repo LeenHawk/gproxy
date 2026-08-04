@@ -5,6 +5,7 @@ use super::definitions::NamedTool;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatToolChoice {
     Mode(ToolChoiceMode),
     Allowed(ChatAllowedToolChoice),
@@ -13,6 +14,7 @@ pub enum ChatToolChoice {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseToolChoice {
     Mode(ToolChoiceMode),
     Allowed(ResponseAllowedToolChoice),
@@ -24,7 +26,8 @@ pub enum ResponseToolChoice {
     Shell(ResponseShellToolChoice),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatAllowedToolChoice {
     pub allowed_tools: ChatAllowedTools,
     #[serde(rename = "type")]
@@ -37,7 +40,8 @@ pub struct ChatAllowedToolChoice {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatAllowedTools {
     pub mode: AllowedToolsMode,
     pub tools: Vec<Extra>,
@@ -49,7 +53,8 @@ pub struct ChatAllowedTools {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseAllowedToolChoice {
     pub mode: AllowedToolsMode,
     pub tools: Vec<ResponseAllowedTool>,
@@ -65,6 +70,7 @@ pub struct ResponseAllowedToolChoice {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseAllowedTool {
     #[serde(rename = "function")]
     Function {
@@ -200,6 +206,7 @@ pub enum ResponseAllowedTool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AllowedToolsType {
     #[serde(rename = "allowed_tools")]
     AllowedTools,
@@ -207,6 +214,7 @@ pub enum AllowedToolsType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatNamedToolChoice {
     Function {
         #[serde(rename = "type")]
@@ -232,7 +240,8 @@ pub enum ChatNamedToolChoice {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseHostedToolChoice {
     #[serde(rename = "type")]
     pub type_: ResponseHostedToolChoiceType,
@@ -245,6 +254,7 @@ pub struct ResponseHostedToolChoice {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseHostedToolChoiceType {
     #[serde(rename = "file_search")]
     FileSearch,
@@ -264,7 +274,8 @@ pub enum ResponseHostedToolChoiceType {
     CodeInterpreter,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseFunctionToolChoice {
     #[serde(rename = "type")]
     pub type_: FunctionToolChoiceType,
@@ -277,7 +288,8 @@ pub struct ResponseFunctionToolChoice {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseMcpToolChoice {
     #[serde(rename = "type")]
     pub type_: McpToolChoiceType,
@@ -292,7 +304,8 @@ pub struct ResponseMcpToolChoice {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseCustomToolChoice {
     #[serde(rename = "type")]
     pub type_: CustomToolChoiceType,
@@ -305,7 +318,8 @@ pub struct ResponseCustomToolChoice {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseApplyPatchToolChoice {
     #[serde(rename = "type")]
     pub type_: ApplyPatchToolChoiceType,
@@ -317,7 +331,8 @@ pub struct ResponseApplyPatchToolChoice {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseShellToolChoice {
     #[serde(rename = "type")]
     pub type_: ShellToolChoiceType,
@@ -330,30 +345,35 @@ pub struct ResponseShellToolChoice {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FunctionToolChoiceType {
     #[serde(rename = "function")]
     Function,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CustomToolChoiceType {
     #[serde(rename = "custom")]
     Custom,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum McpToolChoiceType {
     #[serde(rename = "mcp")]
     Mcp,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ApplyPatchToolChoiceType {
     #[serde(rename = "apply_patch")]
     ApplyPatch,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ShellToolChoiceType {
     #[serde(rename = "shell")]
     Shell,

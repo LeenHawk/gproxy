@@ -17,8 +17,8 @@
 //! the binary is verified before replacement. Missing safety metadata is never
 //! silently ignored: HTTP callers must ask for explicit operator confirmation
 //! before applying such an update. The risky I/O (download, integrity/signature
-//! check, atomic swap, restart) lives behind the [`download`], [`verify`], and
-//! [`swap`] seams; [`version`] and [`manifest`] are pure and unit-tested.
+//! check, atomic swap, restart) lives behind the internal `download`, `verify`,
+//! and `swap` seams; `version` and `manifest` are pure and unit-tested.
 
 #[cfg(not(target_arch = "wasm32"))]
 mod android_apk;
@@ -247,7 +247,7 @@ impl UpdateAudit {
 }
 
 /// Check the configured channel for an available update (§19.4). Pure decision
-/// logic lives in [`version`]; this only does the manifest fetch + dispatch.
+/// logic lives in the internal `version` module; this only does the manifest fetch + dispatch.
 ///
 /// A channel with **no published manifest** is reported as "no update available"
 /// (not an error): a missing manifest must never surface to the operator as a

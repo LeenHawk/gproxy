@@ -15,13 +15,21 @@ pub(super) fn chat_text_content_to_text_and_cache(
                     text: part_text,
                     prompt_cache_breakpoint,
                     ..
-                } = part;
+                } = part
+                else {
+                    unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    )
+                };
                 text.push(part_text);
                 if prompt_cache_breakpoint.is_some() {
                     cache_control = claude_cache_control(prompt_cache_breakpoint);
                 }
             }
             (text.join(""), cache_control)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -38,10 +46,18 @@ pub(super) fn chat_text_content_to_claude_blocks(
                     text,
                     prompt_cache_breakpoint,
                     ..
-                } = part;
+                } = part
+                else {
+                    unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    )
+                };
                 non_empty_marked_text_block(text, prompt_cache_breakpoint)
             })
             .collect(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -65,8 +81,14 @@ pub(super) fn chat_assistant_content_to_claude_blocks(
                     prompt_cache_breakpoint,
                     ..
                 } => non_empty_marked_text_block(refusal, prompt_cache_breakpoint),
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             })
             .collect(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -79,6 +101,9 @@ pub(super) fn chat_content_to_claude_blocks(
             .into_iter()
             .filter_map(chat_content_part_to_claude_block)
             .collect(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -95,11 +120,13 @@ fn chat_content_part_to_claude_block(
             image_url,
             prompt_cache_breakpoint,
             ..
-        } => Some(claude::ContentBlockParam::Image(claude::ImageBlock {
-            source: image_url_to_claude_source(image_url.url),
-            type_: claude::ImageBlockType::Image,
-            cache_control: claude_cache_control(prompt_cache_breakpoint),
-        })),
+        } => Some(claude::ContentBlockParam::Image(crate::protocol::wire!(
+            claude::ImageBlock {
+                source: image_url_to_claude_source(image_url.url),
+                type_: claude::ImageBlockType::Image,
+                cache_control: claude_cache_control(prompt_cache_breakpoint),
+            }
+        ))),
         openai::ChatContentPart::File {
             file,
             prompt_cache_breakpoint,
@@ -116,6 +143,9 @@ fn chat_content_part_to_claude_block(
             );
             None
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -126,39 +156,42 @@ fn chat_file_to_claude_block(
     let had_breakpoint = breakpoint.is_some();
     let cache_control = claude_cache_control(breakpoint);
     if let Some(file_id) = file.file_id {
-        return Some(claude::ContentBlockParam::Document(claude::DocumentBlock {
-            source: claude::DocumentSource::File(claude::FileDocumentSource {
-                file_id,
-                type_: claude::FileSourceType::File,
-                extra: Default::default(),
-            }),
-            type_: claude::DocumentBlockType::Document,
-            cache_control,
-            citations: None,
-            context: None,
-            title: file.filename,
-        }));
+        return Some(claude::ContentBlockParam::Document(crate::protocol::wire!(
+            claude::DocumentBlock {
+                source: claude::DocumentSource::File(crate::protocol::wire!(
+                    claude::FileDocumentSource {
+                        file_id,
+                        type_: claude::FileSourceType::File,
+                        extra: Default::default(),
+                    }
+                )),
+                type_: claude::DocumentBlockType::Document,
+                cache_control,
+                citations: None,
+                context: None,
+                title: file.filename,
+            }
+        )));
     }
     let block = file.file_data.filter(|data| !data.is_empty()).map(|data| {
-        claude::ContentBlockParam::Document(claude::DocumentBlock {
-            source: claude::DocumentSource::Text(claude::PlainTextSource {
+        claude::ContentBlockParam::Document(crate::protocol::wire!(claude::DocumentBlock {
+            source: claude::DocumentSource::Text(crate::protocol::wire!(claude::PlainTextSource {
                 data,
                 media_type: claude::PlainTextMediaType::TextPlain,
                 type_: claude::TextSourceType::Text,
                 extra: Default::default(),
-            }),
+            })),
             type_: claude::DocumentBlockType::Document,
             cache_control,
             citations: None,
             context: None,
             title: file.filename,
-        })
+        }))
     });
     if block.is_none() && had_breakpoint {
-        tracing::warn!(
-            block_type = "file",
-            conversion_target = "Claude message",
-            "cache breakpoint dropped during protocol conversion"
+        crate::transform::context::report_lossy(
+            "messages[].content[].file.prompt_cache_breakpoint",
+            "Claude message cannot represent an empty file or its cache breakpoint",
         );
     }
     block
@@ -166,11 +199,11 @@ fn chat_file_to_claude_block(
 
 fn image_url_to_claude_source(url: String) -> claude::ImageSource {
     parse_data_url_to_image_source(&url).unwrap_or_else(|| {
-        claude::ImageSource::Url(claude::UrlImageSource {
+        claude::ImageSource::Url(crate::protocol::wire!(claude::UrlImageSource {
             type_: claude::UrlSourceType::Url,
             url,
             extra: Default::default(),
-        })
+        }))
     })
 }
 
@@ -184,12 +217,14 @@ fn parse_data_url_to_image_source(url: &str) -> Option<claude::ImageSource> {
         "image/webp" => claude::ImageMediaType::Webp,
         _ => return None,
     };
-    Some(claude::ImageSource::Base64(claude::Base64ImageSource {
-        data: payload.to_owned(),
-        media_type,
-        type_: claude::Base64SourceType::Base64,
-        extra: Default::default(),
-    }))
+    Some(claude::ImageSource::Base64(crate::protocol::wire!(
+        claude::Base64ImageSource {
+            data: payload.to_owned(),
+            media_type,
+            type_: claude::Base64SourceType::Base64,
+            extra: Default::default(),
+        }
+    )))
 }
 
 fn non_empty_text_block(text: String) -> Option<claude::ContentBlockParam> {
@@ -217,10 +252,9 @@ fn warn_dropped_openai_breakpoint(
     target: &str,
 ) {
     if breakpoint.is_some() {
-        tracing::warn!(
-            block_type,
-            conversion_target = target,
-            "cache breakpoint dropped during protocol conversion"
+        crate::transform::context::report_lossy(
+            format!("messages[].content[].{block_type}.prompt_cache_breakpoint"),
+            format!("{target} cannot preserve a breakpoint on an omitted empty block"),
         );
     }
 }
@@ -233,24 +267,26 @@ fn text_block_with_cache(
     text: String,
     cache_control: Option<claude::CacheControl>,
 ) -> claude::ContentBlockParam {
-    claude::ContentBlockParam::Text(claude::TextBlock {
+    claude::ContentBlockParam::Text(crate::protocol::wire!(claude::TextBlock {
         text,
         type_: claude::TextBlockType::Text,
         cache_control,
         citations: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn mid_conversation_system_text_block(
     mut block: claude::TextBlock,
 ) -> claude::ContentBlockParam {
     let cache_control = block.cache_control.take();
-    claude::ContentBlockParam::MidConversationSystem(claude::MidConversationSystemBlock {
-        content: vec![claude::MidConversationSystemContentBlock::Text(block)],
-        type_: claude::MidConversationSystemBlockType::MidConversationSystem,
-        cache_control,
-    })
+    claude::ContentBlockParam::MidConversationSystem(crate::protocol::wire!(
+        claude::MidConversationSystemBlock {
+            content: vec![claude::MidConversationSystemContentBlock::Text(block)],
+            type_: claude::MidConversationSystemBlockType::MidConversationSystem,
+            cache_control,
+        }
+    ))
 }
 
 pub(super) fn push_claude_blocks(
@@ -287,14 +323,17 @@ pub(super) fn push_claude_block(
                 }
                 blocks.push(block);
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
         return;
     }
-    messages.push(claude::MessageParam {
+    messages.push(crate::protocol::wire!(claude::MessageParam {
         role,
         content: claude::StringOrArray::Array(vec![block]),
         extra: Default::default(),
-    });
+    }));
 }
 
 /// Downgrades `mid_conv_system` text blocks to plain text blocks in place. Called

@@ -4,7 +4,7 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
     match item {
         openai::ResponseItem::Message(openai::ResponseMessageItem::Output(message)) => {
             openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
-                openai::ResponseOutputMessageItem {
+                crate::protocol::wire!(openai::ResponseOutputMessageItem {
                     type_: message.type_,
                     id: message.id,
                     role: message.role,
@@ -16,7 +16,7 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
                     status: message.status,
                     phase: message.phase,
                     extra: Default::default(),
-                },
+                }),
             ))
         }
         openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
@@ -28,16 +28,18 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
             namespace,
             status,
             ..
-        }) => openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-            arguments,
-            call_id,
-            name,
-            id,
-            caller: None,
-            namespace,
-            status,
-            extra: Default::default(),
-        }),
+        }) => openai::ResponseItem::Typed(crate::protocol::wire!(
+            openai::TypedResponseItem::FunctionCall {
+                arguments,
+                call_id,
+                name,
+                id,
+                caller: None,
+                namespace,
+                status,
+                extra: Default::default(),
+            }
+        )),
         openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
             call_id,
             input,
@@ -45,15 +47,17 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
             id,
             namespace,
             ..
-        }) => openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
-            call_id,
-            input,
-            name,
-            id,
-            caller: None,
-            namespace,
-            extra: Default::default(),
-        }),
+        }) => openai::ResponseItem::Typed(crate::protocol::wire!(
+            openai::TypedResponseItem::CustomToolCall {
+                call_id,
+                input,
+                name,
+                id,
+                caller: None,
+                namespace,
+                extra: Default::default(),
+            }
+        )),
         openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
             id,
             summary,
@@ -65,19 +69,23 @@ pub(super) fn sanitize_item(item: openai::ResponseItem) -> openai::ResponseItem 
             id,
             summary: summary
                 .into_iter()
-                .map(|part| openai::ResponseReasoningSummaryPart {
-                    text: part.text,
-                    type_: part.type_,
-                    extra: Default::default(),
+                .map(|part| {
+                    crate::protocol::wire!(openai::ResponseReasoningSummaryPart {
+                        text: part.text,
+                        type_: part.type_,
+                        extra: Default::default(),
+                    })
                 })
                 .collect(),
             content: content.map(|parts| {
                 parts
                     .into_iter()
-                    .map(|part| openai::ResponseReasoningTextPart {
-                        text: part.text,
-                        type_: part.type_,
-                        extra: Default::default(),
+                    .map(|part| {
+                        crate::protocol::wire!(openai::ResponseReasoningTextPart {
+                            text: part.text,
+                            type_: part.type_,
+                            extra: Default::default(),
+                        })
                     })
                     .collect()
             }),
@@ -146,11 +154,14 @@ fn sanitize_message_content_part(
                 extra: Default::default(),
             }
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 pub(super) fn stream_logprob(value: openai::StreamTokenLogprob) -> openai::TokenLogprob {
-    openai::TokenLogprob {
+    crate::protocol::wire!(openai::TokenLogprob {
         token: value.token,
         bytes: None,
         logprob: value.logprob,
@@ -159,16 +170,16 @@ pub(super) fn stream_logprob(value: openai::StreamTokenLogprob) -> openai::Token
             .unwrap_or_default()
             .into_iter()
             .filter_map(|top| {
-                Some(openai::TokenLogprobTop {
+                Some(crate::protocol::wire!(openai::TokenLogprobTop {
                     token: top.token?,
                     bytes: None,
                     logprob: top.logprob?,
                     extra: Default::default(),
-                })
+                }))
             })
             .collect(),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(super) fn sanitize_annotation(value: openai::ResponseAnnotation) -> openai::ResponseAnnotation {
@@ -190,13 +201,13 @@ pub(super) fn sanitize_annotation(value: openai::ResponseAnnotation) -> openai::
             title,
             url,
             ..
-        } => openai::ResponseAnnotation::UrlCitation {
+        } => crate::protocol::wire!(openai::ResponseAnnotation::UrlCitation {
             end_index,
             start_index,
             title,
             url,
             extra: Default::default(),
-        },
+        }),
         openai::ResponseAnnotation::ContainerFileCitation {
             container_id,
             end_index,
@@ -218,6 +229,9 @@ pub(super) fn sanitize_annotation(value: openai::ResponseAnnotation) -> openai::
                 index,
                 extra: Default::default(),
             }
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

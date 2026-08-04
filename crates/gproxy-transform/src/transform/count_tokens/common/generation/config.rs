@@ -13,12 +13,12 @@ pub(in crate::transform::count_tokens) fn openai_generation_config_to_gemini(
     let mut config = gemini::GenerationConfig::default();
 
     if let Some(reasoning) = reasoning {
-        config.thinking_config = Some(gemini::ThinkingConfig {
+        config.thinking_config = Some(crate::protocol::wire!(gemini::ThinkingConfig {
             include_thoughts: None,
             thinking_budget: None,
             thinking_level: reasoning.effort.map(openai_reasoning_effort_to_gemini),
             extra: Default::default(),
-        });
+        }));
     }
 
     if let Some(text) = text.and_then(|text| text.format) {

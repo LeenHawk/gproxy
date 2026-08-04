@@ -25,7 +25,7 @@ pub fn matches(pattern: &str, value: &str) -> bool {
 /// Authorization uses this to decide whether a permission such as
 /// `openai-main/gpt-*` grants access to the `openai-main` model namespace
 /// before the complete upstream catalogue is known. The matcher has the same
-/// byte-oriented, `*`-only semantics as [`matches`].
+/// byte-oriented, `*`-only semantics as [`matches()`].
 pub fn can_match_prefix(pattern: &str, prefix: &str) -> bool {
     let fixed = pattern.split('*').next().unwrap_or(pattern);
     prefix.starts_with(fixed) || fixed.starts_with(prefix)

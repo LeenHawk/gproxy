@@ -100,6 +100,9 @@ fn output_count_body(family: Family, model: &str, text: &str) -> Bytes {
         Family::Claude => json!({"model": model, "messages": [{"role": "user", "content": text}]}),
         Family::Gemini => json!({"contents": [{"role": "user", "parts": [{"text": text}]}]}),
         Family::OpenAi => json!({"model": model, "input": text}),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Bytes::from(serde_json::to_vec(&value).expect("json! serializes"))
 }

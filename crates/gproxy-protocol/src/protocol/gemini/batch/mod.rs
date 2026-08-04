@@ -8,6 +8,8 @@ use super::generate_content::{GenerateContentRequest, GenerateContentResponse};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct BatchGenerateContentRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch: Option<GenerateContentBatch>,
@@ -19,6 +21,8 @@ pub type BatchGenerateContentResponseBody = Operation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct AsyncBatchEmbedContentRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch: Option<EmbedContentBatch>,
@@ -30,6 +34,8 @@ pub type AsyncBatchEmbedContentResponseBody = Operation;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GetBatchRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -39,6 +45,8 @@ pub struct GetBatchRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ListBatchesRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -56,6 +64,8 @@ pub struct ListBatchesRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ListBatchesResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub operations: Vec<Operation>,
@@ -69,6 +79,8 @@ pub struct ListBatchesResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CancelBatchRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -80,6 +92,8 @@ pub type CancelBatchResponseBody = JsonMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct DeleteBatchRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -91,6 +105,8 @@ pub type DeleteBatchResponseBody = JsonMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UpdateGenerateContentBatchQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_mask: Option<String>,
@@ -103,6 +119,8 @@ pub type UpdateGenerateContentBatchResponseBody = GenerateContentBatch;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UpdateEmbedContentBatchQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub update_mask: Option<String>,
@@ -115,6 +133,8 @@ pub type UpdateEmbedContentBatchResponseBody = EmbedContentBatch;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Operation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -130,6 +150,7 @@ pub struct Operation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum OperationResult {
     Error { error: Status },
     Response { response: JsonMap },
@@ -137,6 +158,8 @@ pub enum OperationResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GenerateContentBatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -166,6 +189,8 @@ pub struct GenerateContentBatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InputConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub source: Option<InputConfigSource>,
@@ -175,6 +200,7 @@ pub struct InputConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum InputConfigSource {
     String {
         #[serde(rename = "fileName")]
@@ -187,6 +213,8 @@ pub enum InputConfigSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedRequests {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requests: Vec<InlinedRequest>,
@@ -196,6 +224,8 @@ pub struct InlinedRequests {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<GenerateContentRequest>,
@@ -207,6 +237,8 @@ pub struct InlinedRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GenerateContentBatchOutput {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub output: Option<GenerateContentBatchOutputData>,
@@ -216,6 +248,7 @@ pub struct GenerateContentBatchOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum GenerateContentBatchOutputData {
     ResponsesFile {
         #[serde(rename = "responsesFile")]
@@ -229,6 +262,8 @@ pub enum GenerateContentBatchOutputData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedResponses {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inlined_responses: Vec<InlinedResponse>,
@@ -238,6 +273,8 @@ pub struct InlinedResponses {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<JsonMap>,
@@ -249,6 +286,7 @@ pub struct InlinedResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum InlinedResponseOutput {
     Error {
         error: Status,
@@ -260,6 +298,8 @@ pub enum InlinedResponseOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct BatchStats {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_count: Option<String>,
@@ -275,6 +315,8 @@ pub struct BatchStats {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbedContentBatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -304,6 +346,8 @@ pub struct EmbedContentBatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InputEmbedContentConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub source: Option<InputEmbedContentConfigSource>,
@@ -313,6 +357,7 @@ pub struct InputEmbedContentConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum InputEmbedContentConfigSource {
     String {
         #[serde(rename = "fileName")]
@@ -325,6 +370,8 @@ pub enum InputEmbedContentConfigSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedEmbedContentRequests {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub requests: Vec<InlinedEmbedContentRequest>,
@@ -334,6 +381,8 @@ pub struct InlinedEmbedContentRequests {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedEmbedContentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request: Option<EmbedContentRequest>,
@@ -345,6 +394,8 @@ pub struct InlinedEmbedContentRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct EmbedContentBatchOutput {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub output: Option<EmbedContentBatchOutputData>,
@@ -354,6 +405,7 @@ pub struct EmbedContentBatchOutput {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum EmbedContentBatchOutputData {
     ResponsesFile {
         #[serde(rename = "responsesFile")]
@@ -367,6 +419,8 @@ pub enum EmbedContentBatchOutputData {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedEmbedContentResponses {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inlined_responses: Vec<InlinedEmbedContentResponse>,
@@ -376,6 +430,8 @@ pub struct InlinedEmbedContentResponses {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InlinedEmbedContentResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<JsonMap>,
@@ -387,6 +443,7 @@ pub struct InlinedEmbedContentResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum InlinedEmbedContentResponseOutput {
     Error { error: Status },
     Response { response: EmbedContentResponse },

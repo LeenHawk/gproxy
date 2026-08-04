@@ -32,7 +32,7 @@ pub(super) fn request(body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> 
     }
 
     if matches!(
-        ctx.op.operation,
+        ctx.op.operation(),
         Operation::CreateImage | Operation::EditImage
     ) && crate::channel::settings::endpoint_url(ctx.settings, ctx.op, ctx.stream, "").is_none()
     {
@@ -47,5 +47,5 @@ pub(super) fn request(body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> 
 }
 
 fn is_claude_messages(ctx: &ShapeCtx) -> bool {
-    ctx.op.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+    ctx.op.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
 }

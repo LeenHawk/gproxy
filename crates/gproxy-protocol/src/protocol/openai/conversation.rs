@@ -8,7 +8,8 @@ use super::generate_content::ResponseItem;
 pub type CreateConversationWireModel =
     OpenAiWireModel<CreateConversationRequestBody, ConversationObject>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CreateConversationRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Vec<ResponseItem>>,
@@ -18,7 +19,8 @@ pub struct CreateConversationRequestBody {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ConversationObject {
     pub id: String,
     pub created_at: u64,

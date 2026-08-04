@@ -8,15 +8,18 @@ pub(in crate::transform::generate_content) fn chat_response_format_to_claude(
     match format? {
         openai::ChatResponseFormat::ChatJsonSchema(schema) => {
             let schema = schema.json_schema.schema.unwrap_or_default();
-            Some(claude::JsonSchemaFormat {
+            Some(crate::protocol::wire!(claude::JsonSchemaFormat {
                 type_: claude::JsonSchemaFormatType::Known(
                     claude::JsonSchemaFormatTypeKnown::JsonSchema,
                 ),
                 schema,
                 extra: Default::default(),
-            })
+            }))
         }
         openai::ChatResponseFormat::JsonObject(_) | openai::ChatResponseFormat::Text(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -25,14 +28,19 @@ pub(in crate::transform::generate_content) fn response_text_config_to_claude(
 ) -> Option<claude::JsonSchemaFormat> {
     let format = text?.format?;
     match format {
-        openai::ResponseFormat::JsonSchema(format) => Some(claude::JsonSchemaFormat {
-            type_: claude::JsonSchemaFormatType::Known(
-                claude::JsonSchemaFormatTypeKnown::JsonSchema,
-            ),
-            schema: format.schema,
-            extra: Default::default(),
-        }),
+        openai::ResponseFormat::JsonSchema(format) => {
+            Some(crate::protocol::wire!(claude::JsonSchemaFormat {
+                type_: claude::JsonSchemaFormatType::Known(
+                    claude::JsonSchemaFormatTypeKnown::JsonSchema,
+                ),
+                schema: format.schema,
+                extra: Default::default(),
+            }))
+        }
         openai::ResponseFormat::JsonObject(_) | openai::ResponseFormat::Text(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -41,17 +49,17 @@ pub(in crate::transform::generate_content) fn claude_output_format_to_chat(
 ) -> Option<openai::ChatResponseFormat> {
     let format = format?;
     Some(openai::ChatResponseFormat::ChatJsonSchema(
-        openai::ChatJsonSchemaFormat {
+        crate::protocol::wire!(openai::ChatJsonSchemaFormat {
             type_: openai::JsonSchemaResponseFormatType::JsonSchema,
-            json_schema: openai::JsonSchemaFormat {
+            json_schema: crate::protocol::wire!(openai::JsonSchemaFormat {
                 name: "response".to_owned(),
                 description: None,
                 schema: Some(format.schema),
                 strict: None,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
-        },
+        }),
     ))
 }
 
@@ -66,6 +74,9 @@ pub(in crate::transform::generate_content) fn chat_response_format_to_gemini(
         | openai::ChatResponseFormat::ChatJsonSchema(_) => Some(gemini::ResponseMimeType::Known(
             gemini::ResponseMimeTypeKnown::ApplicationJson,
         )),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -83,17 +94,19 @@ pub(in crate::transform::generate_content) fn gemini_response_mime_to_chat(
 ) -> Option<openai::ChatResponseFormat> {
     match config?.response_mime_type.as_ref()? {
         gemini::ResponseMimeType::Known(gemini::ResponseMimeTypeKnown::TextPlain) => Some(
-            openai::ChatResponseFormat::Text(openai::TextResponseFormat {
+            openai::ChatResponseFormat::Text(crate::protocol::wire!(openai::TextResponseFormat {
                 type_: openai::TextResponseFormatType::Text,
                 extra: Default::default(),
-            }),
+            })),
         ),
-        gemini::ResponseMimeType::Known(gemini::ResponseMimeTypeKnown::ApplicationJson) => Some(
-            openai::ChatResponseFormat::JsonObject(openai::JsonObjectResponseFormat {
-                type_: openai::JsonObjectResponseFormatType::JsonObject,
-                extra: Default::default(),
-            }),
-        ),
+        gemini::ResponseMimeType::Known(gemini::ResponseMimeTypeKnown::ApplicationJson) => {
+            Some(openai::ChatResponseFormat::JsonObject(
+                crate::protocol::wire!(openai::JsonObjectResponseFormat {
+                    type_: openai::JsonObjectResponseFormatType::JsonObject,
+                    extra: Default::default(),
+                }),
+            ))
+        }
         _ => None,
     }
 }

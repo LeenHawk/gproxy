@@ -325,7 +325,7 @@ pub fn quota_scopes(cp: &ControlPlaneSnapshot, identity: &KeyIdentity) -> Vec<(S
 
 /// Rate-limit row ids on `identity`'s chain with a `total_tokens` budget
 /// matching `name`. Settle feeds `rlt:{id}:d{day}` with each request's actual
-/// total tokens (the counter [`precheck_limits`] reads).
+/// total tokens (the counter `precheck_limits` reads).
 pub fn token_limit_ids(cp: &ControlPlaneSnapshot, identity: &KeyIdentity, name: &str) -> Vec<i64> {
     let mut ids = Vec::new();
     for scope in scopes(identity) {

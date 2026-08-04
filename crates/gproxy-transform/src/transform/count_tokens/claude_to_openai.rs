@@ -15,7 +15,7 @@ pub fn request(
     let output_format = input.output_format;
     let previous_response_id = common::claude_previous_message_id_to_openai(input.diagnostics);
 
-    Ok(openai::ResponseInputTokensRequest {
+    Ok(crate::protocol::wire!(openai::ResponseInputTokensRequest {
         conversation: None,
         input: common::text_to_openai_input(common::claude_messages_to_text(input.messages)),
         instructions: common::claude_system_to_text(input.system),
@@ -34,16 +34,16 @@ pub fn request(
         tools: common::claude_tools_to_openai(input.tools, input.mcp_servers),
         truncation: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: claude::CountTokensResponseBody,
     _: &TransformContext,
 ) -> openai::ResponseInputTokensResponse {
-    openai::ResponseInputTokensResponse {
+    crate::protocol::wire!(openai::ResponseInputTokensResponse {
         input_tokens: common::u64_to_u32(input.input_tokens),
         object: openai::ResponseInputTokensObjectType::ResponseInputTokens,
         extra: Default::default(),
-    }
+    })
 }

@@ -16,19 +16,19 @@ pub(in crate::transform::generate_content) fn completion_usage_to_claude(
         .prompt_tokens
         .saturating_sub(cached_tokens.unwrap_or_default())
         .saturating_sub(cache_write_tokens.unwrap_or_default());
-    claude::Usage {
+    crate::protocol::wire!(claude::Usage {
         input_tokens: Some(u32_to_u64(non_cached)),
         output_tokens: Some(u32_to_u64(usage.completion_tokens)),
         cache_creation_input_tokens: cache_write_tokens.map(u32_to_u64),
         cache_read_input_tokens: cached_tokens.map(u32_to_u64),
         cache_creation: None,
         output_tokens_details: usage.completion_tokens_details.and_then(|details| {
-            details
-                .reasoning_tokens
-                .map(|tokens| claude::OutputTokensDetails {
+            details.reasoning_tokens.map(|tokens| {
+                crate::protocol::wire!(claude::OutputTokensDetails {
                     thinking_tokens: u32_to_u64(tokens),
                     extra: Default::default(),
                 })
+            })
         }),
         server_tool_use: None,
         iterations: None,
@@ -36,11 +36,11 @@ pub(in crate::transform::generate_content) fn completion_usage_to_claude(
         service_tier: None,
         speed: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn empty_claude_usage() -> claude::Usage {
-    claude::Usage {
+    crate::protocol::wire!(claude::Usage {
         input_tokens: Some(0),
         output_tokens: Some(0),
         cache_creation_input_tokens: None,
@@ -53,7 +53,7 @@ pub(in crate::transform::generate_content) fn empty_claude_usage() -> claude::Us
         service_tier: None,
         speed: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn claude_usage_to_completion(
@@ -72,27 +72,27 @@ pub(in crate::transform::generate_content) fn claude_usage_to_completion(
         .output_tokens_details
         .map(|details| u64_to_u32(details.thinking_tokens));
 
-    openai::CompletionUsage {
+    crate::protocol::wire!(openai::CompletionUsage {
         completion_tokens,
         prompt_tokens,
         total_tokens: prompt_tokens.saturating_add(completion_tokens),
         completion_tokens_details: reasoning_tokens.map(|reasoning_tokens| {
-            openai::CompletionTokensDetails {
+            crate::protocol::wire!(openai::CompletionTokensDetails {
                 accepted_prediction_tokens: None,
                 audio_tokens: None,
                 reasoning_tokens: Some(reasoning_tokens),
                 rejected_prediction_tokens: None,
                 extra: Default::default(),
-            }
+            })
         }),
         prompt_tokens_details: (cached_tokens.is_some() || cache_write_tokens.is_some()).then(
-            || openai::PromptTokensDetails {
+            || crate::protocol::wire!(openai::PromptTokensDetails {
                 audio_tokens: None,
                 cache_write_tokens,
                 cached_tokens,
                 extra: Default::default(),
-            },
+            }),
         ),
         extra: Default::default(),
-    }
+    })
 }

@@ -7,6 +7,7 @@ use super::super::super::common::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseAnnotation {
     #[serde(rename = "file_citation")]
     FileCitation {
@@ -44,7 +45,8 @@ pub enum ResponseAnnotation {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileSearchResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<FileSearchResultAttributes>,
@@ -64,13 +66,15 @@ pub type FileSearchResultAttributes = BTreeMap<String, FileSearchResultAttribute
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FileSearchResultAttributeValue {
     String(String),
     Number(f64),
     Boolean(bool),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SafetyCheck {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,6 +87,7 @@ pub struct SafetyCheck {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ComputerAction {
     #[serde(rename = "click")]
     Click {
@@ -127,6 +132,7 @@ pub enum ComputerAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ComputerMouseButton {
     #[serde(rename = "left")]
     Left,
@@ -140,13 +146,15 @@ pub enum ComputerMouseButton {
     Forward,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ComputerCoordinate {
     pub x: f64,
     pub y: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ComputerScreenshot {
     #[serde(rename = "type")]
     pub type_: ComputerScreenshotType,
@@ -159,6 +167,7 @@ pub struct ComputerScreenshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ComputerScreenshotType {
     #[serde(rename = "computer_screenshot")]
     ComputerScreenshot,
@@ -166,6 +175,7 @@ pub enum ComputerScreenshotType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum WebSearchAction {
     #[serde(rename = "search")]
     Search {
@@ -185,7 +195,8 @@ pub enum WebSearchAction {
     FindInPage { pattern: String, url: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchSource {
     #[serde(rename = "type")]
     pub type_: WebSearchSourceType,
@@ -195,12 +206,14 @@ pub struct WebSearchSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum WebSearchSourceType {
     #[serde(rename = "url")]
     Url,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AdditionalToolsRole {
     #[serde(rename = "unknown")]
     Unknown,
@@ -220,7 +233,8 @@ pub enum AdditionalToolsRole {
     Tool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseReasoningSummaryPart {
     pub text: String,
     #[serde(rename = "type")]
@@ -230,12 +244,14 @@ pub struct ResponseReasoningSummaryPart {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseReasoningSummaryType {
     #[serde(rename = "summary_text")]
     SummaryText,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseReasoningTextPart {
     pub text: String,
     #[serde(rename = "type")]
@@ -245,6 +261,7 @@ pub struct ResponseReasoningTextPart {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseReasoningTextType {
     #[serde(rename = "reasoning_text")]
     ReasoningText,
@@ -252,6 +269,7 @@ pub enum ResponseReasoningTextType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum CodeInterpreterOutput {
     #[serde(rename = "logs")]
     Logs { logs: String },
@@ -259,7 +277,8 @@ pub enum CodeInterpreterOutput {
     Image { url: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct LocalShellAction {
     pub command: Vec<String>,
     pub env: BTreeMap<String, String>,
@@ -276,12 +295,14 @@ pub struct LocalShellAction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum LocalShellActionType {
     #[serde(rename = "exec")]
     Exec,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ShellAction {
     pub commands: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -294,6 +315,7 @@ pub struct ShellAction {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ShellEnvironment {
     #[serde(rename = "local")]
     Local {
@@ -304,7 +326,8 @@ pub enum ShellEnvironment {
     ContainerReference { container_id: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ShellSkillReference {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_id: Option<String>,
@@ -314,7 +337,8 @@ pub struct ShellSkillReference {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ShellCallOutputContent {
     pub outcome: ShellCallOutcome,
     pub stderr: String,
@@ -327,6 +351,7 @@ pub struct ShellCallOutputContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ShellCallOutcome {
     #[serde(rename = "timeout")]
     Timeout {},
@@ -336,6 +361,7 @@ pub enum ShellCallOutcome {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ApplyPatchOperation {
     #[serde(rename = "create_file")]
     CreateFile { diff: String, path: String },
@@ -345,7 +371,8 @@ pub enum ApplyPatchOperation {
     UpdateFile { diff: String, path: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolDescription {
     pub input_schema: Value,
     pub name: String,

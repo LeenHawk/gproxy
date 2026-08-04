@@ -8,6 +8,7 @@ use super::{ResponseEasyInputContent, ResponseInputContentPart, ResponseMessageO
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseMessageItem {
     Output(ResponseOutputMessageItem),
     Input(ResponseInputMessageItem),
@@ -42,7 +43,8 @@ impl<'de> Deserialize<'de> for ResponseMessageItem {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseOutputMessageItem {
     #[serde(rename = "type")]
     pub type_: ResponseMessageItemType,
@@ -56,7 +58,8 @@ pub struct ResponseOutputMessageItem {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseInputMessageItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -70,7 +73,8 @@ pub struct ResponseInputMessageItem {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseEasyInputMessageItem {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ResponseMessageItemType>,
@@ -83,18 +87,21 @@ pub struct ResponseEasyInputMessageItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseMessageItemType {
     #[serde(rename = "message")]
     Message,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseOutputMessageRole {
     #[serde(rename = "assistant")]
     Assistant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseInputMessageRole {
     #[serde(rename = "user")]
     User,
@@ -105,6 +112,7 @@ pub enum ResponseInputMessageRole {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseEasyInputMessageRole {
     #[serde(rename = "user")]
     User,
@@ -116,7 +124,8 @@ pub enum ResponseEasyInputMessageRole {
     Developer,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseAgent {
     pub agent_name: String,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
@@ -125,6 +134,7 @@ pub struct ResponseAgent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseCaller {
     #[serde(rename = "direct")]
     Direct {

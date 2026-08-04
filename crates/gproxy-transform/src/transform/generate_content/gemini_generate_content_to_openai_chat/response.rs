@@ -13,28 +13,30 @@ pub fn response(
         .as_ref()
         .and_then(|usage| common::gemini_service_tier_to_openai(usage.service_tier.clone()));
 
-    Ok(openai::ChatCompletionResponse {
+    Ok(crate::protocol::wire!(openai::ChatCompletionResponse {
         id: input.response_id.unwrap_or_default(),
         choices: input
             .candidates
             .into_iter()
             .enumerate()
-            .map(|(index, candidate)| openai::ChatCompletionChoice {
-                finish_reason: candidate
-                    .finish_reason
-                    .map(gemini_finish_reason_to_chat)
-                    .unwrap_or(openai::ChatFinishReason::Stop),
-                index: candidate
-                    .index
-                    .map(i32_to_u32)
-                    .unwrap_or_else(|| usize_to_u32(index)),
-                logprobs: None,
-                message: candidate
-                    .content
-                    .map(gemini_content_to_chat_message)
-                    .unwrap_or_else(empty_assistant_message),
-                extra: Default::default(),
-            })
+            .map(
+                |(index, candidate)| crate::protocol::wire!(openai::ChatCompletionChoice {
+                    finish_reason: candidate
+                        .finish_reason
+                        .map(gemini_finish_reason_to_chat)
+                        .unwrap_or(openai::ChatFinishReason::Stop),
+                    index: candidate
+                        .index
+                        .map(i32_to_u32)
+                        .unwrap_or_else(|| usize_to_u32(index)),
+                    logprobs: None,
+                    message: candidate
+                        .content
+                        .map(gemini_content_to_chat_message)
+                        .unwrap_or_else(empty_assistant_message),
+                    extra: Default::default(),
+                })
+            )
             .collect(),
         created: 0,
         model: input
@@ -47,11 +49,11 @@ pub fn response(
         system_fingerprint: None,
         usage: usage_metadata.map(gemini_usage_to_completion),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn empty_assistant_message() -> openai::ChatMessage {
-    openai::ChatMessage {
+    crate::protocol::wire!(openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
         content: Some(String::new()),
         refusal: None,
@@ -61,7 +63,7 @@ fn empty_assistant_message() -> openai::ChatMessage {
         reasoning_content: None,
         tool_calls: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn gemini_finish_reason_to_chat(reason: gemini::FinishReason) -> openai::ChatFinishReason {
@@ -86,6 +88,9 @@ fn gemini_finish_reason_to_chat(reason: gemini::FinishReason) -> openai::ChatFin
         gemini::FinishReason::Known(_) | gemini::FinishReason::Unknown(_) => {
             openai::ChatFinishReason::Stop
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -100,29 +105,29 @@ fn gemini_usage_to_completion(usage: gemini::UsageMetadata) -> openai::Completio
         .map(i32_to_u32)
         .unwrap_or_else(|| prompt_tokens.saturating_add(completion_tokens));
 
-    openai::CompletionUsage {
+    crate::protocol::wire!(openai::CompletionUsage {
         completion_tokens,
         prompt_tokens,
         total_tokens,
         completion_tokens_details: usage.thoughts_token_count.map(|tokens| {
-            openai::CompletionTokensDetails {
+            crate::protocol::wire!(openai::CompletionTokensDetails {
                 accepted_prediction_tokens: None,
                 audio_tokens: None,
                 reasoning_tokens: Some(i32_to_u32(tokens)),
                 rejected_prediction_tokens: None,
                 extra: Default::default(),
-            }
+            })
         }),
         prompt_tokens_details: usage.cached_content_token_count.map(|tokens| {
-            openai::PromptTokensDetails {
+            crate::protocol::wire!(openai::PromptTokensDetails {
                 audio_tokens: None,
                 cache_write_tokens: None,
                 cached_tokens: Some(i32_to_u32(tokens)),
                 extra: Default::default(),
-            }
+            })
         }),
         extra: Default::default(),
-    }
+    })
 }
 
 fn i32_to_u32(value: i32) -> u32 {

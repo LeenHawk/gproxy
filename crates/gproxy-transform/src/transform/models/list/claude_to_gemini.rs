@@ -6,18 +6,18 @@ use crate::transform::{TransformContext, TransformError};
 use super::super::common::{self, u64_to_i32_default};
 
 pub fn request(input: claude::ListModelsQuery, _: &TransformContext) -> gemini::ListModelsRequest {
-    gemini::ListModelsRequest {
+    crate::protocol::wire!(gemini::ListModelsRequest {
         page_size: input.limit.map(u64_to_i32_default),
         page_token: input.after_id,
         extra: Default::default(),
-    }
+    })
 }
 
 pub fn response(
     input: claude::ListModelsResponse,
     ctx: &TransformContext,
 ) -> Result<gemini::ListModelsResponse, TransformError> {
-    Ok(gemini::ListModelsResponse {
+    Ok(crate::protocol::wire!(gemini::ListModelsResponse {
         models: input
             .data
             .into_iter()
@@ -29,5 +29,5 @@ pub fn response(
             None
         },
         extra: Default::default(),
-    })
+    }))
 }

@@ -9,17 +9,17 @@ pub fn request(
     input: openai::EmbeddingRequest,
     _: &TransformContext,
 ) -> Result<gemini::BatchEmbedContentsRequest, TransformError> {
-    Ok(gemini::BatchEmbedContentsRequest {
+    Ok(crate::protocol::wire!(gemini::BatchEmbedContentsRequest {
         requests: common::openai_to_gemini_requests(input),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: openai::EmbeddingResponse,
     _: &TransformContext,
 ) -> Result<gemini::BatchEmbedContentsResponse, TransformError> {
-    Ok(gemini::BatchEmbedContentsResponse {
+    Ok(crate::protocol::wire!(gemini::BatchEmbedContentsResponse {
         embeddings: input
             .data
             .into_iter()
@@ -27,5 +27,5 @@ pub fn response(
             .collect(),
         usage_metadata: Some(common::openai_to_gemini_usage(input.usage)),
         extra: Default::default(),
-    })
+    }))
 }

@@ -7,6 +7,7 @@ use super::super::common::*;
 use super::responses::ImageUsage;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[non_exhaustive]
 pub enum ImageStreamEvent {
     Known(KnownImageStreamEvent),
     Unknown(UnknownImageStreamEvent),
@@ -31,6 +32,7 @@ impl<'de> Deserialize<'de> for ImageStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownImageStreamEvent {
     #[serde(rename = "image_generation.partial_image")]
     ImageGenerationPartialImage {
@@ -65,6 +67,7 @@ pub enum KnownImageStreamEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[non_exhaustive]
 pub enum ImageGenerationStreamEvent {
     Known(KnownImageGenerationStreamEvent),
     Unknown(UnknownImageStreamEvent),
@@ -95,6 +98,7 @@ impl<'de> Deserialize<'de> for ImageGenerationStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownImageGenerationStreamEvent {
     #[serde(rename = "image_generation.partial_image")]
     PartialImage {
@@ -114,6 +118,7 @@ pub enum KnownImageGenerationStreamEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[non_exhaustive]
 pub enum ImageEditStreamEvent {
     Known(KnownImageEditStreamEvent),
     Unknown(UnknownImageStreamEvent),
@@ -144,6 +149,7 @@ impl<'de> Deserialize<'de> for ImageEditStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownImageEditStreamEvent {
     #[serde(rename = "image_edit.partial_image")]
     PartialImage {
@@ -162,7 +168,8 @@ pub enum KnownImageEditStreamEvent {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UnknownImageStreamEvent {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ImageStreamEventType>,

@@ -112,7 +112,7 @@ fn prepare_scoped(
     provider_name: &str,
 ) -> Result<Prepared, PipelineError> {
     let provider = enabled_provider(cp, provider_name)?;
-    if op.operation == Operation::ListModels {
+    if op.operation() == Operation::ListModels {
         return Ok(Prepared::ScopedModels(ScopedModels {
             authorization: authz::prepare_provider_listing(cp, identity, &provider.name)?,
             provider,
@@ -287,7 +287,7 @@ fn estimate(cp: &ControlPlaneSnapshot, ctx: &RequestCtx, provider_id: i64, model
     ) {
         return 0;
     }
-    match op.operation {
+    match op.operation() {
         Operation::GenerateContent
         | Operation::StreamGenerateContent
         | Operation::CompactContent

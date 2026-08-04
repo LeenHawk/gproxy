@@ -56,10 +56,12 @@ impl ReasoningState {
             .summary
             .into_values()
             .filter_map(|part| {
-                non_empty(part.finish_plain()).map(|text| openai::ResponseReasoningSummaryPart {
-                    text,
-                    type_: openai::ResponseReasoningSummaryType::SummaryText,
-                    extra: Default::default(),
+                non_empty(part.finish_plain()).map(|text| {
+                    crate::protocol::wire!(openai::ResponseReasoningSummaryPart {
+                        text,
+                        type_: openai::ResponseReasoningSummaryType::SummaryText,
+                        extra: Default::default(),
+                    })
                 })
             })
             .collect::<Vec<_>>();
@@ -67,10 +69,12 @@ impl ReasoningState {
             .content
             .into_values()
             .filter_map(|part| {
-                non_empty(part.finish_plain()).map(|text| openai::ResponseReasoningTextPart {
-                    text,
-                    type_: openai::ResponseReasoningTextType::ReasoningText,
-                    extra: Default::default(),
+                non_empty(part.finish_plain()).map(|text| {
+                    crate::protocol::wire!(openai::ResponseReasoningTextPart {
+                        text,
+                        type_: openai::ResponseReasoningTextType::ReasoningText,
+                        extra: Default::default(),
+                    })
                 })
             })
             .collect::<Vec<_>>();

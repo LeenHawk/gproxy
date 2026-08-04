@@ -178,7 +178,7 @@ v2 bundle 使用 `schema_version: 1`，其余字段是持久化 input record 数
 
 | v1 概念 | v2 替代 |
 | --- | --- |
-| `GPROXY_CONFIG=gproxy.toml` | 当前 v2 没有等价项。进程设置用环境变量，control-plane seed 用 JSON import/export。 |
+| `GPROXY_CONFIG=gproxy.toml` | 当前 v3 没有等价项。进程设置用环境变量，control-plane seed 用 JSON import/export。 |
 | TOML provider/model/user 数组 | 与 v2 持久化 input record 对应的 JSON bundle 数组。 |
 | 修改 TOML 后重新读取 | 不支持。运行时行通过 admin API/console 编辑，并通过 snapshot invalidation 生效。 |
 | `DATABASE_SECRET_KEY` 运行时加密 | v2 使用 `GPROXY_MASTER_KEY` 密封 secret；`DATABASE_SECRET_KEY` 只用于迁移时读取加密的 v1 数据。 |

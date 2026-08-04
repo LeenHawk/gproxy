@@ -7,12 +7,12 @@
 //!
 //!   * **request** ([`prepare`](KiroChannel::prepare)) — convert the inbound
 //!     OpenAI Responses body into Kiro's `conversationState` JSON
-//!     ([`request::build_request_body`]), lift `profileArn` to the top level, and
+//!     (`request::build_request_body`), lift `profileArn` to the top level, and
 //!     inject the Kiro auth + IDE fingerprint headers.
 //!   * **response** ([`stream_decoder`](KiroChannel::stream_decoder)) — decode the
-//!     Smithy event-stream into Responses SSE ([`response::KiroStreamDecoder`]).
+//!     Smithy event-stream into Responses SSE (`response::KiroStreamDecoder`).
 //!
-//! Auth is a dual `refresh_token` grant (social vs AWS IdC) — see [`auth`]. This
+//! Auth is a dual `refresh_token` grant (social vs AWS IdC) — see the internal `auth` module. This
 //! is the heaviest channel; the binary frame parser lives in the channel-level
 //! `aws_eventstream` module and is
 //! the most-tested piece. All decode is synchronous, so the channel compiles on
@@ -99,10 +99,10 @@ impl Channel for KiroChannel {
 
     /// Reproject the bespoke `ListAvailableModels` body into the OpenAI family
     /// canonical model-list shape so `parse_models` reads `data[].id`. Content
-    /// responses are the AWS event-stream and go through [`KiroStreamDecoder`],
+    /// responses are the AWS event-stream and go through `KiroStreamDecoder`,
     /// NOT here — so every non-`ListModels` op is returned unchanged.
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
-        match ctx.op.operation {
+        match ctx.op.operation() {
             Operation::ListModels => model_list::to_openai(body),
             _ => body,
         }

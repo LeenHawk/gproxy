@@ -6,36 +6,43 @@ pub(super) fn chat_tools_to_gemini(tools: Vec<openai::ChatTool>) -> Vec<gemini::
     let declarations = tools
         .into_iter()
         .map(|tool| match tool {
-            openai::ChatTool::Function { function, .. } => gemini::FunctionDeclaration {
-                name: function.name,
-                description: function.description.unwrap_or_default(),
-                behavior: None,
-                parameters: None,
-                parameters_json_schema: function.parameters.map(json_schema_value),
-                response: None,
-                response_json_schema: None,
-                extra: Default::default(),
-            },
-            openai::ChatTool::Custom { custom, .. } => gemini::FunctionDeclaration {
-                name: custom.name,
-                description: custom.description.unwrap_or_default(),
-                behavior: None,
-                parameters: None,
-                parameters_json_schema: None,
-                response: None,
-                response_json_schema: None,
-                extra: Default::default(),
-            },
+            openai::ChatTool::Function { function, .. } => {
+                crate::protocol::wire!(gemini::FunctionDeclaration {
+                    name: function.name,
+                    description: function.description.unwrap_or_default(),
+                    behavior: None,
+                    parameters: None,
+                    parameters_json_schema: function.parameters.map(json_schema_value),
+                    response: None,
+                    response_json_schema: None,
+                    extra: Default::default(),
+                })
+            }
+            openai::ChatTool::Custom { custom, .. } => {
+                crate::protocol::wire!(gemini::FunctionDeclaration {
+                    name: custom.name,
+                    description: custom.description.unwrap_or_default(),
+                    behavior: None,
+                    parameters: None,
+                    parameters_json_schema: None,
+                    response: None,
+                    response_json_schema: None,
+                    extra: Default::default(),
+                })
+            }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
         .collect::<Vec<_>>();
 
     if declarations.is_empty() {
         Vec::new()
     } else {
-        vec![gemini::Tool {
+        vec![crate::protocol::wire!(gemini::Tool {
             function_declarations: declarations,
             ..Default::default()
-        }]
+        })]
     }
 }
 
@@ -60,24 +67,30 @@ pub(super) fn chat_tool_choice_to_gemini(
             let name = match named {
                 openai::ChatNamedToolChoice::Function { function, .. } => function.name,
                 openai::ChatNamedToolChoice::Custom { custom, .. } => custom.name,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             };
             (
                 gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::Any),
                 vec![name],
             )
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
 
-    Some(gemini::ToolConfig {
-        function_calling_config: Some(gemini::FunctionCallingConfig {
+    Some(crate::protocol::wire!(gemini::ToolConfig {
+        function_calling_config: Some(crate::protocol::wire!(gemini::FunctionCallingConfig {
             mode: Some(mode),
             allowed_function_names,
             extra: Default::default(),
-        }),
+        })),
         retrieval_config: None,
         include_server_side_tool_invocations: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn json_schema_value(schema: openai::JsonSchema) -> Value {

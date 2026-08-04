@@ -11,7 +11,8 @@ use super::{
     ToolSearchToolResultErrorType,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseWebFetchResultBlock {
     pub content: ResponseWebFetchDocumentBlock,
     pub retrieved_at: String,
@@ -23,12 +24,14 @@ pub struct ResponseWebFetchResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseWebFetchResultBlockType {
     #[serde(rename = "web_fetch_result")]
     WebFetchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseWebFetchDocumentBlock {
     pub citations: ResponseWebFetchCitationConfig,
     pub source: ResponseWebFetchDocumentSource,
@@ -39,7 +42,8 @@ pub struct ResponseWebFetchDocumentBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseWebFetchCitationConfig {
     pub enabled: bool,
     #[serde(default, flatten, skip_serializing_if = "JsonObject::is_empty")]
@@ -48,12 +52,14 @@ pub struct ResponseWebFetchCitationConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseWebFetchDocumentSource {
     Base64(Base64PdfSource),
     Text(PlainTextSource),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseAdvisorResultBlock {
     pub stop_reason: StopReason,
     pub text: String,
@@ -64,12 +70,14 @@ pub struct ResponseAdvisorResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseAdvisorResultBlockType {
     #[serde(rename = "advisor_result")]
     AdvisorResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseAdvisorRedactedResultBlock {
     pub encrypted_content: String,
     pub stop_reason: StopReason,
@@ -80,12 +88,14 @@ pub struct ResponseAdvisorRedactedResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseAdvisorRedactedResultBlockType {
     #[serde(rename = "advisor_redacted_result")]
     AdvisorRedactedResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseTextEditorCodeExecutionViewResultBlock {
     pub content: String,
     pub file_type: TextEditorCodeExecutionFileType,
@@ -98,7 +108,8 @@ pub struct ResponseTextEditorCodeExecutionViewResultBlock {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseTextEditorCodeExecutionStrReplaceResultBlock {
     pub lines: Vec<String>,
     pub new_lines: u64,
@@ -119,7 +130,8 @@ pub type ResponseTextEditorCodeExecutionToolResultError = ResponseServerToolResu
 pub type ResponseToolSearchToolResultError =
     ResponseServerToolResultError<ToolSearchToolResultErrorCode, ToolSearchToolResultErrorType>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseServerToolResultError<C, T> {
     pub error_code: C,
     pub error_message: String,
@@ -129,7 +141,8 @@ pub struct ResponseServerToolResultError<C, T> {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseToolSearchToolSearchResultBlock {
     pub tool_references: Vec<ResponseToolReferenceBlock>,
     #[serde(rename = "type")]
@@ -139,6 +152,7 @@ pub struct ResponseToolSearchToolSearchResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ResponseToolSearchToolSearchResultBlockType {
     #[serde(rename = "tool_search_tool_search_result")]
     ToolSearchToolSearchResult,

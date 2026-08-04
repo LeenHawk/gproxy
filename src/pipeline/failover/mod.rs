@@ -6,7 +6,7 @@
 //! stale) sits before each attempt, and an AuthDead classification triggers a
 //! single forced refresh + replay of the SAME candidate. A per-request retry
 //! budget caps the number of candidate attempts. The single-attempt mechanics
-//! (prepare → send → classify, body materialization) live in [`attempt`].
+//! (prepare → send → classify, body materialization) live in the internal `attempt` module.
 
 mod attempt;
 mod budget;
@@ -340,9 +340,12 @@ pub async fn run_failover(
                 model: rule_filter_model.as_str(),
             });
             let shaped_op = plan.shape_op(ctx);
-            let usage_kind = match shaped_op.kind {
+            let usage_kind = match shaped_op.kind() {
                 OperationKind::ContentGeneration(k) => Some(k),
                 OperationKind::Provider(_) => None,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             };
             let settle_ctx = status
                 .is_success()
@@ -428,7 +431,7 @@ pub async fn run_failover(
                 );
             }
             #[cfg(not(target_arch = "wasm32"))]
-            let body = match (status.is_success(), ctx.op.map(|op| op.kind), body) {
+            let body = match (status.is_success(), ctx.op.map(|op| op.kind()), body) {
                 (
                     true,
                     Some(OperationKind::ContentGeneration(inbound)),
@@ -448,10 +451,11 @@ pub async fn run_failover(
                         return None;
                     };
                     let op = ctx.op?;
-                    let family = match op.kind {
+                    let family = match op.kind() {
                         OperationKind::ContentGeneration(kind) => kind.provider(),
                         OperationKind::Provider(family) => family,
-                    };
+                    _ => unreachable!("new non-exhaustive protocol variant requires a lockstep transform update"),
+};
                     Some((body.clone(), family))
                 });
             if status.is_success()

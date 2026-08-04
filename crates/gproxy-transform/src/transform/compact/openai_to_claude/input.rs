@@ -18,6 +18,9 @@ pub(super) fn openai_input_to_claude_messages(
             .filter_map(|item| openai_item_to_claude_message(item, &system_role))
             .collect(),
         None => Vec::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -32,18 +35,18 @@ fn openai_item_to_claude_message(
         openai::ResponseItem::Typed(openai::TypedResponseItem::Compaction {
             encrypted_content,
             ..
-        }) => Some(claude::MessageParam {
+        }) => Some(crate::protocol::wire!(claude::MessageParam {
             role: claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
             content: claude::MessageContent::Array(vec![claude::ContentBlockParam::Compaction(
-                claude::CompactionBlock {
+                crate::protocol::wire!(claude::CompactionBlock {
                     content: None,
                     encrypted_content: Some(encrypted_content),
                     type_: claude::CompactionBlockType::Compaction,
                     cache_control: None,
-                },
+                }),
             )]),
             extra: Default::default(),
-        }),
+        })),
         openai::ResponseItem::Typed(typed) => typed_item_to_claude_message(typed),
         _ => None,
     }
@@ -71,6 +74,9 @@ fn openai_message_to_claude_message(
                 blocks,
             )
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -79,11 +85,11 @@ fn text_to_claude_message(role: claude::MessageRole, text: String) -> Option<cla
         return None;
     }
 
-    Some(claude::MessageParam {
+    Some(crate::protocol::wire!(claude::MessageParam {
         role,
         content: claude::MessageContent::String(text),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(super) fn blocks_to_claude_message(
@@ -94,11 +100,11 @@ pub(super) fn blocks_to_claude_message(
         return None;
     }
 
-    Some(claude::MessageParam {
+    Some(crate::protocol::wire!(claude::MessageParam {
         role,
         content: claude::MessageContent::Array(blocks),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn easy_input_role_to_claude(
@@ -114,6 +120,9 @@ fn easy_input_role_to_claude(
         openai::ResponseEasyInputMessageRole::User => {
             claude::MessageRole::Known(claude::MessageRoleKnown::User)
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -128,6 +137,9 @@ fn input_role_to_claude(
         openai::ResponseInputMessageRole::User => {
             claude::MessageRole::Known(claude::MessageRoleKnown::User)
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -138,6 +150,9 @@ fn easy_input_content_to_blocks(
         openai::ResponseEasyInputContent::Text(text) => text_block(text).into_iter().collect(),
         openai::ResponseEasyInputContent::Parts(parts) => input_parts_to_blocks(parts),
         openai::ResponseEasyInputContent::OutputParts(parts) => output_parts_to_blocks(parts),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -166,6 +181,9 @@ fn input_part_to_claude_block(
             ..
         } => document_block(file_id, file_url, file_data, filename),
         openai::ResponseInputContentPart::InputAudio { .. } => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -179,6 +197,9 @@ fn output_parts_to_blocks(
             openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
                 text_block(refusal)
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
         .collect()
 }
@@ -188,13 +209,15 @@ pub(super) fn text_block(text: String) -> Option<claude::ContentBlockParam> {
         return None;
     }
 
-    Some(claude::ContentBlockParam::Text(claude::TextBlock {
-        text,
-        type_: claude::TextBlockType::Text,
-        cache_control: None,
-        citations: None,
-        extra: Default::default(),
-    }))
+    Some(claude::ContentBlockParam::Text(crate::protocol::wire!(
+        claude::TextBlock {
+            text,
+            type_: claude::TextBlockType::Text,
+            cache_control: None,
+            citations: None,
+            extra: Default::default(),
+        }
+    )))
 }
 
 pub(super) fn image_block(
@@ -202,24 +225,26 @@ pub(super) fn image_block(
     image_url: Option<String>,
 ) -> Option<claude::ContentBlockParam> {
     let source = if let Some(file_id) = file_id {
-        claude::ImageSource::File(claude::FileImageSource {
+        claude::ImageSource::File(crate::protocol::wire!(claude::FileImageSource {
             file_id,
             type_: claude::FileSourceType::File,
             extra: Default::default(),
-        })
+        }))
     } else {
-        claude::ImageSource::Url(claude::UrlImageSource {
+        claude::ImageSource::Url(crate::protocol::wire!(claude::UrlImageSource {
             type_: claude::UrlSourceType::Url,
             url: image_url?,
             extra: Default::default(),
-        })
+        }))
     };
 
-    Some(claude::ContentBlockParam::Image(claude::ImageBlock {
-        source,
-        type_: claude::ImageBlockType::Image,
-        cache_control: None,
-    }))
+    Some(claude::ContentBlockParam::Image(crate::protocol::wire!(
+        claude::ImageBlock {
+            source,
+            type_: claude::ImageBlockType::Image,
+            cache_control: None,
+        }
+    )))
 }
 
 pub(super) fn document_block(
@@ -229,32 +254,34 @@ pub(super) fn document_block(
     filename: Option<String>,
 ) -> Option<claude::ContentBlockParam> {
     let source = if let Some(file_id) = file_id {
-        claude::DocumentSource::File(claude::FileDocumentSource {
+        claude::DocumentSource::File(crate::protocol::wire!(claude::FileDocumentSource {
             file_id,
             type_: claude::FileSourceType::File,
             extra: Default::default(),
-        })
+        }))
     } else if let Some(file_url) = file_url {
-        claude::DocumentSource::Url(claude::UrlDocumentSource {
+        claude::DocumentSource::Url(crate::protocol::wire!(claude::UrlDocumentSource {
             type_: claude::UrlSourceType::Url,
             url: file_url,
             extra: Default::default(),
-        })
+        }))
     } else {
-        claude::DocumentSource::Text(claude::PlainTextSource {
+        claude::DocumentSource::Text(crate::protocol::wire!(claude::PlainTextSource {
             data: file_data?,
             media_type: claude::PlainTextMediaType::TextPlain,
             type_: claude::TextSourceType::Text,
             extra: Default::default(),
-        })
+        }))
     };
 
-    Some(claude::ContentBlockParam::Document(claude::DocumentBlock {
-        source,
-        type_: claude::DocumentBlockType::Document,
-        cache_control: None,
-        citations: None,
-        context: None,
-        title: filename,
-    }))
+    Some(claude::ContentBlockParam::Document(crate::protocol::wire!(
+        claude::DocumentBlock {
+            source,
+            type_: claude::DocumentBlockType::Document,
+            cache_control: None,
+            citations: None,
+            context: None,
+            title: filename,
+        }
+    )))
 }

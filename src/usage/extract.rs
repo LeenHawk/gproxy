@@ -35,6 +35,9 @@ pub fn from_response(family: Provider, body: &Value) -> Option<NormalizedUsage> 
             }
             Some(gemini_usage(meta))
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -79,6 +82,9 @@ pub fn from_stream_frames(
             (numeric(meta, "promptTokenCount") && numeric(meta, "candidatesTokenCount"))
                 .then(|| gemini_usage(meta))
         }),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

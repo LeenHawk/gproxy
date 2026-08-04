@@ -14,6 +14,8 @@ use super::common::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GenerateContentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -44,6 +46,8 @@ pub type StreamGenerateContentChunk = GenerateContentResponse;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct GenerateContentResponse {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub candidates: Vec<Candidate>,
@@ -63,6 +67,8 @@ pub struct GenerateContentResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Candidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<Content>,
@@ -92,6 +98,8 @@ pub struct Candidate {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PromptFeedback {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_reason: Option<BlockReason>,
@@ -103,6 +111,8 @@ pub struct PromptFeedback {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UsageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_token_count: Option<i32>,
@@ -132,6 +142,8 @@ pub struct UsageMetadata {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModelStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_stage: Option<ModelStage>,
@@ -145,6 +157,8 @@ pub struct ModelStatus {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct LogprobsResult {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub top_candidates: Vec<TopCandidates>,
@@ -158,6 +172,8 @@ pub struct LogprobsResult {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TopCandidates {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub candidates: Vec<LogprobCandidate>,
@@ -167,6 +183,8 @@ pub struct TopCandidates {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct LogprobCandidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,

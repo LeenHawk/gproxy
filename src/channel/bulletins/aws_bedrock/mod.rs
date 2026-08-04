@@ -24,11 +24,12 @@ const FORWARD_HEADERS: &[&str] = &["anthropic-beta", "openai-beta"];
 pub struct AwsBedrockChannel;
 
 fn is_count_tokens(op: crate::protocol::OperationKey) -> bool {
-    op.operation == Operation::CountTokens && op.kind == OperationKind::Provider(Provider::Claude)
+    op.operation() == Operation::CountTokens
+        && op.kind() == OperationKind::Provider(Provider::Claude)
 }
 
 fn is_models(op: crate::protocol::OperationKey) -> bool {
-    matches!(op.operation, Operation::ListModels | Operation::GetModel)
+    matches!(op.operation(), Operation::ListModels | Operation::GetModel)
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

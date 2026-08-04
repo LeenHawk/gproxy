@@ -207,7 +207,7 @@ impl Channel for CodexChannel {
     /// Content ops (Responses passthrough) are returned unchanged — the codex
     /// backend already speaks OpenAI Responses, so there is nothing to reproject.
     fn shape_response(&self, body: Bytes, ctx: &ShapeCtx) -> Bytes {
-        match ctx.op.operation {
+        match ctx.op.operation() {
             Operation::ListModels => model_metadata::shape_model_list(body),
             Operation::GetModel => model_metadata::shape_model_get(body),
             _ => body,
@@ -221,29 +221,17 @@ struct CodexResponsesStreamDecoder {
 }
 
 impl ChannelStreamDecoder for CodexResponsesStreamDecoder {
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         self.inner
             .push(chunk)
-            .unwrap_or_else(normalizer_error_frame)
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))
     }
 
-    fn finish(&mut self) -> Vec<u8> {
-        self.inner.finish().unwrap_or_else(normalizer_error_frame)
+    fn finish(&mut self) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
+        self.inner
+            .finish()
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))
     }
-}
-
-fn normalizer_error_frame(error: crate::transform::TransformError) -> Vec<u8> {
-    crate::transform::common::sse::SseFrame::event(
-        "error",
-        serde_json::json!({
-            "type": "error",
-            "code": "invalid_upstream_stream",
-            "message": error.to_string(),
-        })
-        .to_string(),
-    )
-    .encode()
-    .into_bytes()
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]

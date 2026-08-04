@@ -51,6 +51,9 @@ pub(in super::super) fn claude_system_to_chat_content(
                 .collect::<Vec<_>>();
             (!parts.is_empty()).then_some(openai::ChatTextContent::Parts(parts))
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -87,6 +90,9 @@ pub(in super::super) fn claude_content_to_chat_text_content(
                                     });
                                 }
                                 openai::ChatTextContent::Parts(nested) => parts.extend(nested),
+                                _ => unreachable!(
+                                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                                ),
                             }
                         }
                     }
@@ -94,6 +100,9 @@ pub(in super::super) fn claude_content_to_chat_text_content(
                 }
             }
             (!parts.is_empty()).then_some(openai::ChatTextContent::Parts(parts))
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

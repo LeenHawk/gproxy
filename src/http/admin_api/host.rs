@@ -409,7 +409,7 @@ mod connectivity {
     fn client_error(error: &ClientError) -> String {
         match error {
             ClientError::Config(_) => "proxy configuration is invalid",
-            ClientError::Transport(_) => "connectivity probe failed",
+            ClientError::Transport(_) | ClientError::Decode(_) => "connectivity probe failed",
         }
         .into()
     }

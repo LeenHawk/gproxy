@@ -186,7 +186,7 @@ impl CompiledRule {
     /// `filter_model_pattern` glob-matches the (prefix-stripped) upstream model.
     pub fn matches(&self, op: OperationKey, model: &str) -> bool {
         if let Some(ops) = &self.operations
-            && !ops.contains(&op.operation)
+            && !ops.contains(&op.operation())
         {
             return false;
         }

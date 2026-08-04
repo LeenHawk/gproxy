@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ErrorResponse {
     #[serde(rename = "type")]
     pub type_: ErrorResponseType,
@@ -13,6 +14,7 @@ pub struct ErrorResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ErrorResponseType {
     #[serde(rename = "error")]
     Error,
@@ -20,6 +22,7 @@ pub enum ErrorResponseType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ErrorBody {
     InvalidRequest(InvalidRequestError),
     Authentication(AuthenticationError),
@@ -35,7 +38,10 @@ pub enum ErrorBody {
 
 macro_rules! api_error {
     ($name:ident, $type_name:ident, $variant:ident, $wire:literal) => {
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+        #[derive(
+            Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+        )]
+        #[non_exhaustive]
         pub struct $name {
             pub message: String,
             #[serde(rename = "type")]
@@ -45,6 +51,7 @@ macro_rules! api_error {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $type_name {
             #[serde(rename = $wire)]
             $variant,
@@ -110,7 +117,8 @@ api_error!(
     "overloaded_error"
 );
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UnknownError {
     pub message: String,
     #[serde(rename = "type")]

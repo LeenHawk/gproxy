@@ -1,11 +1,11 @@
 //! §17 stream settlement: bounded relay buffer on the hot path (refcounted
 //! `Bytes` clones, zero parse), exactly-once settle via explicit end OR Drop
 //! guard, and the inline settle for buffered bodies. The counting ladder
-//! lives in [`ladder`]; frame decoding/error frames in [`frames`].
+//! lives in the internal `ladder` module; frame decoding/error frames in `frames`.
 //!
 //! ~390 lines by design (M6 Task 3/4 budget: settle may exceed the 200-line
 //! ideal; hard cap respected). Quota/counter reconciliation lives in
-//! [`reconcile`]; the counting ladder in [`ladder`]; frames in [`frames`].
+//! `reconcile`; the counting ladder in `ladder`; frames in `frames`.
 
 mod audit;
 pub(crate) mod frames;
@@ -91,7 +91,7 @@ impl SettleCtx {
         latency_ms: i64,
     ) -> Option<Self> {
         let op = ctx.op?;
-        let OperationKind::ContentGeneration(_) = op.kind else {
+        let OperationKind::ContentGeneration(_) = op.kind() else {
             return None; // models/count/etc. are never billed (§17)
         };
         let identity = ctx.identity.as_deref();
@@ -123,8 +123,8 @@ impl SettleCtx {
             team_id: identity.and_then(|i| i.user.team_id),
             user_id: identity.map(|i| i.user.id),
             user_key_id: identity.map(|i| i.user_key.id),
-            operation: enum_str(&op.operation),
-            kind: enum_str(&op.kind),
+            operation: enum_str(&op.operation()),
+            kind: enum_str(&op.kind()),
             model: cand.upstream_model_id.clone(),
             usage_kind,
             upstream_family: usage_kind.provider(),
@@ -150,8 +150,9 @@ pub async fn settle_body(ctx: SettleCtx, body: &Bytes, stream: bool) {
 /// Inline settle for a fully-buffered body. Usage-in-body is the fast path; a miss falls to the counting
 /// ladder (spawned on native so the response isn't delayed).
 async fn settle_full(ctx: SettleCtx, body: &Bytes, stream: bool) {
+    let stream_frames = stream.then(|| decode_frames_or_warn(body));
     let extracted = if stream {
-        extract::from_stream_frames(ctx.usage_kind, &frames::decode(body))
+        extract::from_stream_frames(ctx.usage_kind, stream_frames.as_deref().unwrap_or_default())
     } else {
         serde_json::from_slice::<Value>(body)
             .ok()
@@ -161,7 +162,7 @@ async fn settle_full(ctx: SettleCtx, body: &Bytes, stream: bool) {
         Some(u) => record(&ctx, u, UsageSource::Upstream, Ended::Complete).await,
         None => {
             let text = if stream {
-                frames::produced_text(ctx.usage_kind, &frames::decode(body))
+                frames::produced_text(ctx.usage_kind, stream_frames.as_deref().unwrap_or_default())
             } else {
                 crate::tokenize::harvest(body).0.join("\n")
             };
@@ -333,7 +334,7 @@ async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         ended = %ended,
         "settling stream"
     );
-    let frames = frames::decode(&bytes);
+    let frames = decode_frames_or_warn(&bytes);
     if ended == Ended::Complete
         && let Some(usage) = extract::from_stream_frames(ctx.usage_kind, &frames)
     {
@@ -357,6 +358,13 @@ async fn settle_stream(ctx: SettleCtx, buf: RelayBuffer, ended: Ended) {
         &buf.concat_for_log(),
     )
     .await;
+}
+
+fn decode_frames_or_warn(bytes: &[u8]) -> Vec<crate::transform::common::sse::SseFrame> {
+    frames::decode(bytes).unwrap_or_else(|error| {
+        tracing::warn!(%error, "failed to decode bounded SSE for settlement");
+        Vec::new()
+    })
 }
 
 // ── recording ────────────────────────────────────────────────────────────────

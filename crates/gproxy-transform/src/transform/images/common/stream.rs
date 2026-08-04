@@ -32,6 +32,9 @@ pub(in crate::transform::images) fn openai_generation_stream_to_gemini(
             usage.map(openai_usage_to_gemini),
         )),
         openai::ImageGenerationStreamEvent::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -60,6 +63,9 @@ pub(in crate::transform::images) fn openai_edit_stream_to_gemini(
             usage.map(openai_usage_to_gemini),
         )),
         openai::ImageEditStreamEvent::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -69,13 +75,13 @@ fn gemini_image_stream_response(
     finish_reason: Option<gemini::FinishReasonKnown>,
     usage_metadata: Option<gemini::UsageMetadata>,
 ) -> gemini::GenerateContentResponse {
-    gemini::GenerateContentResponse {
-        candidates: vec![gemini::Candidate {
-            content: Some(gemini::Content {
+    crate::protocol::wire!(gemini::GenerateContentResponse {
+        candidates: vec![crate::protocol::wire!(gemini::Candidate {
+            content: Some(crate::protocol::wire!(gemini::Content {
                 parts: vec![inline_image_part(b64_json, "image/png".to_owned())],
                 role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::Model)),
                 extra: Default::default(),
-            }),
+            })),
             finish_reason: finish_reason.map(gemini::FinishReason::Known),
             safety_ratings: Vec::new(),
             citation_metadata: None,
@@ -87,14 +93,14 @@ fn gemini_image_stream_response(
             index: Some(u32_to_i32(index)),
             finish_message: None,
             extra: Default::default(),
-        }],
+        })],
         prompt_feedback: None,
         usage_metadata,
         model_version: None,
         response_id: None,
         model_status: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::images) fn gemini_to_openai_generation_stream(

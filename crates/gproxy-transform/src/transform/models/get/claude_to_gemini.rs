@@ -9,10 +9,10 @@ pub fn request(
     input: claude::RetrieveModelPath,
     _: &TransformContext,
 ) -> Result<gemini::GetModelRequest, TransformError> {
-    Ok(gemini::GetModelRequest {
+    Ok(crate::protocol::wire!(gemini::GetModelRequest {
         name: Some(wire_string(&input.model_id, "model_id")?),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(

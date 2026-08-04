@@ -9,7 +9,7 @@ pub(in crate::transform::models) fn model(
 ) -> Result<claude::ModelInfo, TransformError> {
     let id = wire_string(&input.id, "id")?;
 
-    Ok(claude::ModelInfo {
+    Ok(crate::protocol::wire!(claude::ModelInfo {
         id: id.clone().into(),
         allowed_fallback_models: Vec::new(),
         type_: claude_model_object(),
@@ -19,5 +19,5 @@ pub(in crate::transform::models) fn model(
         max_tokens: 0,
         capabilities: default_claude_capabilities(),
         extra: Default::default(),
-    })
+    }))
 }

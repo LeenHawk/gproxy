@@ -1,4 +1,5 @@
-//! Provider-neutral domain records used by the [`PersistenceBackend`] trait.
+//! Provider-neutral domain records used by the
+//! [`PersistenceBackend`](crate::store::persistence::PersistenceBackend) trait.
 //!
 //! These are backend-agnostic shapes: the `db` impl maps them to/from SeaORM
 //! models, the `file` impl serializes them as JSON. Domain code only ever sees

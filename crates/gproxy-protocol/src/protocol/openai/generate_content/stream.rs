@@ -9,6 +9,7 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ResponseStreamEvent {
     Known(KnownResponseStreamEvent),
     Unknown(UnknownResponseStreamEvent),
@@ -65,6 +66,7 @@ impl<'de> Deserialize<'de> for ResponseStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownResponseStreamEvent {
     #[serde(rename = "response.created")]
     ResponseCreated {
@@ -663,7 +665,8 @@ impl KnownResponseStreamEvent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UnknownResponseStreamEvent {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ResponseStreamEventType>,

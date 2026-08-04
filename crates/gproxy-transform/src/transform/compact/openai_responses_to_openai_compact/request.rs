@@ -5,7 +5,7 @@ pub fn request(
     input: openai::ResponseCreateRequest,
     _: &TransformContext,
 ) -> Result<openai::CompactResponseRequestBody, TransformError> {
-    Ok(openai::CompactResponseRequestBody {
+    Ok(crate::protocol::wire!(openai::CompactResponseRequestBody {
         input: input.input,
         instructions: input.instructions,
         model: input
@@ -17,7 +17,7 @@ pub fn request(
         prompt_cache_retention: input.prompt_cache_retention,
         service_tier: input.service_tier.map(service_tier_to_compact),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn service_tier_to_compact(service_tier: openai::ServiceTier) -> openai::CompactServiceTier {
@@ -31,5 +31,8 @@ fn service_tier_to_compact(service_tier: openai::ServiceTier) -> openai::Compact
         openai::ServiceTier::Priority => openai::CompactServiceTier::Priority,
         // `scale` has no compact equivalent; fall back to auto.
         openai::ServiceTier::Scale => openai::CompactServiceTier::Auto,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

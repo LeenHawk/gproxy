@@ -12,7 +12,7 @@ pub(in crate::transform::models) fn model(
 ) -> claude::ModelInfo {
     let id = gemini_model_id(&input);
 
-    claude::ModelInfo {
+    crate::protocol::wire!(claude::ModelInfo {
         id: id.clone().into(),
         allowed_fallback_models: Vec::new(),
         type_: claude_model_object(),
@@ -28,5 +28,5 @@ pub(in crate::transform::models) fn model(
             .unwrap_or_default(),
         capabilities: default_claude_capabilities(),
         extra: Default::default(),
-    }
+    })
 }

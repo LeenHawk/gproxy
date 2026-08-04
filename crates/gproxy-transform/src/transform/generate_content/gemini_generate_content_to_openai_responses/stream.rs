@@ -58,10 +58,10 @@ fn gemini_chunk_to_response_events(
                 usage,
                 service_tier,
                 openai::ResponseStatus::Incomplete,
-                Some(openai::IncompleteDetails {
+                Some(crate::protocol::wire!(openai::IncompleteDetails {
                     reason: Some(openai::IncompleteReason::ContentFilter),
                     extra: Default::default(),
-                }),
+                })),
             )
         } else {
             response_lifecycle_event(
@@ -172,21 +172,23 @@ fn part_to_response_event(
             );
             Some(known(
                 openai::KnownResponseStreamEvent::ResponseOutputItemAdded {
-                    item: Box::new(openai::ResponseOutputItem(openai::ResponseItem::Typed(
-                        openai::TypedResponseItem::FunctionCall {
-                            arguments: function_call
-                                .args
-                                .map(|args| serde_json::to_string(&args).unwrap_or_default())
-                                .unwrap_or_default(),
-                            call_id: call_id.clone(),
-                            name: function_call.name,
-                            id: Some(item_id),
-                            caller: None,
-                            namespace: None,
-                            status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                            extra: Default::default(),
-                        },
-                    ))),
+                    item: Box::new(openai::ResponseOutputItem::new(
+                        openai::ResponseItem::Typed(crate::protocol::wire!(
+                            openai::TypedResponseItem::FunctionCall {
+                                arguments: function_call
+                                    .args
+                                    .map(|args| serde_json::to_string(&args).unwrap_or_default())
+                                    .unwrap_or_default(),
+                                call_id: call_id.clone(),
+                                name: function_call.name,
+                                id: Some(item_id),
+                                caller: None,
+                                namespace: None,
+                                status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                                extra: Default::default(),
+                            }
+                        )),
+                    )),
                     output_index,
                     sequence_number: None,
                     extra: Default::default(),
@@ -206,7 +208,7 @@ fn response_lifecycle_event(
     incomplete_details: Option<openai::IncompleteDetails>,
 ) -> openai::ResponseStreamEvent {
     let event_status = status.clone();
-    let response = Box::new(openai::ResponseObject {
+    let response = Box::new(crate::protocol::wire!(openai::ResponseObject {
         id,
         created_at: 0,
         background: None,
@@ -245,7 +247,7 @@ fn response_lifecycle_event(
         usage: common::completion_usage_to_response(usage),
         user: None,
         extra: Default::default(),
-    });
+    }));
 
     match event_status {
         openai::ResponseStatus::Completed => {
@@ -276,10 +278,10 @@ fn response_status_from_gemini_finish(
     match reason {
         gemini::FinishReason::Known(gemini::FinishReasonKnown::MaxTokens) => (
             openai::ResponseStatus::Incomplete,
-            Some(openai::IncompleteDetails {
+            Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::MaxOutputTokens),
                 extra: Default::default(),
-            }),
+            })),
         ),
         gemini::FinishReason::Known(
             gemini::FinishReasonKnown::Safety
@@ -291,10 +293,10 @@ fn response_status_from_gemini_finish(
             | gemini::FinishReasonKnown::ImageProhibitedContent,
         ) => (
             openai::ResponseStatus::Incomplete,
-            Some(openai::IncompleteDetails {
+            Some(crate::protocol::wire!(openai::IncompleteDetails {
                 reason: Some(openai::IncompleteReason::ContentFilter),
                 extra: Default::default(),
-            }),
+            })),
         ),
         _ => (openai::ResponseStatus::Completed, None),
     }

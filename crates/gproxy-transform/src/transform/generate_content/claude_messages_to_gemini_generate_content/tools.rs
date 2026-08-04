@@ -6,16 +6,18 @@ pub(super) fn claude_tools_to_gemini(tools: Vec<claude::Tool>) -> Vec<gemini::To
     let declarations = tools
         .into_iter()
         .filter_map(|tool| match tool {
-            claude::Tool::Custom(tool) => Some(gemini::FunctionDeclaration {
-                name: tool.name,
-                description: tool.description.unwrap_or_default(),
-                behavior: None,
-                parameters: None,
-                parameters_json_schema: Some(claude_schema_to_value(tool.input_schema)),
-                response: None,
-                response_json_schema: None,
-                extra: Default::default(),
-            }),
+            claude::Tool::Custom(tool) => {
+                Some(crate::protocol::wire!(gemini::FunctionDeclaration {
+                    name: tool.name,
+                    description: tool.description.unwrap_or_default(),
+                    behavior: None,
+                    parameters: None,
+                    parameters_json_schema: Some(claude_schema_to_value(tool.input_schema)),
+                    response: None,
+                    response_json_schema: None,
+                    extra: Default::default(),
+                }))
+            }
             claude::Tool::WebSearch(_) => None,
             _ => None,
         })
@@ -24,10 +26,10 @@ pub(super) fn claude_tools_to_gemini(tools: Vec<claude::Tool>) -> Vec<gemini::To
     if declarations.is_empty() {
         Vec::new()
     } else {
-        vec![gemini::Tool {
+        vec![crate::protocol::wire!(gemini::Tool {
             function_declarations: declarations,
             ..Default::default()
-        }]
+        })]
     }
 }
 
@@ -52,18 +54,21 @@ pub(super) fn claude_tool_choice_to_gemini(
             vec![choice.name],
         ),
         claude::ToolChoice::Unknown(_) => return None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
 
-    Some(gemini::ToolConfig {
-        function_calling_config: Some(gemini::FunctionCallingConfig {
+    Some(crate::protocol::wire!(gemini::ToolConfig {
+        function_calling_config: Some(crate::protocol::wire!(gemini::FunctionCallingConfig {
             mode: Some(mode),
             allowed_function_names,
             extra: Default::default(),
-        }),
+        })),
         retrieval_config: None,
         include_server_side_tool_invocations: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn claude_schema_to_value(schema: claude::JsonSchema) -> Value {

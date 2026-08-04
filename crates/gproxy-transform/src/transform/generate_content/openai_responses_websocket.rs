@@ -131,7 +131,7 @@ impl ResponseWebSocketSseDecoder {
     pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<String>, TransformError> {
         Ok(self
             .decoder
-            .try_push(chunk)?
+            .push(chunk)?
             .into_iter()
             .filter_map(frame_data)
             .collect())
@@ -140,7 +140,7 @@ impl ResponseWebSocketSseDecoder {
     pub fn finish(&mut self) -> Result<Vec<String>, TransformError> {
         Ok(self
             .decoder
-            .try_finish()?
+            .finish()?
             .and_then(frame_data)
             .into_iter()
             .collect())

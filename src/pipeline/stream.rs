@@ -24,7 +24,7 @@ pub enum SyntheticTransport {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn synthetic_transport(ctx: &crate::pipeline::context::RequestCtx) -> SyntheticTransport {
     if matches!(
-        ctx.op.map(|op| op.kind),
+        ctx.op.map(|op| op.kind()),
         Some(crate::protocol::OperationKind::ContentGeneration(
             crate::protocol::ContentGenerationKind::GeminiGenerateContent
         ))
@@ -53,9 +53,12 @@ pub fn synthetic_outcome(
     use http::{HeaderMap, HeaderValue, StatusCode, header};
     use tokio::sync::mpsc;
 
-    let kind = match ctx.op.expect("classified").kind {
+    let kind = match ctx.op.expect("classified").kind() {
         crate::protocol::OperationKind::ContentGeneration(kind) => kind,
         crate::protocol::OperationKind::Provider(_) => unreachable!("synthetic content stream"),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     let transport = synthetic_transport(&ctx);
     let request_id = ctx.request_id.clone();
@@ -222,7 +225,7 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
                 let inner = st.inner.as_mut()?;
                 match inner.next().await {
                     Some(Ok(chunk)) => {
-                        let out = match st.t.push(&chunk) {
+                        let out = match st.t.push_detailed(&chunk) {
                             Ok(out) => out,
                             Err(error) => {
                                 st.inner = None;
@@ -234,6 +237,8 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
                                 ));
                             }
                         };
+                        crate::pipeline::transform::log_diagnostics(&out.diagnostics);
+                        let out = out.value;
                         if out.is_empty() {
                             continue; // partial frame buffered; poll again
                         }
@@ -245,7 +250,7 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
                     }
                     None => {
                         st.inner = None;
-                        let tail = match st.t.finish() {
+                        let tail = match st.t.finish_detailed() {
                             Ok(tail) => tail,
                             Err(error) => {
                                 return Some((
@@ -256,6 +261,8 @@ pub fn transform_byte_stream(s: RespStream, t: SseTransformer) -> ByteStream {
                                 ));
                             }
                         };
+                        crate::pipeline::transform::log_diagnostics(&tail.diagnostics);
+                        let tail = tail.value;
                         if tail.is_empty() {
                             return None;
                         }
@@ -293,7 +300,13 @@ pub fn channel_decode_stream(s: RespStream, decoder: Box<dyn ByteStreamDecoder>)
                 let inner = st.inner.as_mut()?;
                 match inner.next().await {
                     Some(Ok(chunk)) => {
-                        let out = st.decoder.push(&chunk);
+                        let out = match st.decoder.push(&chunk) {
+                            Ok(out) => out,
+                            Err(error) => {
+                                st.inner = None;
+                                return Some((Err(error), st));
+                            }
+                        };
                         if out.is_empty() {
                             continue; // partial frame buffered; poll again
                         }
@@ -305,7 +318,10 @@ pub fn channel_decode_stream(s: RespStream, decoder: Box<dyn ByteStreamDecoder>)
                     }
                     None => {
                         st.inner = None;
-                        let tail = st.decoder.finish();
+                        let tail = match st.decoder.finish() {
+                            Ok(tail) => tail,
+                            Err(error) => return Some((Err(error), st)),
+                        };
                         if tail.is_empty() {
                             return None;
                         }
@@ -425,11 +441,22 @@ mod tests {
     /// protocol transform).
     struct Upper;
     impl ByteStreamDecoder for Upper {
-        fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
-            chunk.to_ascii_uppercase()
+        fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Ok(chunk.to_ascii_uppercase())
         }
-        fn finish(&mut self) -> Vec<u8> {
-            b"!".to_vec()
+        fn finish(&mut self) -> Result<Vec<u8>, ClientError> {
+            Ok(b"!".to_vec())
+        }
+    }
+
+    struct RejectFinish;
+    impl ByteStreamDecoder for RejectFinish {
+        fn push(&mut self, _chunk: &[u8]) -> Result<Vec<u8>, ClientError> {
+            Ok(Vec::new())
+        }
+
+        fn finish(&mut self) -> Result<Vec<u8>, ClientError> {
+            Err(ClientError::Decode("truncated frame".to_owned()))
         }
     }
 
@@ -444,6 +471,18 @@ mod tests {
             .await;
         let joined: Vec<u8> = out.concat();
         assert_eq!(joined, b"ABCD!");
+    }
+
+    #[tokio::test]
+    async fn channel_decode_stream_propagates_finish_errors() {
+        let src: RespStream = Box::pin(futures_util::stream::empty());
+        let errors: Vec<ClientError> = channel_decode_stream(src, Box::new(RejectFinish))
+            .filter_map(|item| async move { item.err() })
+            .collect()
+            .await;
+
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(&errors[0], ClientError::Decode(reason) if reason == "truncated frame"));
     }
 
     #[test]

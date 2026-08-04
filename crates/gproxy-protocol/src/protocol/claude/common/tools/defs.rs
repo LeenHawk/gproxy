@@ -7,6 +7,7 @@ use super::{CustomToolType, JsonSchema, ToolCommon, ToolCommonWithoutInputExampl
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum Tool {
     WebFetch(WebFetchTool),
     WebSearch(WebSearchTool),
@@ -19,7 +20,8 @@ pub enum Tool {
     Unknown(TypedObject),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CustomTool {
     pub input_schema: JsonSchema,
     pub name: String,
@@ -35,6 +37,7 @@ pub struct CustomTool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CommandTool {
     Bash20241022(BashTool20241022),
     Bash20250124(BashTool20250124),
@@ -47,7 +50,8 @@ pub enum CommandTool {
     ToolSearchRegex(ToolSearchRegexTool),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct BashTool20241022 {
     pub name: BashToolName,
     #[serde(rename = "type")]
@@ -56,7 +60,8 @@ pub struct BashTool20241022 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct BashTool20250124 {
     pub name: BashToolName,
     #[serde(rename = "type")]
@@ -65,7 +70,8 @@ pub struct BashTool20250124 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeExecutionTool20250522 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -74,7 +80,8 @@ pub struct CodeExecutionTool20250522 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeExecutionTool20250825 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -83,7 +90,8 @@ pub struct CodeExecutionTool20250825 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeExecutionTool20260120 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -92,7 +100,8 @@ pub struct CodeExecutionTool20260120 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CodeExecutionTool20260521 {
     pub name: CodeExecutionToolName,
     #[serde(rename = "type")]
@@ -101,7 +110,8 @@ pub struct CodeExecutionTool20260521 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct MemoryTool20250818 {
     pub name: MemoryToolName,
     #[serde(rename = "type")]
@@ -110,7 +120,8 @@ pub struct MemoryTool20250818 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolSearchBm25Tool {
     pub name: ToolSearchBm25ToolName,
     #[serde(rename = "type")]
@@ -119,7 +130,8 @@ pub struct ToolSearchBm25Tool {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolSearchRegexTool {
     pub name: ToolSearchRegexToolName,
     #[serde(rename = "type")]
@@ -130,6 +142,7 @@ pub struct ToolSearchRegexTool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum TextEditorTool {
     TextEditor20241022(TextEditorTool20241022),
     TextEditor20250124(TextEditorTool20250124),
@@ -137,7 +150,8 @@ pub enum TextEditorTool {
     TextEditor20250728(TextEditorTool20250728),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorTool20241022 {
     pub name: StrReplaceEditorToolName,
     #[serde(rename = "type")]
@@ -146,7 +160,8 @@ pub struct TextEditorTool20241022 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorTool20250124 {
     pub name: StrReplaceEditorToolName,
     #[serde(rename = "type")]
@@ -155,7 +170,8 @@ pub struct TextEditorTool20250124 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorTool20250429 {
     pub name: StrReplaceBasedEditToolName,
     #[serde(rename = "type")]
@@ -164,7 +180,8 @@ pub struct TextEditorTool20250429 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorTool20250728 {
     pub name: StrReplaceBasedEditToolName,
     #[serde(rename = "type")]
@@ -177,13 +194,15 @@ pub struct TextEditorTool20250728 {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ComputerTool {
     Computer20241022(ComputerTool20241022),
     Computer20250124(ComputerTool20250124),
     Computer20251124(ComputerTool20251124),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ComputerTool20241022 {
     pub display_height_px: u64,
     pub display_width_px: u64,
@@ -196,7 +215,8 @@ pub struct ComputerTool20241022 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ComputerTool20250124 {
     pub display_height_px: u64,
     pub display_width_px: u64,
@@ -209,7 +229,8 @@ pub struct ComputerTool20250124 {
     pub common: ToolCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ComputerTool20251124 {
     pub display_height_px: u64,
     pub display_width_px: u64,
@@ -226,13 +247,15 @@ pub struct ComputerTool20251124 {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum WebSearchTool {
     WebSearch20250305(WebSearchTool20250305),
     WebSearch20260209(WebSearchTool20260209),
     WebSearch20260318(WebSearchTool20260318),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchTool20250305 {
     pub name: WebSearchToolName,
     #[serde(rename = "type")]
@@ -243,7 +266,8 @@ pub struct WebSearchTool20250305 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchTool20260209 {
     pub name: WebSearchToolName,
     #[serde(rename = "type")]
@@ -254,7 +278,8 @@ pub struct WebSearchTool20260209 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchTool20260318 {
     pub name: WebSearchToolName,
     #[serde(rename = "type")]
@@ -267,7 +292,8 @@ pub struct WebSearchTool20260318 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchToolParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -281,6 +307,7 @@ pub struct WebSearchToolParams {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum WebFetchTool {
     WebFetch20250910(WebFetchTool20250910),
     WebFetch20260209(WebFetchTool20260209),
@@ -288,7 +315,8 @@ pub enum WebFetchTool {
     WebFetch20260318(WebFetchTool20260318),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebFetchTool20250910 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -299,7 +327,8 @@ pub struct WebFetchTool20250910 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebFetchTool20260209 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -310,7 +339,8 @@ pub struct WebFetchTool20260209 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebFetchTool20260309 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -323,7 +353,8 @@ pub struct WebFetchTool20260309 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebFetchTool20260318 {
     pub name: WebFetchToolName,
     #[serde(rename = "type")]
@@ -338,7 +369,8 @@ pub struct WebFetchTool20260318 {
     pub common: ToolCommonWithoutInputExamples,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebFetchToolParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -352,7 +384,8 @@ pub struct WebFetchToolParams {
     pub max_uses: Option<u64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct AdvisorTool {
     pub model: ClaudeModel,
     pub name: AdvisorToolName,
@@ -372,6 +405,7 @@ pub struct AdvisorTool {
 macro_rules! single_wire_enum {
     ($name:ident { $variant:ident => $wire:literal }) => {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $name {
             #[serde(rename = $wire)]
             $variant,
@@ -414,6 +448,7 @@ single_wire_enum!(AdvisorToolName { Advisor => "advisor" });
 single_wire_enum!(AdvisorTool20260301Type { Advisor20260301 => "advisor_20260301" });
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolSearchBm25ToolType {
     #[serde(rename = "tool_search_tool_bm25_20251119")]
     ToolSearchBm2520251119,
@@ -422,6 +457,7 @@ pub enum ToolSearchBm25ToolType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolSearchRegexToolType {
     #[serde(rename = "tool_search_tool_regex_20251119")]
     ToolSearchRegex20251119,

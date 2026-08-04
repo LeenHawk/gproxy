@@ -4,12 +4,14 @@ use super::{ClaudeModel, JsonObject, TypedObject};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum StopDetails {
     Refusal(RefusalStopDetails),
     Unknown(TypedObject),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct RefusalStopDetails {
     pub category: Option<RefusalCategory>,
     pub explanation: Option<String>,
@@ -26,6 +28,7 @@ pub struct RefusalStopDetails {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum RefusalStopDetailsType {
     #[serde(rename = "refusal")]
     Refusal,
@@ -33,6 +36,7 @@ pub enum RefusalStopDetailsType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum RefusalCategory {
     Known(RefusalCategoryKnown),
     Unknown(String),
@@ -47,6 +51,7 @@ impl<'de> serde::Deserialize<'de> for RefusalCategory {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum RefusalCategoryKnown {
     #[serde(rename = "cyber")]
     Cyber,

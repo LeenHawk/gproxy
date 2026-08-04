@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::Extra;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TokenLogprob {
     pub token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -18,7 +19,8 @@ pub struct TokenLogprob {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TokenLogprobTop {
     pub token: String,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -19,7 +19,7 @@ pub fn request(
         common::openai_tool_choice_to_claude(input.tool_choice, input.parallel_tool_calls);
 
     #[allow(deprecated)]
-    Ok(claude::CountTokensRequestBody {
+    Ok(crate::protocol::wire!(claude::CountTokensRequestBody {
         model: common::openai_model_string(input.model).into(),
         messages: common::text_to_claude_messages(common::openai_input_to_text(input.input)),
         cache_control: None,
@@ -35,16 +35,16 @@ pub fn request(
         tool_choice,
         tools: common::openai_tools_to_claude(input.tools),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: openai::ResponseInputTokensResponse,
     _: &TransformContext,
 ) -> claude::CountTokensResponseBody {
-    claude::CountTokensResponseBody {
+    crate::protocol::wire!(claude::CountTokensResponseBody {
         input_tokens: common::u32_to_u64(input.input_tokens),
         context_management: None,
         extra: Default::default(),
-    }
+    })
 }

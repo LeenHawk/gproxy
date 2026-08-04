@@ -38,6 +38,9 @@ pub(in crate::transform::generate_content::openai_responses_to_openai_chat) fn r
                             refusal = Some(value.clone());
                             text_parts.push(value);
                         }
+                        _ => unreachable!(
+                            "new non-exhaustive protocol variant requires a lockstep transform update"
+                        ),
                     }
                 }
             }
@@ -77,7 +80,7 @@ pub(in crate::transform::generate_content::openai_responses_to_openai_chat) fn r
         text_parts.push(text);
     }
 
-    openai::ChatMessage {
+    crate::protocol::wire!(openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
         content: (!text_parts.is_empty()).then(|| text_parts.join("\n")),
         refusal,
@@ -87,7 +90,7 @@ pub(in crate::transform::generate_content::openai_responses_to_openai_chat) fn r
         reasoning_content: non_empty_joined(reasoning_parts),
         tool_calls: (!tool_calls.is_empty()).then_some(tool_calls),
         extra: Default::default(),
-    }
+    })
 }
 
 fn non_empty_joined(parts: Vec<String>) -> Option<String> {
@@ -109,17 +112,17 @@ fn response_annotation_to_chat_annotation(
             title,
             url,
             ..
-        } => Some(openai::ChatAnnotation {
+        } => Some(crate::protocol::wire!(openai::ChatAnnotation {
             type_: openai::ChatAnnotationType::UrlCitation,
-            url_citation: openai::UrlCitation {
+            url_citation: crate::protocol::wire!(openai::UrlCitation {
                 end_index,
                 start_index,
                 title,
                 url,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
-        }),
+        })),
         _ => None,
     }
 }

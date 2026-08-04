@@ -24,7 +24,7 @@ pub(super) fn request(body: Bytes, _headers: &mut HeaderMap, ctx: &ShapeCtx) -> 
         }
         return Bytes::from(json!({ "input": { "converse": value } }).to_string());
     }
-    if ctx.op.kind != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
+    if ctx.op.kind() != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
         return body;
     }
     let settings = RequestShapeSettings::from_value(ctx.settings);
@@ -48,7 +48,7 @@ pub(super) fn response(body: Bytes, ctx: &ShapeCtx) -> Bytes {
         return body;
     }
     if is_models(ctx.op) {
-        return models::response(body, ctx.op.operation == Operation::GetModel);
+        return models::response(body, ctx.op.operation() == Operation::GetModel);
     }
     if is_count_tokens(ctx.op) {
         return crate::channel::shaping::with_json_body(body, |value| {
@@ -60,7 +60,7 @@ pub(super) fn response(body: Bytes, ctx: &ShapeCtx) -> Bytes {
             }
         });
     }
-    if ctx.op.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
+    if ctx.op.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages) {
         converse::response(body)
     } else {
         body

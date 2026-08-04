@@ -32,8 +32,8 @@ pub fn aggregate_buffered(
     use ContentGenerationKind as K;
 
     let mut decoder = SseDecoder::new();
-    let mut frames = decoder.try_push(sse_body)?;
-    if let Some(tail) = decoder.try_finish()? {
+    let mut frames = decoder.push(sse_body)?;
+    if let Some(tail) = decoder.finish()? {
         frames.push(tail);
     }
     let decoded_frames = frames.len();
@@ -81,6 +81,9 @@ pub fn aggregate_buffered(
             crate::protocol::gemini::StreamGenerateContentChunk,
             s2r::gemini_generate_content::response
         ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }?;
     Ok(BufferedAggregation {
         body: out,

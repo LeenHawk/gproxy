@@ -23,7 +23,7 @@ const PREFILL_TOLERANT_MODELS: &[&str] = &[
 ///
 /// Both Claude Messages and Anthropic's OpenAI-compatible request bodies use a
 /// `messages` array of objects with a `role` field, so this shaper supports
-/// both forms. Legacy models in [`PREFILL_TOLERANT_MODELS`] retain prefill.
+/// both forms. Legacy models in `PREFILL_TOLERANT_MODELS` retain prefill.
 /// Trailing OpenAI `tool` results and existing `user` turns are also preserved.
 ///
 /// Idempotent and a no-op for non-object bodies, missing or non-Claude models,

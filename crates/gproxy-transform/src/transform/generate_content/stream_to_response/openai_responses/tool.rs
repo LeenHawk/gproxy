@@ -36,18 +36,20 @@ impl FunctionCallState {
     }
 
     pub(super) fn finish(self) -> openai::ResponseItem {
-        openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-            arguments: self.done_arguments.unwrap_or(self.arguments),
-            call_id: fallback_call_id(self.index, self.call_id, self.item_id.as_deref()),
-            name: self.name.unwrap_or_default(),
-            id: self.item_id,
-            caller: None,
-            namespace: self.namespace,
-            status: self
-                .status
-                .or(Some(openai::ResponseItemLifecycleStatus::Completed)),
-            extra: Default::default(),
-        })
+        openai::ResponseItem::Typed(crate::protocol::wire!(
+            openai::TypedResponseItem::FunctionCall {
+                arguments: self.done_arguments.unwrap_or(self.arguments),
+                call_id: fallback_call_id(self.index, self.call_id, self.item_id.as_deref()),
+                name: self.name.unwrap_or_default(),
+                id: self.item_id,
+                caller: None,
+                namespace: self.namespace,
+                status: self
+                    .status
+                    .or(Some(openai::ResponseItemLifecycleStatus::Completed)),
+                extra: Default::default(),
+            }
+        ))
     }
 }
 
@@ -83,15 +85,17 @@ impl CustomToolCallState {
     }
 
     pub(super) fn finish(self) -> openai::ResponseItem {
-        openai::ResponseItem::Typed(openai::TypedResponseItem::CustomToolCall {
-            call_id: fallback_call_id(self.index, self.call_id, self.item_id.as_deref()),
-            input: self.done_input.unwrap_or(self.input),
-            name: self.name.unwrap_or_default(),
-            id: self.item_id,
-            caller: None,
-            namespace: self.namespace,
-            extra: Default::default(),
-        })
+        openai::ResponseItem::Typed(crate::protocol::wire!(
+            openai::TypedResponseItem::CustomToolCall {
+                call_id: fallback_call_id(self.index, self.call_id, self.item_id.as_deref()),
+                input: self.done_input.unwrap_or(self.input),
+                name: self.name.unwrap_or_default(),
+                id: self.item_id,
+                caller: None,
+                namespace: self.namespace,
+                extra: Default::default(),
+            }
+        ))
     }
 }
 

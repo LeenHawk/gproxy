@@ -5,7 +5,9 @@ mod responses;
 mod synthesize;
 
 use super::common::sse::{SseDecoder, SseFrame, SseLimits};
-use super::{TransformContext, TransformError, TransformPair, dispatch};
+use super::{
+    TransformContext, TransformDiagnostic, TransformError, TransformOutput, TransformPair, dispatch,
+};
 use crate::protocol::openai::ResponseStreamEvent;
 use crate::protocol::{ContentGenerationKind, OperationKind};
 
@@ -29,6 +31,7 @@ pub struct SseTransformer {
     failed: bool,
     finished: bool,
     skipped: u64,
+    semantic_diagnostics: Vec<TransformDiagnostic>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -55,9 +58,10 @@ impl Default for StreamOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StreamDiagnostics {
     pub skipped_frames: u64,
+    pub semantic_diagnostics: Vec<TransformDiagnostic>,
 }
 
 impl SseTransformer {
@@ -70,12 +74,12 @@ impl SseTransformer {
         ctx: TransformContext,
         options: StreamOptions,
     ) -> Result<Self, TransformError> {
-        let OperationKind::ContentGeneration(source) = ctx.source.kind else {
+        let OperationKind::ContentGeneration(source) = ctx.source.kind() else {
             return Err(TransformError::InvalidInput {
                 reason: "stream source is not a content-generation operation".to_owned(),
             });
         };
-        let OperationKind::ContentGeneration(inbound) = ctx.target.kind else {
+        let OperationKind::ContentGeneration(inbound) = ctx.target.kind() else {
             return Err(TransformError::InvalidInput {
                 reason: "stream target is not a content-generation operation".to_owned(),
             });
@@ -97,11 +101,29 @@ impl SseTransformer {
             failed: false,
             finished: false,
             skipped: 0,
+            semantic_diagnostics: Vec::new(),
         })
     }
 
     /// Feed one upstream chunk; returns encoded inbound bytes (possibly empty).
     pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, TransformError> {
+        Ok(self.push_detailed(chunk)?.value)
+    }
+
+    /// Feed one chunk and return semantic diagnostics produced by its events.
+    pub fn push_detailed(
+        &mut self,
+        chunk: &[u8],
+    ) -> Result<TransformOutput<Vec<u8>>, TransformError> {
+        let diagnostic_start = self.semantic_diagnostics.len();
+        let value = self.push_value(chunk)?;
+        Ok(TransformOutput::new(
+            value,
+            self.semantic_diagnostics[diagnostic_start..].to_vec(),
+        ))
+    }
+
+    fn push_value(&mut self, chunk: &[u8]) -> Result<Vec<u8>, TransformError> {
         if self.finished {
             return Err(TransformError::InvalidInput {
                 reason: "cannot push after stream finish".to_owned(),
@@ -115,7 +137,7 @@ impl SseTransformer {
         let mut out = Vec::new();
         let frames = self
             .decoder
-            .try_push(chunk)
+            .push(chunk)
             .inspect_err(|_| self.failed = true)?;
         for frame in frames {
             if let Err(error) = self.convert_into(frame, &mut out) {
@@ -128,6 +150,20 @@ impl SseTransformer {
 
     /// Flush the trailing frame and emit the inbound terminator.
     pub fn finish(&mut self) -> Result<Vec<u8>, TransformError> {
+        Ok(self.finish_detailed()?.value)
+    }
+
+    /// Flush the stream and return final semantic diagnostics.
+    pub fn finish_detailed(&mut self) -> Result<TransformOutput<Vec<u8>>, TransformError> {
+        let diagnostic_start = self.semantic_diagnostics.len();
+        let value = self.finish_value()?;
+        Ok(TransformOutput::new(
+            value,
+            self.semantic_diagnostics[diagnostic_start..].to_vec(),
+        ))
+    }
+
+    fn finish_value(&mut self) -> Result<Vec<u8>, TransformError> {
         if self.finished {
             return Ok(Vec::new());
         }
@@ -137,10 +173,7 @@ impl SseTransformer {
             });
         }
         let mut out = Vec::new();
-        if let Some(frame) = self
-            .decoder
-            .try_finish()
-            .inspect_err(|_| self.failed = true)?
+        if let Some(frame) = self.decoder.finish().inspect_err(|_| self.failed = true)?
             && let Err(error) = self.convert_into(frame, &mut out)
         {
             self.failed = true;
@@ -152,7 +185,9 @@ impl SseTransformer {
                 reason: "upstream ended before a protocol terminal event",
             });
         }
-        for event in self.converter.finish()? {
+        let converted = self.converter.finish_detailed()?;
+        self.semantic_diagnostics.extend(converted.diagnostics);
+        for event in converted.value {
             self.encode_converted(event, &mut out)?;
         }
         if let Some(responses) = self.responses.as_mut() {
@@ -170,6 +205,7 @@ impl SseTransformer {
     pub fn diagnostics(&self) -> StreamDiagnostics {
         StreamDiagnostics {
             skipped_frames: self.skipped,
+            semantic_diagnostics: self.semantic_diagnostics.clone(),
         }
     }
 
@@ -179,7 +215,7 @@ impl SseTransformer {
             return Ok(());
         }
         self.terminal_seen |= is_terminal_event(self.source, &frame.data);
-        let events = match self.converter.push(&frame.data) {
+        let events = match self.converter.push_detailed(&frame.data) {
             Ok(events) => events,
             Err(_) if self.error_mode == StreamErrorMode::SkipInvalid => {
                 self.skipped += 1;
@@ -187,7 +223,8 @@ impl SseTransformer {
             }
             Err(error) => return Err(error),
         };
-        for event in events {
+        self.semantic_diagnostics.extend(events.diagnostics);
+        for event in events.value {
             self.encode_converted(event, out)?;
         }
         Ok(())
@@ -246,6 +283,9 @@ fn is_terminal_event(kind: ContentGenerationKind, data: &str) -> bool {
                     .pointer("/promptFeedback/blockReason")
                     .is_some_and(|reason| !reason.is_null())
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -259,6 +299,9 @@ fn encode_frame(kind: ContentGenerationKind, event: Option<&str>, data: &str, ou
             SseFrame::event(event.unwrap_or("message"), data)
         }
         K::OpenAiChatCompletions | K::GeminiGenerateContent => SseFrame::data(data),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     out.extend_from_slice(frame.encode().as_bytes());
 }

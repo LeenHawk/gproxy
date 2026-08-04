@@ -8,23 +8,23 @@ pub fn request(
     input: openai::ChatCompletionRequest,
     _: &TransformContext,
 ) -> Result<openai::ResponseCreateRequest, TransformError> {
-    let stream_options = input
-        .stream_options
-        .map(|options| openai::ResponseStreamOptions {
+    let stream_options = input.stream_options.map(|options| {
+        crate::protocol::wire!(openai::ResponseStreamOptions {
             include_obfuscation: options.include_obfuscation,
             extra: Default::default(),
-        });
+        })
+    });
 
     let text = match (input.response_format, input.verbosity) {
         (None, None) => None,
-        (format, verbosity) => Some(openai::TextConfig {
+        (format, verbosity) => Some(crate::protocol::wire!(openai::TextConfig {
             format: format.map(chat_response_format_to_response_format),
             verbosity,
             extra: Default::default(),
-        }),
+        })),
     };
 
-    Ok(openai::ResponseCreateRequest {
+    Ok(crate::protocol::wire!(openai::ResponseCreateRequest {
         background: None,
         context_management: None,
         conversation: None,
@@ -45,16 +45,16 @@ pub fn request(
         prompt_cache_options: input.prompt_cache_options,
         prompt_cache_retention: input.prompt_cache_retention,
         prompt: None,
-        reasoning: input
-            .reasoning_effort
-            .map(|effort| openai::ReasoningConfig {
+        reasoning: input.reasoning_effort.map(|effort| crate::protocol::wire!(
+            openai::ReasoningConfig {
                 context: None,
                 effort: Some(effort),
                 mode: None,
                 summary: None,
                 generate_summary: None,
                 extra: Default::default(),
-            }),
+            }
+        )),
         safety_identifier: input.safety_identifier,
         service_tier: input.service_tier,
         store: input.store,
@@ -69,7 +69,7 @@ pub fn request(
         truncation: None,
         user: input.user,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn chat_response_format_to_response_format(
@@ -78,15 +78,18 @@ fn chat_response_format_to_response_format(
     match format {
         openai::ChatResponseFormat::Text(text) => openai::ResponseFormat::Text(text),
         openai::ChatResponseFormat::JsonObject(json) => openai::ResponseFormat::JsonObject(json),
-        openai::ChatResponseFormat::ChatJsonSchema(schema) => {
-            openai::ResponseFormat::JsonSchema(openai::JsonSchemaResponseFormat {
+        openai::ChatResponseFormat::ChatJsonSchema(schema) => openai::ResponseFormat::JsonSchema(
+            crate::protocol::wire!(openai::JsonSchemaResponseFormat {
                 type_: schema.type_,
                 name: schema.json_schema.name,
                 schema: schema.json_schema.schema.unwrap_or_default(),
                 description: schema.json_schema.description,
                 strict: schema.json_schema.strict,
                 extra: Default::default(),
-            })
+            }),
+        ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

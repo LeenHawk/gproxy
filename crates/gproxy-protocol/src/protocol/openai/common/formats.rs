@@ -4,6 +4,7 @@ use super::{Extra, JsonSchema};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatResponseFormat {
     ChatJsonSchema(ChatJsonSchemaFormat),
     Text(TextResponseFormat),
@@ -12,13 +13,15 @@ pub enum ChatResponseFormat {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseFormat {
     JsonSchema(JsonSchemaResponseFormat),
     Text(TextResponseFormat),
     JsonObject(JsonObjectResponseFormat),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextResponseFormat {
     #[serde(rename = "type")]
     pub type_: TextResponseFormatType,
@@ -31,12 +34,14 @@ pub struct TextResponseFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextResponseFormatType {
     #[serde(rename = "text")]
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatJsonSchemaFormat {
     #[serde(rename = "type")]
     pub type_: JsonSchemaResponseFormatType,
@@ -49,7 +54,8 @@ pub struct ChatJsonSchemaFormat {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct JsonSchemaResponseFormat {
     #[serde(rename = "type")]
     pub type_: JsonSchemaResponseFormatType,
@@ -68,12 +74,14 @@ pub struct JsonSchemaResponseFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum JsonSchemaResponseFormatType {
     #[serde(rename = "json_schema")]
     JsonSchema,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct JsonObjectResponseFormat {
     #[serde(rename = "type")]
     pub type_: JsonObjectResponseFormatType,
@@ -86,12 +94,14 @@ pub struct JsonObjectResponseFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum JsonObjectResponseFormatType {
     #[serde(rename = "json_object")]
     JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct JsonSchemaFormat {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

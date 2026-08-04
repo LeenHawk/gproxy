@@ -24,7 +24,7 @@ pub fn request(
         input_items.insert(0, system_to_openai_item(system.clone()));
     }
 
-    Ok(openai::CompactResponseRequestBody {
+    Ok(crate::protocol::wire!(openai::CompactResponseRequestBody {
         input: Some(openai::ResponseInput::Items(input_items)),
         instructions: compact_instructions.or(system),
         model: openai::OpenAiModelId::Unknown(model_to_string(&input.model)),
@@ -34,7 +34,7 @@ pub fn request(
         prompt_cache_retention: None,
         service_tier: claude_service_tier_to_compact(input.service_tier),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn compact_instructions(

@@ -41,18 +41,20 @@ fn gemini_chunk_to_chat(input: gemini::StreamGenerateContentChunk) -> openai::Ch
         .candidates
         .into_iter()
         .enumerate()
-        .map(|(fallback_index, candidate)| openai::ChatChunkChoice {
-            index: common::gemini_index_to_chat_index(candidate.index, fallback_index),
-            delta: gemini_content_to_chat_delta(candidate.content),
-            finish_reason: candidate
-                .finish_reason
-                .map(common::gemini_finish_reason_to_chat),
-            logprobs: None,
-            extra: Default::default(),
+        .map(|(fallback_index, candidate)| {
+            crate::protocol::wire!(openai::ChatChunkChoice {
+                index: common::gemini_index_to_chat_index(candidate.index, fallback_index),
+                delta: gemini_content_to_chat_delta(candidate.content),
+                finish_reason: candidate
+                    .finish_reason
+                    .map(common::gemini_finish_reason_to_chat),
+                logprobs: None,
+                extra: Default::default(),
+            })
         })
         .collect();
 
-    openai::ChatCompletionChunk {
+    crate::protocol::wire!(openai::ChatCompletionChunk {
         id,
         choices,
         created: 0,
@@ -62,7 +64,7 @@ fn gemini_chunk_to_chat(input: gemini::StreamGenerateContentChunk) -> openai::Ch
         system_fingerprint: None,
         usage,
         extra: Default::default(),
-    }
+    })
 }
 
 fn gemini_content_to_chat_delta(content: Option<gemini::Content>) -> openai::ChatDelta {

@@ -12,12 +12,12 @@ use regex::Regex;
 
 use crate::app::models_index::{self, ExposedModel};
 use crate::process::CompiledRule;
+use crate::routing::{CompiledRoutingRule, RoutingRuleSpec};
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::{
     Alias, Credential, Org, PriceRule, Provider, ProviderModel, Quota, RateLimit, Route,
     RouteMember, RoutePermission, Scope, Team, User, UserKey,
 };
-use crate::transform::routing::{CompiledRoutingRule, RoutingRuleSpec};
 
 /// Immutable control-plane snapshot.
 pub struct ControlPlaneSnapshot {
@@ -63,7 +63,8 @@ pub struct ControlPlaneSnapshot {
     /// reads them without a DB hit; hot-reloaded via §7.2 invalidation.
     pub log_settings: LogSettings,
     /// Instance-level default upstream proxy (`instance_settings.proxy`,
-    /// Console-editable). The global fallback for [`effective_proxy`]
+    /// Console-editable). The global fallback for
+    /// [`effective_proxy`](crate::channel::resolve::effective_proxy)
     /// (per-credential / per-provider proxies still override it); hot-reloaded
     /// via §7.2 so changing it in the Console applies without a restart.
     pub proxy: Option<String>,
@@ -264,7 +265,7 @@ impl ControlPlaneSnapshot {
                     enabled: r.enabled,
                 })
                 .collect::<Vec<_>>();
-            let compiled = crate::transform::routing::compile(&routing_specs);
+            let compiled = crate::routing::compile(&routing_specs);
             if !compiled.is_empty() {
                 snap.routing_rules_by_provider
                     .insert(pid, Arc::new(compiled));

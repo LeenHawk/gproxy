@@ -22,12 +22,12 @@ const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
 const DEFAULT_IMAGE_API_VERSION: &str = "2025-04-01-preview";
 
 fn is_anthropic(op: crate::protocol::OperationKey) -> bool {
-    op.kind == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
-        || op.kind == OperationKind::Provider(Provider::Claude)
+    op.kind() == OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+        || op.kind() == OperationKind::Provider(Provider::Claude)
 }
 
 fn upstream_path(ctx: &PrepareCtx<'_>) -> String {
-    match ctx.op.operation {
+    match ctx.op.operation() {
         Operation::CreateImage => format!(
             "/openai/deployments/{}/images/generations",
             crate::channel::oauth::percent_encode(ctx.upstream_model_id)
@@ -51,7 +51,7 @@ fn query(ctx: &PrepareCtx<'_>) -> Option<String> {
     )
     .and_then(|url| url.split_once('?').map(|(_, query)| query.to_owned()));
     if !matches!(
-        ctx.op.operation,
+        ctx.op.operation(),
         Operation::CreateImage | Operation::EditImage
     ) || query.as_deref().is_some_and(has_api_version)
         || endpoint_query.as_deref().is_some_and(has_api_version)

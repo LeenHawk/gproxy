@@ -15,7 +15,7 @@ use crate::protocol::{ContentGenerationKind, OperationKind};
 
 fn is_claude_messages(op: crate::protocol::OperationKey) -> bool {
     matches!(
-        op.kind,
+        op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
     )
 }

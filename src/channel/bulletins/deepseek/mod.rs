@@ -4,11 +4,11 @@
 //! - OpenAI-compatible `/chat/completions`, `/responses` (+ models) use
 //!   `Authorization: Bearer`.
 //! - The Anthropic-compatible `/anthropic/v1/messages` endpoint (reached by the
-//!   `cg(ClaudeMessages)` passthrough) uses `x-api-key` — [`auth`] rehomes the
+//!   `cg(ClaudeMessages)` passthrough) uses `x-api-key` — the internal `auth` module rehomes the
 //!   inbound `/v1/messages` path and picks the scheme.
 //!
 //! The OpenAI chat path strips a set of request fields DeepSeek rejects and
-//! fixes up a few response fields — see [`shape`].
+//! fixes up a few response fields — see the internal `shape` module.
 
 mod auth;
 mod shape;
@@ -31,9 +31,9 @@ const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
 /// surface whose request/response bodies need shaping.
 fn is_openai_chat(op: crate::protocol::OperationKey) -> bool {
     matches!(
-        op.operation,
+        op.operation(),
         Operation::GenerateContent | Operation::StreamGenerateContent
-    ) && op.kind == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions)
+    ) && op.kind() == OperationKind::ContentGeneration(ContentGenerationKind::OpenAiChatCompletions)
 }
 
 pub struct DeepSeekChannel;

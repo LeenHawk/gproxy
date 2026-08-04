@@ -79,6 +79,9 @@ pub fn system_text(
             }
         }
         None => warn_skip("system_text", "non-content operation"),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

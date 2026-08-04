@@ -42,7 +42,7 @@ pub struct LoginSession {
     pub audit_request_id: Option<String>,
 }
 
-/// Stash a pending login → cache `login:{sid}` for [`LOGIN_TTL`]. Returns the
+/// Stash a pending login → cache `login:{sid}` for `LOGIN_TTL`. Returns the
 /// random one-shot session id. A failed stash fails the start: the returned
 /// sid would otherwise 400 at `complete` after the operator finished the
 /// browser round-trip.
@@ -112,7 +112,7 @@ pub struct DeviceSession {
     pub audit_request_id: Option<String>,
 }
 
-/// Stash a pending device login → cache `login:{sid}` for [`DEVICE_TTL`].
+/// Stash a pending device login → cache `login:{sid}` for `DEVICE_TTL`.
 /// A failed stash fails the start (the poll endpoint could never find it).
 pub async fn device_start(
     cache: &dyn CacheBackend,

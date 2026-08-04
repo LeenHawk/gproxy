@@ -14,7 +14,8 @@ pub type ChatCompletionWireModel = OpenAiWireModel<ChatCompletionRequest, ChatCo
 pub type ChatCompletionStreamWireModel =
     OpenAiWireModel<ChatCompletionRequest, ChatCompletionChunk>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatCompletionRequest {
     pub messages: Vec<ChatCompletionMessageParam>,
     pub model: OpenAiModelId,
@@ -95,6 +96,7 @@ pub struct ChatCompletionRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "role")]
 #[allow(clippy::large_enum_variant)]
+#[non_exhaustive]
 pub enum ChatCompletionMessageParam {
     #[serde(rename = "developer")]
     Developer {
@@ -157,6 +159,7 @@ pub enum ChatCompletionMessageParam {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatTextContent {
     Text(String),
     Parts(Vec<ChatTextContentPart>),
@@ -164,6 +167,7 @@ pub enum ChatTextContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ChatTextContentPart {
     #[serde(rename = "text")]
     Text {
@@ -177,6 +181,7 @@ pub enum ChatTextContentPart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatAssistantContent {
     Text(String),
     Parts(Vec<ChatAssistantContentPart>),
@@ -184,6 +189,7 @@ pub enum ChatAssistantContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ChatAssistantContentPart {
     #[serde(rename = "text")]
     Text {
@@ -205,6 +211,7 @@ pub enum ChatAssistantContentPart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatContent {
     Text(String),
     Parts(Vec<ChatContentPart>),
@@ -212,6 +219,7 @@ pub enum ChatContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ChatContentPart {
     #[serde(rename = "text")]
     Text {
@@ -249,6 +257,7 @@ pub enum ChatContentPart {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ChatTool {
     #[serde(rename = "function")]
     Function {
@@ -266,6 +275,7 @@ pub enum ChatTool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ChatToolCall {
     #[serde(rename = "function")]
     Function {
@@ -283,7 +293,8 @@ pub enum ChatToolCall {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatCompletionResponse {
     pub id: String,
     pub choices: Vec<ChatCompletionChoice>,
@@ -307,7 +318,8 @@ pub struct ChatCompletionResponse {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatCompletionChoice {
     pub finish_reason: ChatFinishReason,
     pub index: u32,
@@ -318,7 +330,8 @@ pub struct ChatCompletionChoice {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatCompletionModeration {
     pub input: ChatCompletionModerationOutcome,
     pub output: ChatCompletionModerationOutcome,
@@ -328,12 +341,14 @@ pub struct ChatCompletionModeration {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ChatCompletionModerationOutcome {
     Results(ChatCompletionModerationResults),
     Error(ModerationError),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatCompletionModerationResults {
     pub model: OpenAiModelId,
     pub results: Vec<ModerationResult>,
@@ -344,12 +359,14 @@ pub struct ChatCompletionModerationResults {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ChatCompletionModerationResultsType {
     #[serde(rename = "moderation_results")]
     ModerationResults,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ChatMessage {
     pub role: ChatCompletionMessageRole,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -371,6 +388,7 @@ pub struct ChatMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ChatCompletionMessageRole {
     #[serde(rename = "assistant")]
     Assistant,

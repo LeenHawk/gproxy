@@ -7,7 +7,7 @@ pub(in crate::transform::generate_content) fn default_openai_model() -> openai::
 }
 
 pub(in crate::transform::generate_content) fn empty_chat_delta() -> openai::ChatDelta {
-    openai::ChatDelta {
+    crate::protocol::wire!(openai::ChatDelta {
         role: None,
         content: None,
         reasoning_content: None,
@@ -16,7 +16,7 @@ pub(in crate::transform::generate_content) fn empty_chat_delta() -> openai::Chat
         function_call: None,
         obfuscation: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn chat_delta_chunk(
@@ -28,15 +28,15 @@ pub(in crate::transform::generate_content) fn chat_delta_chunk(
     finish_reason: Option<openai::ChatFinishReason>,
     usage: Option<openai::CompletionUsage>,
 ) -> openai::ChatCompletionChunk {
-    openai::ChatCompletionChunk {
+    crate::protocol::wire!(openai::ChatCompletionChunk {
         id,
-        choices: vec![openai::ChatChunkChoice {
+        choices: vec![crate::protocol::wire!(openai::ChatChunkChoice {
             index,
             delta,
             finish_reason,
             logprobs: None,
             extra: Default::default(),
-        }],
+        })],
         created,
         model,
         object: openai::ChatCompletionChunkObjectType::ChatCompletionChunk,
@@ -44,7 +44,7 @@ pub(in crate::transform::generate_content) fn chat_delta_chunk(
         system_fingerprint: None,
         usage,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn empty_chat_chunk(
@@ -53,7 +53,7 @@ pub(in crate::transform::generate_content) fn empty_chat_chunk(
     created: u64,
     usage: Option<openai::CompletionUsage>,
 ) -> openai::ChatCompletionChunk {
-    openai::ChatCompletionChunk {
+    crate::protocol::wire!(openai::ChatCompletionChunk {
         id,
         choices: Vec::new(),
         created,
@@ -63,7 +63,7 @@ pub(in crate::transform::generate_content) fn empty_chat_chunk(
         system_fingerprint: None,
         usage,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn chat_text_delta(
@@ -126,18 +126,18 @@ pub(in crate::transform::generate_content) fn chat_function_tool_delta(
     name: Option<String>,
     arguments: Option<String>,
 ) -> openai::ChatToolCallDelta {
-    openai::ChatToolCallDelta {
+    crate::protocol::wire!(openai::ChatToolCallDelta {
         index,
         id,
         type_: Some(openai::ChatToolCallType::Function),
-        function: Some(openai::FunctionCallDelta {
+        function: Some(crate::protocol::wire!(openai::FunctionCallDelta {
             arguments,
             name,
             extra: Default::default(),
-        }),
+        })),
         custom: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn chat_custom_tool_delta(
@@ -146,18 +146,18 @@ pub(in crate::transform::generate_content) fn chat_custom_tool_delta(
     name: Option<String>,
     input: Option<String>,
 ) -> openai::ChatToolCallDelta {
-    openai::ChatToolCallDelta {
+    crate::protocol::wire!(openai::ChatToolCallDelta {
         index,
         id,
         type_: Some(openai::ChatToolCallType::Custom),
         function: None,
-        custom: Some(openai::CustomToolCallDelta {
+        custom: Some(crate::protocol::wire!(openai::CustomToolCallDelta {
             input,
             name,
             extra: Default::default(),
-        }),
+        })),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn chat_finish_reason_to_claude(
@@ -175,6 +175,9 @@ pub(in crate::transform::generate_content) fn chat_finish_reason_to_claude(
         }
         openai::ChatFinishReason::ContentFilter => {
             claude::StopReason::Known(claude::StopReasonKnown::Refusal)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -200,6 +203,9 @@ pub(in crate::transform::generate_content) fn claude_stop_reason_to_chat(
             | claude::StopReasonKnown::Compaction,
         )
         | claude::StopReason::Unknown(_) => openai::ChatFinishReason::Stop,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -213,6 +219,9 @@ pub(in crate::transform::generate_content) fn chat_finish_reason_to_gemini(
             gemini::FinishReasonKnown::Stop
         }
         openai::ChatFinishReason::ContentFilter => gemini::FinishReasonKnown::Safety,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     gemini::FinishReason::Known(known)
 }
@@ -241,6 +250,9 @@ pub(in crate::transform::generate_content) fn gemini_finish_reason_to_chat(
         gemini::FinishReason::Known(_) | gemini::FinishReason::Unknown(_) => {
             openai::ChatFinishReason::Stop
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -252,7 +264,7 @@ pub(in crate::transform::generate_content) fn completion_usage_to_gemini(
         .completion_tokens_details
         .and_then(|details| details.reasoning_tokens)
         .map(u32_to_i32);
-    Some(gemini::UsageMetadata {
+    Some(crate::protocol::wire!(gemini::UsageMetadata {
         prompt_token_count: Some(u32_to_i32(usage.prompt_tokens)),
         cached_content_token_count: usage
             .prompt_tokens_details
@@ -270,7 +282,7 @@ pub(in crate::transform::generate_content) fn completion_usage_to_gemini(
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::generate_content) fn response_usage_to_completion(
@@ -280,28 +292,30 @@ pub(in crate::transform::generate_content) fn response_usage_to_completion(
     let details = usage.input_tokens_details;
     let reasoning_tokens = usage.output_tokens_details.reasoning_tokens;
 
-    Some(openai::CompletionUsage {
+    Some(crate::protocol::wire!(openai::CompletionUsage {
         completion_tokens: usage.output_tokens,
         prompt_tokens: usage.input_tokens,
         total_tokens: usage.total_tokens,
-        completion_tokens_details: (reasoning_tokens > 0).then_some(
+        completion_tokens_details: (reasoning_tokens > 0).then_some(crate::protocol::wire!(
             openai::CompletionTokensDetails {
                 accepted_prediction_tokens: None,
                 audio_tokens: None,
                 reasoning_tokens: Some(reasoning_tokens),
                 rejected_prediction_tokens: None,
                 extra: Default::default(),
-            },
-        ),
-        prompt_tokens_details: details.map(|details| openai::PromptTokensDetails {
-            audio_tokens: None,
-            cache_write_tokens: (details.cache_write_tokens > 0)
-                .then_some(details.cache_write_tokens),
-            cached_tokens: Some(details.cached_tokens),
-            extra: Default::default(),
-        }),
+            }
+        ),),
+        prompt_tokens_details: details.map(|details| crate::protocol::wire!(
+            openai::PromptTokensDetails {
+                audio_tokens: None,
+                cache_write_tokens: (details.cache_write_tokens > 0)
+                    .then_some(details.cache_write_tokens),
+                cached_tokens: Some(details.cached_tokens),
+                extra: Default::default(),
+            }
+        )),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::generate_content) fn completion_usage_to_response(
@@ -317,23 +331,23 @@ pub(in crate::transform::generate_content) fn completion_usage_to_response(
         .and_then(|details| details.reasoning_tokens)
         .unwrap_or_default();
 
-    Some(openai::ResponseUsage {
+    Some(crate::protocol::wire!(openai::ResponseUsage {
         input_tokens: usage.prompt_tokens,
         output_tokens: usage.completion_tokens,
         total_tokens: usage.total_tokens,
         input_tokens_details: (cached_tokens.is_some() || cache_write_tokens.is_some()).then(
-            || openai::ResponseInputTokensDetails {
+            || crate::protocol::wire!(openai::ResponseInputTokensDetails {
                 cache_write_tokens: cache_write_tokens.unwrap_or_default(),
                 cached_tokens: cached_tokens.unwrap_or_default(),
                 extra: Default::default(),
-            },
+            }),
         ),
-        output_tokens_details: openai::ResponseOutputTokensDetails {
+        output_tokens_details: crate::protocol::wire!(openai::ResponseOutputTokensDetails {
             reasoning_tokens,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::generate_content) fn gemini_usage_to_completion(
@@ -351,29 +365,29 @@ pub(in crate::transform::generate_content) fn gemini_usage_to_completion(
         .map(i32_to_u32)
         .unwrap_or_else(|| prompt_tokens.saturating_add(completion_tokens));
 
-    openai::CompletionUsage {
+    crate::protocol::wire!(openai::CompletionUsage {
         completion_tokens,
         prompt_tokens,
         total_tokens,
         completion_tokens_details: thoughts.map(|reasoning_tokens| {
-            openai::CompletionTokensDetails {
+            crate::protocol::wire!(openai::CompletionTokensDetails {
                 accepted_prediction_tokens: None,
                 audio_tokens: None,
                 reasoning_tokens: Some(reasoning_tokens),
                 rejected_prediction_tokens: None,
                 extra: Default::default(),
-            }
+            })
         }),
         prompt_tokens_details: usage.cached_content_token_count.map(|tokens| {
-            openai::PromptTokensDetails {
+            crate::protocol::wire!(openai::PromptTokensDetails {
                 audio_tokens: None,
                 cache_write_tokens: None,
                 cached_tokens: Some(i32_to_u32(tokens)),
                 extra: Default::default(),
-            }
+            })
         }),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(in crate::transform::generate_content) fn completion_usage_to_claude_box(
@@ -407,13 +421,14 @@ mod tests {
 
     #[test]
     fn gemini_usage_roundtrip_keeps_thinking_as_output_subset() {
-        let completion = gemini_usage_to_completion(gemini::UsageMetadata {
-            prompt_token_count: Some(100),
-            candidates_token_count: Some(20),
-            thoughts_token_count: Some(5),
-            total_token_count: Some(125),
-            ..Default::default()
-        });
+        let completion =
+            gemini_usage_to_completion(crate::protocol::wire!(gemini::UsageMetadata {
+                prompt_token_count: Some(100),
+                candidates_token_count: Some(20),
+                thoughts_token_count: Some(5),
+                total_token_count: Some(125),
+                ..Default::default()
+            }));
         assert_eq!(completion.completion_tokens, 25);
         let roundtrip = completion_usage_to_gemini(Some(completion)).unwrap();
         assert_eq!(roundtrip.candidates_token_count, Some(20));

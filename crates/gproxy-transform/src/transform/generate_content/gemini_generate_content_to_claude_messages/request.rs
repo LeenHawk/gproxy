@@ -25,7 +25,7 @@ pub fn request(
         claude::MessageRole::Known(claude::MessageRoleKnown::Assistant)
     };
 
-    Ok(claude::CreateMessageRequestBody {
+    Ok(crate::protocol::wire!(claude::CreateMessageRequestBody {
         model: model.into(),
         messages: gemini_contents_to_claude_messages(input.contents, system_role),
         max_tokens: generation_config
@@ -79,7 +79,7 @@ pub fn request(
         top_p: generation_config.as_ref().and_then(|config| config.top_p),
         user_profile_id: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn claude_output_config(
@@ -90,23 +90,23 @@ fn claude_output_config(
     if effort.is_none() && format.is_none() {
         return None;
     }
-    Some(claude::OutputConfig {
+    Some(crate::protocol::wire!(claude::OutputConfig {
         effort,
         format,
         task_budget: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn value_to_claude_output_format(value: serde_json::Value) -> Option<claude::JsonSchemaFormat> {
     let serde_json::Value::Object(map) = value else {
         return None;
     };
-    Some(claude::JsonSchemaFormat {
+    Some(crate::protocol::wire!(claude::JsonSchemaFormat {
         type_: claude::JsonSchemaFormatType::Known(claude::JsonSchemaFormatTypeKnown::JsonSchema),
         schema: map.into_iter().collect(),
         extra: Default::default(),
-    })
+    }))
 }
 
 fn i32_to_u64(value: i32) -> u64 {

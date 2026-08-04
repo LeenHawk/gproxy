@@ -329,7 +329,16 @@ impl ContentStreamConverter {
         Ok(Self { pair, ctx, state })
     }
 
+    pub(super) fn take_diagnostics(&self) -> Vec<crate::transform::TransformDiagnostic> {
+        self.ctx.take_diagnostics()
+    }
+
     pub(super) fn push(&mut self, data: &str) -> Result<Vec<StreamEventOut>, TransformError> {
+        let context = self.ctx.clone();
+        context.scope(|| self.push_inner(data))
+    }
+
+    fn push_inner(&mut self, data: &str) -> Result<Vec<StreamEventOut>, TransformError> {
         use TransformPair as P;
         match (&mut self.state, self.pair) {
             (ContentStreamState::Stateless, P::ClaudeMessagesToGeminiGenerateContent) => {
@@ -429,6 +438,11 @@ impl ContentStreamConverter {
     }
 
     pub(super) fn finish(&mut self) -> Result<Vec<StreamEventOut>, TransformError> {
+        let context = self.ctx.clone();
+        context.scope(|| self.finish_inner())
+    }
+
+    fn finish_inner(&mut self) -> Result<Vec<StreamEventOut>, TransformError> {
         use TransformPair as P;
         match &mut self.state {
             ContentStreamState::Stateless => Ok(Vec::new()),
@@ -546,9 +560,9 @@ fn to_responses_many(
 fn responses_key(ctx: &TransformContext, source: bool) -> OperationKey {
     OperationKey::content_generation(
         if source {
-            ctx.source.operation
+            ctx.source.operation()
         } else {
-            ctx.target.operation
+            ctx.target.operation()
         },
         ContentGenerationKind::OpenAiResponses,
     )

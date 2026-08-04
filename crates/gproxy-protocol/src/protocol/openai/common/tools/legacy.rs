@@ -4,12 +4,14 @@ use super::super::{Extra, JsonSchema};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum LegacyFunctionCallChoice {
     Mode(LegacyFunctionCallMode),
     Named(LegacyFunctionCallOption),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum LegacyFunctionCallMode {
     #[serde(rename = "none")]
     None,
@@ -17,7 +19,8 @@ pub enum LegacyFunctionCallMode {
     Auto,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct LegacyFunctionCallOption {
     pub name: String,
     #[serde(
@@ -28,7 +31,8 @@ pub struct LegacyFunctionCallOption {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct LegacyFunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]

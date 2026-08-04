@@ -5,6 +5,9 @@ pub(super) fn openai_output_format_mime(format: &openai::ImageOutputFormat) -> &
         openai::ImageOutputFormat::Png => "image/png",
         openai::ImageOutputFormat::Jpeg => "image/jpeg",
         openai::ImageOutputFormat::Webp => "image/webp",
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

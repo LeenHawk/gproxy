@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::{CustomToolGrammarSyntax, Extra, JsonSchema};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -19,7 +20,8 @@ pub struct FunctionDefinition {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FunctionCall {
     pub arguments: String,
     pub name: String,
@@ -31,7 +33,8 @@ pub struct FunctionCall {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CustomToolDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,6 +51,7 @@ pub struct CustomToolDefinition {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum CustomToolInputFormat {
     Text(CustomToolTextFormat),
     Grammar(CustomToolGrammarFormat),
@@ -55,12 +59,15 @@ pub enum CustomToolInputFormat {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CustomToolTextFormat {
     #[serde(rename = "type")]
     pub type_: CustomToolTextFormatType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CustomToolTextFormatType {
     #[serde(rename = "text")]
     Text,
@@ -68,6 +75,8 @@ pub enum CustomToolTextFormatType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CustomToolGrammarFormat {
     #[serde(rename = "type")]
     pub type_: CustomToolGrammarFormatType,
@@ -75,6 +84,7 @@ pub struct CustomToolGrammarFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CustomToolGrammarFormatType {
     #[serde(rename = "grammar")]
     Grammar,
@@ -82,12 +92,15 @@ pub enum CustomToolGrammarFormatType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CustomToolGrammar {
     pub definition: String,
     pub syntax: CustomToolGrammarSyntax,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct NamedTool {
     pub name: String,
     #[serde(

@@ -14,7 +14,6 @@ pub mod generate_content;
 pub mod images;
 pub mod models;
 mod registry;
-pub mod routing;
 pub mod stream_adapter;
 
 pub use context::*;

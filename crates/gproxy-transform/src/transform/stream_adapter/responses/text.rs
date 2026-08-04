@@ -167,8 +167,8 @@ pub(super) fn message_item(
     state: &ResponsesTextItemState,
     status: ResponseItemLifecycleStatus,
 ) -> ResponseOutputItem {
-    ResponseOutputItem(ResponseItem::Message(ResponseMessageItem::Output(
-        ResponseOutputMessageItem {
+    ResponseOutputItem::new(ResponseItem::Message(ResponseMessageItem::Output(
+        crate::protocol::wire!(ResponseOutputMessageItem {
             type_: ResponseMessageItemType::Message,
             id: state.id().to_owned(),
             role: ResponseOutputMessageRole::Assistant,
@@ -181,7 +181,7 @@ pub(super) fn message_item(
             status,
             phase: None,
             extra: Extra::new(),
-        },
+        }),
     )))
 }
 
@@ -189,14 +189,14 @@ pub(super) fn reasoning_item(
     state: &ResponsesTextItemState,
     status: ResponseItemLifecycleStatus,
 ) -> ResponseOutputItem {
-    ResponseOutputItem(ResponseItem::Typed(TypedResponseItem::Reasoning {
+    ResponseOutputItem::new(ResponseItem::Typed(TypedResponseItem::Reasoning {
         id: Some(state.id().to_owned()),
         summary: Vec::new(),
-        content: Some(vec![ResponseReasoningTextPart {
+        content: Some(vec![crate::protocol::wire!(ResponseReasoningTextPart {
             text: state.text.clone(),
             type_: ResponseReasoningTextType::ReasoningText,
             extra: Extra::new(),
-        }]),
+        })]),
         encrypted_content: None,
         status: Some(status),
         extra: Extra::new(),

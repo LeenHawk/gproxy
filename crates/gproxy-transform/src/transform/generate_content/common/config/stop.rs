@@ -6,6 +6,9 @@ pub(in crate::transform::generate_content) fn openai_stop_to_vec(
     match stop? {
         openai::StringOrList::String(value) => Some(vec![value]),
         openai::StringOrList::List(values) => Some(values),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 

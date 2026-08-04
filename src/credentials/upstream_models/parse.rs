@@ -36,6 +36,9 @@ pub(super) fn parse_models(family: Provider, body: &[u8]) -> Vec<UpstreamModel> 
                 Provider::Gemini => m.get("displayName"),
                 Provider::Claude => m.get("display_name"),
                 Provider::OpenAi => None,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             }
             .and_then(Value::as_str)
             .map(str::to_owned);

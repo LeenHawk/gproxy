@@ -77,9 +77,12 @@ pub(in crate::pipeline::failover) async fn materialize(
             };
             // shape_response runs on ALL statuses (error bodies included).
             let b = channel.shape_response(b, &shape);
-            let kind = match shape.op.kind {
+            let kind = match shape.op.kind() {
                 crate::protocol::OperationKind::ContentGeneration(k) => Some(k),
                 crate::protocol::OperationKind::Provider(_) => None,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             };
             let b = match (status.is_success(), response_rules.as_ref()) {
                 (true, Some(response_rules)) => crate::process::apply_response(
@@ -95,13 +98,15 @@ pub(in crate::pipeline::failover) async fn materialize(
             // aggregate path (codex/kiro non-stream) the real decode happens in
             // `materialize_buffered` → decode here too so the log matches the
             // streaming arm + the "post-decode" contract, not raw binary frames.
-            let upstream_raw = upstream.as_ref().map(|_| {
+            let upstream_raw = if upstream.is_some() {
                 if status.is_success() && plan.is_aggregate_stream() && !ctx.stream {
-                    Bytes::from(decode_buffered_stream(channel, &b))
+                    Some(Bytes::from(decode_buffered_stream(channel, &b)?))
                 } else {
-                    b.clone()
+                    Some(b.clone())
                 }
-            });
+            } else {
+                None
+            };
             let settle_stream = plan.settle_stream(ctx);
             let settle = settle_ctx.map(|settle_ctx| BufferedSettle {
                 ctx: settle_ctx,
@@ -110,13 +115,14 @@ pub(in crate::pipeline::failover) async fn materialize(
             });
             let provider_settle = ctx
                 .op
-                .is_some_and(|op| op.operation == crate::protocol::Operation::CompactContent)
+                .is_some_and(|op| op.operation() == crate::protocol::Operation::CompactContent)
                 .then(|| ProviderSettle {
                     body: b.clone(),
-                    family: match shape.op.kind {
+                    family: match shape.op.kind() {
                         crate::protocol::OperationKind::ContentGeneration(kind) => kind.provider(),
                         crate::protocol::OperationKind::Provider(family) => family,
-                    },
+                    _ => unreachable!("new non-exhaustive protocol variant requires a lockstep transform update"),
+},
                 });
             let body = materialize_buffered(channel, plan, ctx, status, b)?;
             Ok(Materialized {
@@ -153,9 +159,12 @@ pub(in crate::pipeline::failover) async fn materialize(
                 None => crate::pipeline::stream::into_byte_stream(st),
             };
             let shape_op = plan.shape_op(ctx);
-            let kind = match shape_op.kind {
+            let kind = match shape_op.kind() {
                 crate::protocol::OperationKind::ContentGeneration(k) => Some(k),
                 crate::protocol::OperationKind::Provider(_) => None,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             };
             let st = match response_rules.as_ref().and_then(|response_rules| {
                 crate::process::response_stream_decoder(
@@ -271,7 +280,7 @@ fn aggregate_buffered_stream(
     let Some(kind) = kind else {
         return Ok(body.clone());
     };
-    let sse = decode_buffered_stream(channel, body);
+    let sse = decode_buffered_stream(channel, body)?;
     let aggregation = crate::transform::stream_adapter::aggregate_buffered(kind, &sse)
         .map_err(PipelineError::TransformResponse)?;
     Ok(Bytes::from(aggregation.body))
@@ -281,13 +290,21 @@ fn aggregate_buffered_stream(
 /// binary event-stream → canonical SSE; codex/none → bytes unchanged). This is
 /// the "post channel-decode" provider response form — what §8-D upstream
 /// capture must log (NOT the raw binary frames), matching the streaming arm.
-fn decode_buffered_stream(channel: &Arc<dyn Channel>, body: &Bytes) -> Vec<u8> {
+fn decode_buffered_stream(
+    channel: &Arc<dyn Channel>,
+    body: &Bytes,
+) -> Result<Vec<u8>, PipelineError> {
     match channel.stream_decoder() {
         Some(mut dec) => {
-            let mut out = dec.push(body);
-            out.extend(dec.finish());
-            out
+            let mut out = dec
+                .push(body)
+                .map_err(|error| PipelineError::Transport(error.to_string()))?;
+            out.extend(
+                dec.finish()
+                    .map_err(|error| PipelineError::Transport(error.to_string()))?,
+            );
+            Ok(out)
         }
-        None => body.to_vec(),
+        None => Ok(body.to_vec()),
     }
 }

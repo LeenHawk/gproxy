@@ -34,25 +34,23 @@ pub(in super::super) fn claude_blocks_to_assistant_message(
             }
             claude::ContentBlockParam::ToolUse(block) => {
                 if block.cache_control.is_some() {
-                    tracing::warn!(
-                        block_type = "tool_use",
-                        target = "OpenAI Chat",
-                        "cache breakpoint dropped during protocol conversion"
+                    crate::transform::context::report_lossy(
+                        "messages[].content[].tool_use.cache_control",
+                        "OpenAI Chat tool calls cannot represent Claude cache control",
                     );
                 }
                 tool_calls.push(claude_tool_use_to_chat_tool_call(block));
             }
             claude::ContentBlockParam::ServerToolUse(block) => {
                 if block.cache_control.is_some() {
-                    tracing::warn!(
-                        block_type = "server_tool_use",
-                        target = "OpenAI Chat",
-                        "cache breakpoint dropped during protocol conversion"
+                    crate::transform::context::report_lossy(
+                        "messages[].content[].server_tool_use.cache_control",
+                        "OpenAI Chat tool calls cannot represent Claude cache control",
                     );
                 }
                 tool_calls.push(openai::ChatToolCall::Custom {
                     id: block.id,
-                    custom: openai::CustomToolCall {
+                    custom: crate::protocol::wire!(openai::CustomToolCall {
                         input: serde_json::to_string(&block.input)
                             .unwrap_or_else(|_| "{}".to_owned()),
                         name: serde_json::to_value(block.name)
@@ -60,26 +58,25 @@ pub(in super::super) fn claude_blocks_to_assistant_message(
                             .and_then(|value| value.as_str().map(str::to_owned))
                             .unwrap_or_else(|| "server_tool".to_owned()),
                         extra: Default::default(),
-                    },
+                    }),
                     extra: Default::default(),
                 });
             }
             claude::ContentBlockParam::McpToolUse(block) => {
                 if block.cache_control.is_some() {
-                    tracing::warn!(
-                        block_type = "mcp_tool_use",
-                        target = "OpenAI Chat",
-                        "cache breakpoint dropped during protocol conversion"
+                    crate::transform::context::report_lossy(
+                        "messages[].content[].mcp_tool_use.cache_control",
+                        "OpenAI Chat tool calls cannot represent Claude cache control",
                     );
                 }
                 tool_calls.push(openai::ChatToolCall::Custom {
                     id: block.id,
-                    custom: openai::CustomToolCall {
+                    custom: crate::protocol::wire!(openai::CustomToolCall {
                         input: serde_json::to_string(&block.input)
                             .unwrap_or_else(|_| "{}".to_owned()),
                         name: format!("mcp:{}:{}", block.server_name, block.name),
                         extra: Default::default(),
-                    },
+                    }),
                     extra: Default::default(),
                 });
             }
@@ -116,7 +113,7 @@ pub(in super::super) fn claude_response_blocks_to_chat_message(
             claude::ContentBlock::ServerToolUse(block) => {
                 tool_calls.push(openai::ChatToolCall::Custom {
                     id: block.id,
-                    custom: openai::CustomToolCall {
+                    custom: crate::protocol::wire!(openai::CustomToolCall {
                         input: serde_json::to_string(&block.input)
                             .unwrap_or_else(|_| "{}".to_owned()),
                         name: serde_json::to_value(block.name)
@@ -124,19 +121,19 @@ pub(in super::super) fn claude_response_blocks_to_chat_message(
                             .and_then(|value| value.as_str().map(str::to_owned))
                             .unwrap_or_else(|| "server_tool".to_owned()),
                         extra: Default::default(),
-                    },
+                    }),
                     extra: Default::default(),
                 });
             }
             claude::ContentBlock::McpToolUse(block) => {
                 tool_calls.push(openai::ChatToolCall::Custom {
                     id: block.id,
-                    custom: openai::CustomToolCall {
+                    custom: crate::protocol::wire!(openai::CustomToolCall {
                         input: serde_json::to_string(&block.input)
                             .unwrap_or_else(|_| "{}".to_owned()),
                         name: format!("mcp:{}:{}", block.server_name, block.name),
                         extra: Default::default(),
-                    },
+                    }),
                     extra: Default::default(),
                 });
             }
@@ -144,7 +141,7 @@ pub(in super::super) fn claude_response_blocks_to_chat_message(
         }
     }
 
-    openai::ChatMessage {
+    crate::protocol::wire!(openai::ChatMessage {
         role: openai::ChatCompletionMessageRole::Assistant,
         content: (!text_parts.is_empty()).then(|| text_parts.join("\n")),
         refusal: None,
@@ -154,5 +151,5 @@ pub(in super::super) fn claude_response_blocks_to_chat_message(
         reasoning_content: None,
         tool_calls: (!tool_calls.is_empty()).then_some(tool_calls),
         extra: Default::default(),
-    }
+    })
 }

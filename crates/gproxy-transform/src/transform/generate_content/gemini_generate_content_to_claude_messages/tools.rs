@@ -7,7 +7,7 @@ pub(super) fn gemini_tools_to_claude(tools: Vec<gemini::Tool>) -> Vec<claude::To
         .into_iter()
         .flat_map(|tool| tool.function_declarations)
         .map(|declaration| {
-            claude::Tool::Custom(claude::CustomTool {
+            claude::Tool::Custom(crate::protocol::wire!(claude::CustomTool {
                 input_schema: declaration
                     .parameters_json_schema
                     .and_then(value_to_claude_schema)
@@ -19,7 +19,7 @@ pub(super) fn gemini_tools_to_claude(tools: Vec<gemini::Tool>) -> Vec<claude::To
                     .then_some(declaration.description),
                 eager_input_streaming: None,
                 common: Default::default(),
-            })
+            }))
         })
         .collect()
 }
@@ -31,36 +31,45 @@ pub(super) fn gemini_tool_config_to_claude(
     match config.mode? {
         gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::Auto)
         | gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::ModeUnspecified) => {
-            Some(claude::ToolChoice::Auto(claude::ToolChoiceAuto {
-                type_: claude::ToolChoiceAutoType::Auto,
-                disable_parallel_tool_use: None,
-                extra: Default::default(),
-            }))
+            Some(claude::ToolChoice::Auto(crate::protocol::wire!(
+                claude::ToolChoiceAuto {
+                    type_: claude::ToolChoiceAutoType::Auto,
+                    disable_parallel_tool_use: None,
+                    extra: Default::default(),
+                }
+            )))
         }
         gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::Any)
         | gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::Validated) => {
             if let Some(name) = config.allowed_function_names.into_iter().next() {
-                Some(claude::ToolChoice::Tool(claude::ToolChoiceTool {
-                    name,
-                    type_: claude::ToolChoiceToolType::Tool,
-                    disable_parallel_tool_use: None,
-                    extra: Default::default(),
-                }))
+                Some(claude::ToolChoice::Tool(crate::protocol::wire!(
+                    claude::ToolChoiceTool {
+                        name,
+                        type_: claude::ToolChoiceToolType::Tool,
+                        disable_parallel_tool_use: None,
+                        extra: Default::default(),
+                    }
+                )))
             } else {
-                Some(claude::ToolChoice::Any(claude::ToolChoiceAny {
-                    type_: claude::ToolChoiceAnyType::Any,
-                    disable_parallel_tool_use: None,
-                    extra: Default::default(),
-                }))
+                Some(claude::ToolChoice::Any(crate::protocol::wire!(
+                    claude::ToolChoiceAny {
+                        type_: claude::ToolChoiceAnyType::Any,
+                        disable_parallel_tool_use: None,
+                        extra: Default::default(),
+                    }
+                )))
             }
         }
-        gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::None) => {
-            Some(claude::ToolChoice::None(claude::ToolChoiceNone {
+        gemini::FunctionCallingMode::Known(gemini::FunctionCallingModeKnown::None) => Some(
+            claude::ToolChoice::None(crate::protocol::wire!(claude::ToolChoiceNone {
                 type_: claude::ToolChoiceNoneType::None,
                 extra: Default::default(),
-            }))
-        }
+            })),
+        ),
         gemini::FunctionCallingMode::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -96,12 +105,12 @@ fn value_to_claude_schema(mut value: Value) -> Option<claude::JsonSchema> {
         })
         .unwrap_or_default();
     map.remove("type");
-    Some(claude::JsonSchema {
+    Some(crate::protocol::wire!(claude::JsonSchema {
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties,
         required,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn normalize_schema_types(value: &mut Value) {
@@ -126,12 +135,12 @@ fn normalize_type(value: &mut Value) {
 }
 
 fn empty_schema() -> claude::JsonSchema {
-    claude::JsonSchema {
+    crate::protocol::wire!(claude::JsonSchema {
         type_: claude::JsonSchemaObjectType::Known(claude::JsonSchemaObjectTypeKnown::Object),
         properties: Default::default(),
         required: Vec::new(),
         extra: Default::default(),
-    }
+    })
 }
 
 #[cfg(test)]

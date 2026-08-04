@@ -7,13 +7,24 @@
 use crate::protocol::{
     ContentGenerationKind as Cg, Operation, OperationKey, OperationKind, Provider,
 };
-use gproxy_transform::routing::RoutingDecision;
+
+/// The host routing decision for one source protocol cell.
+///
+/// This policy belongs to the channel/host boundary rather than the generic
+/// wire-transform crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RoutingDecision {
+    Passthrough,
+    TransformTo(OperationKey),
+    Local,
+    Unsupported,
+}
 
 /// A channel's declared routing surface: source cell → decision.
 pub type RouteList = Vec<(OperationKey, RoutingDecision)>;
 
 fn key(operation: Operation, kind: OperationKind) -> OperationKey {
-    OperationKey { operation, kind }
+    OperationKey::try_new(operation, kind).expect("channel route must use a consistent operation")
 }
 
 /// passthrough

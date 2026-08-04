@@ -51,7 +51,7 @@ impl ChatCollector {
             self.choices.insert(0, ChoiceState::new(0));
         }
 
-        openai::ChatCompletionResponse {
+        crate::protocol::wire!(openai::ChatCompletionResponse {
             id: self.id.unwrap_or_default(),
             choices: self
                 .choices
@@ -66,7 +66,7 @@ impl ChatCollector {
             system_fingerprint: self.system_fingerprint,
             usage: self.usage,
             extra: Default::default(),
-        }
+        })
     }
 }
 
@@ -131,11 +131,11 @@ impl ChoiceState {
             || function_call.is_some()
             || !tool_calls.is_empty();
 
-        openai::ChatCompletionChoice {
+        crate::protocol::wire!(openai::ChatCompletionChoice {
             finish_reason: self.finish_reason.unwrap_or(openai::ChatFinishReason::Stop),
             index: self.index,
             logprobs: self.logprobs,
-            message: openai::ChatMessage {
+            message: crate::protocol::wire!(openai::ChatMessage {
                 role: openai::ChatCompletionMessageRole::Assistant,
                 content: if !self.content.is_empty() {
                     Some(self.content)
@@ -152,9 +152,9 @@ impl ChoiceState {
                     .then_some(self.reasoning_content),
                 tool_calls: (!tool_calls.is_empty()).then_some(tool_calls),
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
-        }
+        })
     }
 }
 
@@ -172,11 +172,11 @@ impl LegacyFunctionState {
 
     fn finish(self) -> Option<openai::FunctionCall> {
         let name = self.name?;
-        Some(openai::FunctionCall {
+        Some(crate::protocol::wire!(openai::FunctionCall {
             name,
             arguments: self.arguments,
             extra: Default::default(),
-        })
+        }))
     }
 }
 
@@ -225,20 +225,20 @@ impl ToolCallState {
         match self.kind.unwrap_or(ToolCallKind::Function) {
             ToolCallKind::Function => Some(openai::ChatToolCall::Function {
                 id,
-                function: openai::FunctionCall {
+                function: crate::protocol::wire!(openai::FunctionCall {
                     name: self.function_name.unwrap_or_default(),
                     arguments: self.function_arguments,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
             }),
             ToolCallKind::Custom => Some(openai::ChatToolCall::Custom {
                 id,
-                custom: openai::CustomToolCall {
+                custom: crate::protocol::wire!(openai::CustomToolCall {
                     name: self.custom_name.unwrap_or_default(),
                     input: self.custom_input,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
             }),
         }
@@ -256,6 +256,9 @@ impl From<openai::ChatToolCallType> for ToolCallKind {
         match value {
             openai::ChatToolCallType::Function => Self::Function,
             openai::ChatToolCallType::Custom => Self::Custom,
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 }

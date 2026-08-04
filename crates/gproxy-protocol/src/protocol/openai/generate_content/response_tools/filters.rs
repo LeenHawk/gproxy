@@ -6,12 +6,14 @@ use super::super::super::common::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FileSearchFilter {
     Comparison(FileSearchComparisonFilter),
     Compound(FileSearchCompoundFilter),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileSearchComparisonFilter {
     pub key: String,
     #[serde(rename = "type")]
@@ -23,6 +25,7 @@ pub struct FileSearchComparisonFilter {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FileSearchComparisonValue {
     String(String),
     Number(f64),
@@ -32,12 +35,14 @@ pub enum FileSearchComparisonValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum FileSearchComparisonListValue {
     String(String),
     Number(f64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FileSearchComparisonOperator {
     #[serde(rename = "eq")]
     Eq,
@@ -57,7 +62,8 @@ pub enum FileSearchComparisonOperator {
     Nin,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileSearchCompoundFilter {
     pub filters: Vec<FileSearchFilter>,
     #[serde(rename = "type")]
@@ -67,6 +73,7 @@ pub struct FileSearchCompoundFilter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FileSearchCompoundOperator {
     #[serde(rename = "and")]
     And,
@@ -74,7 +81,8 @@ pub enum FileSearchCompoundOperator {
     Or,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileSearchRankingOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hybrid_search: Option<FileSearchHybridSearch>,
@@ -86,7 +94,8 @@ pub struct FileSearchRankingOptions {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileSearchHybridSearch {
     pub embedding_weight: f64,
     pub text_weight: f64,
@@ -95,6 +104,7 @@ pub struct FileSearchHybridSearch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FileSearchRanker {
     #[serde(rename = "auto")]
     Auto,
@@ -103,6 +113,7 @@ pub enum FileSearchRanker {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ComputerUseEnvironment {
     #[serde(rename = "windows")]
     Windows,
@@ -116,7 +127,8 @@ pub enum ComputerUseEnvironment {
     Browser,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchFilters {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_domains: Option<Vec<String>>,
@@ -124,7 +136,8 @@ pub struct WebSearchFilters {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchUserLocation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub city: Option<String>,
@@ -142,12 +155,14 @@ pub struct WebSearchUserLocation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum McpAllowedTools {
     Names(Vec<String>),
     Filter(McpToolFilter),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolFilter {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_only: Option<bool>,
@@ -158,6 +173,7 @@ pub struct McpToolFilter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum McpConnectorId {
     #[serde(rename = "connector_dropbox")]
     Dropbox,
@@ -179,12 +195,14 @@ pub enum McpConnectorId {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum McpRequireApproval {
     Setting(McpApprovalSetting),
     Filter(McpToolApprovalFilter),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum McpApprovalSetting {
     #[serde(rename = "always")]
     Always,
@@ -192,7 +210,8 @@ pub enum McpApprovalSetting {
     Never,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolApprovalFilter {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub always: Option<McpToolFilter>,

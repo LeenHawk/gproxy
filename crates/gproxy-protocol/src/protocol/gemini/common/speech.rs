@@ -6,6 +6,8 @@ use super::{ExtraFields, SpeechLanguageCode};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SpeechConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub voice: Option<SpeechVoiceConfig>,
@@ -17,6 +19,7 @@ pub struct SpeechConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum SpeechVoiceConfig {
     VoiceConfig {
         #[serde(rename = "voiceConfig")]
@@ -30,6 +33,8 @@ pub enum SpeechVoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct VoiceConfig {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub voice_config: Option<VoiceConfigValue>,
@@ -39,6 +44,7 @@ pub struct VoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum VoiceConfigValue {
     PrebuiltVoiceConfig {
         #[serde(rename = "prebuiltVoiceConfig")]
@@ -48,6 +54,8 @@ pub enum VoiceConfigValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PrebuiltVoiceConfig {
     pub voice_name: String,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty", flatten)]
@@ -56,6 +64,8 @@ pub struct PrebuiltVoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct MultiSpeakerVoiceConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub speaker_voice_configs: Vec<SpeakerVoiceConfig>,
@@ -65,6 +75,8 @@ pub struct MultiSpeakerVoiceConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct SpeakerVoiceConfig {
     pub speaker: String,
     pub voice_config: VoiceConfig,

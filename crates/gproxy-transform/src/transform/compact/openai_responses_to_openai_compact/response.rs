@@ -5,7 +5,7 @@ pub fn response(
     input: openai::ResponseObject,
     _: &TransformContext,
 ) -> openai::CompactedResponseObject {
-    openai::CompactedResponseObject {
+    crate::protocol::wire!(openai::CompactedResponseObject {
         id: input.id,
         created_at: input.created_at,
         object: openai::ResponseCompactionObjectType::ResponseCompaction,
@@ -16,7 +16,7 @@ pub fn response(
             .collect(),
         usage: input.usage.unwrap_or_else(default_usage),
         extra: Default::default(),
-    }
+    })
 }
 
 fn output_item_to_compact_item(
@@ -32,13 +32,16 @@ fn output_item_to_compact_item(
         ),
         // Input/EasyInput messages do not appear in a response's `output`.
         openai::ResponseItem::Message(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 fn output_message_to_compact(
     message: openai::ResponseOutputMessageItem,
 ) -> openai::CompactMessageItem {
-    openai::CompactMessageItem {
+    crate::protocol::wire!(openai::CompactMessageItem {
         id: message.id,
         type_: message.type_,
         content: message
@@ -50,7 +53,7 @@ fn output_message_to_compact(
         status: message.status,
         phase: message.phase,
         extra: Default::default(),
-    }
+    })
 }
 
 fn output_part_to_compact_part(
@@ -74,20 +77,23 @@ fn output_part_to_compact_part(
                 extra: Default::default(),
             }
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     openai::CompactMessageContentPart::Output(part)
 }
 
 fn default_usage() -> openai::ResponseUsage {
-    openai::ResponseUsage {
+    crate::protocol::wire!(openai::ResponseUsage {
         input_tokens: 0,
         output_tokens: 0,
         total_tokens: 0,
         input_tokens_details: None,
-        output_tokens_details: openai::ResponseOutputTokensDetails {
+        output_tokens_details: crate::protocol::wire!(openai::ResponseOutputTokensDetails {
             reasoning_tokens: 0,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
-    }
+    })
 }

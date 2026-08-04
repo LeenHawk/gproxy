@@ -18,7 +18,7 @@ pub fn response(
     input: openai::EmbeddingResponse,
     _: &TransformContext,
 ) -> Result<gemini::EmbedContentResponse, TransformError> {
-    Ok(gemini::EmbedContentResponse {
+    Ok(crate::protocol::wire!(gemini::EmbedContentResponse {
         embedding: input
             .data
             .into_iter()
@@ -26,5 +26,5 @@ pub fn response(
             .next(),
         usage_metadata: Some(common::openai_to_gemini_usage(input.usage)),
         extra: Default::default(),
-    })
+    }))
 }

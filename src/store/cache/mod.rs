@@ -5,8 +5,8 @@
 //! - [`RedisCache`] — Redis-backed; multi-instance / shared cache.
 //!
 //! Edge (wasm32) implementations:
-//! - [`LibsqlCache`] — libSQL/Turso HTTP-backed kv table.
-//! - [`UpstashCache`] — Upstash Redis REST API.
+//! - `LibsqlCache` — libSQL/Turso HTTP-backed kv table.
+//! - `UpstashCache` — Upstash Redis REST API.
 //!
 //! Business code depends only on [`CacheBackend`]; the concrete impl is
 //! selected at startup based on `CacheConfig`.
@@ -47,7 +47,7 @@ pub use upstash::UpstashCache;
 pub const INVALIDATE_CHANNEL: &str = "gproxy:invalidate";
 
 /// Cache key holding the monotonically-increasing control-plane config
-/// version (§7.2). [`broadcast`](crate::app::invalidation::broadcast) bumps it
+/// version (§7.2). [`broadcast`] bumps it
 /// alongside the pub/sub message; edge isolates (whose `subscribe` is a no-op)
 /// poll it with a short throttle and lazily rebuild their snapshot when it
 /// moves.
@@ -115,7 +115,7 @@ pub enum LockAttempt {
 /// A pluggable cache backend.
 ///
 /// Native impls: [`MemoryCache`] (in-process) and [`RedisCache`] (Redis-backed).
-/// Edge impls: [`LibsqlCache`] (libSQL/Turso) and [`UpstashCache`] (Upstash REST).
+/// Edge impls: `LibsqlCache` (libSQL/Turso) and `UpstashCache` (Upstash REST).
 /// Business code calls only this trait.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]

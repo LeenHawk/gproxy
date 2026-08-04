@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorCodeExecutionViewResultBlock {
     pub content: String,
     pub file_type: TextEditorCodeExecutionFileType,
@@ -19,6 +20,7 @@ pub struct TextEditorCodeExecutionViewResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextEditorCodeExecutionFileType {
     #[serde(rename = "text")]
     Text,
@@ -29,12 +31,14 @@ pub enum TextEditorCodeExecutionFileType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextEditorCodeExecutionViewResultBlockType {
     #[serde(rename = "text_editor_code_execution_view_result")]
     TextEditorCodeExecutionViewResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorCodeExecutionCreateResultBlock {
     pub is_file_update: bool,
     #[serde(rename = "type")]
@@ -44,12 +48,14 @@ pub struct TextEditorCodeExecutionCreateResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextEditorCodeExecutionCreateResultBlockType {
     #[serde(rename = "text_editor_code_execution_create_result")]
     TextEditorCodeExecutionCreateResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextEditorCodeExecutionStrReplaceResultBlock {
     #[serde(rename = "type")]
     pub type_: TextEditorCodeExecutionStrReplaceResultBlockType,
@@ -68,6 +74,7 @@ pub struct TextEditorCodeExecutionStrReplaceResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextEditorCodeExecutionStrReplaceResultBlockType {
     #[serde(rename = "text_editor_code_execution_str_replace_result")]
     TextEditorCodeExecutionStrReplaceResult,

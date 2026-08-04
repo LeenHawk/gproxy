@@ -5,7 +5,7 @@ pub fn request(
     input: openai::CompactResponseRequestBody,
     _: &TransformContext,
 ) -> Result<openai::ResponseCreateRequest, TransformError> {
-    Ok(openai::ResponseCreateRequest {
+    Ok(crate::protocol::wire!(openai::ResponseCreateRequest {
         input: input.input,
         instructions: input.instructions,
         model: Some(input.model),
@@ -39,7 +39,7 @@ pub fn request(
         truncation: None,
         user: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn compact_service_tier_to_response(
@@ -51,5 +51,8 @@ fn compact_service_tier_to_response(
         openai::CompactServiceTier::Fast => openai::ServiceTier::Fast,
         openai::CompactServiceTier::Flex => openai::ServiceTier::Flex,
         openai::CompactServiceTier::Priority => openai::ServiceTier::Priority,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

@@ -382,10 +382,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl TokenizerClient for NoClient {
-        async fn send(
-            &self,
-            _: http::Request<Bytes>,
-        ) -> anyhow::Result<http::Response<Bytes>> {
+        async fn send(&self, _: http::Request<Bytes>) -> anyhow::Result<http::Response<Bytes>> {
             anyhow::bail!("network should not be used")
         }
     }

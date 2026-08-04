@@ -14,14 +14,16 @@ pub(super) fn typed_item_to_claude_message(
             ..
         } => (
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
-            vec![claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-                id: id.unwrap_or(call_id),
-                input: arguments_to_json_object(&arguments),
-                name,
-                type_: claude::ToolUseBlockType::ToolUse,
-                cache_control: None,
-                caller: None,
-            })],
+            vec![claude::ContentBlockParam::ToolUse(crate::protocol::wire!(
+                claude::ToolUseBlock {
+                    id: id.unwrap_or(call_id),
+                    input: arguments_to_json_object(&arguments),
+                    name,
+                    type_: claude::ToolUseBlockType::ToolUse,
+                    cache_control: None,
+                    caller: None,
+                }
+            ))],
         ),
         openai::TypedResponseItem::CustomToolCall {
             call_id,
@@ -31,14 +33,16 @@ pub(super) fn typed_item_to_claude_message(
             ..
         } => (
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
-            vec![claude::ContentBlockParam::ToolUse(claude::ToolUseBlock {
-                id: id.unwrap_or(call_id),
-                input: string_input_json_object(input),
-                name,
-                type_: claude::ToolUseBlockType::ToolUse,
-                cache_control: None,
-                caller: None,
-            })],
+            vec![claude::ContentBlockParam::ToolUse(crate::protocol::wire!(
+                claude::ToolUseBlock {
+                    id: id.unwrap_or(call_id),
+                    input: string_input_json_object(input),
+                    name,
+                    type_: claude::ToolUseBlockType::ToolUse,
+                    cache_control: None,
+                    caller: None,
+                }
+            ))],
         ),
         openai::TypedResponseItem::WebSearchCall { id, action, .. } => (
             claude::MessageRole::Known(claude::MessageRoleKnown::Assistant),
@@ -115,13 +119,13 @@ pub(super) fn typed_item_to_claude_message(
         } => (
             claude::MessageRole::Known(claude::MessageRoleKnown::User),
             vec![claude::ContentBlockParam::ToolResult(
-                claude::ToolResultBlock {
+                crate::protocol::wire!(claude::ToolResultBlock {
                     tool_use_id: call_id,
                     type_: claude::ToolResultBlockType::ToolResult,
                     cache_control: None,
                     content: response_output_to_tool_result(output),
                     is_error: None,
-                },
+                }),
             )],
         ),
         openai::TypedResponseItem::McpCall {
@@ -134,14 +138,14 @@ pub(super) fn typed_item_to_claude_message(
             ..
         } => {
             let mut blocks = vec![claude::ContentBlockParam::McpToolUse(
-                claude::McpToolUseBlock {
+                crate::protocol::wire!(claude::McpToolUseBlock {
                     id: id.clone(),
                     input: arguments_to_json_object(&arguments),
                     name,
                     server_name: server_label,
                     type_: claude::McpToolUseBlockType::McpToolUse,
                     cache_control: None,
-                },
+                }),
             )];
             if let Some(result) = mcp_result_block(id, output, error) {
                 blocks.push(claude::ContentBlockParam::McpToolResult(result));
@@ -161,10 +165,10 @@ pub(super) fn typed_item_to_claude_message(
             let mut blocks = Vec::new();
             if let Some(encrypted_content) = encrypted_content {
                 blocks.push(claude::ContentBlockParam::RedactedThinking(
-                    claude::RedactedThinkingBlock {
+                    crate::protocol::wire!(claude::RedactedThinkingBlock {
                         data: encrypted_content,
                         type_: claude::RedactedThinkingBlockType::RedactedThinking,
-                    },
+                    }),
                 ));
             }
             blocks.extend(summary.into_iter().filter_map(|part| text_block(part.text)));
@@ -199,6 +203,9 @@ fn response_output_to_tool_result(
                 .collect::<Vec<_>>();
             (!blocks.is_empty()).then_some(claude::ToolResultContent::Blocks(blocks))
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -206,15 +213,15 @@ fn tool_output_part_to_claude(
     part: openai::ResponseToolOutputContentPart,
 ) -> Option<claude::ToolResultContentBlock> {
     match part {
-        openai::ResponseToolOutputContentPart::InputText { text, .. } => {
-            Some(claude::ToolResultContentBlock::Text(claude::TextBlock {
+        openai::ResponseToolOutputContentPart::InputText { text, .. } => Some(
+            claude::ToolResultContentBlock::Text(crate::protocol::wire!(claude::TextBlock {
                 text,
                 type_: claude::TextBlockType::Text,
                 cache_control: None,
                 citations: None,
                 extra: Default::default(),
-            }))
-        }
+            })),
+        ),
         openai::ResponseToolOutputContentPart::InputImage {
             file_id, image_url, ..
         } => image_block(file_id, image_url).and_then(|block| match block {
@@ -235,6 +242,9 @@ fn tool_output_part_to_claude(
             }
             _ => None,
         }),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -243,14 +253,14 @@ fn server_tool_use_block(
     input: claude::JsonObject,
     name: claude::ServerToolUseNameKnown,
 ) -> claude::ServerToolUseBlock {
-    claude::ServerToolUseBlock {
+    crate::protocol::wire!(claude::ServerToolUseBlock {
         id,
         input,
         name: claude::ServerToolUseName::Known(name),
         type_: claude::ServerToolUseBlockType::ServerToolUse,
         cache_control: None,
         caller: None,
-    }
+    })
 }
 
 pub(super) fn response_server_tool_use_block(
@@ -258,14 +268,14 @@ pub(super) fn response_server_tool_use_block(
     input: claude::JsonObject,
     name: claude::ServerToolUseNameKnown,
 ) -> claude::ResponseServerToolUseBlock {
-    claude::ResponseServerToolUseBlock {
+    crate::protocol::wire!(claude::ResponseServerToolUseBlock {
         id,
         input,
         name: claude::ServerToolUseName::Known(name),
         type_: claude::ServerToolUseBlockType::ServerToolUse,
         caller: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn mcp_result_block(
@@ -275,13 +285,13 @@ fn mcp_result_block(
 ) -> Option<claude::McpToolResultBlock> {
     let is_error = error.is_some();
     let content = error.or(output)?;
-    Some(claude::McpToolResultBlock {
+    Some(crate::protocol::wire!(claude::McpToolResultBlock {
         tool_use_id,
         type_: claude::McpToolResultBlockType::McpToolResult,
         cache_control: None,
         content: Some(claude::McpToolResultContent::String(content)),
         is_error: Some(is_error),
-    })
+    }))
 }
 
 pub(super) fn arguments_to_json_object(arguments: &str) -> claude::JsonObject {

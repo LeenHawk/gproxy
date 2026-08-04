@@ -15,12 +15,12 @@ pub(super) fn response_file_to_chat_part(
         };
     }
     openai::ChatContentPart::File {
-        file: openai::ChatFileRef {
+        file: crate::protocol::wire!(openai::ChatFileRef {
             file_data,
             file_id,
             filename,
             extra: Default::default(),
-        },
+        }),
         prompt_cache_breakpoint,
         extra: Default::default(),
     }

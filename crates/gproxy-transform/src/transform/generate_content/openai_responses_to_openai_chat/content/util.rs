@@ -38,9 +38,15 @@ pub(super) fn response_output_to_chat_content(
                         );
                         None
                     }
+                    _ => unreachable!(
+                        "new non-exhaustive protocol variant requires a lockstep transform update"
+                    ),
                 })
                 .collect(),
         ),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -49,10 +55,9 @@ fn warn_dropped_tool_output_breakpoint(
     block_type: &str,
 ) {
     if breakpoint.is_some() {
-        tracing::warn!(
-            block_type,
-            target = "OpenAI Chat tool output",
-            "cache breakpoint dropped during protocol conversion"
+        crate::transform::context::report_lossy(
+            format!("tool_output.content[].{block_type}.prompt_cache_breakpoint"),
+            "OpenAI Chat tool output cannot preserve this content part or cache breakpoint",
         );
     }
 }
@@ -64,6 +69,15 @@ pub(super) fn response_detail_to_chat_detail(
         openai::DetailLevel::Low => Some(openai::ChatImageDetailLevel::Low),
         openai::DetailLevel::High => Some(openai::ChatImageDetailLevel::High),
         openai::DetailLevel::Auto => Some(openai::ChatImageDetailLevel::Auto),
-        openai::DetailLevel::Original => None,
+        openai::DetailLevel::Original => {
+            crate::transform::context::report_unsupported(
+                "input[].content[].input_image.detail=original",
+                "OpenAI Chat has no original image detail level",
+            );
+            None
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

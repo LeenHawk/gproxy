@@ -38,6 +38,9 @@ pub(super) fn image_source_to_input_part(
             extra: Default::default(),
         }),
         claude::ImageSource::Raw(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -102,6 +105,9 @@ pub(super) fn document_source_to_input_part(
             })
         }
         claude::DocumentSource::Raw(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -116,7 +122,13 @@ fn content_source_text(content: claude::ContentSourceContent) -> Option<String> 
             join_text(blocks.into_iter().filter_map(|block| match block {
                 claude::ContentSourceBlock::Text(block) => Some(block.text),
                 claude::ContentSourceBlock::Image(_) | claude::ContentSourceBlock::Raw(_) => None,
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             }))
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     };
     (!text.is_empty()).then_some(text)
@@ -128,12 +140,18 @@ fn image_media_type(media_type: claude::ImageMediaType) -> &'static str {
         claude::ImageMediaType::Png => "image/png",
         claude::ImageMediaType::Gif => "image/gif",
         claude::ImageMediaType::Webp => "image/webp",
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
 fn pdf_media_type(media_type: claude::PdfMediaType) -> &'static str {
     match media_type {
         claude::PdfMediaType::ApplicationPdf => "application/pdf",
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -159,23 +177,23 @@ pub(super) fn claude_usage_to_openai(usage: claude::Usage) -> openai::ResponseUs
         .map(|details| u64_to_u32(details.thinking_tokens))
         .unwrap_or_default();
 
-    openai::ResponseUsage {
+    crate::protocol::wire!(openai::ResponseUsage {
         input_tokens,
         output_tokens,
         total_tokens: input_tokens.saturating_add(output_tokens),
         input_tokens_details: (cached_tokens.is_some() || cache_write_tokens.is_some()).then(
-            || openai::ResponseInputTokensDetails {
+            || crate::protocol::wire!(openai::ResponseInputTokensDetails {
                 cache_write_tokens: cache_write_tokens.unwrap_or_default(),
                 cached_tokens: cached_tokens.unwrap_or_default(),
                 extra: Default::default(),
-            },
+            }),
         ),
-        output_tokens_details: openai::ResponseOutputTokensDetails {
+        output_tokens_details: crate::protocol::wire!(openai::ResponseOutputTokensDetails {
             reasoning_tokens,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(super) fn claude_system_to_text(system: claude::SystemPrompt) -> Option<String> {
@@ -184,6 +202,9 @@ pub(super) fn claude_system_to_text(system: claude::SystemPrompt) -> Option<Stri
         claude::SystemPrompt::Array(blocks) => {
             let text = join_text(blocks.into_iter().map(|block| block.text));
             (!text.is_empty()).then_some(text)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -197,6 +218,9 @@ pub(super) fn claude_service_tier_to_compact(
         }
         claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::StandardOnly)
         | claude::RequestServiceTier::Unknown(_) => openai::CompactServiceTier::Default,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(service_tier)
 }

@@ -5,7 +5,8 @@ use super::super::{
 };
 use super::content::{McpToolResultContent, ToolResultContent};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -19,12 +20,14 @@ pub struct ToolUseBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolUseBlockType {
     #[serde(rename = "tool_use")]
     ToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolResultBlock {
     pub tool_use_id: String,
     #[serde(rename = "type")]
@@ -38,12 +41,14 @@ pub struct ToolResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolResultBlockType {
     #[serde(rename = "tool_result")]
     ToolResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolReferenceBlock {
     pub tool_name: String,
     #[serde(rename = "type")]
@@ -53,12 +58,14 @@ pub struct ToolReferenceBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolReferenceBlockType {
     #[serde(rename = "tool_reference")]
     ToolReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ServerToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -72,12 +79,14 @@ pub struct ServerToolUseBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ServerToolUseBlockType {
     #[serde(rename = "server_tool_use")]
     ServerToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchToolResultBlock {
     pub content: WebSearchToolResultContent,
     pub tool_use_id: String,
@@ -90,12 +99,14 @@ pub struct WebSearchToolResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum WebSearchToolResultBlockType {
     #[serde(rename = "web_search_tool_result")]
     WebSearchToolResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct WebSearchResultBlock {
     pub encrypted_content: String,
     pub title: String,
@@ -107,12 +118,14 @@ pub struct WebSearchResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum WebSearchResultBlockType {
     #[serde(rename = "web_search_result")]
     WebSearchResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolUseBlock {
     pub id: String,
     pub input: JsonObject,
@@ -125,12 +138,14 @@ pub struct McpToolUseBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum McpToolUseBlockType {
     #[serde(rename = "mcp_tool_use")]
     McpToolUse,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct McpToolResultBlock {
     pub tool_use_id: String,
     #[serde(rename = "type")]
@@ -144,6 +159,7 @@ pub struct McpToolResultBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum McpToolResultBlockType {
     #[serde(rename = "mcp_tool_result")]
     McpToolResult,

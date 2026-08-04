@@ -1,7 +1,7 @@
 //! Custom (universal) channel — a generic passthrough to any OpenAI / Claude /
 //! Gemini-compatible endpoint. `base_url` or a matching exact endpoint is
 //! required because this channel has no baked default; the
-//! auth header is chosen by the inbound protocol (see [`auth`]).
+//! auth header is chosen by the inbound protocol (see the internal `auth` module).
 
 mod auth;
 
@@ -99,7 +99,7 @@ impl Channel for CustomChannel {
                 openai_cache::apply_magic_string_cache_breakpoints(value, kind)
             });
         }
-        if ctx.op.kind != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
+        if ctx.op.kind() != OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages)
             || (!settings.enable_claude_magic_cache && settings.claude_fable_fallbacks.is_none())
         {
             return body;

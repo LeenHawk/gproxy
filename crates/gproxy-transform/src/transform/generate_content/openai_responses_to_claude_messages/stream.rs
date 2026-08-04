@@ -23,6 +23,9 @@ impl StreamTransform {
         Ok(match input {
             openai::ResponseStreamEvent::Known(event) => known_event_to_claude(event),
             openai::ResponseStreamEvent::Unknown(_) => Vec::new(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
     }
 
@@ -98,11 +101,11 @@ fn known_event_to_claude(event: openai::KnownResponseStreamEvent) -> Vec<claude:
         } => done_input_to_claude(output_index, input),
         openai::KnownResponseStreamEvent::Error { code, message, .. } => {
             vec![known(claude::KnownStreamEvent::Error {
-                error: claude::StreamError {
+                error: crate::protocol::wire!(claude::StreamError {
                     type_: code,
                     message,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
             })]
         }
@@ -112,7 +115,7 @@ fn known_event_to_claude(event: openai::KnownResponseStreamEvent) -> Vec<claude:
 
 fn message_start_from_response(response: openai::ResponseObject) -> claude::StreamEvent {
     known(claude::KnownStreamEvent::MessageStart {
-        message: Box::new(claude::CreateMessageStartBody {
+        message: Box::new(crate::protocol::wire!(claude::CreateMessageStartBody {
             id: response.id,
             type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
             role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
@@ -126,27 +129,29 @@ fn message_start_from_response(response: openai::ResponseObject) -> claude::Stre
             stop_sequence: None,
             usage: response_usage_to_claude(response.usage),
             extra: Default::default(),
-        }),
+        })),
         extra: Default::default(),
     })
 }
 
 fn message_delta_from_response(response: openai::ResponseObject) -> claude::StreamEvent {
-    known(claude::KnownStreamEvent::MessageDelta {
-        context_management: None,
-        delta: Box::new(claude::MessageDelta {
-            container: None,
-            stop_reason: Some(response_stop_reason(&response)),
-            stop_sequence: None,
-            stop_details: None,
+    known(crate::protocol::wire!(
+        claude::KnownStreamEvent::MessageDelta {
+            context_management: None,
+            delta: Box::new(crate::protocol::wire!(claude::MessageDelta {
+                container: None,
+                stop_reason: Some(response_stop_reason(&response)),
+                stop_sequence: None,
+                stop_details: None,
+                extra: Default::default(),
+            })),
+            usage: response
+                .usage
+                .map(|usage| response_usage_to_claude(Some(usage)))
+                .map(Box::new),
             extra: Default::default(),
-        }),
-        usage: response
-            .usage
-            .map(|usage| response_usage_to_claude(Some(usage)))
-            .map(Box::new),
-        extra: Default::default(),
-    })
+        }
+    ))
 }
 
 fn output_item_added_to_claude(
@@ -168,7 +173,7 @@ fn output_item_added_to_claude(
         }) => {
             let mut events = vec![known(claude::KnownStreamEvent::ContentBlockStart {
                 index: u64::from(output_index),
-                content_block: Box::new(claude::ContentBlock::ToolUse(
+                content_block: Box::new(claude::ContentBlock::ToolUse(crate::protocol::wire!(
                     claude::ResponseToolUseBlock {
                         id: call_id,
                         input: Default::default(),
@@ -176,8 +181,8 @@ fn output_item_added_to_claude(
                         type_: claude::ToolUseBlockType::ToolUse,
                         caller: None,
                         extra: Default::default(),
-                    },
-                )),
+                    }
+                ))),
                 extra: Default::default(),
             })];
             if !arguments.is_empty() {
@@ -202,6 +207,9 @@ fn content_part_to_claude(index: u32, part: openai::ResponseContentPart) -> clau
         }
         openai::ResponseContentPart::ReasoningText { text, .. } => {
             content_delta(u64::from(index), thinking_delta(text))
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -246,6 +254,9 @@ fn incomplete_reason_to_claude(reason: &openai::IncompleteReason) -> claude::Sto
         }
         openai::IncompleteReason::ContentFilter => {
             claude::StopReason::Known(claude::StopReasonKnown::Refusal)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

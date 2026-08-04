@@ -28,11 +28,11 @@ pub(super) fn response_tools_for_chat(
                 user_location,
                 ..
             } => {
-                web_search_options = Some(openai::ChatWebSearchOptions {
+                web_search_options = Some(crate::protocol::wire!(openai::ChatWebSearchOptions {
                     search_context_size,
                     user_location: user_location.map(web_search_location_to_chat),
                     extra: Default::default(),
-                });
+                }));
             }
             openai::ResponseTool::WebSearchPreview {
                 search_context_size,
@@ -44,11 +44,11 @@ pub(super) fn response_tools_for_chat(
                 user_location,
                 ..
             } => {
-                web_search_options = Some(openai::ChatWebSearchOptions {
+                web_search_options = Some(crate::protocol::wire!(openai::ChatWebSearchOptions {
                     search_context_size,
                     user_location: user_location.map(web_search_preview_location_to_chat),
                     extra: Default::default(),
-                });
+                }));
             }
             tool => {
                 if let Some(tool) = response_tool_to_chat_tool(tool) {
@@ -72,20 +72,20 @@ pub(super) fn response_tool_choice_to_chat_tool_choice(
         openai::ResponseToolChoice::Function(choice) => {
             openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Function {
                 type_: openai::FunctionToolChoiceType::Function,
-                function: openai::NamedTool {
+                function: crate::protocol::wire!(openai::NamedTool {
                     name: choice.name,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
             })
         }
         openai::ResponseToolChoice::Custom(choice) => {
             openai::ChatToolChoice::Named(openai::ChatNamedToolChoice::Custom {
                 type_: openai::CustomToolChoiceType::Custom,
-                custom: openai::NamedTool {
+                custom: crate::protocol::wire!(openai::NamedTool {
                     name: choice.name,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
             })
         }
@@ -100,11 +100,11 @@ pub(super) fn function_call_to_chat_tool_call(
 ) -> openai::ChatToolCall {
     openai::ChatToolCall::Function {
         id: call_id,
-        function: openai::FunctionCall {
+        function: crate::protocol::wire!(openai::FunctionCall {
             arguments,
             name,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
     }
 }
@@ -116,11 +116,11 @@ pub(super) fn custom_call_to_chat_tool_call(
 ) -> openai::ChatToolCall {
     openai::ChatToolCall::Custom {
         id: call_id,
-        custom: openai::CustomToolCall {
+        custom: crate::protocol::wire!(openai::CustomToolCall {
             input,
             name,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
     }
 }
@@ -134,13 +134,13 @@ fn response_tool_to_chat_tool(tool: openai::ResponseTool) -> Option<openai::Chat
             description,
             ..
         } => Some(openai::ChatTool::Function {
-            function: openai::FunctionDefinition {
+            function: crate::protocol::wire!(openai::FunctionDefinition {
                 name,
                 description,
                 parameters: Some(parameters),
                 strict,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
         }),
         openai::ResponseTool::Custom {
@@ -149,12 +149,12 @@ fn response_tool_to_chat_tool(tool: openai::ResponseTool) -> Option<openai::Chat
             format,
             ..
         } => Some(openai::ChatTool::Custom {
-            custom: openai::CustomToolDefinition {
+            custom: crate::protocol::wire!(openai::CustomToolDefinition {
                 name,
                 description,
                 format,
                 extra: Default::default(),
-            },
+            }),
             extra: Default::default(),
         }),
         _ => None,
@@ -164,33 +164,33 @@ fn response_tool_to_chat_tool(tool: openai::ResponseTool) -> Option<openai::Chat
 fn web_search_location_to_chat(
     location: openai::WebSearchUserLocation,
 ) -> openai::ChatWebSearchUserLocation {
-    openai::ChatWebSearchUserLocation {
-        approximate: openai::ApproximateLocation {
+    crate::protocol::wire!(openai::ChatWebSearchUserLocation {
+        approximate: crate::protocol::wire!(openai::ApproximateLocation {
             city: location.city,
             country: location.country,
             region: location.region,
             timezone: location.timezone,
             extra: Default::default(),
-        },
+        }),
         type_: location
             .type_
             .unwrap_or(openai::ApproximateLocationType::Approximate),
         extra: Default::default(),
-    }
+    })
 }
 
 fn web_search_preview_location_to_chat(
     location: openai::WebSearchPreviewUserLocation,
 ) -> openai::ChatWebSearchUserLocation {
-    openai::ChatWebSearchUserLocation {
-        approximate: openai::ApproximateLocation {
+    crate::protocol::wire!(openai::ChatWebSearchUserLocation {
+        approximate: crate::protocol::wire!(openai::ApproximateLocation {
             city: location.city,
             country: location.country,
             region: location.region,
             timezone: location.timezone,
             extra: Default::default(),
-        },
+        }),
         type_: location.type_,
         extra: Default::default(),
-    }
+    })
 }

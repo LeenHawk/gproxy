@@ -21,10 +21,10 @@ fn converse_events_become_claude_sse() {
     }
     let mut decoder = ConverseStreamDecoder::new();
     let split = bytes.len() / 2;
-    let mut output = decoder.push(&bytes[..split]);
-    output.extend(decoder.push(&bytes[split..]));
-    output.extend(decoder.finish());
-    let frames = crate::pipeline::settle::frames::decode(&output);
+    let mut output = decoder.push(&bytes[..split]).unwrap();
+    output.extend(decoder.push(&bytes[split..]).unwrap());
+    output.extend(decoder.finish().unwrap());
+    let frames = crate::pipeline::settle::frames::decode(&output).unwrap();
     let usage = crate::usage::extract::from_stream_frames(
         crate::protocol::ContentGenerationKind::ClaudeMessages,
         &frames,
@@ -57,11 +57,15 @@ fn missing_metadata_does_not_claim_zero_upstream_usage() {
         ),
         ("messageStop", r#"{"stopReason":"end_turn"}"#),
     ] {
-        output.extend(decoder.push(&build_frame(kind, payload.as_bytes())));
+        output.extend(
+            decoder
+                .push(&build_frame(kind, payload.as_bytes()))
+                .unwrap(),
+        );
     }
-    output.extend(decoder.finish());
+    output.extend(decoder.finish().unwrap());
 
-    let frames = crate::pipeline::settle::frames::decode(&output);
+    let frames = crate::pipeline::settle::frames::decode(&output).unwrap();
     assert!(
         crate::usage::extract::from_stream_frames(
             crate::protocol::ContentGenerationKind::ClaudeMessages,
@@ -83,13 +87,17 @@ fn metadata_before_message_stop_is_deferred_and_preserved() {
         ),
         ("messageStop", r#"{"stopReason":"max_tokens"}"#),
     ] {
-        output.extend(decoder.push(&build_frame(kind, payload.as_bytes())));
+        output.extend(
+            decoder
+                .push(&build_frame(kind, payload.as_bytes()))
+                .unwrap(),
+        );
     }
-    output.extend(decoder.finish());
+    output.extend(decoder.finish().unwrap());
 
     let output_text = String::from_utf8(output.clone()).unwrap();
     assert!(output_text.contains(r#""stop_reason":"max_tokens""#));
-    let frames = crate::pipeline::settle::frames::decode(&output);
+    let frames = crate::pipeline::settle::frames::decode(&output).unwrap();
     let usage = crate::usage::extract::from_stream_frames(
         crate::protocol::ContentGenerationKind::ClaudeMessages,
         &frames,
@@ -108,7 +116,7 @@ fn exception_frame_becomes_claude_error() {
         ],
         br#"{"message":"slow down"}"#,
     );
-    let output = String::from_utf8(ConverseStreamDecoder::new().push(&frame)).unwrap();
+    let output = String::from_utf8(ConverseStreamDecoder::new().push(&frame).unwrap()).unwrap();
     assert!(output.contains("event: error"));
     assert!(output.contains("throttlingException"));
     assert!(output.contains("slow down"));
@@ -134,11 +142,26 @@ fn streamed_tool_input_is_emitted_complete() {
         ),
         ("contentBlockStop", r#"{"contentBlockIndex":0}"#),
     ] {
-        output.extend(decoder.push(&build_frame(kind, payload.as_bytes())));
+        output.extend(
+            decoder
+                .push(&build_frame(kind, payload.as_bytes()))
+                .unwrap(),
+        );
     }
     let output = String::from_utf8(output).unwrap();
     assert!(output.contains(r#""type":"tool_use""#));
     assert!(output.contains(r#""name":"get_weather""#));
     assert!(output.contains(r#""city":"Paris""#));
     assert!(!output.contains("input_json_delta"));
+}
+
+#[test]
+fn truncated_bedrock_frame_is_a_decode_error() {
+    let frame = build_frame("messageStart", br#"{"role":"assistant"}"#);
+    let mut decoder = ConverseStreamDecoder::new();
+    assert!(decoder.push(&frame[..frame.len() - 1]).unwrap().is_empty());
+    assert!(matches!(
+        decoder.finish(),
+        Err(crate::channel::transport::ClientError::Decode(_))
+    ));
 }

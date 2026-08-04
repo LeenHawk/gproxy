@@ -2,12 +2,28 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
+#[non_exhaustive]
 pub struct InferenceGeo(pub String);
+
+impl InferenceGeo {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
 
 macro_rules! extensible_string_enum {
     ($outer:ident, $known:ident { $($variant:ident => $wire:literal),+ $(,)? }) => {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
         #[serde(untagged)]
+        #[non_exhaustive]
         pub enum $outer {
             Known($known),
             Unknown(String),
@@ -23,6 +39,7 @@ macro_rules! extensible_string_enum {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+        #[non_exhaustive]
         pub enum $known {
             $(
                 #[serde(rename = $wire)]

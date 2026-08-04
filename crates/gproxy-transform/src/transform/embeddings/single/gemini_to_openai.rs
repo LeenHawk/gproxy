@@ -10,7 +10,7 @@ pub fn request(
     _: &TransformContext,
 ) -> Result<openai::EmbeddingRequest, TransformError> {
     let converted = common::gemini_request_parts(input);
-    Ok(openai::EmbeddingRequest {
+    Ok(crate::protocol::wire!(openai::EmbeddingRequest {
         input: openai::EmbeddingInput::Text(converted.text),
         model: converted
             .model
@@ -20,7 +20,7 @@ pub fn request(
         encoding_format: Some(openai::EmbeddingEncodingFormat::Float),
         user: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
@@ -28,11 +28,11 @@ pub fn response(
     ctx: &TransformContext,
 ) -> Result<openai::EmbeddingResponse, TransformError> {
     super::super::batch::gemini_to_openai::response(
-        gemini::BatchEmbedContentsResponse {
+        crate::protocol::wire!(gemini::BatchEmbedContentsResponse {
             embeddings: input.embedding.into_iter().collect(),
             usage_metadata: input.usage_metadata,
             extra: Default::default(),
-        },
+        }),
         ctx,
     )
 }

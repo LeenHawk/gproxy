@@ -9,6 +9,7 @@ use crate::protocol::claude::common::{
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum StreamEvent {
     Known(Box<KnownStreamEvent>),
     Unknown(TypedObject),
@@ -26,6 +27,7 @@ impl StreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownStreamEvent {
     #[serde(rename = "message_start")]
     MessageStart {
@@ -99,6 +101,7 @@ impl KnownStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum EventDelta {
     Known(Box<KnownEventDelta>),
     Unknown(TypedObject),
@@ -106,6 +109,7 @@ pub enum EventDelta {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownEventDelta {
     #[serde(rename = "text_delta")]
     Text {
@@ -148,7 +152,8 @@ pub enum KnownEventDelta {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct CreateMessageStartBody {
     pub id: String,
     #[serde(rename = "type")]
@@ -163,7 +168,8 @@ pub struct CreateMessageStartBody {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct MessageDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub container: Option<Container>,
@@ -177,7 +183,8 @@ pub struct MessageDelta {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct StreamError {
     #[serde(rename = "type")]
     pub type_: String,

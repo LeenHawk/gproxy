@@ -16,7 +16,7 @@ pub(in crate::transform::count_tokens) fn openai_tools_to_gemini(
                 parameters,
                 description,
                 ..
-            } => declarations.push(gemini::FunctionDeclaration {
+            } => declarations.push(crate::protocol::wire!(gemini::FunctionDeclaration {
                 name,
                 description: description.unwrap_or_default(),
                 behavior: None,
@@ -25,7 +25,7 @@ pub(in crate::transform::count_tokens) fn openai_tools_to_gemini(
                 response: None,
                 response_json_schema: None,
                 extra: Default::default(),
-            }),
+            })),
             openai::ResponseTool::Namespace { tools, .. } => {
                 declarations.extend(tools.into_iter().filter_map(openai_namespace_function));
             }
@@ -33,55 +33,59 @@ pub(in crate::transform::count_tokens) fn openai_tools_to_gemini(
                 vector_store_ids,
                 max_num_results,
                 ..
-            } => gemini_tools.push(gemini::Tool {
-                file_search: Some(gemini::FileSearch {
+            } => gemini_tools.push(crate::protocol::wire!(gemini::Tool {
+                file_search: Some(crate::protocol::wire!(gemini::FileSearch {
                     file_search_store_names: vector_store_ids,
                     metadata_filter: None,
                     top_k: max_num_results.map(u32_to_i32),
                     extra: Default::default(),
-                }),
+                })),
                 ..Default::default()
-            }),
+            })),
             openai::ResponseTool::WebSearch { .. }
             | openai::ResponseTool::WebSearch20250826 { .. }
             | openai::ResponseTool::WebSearchPreview { .. }
             | openai::ResponseTool::WebSearchPreview20250311 { .. } => {
-                gemini_tools.push(gemini::Tool {
+                gemini_tools.push(crate::protocol::wire!(gemini::Tool {
                     google_search: Some(gemini::GoogleSearch::default()),
                     ..Default::default()
-                });
+                }));
             }
-            openai::ResponseTool::CodeInterpreter { .. } => gemini_tools.push(gemini::Tool {
-                code_execution: Some(gemini::CodeExecution::default()),
-                ..Default::default()
-            }),
+            openai::ResponseTool::CodeInterpreter { .. } => {
+                gemini_tools.push(crate::protocol::wire!(gemini::Tool {
+                    code_execution: Some(gemini::CodeExecution::default()),
+                    ..Default::default()
+                }))
+            }
             openai::ResponseTool::Computer { .. }
-            | openai::ResponseTool::ComputerUsePreview { .. } => gemini_tools.push(gemini::Tool {
-                computer_use: Some(gemini::ComputerUse::default()),
-                ..Default::default()
-            }),
+            | openai::ResponseTool::ComputerUsePreview { .. } => {
+                gemini_tools.push(crate::protocol::wire!(gemini::Tool {
+                    computer_use: Some(gemini::ComputerUse::default()),
+                    ..Default::default()
+                }))
+            }
             openai::ResponseTool::Mcp {
                 server_label,
                 server_url,
                 headers,
                 ..
-            } => gemini_tools.push(gemini::Tool {
-                mcp_servers: vec![gemini::McpServer {
+            } => gemini_tools.push(crate::protocol::wire!(gemini::Tool {
+                mcp_servers: vec![crate::protocol::wire!(gemini::McpServer {
                     name: Some(server_label),
                     streamable_http_transport: server_url.map(|url| {
-                        gemini::StreamableHttpTransport {
+                        crate::protocol::wire!(gemini::StreamableHttpTransport {
                             url: Some(url),
                             headers: headers.unwrap_or_default(),
                             timeout: None,
                             sse_read_timeout: None,
                             terminate_on_close: None,
                             extra: Default::default(),
-                        }
+                        })
                     }),
                     extra: Default::default(),
-                }],
+                })],
                 ..Default::default()
-            }),
+            })),
             _ => {}
         }
     }
@@ -89,10 +93,10 @@ pub(in crate::transform::count_tokens) fn openai_tools_to_gemini(
     if !declarations.is_empty() {
         gemini_tools.insert(
             0,
-            gemini::Tool {
+            crate::protocol::wire!(gemini::Tool {
                 function_declarations: declarations,
                 ..Default::default()
-            },
+            }),
         );
     }
 
@@ -108,7 +112,7 @@ fn openai_namespace_function(
             description,
             parameters,
             ..
-        } => Some(gemini::FunctionDeclaration {
+        } => Some(crate::protocol::wire!(gemini::FunctionDeclaration {
             name,
             description: description.unwrap_or_default(),
             behavior: None,
@@ -117,7 +121,7 @@ fn openai_namespace_function(
             response: None,
             response_json_schema: None,
             extra: Default::default(),
-        }),
+        })),
         _ => None,
     }
 }

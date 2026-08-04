@@ -81,6 +81,7 @@ strict_string_enum!(SearchContextSize {
 });
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ApproximateLocationType {
     #[serde(rename = "approximate")]
     Approximate,

@@ -11,6 +11,9 @@ pub(in crate::transform::count_tokens) fn claude_service_tier_to_gemini(
             gemini::ServiceTierKnown::Standard
         }
         claude::RequestServiceTier::Unknown(_) => gemini::ServiceTierKnown::Standard,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(gemini::ServiceTier::Known(tier))
 }
@@ -28,6 +31,9 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_gemini(
             gemini::ServiceTierKnown::Priority
         }
         openai::ServiceTier::Scale => gemini::ServiceTierKnown::Standard,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(gemini::ServiceTier::Known(tier))
 }
@@ -45,6 +51,9 @@ pub(in crate::transform::count_tokens) fn gemini_service_tier_to_claude(
             claude::RequestServiceTierKnown::Auto
         }
         gemini::ServiceTier::Unknown(_) => claude::RequestServiceTierKnown::StandardOnly,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(claude::RequestServiceTier::Known(service_tier))
 }
@@ -61,6 +70,9 @@ pub(in crate::transform::count_tokens) fn openai_service_tier_to_claude(
         | openai::ServiceTier::Flex
         | openai::ServiceTier::Scale
         | openai::ServiceTier::Priority => claude::RequestServiceTierKnown::Auto,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(claude::RequestServiceTier::Known(service_tier))
 }
@@ -76,6 +88,9 @@ pub(in crate::transform::count_tokens) fn gemini_service_tier_to_openai(
         gemini::ServiceTier::Known(gemini::ServiceTierKnown::Standard)
         | gemini::ServiceTier::Known(gemini::ServiceTierKnown::Unspecified)
         | gemini::ServiceTier::Unknown(_) => openai::ServiceTier::Default,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(service_tier)
 }
@@ -89,6 +104,9 @@ pub(in crate::transform::count_tokens) fn claude_service_tier_to_openai(
         }
         claude::RequestServiceTier::Known(claude::RequestServiceTierKnown::StandardOnly)
         | claude::RequestServiceTier::Unknown(_) => openai::ServiceTier::Default,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     Some(service_tier)
 }

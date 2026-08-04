@@ -28,7 +28,7 @@ pub fn request(
         .as_ref()
         .and_then(gemini_response_format_to_chat);
 
-    Ok(openai::ChatCompletionRequest {
+    Ok(crate::protocol::wire!(openai::ChatCompletionRequest {
         messages,
         model: input
             .model
@@ -98,7 +98,7 @@ pub fn request(
         verbosity: None,
         web_search_options: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn gemini_response_format_to_chat(
@@ -106,17 +106,17 @@ fn gemini_response_format_to_chat(
 ) -> Option<openai::ChatResponseFormat> {
     if let Some(schema) = config.response_json_schema.clone() {
         return Some(openai::ChatResponseFormat::ChatJsonSchema(
-            openai::ChatJsonSchemaFormat {
+            crate::protocol::wire!(openai::ChatJsonSchemaFormat {
                 type_: openai::JsonSchemaResponseFormatType::JsonSchema,
-                json_schema: openai::JsonSchemaFormat {
+                json_schema: crate::protocol::wire!(openai::JsonSchemaFormat {
                     name: "response".to_owned(),
                     description: None,
                     schema: value_to_json_schema(schema),
                     strict: None,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
-            },
+            }),
         ));
     }
     common::gemini_response_mime_to_chat(Some(config))

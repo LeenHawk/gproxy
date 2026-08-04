@@ -7,7 +7,8 @@ use super::response_items::ResponseOutputItem;
 use super::response_tools::ResponseTool;
 use super::responses::{ResponseConversationParam, ResponseInput};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ContextManagement {
     #[serde(rename = "type")]
     pub type_: ContextManagementType,
@@ -17,7 +18,8 @@ pub struct ContextManagement {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PromptRef {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -32,6 +34,7 @@ pub type PromptVariables = BTreeMap<String, PromptVariableValue>;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum PromptVariableValue {
     Text(String),
     InputContent(PromptVariableInputContentPart),
@@ -39,6 +42,7 @@ pub enum PromptVariableValue {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum PromptVariableInputContentPart {
     #[serde(rename = "input_text")]
     InputText {
@@ -80,7 +84,8 @@ pub enum PromptVariableInputContentPart {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ReasoningConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<ReasoningContext>,
@@ -96,7 +101,8 @@ pub struct ReasoningConfig {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct TextConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<ResponseFormat>,
@@ -106,7 +112,8 @@ pub struct TextConfig {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseStreamOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_obfuscation: Option<bool>,
@@ -114,7 +121,8 @@ pub struct ResponseStreamOptions {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseObject {
     pub id: String,
     pub created_at: u64,
@@ -190,7 +198,8 @@ pub struct ResponseObject {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseError {
     pub code: ResponseErrorCode,
     pub message: String,
@@ -198,7 +207,8 @@ pub struct ResponseError {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseModeration {
     pub input: ResponseModerationOutcome,
     pub output: ResponseModerationOutcome,
@@ -208,12 +218,14 @@ pub struct ResponseModeration {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseModerationOutcome {
     Result(ModerationResult),
     Error(ModerationError),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct IncompleteDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<IncompleteReason>,
@@ -221,7 +233,8 @@ pub struct IncompleteDetails {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseUsage {
     pub input_tokens: u32,
     pub output_tokens: u32,
@@ -233,7 +246,8 @@ pub struct ResponseUsage {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseInputTokensDetails {
     #[serde(default)]
     pub cache_write_tokens: u32,
@@ -243,7 +257,8 @@ pub struct ResponseInputTokensDetails {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ResponseOutputTokensDetails {
     pub reasoning_tokens: u32,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]

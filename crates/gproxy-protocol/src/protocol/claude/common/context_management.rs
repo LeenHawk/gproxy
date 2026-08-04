@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{BoolOrStringArray, JsonObject, TypedObject};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ContextManagementConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub edits: Option<Vec<ContextEdit>>,
@@ -14,6 +15,7 @@ pub struct ContextManagementConfig {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ContextEdit {
     Known(KnownContextEdit),
     Unknown(TypedObject),
@@ -21,6 +23,7 @@ pub enum ContextEdit {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownContextEdit {
     #[serde(rename = "clear_tool_uses_20250919")]
     ClearToolUses {
@@ -57,7 +60,8 @@ pub enum KnownContextEdit {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct InputTokensValue {
     #[serde(rename = "type")]
     pub type_: InputTokensValueType,
@@ -65,12 +69,14 @@ pub struct InputTokensValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum InputTokensValueType {
     #[serde(rename = "input_tokens")]
     InputTokens,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ToolUsesValue {
     #[serde(rename = "type")]
     pub type_: ToolUsesValueType,
@@ -78,6 +84,7 @@ pub struct ToolUsesValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ToolUsesValueType {
     #[serde(rename = "tool_uses")]
     ToolUses,
@@ -85,6 +92,7 @@ pub enum ToolUsesValueType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ContextTrigger {
     InputTokens(InputTokensValue),
     ToolUses(ToolUsesValue),
@@ -92,6 +100,7 @@ pub enum ContextTrigger {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ThinkingKeep {
     Object(ThinkingKeepObject),
     All(ThinkingAllValue),
@@ -99,6 +108,7 @@ pub enum ThinkingKeep {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ThinkingKeepObject {
     #[serde(rename = "thinking_turns")]
     ThinkingTurns { value: u64 },
@@ -107,12 +117,14 @@ pub enum ThinkingKeepObject {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ThinkingAllValue {
     #[serde(rename = "all")]
     All,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ContextManagementResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub applied_edits: Option<Vec<AppliedContextEdit>>,
@@ -122,6 +134,7 @@ pub struct ContextManagementResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum AppliedContextEdit {
     Known(KnownAppliedContextEdit),
     Unknown(TypedObject),
@@ -129,6 +142,7 @@ pub enum AppliedContextEdit {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum KnownAppliedContextEdit {
     #[serde(rename = "clear_tool_uses_20250919")]
     ClearToolUses {

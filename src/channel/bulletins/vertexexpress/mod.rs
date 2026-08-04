@@ -22,7 +22,7 @@ const DEFAULTS: ApiKeyDefaults = ApiKeyDefaults {
 /// VertexExpress normalizes; everything else passes through untouched).
 fn is_gemini_content(ctx: &ShapeCtx) -> bool {
     matches!(
-        ctx.op.kind,
+        ctx.op.kind(),
         OperationKind::ContentGeneration(ContentGenerationKind::GeminiGenerateContent)
     )
 }

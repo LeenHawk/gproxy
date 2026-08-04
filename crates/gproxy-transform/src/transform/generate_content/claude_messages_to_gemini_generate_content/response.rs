@@ -8,8 +8,8 @@ pub fn response(
     input: claude::CreateMessageResponseBody,
     _: &TransformContext,
 ) -> Result<gemini::GenerateContentResponse, TransformError> {
-    Ok(gemini::GenerateContentResponse {
-        candidates: vec![gemini::Candidate {
+    Ok(crate::protocol::wire!(gemini::GenerateContentResponse {
+        candidates: vec![crate::protocol::wire!(gemini::Candidate {
             content: Some(claude_response_blocks_to_gemini_content(input.content)),
             finish_reason: Some(claude_stop_reason_to_gemini(input.stop_reason)),
             safety_ratings: Vec::new(),
@@ -22,14 +22,14 @@ pub fn response(
             index: Some(0),
             finish_message: input.stop_sequence,
             extra: Default::default(),
-        }],
+        })],
         prompt_feedback: None,
         usage_metadata: Some(claude_usage_to_gemini(input.usage)),
         model_version: Some(common::claude_model_string(input.model)),
         response_id: Some(input.id),
         model_status: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 fn claude_stop_reason_to_gemini(reason: claude::StopReason) -> gemini::FinishReason {
@@ -46,6 +46,9 @@ fn claude_stop_reason_to_gemini(reason: claude::StopReason) -> gemini::FinishRea
         }
         claude::StopReason::Known(_) | claude::StopReason::Unknown(_) => {
             gemini::FinishReasonKnown::Stop
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     };
     gemini::FinishReason::Known(known)
@@ -75,7 +78,7 @@ fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
         .unwrap_or_default()
         .saturating_add(output.unwrap_or_default());
 
-    gemini::UsageMetadata {
+    crate::protocol::wire!(gemini::UsageMetadata {
         prompt_token_count: prompt,
         cached_content_token_count: cached,
         candidates_token_count: candidates,
@@ -88,7 +91,7 @@ fn claude_usage_to_gemini(usage: claude::Usage) -> gemini::UsageMetadata {
         tool_use_prompt_tokens_details: Vec::new(),
         service_tier: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn u64_to_i32(value: u64) -> i32 {
@@ -101,23 +104,23 @@ mod tests {
 
     #[test]
     fn usage_does_not_duplicate_thinking_in_candidates() {
-        let usage = claude_usage_to_gemini(claude::Usage {
+        let usage = claude_usage_to_gemini(crate::protocol::wire!(claude::Usage {
             input_tokens: Some(40),
             output_tokens: Some(25),
             cache_creation_input_tokens: Some(10),
             cache_read_input_tokens: Some(60),
             cache_creation: None,
-            output_tokens_details: Some(claude::OutputTokensDetails {
+            output_tokens_details: Some(crate::protocol::wire!(claude::OutputTokensDetails {
                 thinking_tokens: 5,
                 extra: Default::default(),
-            }),
+            })),
             server_tool_use: None,
             iterations: None,
             inference_geo: None,
             service_tier: None,
             speed: None,
             extra: Default::default(),
-        });
+        }));
         assert_eq!(usage.prompt_token_count, Some(110));
         assert_eq!(usage.cached_content_token_count, Some(60));
         assert_eq!(usage.candidates_token_count, Some(20));

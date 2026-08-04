@@ -16,25 +16,25 @@ pub(in crate::transform::count_tokens) fn gemini_generation_to_claude_output_con
         .as_ref()
         .and_then(gemini_thinking_to_claude_output_effort);
     let format = gemini_generation_to_claude_output_format(Some(config));
-    let task_budget = config
-        .max_output_tokens
-        .map(|total| claude::TokenTaskBudget {
+    let task_budget = config.max_output_tokens.map(|total| {
+        crate::protocol::wire!(claude::TokenTaskBudget {
             total: i32_to_u64(total),
             type_: claude::TaskBudgetType::Known(claude::TaskBudgetTypeKnown::Tokens),
             remaining: None,
             extra: Default::default(),
-        });
+        })
+    });
 
     if effort.is_none() && format.is_none() && task_budget.is_none() {
         return None;
     }
 
-    Some(claude::OutputConfig {
+    Some(crate::protocol::wire!(claude::OutputConfig {
         effort,
         format,
         task_budget,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::count_tokens) fn openai_generation_to_claude_output_config(
@@ -52,10 +52,10 @@ pub(in crate::transform::count_tokens) fn openai_generation_to_claude_output_con
         return None;
     }
 
-    Some(claude::OutputConfig {
+    Some(crate::protocol::wire!(claude::OutputConfig {
         effort,
         format,
         task_budget: None,
         extra: Default::default(),
-    })
+    }))
 }

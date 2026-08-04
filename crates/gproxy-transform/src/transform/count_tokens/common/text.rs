@@ -11,6 +11,9 @@ pub(in crate::transform::count_tokens) fn openai_input_to_text(
             .collect::<Vec<_>>()
             .join("\n"),
         None => String::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -26,6 +29,9 @@ fn openai_item_text(item: openai::ResponseItem) -> String {
             response_output_parts_text(message.content)
         }
         openai::ResponseItem::Typed(_) | openai::ResponseItem::Unknown(_) => String::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -34,6 +40,9 @@ fn openai_easy_content_text(content: openai::ResponseEasyInputContent) -> String
         openai::ResponseEasyInputContent::Text(text) => text,
         openai::ResponseEasyInputContent::Parts(parts) => response_input_parts_text(parts),
         openai::ResponseEasyInputContent::OutputParts(parts) => response_output_parts_text(parts),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -43,6 +52,9 @@ fn response_output_parts_text(parts: Vec<openai::ResponseMessageOutputContentPar
         .map(|part| match part {
             openai::ResponseMessageOutputContentPart::OutputText { text, .. } => text,
             openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => refusal,
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         })
         .collect::<Vec<_>>()
         .join("")
@@ -90,6 +102,9 @@ fn claude_message_text(message: claude::MessageParam) -> String {
             })
             .collect::<Vec<_>>()
             .join(""),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -99,11 +114,11 @@ pub(in crate::transform::count_tokens) fn text_to_claude_messages(
     if text.is_empty() {
         return Vec::new();
     }
-    vec![claude::MessageParam {
+    vec![crate::protocol::wire!(claude::MessageParam {
         role: claude::MessageRole::Known(claude::MessageRoleKnown::User),
         content: claude::StringOrArray::String(text),
         extra: Default::default(),
-    }]
+    })]
 }
 
 pub(in crate::transform::count_tokens) fn claude_system_to_text(
@@ -119,6 +134,9 @@ pub(in crate::transform::count_tokens) fn claude_system_to_text(
                 .collect::<Vec<_>>()
                 .join("");
             if text.is_empty() { None } else { Some(text) }
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }
@@ -168,8 +186,8 @@ pub(in crate::transform::count_tokens) fn text_to_gemini_content(
     text: String,
     role: Option<gemini::ContentRole>,
 ) -> gemini::Content {
-    gemini::Content {
-        parts: vec![gemini::Part {
+    crate::protocol::wire!(gemini::Content {
+        parts: vec![crate::protocol::wire!(gemini::Part {
             thought: None,
             thought_signature: None,
             part_metadata: None,
@@ -177,8 +195,8 @@ pub(in crate::transform::count_tokens) fn text_to_gemini_content(
             data: Some(gemini::PartData::Text { text }),
             metadata: None,
             extra: Default::default(),
-        }],
+        })],
         role,
         extra: Default::default(),
-    }
+    })
 }

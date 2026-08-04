@@ -11,20 +11,23 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
     use Operation as O;
     use Provider as P;
 
-    if let OperationKind::ContentGeneration(kind) = op.kind {
+    if let OperationKind::ContentGeneration(kind) = op.kind() {
         return match kind {
             C::OpenAiChatCompletions => "openai_chat_completions",
             C::OpenAiResponses | C::OpenAiResponsesWebSocket => "openai_responses",
             C::ClaudeMessages => "claude_messages",
             C::GeminiGenerateContent if stream => "gemini_stream_generate_content",
             C::GeminiGenerateContent => "gemini_generate_content",
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         };
     }
 
-    let OperationKind::Provider(provider) = op.kind else {
+    let OperationKind::Provider(provider) = op.kind() else {
         unreachable!("content generation handled above")
     };
-    match (op.operation, provider) {
+    match (op.operation(), provider) {
         (O::ListModels, P::OpenAi) => "openai_list_models",
         (O::ListModels, P::Claude) => "claude_list_models",
         (O::ListModels, P::Gemini) => "gemini_list_models",
@@ -43,6 +46,9 @@ pub fn endpoint_key(op: OperationKey, stream: bool) -> &'static str {
         (O::ConnectRealtime, _) => "openai_realtime",
         (O::GenerateContent | O::StreamGenerateContent, _) => {
             unreachable!("content operations must carry a content kind")
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

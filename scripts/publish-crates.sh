@@ -20,9 +20,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# Dependency order: channel-api depends on protocol + transform. `cargo publish`
-# accepts the whole set in one invocation and handles index propagation itself.
-CRATES=(gproxy-protocol gproxy-transform gproxy-channel-api gproxy-tokenize)
+# Dependency order: protocol depends on its proc-macro helper; channel-api then
+# depends on protocol + transform. `cargo publish` accepts the whole set in one
+# invocation and handles index propagation itself.
+CRATES=(gproxy-protocol-macros gproxy-protocol gproxy-transform gproxy-channel-api gproxy-tokenize)
 
 DRY=0
 [ "${1:-}" = "--dry-run" ] && DRY=1
@@ -88,7 +89,7 @@ fi
 # dependencies against the crates it is publishing in the same run, so
 # dependent crates verify without their prerequisites being on the index yet.
 cmd=(cargo publish --locked "${pending[@]}")
-[ "$DRY" = 1 ] && cmd+=(--dry-run)
+[ "$DRY" = 1 ] && cmd+=(--dry-run --allow-dirty)
 
 echo "+ ${cmd[*]}"
 "${cmd[@]}"

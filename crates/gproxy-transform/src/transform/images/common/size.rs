@@ -39,6 +39,9 @@ pub(in crate::transform::images) fn create_size_to_shape(
             Some(gemini::ImageSizeKnown::Size1K),
         )),
         openai::ImageSize::Unknown(value) => dimensions_to_shape(&value),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -59,6 +62,9 @@ pub(in crate::transform::images) fn edit_size_to_shape(
             gemini::ImageAspectRatioKnown::TwoToThree,
             Some(gemini::ImageSizeKnown::Size1K),
         )),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -203,6 +209,9 @@ fn should_format_non_standard_size(
         | (_, gemini::ImageSize::Known(gemini::ImageSizeKnown::Size2K))
         | (_, gemini::ImageSize::Known(gemini::ImageSizeKnown::Size4K))
         | (_, gemini::ImageSize::Unknown(_)) => true,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -247,6 +256,9 @@ fn aspect_ratio_components(aspect_ratio: &gemini::ImageAspectRatio) -> Option<(u
             let (width, height) = value.split_once(':')?;
             return Some((width.parse().ok()?, height.parse().ok()?));
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
 
     Some(match known {
@@ -264,6 +276,9 @@ fn aspect_ratio_components(aspect_ratio: &gemini::ImageAspectRatio) -> Option<(u
         gemini::ImageAspectRatioKnown::NineToSixteen => (9, 16),
         gemini::ImageAspectRatioKnown::SixteenToNine => (16, 9),
         gemini::ImageAspectRatioKnown::TwentyOneToNine => (21, 9),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
@@ -276,6 +291,9 @@ fn image_size_dimension(image_size: &gemini::ImageSize) -> Option<u32> {
         gemini::ImageSize::Unknown(value) => {
             let value = value.strip_suffix('K')?;
             Some(value.parse::<u32>().ok()? * 1024)
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

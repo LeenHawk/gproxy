@@ -17,7 +17,7 @@ and `http` — nothing else, and it builds for `wasm32`.
 
 ```toml
 [dependencies]
-gproxy-protocol = "2"
+gproxy-protocol = "=2.3.0"
 ```
 
 ```rust
@@ -30,7 +30,7 @@ let key = OperationKey::content_generation(
     ContentGenerationKind::ClaudeMessages,
 );
 
-assert_eq!(key.kind.provider(), Provider::Claude);
+assert_eq!(key.kind().provider(), Provider::Claude);
 
 // Method + path for this operation against the target provider.
 let target = request_target(key, "claude-sonnet-4-5", true)?;
@@ -53,9 +53,16 @@ in [`gproxy-transform`](https://crates.io/crates/gproxy-transform).
 ## Compatibility
 
 The crate version tracks the GPROXY release it ships with, so a minor bump can
-carry additive wire-type changes. Lockstep GPROXY crates use exact dependency
-versions; downstreams should do the same when exhaustive enum matching or
-struct literals make additive changes source-incompatible.
+carry additive wire-type changes. Public wire structs and enums are
+`#[non_exhaustive]`: construct named structs through their generated
+`Type::builder()` or the `gproxy_protocol::wire!` helper, and include a wildcard
+arm when matching enums. Lockstep GPROXY crates use exact dependency versions;
+downstreams that combine protocol and transform should pin the same exact
+version as well.
+
+`OperationKey` protects the operation/kind invariant. Its fields are private;
+read them with `operation()` / `kind()` and construct keys with
+`content_generation`, `provider`, or checked `try_new`.
 
 `request_target` accepts a raw model id, encodes it as one path/query component,
 and returns a structured error for inconsistent or unsupported combinations.

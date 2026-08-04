@@ -7,7 +7,8 @@ use crate::protocol::operation::{
 };
 
 /// Provider-relative request target for a wired operation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct RequestTarget {
     pub method: HttpMethod,
     pub path: String,
@@ -34,6 +35,7 @@ impl RequestTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EndpointError {
     InconsistentOperationKey(OperationKey),
     StreamMismatch {
@@ -92,34 +94,34 @@ pub fn request_target(
         return Err(EndpointError::InconsistentOperationKey(target));
     }
     use Provider as P;
-    let provider = match target.kind {
+    let provider = match target.kind() {
         OperationKind::ContentGeneration(kind) => {
-            let operation_streams = target.operation == Operation::StreamGenerateContent;
+            let operation_streams = target.operation() == Operation::StreamGenerateContent;
             if operation_streams != stream {
                 return Err(EndpointError::StreamMismatch {
-                    operation: target.operation,
+                    operation: target.operation(),
                     stream,
                 });
             }
-            return content_target(target.operation, kind, model, stream);
+            return content_target(target.operation(), kind, model, stream);
         }
         OperationKind::Provider(provider) => provider,
     };
-    let request_target = match (target.operation, provider) {
+    let request_target = match (target.operation(), provider) {
         (Operation::ListModels, P::OpenAi | P::Claude) => RequestTarget::get("/v1/models"),
         (Operation::ListModels, P::Gemini) => RequestTarget::get("/v1beta/models"),
         (Operation::GetModel, P::OpenAi | P::Claude) => {
-            require_model(target.operation, provider, model)?;
+            require_model(target.operation(), provider, model)?;
             RequestTarget::get(format!("/v1/models/{}", encode_component(model)))
         }
         (Operation::GetModel, P::Gemini) => {
-            require_model(target.operation, provider, model)?;
+            require_model(target.operation(), provider, model)?;
             RequestTarget::get(format!("/v1beta/models/{}", encode_component(model)))
         }
         (Operation::CountTokens, P::OpenAi) => RequestTarget::post("/v1/responses/input_tokens"),
         (Operation::CountTokens, P::Claude) => RequestTarget::post("/v1/messages/count_tokens"),
         (Operation::CountTokens, P::Gemini) => {
-            require_model(target.operation, provider, model)?;
+            require_model(target.operation(), provider, model)?;
             RequestTarget::post(format!(
                 "/v1beta/models/{}:countTokens",
                 encode_component(model)
@@ -128,7 +130,7 @@ pub fn request_target(
         (Operation::CreateEmbedding, P::OpenAi) => RequestTarget::post("/v1/embeddings"),
         // single-embed form; batch (`:batchEmbedContents`) is a separate op
         (Operation::CreateEmbedding, P::Gemini) => {
-            require_model(target.operation, provider, model)?;
+            require_model(target.operation(), provider, model)?;
             RequestTarget::post(format!(
                 "/v1beta/models/{}:embedContent",
                 encode_component(model)
@@ -139,7 +141,7 @@ pub fn request_target(
         (Operation::CompactContent, P::OpenAi) => RequestTarget::post("/v1/responses/compact"),
         (Operation::CreateConversation, P::OpenAi) => RequestTarget::post("/v1/conversations"),
         (Operation::ConnectRealtime, P::OpenAi) => {
-            require_model(target.operation, provider, model)?;
+            require_model(target.operation(), provider, model)?;
             RequestTarget {
                 method: HttpMethod::Get,
                 path: "/v1/realtime".to_owned(),
@@ -280,10 +282,10 @@ mod tests {
 
     #[test]
     fn rejects_inconsistent_keys_and_stream_flags() {
-        let inconsistent = OperationKey {
-            operation: Operation::GenerateContent,
-            kind: OperationKind::Provider(Provider::OpenAi),
-        };
+        let inconsistent = OperationKey::new_unchecked(
+            Operation::GenerateContent,
+            OperationKind::Provider(Provider::OpenAi),
+        );
         assert!(matches!(
             request_target(inconsistent, "model", false),
             Err(EndpointError::InconsistentOperationKey(_))

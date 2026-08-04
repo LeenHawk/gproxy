@@ -14,7 +14,7 @@ use crate::http::client::UpstreamClient;
 use crate::protocol::{
     ContentGenerationKind as Kind, Operation, OperationKey, OperationKind, Provider,
 };
-use crate::transform::routing::RoutingDecision;
+use crate::routing::RoutingDecision;
 
 struct NoopUpstream;
 
@@ -49,7 +49,7 @@ fn route(operation: Operation, kind: Kind) -> RoutingDecision {
         .routing_table()
         .into_iter()
         .find(|(source, _)| {
-            source.operation == operation && source.kind == crate::channel::routes::cg(kind)
+            source.operation() == operation && source.kind() == crate::channel::routes::cg(kind)
         })
         .map(|(_, decision)| decision)
         .expect("missing route")
@@ -60,7 +60,7 @@ fn provider_route(operation: Operation, provider: Provider) -> RoutingDecision {
         .routing_table()
         .into_iter()
         .find(|(source, _)| {
-            source.operation == operation && source.kind == crate::channel::routes::pv(provider)
+            source.operation() == operation && source.kind() == crate::channel::routes::pv(provider)
         })
         .map(|(_, decision)| decision)
         .expect("missing route")
@@ -93,11 +93,12 @@ fn stream_decoder_backfills_function_call_in_completed_output() {
     );
 
     let mut decoder = CodexChannel.stream_decoder().expect("codex normalizer");
-    let mut normalized = decoder.push(upstream.as_bytes());
-    normalized.extend(decoder.finish());
+    let mut normalized = decoder.push(upstream.as_bytes()).unwrap();
+    normalized.extend(decoder.finish().unwrap());
     let mut sse = crate::transform::common::sse::SseDecoder::new();
     let completed: Value = sse
         .push(&normalized)
+        .unwrap()
         .into_iter()
         .find(|frame| frame.event.as_deref() == Some("response.completed"))
         .map(|frame| serde_json::from_str(&frame.data).unwrap())
@@ -174,9 +175,9 @@ fn content_defaults_target_streaming_responses_except_websocket_source() {
         let RoutingDecision::TransformTo(target) = route(operation, kind) else {
             panic!("route should transform to streaming responses");
         };
-        assert_eq!(target.operation, Operation::StreamGenerateContent);
+        assert_eq!(target.operation(), Operation::StreamGenerateContent);
         assert_eq!(
-            target.kind,
+            target.kind(),
             OperationKind::ContentGeneration(Kind::OpenAiResponses)
         );
     }
@@ -196,9 +197,9 @@ fn content_defaults_target_streaming_responses_except_websocket_source() {
     else {
         panic!("websocket source should transform to streaming websocket");
     };
-    assert_eq!(target.operation, Operation::StreamGenerateContent);
+    assert_eq!(target.operation(), Operation::StreamGenerateContent);
     assert_eq!(
-        target.kind,
+        target.kind(),
         OperationKind::ContentGeneration(Kind::OpenAiResponsesWebSocket)
     );
 }

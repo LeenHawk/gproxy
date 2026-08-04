@@ -28,10 +28,10 @@ pub struct TransportOptions {
 /// Synchronous decoder for a chunked upstream byte stream.
 pub trait ByteStreamDecoder: Send {
     /// Feed one raw upstream chunk and return any decoded bytes.
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8>;
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, ClientError>;
 
     /// Flush trailing buffered state at end of stream.
-    fn finish(&mut self) -> Vec<u8>;
+    fn finish(&mut self) -> Result<Vec<u8>, ClientError>;
 }
 
 /// Transport-level error from the upstream client.
@@ -43,6 +43,9 @@ pub enum ClientError {
     /// instead of silently downgrading proxy or TLS policy.
     #[error("upstream client config error: {0}")]
     Config(String),
+    /// A channel decoder rejected malformed, truncated, or oversized bytes.
+    #[error("upstream stream decode failed: {0}")]
+    Decode(String),
 }
 
 /// Streaming response body. Native streams are `Send`; wasm streams stay local

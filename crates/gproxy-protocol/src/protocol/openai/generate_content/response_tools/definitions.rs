@@ -8,6 +8,7 @@ use super::super::response_tools::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseTool {
     #[serde(rename = "function")]
     Function {
@@ -234,6 +235,7 @@ pub enum ResponseTool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum ResponseNamespaceTool {
     #[serde(rename = "function")]
     Function {

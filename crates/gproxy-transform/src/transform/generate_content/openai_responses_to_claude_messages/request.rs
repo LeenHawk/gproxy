@@ -14,32 +14,30 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::protocol::{
-        ContentGenerationKind, Operation, OperationKey, OperationKind, claude, openai,
-    };
+    use crate::protocol::{ContentGenerationKind, Operation, OperationKey, claude, openai};
 
     fn ctx() -> TransformContext {
         TransformContext::new(
-            OperationKey {
-                operation: Operation::GenerateContent,
-                kind: OperationKind::ContentGeneration(ContentGenerationKind::OpenAiResponses),
-            },
-            OperationKey {
-                operation: Operation::GenerateContent,
-                kind: OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages),
-            },
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::OpenAiResponses,
+            ),
+            OperationKey::content_generation(
+                Operation::GenerateContent,
+                ContentGenerationKind::ClaudeMessages,
+            ),
         )
     }
 
     #[test]
     fn explicit_responses_cache_keeps_final_four_breakpoints_for_claude() {
-        let input = openai::ResponseCreateRequest {
+        let input = crate::protocol::wire!(openai::ResponseCreateRequest {
             model: Some(openai::OpenAiModelId::Unknown("claude-sonnet-4-6".to_owned())),
-            prompt_cache_options: Some(openai::PromptCacheOptions {
+            prompt_cache_options: Some(crate::protocol::wire!(openai::PromptCacheOptions {
                 mode: Some(openai::PromptCacheMode::Explicit),
                 ttl: Some(openai::PromptCacheTtl::ThirtyMinutes),
                 extra: Default::default(),
-            }),
+            })),
             input: Some(serde_json::from_value(json!([
                 {"type": "message", "role": "user", "content": [
                     {"type": "input_text", "text": "1", "prompt_cache_breakpoint": {"mode": "explicit"}},
@@ -50,7 +48,7 @@ mod tests {
                 ]}
             ])).unwrap()),
             ..Default::default()
-        };
+        });
 
         let output = serde_json::to_value(request(input, &ctx()).unwrap()).unwrap();
         assert!(output.get("cache_control").is_none());
@@ -65,7 +63,7 @@ mod tests {
 
     #[test]
     fn apply_patch_result_reaches_claude_as_tool_result() {
-        let input = openai::ResponseCreateRequest {
+        let input = crate::protocol::wire!(openai::ResponseCreateRequest {
             model: Some(openai::OpenAiModelId::Unknown("test-model".to_owned())),
             input: Some(openai::ResponseInput::Items(vec![
                 serde_json::from_value(json!({
@@ -88,7 +86,7 @@ mod tests {
                 .unwrap(),
             ])),
             ..Default::default()
-        };
+        });
 
         let out = request(input, &ctx()).unwrap();
         assert_eq!(out.messages.len(), 2);

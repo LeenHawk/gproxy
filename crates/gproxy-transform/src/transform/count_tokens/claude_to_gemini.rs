@@ -27,7 +27,7 @@ pub fn request(
     );
     let service_tier = common::claude_service_tier_to_gemini(input.service_tier);
 
-    let generate_content_request = gemini::GenerateContentRequest {
+    let generate_content_request = crate::protocol::wire!(gemini::GenerateContentRequest {
         model: Some(model.clone()),
         contents,
         tools,
@@ -39,21 +39,21 @@ pub fn request(
         service_tier,
         store: None,
         extra: Default::default(),
-    };
+    });
 
-    Ok(gemini::CountTokensRequest {
+    Ok(crate::protocol::wire!(gemini::CountTokensRequest {
         model: Some(model),
         contents: Vec::new(),
         generate_content_request: Some(generate_content_request),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(
     input: claude::CountTokensResponseBody,
     _: &TransformContext,
 ) -> gemini::CountTokensResponse {
-    gemini::CountTokensResponse {
+    crate::protocol::wire!(gemini::CountTokensResponse {
         total_tokens: Some(common::u64_to_i32(input.input_tokens)),
         cached_content_token_count: input
             .context_management
@@ -62,5 +62,5 @@ pub fn response(
         prompt_tokens_details: Vec::new(),
         cache_tokens_details: Vec::new(),
         extra: Default::default(),
-    }
+    })
 }

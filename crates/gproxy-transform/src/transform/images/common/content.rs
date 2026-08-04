@@ -9,15 +9,15 @@ pub(in crate::transform::images) fn prompt_content(
     let mut parts = vec![text_part(prompt)];
     parts.extend(images.into_iter().map(image_reference_part));
 
-    gemini::Content {
+    crate::protocol::wire!(gemini::Content {
         parts,
         role: Some(gemini::ContentRole::Known(gemini::ContentRoleKnown::User)),
         extra: Default::default(),
-    }
+    })
 }
 
 pub(super) fn text_part(text: String) -> gemini::Part {
-    gemini::Part {
+    crate::protocol::wire!(gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
@@ -25,43 +25,43 @@ pub(super) fn text_part(text: String) -> gemini::Part {
         data: Some(gemini::PartData::Text { text }),
         metadata: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(super) fn inline_image_part(data: String, mime_type: String) -> gemini::Part {
-    gemini::Part {
+    crate::protocol::wire!(gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
         media_resolution: None,
         data: Some(gemini::PartData::InlineData {
-            inline_data: gemini::Blob {
+            inline_data: crate::protocol::wire!(gemini::Blob {
                 mime_type,
                 data,
                 extra: Default::default(),
-            },
+            }),
         }),
         metadata: None,
         extra: Default::default(),
-    }
+    })
 }
 
 pub(super) fn file_image_part(file_uri: String, mime_type: Option<String>) -> gemini::Part {
-    gemini::Part {
+    crate::protocol::wire!(gemini::Part {
         thought: None,
         thought_signature: None,
         part_metadata: None,
         media_resolution: None,
-        data: Some(gemini::PartData::FileData {
-            file_data: gemini::FileData {
+        data: Some(crate::protocol::wire!(gemini::PartData::FileData {
+            file_data: crate::protocol::wire!(gemini::FileData {
                 mime_type,
                 file_uri,
                 extra: Default::default(),
-            },
-        }),
+            }),
+        })),
         metadata: None,
         extra: Default::default(),
-    }
+    })
 }
 
 fn image_reference_part(reference: openai::ImageReference) -> gemini::Part {
@@ -135,9 +135,9 @@ fn part_to_openai_image_reference(part: &gemini::Part) -> Option<openai::ImageRe
 }
 
 fn openai_image_url_reference(image_url: String) -> openai::ImageReference {
-    openai::ImageReference {
+    crate::protocol::wire!(openai::ImageReference {
         file_id: None,
         image_url: Some(image_url),
         extra: Default::default(),
-    }
+    })
 }

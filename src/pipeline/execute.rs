@@ -1,6 +1,6 @@
 //! The generic request orchestrator (§6.3). Sequences the already-separated
 //! steps for both routing modes; stream & non-stream share every step and
-//! diverge only at the body tail inside [`failover`](crate::pipeline::failover).
+//! diverge only at the body tail inside [`failover`].
 
 #[cfg(target_arch = "wasm32")]
 use bytes::Bytes;
@@ -92,8 +92,11 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         ctx.op = Some(classified.op);
         ctx.stream = classified.stream;
         ctx.body_model = classified.body_model;
-        span.record("operation", tracing::field::debug(classified.op.operation));
-        span.record("kind", tracing::field::debug(classified.op.kind));
+        span.record(
+            "operation",
+            tracing::field::debug(classified.op.operation()),
+        );
+        span.record("kind", tracing::field::debug(classified.op.kind()));
         span.record("stream", classified.stream);
         if let Some(model) = ctx.body_model.as_deref() {
             span.record("model", model);
@@ -103,7 +106,7 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
 
         if matches!(ctx.mode, RoutingMode::Aggregated)
             && matches!(
-                classified.op.operation,
+                classified.op.operation(),
                 Operation::ListModels | Operation::GetModel
             )
         {
@@ -199,9 +202,12 @@ async fn run(state: &AppState, mut ctx: RequestCtx) -> Result<ExecOutcome, Pipel
         && outcome.status.is_success()
         && let ResponseBody::Full(body) = &outcome.body
     {
-        let kind = match ctx.op.expect("classified").kind {
+        let kind = match ctx.op.expect("classified").kind() {
             crate::protocol::OperationKind::ContentGeneration(kind) => kind,
             crate::protocol::OperationKind::Provider(_) => unreachable!("synthetic content"),
+            _ => {
+                unreachable!("new non-exhaustive protocol variant requires a lockstep host update")
+            }
         };
         let gemini_json = kind == crate::protocol::ContentGenerationKind::GeminiGenerateContent
             && !ctx

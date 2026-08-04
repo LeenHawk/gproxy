@@ -7,7 +7,7 @@
 //!
 //! These compute the *effective* values; the transport that applies them — a
 //! `(proxy, fingerprint)`-keyed upstream-client pool with wreq impersonation
-//! ([`crate::http::client::pool`]) — is wired in `failover/attempt`, which
+//! (the internal `crate::http::client::pool`) — is wired in `failover/attempt`, which
 //! resolves these and fails the candidate (no silent downgrade) on a bad target.
 
 use std::collections::BTreeMap;

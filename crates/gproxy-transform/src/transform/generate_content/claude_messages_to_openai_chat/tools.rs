@@ -7,11 +7,11 @@ pub(super) fn claude_tool_use_to_chat_tool_call(
 ) -> openai::ChatToolCall {
     openai::ChatToolCall::Function {
         id: block.id,
-        function: openai::FunctionCall {
+        function: crate::protocol::wire!(openai::FunctionCall {
             arguments: serde_json::to_string(&block.input).unwrap_or_else(|_| "{}".to_owned()),
             name: block.name,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
     }
 }
@@ -21,11 +21,11 @@ pub(super) fn claude_response_tool_use_to_chat_tool_call(
 ) -> openai::ChatToolCall {
     openai::ChatToolCall::Function {
         id: block.id,
-        function: openai::FunctionCall {
+        function: crate::protocol::wire!(openai::FunctionCall {
             arguments: serde_json::to_string(&block.input).unwrap_or_else(|_| "{}".to_owned()),
             name: block.name,
             extra: Default::default(),
-        },
+        }),
         extra: Default::default(),
     }
 }
@@ -43,6 +43,9 @@ pub(super) fn claude_tool_result_to_text(content: Option<claude::ToolResultConte
             .join("\n"),
         Some(claude::ToolResultContent::Raw(value)) => value.to_string(),
         None => String::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -55,20 +58,20 @@ pub(super) fn claude_tools_to_chat(tools: Vec<claude::Tool>) -> Vec<openai::Chat
                 .and_then(|value| value.get("cache_control").cloned())
                 .is_some()
             {
-                tracing::warn!(
-                    target = "OpenAI tools",
-                    "cache breakpoint dropped during protocol conversion"
+                crate::transform::context::report_lossy(
+                    "tools[].cache_control",
+                    "OpenAI tools cannot represent Claude cache control",
                 );
             }
             match tool {
                 claude::Tool::Custom(tool) => Some(openai::ChatTool::Function {
-                    function: openai::FunctionDefinition {
+                    function: crate::protocol::wire!(openai::FunctionDefinition {
                         name: tool.name,
                         description: tool.description,
                         parameters: Some(claude_schema_to_openai(tool.input_schema)),
                         strict: tool.common.strict,
                         extra: Default::default(),
-                    },
+                    }),
                     extra: Default::default(),
                 }),
                 _ => None,
@@ -111,13 +114,16 @@ pub(super) fn claude_tool_choice_to_chat(
         claude::ToolChoice::Tool(choice) => Some(openai::ChatToolChoice::Named(
             openai::ChatNamedToolChoice::Function {
                 type_: openai::FunctionToolChoiceType::Function,
-                function: openai::NamedTool {
+                function: crate::protocol::wire!(openai::NamedTool {
                     name: choice.name,
                     extra: Default::default(),
-                },
+                }),
                 extra: Default::default(),
             },
         )),
         claude::ToolChoice::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }

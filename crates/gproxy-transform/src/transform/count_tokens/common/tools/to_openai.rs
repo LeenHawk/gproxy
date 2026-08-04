@@ -26,12 +26,14 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
                 user_location: None,
                 extra: Default::default(),
             }),
-            claude::Tool::WebFetch(_) => output.push(openai::ResponseTool::WebSearch {
-                filters: None,
-                search_context_size: None,
-                user_location: None,
-                extra: Default::default(),
-            }),
+            claude::Tool::WebFetch(_) => {
+                output.push(crate::protocol::wire!(openai::ResponseTool::WebSearch {
+                    filters: None,
+                    search_context_size: None,
+                    user_location: None,
+                    extra: Default::default(),
+                }))
+            }
             claude::Tool::Computer(_) => output.push(openai::ResponseTool::Computer {
                 extra: Default::default(),
             }),
@@ -41,15 +43,15 @@ pub(in crate::transform::count_tokens) fn claude_tools_to_openai(
                 | claude::CommandTool::CodeExecution20260120(_)
                 | claude::CommandTool::CodeExecution20260521(_),
             ) => output.push(openai::ResponseTool::CodeInterpreter {
-                container: openai::CodeInterpreterContainer::Auto(
+                container: openai::CodeInterpreterContainer::Auto(crate::protocol::wire!(
                     openai::CodeInterpreterAutoContainer {
                         type_: openai::CodeInterpreterContainerType::Auto,
                         file_ids: None,
                         memory_limit: None,
                         network_policy: None,
                         extra: Default::default(),
-                    },
-                ),
+                    }
+                )),
                 allowed_callers: None,
                 extra: Default::default(),
             }),
@@ -118,13 +120,13 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
         }));
 
         if let Some(file_search) = tool.file_search {
-            output.push(openai::ResponseTool::FileSearch {
+            output.push(crate::protocol::wire!(openai::ResponseTool::FileSearch {
                 vector_store_ids: file_search.file_search_store_names,
                 filters: None,
                 max_num_results: file_search.top_k.map(i32_to_u32),
                 ranking_options: None,
                 extra: Default::default(),
-            });
+            }));
         }
         if tool.google_search.is_some() || tool.google_search_retrieval.is_some() {
             output.push(openai::ResponseTool::WebSearchPreview {
@@ -136,15 +138,15 @@ pub(in crate::transform::count_tokens) fn gemini_tools_to_openai(
         }
         if tool.code_execution.is_some() {
             output.push(openai::ResponseTool::CodeInterpreter {
-                container: openai::CodeInterpreterContainer::Auto(
+                container: openai::CodeInterpreterContainer::Auto(crate::protocol::wire!(
                     openai::CodeInterpreterAutoContainer {
                         type_: openai::CodeInterpreterContainerType::Auto,
                         file_ids: None,
                         memory_limit: None,
                         network_policy: None,
                         extra: Default::default(),
-                    },
-                ),
+                    }
+                )),
                 allowed_callers: None,
                 extra: Default::default(),
             });

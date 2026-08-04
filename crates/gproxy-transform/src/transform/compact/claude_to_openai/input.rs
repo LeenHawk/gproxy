@@ -11,13 +11,13 @@ use super::util::{
 
 pub(super) fn system_to_openai_item(text: String) -> openai::ResponseItem {
     openai::ResponseItem::Message(openai::ResponseMessageItem::EasyInput(
-        openai::ResponseEasyInputMessageItem {
+        crate::protocol::wire!(openai::ResponseEasyInputMessageItem {
             type_: Some(openai::ResponseMessageItemType::Message),
             role: openai::ResponseEasyInputMessageRole::System,
             content: openai::ResponseEasyInputContent::Text(text),
             phase: None,
             extra: Default::default(),
-        },
+        }),
     ))
 }
 
@@ -54,17 +54,22 @@ fn claude_message_to_openai_items(message: claude::MessageParam) -> Vec<openai::
                 }
             }
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 
     if !message_parts.is_empty() {
         items.push(openai::ResponseItem::Message(
-            openai::ResponseMessageItem::EasyInput(openai::ResponseEasyInputMessageItem {
-                type_: Some(openai::ResponseMessageItemType::Message),
-                role,
-                content: openai::ResponseEasyInputContent::Parts(message_parts),
-                phase: None,
-                extra: Default::default(),
-            }),
+            openai::ResponseMessageItem::EasyInput(crate::protocol::wire!(
+                openai::ResponseEasyInputMessageItem {
+                    type_: Some(openai::ResponseMessageItemType::Message),
+                    role,
+                    content: openai::ResponseEasyInputContent::Parts(message_parts),
+                    phase: None,
+                    extra: Default::default(),
+                }
+            )),
         ));
     }
 
@@ -87,6 +92,9 @@ fn claude_role_to_openai(role: claude::MessageRole) -> openai::ResponseEasyInput
         }
         claude::MessageRole::Known(claude::MessageRoleKnown::User)
         | claude::MessageRole::Unknown(_) => openai::ResponseEasyInputMessageRole::User,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -107,18 +115,20 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
                 .map(ClaudeRequestBlockItem::MessagePart)
                 .unwrap_or(ClaudeRequestBlockItem::None)
         }
-        claude::ContentBlockParam::ToolUse(block) => ClaudeRequestBlockItem::Item(
-            openai::ResponseItem::Typed(openai::TypedResponseItem::FunctionCall {
-                arguments: json_object_to_string(&block.input),
-                call_id: block.id.clone(),
-                name: block.name,
-                id: Some(block.id),
-                caller: None,
-                namespace: None,
-                status: Some(openai::ResponseItemLifecycleStatus::Completed),
-                extra: Default::default(),
-            }),
-        ),
+        claude::ContentBlockParam::ToolUse(block) => {
+            ClaudeRequestBlockItem::Item(openai::ResponseItem::Typed(crate::protocol::wire!(
+                openai::TypedResponseItem::FunctionCall {
+                    arguments: json_object_to_string(&block.input),
+                    call_id: block.id.clone(),
+                    name: block.name,
+                    id: Some(block.id),
+                    caller: None,
+                    namespace: None,
+                    status: Some(openai::ResponseItemLifecycleStatus::Completed),
+                    extra: Default::default(),
+                }
+            )))
+        }
         claude::ContentBlockParam::ToolResult(block) => function_call_output_item(
             block.tool_use_id,
             tool_result_content_to_openai(block.content),
@@ -127,11 +137,13 @@ fn claude_request_block_to_openai(block: claude::ContentBlockParam) -> ClaudeReq
             openai::ResponseItem::Typed(openai::TypedResponseItem::Reasoning {
                 id: Some(block.signature),
                 summary: Vec::new(),
-                content: Some(vec![openai::ResponseReasoningTextPart {
-                    text: block.thinking,
-                    type_: openai::ResponseReasoningTextType::ReasoningText,
-                    extra: Default::default(),
-                }]),
+                content: Some(vec![crate::protocol::wire!(
+                    openai::ResponseReasoningTextPart {
+                        text: block.thinking,
+                        type_: openai::ResponseReasoningTextType::ReasoningText,
+                        extra: Default::default(),
+                    }
+                )]),
                 encrypted_content: None,
                 status: Some(openai::ResponseItemLifecycleStatus::Completed),
                 extra: Default::default(),

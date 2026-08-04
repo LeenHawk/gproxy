@@ -6,12 +6,12 @@ use crate::transform::TransformContext;
 use super::super::common::{self, i32_to_u64_default};
 
 pub fn request(input: gemini::ListModelsRequest, _: &TransformContext) -> claude::ListModelsQuery {
-    claude::ListModelsQuery {
+    crate::protocol::wire!(claude::ListModelsQuery {
         after_id: input.page_token,
         before_id: None,
         limit: input.page_size.map(i32_to_u64_default),
         extra: Default::default(),
-    }
+    })
 }
 
 pub fn response(
@@ -34,11 +34,11 @@ pub fn response(
         .or_else(|| data.last().map(common::claude_model_id))
         .unwrap_or_default();
 
-    claude::ListModelsResponse {
+    crate::protocol::wire!(claude::ListModelsResponse {
         data,
         first_id,
         has_more,
         last_id,
         extra: Default::default(),
-    }
+    })
 }

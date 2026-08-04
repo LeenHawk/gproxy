@@ -205,23 +205,31 @@ impl ClaudeWebStreamDecoder {
 }
 
 impl ChannelStreamDecoder for ClaudeWebStreamDecoder {
-    fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
+    fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
-        for frame in self.decoder.push(chunk) {
+        for frame in self
+            .decoder
+            .push(chunk)
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?
+        {
             self.frame(frame, &mut out);
         }
-        out
+        Ok(out)
     }
 
-    fn finish(&mut self) -> Vec<u8> {
+    fn finish(&mut self) -> Result<Vec<u8>, crate::channel::transport::ClientError> {
         let mut out = Vec::new();
-        if let Some(frame) = self.decoder.finish() {
+        if let Some(frame) = self
+            .decoder
+            .finish()
+            .map_err(|error| crate::channel::transport::ClientError::Decode(error.to_string()))?
+        {
             self.frame(frame, &mut out);
         }
         if self.kind == StreamKind::Legacy {
             self.finish_legacy(&mut out);
         }
-        out
+        Ok(out)
     }
 }
 
@@ -233,9 +241,10 @@ mod tests {
     fn legacy_completion_becomes_messages_sse_with_usage() {
         let counter = Arc::new(AtomicU64::new(0));
         let mut decoder = ClaudeWebStreamDecoder::new(7, Arc::clone(&counter));
-        let mut out =
-            decoder.push(b"data: {\"completion\":\"hel\"}\n\ndata: {\"completion\":\"lo\"}\n\n");
-        out.extend(decoder.finish());
+        let mut out = decoder
+            .push(b"data: {\"completion\":\"hel\"}\n\ndata: {\"completion\":\"lo\"}\n\n")
+            .unwrap();
+        out.extend(decoder.finish().unwrap());
         let text = String::from_utf8(out).unwrap();
         assert!(text.contains("event: message_start"));
         assert!(text.contains("\"text\":\"hel\""));
@@ -253,7 +262,7 @@ mod tests {
         let counter = Arc::new(AtomicU64::new(0));
         let mut decoder = ClaudeWebStreamDecoder::new(1, Arc::clone(&counter));
         let input = b"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n";
-        let out = decoder.push(input);
+        let out = decoder.push(input).unwrap();
         let text = String::from_utf8(out).unwrap();
         assert!(text.contains("event: content_block_delta"));
         assert!(text.contains("\"text\":\"hi\""));
@@ -263,13 +272,13 @@ mod tests {
     #[test]
     fn modern_tool_use_stops_and_resumed_tool_result_is_hidden() {
         let mut decoder = ClaudeWebStreamDecoder::new(9, Arc::new(AtomicU64::new(0)));
-        let first = decoder.push(b"data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"weather\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{}\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n");
+        let first = decoder.push(b"data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[]}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"weather\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{}\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n").unwrap();
         let text = String::from_utf8(first).unwrap();
         assert!(text.contains("\"stop_reason\":\"tool_use\""));
         assert!(text.contains("event: message_stop"));
         assert!(text.contains("\"input_tokens\":9"));
 
-        let resumed = decoder.push(b"data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n");
+        let resumed = decoder.push(b"data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\ndata: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n").unwrap();
         let text = String::from_utf8(resumed).unwrap();
         assert!(!text.contains("tool_result"));
         assert!(text.contains("\"type\":\"text\""));

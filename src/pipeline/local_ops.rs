@@ -2,9 +2,7 @@
 //! serving of `Local`-plan candidates (count_tokens via [`crate::tokenize`],
 //! models from the snapshot's exposed rows).
 //! Minimal-field JSON on purpose — list shape per the protocol modules
-//! ([`openai::models`](crate::protocol::openai::models),
-//! [`claude::models`](crate::protocol::claude::models),
-//! [`gemini::models`](crate::protocol::gemini::models)), optional fields
+//! (`openai::models`, `claude::models`, and `gemini::models`), optional fields
 //! omitted or zero-valued.
 
 use bytes::Bytes;
@@ -36,7 +34,7 @@ pub fn serve_local(
 ) -> Option<ExecOutcome> {
     let op = ctx.op.expect("classified before failover");
     let family = op.provider_family();
-    match op.operation {
+    match op.operation() {
         Operation::CountTokens => Some(local_count(state, ctx, cand, family)),
         Operation::GetModel => {
             let id = classify::path_model_id(&ctx.path);
@@ -84,6 +82,9 @@ fn local_count(
         Provider::Gemini => json!({ "totalTokens": n }),
         // minimal `/v1/responses/input_tokens` response shape
         Provider::OpenAi => json!({ "object": "response.input_tokens", "input_tokens": n }),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     json_outcome(StatusCode::OK, to_bytes(&body))
 }
@@ -139,6 +140,9 @@ pub fn render_model_list(family: Provider, entries: &[ModelEntry]) -> Bytes {
             "has_more": false,
         }),
         Provider::Gemini => json!({ "models": items }),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     };
     to_bytes(&list)
 }
@@ -169,6 +173,9 @@ fn entry_value(family: Provider, e: &ModelEntry) -> Value {
                 m["displayName"] = json!(d);
             }
             m
+        }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
         }
     }
 }

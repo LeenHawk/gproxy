@@ -21,6 +21,9 @@ pub fn synthesize_sse(
         ContentGenerationKind::GeminiGenerateContent => {
             out.push_str(&SseFrame::data(value.to_string()).encode());
         }
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
     Ok(out.into_bytes())
 }

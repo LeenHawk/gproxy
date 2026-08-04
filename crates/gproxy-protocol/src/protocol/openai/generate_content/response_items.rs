@@ -17,6 +17,7 @@ pub use typed::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseItem {
     Message(ResponseMessageItem),
     Typed(TypedResponseItem),
@@ -81,7 +82,27 @@ fn item_reference_without_type(value: &Value) -> Option<TypedResponseItem> {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(transparent)]
+#[non_exhaustive]
 pub struct ResponseOutputItem(pub ResponseItem);
+
+impl ResponseOutputItem {
+    pub fn try_new(item: ResponseItem) -> Result<Self, &'static str> {
+        validate_response_output_item(&item)?;
+        Ok(Self(item))
+    }
+
+    pub fn new(item: ResponseItem) -> Self {
+        Self::try_new(item).expect("valid Responses output item")
+    }
+
+    pub fn as_inner(&self) -> &ResponseItem {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> ResponseItem {
+        self.0
+    }
+}
 
 impl<'de> Deserialize<'de> for ResponseOutputItem {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -165,7 +186,8 @@ fn require_some<T>(value: &Option<T>, field: &'static str) -> Result<(), &'stati
     value.as_ref().map(|_| ()).ok_or(field)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UnknownResponseItem {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ResponseItemType>,

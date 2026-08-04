@@ -42,7 +42,7 @@ impl GeminiCollector {
     }
 
     fn finish(self) -> gemini::GenerateContentResponse {
-        gemini::GenerateContentResponse {
+        crate::protocol::wire!(gemini::GenerateContentResponse {
             candidates: self
                 .candidates
                 .into_values()
@@ -54,7 +54,7 @@ impl GeminiCollector {
             response_id: self.response_id,
             model_status: self.model_status,
             extra: Default::default(),
-        }
+        })
     }
 }
 
@@ -111,7 +111,7 @@ impl CandidateState {
     }
 
     fn finish(self) -> gemini::Candidate {
-        gemini::Candidate {
+        crate::protocol::wire!(gemini::Candidate {
             content: self.content,
             finish_reason: self.finish_reason,
             safety_ratings: self.safety_ratings,
@@ -124,7 +124,7 @@ impl CandidateState {
             index: Some(self.index),
             finish_message: self.finish_message,
             extra: Default::default(),
-        }
+        })
     }
 }
 
@@ -134,11 +134,11 @@ fn append_content(target: &mut Option<gemini::Content>, incoming: gemini::Conten
         target.role = incoming.role.or(target.role.take());
         target.extra = Default::default();
     } else {
-        *target = Some(gemini::Content {
+        *target = Some(crate::protocol::wire!(gemini::Content {
             parts: incoming.parts,
             role: incoming.role,
             extra: Default::default(),
-        });
+        }));
     }
 }
 

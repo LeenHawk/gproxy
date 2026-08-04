@@ -6,6 +6,8 @@ use super::{ExtraFields, Modality};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+#[derive(gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModalityTokenCount {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modality: Option<Modality>,

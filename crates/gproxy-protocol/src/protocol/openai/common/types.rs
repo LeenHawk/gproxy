@@ -13,7 +13,8 @@ pub type JsonSchema = BTreeMap<String, Value>;
 pub type LogitBias = BTreeMap<String, f64>;
 pub type Metadata = BTreeMap<String, String>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PromptCacheOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<PromptCacheMode>,
@@ -23,21 +24,24 @@ pub struct PromptCacheOptions {
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PromptCacheBreakpoint {
     pub mode: PromptCacheBreakpointMode,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModerationConfig {
     pub model: OpenAiModelId,
     #[serde(default, flatten, skip_serializing_if = "BTreeMap::is_empty")]
     pub extra: Extra,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModerationResult {
     pub categories: BTreeMap<String, bool>,
     pub category_applied_input_types: BTreeMap<String, Vec<ModerationInputType>>,
@@ -51,6 +55,7 @@ pub struct ModerationResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ModerationInputType {
     #[serde(rename = "text")]
     Text,
@@ -59,12 +64,14 @@ pub enum ModerationInputType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ModerationResultType {
     #[serde(rename = "moderation_result")]
     ModerationResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ModerationError {
     pub code: String,
     pub message: String,
@@ -75,12 +82,14 @@ pub struct ModerationError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ModerationErrorType {
     #[serde(rename = "error")]
     Error,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct OpenAiWireModel<TRequest, TResponse> {
     pub operation_key: OperationKey,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -93,6 +102,7 @@ pub struct OpenAiWireModel<TRequest, TResponse> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum OneOrMany<T> {
     One(T),
     Many(Vec<T>),
@@ -100,6 +110,7 @@ pub enum OneOrMany<T> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum StringOrList {
     String(String),
     List(Vec<String>),

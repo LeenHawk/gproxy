@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use super::super::JsonObject;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UserLocation {
     #[serde(rename = "type")]
     pub type_: UserLocationType,
@@ -19,6 +20,7 @@ pub struct UserLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum UserLocationType {
     #[serde(rename = "approximate")]
     Approximate,

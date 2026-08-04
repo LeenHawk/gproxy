@@ -132,13 +132,15 @@ pub fn request(
                 push_claude_block(
                     &mut messages,
                     claude::MessageRole::Known(claude::MessageRoleKnown::User),
-                    claude::ContentBlockParam::ToolResult(claude::ToolResultBlock {
-                        tool_use_id: id,
-                        type_: claude::ToolResultBlockType::ToolResult,
-                        cache_control,
-                        content: Some(claude::ToolResultContent::Text(content)),
-                        is_error: None,
-                    }),
+                    claude::ContentBlockParam::ToolResult(crate::protocol::wire!(
+                        claude::ToolResultBlock {
+                            tool_use_id: id,
+                            type_: claude::ToolResultBlockType::ToolResult,
+                            cache_control,
+                            content: Some(claude::ToolResultContent::Text(content)),
+                            is_error: None,
+                        }
+                    )),
                 );
             }
             openai::ChatCompletionMessageParam::Function { content, name, .. } => {
@@ -154,6 +156,9 @@ pub fn request(
                     text_block(text),
                 );
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }
     }
 
@@ -169,9 +174,11 @@ pub fn request(
                 .as_ref()
                 .and_then(|metadata| metadata.get("user_id").cloned())
         })
-        .map(|user_id| claude::Metadata {
-            user_id: Some(user_id),
-            extra: Default::default(),
+        .map(|user_id| {
+            crate::protocol::wire!(claude::Metadata {
+                user_id: Some(user_id),
+                extra: Default::default(),
+            })
         });
 
     let mut tools = input.tools.map(chat_tools_to_claude).unwrap_or_default();
@@ -188,7 +195,7 @@ pub fn request(
     };
 
     #[allow(deprecated)]
-    let output = claude::CreateMessageRequestBody {
+    let output = crate::protocol::wire!(claude::CreateMessageRequestBody {
         model: model.into(),
         messages,
         max_tokens,
@@ -216,7 +223,7 @@ pub fn request(
         top_p: input.top_p,
         user_profile_id: None,
         extra: Default::default(),
-    };
+    });
     common::apply_openai_cache_policy(output, implicit_cache_mode)
 }
 
@@ -229,12 +236,12 @@ fn chat_output_config(
     if effort.is_none() && format.is_none() {
         None
     } else {
-        Some(claude::OutputConfig {
+        Some(crate::protocol::wire!(claude::OutputConfig {
             effort,
             format,
             task_budget: None,
             extra: Default::default(),
-        })
+        }))
     }
 }
 

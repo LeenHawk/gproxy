@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum OpenAiModelId {
     Known(OpenAiModelIdKnown),
     Unknown(String),
@@ -23,6 +24,7 @@ impl From<String> for OpenAiModelId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum OpenAiModelIdKnown {
     #[serde(rename = "gpt-5.6")]
     Gpt56,

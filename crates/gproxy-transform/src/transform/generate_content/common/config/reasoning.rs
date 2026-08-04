@@ -6,17 +6,19 @@ pub(in crate::transform::generate_content) fn openai_reasoning_to_claude(
     effort: Option<openai::ReasoningEffort>,
 ) -> Option<claude::ThinkingConfig> {
     match effort? {
-        openai::ReasoningEffort::None => {
-            Some(claude::ThinkingConfig::Disabled(claude::ThinkingDisabled {
+        openai::ReasoningEffort::None => Some(claude::ThinkingConfig::Disabled(
+            crate::protocol::wire!(claude::ThinkingDisabled {
                 type_: claude::ThinkingDisabledType::Disabled,
                 extra: Default::default(),
-            }))
-        }
-        _ => Some(claude::ThinkingConfig::Adaptive(claude::ThinkingAdaptive {
-            type_: claude::ThinkingAdaptiveType::Adaptive,
-            display: None,
-            extra: Default::default(),
-        })),
+            }),
+        )),
+        _ => Some(claude::ThinkingConfig::Adaptive(crate::protocol::wire!(
+            claude::ThinkingAdaptive {
+                type_: claude::ThinkingAdaptiveType::Adaptive,
+                display: None,
+                extra: Default::default(),
+            }
+        ))),
     }
 }
 
@@ -29,6 +31,9 @@ pub(in crate::transform::generate_content) fn claude_thinking_to_openai(
             Some(openai::ReasoningEffort::Medium)
         }
         claude::ThinkingConfig::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -43,6 +48,9 @@ pub(in crate::transform::generate_content) fn openai_effort_to_claude(
         openai::ReasoningEffort::High => claude::OutputEffortKnown::High,
         openai::ReasoningEffort::XHigh => claude::OutputEffortKnown::XHigh,
         openai::ReasoningEffort::Max => claude::OutputEffortKnown::Max,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }))
 }
 
@@ -66,6 +74,9 @@ pub(in crate::transform::generate_content) fn claude_effort_to_openai(
             Some(openai::ReasoningEffort::Max)
         }
         claude::OutputEffort::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -86,6 +97,9 @@ pub(in crate::transform::generate_content) fn gemini_thinking_to_claude_effort(
             claude::OutputEffortKnown::High
         }
         gemini::ThinkingLevel::Unknown(_) => return None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }))
 }
 
@@ -105,13 +119,16 @@ pub(in crate::transform::generate_content) fn claude_effort_to_gemini(
             | claude::OutputEffortKnown::Max,
         ) => gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High),
         claude::OutputEffort::Unknown(value) => gemini::ThinkingLevel::Unknown(value),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     })
 }
 
 pub(in crate::transform::generate_content) fn openai_reasoning_to_gemini(
     effort: Option<openai::ReasoningEffort>,
 ) -> Option<gemini::ThinkingConfig> {
-    Some(gemini::ThinkingConfig {
+    Some(crate::protocol::wire!(gemini::ThinkingConfig {
         include_thoughts: None,
         thinking_budget: None,
         thinking_level: Some(match effort? {
@@ -129,9 +146,12 @@ pub(in crate::transform::generate_content) fn openai_reasoning_to_gemini(
             | openai::ReasoningEffort::Max => {
                 gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High)
             }
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         }),
         extra: Default::default(),
-    })
+    }))
 }
 
 pub(in crate::transform::generate_content) fn gemini_thinking_to_openai(
@@ -154,6 +174,9 @@ pub(in crate::transform::generate_content) fn gemini_thinking_to_openai(
         }
         gemini::ThinkingLevel::Known(gemini::ThinkingLevelKnown::High)
         | gemini::ThinkingLevel::Unknown(_) => Some(openai::ReasoningEffort::High),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -161,25 +184,34 @@ pub(in crate::transform::generate_content) fn claude_thinking_to_gemini(
     thinking: Option<claude::ThinkingConfig>,
 ) -> Option<gemini::ThinkingConfig> {
     match thinking? {
-        claude::ThinkingConfig::Disabled(_) => Some(gemini::ThinkingConfig {
-            include_thoughts: Some(false),
-            thinking_budget: None,
-            thinking_level: None,
-            extra: Default::default(),
-        }),
-        claude::ThinkingConfig::Enabled(config) => Some(gemini::ThinkingConfig {
-            include_thoughts: Some(true),
-            thinking_budget: Some(u64_to_i32(config.budget_tokens)),
-            thinking_level: None,
-            extra: Default::default(),
-        }),
-        claude::ThinkingConfig::Adaptive(_) => Some(gemini::ThinkingConfig {
-            include_thoughts: Some(true),
-            thinking_budget: None,
-            thinking_level: None,
-            extra: Default::default(),
-        }),
+        claude::ThinkingConfig::Disabled(_) => {
+            Some(crate::protocol::wire!(gemini::ThinkingConfig {
+                include_thoughts: Some(false),
+                thinking_budget: None,
+                thinking_level: None,
+                extra: Default::default(),
+            }))
+        }
+        claude::ThinkingConfig::Enabled(config) => {
+            Some(crate::protocol::wire!(gemini::ThinkingConfig {
+                include_thoughts: Some(true),
+                thinking_budget: Some(u64_to_i32(config.budget_tokens)),
+                thinking_level: None,
+                extra: Default::default(),
+            }))
+        }
+        claude::ThinkingConfig::Adaptive(_) => {
+            Some(crate::protocol::wire!(gemini::ThinkingConfig {
+                include_thoughts: Some(true),
+                thinking_budget: None,
+                thinking_level: None,
+                extra: Default::default(),
+            }))
+        }
         claude::ThinkingConfig::Unknown(_) => None,
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -188,22 +220,28 @@ pub(in crate::transform::generate_content) fn gemini_thinking_to_claude(
 ) -> Option<claude::ThinkingConfig> {
     let thinking = thinking?;
     if thinking.include_thoughts == Some(false) {
-        return Some(claude::ThinkingConfig::Disabled(claude::ThinkingDisabled {
-            type_: claude::ThinkingDisabledType::Disabled,
-            extra: Default::default(),
-        }));
+        return Some(claude::ThinkingConfig::Disabled(crate::protocol::wire!(
+            claude::ThinkingDisabled {
+                type_: claude::ThinkingDisabledType::Disabled,
+                extra: Default::default(),
+            }
+        )));
     }
     if let Some(budget) = thinking.thinking_budget {
-        return Some(claude::ThinkingConfig::Enabled(claude::ThinkingEnabled {
-            budget_tokens: i32_to_u64(budget),
-            type_: claude::ThinkingEnabledType::Enabled,
+        return Some(claude::ThinkingConfig::Enabled(crate::protocol::wire!(
+            claude::ThinkingEnabled {
+                budget_tokens: i32_to_u64(budget),
+                type_: claude::ThinkingEnabledType::Enabled,
+                display: None,
+                extra: Default::default(),
+            }
+        )));
+    }
+    Some(claude::ThinkingConfig::Adaptive(crate::protocol::wire!(
+        claude::ThinkingAdaptive {
+            type_: claude::ThinkingAdaptiveType::Adaptive,
             display: None,
             extra: Default::default(),
-        }));
-    }
-    Some(claude::ThinkingConfig::Adaptive(claude::ThinkingAdaptive {
-        type_: claude::ThinkingAdaptiveType::Adaptive,
-        display: None,
-        extra: Default::default(),
-    }))
+        }
+    )))
 }

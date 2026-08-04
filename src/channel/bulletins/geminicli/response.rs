@@ -9,7 +9,7 @@ use crate::channel::{ChannelStreamDecoder, ShapeCtx};
 use crate::protocol::Operation;
 
 pub(super) fn shape(body: Bytes, ctx: &ShapeCtx) -> Bytes {
-    if ctx.op.operation == Operation::ListModels {
+    if ctx.op.operation() == Operation::ListModels {
         return models::quota_to_model_list(body);
     }
     let unwrapped = envelope::unwrap_code_assist(body);

@@ -9,7 +9,7 @@ pub fn request(
     input: gemini::GenerateContentRequest,
     _: &TransformContext,
 ) -> Result<openai::ImageGenerationRequest, TransformError> {
-    Ok(openai::ImageGenerationRequest {
+    Ok(crate::protocol::wire!(openai::ImageGenerationRequest {
         prompt: common::gemini_request_prompt(&input),
         background: None,
         model: input.model.map(Into::into),
@@ -29,7 +29,7 @@ pub fn request(
         style: None,
         user: None,
         extra: Default::default(),
-    })
+    }))
 }
 
 pub fn response(

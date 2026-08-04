@@ -12,14 +12,14 @@ pub fn response(
     input: claude::CreateMessageResponseBody,
     _: &TransformContext,
 ) -> openai::CompactedResponseObject {
-    openai::CompactedResponseObject {
+    crate::protocol::wire!(openai::CompactedResponseObject {
         id: input.id.clone(),
         created_at: 0,
         object: openai::ResponseCompactionObjectType::ResponseCompaction,
         output: claude_content_to_compact_output(input.id, input.content, &input.stop_reason),
         usage: claude_usage_to_openai(input.usage),
         extra: Default::default(),
-    }
+    })
 }
 
 fn claude_content_to_compact_output(
@@ -34,11 +34,11 @@ fn claude_content_to_compact_output(
         match block {
             claude::ContentBlock::Text(block) => {
                 message_parts.push(openai::CompactMessageContentPart::Text(
-                    openai::CompactTextContent {
+                    crate::protocol::wire!(openai::CompactTextContent {
                         text: block.text,
                         type_: openai::CompactTextContentType::Text,
                         extra: Default::default(),
-                    },
+                    }),
                 ));
             }
             claude::ContentBlock::Thinking(block) => {
@@ -46,11 +46,13 @@ fn claude_content_to_compact_output(
                     openai::TypedResponseItem::Reasoning {
                         id: Some(block.signature),
                         summary: Vec::new(),
-                        content: Some(vec![openai::ResponseReasoningTextPart {
-                            text: block.thinking,
-                            type_: openai::ResponseReasoningTextType::ReasoningText,
-                            extra: Default::default(),
-                        }]),
+                        content: Some(vec![crate::protocol::wire!(
+                            openai::ResponseReasoningTextPart {
+                                text: block.thinking,
+                                type_: openai::ResponseReasoningTextType::ReasoningText,
+                                extra: Default::default(),
+                            }
+                        )]),
                         encrypted_content: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
                         extra: Default::default(),
@@ -70,7 +72,7 @@ fn claude_content_to_compact_output(
                 ));
             }
             claude::ContentBlock::ToolUse(block) => {
-                output.push(openai::CompactResponseItem::Typed(
+                output.push(openai::CompactResponseItem::Typed(crate::protocol::wire!(
                     openai::TypedResponseItem::FunctionCall {
                         arguments: json_object_to_string(&block.input),
                         call_id: block.id.clone(),
@@ -80,8 +82,8 @@ fn claude_content_to_compact_output(
                         namespace: None,
                         status: Some(openai::ResponseItemLifecycleStatus::Completed),
                         extra: Default::default(),
-                    },
-                ));
+                    }
+                )));
             }
             claude::ContentBlock::ServerToolUse(block) => {
                 output.push(compact_server_tool_use_item(
@@ -158,11 +160,11 @@ fn claude_content_to_compact_output(
             claude::ContentBlock::Compaction(block) => {
                 if let Some(text) = block.content {
                     message_parts.push(openai::CompactMessageContentPart::SummaryText(
-                        openai::CompactSummaryTextContent {
+                        crate::protocol::wire!(openai::CompactSummaryTextContent {
                             text,
                             type_: openai::CompactSummaryTextContentType::SummaryText,
                             extra: Default::default(),
-                        },
+                        }),
                     ));
                 }
                 output.push(openai::CompactResponseItem::Typed(
@@ -181,15 +183,17 @@ fn claude_content_to_compact_output(
     if !message_parts.is_empty() {
         output.insert(
             0,
-            openai::CompactResponseItem::Message(openai::CompactMessageItem {
-                id,
-                type_: openai::ResponseMessageItemType::Message,
-                content: message_parts,
-                role: openai::CompactMessageRole::Assistant,
-                status: compact_message_status(stop_reason),
-                phase: None,
-                extra: Default::default(),
-            }),
+            openai::CompactResponseItem::Message(crate::protocol::wire!(
+                openai::CompactMessageItem {
+                    id,
+                    type_: openai::ResponseMessageItemType::Message,
+                    content: message_parts,
+                    role: openai::CompactMessageRole::Assistant,
+                    status: compact_message_status(stop_reason),
+                    phase: None,
+                    extra: Default::default(),
+                }
+            )),
         );
     }
 

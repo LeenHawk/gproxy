@@ -9,7 +9,8 @@ pub type MessageContent = StringOrArray<ContentBlockParam>;
 pub type SystemPrompt = StringOrArray<TextBlock>;
 pub type ContentBlock = ResponseContentBlock;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct MessageParam {
     pub role: MessageRole,
     pub content: MessageContent,
@@ -22,6 +23,7 @@ pub struct MessageParam {
 // own `type` witness field.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ContentBlockParam {
     Text(TextBlock),
     Image(ImageBlock),
@@ -79,6 +81,7 @@ type_tag_union_deserialize!(ContentBlockParam {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ResponseContentBlock {
     Text(ResponseTextBlock),
     Thinking(ThinkingBlock),
@@ -122,6 +125,7 @@ type_tag_union_deserialize!(ResponseContentBlock {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ToolResultContent {
     Text(String),
     Blocks(Vec<ToolResultContentBlock>),
@@ -130,6 +134,7 @@ pub enum ToolResultContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ToolResultContentBlock {
     Text(TextBlock),
     Image(ImageBlock),

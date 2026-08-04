@@ -49,6 +49,9 @@ impl MessageState {
                 openai::ResponseMessageOutputContentPart::Refusal { refusal, .. } => {
                     self.refusal_part(index).set_done(refusal);
                 }
+                _ => unreachable!(
+                    "new non-exhaustive protocol variant requires a lockstep transform update"
+                ),
             }
         }
     }
@@ -73,7 +76,7 @@ impl MessageState {
             })
         }));
 
-        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(
+        openai::ResponseItem::Message(openai::ResponseMessageItem::Output(crate::protocol::wire!(
             openai::ResponseOutputMessageItem {
                 type_: openai::ResponseMessageItemType::Message,
                 id: self.id.unwrap_or_else(|| format!("msg_{}", self.index)),
@@ -84,8 +87,8 @@ impl MessageState {
                     .unwrap_or(openai::ResponseItemLifecycleStatus::Completed),
                 phase: None,
                 extra: Default::default(),
-            },
-        ))
+            }
+        )))
     }
 }
 

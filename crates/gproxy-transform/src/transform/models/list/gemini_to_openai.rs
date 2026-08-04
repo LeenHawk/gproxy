@@ -11,7 +11,7 @@ pub fn response(
     input: gemini::ListModelsResponse,
     ctx: &TransformContext,
 ) -> Result<openai::ModelListResponse, TransformError> {
-    Ok(openai::ModelListResponse {
+    Ok(crate::protocol::wire!(openai::ModelListResponse {
         data: input
             .models
             .into_iter()
@@ -19,5 +19,5 @@ pub fn response(
             .collect(),
         object: openai::ListObjectType::List,
         extra: Default::default(),
-    })
+    }))
 }

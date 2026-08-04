@@ -7,9 +7,9 @@ use super::{DEFAULT_REGION, is_count_tokens};
 
 pub(super) fn resolve(ctx: &PrepareCtx<'_>, compact: bool) -> Result<http::Uri, ChannelError> {
     let model = crate::channel::oauth::percent_encode(ctx.upstream_model_id);
-    let (control, path) = if ctx.op.operation == Operation::ListModels {
+    let (control, path) = if ctx.op.operation() == Operation::ListModels {
         (true, "/foundation-models".to_owned())
-    } else if ctx.op.operation == Operation::GetModel {
+    } else if ctx.op.operation() == Operation::GetModel {
         require_model(ctx)?;
         (true, format!("/foundation-models/{model}"))
     } else {

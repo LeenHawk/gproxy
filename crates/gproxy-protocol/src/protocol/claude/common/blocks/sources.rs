@@ -5,6 +5,7 @@ use super::{ImageBlock, TextBlock};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ImageSource {
     Base64(Base64ImageSource),
     Url(UrlImageSource),
@@ -14,6 +15,7 @@ pub enum ImageSource {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum DocumentSource {
     Base64(Base64PdfSource),
     Text(PlainTextSource),
@@ -23,7 +25,8 @@ pub enum DocumentSource {
     Raw(TypedObject),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Base64ImageSource {
     pub data: String,
     pub media_type: ImageMediaType,
@@ -33,7 +36,8 @@ pub struct Base64ImageSource {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct Base64PdfSource {
     pub data: String,
     pub media_type: PdfMediaType,
@@ -44,12 +48,14 @@ pub struct Base64PdfSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Base64SourceType {
     #[serde(rename = "base64")]
     Base64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ImageMediaType {
     #[serde(rename = "image/jpeg")]
     Jpeg,
@@ -62,12 +68,14 @@ pub enum ImageMediaType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum PdfMediaType {
     #[serde(rename = "application/pdf")]
     ApplicationPdf,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UrlImageSource {
     #[serde(rename = "type")]
     pub type_: UrlSourceType,
@@ -76,7 +84,8 @@ pub struct UrlImageSource {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct UrlDocumentSource {
     #[serde(rename = "type")]
     pub type_: UrlSourceType,
@@ -86,12 +95,14 @@ pub struct UrlDocumentSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum UrlSourceType {
     #[serde(rename = "url")]
     Url,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileImageSource {
     pub file_id: String,
     #[serde(rename = "type")]
@@ -100,7 +111,8 @@ pub struct FileImageSource {
     pub extra: JsonObject,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct FileDocumentSource {
     pub file_id: String,
     #[serde(rename = "type")]
@@ -110,12 +122,14 @@ pub struct FileDocumentSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum FileSourceType {
     #[serde(rename = "file")]
     File,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct PlainTextSource {
     pub data: String,
     pub media_type: PlainTextMediaType,
@@ -126,18 +140,21 @@ pub struct PlainTextSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum PlainTextMediaType {
     #[serde(rename = "text/plain")]
     TextPlain,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TextSourceType {
     #[serde(rename = "text")]
     Text,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[non_exhaustive]
 pub struct ContentSource {
     pub content: ContentSourceContent,
     #[serde(rename = "type")]
@@ -147,6 +164,7 @@ pub struct ContentSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ContentSourceType {
     #[serde(rename = "content")]
     Content,
@@ -154,6 +172,7 @@ pub enum ContentSourceType {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ContentSourceContent {
     Text(String),
     Blocks(Vec<ContentSourceBlock>),
@@ -161,6 +180,7 @@ pub enum ContentSourceContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum ContentSourceBlock {
     Text(TextBlock),
     Image(ImageBlock),

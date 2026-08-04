@@ -1,21 +1,22 @@
 ---
 title: Rust SDK
-description: Current v2 Rust library surface, feature flags, and the boundary between internal modules and a published SDK.
+description: Current v3 Rust library surface, feature flags, and the boundary between internal modules and a published SDK.
 ---
 
-The current v2 tree is a Rust workspace. The root package `gproxy` builds both:
+The current v3 tree is a Rust workspace. The root package `gproxy` builds both:
 
 - a native binary at `src/main.rs`;
 - an `rlib` library crate at `src/lib.rs`. Edge build scripts explicitly request
   a `cdylib` when producing Wasm artifacts.
 
-Four workspace members are published to crates.io under MIT, versioned in
+Five workspace members are published to crates.io under MIT, versioned in
 lockstep with the `gproxy` release that ships them:
 
 | Crate | What it is |
 | --- | --- |
 | [`gproxy-channel-api`](https://crates.io/crates/gproxy-channel-api) | Stable channel, metadata, login/refresh/usage, stream, host transport, and native compile-time registration contracts. |
 | [`gproxy-protocol`](https://crates.io/crates/gproxy-protocol) | OpenAI/Claude/Gemini wire types, operation taxonomy, endpoint metadata. `serde` + `http` only, `wasm32`-clean. |
+| `gproxy-protocol-macros` | Construction support for non-exhaustive protocol wire structs; normally used through `gproxy-protocol`. |
 | [`gproxy-transform`](https://crates.io/crates/gproxy-transform) | Pairwise request/response/stream conversion between those three APIs. Pure and synchronous. |
 | [`gproxy-tokenize`](https://crates.io/crates/gproxy-tokenize) | Offline token counting: tiktoken, Hugging Face vocabularies, character estimate. |
 
@@ -111,7 +112,7 @@ That is not yet wrapped in a small public builder API.
 
 ## Protocol and operation taxonomy
 
-The stable conceptual center of v2 is the operation taxonomy:
+The stable conceptual center of v3 is the operation taxonomy:
 
 - `Operation`: `list_models`, `get_model`, `count_tokens`,
   `generate_content`, `stream_generate_content`, `create_image`,

@@ -149,13 +149,13 @@ impl FakeUpstream {
         let mut messages = VecDeque::new();
         let mut decoder = crate::transform::common::sse::SseDecoder::new();
         for chunk in &self.chunks {
-            for frame in decoder.push(chunk) {
+            for frame in decoder.push(chunk).unwrap() {
                 if let Some(message) = sse_data_to_websocket_message(&frame.data) {
                     messages.push_back(message);
                 }
             }
         }
-        if let Some(frame) = decoder.finish()
+        if let Some(frame) = decoder.finish().unwrap()
             && let Some(message) = sse_data_to_websocket_message(&frame.data)
         {
             messages.push_back(message);

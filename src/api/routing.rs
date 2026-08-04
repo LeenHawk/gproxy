@@ -10,9 +10,9 @@
 
 use crate::api::error::ApiError;
 use crate::channel::registry::ChannelRegistry;
+use crate::routing::RoutingDecision;
 use crate::store::persistence::PersistenceBackend;
 use crate::store::persistence::records::RoutingRuleInput;
-use crate::transform::routing::RoutingDecision;
 
 /// Serialize a `serde`-enum to its snake-case string form.
 fn to_str<T: serde::Serialize>(v: &T) -> String {
@@ -30,8 +30,8 @@ fn decision_strs(decision: &RoutingDecision) -> (String, Option<String>, Option<
         RoutingDecision::Unsupported => ("unsupported".to_owned(), None, None),
         RoutingDecision::TransformTo(dest) => (
             "transform_to".to_owned(),
-            Some(to_str(&dest.operation)),
-            Some(to_str(&dest.kind)),
+            Some(to_str(&dest.operation())),
+            Some(to_str(&dest.kind())),
         ),
     }
 }
@@ -68,8 +68,8 @@ pub async fn seed_default_routing(
     let mut inputs = Vec::with_capacity(table.len());
     for (source, decision) in table {
         let (implementation, dest_operation, dest_kind) = decision_strs(&decision);
-        let operation = to_str(&source.operation);
-        let kind = to_str(&source.kind);
+        let operation = to_str(&source.operation());
+        let kind = to_str(&source.kind());
         let existing_id = existing
             .iter()
             .find(|r| r.operation == operation && r.kind == kind)

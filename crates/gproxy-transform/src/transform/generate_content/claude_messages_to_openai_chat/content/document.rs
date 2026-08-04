@@ -37,8 +37,14 @@ pub(super) fn claude_document_to_chat_parts(
                     _ => None,
                 })
                 .collect(),
+            _ => unreachable!(
+                "new non-exhaustive protocol variant requires a lockstep transform update"
+            ),
         },
         claude::DocumentSource::Raw(_) => Vec::new(),
+        _ => {
+            unreachable!("new non-exhaustive protocol variant requires a lockstep transform update")
+        }
     }
 }
 
@@ -49,12 +55,12 @@ fn file_part(
     prompt_cache_breakpoint: Option<openai::PromptCacheBreakpoint>,
 ) -> openai::ChatContentPart {
     openai::ChatContentPart::File {
-        file: openai::ChatFileRef {
+        file: crate::protocol::wire!(openai::ChatFileRef {
             file_data,
             file_id,
             filename,
             extra: Default::default(),
-        },
+        }),
         prompt_cache_breakpoint,
         extra: Default::default(),
     }
