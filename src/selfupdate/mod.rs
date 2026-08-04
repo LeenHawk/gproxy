@@ -33,6 +33,8 @@ mod extract;
 #[cfg(not(target_arch = "wasm32"))]
 mod manifest;
 #[cfg(not(target_arch = "wasm32"))]
+mod notes;
+#[cfg(not(target_arch = "wasm32"))]
 mod swap;
 #[cfg(not(target_arch = "wasm32"))]
 mod verify;
@@ -200,6 +202,8 @@ pub struct CheckReport {
     pub available: bool,
     /// Release notes URL, if the manifest carries one.
     pub notes_url: Option<String>,
+    /// Inline release notes fetched from the corresponding GitHub Release.
+    pub notes: Option<String>,
     /// Safety metadata that is absent from the manifest or this binary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub safety: Vec<UpdateSafetyRisk>,
@@ -263,6 +267,7 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
                 current,
                 available: false,
                 notes_url: None,
+                notes: None,
                 safety: Vec::new(),
                 install_mode: current_install_mode(),
             });
@@ -286,12 +291,18 @@ pub async fn check(ctx: &UpdateContext) -> Result<CheckReport, UpdateError> {
     } else {
         Vec::new()
     };
+    let notes = if decision.available {
+        notes::fetch(ctx, &manifest.version).await
+    } else {
+        None
+    };
 
     Ok(CheckReport {
         current: decision.current,
         latest: decision.latest,
         available: decision.available,
         notes_url: manifest.notes_url.clone(),
+        notes,
         safety,
         install_mode: current_install_mode(),
     })

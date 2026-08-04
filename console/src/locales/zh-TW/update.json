@@ -9,6 +9,7 @@
     "availableYes": "是",
     "availableNo": "已是最新",
     "notes": "發布說明",
+    "whatsNew": "更新內容",
     "genericError": "檢查更新失敗",
     "safetyWarning": "此更新缺少安全中繼資料：{{risks}}。套用時需要再次確認。",
     "safety": {
@@ -16,6 +17,10 @@
       "missing_signature": "manifest 簽名",
       "missing_public_key": "內建驗簽公鑰"
     }
+  },
+  "releaseNotes": {
+    "title": "GPROXY {{version}} 更新內容",
+    "viewUpdate": "前往更新"
   },
   "apply": {
     "button": "更新並重新啟動",
