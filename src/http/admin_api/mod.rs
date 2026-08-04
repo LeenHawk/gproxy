@@ -22,6 +22,7 @@ mod login_support;
 mod login_telemetry;
 mod methods;
 pub(crate) mod nested;
+mod notifications;
 pub(crate) mod observability;
 mod pagination;
 pub(crate) mod portal;
@@ -392,6 +393,10 @@ async fn route(state: &AppState, parts: &Request, body: &Bytes) -> Option<Result
     }
 
     if let Some(r) = update::dispatch(state, parts, body).await {
+        return Some(r);
+    }
+
+    if let Some(r) = notifications::dispatch(state, parts).await {
         return Some(r);
     }
 

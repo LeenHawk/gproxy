@@ -1,30 +1,20 @@
-//! Best-effort GitHub Release notes fetch.
+//! Best-effort release notes fetch from the project site.
 
 use bytes::Bytes;
-use serde::Deserialize;
 
 use super::{Channel, UpdateContext};
+use crate::site::SITE_BASE_URL;
 
 const MAX_NOTES_BYTES: usize = 64 * 1024;
 
-#[derive(Deserialize)]
-struct GitHubRelease {
-    body: String,
-}
-
 pub async fn fetch(ctx: &UpdateContext, manifest_version: &str) -> Option<String> {
-    let tag = match ctx.channel {
-        Channel::Releases => format!("v{manifest_version}"),
-        Channel::Staging => "staging".to_string(),
-    };
-    let url = format!(
-        "https://api.github.com/repos/{}/releases/tags/{tag}",
-        ctx.repo
-    );
+    if ctx.channel == Channel::Staging {
+        return None;
+    }
+    let url = format!("{SITE_BASE_URL}/release-notes/v{manifest_version}.md");
     let request = match http::Request::builder()
         .method(http::Method::GET)
         .uri(&url)
-        .header(http::header::ACCEPT, "application/vnd.github+json")
         .header(http::header::USER_AGENT, "gproxy-selfupdate")
         .body(Bytes::new())
     {
@@ -56,8 +46,8 @@ pub async fn fetch(ctx: &UpdateContext, manifest_version: &str) -> Option<String
     }
 }
 
-fn extract_body(json: &[u8]) -> Result<String, serde_json::Error> {
-    let mut body = serde_json::from_slice::<GitHubRelease>(json)?.body;
+fn extract_body(bytes: &[u8]) -> Result<String, std::string::FromUtf8Error> {
+    let mut body = String::from_utf8(bytes.to_vec())?;
     if body.len() > MAX_NOTES_BYTES {
         let mut end = MAX_NOTES_BYTES;
         while !body.is_char_boundary(end) {
@@ -73,18 +63,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_release_body() {
-        assert_eq!(
-            extract_body(br#"{"body":"release notes"}"#).unwrap(),
-            "release notes"
-        );
+    fn extracts_markdown_body() {
+        assert_eq!(extract_body(b"# Release notes").unwrap(), "# Release notes");
     }
 
     #[test]
     fn truncates_on_a_utf8_boundary() {
         let body = format!("{}界", "a".repeat(MAX_NOTES_BYTES - 1));
-        let json = serde_json::to_vec(&serde_json::json!({ "body": body })).unwrap();
-        let notes = extract_body(&json).unwrap();
+        let notes = extract_body(body.as_bytes()).unwrap();
 
         assert_eq!(notes.len(), MAX_NOTES_BYTES - 1);
         assert!(notes.is_char_boundary(notes.len()));

@@ -3,6 +3,8 @@ import { Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AreaSwitcher } from "@/components/shell/area-switcher";
 import { LocaleControls } from "@/components/locale-controls";
+import { CriticalNotifications } from "@/components/notifications/critical-notifications";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { NavList, NAV_ITEMS, type NavItem } from "@/components/shell/nav";
 import { useSidebarWidth } from "@/components/shell/use-sidebar-width";
 import { UserMenu } from "@/components/shell/user-menu";
@@ -136,10 +138,12 @@ export function AppShell({
             </SheetContent>
           </Sheet>
           <div className="flex-1" />
+          {contextFrom === "/_app" && <NotificationBell />}
           <AreaSwitcher contextFrom={contextFrom} />
           <LocaleControls />
           <UserMenu />
         </header>
+        {contextFrom === "/_app" && <CriticalNotifications />}
         {contextFrom === "/_app" && <UpdateBanner />}
         <main className="min-w-0 flex-1">{children}</main>
       </div>

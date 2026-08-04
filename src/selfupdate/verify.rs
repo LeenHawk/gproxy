@@ -48,9 +48,14 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 
 /// Verify the manifest's ed25519 signature against the embedded public key.
 pub fn verify_manifest_signature(manifest: &Manifest) -> Result<(), UpdateError> {
+    verify_detached(&manifest.signing_payload(), &manifest.signature)
+}
+
+/// Verify a detached base64 Ed25519 signature over the exact supplied bytes.
+pub(crate) fn verify_detached(bytes: &[u8], sig_b64: &str) -> Result<(), UpdateError> {
     let key = embedded_verifying_key()?;
     let sig_bytes = B64
-        .decode(manifest.signature.trim())
+        .decode(sig_b64.trim())
         .map_err(|e| UpdateError::Signature(format!("signature is not valid base64: {e}")))?;
     let sig_arr: [u8; 64] = sig_bytes.as_slice().try_into().map_err(|_| {
         UpdateError::Signature(format!(
@@ -60,7 +65,7 @@ pub fn verify_manifest_signature(manifest: &Manifest) -> Result<(), UpdateError>
     })?;
     let signature = Signature::from_bytes(&sig_arr);
 
-    key.verify_strict(&manifest.signing_payload(), &signature)
+    key.verify_strict(bytes, &signature)
         .map_err(|e| UpdateError::Signature(format!("ed25519 verification failed: {e}")))
 }
 

@@ -37,7 +37,7 @@ mod notes;
 #[cfg(not(target_arch = "wasm32"))]
 mod swap;
 #[cfg(not(target_arch = "wasm32"))]
-mod verify;
+pub(crate) mod verify;
 #[cfg(not(target_arch = "wasm32"))]
 mod version;
 
@@ -202,7 +202,7 @@ pub struct CheckReport {
     pub available: bool,
     /// Release notes URL, if the manifest carries one.
     pub notes_url: Option<String>,
-    /// Inline release notes fetched from the corresponding GitHub Release.
+    /// Inline release notes fetched from the project documentation site.
     pub notes: Option<String>,
     /// Safety metadata that is absent from the manifest or this binary.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "node scripts/copy-release-notes.mjs && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },

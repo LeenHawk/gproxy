@@ -3,7 +3,7 @@
 pub(super) fn allowed_methods(segments: &[&str]) -> Option<&'static str> {
     match segments {
         ["admin", "login" | "logout"] => Some("POST"),
-        ["admin", "me" | "channels"] => Some("GET,HEAD"),
+        ["admin", "me" | "channels" | "notifications"] => Some("GET,HEAD"),
         ["admin", "autostart"] => Some("GET,HEAD,PUT"),
         [
             "admin",
