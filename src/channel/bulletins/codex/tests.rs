@@ -272,6 +272,14 @@ fn normalizes_responses_body() {
 }
 
 #[test]
+fn drops_prompt_cache_options_unsupported_by_codex() {
+    let value = shaped_body(
+        br#"{"model":"gpt-5.4","input":"hi","prompt_cache_options":{"mode":"implicit"}}"#,
+    );
+    assert!(value.get("prompt_cache_options").is_none());
+}
+
+#[test]
 fn prepare_url_body_and_headers() {
     let secret = json!({ "access_token": "tok-abc", "account_id": "acct-9" });
     let settings = json!({});
