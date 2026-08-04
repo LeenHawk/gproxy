@@ -48,11 +48,35 @@ impl SseFrame {
 pub struct SseDecoder {
     buf: String,
     utf8: super::utf8::Utf8StreamDecoder,
+    limits: SseLimits,
+}
+
+/// Bounds for untrusted SSE input. Both limits include framing bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SseLimits {
+    pub max_frame_bytes: usize,
+    pub max_buffer_bytes: usize,
+}
+
+impl Default for SseLimits {
+    fn default() -> Self {
+        Self {
+            max_frame_bytes: 1024 * 1024,
+            max_buffer_bytes: 8 * 1024 * 1024,
+        }
+    }
 }
 
 impl SseDecoder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_limits(limits: SseLimits) -> Self {
+        Self {
+            limits,
+            ..Self::default()
+        }
     }
 
     /// Append a chunk and return all complete (blank-line-terminated) frames.
@@ -64,8 +88,33 @@ impl SseDecoder {
     /// per-frame `drain(..).collect::<String>()` walked the frame char by char
     /// AND memmoved the buffer tail per frame — the top CPU hotspot of every
     /// streaming profile.)
+    /// Compatibility path for trusted/internally bounded input. Use
+    /// [`try_push`](Self::try_push) for untrusted network streams.
     pub fn push(&mut self, chunk: &[u8]) -> Vec<SseFrame> {
+        self.push_inner(chunk, false)
+            .expect("unchecked SSE decoding is infallible")
+    }
+
+    pub fn try_push(
+        &mut self,
+        chunk: &[u8],
+    ) -> Result<Vec<SseFrame>, crate::transform::TransformError> {
+        self.push_inner(chunk, true)
+    }
+
+    fn push_inner(
+        &mut self,
+        chunk: &[u8],
+        enforce_limits: bool,
+    ) -> Result<Vec<SseFrame>, crate::transform::TransformError> {
+        let pending = self.buf.len().saturating_add(chunk.len());
+        if enforce_limits {
+            self.check_limit("buffer", self.limits.max_buffer_bytes, pending)?;
+        }
         self.utf8.decode_into(chunk, &mut self.buf);
+        if enforce_limits {
+            self.check_limit("buffer", self.limits.max_buffer_bytes, self.buf.len())?;
+        }
         if self.buf.contains('\r') {
             self.buf = self.buf.replace("\r\n", "\n");
         }
@@ -73,6 +122,9 @@ impl SseDecoder {
         let mut cursor = 0;
         while let Some(pos) = self.buf[cursor..].find("\n\n") {
             let end = cursor + pos + 2;
+            if enforce_limits {
+                self.check_limit("frame", self.limits.max_frame_bytes, end - cursor)?;
+            }
             if let Some(frame) = parse_frame(&self.buf[cursor..end]) {
                 frames.push(frame);
             }
@@ -81,15 +133,50 @@ impl SseDecoder {
         if cursor > 0 {
             self.buf.drain(..cursor);
         }
-        frames
+        if enforce_limits {
+            self.check_limit("frame", self.limits.max_frame_bytes, self.buf.len())?;
+        }
+        Ok(frames)
     }
 
     /// Drain a trailing, unterminated frame at end of stream (some upstreams
     /// omit the final blank line).
     pub fn finish(&mut self) -> Option<SseFrame> {
+        self.finish_inner(false)
+            .expect("unchecked SSE decoding is infallible")
+    }
+
+    pub fn try_finish(&mut self) -> Result<Option<SseFrame>, crate::transform::TransformError> {
+        self.finish_inner(true)
+    }
+
+    fn finish_inner(
+        &mut self,
+        enforce_limits: bool,
+    ) -> Result<Option<SseFrame>, crate::transform::TransformError> {
         self.utf8.flush(&mut self.buf);
+        if enforce_limits {
+            self.check_limit("frame", self.limits.max_frame_bytes, self.buf.len())?;
+        }
         let raw = std::mem::take(&mut self.buf);
-        parse_frame(&raw)
+        Ok(parse_frame(&raw))
+    }
+
+    fn check_limit(
+        &self,
+        limit: &'static str,
+        max_bytes: usize,
+        actual_bytes: usize,
+    ) -> Result<(), crate::transform::TransformError> {
+        if actual_bytes <= max_bytes {
+            Ok(())
+        } else {
+            Err(crate::transform::TransformError::StreamLimitExceeded {
+                limit,
+                max_bytes,
+                actual_bytes,
+            })
+        }
     }
 }
 
@@ -145,5 +232,18 @@ mod tests {
         let frames = d.push(&bytes[7..]);
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].data, "汉字");
+    }
+
+    #[test]
+    fn rejects_oversized_frame_and_buffer() {
+        let limits = SseLimits {
+            max_frame_bytes: 16,
+            max_buffer_bytes: 32,
+        };
+        let mut d = SseDecoder::with_limits(limits);
+        assert!(d.try_push(b"data: 12345678901\n\n").is_err());
+
+        let mut d = SseDecoder::with_limits(limits);
+        assert!(d.try_push(&[b'x'; 33]).is_err());
     }
 }

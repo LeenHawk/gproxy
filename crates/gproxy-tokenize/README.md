@@ -34,7 +34,9 @@ feature it is `()` instead, so call sites stay identical across native and edge
 builds.
 
 `count` never fails. Worst case it degrades to the character estimate, so a
-counting path can always produce a number.
+counting path can always produce a number. Use `count_detailed` when the caller
+needs the method, vocabulary, and warnings, or async `try_count` when malformed
+JSON and an unavailable requested tokenizer must be errors.
 
 ## Counting ladder
 
@@ -49,6 +51,10 @@ counting path can always produce a number.
 Each message adds a fixed framing overhead, so the result approximates what a
 provider bills rather than raw text tokens.
 
+Overlapping `tokenizer_map` globs have deterministic priority: the pattern with
+the most non-`*` bytes wins, with lexical pattern order breaking ties. Glob
+matching is anchored and supports only `*`.
+
 ## Registry
 
 `TokenizerRegistry` is the cache for Hugging Face vocabularies. It is wired to
@@ -62,9 +68,12 @@ via `request_load`, while the caller falls further down the ladder.
 
 ## Features
 
-| Feature       | Default | Effect                                                              |
-| ------------- | ------- | ------------------------------------------------------------------- |
-| `count-local` | off     | tiktoken + Hugging Face `tokenizers` + the registry. Native targets. |
+| Feature            | Default | Effect                                                   |
+| ------------------ | ------- | -------------------------------------------------------- |
+| `tiktoken`         | off     | Built-in OpenAI-family vocabularies.                     |
+| `hf-registry`      | off     | Hugging Face tokenizer registry and host I/O traits.     |
+| `bundled-fallback` | off     | 6.1 MiB DeepSeek fallback asset; implies `hf-registry`.  |
+| `count-local`      | off     | Compatibility bundle enabling all three features above. |
 
 With `count-local` off, the crate has a single dependency (`serde_json`) and
 compiles to `wasm32`; only `harvest`, `is_gpt_family`, and the character
@@ -75,4 +84,5 @@ estimate remain. This is the edge/serverless build.
 Licensed under the [MIT License](LICENSE).
 
 The bundled fallback vocabulary under `assets/tokenizers/` is a third-party
-tokenizer vocabulary redistributed under its own upstream license.
+tokenizer vocabulary. Its source revision, checksum, and license are recorded
+in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

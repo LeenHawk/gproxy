@@ -263,100 +263,226 @@ pub(super) fn response_bytes(
     }
 }
 
-pub(super) fn stream_event(
+pub(super) struct ContentStreamConverter {
     pair: TransformPair,
-    ctx: &TransformContext,
-    data: &str,
-) -> Result<StreamEventOut, TransformError> {
-    use TransformPair as P;
-    match pair {
-        P::ClaudeMessagesToGeminiGenerateContent => to_plain(
-            gc::claude_messages_to_gemini_generate_content::stream_event,
-            ctx,
-            data,
-        ),
-        P::ClaudeMessagesToOpenAiChat => {
-            to_plain(gc::claude_messages_to_openai_chat::stream_event, ctx, data)
+    ctx: TransformContext,
+    state: ContentStreamState,
+}
+
+enum ContentStreamState {
+    Stateless,
+    ClaudeToResponses(gc::claude_messages_to_openai_responses::StreamTransform),
+    GeminiToResponses(gc::gemini_generate_content_to_openai_responses::StreamTransform),
+    ChatToResponses(gc::openai_chat_to_openai_responses::StreamTransform),
+    ResponsesToClaude(gc::openai_responses_to_claude_messages::StreamTransform),
+    ResponsesToGemini(gc::openai_responses_to_gemini_generate_content::StreamTransform),
+    ResponsesToChat(gc::openai_responses_to_openai_chat::StreamTransform),
+    ChatToClaude(gc::openai_chat_to_claude_messages::StreamTransform),
+    GeminiToClaude(gc::gemini_generate_content_to_claude_messages::StreamTransform),
+}
+
+impl ContentStreamConverter {
+    pub(super) fn new(pair: TransformPair, ctx: TransformContext) -> Result<Self, TransformError> {
+        use TransformPair as P;
+        let state = match pair {
+            P::ClaudeMessagesToOpenAiResponses | P::ClaudeMessagesToOpenAiResponsesWebSocket => {
+                ContentStreamState::ClaudeToResponses(
+                    gc::claude_messages_to_openai_responses::StreamTransform::default(),
+                )
+            }
+            P::GeminiGenerateContentToOpenAiResponses
+            | P::GeminiGenerateContentToOpenAiResponsesWebSocket => {
+                ContentStreamState::GeminiToResponses(
+                    gc::gemini_generate_content_to_openai_responses::StreamTransform,
+                )
+            }
+            P::OpenAiChatToOpenAiResponses | P::OpenAiChatToOpenAiResponsesWebSocket => {
+                ContentStreamState::ChatToResponses(
+                    gc::openai_chat_to_openai_responses::StreamTransform::default(),
+                )
+            }
+            P::OpenAiResponsesToClaudeMessages | P::OpenAiResponsesWebSocketToClaudeMessages => {
+                ContentStreamState::ResponsesToClaude(
+                    gc::openai_responses_to_claude_messages::StreamTransform,
+                )
+            }
+            P::OpenAiResponsesToGeminiGenerateContent
+            | P::OpenAiResponsesWebSocketToGeminiGenerateContent => {
+                ContentStreamState::ResponsesToGemini(
+                    gc::openai_responses_to_gemini_generate_content::StreamTransform::default(),
+                )
+            }
+            P::OpenAiResponsesToOpenAiChat | P::OpenAiResponsesWebSocketToOpenAiChat => {
+                ContentStreamState::ResponsesToChat(
+                    gc::openai_responses_to_openai_chat::StreamTransform::default(),
+                )
+            }
+            P::OpenAiChatToClaudeMessages => ContentStreamState::ChatToClaude(
+                gc::openai_chat_to_claude_messages::StreamTransform,
+            ),
+            P::GeminiGenerateContentToClaudeMessages => ContentStreamState::GeminiToClaude(
+                gc::gemini_generate_content_to_claude_messages::StreamTransform,
+            ),
+            other if is_content(other) => ContentStreamState::Stateless,
+            other => return Err(not_wired(other)),
+        };
+        Ok(Self { pair, ctx, state })
+    }
+
+    pub(super) fn push(&mut self, data: &str) -> Result<Vec<StreamEventOut>, TransformError> {
+        use TransformPair as P;
+        match (&mut self.state, self.pair) {
+            (ContentStreamState::Stateless, P::ClaudeMessagesToGeminiGenerateContent) => {
+                to_plain_one(
+                    gc::claude_messages_to_gemini_generate_content::stream_event,
+                    &self.ctx,
+                    data,
+                )
+            }
+            (ContentStreamState::Stateless, P::ClaudeMessagesToOpenAiChat) => to_plain_one(
+                gc::claude_messages_to_openai_chat::stream_event,
+                &self.ctx,
+                data,
+            ),
+            (ContentStreamState::ClaudeToResponses(state), _) => {
+                let input = decode_stream(data)?;
+                let ctx = if self.pair == P::ClaudeMessagesToOpenAiResponsesWebSocket {
+                    source_to_responses_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_responses_many(state.push(input, &ctx)?)
+            }
+            (
+                ContentStreamState::GeminiToClaude(state),
+                P::GeminiGenerateContentToClaudeMessages,
+            ) => {
+                let input = decode_stream(data)?;
+                to_claude_many(state.push(input, &self.ctx)?)
+            }
+            (ContentStreamState::Stateless, P::GeminiGenerateContentToOpenAiChat) => to_plain_one(
+                gc::gemini_generate_content_to_openai_chat::stream_event,
+                &self.ctx,
+                data,
+            ),
+            (ContentStreamState::GeminiToResponses(state), _) => {
+                let input = decode_stream(data)?;
+                let ctx = if self.pair == P::GeminiGenerateContentToOpenAiResponsesWebSocket {
+                    source_to_responses_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_responses_many(state.push(input, &ctx)?)
+            }
+            (ContentStreamState::ChatToClaude(state), P::OpenAiChatToClaudeMessages) => {
+                let input = decode_stream(data)?;
+                to_claude_many(state.push(input, &self.ctx)?)
+            }
+            (ContentStreamState::Stateless, P::OpenAiChatToGeminiGenerateContent) => to_plain_one(
+                gc::openai_chat_to_gemini_generate_content::stream_event,
+                &self.ctx,
+                data,
+            ),
+            (ContentStreamState::ChatToResponses(state), _) => {
+                let input = decode_stream(data)?;
+                let ctx = if self.pair == P::OpenAiChatToOpenAiResponsesWebSocket {
+                    source_to_responses_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_responses_many(state.push(input, &ctx)?)
+            }
+            (
+                ContentStreamState::Stateless,
+                P::OpenAiResponsesToOpenAiResponsesWebSocket
+                | P::OpenAiResponsesWebSocketToOpenAiResponses,
+            ) => to_responses_many(vec![decode_stream(data)?]),
+            (ContentStreamState::ResponsesToChat(state), _) => {
+                let input = decode_stream(data)?;
+                let ctx = if self.pair == P::OpenAiResponsesWebSocketToOpenAiChat {
+                    responses_to_target_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_plain_many(state.push(input, &ctx)?)
+            }
+            (ContentStreamState::ResponsesToClaude(state), _) => {
+                let input = decode_stream(data)?;
+                let ctx = if self.pair == P::OpenAiResponsesWebSocketToClaudeMessages {
+                    responses_to_target_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_claude_many(state.push(input, &ctx)?)
+            }
+            (ContentStreamState::ResponsesToGemini(state), _) => {
+                let input = decode_stream(data)?;
+                let ctx = if self.pair == P::OpenAiResponsesWebSocketToGeminiGenerateContent {
+                    responses_to_target_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_plain_many(state.push(input, &ctx)?)
+            }
+            _ => Err(not_wired(self.pair)),
         }
-        P::ClaudeMessagesToOpenAiResponses => to_responses(
-            gc::claude_messages_to_openai_responses::stream_event,
-            ctx,
-            data,
-        ),
-        P::GeminiGenerateContentToClaudeMessages => to_claude(
-            gc::gemini_generate_content_to_claude_messages::stream_event,
-            ctx,
-            data,
-        ),
-        P::GeminiGenerateContentToOpenAiChat => to_plain(
-            gc::gemini_generate_content_to_openai_chat::stream_event,
-            ctx,
-            data,
-        ),
-        P::GeminiGenerateContentToOpenAiResponses => to_responses(
-            gc::gemini_generate_content_to_openai_responses::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiChatToClaudeMessages => {
-            to_claude(gc::openai_chat_to_claude_messages::stream_event, ctx, data)
+    }
+
+    pub(super) fn finish(&mut self) -> Result<Vec<StreamEventOut>, TransformError> {
+        use TransformPair as P;
+        match &mut self.state {
+            ContentStreamState::Stateless => Ok(Vec::new()),
+            ContentStreamState::ClaudeToResponses(state) => {
+                let ctx = if self.pair == P::ClaudeMessagesToOpenAiResponsesWebSocket {
+                    source_to_responses_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_responses_many(state.finish(&ctx)?)
+            }
+            ContentStreamState::GeminiToResponses(state) => {
+                let ctx = if self.pair == P::GeminiGenerateContentToOpenAiResponsesWebSocket {
+                    source_to_responses_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_responses_many(state.finish(&ctx)?)
+            }
+            ContentStreamState::ChatToResponses(state) => {
+                let ctx = if self.pair == P::OpenAiChatToOpenAiResponsesWebSocket {
+                    source_to_responses_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_responses_many(state.finish(&ctx)?)
+            }
+            ContentStreamState::ResponsesToClaude(state) => {
+                let ctx = if self.pair == P::OpenAiResponsesWebSocketToClaudeMessages {
+                    responses_to_target_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_claude_many(state.finish(&ctx)?)
+            }
+            ContentStreamState::ResponsesToGemini(state) => {
+                let ctx = if self.pair == P::OpenAiResponsesWebSocketToGeminiGenerateContent {
+                    responses_to_target_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_plain_many(state.finish(&ctx)?)
+            }
+            ContentStreamState::ResponsesToChat(state) => {
+                let ctx = if self.pair == P::OpenAiResponsesWebSocketToOpenAiChat {
+                    responses_to_target_ctx(&self.ctx)
+                } else {
+                    self.ctx.clone()
+                };
+                to_plain_many(state.finish(&ctx)?)
+            }
+            ContentStreamState::ChatToClaude(state) => to_claude_many(state.finish(&self.ctx)?),
+            ContentStreamState::GeminiToClaude(state) => to_claude_many(state.finish(&self.ctx)?),
         }
-        P::OpenAiChatToGeminiGenerateContent => to_plain(
-            gc::openai_chat_to_gemini_generate_content::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiChatToOpenAiResponses => {
-            to_responses(gc::openai_chat_to_openai_responses::stream_event, ctx, data)
-        }
-        P::OpenAiResponsesToOpenAiResponsesWebSocket
-        | P::OpenAiResponsesWebSocketToOpenAiResponses => {
-            to_responses(|event, _| Ok(event), ctx, data)
-        }
-        P::OpenAiChatToOpenAiResponsesWebSocket => stream_via_openai_responses(
-            gc::openai_chat_to_openai_responses::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiResponsesWebSocketToOpenAiChat => to_plain(
-            gc::openai_responses_to_openai_chat::stream_event,
-            &responses_to_target_ctx(ctx),
-            data,
-        ),
-        P::ClaudeMessagesToOpenAiResponsesWebSocket => stream_via_openai_responses(
-            gc::claude_messages_to_openai_responses::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiResponsesWebSocketToClaudeMessages => to_claude(
-            gc::openai_responses_to_claude_messages::stream_event,
-            &responses_to_target_ctx(ctx),
-            data,
-        ),
-        P::GeminiGenerateContentToOpenAiResponsesWebSocket => stream_via_openai_responses(
-            gc::gemini_generate_content_to_openai_responses::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiResponsesWebSocketToGeminiGenerateContent => to_plain(
-            gc::openai_responses_to_gemini_generate_content::stream_event,
-            &responses_to_target_ctx(ctx),
-            data,
-        ),
-        P::OpenAiResponsesToClaudeMessages => to_claude(
-            gc::openai_responses_to_claude_messages::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiResponsesToGeminiGenerateContent => to_plain(
-            gc::openai_responses_to_gemini_generate_content::stream_event,
-            ctx,
-            data,
-        ),
-        P::OpenAiResponsesToOpenAiChat => {
-            to_plain(gc::openai_responses_to_openai_chat::stream_event, ctx, data)
-        }
-        other => Err(not_wired(other)),
     }
 }
 
@@ -372,6 +498,12 @@ fn run_stream<S: DeserializeOwned, T>(
     f(input, ctx)
 }
 
+fn decode_stream<S: DeserializeOwned>(data: &str) -> Result<S, TransformError> {
+    serde_json::from_str(data).map_err(|e| TransformError::InvalidInput {
+        reason: format!("decode stream event: {e}"),
+    })
+}
+
 fn encode<T: Serialize>(event: Option<String>, out: &T) -> Result<StreamEventOut, TransformError> {
     let data = serde_json::to_string(out).map_err(|e| TransformError::Serialization {
         reason: e.to_string(),
@@ -380,42 +512,35 @@ fn encode<T: Serialize>(event: Option<String>, out: &T) -> Result<StreamEventOut
 }
 
 /// Inbound wire is chat/gemini: data-only frames, no SSE event name.
-fn to_plain<S: DeserializeOwned, T: Serialize>(
+fn to_plain_one<S: DeserializeOwned, T: Serialize>(
     f: impl Fn(S, &TransformContext) -> Result<T, TransformError>,
     ctx: &TransformContext,
     data: &str,
-) -> Result<StreamEventOut, TransformError> {
-    encode(None, &run_stream(f, ctx, data)?)
+) -> Result<Vec<StreamEventOut>, TransformError> {
+    Ok(vec![encode(None, &run_stream(f, ctx, data)?)?])
 }
 
-/// Inbound wire is Claude Messages: named SSE events.
-fn to_claude<S: DeserializeOwned>(
-    f: impl Fn(S, &TransformContext) -> Result<claude::StreamEvent, TransformError>,
-    ctx: &TransformContext,
-    data: &str,
-) -> Result<StreamEventOut, TransformError> {
-    let out = run_stream(f, ctx, data)?;
-    encode(out.event_name().map(str::to_owned), &out)
+fn to_plain_many<T: Serialize>(events: Vec<T>) -> Result<Vec<StreamEventOut>, TransformError> {
+    events
+        .into_iter()
+        .map(|event| encode(None, &event))
+        .collect()
 }
 
-/// Inbound wire is Responses (HTTP or WebSocket): hand the typed event to the
-/// caller's aggregation state machine.
-fn to_responses<S: DeserializeOwned>(
-    f: impl Fn(S, &TransformContext) -> Result<openai::ResponseStreamEvent, TransformError>,
-    ctx: &TransformContext,
-    data: &str,
-) -> Result<StreamEventOut, TransformError> {
-    Ok(StreamEventOut::Responses(Box::new(run_stream(
-        f, ctx, data,
-    )?)))
+fn to_claude_many(events: Vec<claude::StreamEvent>) -> Result<Vec<StreamEventOut>, TransformError> {
+    events
+        .into_iter()
+        .map(|event| encode(event.event_name().map(str::to_owned), &event))
+        .collect()
 }
 
-fn stream_via_openai_responses<S: DeserializeOwned>(
-    f: impl Fn(S, &TransformContext) -> Result<openai::ResponseStreamEvent, TransformError>,
-    ctx: &TransformContext,
-    data: &str,
-) -> Result<StreamEventOut, TransformError> {
-    to_responses(f, &source_to_responses_ctx(ctx), data)
+fn to_responses_many(
+    events: Vec<openai::ResponseStreamEvent>,
+) -> Result<Vec<StreamEventOut>, TransformError> {
+    Ok(events
+        .into_iter()
+        .map(|event| StreamEventOut::Responses(Box::new(event)))
+        .collect())
 }
 
 fn responses_key(ctx: &TransformContext, source: bool) -> OperationKey {

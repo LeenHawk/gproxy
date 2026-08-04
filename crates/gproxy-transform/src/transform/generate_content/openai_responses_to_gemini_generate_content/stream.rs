@@ -8,10 +8,9 @@ use super::super::common;
 pub fn stream_event(
     input: openai::ResponseStreamEvent,
     ctx: &TransformContext,
-) -> Result<gemini::StreamGenerateContentChunk, TransformError> {
+) -> Result<Vec<gemini::StreamGenerateContentChunk>, TransformError> {
     let mut transform = StreamTransform::default();
-    let mut output = transform.push(input, ctx)?;
-    Ok(output.drain(..).next().unwrap_or_else(empty_chunk))
+    transform.push(input, ctx)
 }
 
 #[derive(Default)]
@@ -313,10 +312,6 @@ fn empty_chunk_with_usage(
         model_status: None,
         extra: Default::default(),
     }
-}
-
-fn empty_chunk() -> gemini::GenerateContentResponse {
-    empty_chunk_with_usage(None)
 }
 
 fn response_finish_reason(response: &openai::ResponseObject) -> gemini::FinishReason {

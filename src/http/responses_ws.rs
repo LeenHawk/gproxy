@@ -142,8 +142,12 @@ pub(crate) async fn outcome_to_messages(outcome: ExecOutcome) -> Result<Vec<Stri
     let mut messages = Vec::new();
     match outcome.body {
         ResponseBody::Full(body) => {
-            messages.extend(decoder.push(&body));
-            messages.extend(decoder.finish());
+            messages.extend(decoder.push(&body).map_err(|error| {
+                WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string())
+            })?);
+            messages.extend(decoder.finish().map_err(|error| {
+                WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string())
+            })?);
             if messages.is_empty() && !body.is_empty() {
                 messages.push(json_body_to_message(&body)?);
             }
@@ -153,9 +157,13 @@ pub(crate) async fn outcome_to_messages(outcome: ExecOutcome) -> Result<Vec<Stri
                 let chunk = chunk.map_err(|error| {
                     WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string())
                 })?;
-                messages.extend(decoder.push(&chunk));
+                messages.extend(decoder.push(&chunk).map_err(|error| {
+                    WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string())
+                })?);
             }
-            messages.extend(decoder.finish());
+            messages.extend(decoder.finish().map_err(|error| {
+                WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string())
+            })?);
         }
     }
     Ok(messages)

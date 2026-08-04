@@ -85,7 +85,7 @@ pub fn request_parts(
                     // non-openai-chat provider ops, so this is a pure rewrite)
                     body = patch_body(&body, Some(&cand.upstream_model_id), None, include_usage)?;
                 } else {
-                    let t = protocol::request_target(op, &cand.upstream_model_id, ctx.stream);
+                    let t = protocol::request_target(op, &cand.upstream_model_id, ctx.stream)?;
                     path = t.path;
                     if let Some(extra) = t.query {
                         query = Some(merge_query(query.as_deref(), &extra));
@@ -114,7 +114,7 @@ pub fn request_parts(
             // Body-less ops (models GETs): nothing to transform or patch;
             // endpoint synthesis plus the list-models QUERY conversion.
             if !target.operation.has_request_body() {
-                let t = protocol::request_target(*target, &cand.upstream_model_id, ctx.stream);
+                let t = protocol::request_target(*target, &cand.upstream_model_id, ctx.stream)?;
                 let fwd = TransformContext::new(*source, *target)
                     .with_request(&ctx.path, ctx.query.as_deref());
                 let query = match (
@@ -181,7 +181,7 @@ pub fn request_parts(
                         converted
                     }
                 };
-                let t = protocol::request_target(*target, &cand.upstream_model_id, ctx.stream);
+                let t = protocol::request_target(*target, &cand.upstream_model_id, ctx.stream)?;
                 (
                     RequestParts {
                         method: t.method.into(),
@@ -231,7 +231,7 @@ pub fn request_parts(
             } else {
                 base
             };
-            let t = protocol::request_target(*target, &cand.upstream_model_id, false);
+            let t = protocol::request_target(*target, &cand.upstream_model_id, false)?;
             (
                 RequestParts {
                     method: t.method.into(),
@@ -284,7 +284,7 @@ pub fn request_parts(
             } else {
                 base
             };
-            let t = protocol::request_target(*target, &cand.upstream_model_id, true);
+            let t = protocol::request_target(*target, &cand.upstream_model_id, true)?;
             (
                 RequestParts {
                     method: t.method.into(),

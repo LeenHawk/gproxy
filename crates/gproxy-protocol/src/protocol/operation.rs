@@ -123,7 +123,7 @@ impl ContentGenerationKind {
 }
 
 /// Capability plus wire-format kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct OperationKey {
     pub operation: Operation,
     pub kind: OperationKind,
@@ -131,7 +131,7 @@ pub struct OperationKey {
 
 impl OperationKey {
     pub fn content_generation(operation: Operation, kind: ContentGenerationKind) -> Self {
-        debug_assert!(
+        assert!(
             operation.is_content_generation(),
             "content-generation kind used with non-content operation"
         );
@@ -142,7 +142,7 @@ impl OperationKey {
     }
 
     pub fn provider(operation: Operation, provider: Provider) -> Self {
-        debug_assert!(
+        assert!(
             !operation.is_content_generation(),
             "provider kind used with content-generation operation"
         );
@@ -162,6 +162,52 @@ impl OperationKey {
 
     pub const fn is_consistent(self) -> bool {
         self.operation.is_content_generation() == self.kind.is_content_generation()
+    }
+
+    pub const fn try_new(
+        operation: Operation,
+        kind: OperationKind,
+    ) -> Result<Self, OperationKeyError> {
+        let key = Self { operation, kind };
+        if key.is_consistent() {
+            Ok(key)
+        } else {
+            Err(OperationKeyError { operation, kind })
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OperationKeyError {
+    pub operation: Operation,
+    pub kind: OperationKind,
+}
+
+impl std::fmt::Display for OperationKeyError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "operation {:?} is inconsistent with kind {:?}",
+            self.operation, self.kind
+        )
+    }
+}
+
+impl std::error::Error for OperationKeyError {}
+
+impl<'de> Deserialize<'de> for OperationKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct WireOperationKey {
+            operation: Operation,
+            kind: OperationKind,
+        }
+
+        let wire = WireOperationKey::deserialize(deserializer)?;
+        Self::try_new(wire.operation, wire.kind).map_err(serde::de::Error::custom)
     }
 }
 
@@ -240,5 +286,30 @@ impl Endpoint {
 
     pub const fn group(&self) -> OperationGroup {
         self.operation_key.group()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserialization_rejects_inconsistent_operation_key() {
+        let value = serde_json::json!({
+            "operation": "generate_content",
+            "kind": "open_ai"
+        });
+        assert!(serde_json::from_value::<OperationKey>(value).is_err());
+    }
+
+    #[test]
+    fn try_new_checks_the_invariant() {
+        assert!(
+            OperationKey::try_new(
+                Operation::GenerateContent,
+                OperationKind::Provider(Provider::OpenAi),
+            )
+            .is_err()
+        );
     }
 }

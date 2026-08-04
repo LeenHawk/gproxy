@@ -9,13 +9,9 @@ use super::usage::chat_usage_to_response;
 pub fn stream_event(
     input: openai::ChatCompletionChunk,
     ctx: &TransformContext,
-) -> Result<openai::ResponseStreamEvent, TransformError> {
+) -> Result<Vec<openai::ResponseStreamEvent>, TransformError> {
     let mut transform = StreamTransform::default();
-    let mut output = transform.push(input, ctx)?;
-    Ok(output
-        .drain(..)
-        .next()
-        .unwrap_or_else(default_response_in_progress))
+    transform.push(input, ctx)
 }
 
 #[derive(Default)]
@@ -434,15 +430,4 @@ fn response_function_ids(chat_call_id: Option<&str>, output_index: u32) -> (Stri
 
 fn known(event: openai::KnownResponseStreamEvent) -> openai::ResponseStreamEvent {
     openai::ResponseStreamEvent::Known(event)
-}
-
-fn default_response_in_progress() -> openai::ResponseStreamEvent {
-    response_lifecycle_event(
-        String::new(),
-        0,
-        common::default_openai_model(),
-        None,
-        openai::ResponseStatus::InProgress,
-        None,
-    )
 }

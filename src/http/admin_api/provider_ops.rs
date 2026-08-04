@@ -37,6 +37,8 @@ fn models_error(error: crate::credentials::upstream_models::ModelsError) -> ApiE
         M::NoCredential | M::NoAvailableCredential | M::Channel(_) | M::Status(_) => {
             ApiError::BadRequest(error.to_string())
         }
-        M::Decrypt(_) | M::Upstream(_) | M::Internal(_) => ApiError::Internal(error.to_string()),
+        M::Decrypt(_) | M::Upstream(_) | M::Internal(_) | M::Endpoint(_) => {
+            ApiError::Internal(error.to_string())
+        }
     }
 }

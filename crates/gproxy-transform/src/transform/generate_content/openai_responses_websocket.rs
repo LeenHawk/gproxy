@@ -128,20 +128,22 @@ impl ResponseWebSocketSseDecoder {
         Self::default()
     }
 
-    pub fn push(&mut self, chunk: &[u8]) -> Vec<String> {
-        self.decoder
-            .push(chunk)
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<String>, TransformError> {
+        Ok(self
+            .decoder
+            .try_push(chunk)?
             .into_iter()
             .filter_map(frame_data)
-            .collect()
+            .collect())
     }
 
-    pub fn finish(&mut self) -> Vec<String> {
-        self.decoder
-            .finish()
+    pub fn finish(&mut self) -> Result<Vec<String>, TransformError> {
+        Ok(self
+            .decoder
+            .try_finish()?
             .and_then(frame_data)
             .into_iter()
-            .collect()
+            .collect())
     }
 }
 
@@ -212,8 +214,8 @@ mod tests {
         let mut decoder = ResponseWebSocketSseDecoder::new();
         let messages = decoder.push(
             b"event: response.created\ndata: {\"type\":\"response.created\"}\n\ndata: [DONE]\n\n",
-        );
+        ).unwrap();
         assert_eq!(messages, vec![r#"{"type":"response.created"}"#]);
-        assert!(decoder.finish().is_empty());
+        assert!(decoder.finish().unwrap().is_empty());
     }
 }

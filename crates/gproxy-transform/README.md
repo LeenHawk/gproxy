@@ -45,8 +45,10 @@ let back = resolve(target, source)?;
 let back_ctx = TransformContext::new(target, source);
 let inbound_body = dispatch::response_bytes(back, &back_ctx, upstream_body)?;
 
-// Streaming converts one decoded SSE frame at a time, same reverse pair.
-let inbound_event = dispatch::stream_event(back, &back_ctx, upstream_frame_data)?;
+// Streaming is stateful and one input event may yield zero or many outputs.
+let mut stream = dispatch::StreamConverter::new(back, back_ctx)?;
+let inbound_events = stream.push(upstream_frame_data)?;
+let final_events = stream.finish()?;
 ```
 
 ## Design
@@ -59,9 +61,12 @@ let inbound_event = dispatch::stream_event(back, &back_ctx, upstream_frame_data)
 - **Same-kind traffic never enters this crate.** Route it as passthrough.
 - **`extra` fields are not preserved.** Source `extra` is dropped; target
   `extra` starts empty.
-- Cross-event aggregation (block indexes, tool-call identity, final usage) is a
-  concern of the runtime adapter in `stream_adapter`, not of the stateless
-  per-event `stream_event` functions.
+- **Streaming is `0..N` and stateful.** Retain one `dispatch::StreamConverter`
+  (or `stream_adapter::SseTransformer`) for the whole response so multi-part
+  frames and tool calls split across frames are preserved.
+- The default SSE adapter is strict: malformed/oversized frames and abnormal
+  EOF return errors and do not synthesize a successful terminator. Lenient
+  skipping is an explicit `StreamOptions` choice.
 
 Use `dispatch::is_wired` to check whether a resolved pair has a bytes-level
 implementation before routing traffic through it.

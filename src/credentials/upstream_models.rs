@@ -43,6 +43,8 @@ pub enum ModelsError {
     Decrypt(String),
     #[error("upstream model request failed: {0}")]
     Upstream(String),
+    #[error("endpoint synthesis failed: {0}")]
+    Endpoint(#[from] crate::protocol::EndpointError),
     #[error("upstream returned HTTP {0}")]
     Status(u16),
     #[error("{0}")]
@@ -333,6 +335,7 @@ fn warn_pull_failure(
         ModelsError::ProviderNotFound => ("provider_not_found", 0),
         ModelsError::NoCredential => ("no_credential", 0),
         ModelsError::NoAvailableCredential => ("no_available_credential", 0),
+        ModelsError::Endpoint(_) => ("endpoint", 0),
     };
     tracing::warn!(
         provider_id = provider.id,
@@ -365,7 +368,7 @@ async fn fetch_models_with(
     client: &Arc<dyn UpstreamClient>,
 ) -> Result<ModelPullResult, ModelsError> {
     let op = OperationKey::provider(Operation::ListModels, family);
-    let target = crate::protocol::request_target(op, "", false);
+    let target = crate::protocol::request_target(op, "", false)?;
     let headers = http::HeaderMap::new();
 
     let mut attempt = 0;

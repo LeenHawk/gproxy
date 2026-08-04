@@ -1969,12 +1969,9 @@ name = "gproxy-transform"
 version = "2.2.6"
 dependencies = [
  "blake3",
- "bytes",
  "gproxy-protocol",
- "http",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "tracing",
 ]
 

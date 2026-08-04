@@ -14,15 +14,12 @@ fn chat_chunks_to_claude_events() {
         ContentGenerationKind::ClaudeMessages,
     );
     let pair = crate::transform::resolve(upstream, inbound).unwrap();
-    let mut transformer = SseTransformer::new(
-        pair,
-        TransformContext::new(upstream, inbound),
-        ContentGenerationKind::ClaudeMessages,
-    );
+    let mut transformer =
+        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
     let chunk = br#"data: {"id":"c1","object":"chat.completion.chunk","created":0,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"he"},"finish_reason":null}]}"#;
-    let mut out = transformer.push(chunk);
-    out.extend(transformer.push(b"\n\ndata: [DONE]\n\n"));
-    out.extend(transformer.finish());
+    let mut out = transformer.push(chunk).unwrap();
+    out.extend(transformer.push(b"\n\ndata: [DONE]\n\n").unwrap());
+    out.extend(transformer.finish().unwrap());
     let text = String::from_utf8(out).unwrap();
     assert!(text.contains("event: "));
     assert!(!text.contains("[DONE]"));
@@ -39,8 +36,9 @@ fn aggregate_buffered_collapses_chat() {
         "data: {\"id\":\"c1\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"llo\"},\"finish_reason\":\"stop\"}]}\n\n",
         "data: [DONE]\n\n",
     );
-    let out = aggregate_buffered(ContentGenerationKind::OpenAiChatCompletions, sse.as_bytes());
-    let value: Value = serde_json::from_slice(&out).unwrap();
+    let out =
+        aggregate_buffered(ContentGenerationKind::OpenAiChatCompletions, sse.as_bytes()).unwrap();
+    let value: Value = serde_json::from_slice(&out.body).unwrap();
     assert_eq!(value["object"], "chat.completion");
     assert_eq!(value["choices"][0]["message"]["content"], "hello");
 }
@@ -115,20 +113,17 @@ fn chat_tool_call_stream_finishes_responses_item() {
         ContentGenerationKind::OpenAiResponses,
     );
     let pair = crate::transform::resolve(upstream, inbound).unwrap();
-    let mut transformer = SseTransformer::new(
-        pair,
-        TransformContext::new(upstream, inbound),
-        ContentGenerationKind::OpenAiResponses,
-    );
-    let mut out = transformer.push(br#"data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"echo_text","arguments":""}}]},"finish_reason":null}]}"#);
+    let mut transformer =
+        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
+    let mut out = transformer.push(br#"data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"echo_text","arguments":""}}]},"finish_reason":null}]}"#).unwrap();
     out.extend(transformer.push(br#"
 
-data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"text\":\"hello\"}"}}]},"finish_reason":null}]}"#));
+data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"text\":\"hello\"}"}}]},"finish_reason":null}]}"#).unwrap());
     out.extend(transformer.push(br#"
 
-data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#));
-    out.extend(transformer.push(b"\n\ndata: [DONE]\n\n"));
-    out.extend(transformer.finish());
+data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}"#).unwrap());
+    out.extend(transformer.push(b"\n\ndata: [DONE]\n\n").unwrap());
+    out.extend(transformer.finish().unwrap());
     let text = String::from_utf8(out).unwrap();
     assert!(text.contains("event: response.function_call_arguments.done"));
     assert!(text.contains("event: response.output_item.done"));
@@ -143,4 +138,159 @@ data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choic
     let item = &completed["response"]["output"][0];
     assert_eq!(item["type"], "function_call");
     assert_eq!(item["arguments"], "{\"text\":\"hello\"}");
+}
+
+#[test]
+fn gemini_frame_preserves_all_parts_and_finish_reason() {
+    let upstream = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::GeminiGenerateContent,
+    );
+    let inbound = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiResponses,
+    );
+    let pair = crate::transform::resolve(upstream, inbound).unwrap();
+    let mut transformer =
+        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
+    let frame = serde_json::json!({
+        "responseId": "r1",
+        "modelVersion": "gemini-test",
+        "candidates": [{
+            "index": 0,
+            "content": {"parts": [
+                {"text": "thinking", "thought": true},
+                {"text": "answer"},
+                {"functionCall": {"id": "call_1", "name": "echo", "args": {"x": 1}}}
+            ]},
+            "finishReason": "STOP"
+        }]
+    });
+    let input = format!("data: {frame}\n\n");
+    let mut out = transformer.push(input.as_bytes()).unwrap();
+    out.extend(transformer.finish().unwrap());
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("response.reasoning_text.delta"));
+    assert!(text.contains("response.output_text.delta"));
+    assert!(text.contains("response.output_item.added"));
+    assert!(text.contains("response.completed"));
+    assert!(text.contains("thinking"));
+    assert!(text.contains("answer"));
+    assert!(text.contains("call_1"));
+}
+
+#[test]
+fn chat_frame_preserves_content_reasoning_tool_and_finish() {
+    let upstream = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChatCompletions,
+    );
+    let inbound = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::ClaudeMessages,
+    );
+    let pair = crate::transform::resolve(upstream, inbound).unwrap();
+    let mut transformer =
+        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
+    let chunk = serde_json::json!({
+        "id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m",
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "content": "answer",
+                "reasoning_content": "thinking",
+                "tool_calls": [{
+                    "index": 1, "id": "call_1", "type": "function",
+                    "function": {"name": "echo", "arguments": "{\"x\":1}"}
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }]
+    });
+    let input = format!("data: {chunk}\n\ndata: [DONE]\n\n");
+    let mut out = transformer.push(input.as_bytes()).unwrap();
+    out.extend(transformer.finish().unwrap());
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains(r#""text":"answer""#));
+    assert!(text.contains(r#""thinking":"thinking""#));
+    assert!(text.contains(r#""name":"echo""#));
+    assert!(text.contains(r#""partial_json":"{\"x\":1}""#));
+    assert!(text.contains(r#""stop_reason":"tool_use""#));
+}
+
+#[test]
+fn strict_stream_rejects_bad_frame_and_does_not_finish() {
+    let upstream = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChatCompletions,
+    );
+    let inbound = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::GeminiGenerateContent,
+    );
+    let pair = crate::transform::resolve(upstream, inbound).unwrap();
+    let mut transformer =
+        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
+    assert!(transformer.push(b"data: {bad json}\n\n").is_err());
+    assert!(transformer.finish().is_err());
+}
+
+#[test]
+fn strict_stream_rejects_unexpected_eof() {
+    let upstream = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::OpenAiChatCompletions,
+    );
+    let inbound = OperationKey::content_generation(
+        Operation::StreamGenerateContent,
+        ContentGenerationKind::GeminiGenerateContent,
+    );
+    let pair = crate::transform::resolve(upstream, inbound).unwrap();
+    let mut transformer =
+        SseTransformer::new(pair, TransformContext::new(upstream, inbound)).unwrap();
+    let chunk =
+        br#"data: {"id":"c1","object":"chat.completion.chunk","created":0,"model":"m","choices":[]}
+
+"#;
+    transformer.push(chunk).unwrap();
+    assert!(matches!(
+        transformer.finish(),
+        Err(crate::transform::TransformError::UnexpectedEof { .. })
+    ));
+}
+
+#[test]
+fn buffered_aggregation_rejects_invalid_frames() {
+    let input = b"data: {bad json}\n\ndata: [DONE]\n\n";
+    assert!(aggregate_buffered(ContentGenerationKind::OpenAiChatCompletions, input).is_err());
+}
+
+#[test]
+fn responses_normalizer_finish_flushes_lifecycle() {
+    let mut normalizer = ResponsesStreamNormalizer::new();
+    let input = concat!(
+        "event: response.output_text.delta\n",
+        "data: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"hello\",\"item_id\":\"msg_1\",\"output_index\":0}\n\n"
+    );
+    let mut out = normalizer.push(input.as_bytes()).unwrap();
+    out.extend(normalizer.finish().unwrap());
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("response.output_text.done"));
+    assert!(text.contains("response.output_item.done"));
+    assert!(text.contains("response.completed"));
+}
+
+#[test]
+fn responses_normalizer_finish_flushes_tool_only_stream() {
+    let mut normalizer = ResponsesStreamNormalizer::new();
+    let input = concat!(
+        "event: response.function_call_arguments.delta\n",
+        "data: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"{\\\"x\\\":1}\",\"item_id\":\"fc_1\",\"output_index\":0}\n\n"
+    );
+    let mut out = normalizer.push(input.as_bytes()).unwrap();
+    out.extend(normalizer.finish().unwrap());
+    let text = String::from_utf8(out).unwrap();
+    assert!(text.contains("response.function_call_arguments.done"));
+    assert!(text.contains("response.output_item.done"));
+    assert!(text.contains("response.completed"));
 }

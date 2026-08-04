@@ -8,4 +8,4 @@ mod tools;
 
 pub use request::request;
 pub use response::response;
-pub use stream::stream_event;
+pub use stream::{StreamTransform, stream_event};

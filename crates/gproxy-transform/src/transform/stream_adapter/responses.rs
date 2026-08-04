@@ -14,6 +14,7 @@ use crate::protocol::openai::{
 };
 
 use super::{SseDecoder, SseFrame, encode_responses_event};
+use crate::transform::TransformError;
 use text::ResponsesTextItemState;
 use tool::{ResponsesToolItemState, ResponsesToolKind};
 
@@ -22,6 +23,8 @@ use tool::{ResponsesToolItemState, ResponsesToolKind};
 pub struct ResponsesStreamNormalizer {
     decoder: SseDecoder,
     responses: ResponsesStreamState,
+    done_seen: bool,
+    failed: bool,
 }
 
 impl ResponsesStreamNormalizer {
@@ -29,34 +32,59 @@ impl ResponsesStreamNormalizer {
         Self::default()
     }
 
-    pub fn push(&mut self, chunk: &[u8]) -> Vec<u8> {
-        let mut out = Vec::new();
-        for frame in self.decoder.push(chunk) {
-            self.normalize_into(frame, &mut out);
+    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<u8>, TransformError> {
+        if self.failed {
+            return Err(TransformError::InvalidInput {
+                reason: "Responses stream normalizer is failed".to_owned(),
+            });
         }
-        out
+        let mut out = Vec::new();
+        let frames = self
+            .decoder
+            .try_push(chunk)
+            .inspect_err(|_| self.failed = true)?;
+        for frame in frames {
+            if let Err(error) = self.normalize_into(frame, &mut out) {
+                self.failed = true;
+                return Err(error);
+            }
+        }
+        Ok(out)
     }
 
-    pub fn finish(&mut self) -> Vec<u8> {
-        let mut out = Vec::new();
-        if let Some(frame) = self.decoder.finish() {
-            self.normalize_into(frame, &mut out);
+    pub fn finish(&mut self) -> Result<Vec<u8>, TransformError> {
+        if self.failed {
+            return Err(TransformError::InvalidInput {
+                reason: "cannot finish failed Responses stream normalizer".to_owned(),
+            });
         }
-        out
+        let mut out = Vec::new();
+        if let Some(frame) = self.decoder.try_finish()? {
+            self.normalize_into(frame, &mut out)?;
+        }
+        for event in self.responses.finish() {
+            encode_responses_event(&event, &mut out)?;
+        }
+        if self.done_seen {
+            out.extend_from_slice(b"data: [DONE]\n\n");
+        }
+        Ok(out)
     }
 
-    fn normalize_into(&mut self, frame: SseFrame, out: &mut Vec<u8>) {
+    fn normalize_into(&mut self, frame: SseFrame, out: &mut Vec<u8>) -> Result<(), TransformError> {
         if frame.data.trim() == "[DONE]" {
-            out.extend_from_slice(frame.encode().as_bytes());
-            return;
+            self.done_seen = true;
+            return Ok(());
         }
-        let Ok(event) = serde_json::from_str::<ResponseStreamEvent>(&frame.data) else {
-            out.extend_from_slice(frame.encode().as_bytes());
-            return;
-        };
+        let event = serde_json::from_str::<ResponseStreamEvent>(&frame.data).map_err(|error| {
+            TransformError::InvalidInput {
+                reason: format!("decode Responses stream event: {error}"),
+            }
+        })?;
         for event in self.responses.push(event) {
-            encode_responses_event(&event, out);
+            encode_responses_event(&event, out)?;
         }
+        Ok(())
     }
 }
 
@@ -207,8 +235,8 @@ impl ResponsesStreamState {
         }
         let mut out = self.finish_reasoning();
         out.extend(self.finish_message());
+        out.extend(self.finish_tools());
         if !out.is_empty() {
-            out.extend(self.finish_tools());
             out.push(known(KnownEvent::ResponseCompleted {
                 response: Box::new(fallback_completed_response()),
                 sequence_number: None,

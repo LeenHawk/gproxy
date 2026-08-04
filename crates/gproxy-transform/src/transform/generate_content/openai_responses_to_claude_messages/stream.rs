@@ -6,10 +6,9 @@ use super::super::common;
 pub fn stream_event(
     input: openai::ResponseStreamEvent,
     ctx: &TransformContext,
-) -> Result<claude::StreamEvent, TransformError> {
+) -> Result<Vec<claude::StreamEvent>, TransformError> {
     let mut transform = StreamTransform;
-    let mut output = transform.push(input, ctx)?;
-    Ok(output.drain(..).next().unwrap_or_else(ping))
+    transform.push(input, ctx)
 }
 
 #[derive(Default)]
@@ -298,12 +297,6 @@ fn done_input_to_claude(output_index: u32, input: String) -> Vec<claude::StreamE
     }
     events.push(content_block_stop(u64::from(output_index)));
     events
-}
-
-fn ping() -> claude::StreamEvent {
-    known(claude::KnownStreamEvent::Ping {
-        extra: Default::default(),
-    })
 }
 
 fn known(event: claude::KnownStreamEvent) -> claude::StreamEvent {

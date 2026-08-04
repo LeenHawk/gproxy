@@ -98,7 +98,7 @@ pub enum RoutingDecision {
 /// Decide how to service `source` on a channel. Routing is driven entirely by
 /// stored rules: an explicit rule wins; **no matching rule means `Unsupported`**.
 /// Channel defaults are materialized into real rules at provider creation (see
-/// [`crate::api::routing::seed_default_routing`]) — they are not recomputed here.
+/// the host's default-routing seeder) — they are not recomputed here.
 /// A `transform_to` rule whose `dest_kind` is missing is malformed and yields
 /// `Unsupported`.
 pub fn decide(rules: &[CompiledRoutingRule], source: OperationKey) -> RoutingDecision {

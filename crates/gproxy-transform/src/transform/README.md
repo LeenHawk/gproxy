@@ -28,15 +28,15 @@ Pair modules expose typed functions as they are implemented:
 ```rust
 pub fn request(input: SourceRequest, ctx: &TransformContext) -> Result<TargetRequest, TransformError>;
 pub fn response(input: SourceResponse, ctx: &TransformContext) -> Result<TargetResponse, TransformError>;
-pub fn stream_event(input: SourceStreamEvent, ctx: &TransformContext) -> Result<TargetStreamEvent, TransformError>;
+pub fn stream_event(input: SourceStreamEvent, ctx: &TransformContext) -> Result<Vec<TargetStreamEvent>, TransformError>;
 ```
 
 Only define functions that exist for that operation pair.
 
 `StreamGenerateContent` resolves through the same content-generation pair matrix
-as non-stream generation. Current `stream_event` functions are single-event,
-stateless conversions; any cross-event aggregation for block indexes, tool call
-identity, or final usage belongs in the runtime stream adapter.
+as non-stream generation. A frame may produce zero or many target events.
+Stateful pair modules expose `StreamTransform`; dispatch and the runtime adapter
+retain it across frames for tool-call identity, arguments, and final usage.
 
 If a pair grows past roughly 400-500 lines, split only that pair into:
 
@@ -59,7 +59,7 @@ pair_name/
   only.
 - `routing.rs` — compiled §8-B2 `routing_rules` + the
   passthrough/transform_to/local/unsupported decision.
-- `stream_adapter.rs` — the runtime SSE adapter (decode upstream frames →
-  `stream_event` per frame → encode inbound frames). Cross-event aggregation
-  state, when needed, belongs here.
+- `stream_adapter.rs` — the strict runtime SSE adapter (bounded decode →
+  stateful `0..N` conversion → encode inbound frames). It surfaces bad frames
+  and abnormal EOF instead of manufacturing a successful completion.
 - local operations (models list/get, count_tokens) short-circuit in the failover loop — see pipeline/local_ops.rs and src/tokenize/.

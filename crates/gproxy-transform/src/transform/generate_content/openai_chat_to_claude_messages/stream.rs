@@ -5,81 +5,103 @@ use super::super::common;
 
 pub fn stream_event(
     input: openai::ChatCompletionChunk,
-    _: &TransformContext,
-) -> Result<claude::StreamEvent, TransformError> {
-    Ok(chat_chunk_to_claude_event(input))
+    ctx: &TransformContext,
+) -> Result<Vec<claude::StreamEvent>, TransformError> {
+    StreamTransform.push(input, ctx)
 }
 
-fn chat_chunk_to_claude_event(input: openai::ChatCompletionChunk) -> claude::StreamEvent {
+#[derive(Default)]
+pub struct StreamTransform;
+
+impl StreamTransform {
+    pub fn push(
+        &mut self,
+        input: openai::ChatCompletionChunk,
+        _: &TransformContext,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        Ok(chat_chunk_to_claude_events(input))
+    }
+
+    pub fn finish(
+        &mut self,
+        _: &TransformContext,
+    ) -> Result<Vec<claude::StreamEvent>, TransformError> {
+        Ok(Vec::new())
+    }
+}
+
+fn chat_chunk_to_claude_events(input: openai::ChatCompletionChunk) -> Vec<claude::StreamEvent> {
     let id = input.id;
     let model = input.model;
     let usage = input.usage;
 
-    let Some(choice) = input.choices.into_iter().next() else {
+    if input.choices.is_empty() {
         return if usage.is_some() {
-            message_delta(None, common::completion_usage_to_claude_box(usage))
+            vec![message_delta(
+                None,
+                common::completion_usage_to_claude_box(usage),
+            )]
         } else {
-            ping()
+            Vec::new()
         };
-    };
+    }
 
-    let index = u64::from(choice.index);
-    let delta = choice.delta;
+    let mut out = Vec::new();
+    let choice_count = input.choices.len();
+    for choice in input.choices {
+        let index = u64::from(choice.index);
+        let delta = choice.delta;
 
-    if is_role_only_delta(&delta) {
-        return known(claude::KnownStreamEvent::MessageStart {
-            message: Box::new(claude::CreateMessageStartBody {
-                id,
-                type_: claude::MessageObjectType::Known(claude::MessageObjectTypeKnown::Message),
-                role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
-                content: Vec::new(),
-                model: common::openai_model_string(model).into(),
-                stop_reason: None,
-                stop_sequence: None,
-                usage: common::empty_claude_usage(),
+        if is_role_only_delta(&delta) {
+            out.push(known(claude::KnownStreamEvent::MessageStart {
+                message: Box::new(claude::CreateMessageStartBody {
+                    id: id.clone(),
+                    type_: claude::MessageObjectType::Known(
+                        claude::MessageObjectTypeKnown::Message,
+                    ),
+                    role: claude::AssistantRole::Known(claude::AssistantRoleKnown::Assistant),
+                    content: Vec::new(),
+                    model: common::openai_model_string(model.clone()).into(),
+                    stop_reason: None,
+                    stop_sequence: None,
+                    usage: common::empty_claude_usage(),
+                    extra: Default::default(),
+                }),
                 extra: Default::default(),
-            }),
-            extra: Default::default(),
-        });
-    }
-
-    if let Some(content) = delta.content.filter(|value| !value.is_empty()) {
-        return content_delta(index, claude_text_delta(content));
-    }
-
-    if let Some(reasoning) = delta.reasoning_content.filter(|value| !value.is_empty()) {
-        return content_delta(index, claude_thinking_delta(reasoning));
-    }
-
-    if let Some(refusal) = delta.refusal.filter(|value| !value.is_empty()) {
-        return content_delta(index, claude_text_delta(refusal));
-    }
-
-    if let Some(event) = delta
-        .tool_calls
-        .and_then(|tool_calls| tool_calls.into_iter().next())
-        .map(chat_tool_delta_to_claude)
-    {
-        return event;
-    }
-
-    if let Some(function_call) = delta.function_call {
-        if let Some(arguments) = function_call.arguments.filter(|value| !value.is_empty()) {
-            return content_delta(index, claude_input_json_delta(arguments));
+            }));
         }
-        if let Some(name) = function_call.name.filter(|value| !value.is_empty()) {
-            return tool_block_start(index, format!("call_{name}"), name);
+        if let Some(content) = delta.content.filter(|value| !value.is_empty()) {
+            out.push(content_delta(index, claude_text_delta(content)));
+        }
+        if let Some(reasoning) = delta.reasoning_content.filter(|value| !value.is_empty()) {
+            out.push(content_delta(index, claude_thinking_delta(reasoning)));
+        }
+        if let Some(refusal) = delta.refusal.filter(|value| !value.is_empty()) {
+            out.push(content_delta(index, claude_text_delta(refusal)));
+        }
+        if let Some(tool_calls) = delta.tool_calls {
+            for call in tool_calls {
+                out.extend(chat_tool_delta_to_claude(call));
+            }
+        }
+        if let Some(function_call) = delta.function_call {
+            if let Some(name) = function_call.name.filter(|value| !value.is_empty()) {
+                out.push(tool_block_start(index, format!("call_{name}"), name));
+            }
+            if let Some(arguments) = function_call.arguments.filter(|value| !value.is_empty()) {
+                out.push(content_delta(index, claude_input_json_delta(arguments)));
+            }
+        }
+        if let Some(finish_reason) = choice.finish_reason {
+            out.push(message_delta(
+                Some(common::chat_finish_reason_to_claude(finish_reason)),
+                (choice_count == 1)
+                    .then(|| common::completion_usage_to_claude_box(usage.clone()))
+                    .flatten(),
+            ));
         }
     }
-
-    if let Some(finish_reason) = choice.finish_reason {
-        return message_delta(
-            Some(common::chat_finish_reason_to_claude(finish_reason)),
-            common::completion_usage_to_claude_box(usage),
-        );
-    }
-
-    ping()
+    out
 }
 
 fn is_role_only_delta(delta: &openai::ChatDelta) -> bool {
@@ -95,35 +117,35 @@ fn is_role_only_delta(delta: &openai::ChatDelta) -> bool {
         && delta.function_call.is_none()
 }
 
-fn chat_tool_delta_to_claude(call: openai::ChatToolCallDelta) -> claude::StreamEvent {
+fn chat_tool_delta_to_claude(call: openai::ChatToolCallDelta) -> Vec<claude::StreamEvent> {
     let index = u64::from(call.index);
+    let mut out = Vec::new();
     if let Some(function) = call.function {
-        if let Some(arguments) = function.arguments.filter(|value| !value.is_empty()) {
-            return content_delta(index, claude_input_json_delta(arguments));
-        }
         if let Some(name) = function.name.filter(|value| !value.is_empty()) {
-            return tool_block_start(
+            out.push(tool_block_start(
                 index,
-                call.id.unwrap_or_else(|| format!("call_{index}")),
+                call.id.clone().unwrap_or_else(|| format!("call_{index}")),
                 name,
-            );
+            ));
+        }
+        if let Some(arguments) = function.arguments.filter(|value| !value.is_empty()) {
+            out.push(content_delta(index, claude_input_json_delta(arguments)));
         }
     }
 
     if let Some(custom) = call.custom {
-        if let Some(input) = custom.input.filter(|value| !value.is_empty()) {
-            return content_delta(index, claude_input_json_delta(input));
-        }
         if let Some(name) = custom.name.filter(|value| !value.is_empty()) {
-            return tool_block_start(
+            out.push(tool_block_start(
                 index,
                 call.id.unwrap_or_else(|| format!("call_{index}")),
                 name,
-            );
+            ));
+        }
+        if let Some(input) = custom.input.filter(|value| !value.is_empty()) {
+            out.push(content_delta(index, claude_input_json_delta(input)));
         }
     }
-
-    ping()
+    out
 }
 
 fn tool_block_start(index: u64, id: String, name: String) -> claude::StreamEvent {
@@ -187,12 +209,6 @@ fn message_delta(
             extra: Default::default(),
         }),
         usage,
-        extra: Default::default(),
-    })
-}
-
-fn ping() -> claude::StreamEvent {
-    known(claude::KnownStreamEvent::Ping {
         extra: Default::default(),
     })
 }

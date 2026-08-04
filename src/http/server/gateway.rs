@@ -277,11 +277,31 @@ async fn stream_outcome_to_websocket(
                 .await;
             }
         };
-        for message in decoder.push(&chunk) {
+        let messages = match decoder.push(&chunk) {
+            Ok(messages) => messages,
+            Err(error) => {
+                return send_frame(
+                    socket,
+                    WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string()).to_frame(),
+                )
+                .await;
+            }
+        };
+        for message in messages {
             send_frame(socket, message).await?;
         }
     }
-    for message in decoder.finish() {
+    let messages = match decoder.finish() {
+        Ok(messages) => messages,
+        Err(error) => {
+            return send_frame(
+                socket,
+                WsFrameError::plain(StatusCode::BAD_GATEWAY, &error.to_string()).to_frame(),
+            )
+            .await;
+        }
+    };
+    for message in messages {
         send_frame(socket, message).await?;
     }
     Ok(())

@@ -10,5 +10,5 @@ pub mod operation;
 pub use endpoint::*;
 pub use operation::{
     ContentGenerationKind, Endpoint, HttpMethod, Operation, OperationGroup, OperationKey,
-    OperationKind, Provider,
+    OperationKeyError, OperationKind, Provider,
 };
